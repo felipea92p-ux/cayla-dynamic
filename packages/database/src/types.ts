@@ -392,6 +392,7 @@ export type Database = {
           rol: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
           updated_at: string
+          visible_todas_sedes: boolean
         }
         Insert: {
           apellidos: string
@@ -408,6 +409,7 @@ export type Database = {
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
           updated_at?: string
+          visible_todas_sedes?: boolean
         }
         Update: {
           apellidos?: string
@@ -424,6 +426,7 @@ export type Database = {
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id?: string
           updated_at?: string
+          visible_todas_sedes?: boolean
         }
         Relationships: [
           {
@@ -579,8 +582,63 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fn_agregar_marcaje: {
+        Args: {
+          p_motivo: string
+          p_motivo_otro?: string
+          p_persona_id: string
+          p_tipo: Database["public"]["Enums"]["tipo_marca"]
+          p_ts: string
+        }
+        Returns: {
+          client_uuid: string
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       fn_auto_cierre: { Args: never; Returns: number }
+      fn_corregir_marcaje: {
+        Args: { p_marcaje_id: string; p_motivo: string; p_nuevo_ts: string }
+        Returns: {
+          client_uuid: string
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_eliminar_marcaje: {
+        Args: { p_marcaje_id: string; p_motivo: string }
+        Returns: undefined
+      }
       fn_es_admin_o_lider: { Args: never; Returns: boolean }
+      fn_exigir_admin: { Args: never; Returns: string }
       fn_persona_actual_id: { Args: never; Returns: string }
       fn_recalcular_jornada: {
         Args: { p_fecha: string; p_persona_id: string }

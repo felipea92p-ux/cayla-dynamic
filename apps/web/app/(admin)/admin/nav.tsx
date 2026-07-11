@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { useRolActual } from "@/lib/admin/use-rol";
 
 const LINKS = [
   { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/horas", label: "Horas" },
+  { href: "/admin/correcciones", label: "Correcciones", soloAdmin: true },
   { href: "/admin/equipo", label: "Equipo" },
   { href: "/admin/exportar", label: "Exportar CSV" },
 ];
@@ -14,6 +16,7 @@ const LINKS = [
 export function AdminNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const rol = useRolActual();
 
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
@@ -26,7 +29,7 @@ export function AdminNav() {
       <div className="flex items-center gap-6">
         <span className="font-semibold">Dynamic — CAYLA</span>
         <nav className="flex gap-4 text-sm">
-          {LINKS.map((l) => (
+          {LINKS.filter((l) => !l.soloAdmin || rol === "admin").map((l) => (
             <Link
               key={l.href}
               href={l.href}
