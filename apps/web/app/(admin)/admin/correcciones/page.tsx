@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TIPO_MARCA_LABELS, TIPOS_MARCA, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { useRolActual } from "@/lib/admin/use-rol";
+import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 
 const TZ = "America/Lima";
@@ -21,7 +21,8 @@ function construirTs(fecha: string, horaHHMM: string) {
   return `${fecha}T${horaHHMM}:00-05:00`;
 }
 
-interface Persona { id: string; nombres: string; apellidos: string; }
+interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
+const ROLES_ADMIN = ["admin", "lider_do"];
 interface Marcaje { id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string; origen: string; estado_revision: string; }
 interface Jornada { estado: string; horas_trabajadas: number | null; minutos_tarde: number | null; }
 
@@ -35,7 +36,8 @@ type Accion =
 
 export default function CorreccionesPage() {
   const router = useRouter();
-  const rol = useRolActual();
+  const yo = usePersonaActual();
+  const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [personaId, setPersonaId] = useState("");
   const [fecha, setFecha] = useState(fechaHoyLima());
@@ -61,7 +63,7 @@ export default function CorreccionesPage() {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace("/admin/login"); return; }
       const { data: p } = await supabase
-        .from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres");
+        .from("personas").select("id, nombres, apellidos, rol, sede_base_id").eq("estado", "activo").order("nombres");
       setPersonas((p as Persona[]) ?? []);
     });
   }, [router]);
@@ -125,15 +127,22 @@ export default function CorreccionesPage() {
   }
 
   const personaSel = useMemo(() => personas.find((p) => p.id === personaId), [personas, personaId]);
-  const esAdmin = rol === "admin";
+  const puedeCorregir = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
+  const esSupervisor = rol === "supervisor_sede";
 
-  if (rol !== null && !esAdmin) {
+  // Una encargada no puede corregir su propia asistencia ni la de un admin.
+  const personasCorregibles = useMemo(() => {
+    if (!esSupervisor || !yo) return personas;
+    return personas.filter((p) => p.id !== yo.id && !ROLES_ADMIN.includes(p.rol));
+  }, [personas, esSupervisor, yo]);
+
+  if (rol !== null && !puedeCorregir) {
     return (
       <div className="flex min-h-screen flex-col">
         <AdminNav />
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-neutral-500">
-            Solo los administradores pueden corregir marcajes. Si necesitas un cambio, pídeselo a Felipe o Carlos.
+            No tienes permiso para corregir marcajes. Si necesitas un cambio, pídeselo a Felipe o Carlos.
           </p>
         </main>
       </div>
@@ -155,7 +164,7 @@ export default function CorreccionesPage() {
             Persona
             <select value={personaId} onChange={(e) => { setPersonaId(e.target.value); setCargado(false); }} className="min-w-56 rounded-lg border bg-white px-3 py-2">
               <option value="">Elegir…</option>
-              {personas.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
+              {personasCorregibles.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
