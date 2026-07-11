@@ -78,6 +78,24 @@ export type Database = {
           },
         ]
       }
+      configuracion: {
+        Row: {
+          clave: string
+          descripcion: string | null
+          valor: Json
+        }
+        Insert: {
+          clave: string
+          descripcion?: string | null
+          valor: Json
+        }
+        Update: {
+          clave?: string
+          descripcion?: string | null
+          valor?: Json
+        }
+        Relationships: []
+      }
       correcciones_auditoria: {
         Row: {
           campo_modificado: string
@@ -364,6 +382,7 @@ export type Database = {
           auth_user_id: string | null
           created_at: string
           documento: string | null
+          email: string | null
           estado: string
           fecha_estado_cambio: string | null
           fecha_ingreso: string
@@ -379,6 +398,7 @@ export type Database = {
           auth_user_id?: string | null
           created_at?: string
           documento?: string | null
+          email?: string | null
           estado?: string
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
@@ -394,6 +414,7 @@ export type Database = {
           auth_user_id?: string | null
           created_at?: string
           documento?: string | null
+          email?: string | null
           estado?: string
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
@@ -558,6 +579,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fn_auto_cierre: { Args: never; Returns: number }
       fn_es_admin_o_lider: { Args: never; Returns: boolean }
       fn_persona_actual_id: { Args: never; Returns: string }
       fn_recalcular_jornada: {

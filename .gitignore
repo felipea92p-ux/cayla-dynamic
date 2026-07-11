@@ -12,3 +12,5 @@ supabase/.temp
 .expo
 # datos personales del equipo — nunca al repo
 scripts/datos-privados/
+.vercel
+.env*

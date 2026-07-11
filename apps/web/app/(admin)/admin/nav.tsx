@@ -6,6 +6,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 
 const LINKS = [
   { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/horas", label: "Horas" },
+  { href: "/admin/equipo", label: "Equipo" },
   { href: "/admin/exportar", label: "Exportar CSV" },
 ];
 
