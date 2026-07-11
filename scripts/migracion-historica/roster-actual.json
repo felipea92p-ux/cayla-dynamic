@@ -1,0 +1,23 @@
+[
+  { "nombres": "Felipe", "apellidos": "Alvarez", "sede": "TRU" },
+  { "nombres": "Janis", "apellidos": "Revilla", "sede": "TRU" },
+  { "nombres": "Chiara", "apellidos": "Flores", "sede": "TRU" },
+  { "nombres": "Danitza", "apellidos": "Gutiérrez", "sede": "TRU" },
+  { "nombres": "Keyla", "apellidos": "Ramos", "sede": "TRU" },
+  { "nombres": "Dayana", "apellidos": "Quispe", "sede": "TRU" },
+  { "nombres": "Melany", "apellidos": "Enriquez", "sede": "TRU" },
+  { "nombres": "Diana", "apellidos": "Palacios", "sede": "TRU" },
+  { "nombres": "Danixa", "apellidos": "Valverde", "sede": "TRU" },
+  { "nombres": "Angie", "apellidos": "Chavez", "sede": "TRU" },
+  { "nombres": "Carlos", "apellidos": "Espejo", "sede": "AQP" },
+  { "nombres": "Sandra", "apellidos": "Ramirez", "sede": "AQP" },
+  { "nombres": "Estefany", "apellidos": "Gómez", "sede": "AQP" },
+  { "nombres": "Paola", "apellidos": "Cahuana", "sede": "AQP" },
+  { "nombres": "Mateo", "apellidos": "Zarate", "sede": "AQP" },
+  { "nombres": "Sasha", "apellidos": "Fernandez", "sede": "AQP" },
+  { "nombres": "Luana", "apellidos": "Rodriguez", "sede": "AQP" },
+  { "nombres": "Claudia", "apellidos": "Solórzano", "sede": "AQP" },
+  { "nombres": "Raquel", "apellidos": "Ticona", "sede": "LIM" },
+  { "nombres": "Joselyn", "apellidos": "Gavilan", "sede": "LIM" },
+  { "nombres": "Judith", "apellidos": "Pillaca", "sede": "LIM" }
+]
