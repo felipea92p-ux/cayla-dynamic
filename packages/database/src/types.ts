@@ -1,0 +1,798 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  public: {
+    Tables: {
+      alertas: {
+        Row: {
+          canal: string
+          created_at: string
+          enviado_at: string | null
+          estado: string
+          id: string
+          leido_at: string | null
+          payload: Json
+          persona_id: string | null
+          tipo: string
+        }
+        Insert: {
+          canal: string
+          created_at?: string
+          enviado_at?: string | null
+          estado?: string
+          id?: string
+          leido_at?: string | null
+          payload?: Json
+          persona_id?: string | null
+          tipo: string
+        }
+        Update: {
+          canal?: string
+          created_at?: string
+          enviado_at?: string | null
+          estado?: string
+          id?: string
+          leido_at?: string | null
+          payload?: Json
+          persona_id?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      correcciones_auditoria: {
+        Row: {
+          campo_modificado: string
+          corregido_at: string
+          corregido_por: string
+          id: string
+          marcaje_id: string | null
+          motivo: string
+          persona_id: string
+          valor_anterior: string | null
+          valor_nuevo: string | null
+        }
+        Insert: {
+          campo_modificado: string
+          corregido_at?: string
+          corregido_por: string
+          id?: string
+          marcaje_id?: string | null
+          motivo: string
+          persona_id: string
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Update: {
+          campo_modificado?: string
+          corregido_at?: string
+          corregido_por?: string
+          id?: string
+          marcaje_id?: string | null
+          motivo?: string
+          persona_id?: string
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "correcciones_auditoria_corregido_por_fkey"
+            columns: ["corregido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "correcciones_auditoria_marcaje_id_fkey"
+            columns: ["marcaje_id"]
+            isOneToOne: false
+            referencedRelation: "marcajes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "correcciones_auditoria_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_sheets_sync_queue: {
+        Row: {
+          created_at: string
+          estado: string
+          id: string
+          intentos: number
+          jornada_id: string | null
+          last_error: string | null
+          marcaje_id: string | null
+          payload: Json
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          id?: string
+          intentos?: number
+          jornada_id?: string | null
+          last_error?: string | null
+          marcaje_id?: string | null
+          payload: Json
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          id?: string
+          intentos?: number
+          jornada_id?: string | null
+          last_error?: string | null
+          marcaje_id?: string | null
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_sheets_sync_queue_jornada_id_fkey"
+            columns: ["jornada_id"]
+            isOneToOne: false
+            referencedRelation: "jornadas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_sheets_sync_queue_marcaje_id_fkey"
+            columns: ["marcaje_id"]
+            isOneToOne: false
+            referencedRelation: "marcajes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      horarios_asignados: {
+        Row: {
+          almuerzo_max_minutos: number
+          almuerzo_min_minutos: number
+          created_at: string
+          dias_laborables: number[]
+          hora_entrada: string
+          hora_salida: string
+          horas_semana_objetivo: number
+          id: string
+          persona_id: string
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          almuerzo_max_minutos?: number
+          almuerzo_min_minutos?: number
+          created_at?: string
+          dias_laborables?: number[]
+          hora_entrada: string
+          hora_salida: string
+          horas_semana_objetivo?: number
+          id?: string
+          persona_id: string
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          almuerzo_max_minutos?: number
+          almuerzo_min_minutos?: number
+          created_at?: string
+          dias_laborables?: number[]
+          hora_entrada?: string
+          hora_salida?: string
+          horas_semana_objetivo?: number
+          id?: string
+          persona_id?: string
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "horarios_asignados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jornadas: {
+        Row: {
+          entrada_ts: string | null
+          estado: Database["public"]["Enums"]["estado_jornada"]
+          fecha: string
+          horas_extra_detectadas: number
+          horas_trabajadas: number | null
+          id: string
+          minutos_tarde: number | null
+          persona_id: string
+          salida_final_ts: string | null
+          sede_id: string | null
+          tiene_salida_no_retornada: boolean
+          updated_at: string
+        }
+        Insert: {
+          entrada_ts?: string | null
+          estado?: Database["public"]["Enums"]["estado_jornada"]
+          fecha: string
+          horas_extra_detectadas?: number
+          horas_trabajadas?: number | null
+          id?: string
+          minutos_tarde?: number | null
+          persona_id: string
+          salida_final_ts?: string | null
+          sede_id?: string | null
+          tiene_salida_no_retornada?: boolean
+          updated_at?: string
+        }
+        Update: {
+          entrada_ts?: string | null
+          estado?: Database["public"]["Enums"]["estado_jornada"]
+          fecha?: string
+          horas_extra_detectadas?: number
+          horas_trabajadas?: number | null
+          id?: string
+          minutos_tarde?: number | null
+          persona_id?: string
+          salida_final_ts?: string | null
+          sede_id?: string | null
+          tiene_salida_no_retornada?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jornadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jornadas_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marcajes: {
+        Row: {
+          client_uuid: string
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        Insert: {
+          client_uuid: string
+          estado_revision?: Database["public"]["Enums"]["estado_revision"]
+          id?: string
+          motivo_otro?: string | null
+          origen?: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at?: string
+          terminal_id?: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        Update: {
+          client_uuid?: string
+          estado_revision?: Database["public"]["Enums"]["estado_revision"]
+          id?: string
+          motivo_otro?: string | null
+          origen?: Database["public"]["Enums"]["origen_marca"]
+          persona_id?: string
+          sede_id?: string
+          server_received_at?: string
+          terminal_id?: string | null
+          timestamp_marca?: string
+          tipo?: Database["public"]["Enums"]["tipo_marca"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marcajes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcajes_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcajes_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      personas: {
+        Row: {
+          apellidos: string
+          auth_user_id: string | null
+          created_at: string
+          documento: string | null
+          estado: string
+          fecha_estado_cambio: string | null
+          fecha_ingreso: string
+          id: string
+          nombres: string
+          pin_hash: string
+          rol: Database["public"]["Enums"]["rol_usuario"]
+          sede_base_id: string
+          updated_at: string
+        }
+        Insert: {
+          apellidos: string
+          auth_user_id?: string | null
+          created_at?: string
+          documento?: string | null
+          estado?: string
+          fecha_estado_cambio?: string | null
+          fecha_ingreso?: string
+          id?: string
+          nombres: string
+          pin_hash: string
+          rol?: Database["public"]["Enums"]["rol_usuario"]
+          sede_base_id: string
+          updated_at?: string
+        }
+        Update: {
+          apellidos?: string
+          auth_user_id?: string | null
+          created_at?: string
+          documento?: string | null
+          estado?: string
+          fecha_estado_cambio?: string | null
+          fecha_ingreso?: string
+          id?: string
+          nombres?: string
+          pin_hash?: string
+          rol?: Database["public"]["Enums"]["rol_usuario"]
+          sede_base_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personas_sede_base_id_fkey"
+            columns: ["sede_base_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_tokens: {
+        Row: {
+          activo: boolean
+          expo_push_token: string
+          id: string
+          last_seen_at: string
+          persona_id: string
+          plataforma: string
+        }
+        Insert: {
+          activo?: boolean
+          expo_push_token: string
+          id?: string
+          last_seen_at?: string
+          persona_id: string
+          plataforma: string
+        }
+        Update: {
+          activo?: boolean
+          expo_push_token?: string
+          id?: string
+          last_seen_at?: string
+          persona_id?: string
+          plataforma?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sedes: {
+        Row: {
+          activa: boolean
+          codigo: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activa?: boolean
+          codigo: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activa?: boolean
+          codigo?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
+      tarifas_hora: {
+        Row: {
+          creado_por: string | null
+          created_at: string
+          id: string
+          nota: string | null
+          persona_id: string
+          tarifa_hora_soles: number
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          creado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          tarifa_hora_soles: number
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          creado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          tarifa_hora_soles?: number
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarifas_hora_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarifas_hora_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      terminales: {
+        Row: {
+          activo: boolean
+          auth_user_id: string | null
+          id: string
+          nombre_dispositivo: string
+          sede_id: string
+          ultimo_visto_at: string | null
+        }
+        Insert: {
+          activo?: boolean
+          auth_user_id?: string | null
+          id?: string
+          nombre_dispositivo: string
+          sede_id: string
+          ultimo_visto_at?: string | null
+        }
+        Update: {
+          activo?: boolean
+          auth_user_id?: string | null
+          id?: string
+          nombre_dispositivo?: string
+          sede_id?: string
+          ultimo_visto_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terminales_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      fn_es_admin_o_lider: { Args: never; Returns: boolean }
+      fn_persona_actual_id: { Args: never; Returns: string }
+      fn_recalcular_jornada: {
+        Args: { p_fecha: string; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_registrar_marcaje: {
+        Args: {
+          p_client_uuid: string
+          p_motivo_otro?: string
+          p_origen?: Database["public"]["Enums"]["origen_marca"]
+          p_persona_id: string
+          p_sede_id?: string
+          p_terminal_id?: string
+          p_timestamp_cliente: string
+          p_tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        Returns: {
+          client_uuid: string
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_rol_actual: {
+        Args: never
+        Returns: Database["public"]["Enums"]["rol_usuario"]
+      }
+      fn_sede_actual_persona: { Args: never; Returns: string }
+      fn_sede_actual_terminal: { Args: never; Returns: string }
+      fn_siguiente_tipo_esperado: {
+        Args: { p_fecha: string; p_persona_id: string }
+        Returns: Database["public"]["Enums"]["tipo_marca"]
+      }
+    }
+    Enums: {
+      estado_jornada:
+        | "abierta"
+        | "en_pausa"
+        | "cerrada"
+        | "auto_cerrada_pendiente"
+        | "revisada"
+      estado_revision: "normal" | "pendiente_revision" | "revisada"
+      origen_marca:
+        | "terminal"
+        | "admin_correccion"
+        | "auto_cierre"
+        | "import_historico"
+      rol_usuario: "integrante" | "supervisor_sede" | "lider_do" | "admin"
+      tipo_marca:
+        | "entrada"
+        | "salida_final"
+        | "salida_almuerzo"
+        | "retorno_almuerzo"
+        | "salida_personal"
+        | "retorno_personal"
+        | "salida_tramite"
+        | "retorno_tramite"
+        | "salida_medico"
+        | "retorno_medico"
+        | "salida_otro"
+        | "retorno_otro"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {
+      estado_jornada: [
+        "abierta",
+        "en_pausa",
+        "cerrada",
+        "auto_cerrada_pendiente",
+        "revisada",
+      ],
+      estado_revision: ["normal", "pendiente_revision", "revisada"],
+      origen_marca: [
+        "terminal",
+        "admin_correccion",
+        "auto_cierre",
+        "import_historico",
+      ],
+      rol_usuario: ["integrante", "supervisor_sede", "lider_do", "admin"],
+      tipo_marca: [
+        "entrada",
+        "salida_final",
+        "salida_almuerzo",
+        "retorno_almuerzo",
+        "salida_personal",
+        "retorno_personal",
+        "salida_tramite",
+        "retorno_tramite",
+        "salida_medico",
+        "retorno_medico",
+        "salida_otro",
+        "retorno_otro",
+      ],
+    },
+  },
+} as const
+

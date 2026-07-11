@@ -1,0 +1,14 @@
+node_modules
+.next
+.turbo
+dist
+.env
+.env.local
+.env*.local
+.DS_Store
+supabase/.branches
+supabase/.temp
+*.log
+.expo
+# datos personales del equipo — nunca al repo
+scripts/datos-privados/
