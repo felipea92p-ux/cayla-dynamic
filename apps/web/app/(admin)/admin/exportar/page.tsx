@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { AdminNav } from "../nav";
 
 function fechaHoyISO() {
   return new Date().toISOString().slice(0, 10);
@@ -18,7 +19,7 @@ export default function ExportarPage() {
     setCargando(true);
     setError(null);
 
-    const supabase = createBrowserSupabaseClient();
+    const supabase = createAdminSupabaseClient();
     const { data, error } = await supabase
       .from("jornadas")
       .select("fecha, entrada_ts, salida_final_ts, minutos_tarde, horas_trabajadas, estado, personas(nombres, apellidos), sedes(codigo)")
@@ -61,7 +62,9 @@ export default function ExportarPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+    <div className="flex min-h-screen flex-col">
+      <AdminNav />
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <h1 className="text-xl font-semibold">Exportar asistencia (CSV)</h1>
       <div className="flex items-end gap-4">
         <label className="flex flex-col gap-1 text-sm">
@@ -95,6 +98,7 @@ export default function ExportarPage() {
         Incluye a todas las personas y sedes visibles para tu rol. Ábrelo directamente con Excel o
         Google Sheets.
       </p>
+      </div>
     </div>
   );
 }

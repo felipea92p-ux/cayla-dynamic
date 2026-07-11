@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { refrescarInfoTerminal } from "@/lib/terminal/terminal-info";
 
 export default function VincularTerminalPage() {
@@ -17,7 +17,7 @@ export default function VincularTerminalPage() {
     setCargando(true);
     setError(null);
 
-    const supabase = createBrowserSupabaseClient();
+    const supabase = createTerminalSupabaseClient();
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (authError) {

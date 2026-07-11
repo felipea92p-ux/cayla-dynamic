@@ -1,4 +1,4 @@
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { determinarSiguienteAccion, type MarcajeDelDia, type SiguienteAccion } from "@cayla-dynamic/shared";
 import { obtenerPendientes } from "./offline-db";
 
@@ -11,7 +11,7 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
   const mapa = new Map<string, MarcajeDelDia[]>();
 
   if (typeof navigator !== "undefined" && navigator.onLine) {
-    const supabase = createBrowserSupabaseClient();
+    const supabase = createTerminalSupabaseClient();
     const inicioDia = `${fechaLimaHoy()}T00:00:00-05:00`;
     const { data } = await supabase
       .from("marcajes")

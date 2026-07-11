@@ -2,13 +2,13 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 
 export default function TerminalIndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const supabase = createBrowserSupabaseClient();
+    const supabase = createTerminalSupabaseClient();
     supabase.auth.getSession().then(({ data }) => {
       router.replace(data.session ? "/terminal/marcar" : "/terminal/vincular");
     });

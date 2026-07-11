@@ -1,4 +1,4 @@
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { guardarRoster, obtenerRoster, type RosterEntry } from "./offline-db";
 
 /** RLS ya acota el resultado a la sede del terminal autenticado (ver personas_select_terminal_roster). */
@@ -7,7 +7,7 @@ export async function cargarRoster(): Promise<RosterEntry[]> {
     return obtenerRoster();
   }
 
-  const supabase = createBrowserSupabaseClient();
+  const supabase = createTerminalSupabaseClient();
   const { data, error } = await supabase
     .from("personas")
     .select("id, nombres, apellidos, pin_hash")

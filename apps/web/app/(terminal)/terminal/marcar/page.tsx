@@ -7,7 +7,7 @@ import {
   type MarcajeDelDia,
   type TipoMarca,
 } from "@cayla-dynamic/shared";
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { type RosterEntry, encolarMarcaje } from "@/lib/terminal/offline-db";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
@@ -49,7 +49,7 @@ export default function MarcarPage() {
   }, []);
 
   useEffect(() => {
-    const supabase = createBrowserSupabaseClient();
+    const supabase = createTerminalSupabaseClient();
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) {
         router.replace("/terminal/vincular");
@@ -157,7 +157,7 @@ export default function MarcarPage() {
 
     let sincronizadoAhora = false;
     if (navigator.onLine) {
-      const supabase = createBrowserSupabaseClient();
+      const supabase = createTerminalSupabaseClient();
       const { error } = await supabase.rpc("fn_registrar_marcaje", {
         p_persona_id: entry.personaId,
         p_tipo: entry.tipo,

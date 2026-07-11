@@ -1,4 +1,4 @@
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 
 export interface TerminalInfo {
   id: string;
@@ -20,7 +20,7 @@ function guardarInfoTerminalCacheada(info: TerminalInfo) {
 
 /** Se llama una vez tras vincular el dispositivo; requiere estar online. */
 export async function refrescarInfoTerminal(): Promise<TerminalInfo | null> {
-  const supabase = createBrowserSupabaseClient();
+  const supabase = createTerminalSupabaseClient();
   const { data, error } = await supabase
     .from("terminales")
     .select("id, sedes(codigo, nombre)")

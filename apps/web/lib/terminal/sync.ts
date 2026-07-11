@@ -1,4 +1,4 @@
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { obtenerPendientes, eliminarDeOutbox, registrarIntentoFallido } from "./offline-db";
 
 let sincronizando = false;
@@ -12,7 +12,7 @@ export async function sincronizarPendientes() {
     const pendientes = await obtenerPendientes();
     if (pendientes.length === 0) return;
 
-    const supabase = createBrowserSupabaseClient();
+    const supabase = createTerminalSupabaseClient();
     for (const entry of pendientes) {
       const { error } = await supabase.rpc("fn_registrar_marcaje", {
         p_persona_id: entry.personaId,

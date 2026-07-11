@@ -1,22 +1,37 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
-let browserClient: SupabaseClient<Database> | undefined;
-
 /**
- * Cliente para Client Components (terminal y admin) — respeta RLS del usuario/terminal
- * autenticado. Todas las pantallas de este MVP son "use client" con sesión
- * persistida en localStorage (comportamiento por defecto), así que no se necesita
- * el manejo de cookies SSR de @supabase/ssr.
+ * Sesiones SEPARADAS por superficie: el terminal de marcaje y el panel admin
+ * guardan su sesión bajo claves distintas de localStorage. Así, si una
+ * supervisora entra al panel desde la Mac mini de su sede, NO desconecta la
+ * sesión del terminal de marcaje (y viceversa).
+ *
+ * Todas las pantallas de este MVP son "use client" con sesión en localStorage,
+ * así que no se necesita el manejo de cookies SSR de @supabase/ssr.
  */
-export function createBrowserSupabaseClient(): SupabaseClient<Database> {
-  if (!browserClient) {
-    browserClient = createClient<Database>(
+
+const clientes: Partial<Record<string, SupabaseClient<Database>>> = {};
+
+function crearClienteConAlmacen(storageKey: string): SupabaseClient<Database> {
+  if (!clientes[storageKey]) {
+    clientes[storageKey] = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { storageKey } },
     );
   }
-  return browserClient;
+  return clientes[storageKey]!;
+}
+
+/** Cliente del TERMINAL de marcaje (sesión persistente del dispositivo fijo de la sede). */
+export function createTerminalSupabaseClient(): SupabaseClient<Database> {
+  return crearClienteConAlmacen("cayla-auth-terminal");
+}
+
+/** Cliente del PANEL DE ADMINISTRACIÓN (sesión personal de admin/supervisor). */
+export function createAdminSupabaseClient(): SupabaseClient<Database> {
+  return crearClienteConAlmacen("cayla-auth-admin");
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserSupabaseClient } from "@cayla-dynamic/database";
+import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -15,14 +15,14 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setCargando(true);
     setError(null);
-    const supabase = createBrowserSupabaseClient();
+    const supabase = createAdminSupabaseClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setCargando(false);
     if (error) {
       setError("Correo o contraseña incorrectos.");
       return;
     }
-    router.replace("/admin/exportar");
+    router.replace("/admin/dashboard");
   }
 
   return (
