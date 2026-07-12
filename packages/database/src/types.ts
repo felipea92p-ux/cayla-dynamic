@@ -640,6 +640,10 @@ export type Database = {
       fn_es_admin_o_lider: { Args: never; Returns: boolean }
       fn_exigir_admin: { Args: never; Returns: string }
       fn_persona_actual_id: { Args: never; Returns: string }
+      fn_quitar_horario: {
+        Args: { p_desde: string; p_persona_id: string }
+        Returns: undefined
+      }
       fn_recalcular_jornada: {
         Args: { p_fecha: string; p_persona_id: string }
         Returns: undefined
@@ -681,9 +685,24 @@ export type Database = {
       }
       fn_sede_actual_persona: { Args: never; Returns: string }
       fn_sede_actual_terminal: { Args: never; Returns: string }
+      fn_set_horario: {
+        Args: {
+          p_almuerzo_max?: number
+          p_almuerzo_min?: number
+          p_hora_entrada: string
+          p_hora_salida: string
+          p_persona_id: string
+          p_vigente_desde: string
+        }
+        Returns: undefined
+      }
       fn_siguiente_tipo_esperado: {
         Args: { p_fecha: string; p_persona_id: string }
         Returns: Database["public"]["Enums"]["tipo_marca"]
+      }
+      fn_verificar_corrector: {
+        Args: { p_persona_objetivo: string }
+        Returns: string
       }
     }
     Enums: {
