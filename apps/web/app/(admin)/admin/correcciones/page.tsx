@@ -45,6 +45,7 @@ export default function CorreccionesPage() {
   const [jornada, setJornada] = useState<Jornada | null>(null);
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   // edición local de horas por marcaje
@@ -90,6 +91,27 @@ export default function CorreccionesPage() {
     setCargado(true);
     setCargando(false);
   }, [personaId, fecha]);
+
+  // Deep-link: al llegar con ?persona=<id>&fecha=<YYYY-MM-DD> (desde un incidente del
+  // dashboard), precarga esa persona y fecha y abre el día listo para corregir.
+  useEffect(() => {
+    if (personas.length === 0) return;
+    const sp = new URLSearchParams(window.location.search);
+    const pid = sp.get("persona");
+    const f = sp.get("fecha");
+    if (pid) {
+      setPersonaId(pid);
+      if (f) setFecha(f);
+      setAutoCargar(true);
+    }
+  }, [personas]);
+
+  useEffect(() => {
+    if (autoCargar && personaId) {
+      void cargarDia();
+      setAutoCargar(false);
+    }
+  }, [autoCargar, personaId, cargarDia]);
 
   function avisar(tipo: "ok" | "error", texto: string) { setMensaje({ tipo, texto }); }
 

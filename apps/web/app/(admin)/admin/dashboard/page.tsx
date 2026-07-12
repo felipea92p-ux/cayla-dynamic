@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 
@@ -97,6 +98,9 @@ export default function DashboardPage() {
   }, [cargar]);
 
   const sedes = [...new Set(filas.map((f) => f.sede))].sort();
+  const hoy = fechaLimaHoy();
+  // Un incidente (tardanza, auto-cierre) enlaza directo a Corregir de esa persona/fecha.
+  const linkCorregir = (personaId: string) => `/admin/correcciones?persona=${personaId}&fecha=${hoy}`;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -153,14 +157,22 @@ export default function DashboardPage() {
                         <tr key={f.personaId} className="border-t border-sand">
                           <td className="px-4 py-2.5">{f.nombre}</td>
                           <td className="px-4 py-2.5">
-                            <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>
+                            {f.estado === "auto_cerrada_pendiente" ? (
+                              <Link href={linkCorregir(f.personaId)} className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase} transition-opacity hover:opacity-80`}>
+                                {estilo.label} ›
+                              </Link>
+                            ) : (
+                              <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
                           <td className="px-4 py-2.5">
                             {f.minutosTarde === null || f.minutosTarde === 0 ? (
                               <span className="text-taupe/40">—</span>
                             ) : (
-                              <span className="font-semibold text-rojo">{f.minutosTarde} min</span>
+                              <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
+                                {f.minutosTarde} min
+                              </Link>
                             )}
                           </td>
                           <td className="px-4 py-2.5">{horaLima(f.salidaFinal)}</td>

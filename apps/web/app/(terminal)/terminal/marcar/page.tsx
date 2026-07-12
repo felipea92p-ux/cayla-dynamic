@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   TIPO_MARCA_LABELS,
+  sugerirSalidaPrincipal,
   type MarcajeDelDia,
   type TipoMarca,
 } from "@cayla-dynamic/shared";
@@ -28,6 +29,15 @@ import {
 
 type Pantalla = "lista" | "pin" | "elegir_salida" | "motivo_otro" | "confirmando" | "mensaje";
 
+type OpcionSalida = { tipo: TipoMarca; motivoRequerido: boolean; label: string };
+type SalidaConfig = { principal: OpcionSalida; secundaria: OpcionSalida | null; otras: OpcionSalida[] };
+
+// Etiquetas amables para las dos acciones principales del menú de salida.
+const LABEL_PRINCIPAL: Partial<Record<TipoMarca, string>> = {
+  salida_almuerzo: "Salgo a refrigerio",
+  salida_final: "Me voy — salida final",
+};
+
 const SEGUNDOS_CONFIRMACION = 3;
 const SEGUNDOS_MENSAJE = 2.5;
 
@@ -42,7 +52,7 @@ export default function MarcarPage() {
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
   const [errorPin, setErrorPin] = useState<string | null>(null);
   const [intentosPin, setIntentosPin] = useState(0);
-  const [opciones, setOpciones] = useState<Array<{ tipo: TipoMarca; motivoRequerido: boolean; label: string }>>([]);
+  const [salidaConfig, setSalidaConfig] = useState<SalidaConfig | null>(null);
   const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
@@ -84,7 +94,7 @@ export default function MarcarPage() {
     setPersonaActual(null);
     setErrorPin(null);
     setIntentosPin(0);
-    setOpciones([]);
+    setSalidaConfig(null);
     setAccionPendiente(null);
     void cargarTodo();
   }
@@ -136,9 +146,27 @@ export default function MarcarPage() {
       return;
     }
 
-    setOpciones(
-      accion.opciones.map((op) => ({ ...op, label: TIPO_MARCA_LABELS[op.tipo] })),
-    );
+    // Menú de salida simplificado: 1 acción sugerida (según hora + si ya almorzó hoy),
+    // la otra principal como secundaria, y el resto de motivos bajo "otra salida".
+    const mk = (tipo: TipoMarca, motivoRequerido: boolean, label?: string): OpcionSalida => ({
+      tipo,
+      motivoRequerido,
+      label: label ?? TIPO_MARCA_LABELS[tipo],
+    });
+    const yaAlmorzo = marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
+    const sugerida = sugerirSalidaPrincipal(marcajesHoy, new Date());
+    const almuerzo = mk("salida_almuerzo", false, LABEL_PRINCIPAL.salida_almuerzo);
+    const final = mk("salida_final", false, LABEL_PRINCIPAL.salida_final);
+    const principal = sugerida === "salida_almuerzo" ? almuerzo : final;
+    const secundaria = yaAlmorzo ? null : sugerida === "salida_almuerzo" ? final : almuerzo;
+    const otras: OpcionSalida[] = [
+      mk("salida_personal", false),
+      mk("salida_tramite", false),
+      mk("salida_medico", false),
+      mk("salida_otro", true),
+      ...(yaAlmorzo ? [almuerzo] : []),
+    ];
+    setSalidaConfig({ principal, secundaria, otras });
     setPantalla("elegir_salida");
   }
 
@@ -257,10 +285,12 @@ export default function MarcarPage() {
           />
         )}
 
-        {pantalla === "elegir_salida" && personaActual && (
+        {pantalla === "elegir_salida" && personaActual && salidaConfig && (
           <SelectorSalida
             nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-            opciones={opciones}
+            principal={salidaConfig.principal}
+            secundaria={salidaConfig.secundaria}
+            otras={salidaConfig.otras}
             onElegir={elegirTipoSalida}
             onCancelar={volverALista}
           />

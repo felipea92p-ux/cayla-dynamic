@@ -58,3 +58,28 @@ export function determinarSiguienteAccion(marcajesHoy: MarcajeDelDia[]): Siguien
   // retorno, y no ha marcado salida final. Debe elegir qué tipo de salida.
   return { modo: "elegir_salida", opciones: OPCIONES_SALIDA };
 }
+
+/**
+ * Sugiere la salida PRINCIPAL a destacar (refrigerio vs salida final) según la hora
+ * local y si la persona ya almorzó hoy — para que el terminal muestre una acción
+ * obvia en vez de un menú de 6 opciones iguales. No cambia qué es válido (todas las
+ * salidas siguen permitidas por fn_registrar_marcaje); solo qué se sugiere.
+ *
+ *  - Si ya almorzó hoy → salida final.
+ *  - Si es mediodía (11–16h Lima), lleva ≥2h adentro y aún no almorzó → refrigerio.
+ *  - En cualquier otro caso (temprano, tarde, o turno corto) → salida final.
+ */
+export function sugerirSalidaPrincipal(
+  marcajesHoy: MarcajeDelDia[],
+  ahora: Date,
+): "salida_almuerzo" | "salida_final" {
+  if (marcajesHoy.some((m) => m.tipo === "salida_almuerzo")) return "salida_final";
+  const entrada = marcajesHoy.find((m) => m.tipo === "entrada");
+  const horasDentro = entrada ? (ahora.getTime() - new Date(entrada.timestamp).getTime()) / 3_600_000 : 0;
+  const horaLima = parseInt(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "America/Lima", hour: "2-digit", hour12: false }).format(ahora),
+    10,
+  );
+  if (horaLima >= 11 && horaLima < 16 && horasDentro >= 2) return "salida_almuerzo";
+  return "salida_final";
+}

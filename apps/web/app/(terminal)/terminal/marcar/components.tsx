@@ -132,31 +132,61 @@ export function TecladoPin({
   );
 }
 
+type OpcionSalida = { tipo: TipoMarca; motivoRequerido: boolean; label: string };
+
+// Menú de salida asertivo: una acción principal sugerida (grande), la otra opción
+// principal como secundaria, y las salidas por motivo escondidas bajo "otra salida".
 export function SelectorSalida({
   nombre,
-  opciones,
+  principal,
+  secundaria,
+  otras,
   onElegir,
   onCancelar,
 }: {
   nombre: string;
-  opciones: Array<{ tipo: TipoMarca; motivoRequerido: boolean; label: string }>;
+  principal: OpcionSalida;
+  secundaria: OpcionSalida | null;
+  otras: OpcionSalida[];
   onElegir: (tipo: TipoMarca, motivoRequerido: boolean) => void;
   onCancelar: () => void;
 }) {
+  const [mostrarOtras, setMostrarOtras] = useState(false);
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
       <p className="font-serif text-2xl">{nombre}</p>
-      <p className="text-sm text-taupe">¿A qué sales?</p>
-      <div className="grid w-full max-w-sm grid-cols-1 gap-3">
-        {opciones.map((op) => (
+      <div className="flex w-full max-w-sm flex-col gap-3">
+        <button
+          onClick={() => onElegir(principal.tipo, principal.motivoRequerido)}
+          className={`${BTN_PRIMARIO} py-5 text-xl`}
+        >
+          {principal.label}
+        </button>
+        {secundaria && (
           <button
-            key={op.tipo}
-            onClick={() => onElegir(op.tipo, op.motivoRequerido)}
-            className={`${TILE} px-5 py-4 text-left text-lg`}
+            onClick={() => onElegir(secundaria.tipo, secundaria.motivoRequerido)}
+            className={`${TILE} px-5 py-4 text-lg`}
           >
-            {op.label}
+            {secundaria.label}
           </button>
-        ))}
+        )}
+        {mostrarOtras ? (
+          <div className="mt-1 flex flex-col gap-2">
+            {otras.map((op) => (
+              <button
+                key={op.tipo}
+                onClick={() => onElegir(op.tipo, op.motivoRequerido)}
+                className={`${TILE} px-5 py-3 text-left`}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button onClick={() => setMostrarOtras(true)} className="mt-1 text-sm text-taupe underline">
+            Otra salida (personal, médico, trámite…)
+          </button>
+        )}
       </div>
       <button onClick={onCancelar} className="text-sm text-taupe underline">
         Cancelar
