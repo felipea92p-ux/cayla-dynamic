@@ -9,7 +9,7 @@ import {
   type TipoMarca,
 } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
-import { type RosterEntry, encolarMarcaje } from "@/lib/terminal/offline-db";
+import { type RosterEntry, encolarMarcaje, obtenerPendientes } from "@/lib/terminal/offline-db";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { verificarPin } from "@/lib/terminal/pin";
@@ -79,6 +79,7 @@ export default function MarcarPage() {
   const [intentosPin, setIntentosPin] = useState(0);
   const [salidaConfig, setSalidaConfig] = useState<SalidaConfig | null>(null);
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
+  const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
   const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
@@ -116,6 +117,14 @@ export default function MarcarPage() {
     const detener = iniciarSincronizacionPeriodica();
     return detener;
   }, [router, cargarTodo]);
+
+  // Vigila cuántas marcas quedan sin enviar al servidor (para el aviso visible).
+  useEffect(() => {
+    const revisar = () => obtenerPendientes().then((p) => setPendientesSinEnviar(p.length)).catch(() => {});
+    revisar();
+    const t = setInterval(revisar, 4000);
+    return () => clearInterval(t);
+  }, []);
 
   function volverALista() {
     confirmandoRef.current = false;
@@ -318,7 +327,14 @@ export default function MarcarPage() {
     <div className="flex flex-1 flex-col">
       <header className="flex items-center justify-between border-b border-sand px-6 py-4">
         <Marca tono="tinta" isotipo="rojo" />
-        <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
+        <div className="flex items-center gap-3">
+          {pendientesSinEnviar > 0 && (
+            <span className="rounded-full bg-ambar/15 px-3 py-1 text-xs font-medium text-ambar">
+              ⟳ {pendientesSinEnviar} sin enviar
+            </span>
+          )}
+          <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center p-6">
