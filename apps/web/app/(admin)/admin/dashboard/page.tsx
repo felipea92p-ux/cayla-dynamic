@@ -94,7 +94,16 @@ export default function DashboardPage() {
   useEffect(() => {
     void cargar();
     const t = setInterval(() => void cargar(), REFRESCO_MS);
-    return () => clearInterval(t);
+    // Refrescar también al volver a la pestaña (los navegadores pausan el interval en
+    // segundo plano; así un cambio reciente —ej. una persona nueva— aparece al regresar).
+    const alVolver = () => { if (document.visibilityState === "visible") void cargar(); };
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("focus", alVolver);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("focus", alVolver);
+    };
   }, [cargar]);
 
   const sedes = [...new Set(filas.map((f) => f.sede))].sort();
