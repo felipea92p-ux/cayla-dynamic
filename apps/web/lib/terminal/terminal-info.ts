@@ -4,6 +4,7 @@ export interface TerminalInfo {
   id: string;
   sedeCodigo: string;
   sedeNombre: string;
+  requierePin: boolean;
 }
 
 const STORAGE_KEY = "cayla-terminal-info";
@@ -23,7 +24,7 @@ export async function refrescarInfoTerminal(): Promise<TerminalInfo | null> {
   const supabase = createTerminalSupabaseClient();
   const { data, error } = await supabase
     .from("terminales")
-    .select("id, sedes(codigo, nombre)")
+    .select("id, requiere_pin, sedes(codigo, nombre)")
     .single();
 
   if (error || !data) return null;
@@ -33,6 +34,7 @@ export async function refrescarInfoTerminal(): Promise<TerminalInfo | null> {
     id: data.id as string,
     sedeCodigo: sede?.codigo ?? "?",
     sedeNombre: sede?.nombre ?? "?",
+    requierePin: (data as { requiere_pin?: boolean }).requiere_pin ?? true,
   };
   guardarInfoTerminalCacheada(info);
   return info;

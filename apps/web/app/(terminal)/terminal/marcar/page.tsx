@@ -56,7 +56,10 @@ export default function MarcarPage() {
         router.replace("/terminal/vincular");
         return;
       }
-      const info = leerInfoTerminalCacheada() ?? (await refrescarInfoTerminal());
+      // Preferir info fresca (trae el ajuste de PIN actualizado); usar caché solo sin conexión.
+      const info = (typeof navigator !== "undefined" && navigator.onLine
+        ? await refrescarInfoTerminal()
+        : null) ?? leerInfoTerminalCacheada();
       setTerminal(info);
       await cargarTodo();
     });
@@ -79,6 +82,12 @@ export default function MarcarPage() {
   function seleccionarPersona(persona: RosterEntry) {
     setPersonaActual(persona);
     setErrorPin(null);
+    // En terminales de confianza (sin PIN) se salta directo a la acción.
+    // Solo se salta si el terminal lo pide EXPLÍCITAMENTE (por seguridad, ante duda se pide PIN).
+    if (terminal && terminal.requierePin === false) {
+      continuarConPersona(persona);
+      return;
+    }
     setPantalla("pin");
   }
 
@@ -97,8 +106,12 @@ export default function MarcarPage() {
       setErrorPin("PIN incorrecto, intenta de nuevo.");
       return;
     }
+    continuarConPersona(personaActual);
+  }
 
-    const marcajesHoy = marcajesHoyRef.current.get(personaActual.id) ?? [];
+  // Determina y presenta la siguiente acción de la persona (tras autenticar, o directo si el terminal no pide PIN).
+  function continuarConPersona(persona: RosterEntry) {
+    const marcajesHoy = marcajesHoyRef.current.get(persona.id) ?? [];
     const accion = siguienteAccionPara(marcajesHoy);
 
     if (accion.modo === "cerrado") {

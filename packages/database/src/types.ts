@@ -548,6 +548,7 @@ export type Database = {
           auth_user_id: string | null
           id: string
           nombre_dispositivo: string
+          requiere_pin: boolean
           sede_id: string
           ultimo_visto_at: string | null
         }
@@ -556,6 +557,7 @@ export type Database = {
           auth_user_id?: string | null
           id?: string
           nombre_dispositivo: string
+          requiere_pin?: boolean
           sede_id: string
           ultimo_visto_at?: string | null
         }
@@ -564,6 +566,7 @@ export type Database = {
           auth_user_id?: string | null
           id?: string
           nombre_dispositivo?: string
+          requiere_pin?: boolean
           sede_id?: string
           ultimo_visto_at?: string | null
         }
