@@ -20,14 +20,24 @@ import { RelojCentral } from "@/components/reloj";
 import {
   ConfirmacionToast,
   FormularioMotivoOtro,
+  MotivoReentrada,
   NombreGrid,
+  PantallaCerrado,
   PantallaMensaje,
   SelectorSalida,
   SelectorSede,
   TecladoPin,
 } from "./components";
 
-type Pantalla = "lista" | "pin" | "elegir_salida" | "motivo_otro" | "confirmando" | "mensaje";
+type Pantalla =
+  | "lista"
+  | "pin"
+  | "elegir_salida"
+  | "motivo_otro"
+  | "confirmando"
+  | "mensaje"
+  | "cerrado"
+  | "motivo_reentrada";
 
 type OpcionSalida = { tipo: TipoMarca; motivoRequerido: boolean; label: string };
 type SalidaConfig = { principal: OpcionSalida; secundaria: OpcionSalida | null; otras: OpcionSalida[] };
@@ -41,6 +51,21 @@ const LABEL_PRINCIPAL: Partial<Record<TipoMarca, string>> = {
 const SEGUNDOS_CONFIRMACION = 3;
 const SEGUNDOS_MENSAJE = 2.5;
 
+function horaCorta(iso: string): string {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(iso));
+}
+
+function historialDelDia(marks: MarcajeDelDia[]): Array<{ label: string; hora: string }> {
+  return [...marks]
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+    .map((m) => ({ label: TIPO_MARCA_LABELS[m.tipo], hora: horaCorta(m.timestamp) }));
+}
+
 export default function MarcarPage() {
   const router = useRouter();
   const [terminal, setTerminal] = useState<TerminalInfo | null>(null);
@@ -53,6 +78,7 @@ export default function MarcarPage() {
   const [errorPin, setErrorPin] = useState<string | null>(null);
   const [intentosPin, setIntentosPin] = useState(0);
   const [salidaConfig, setSalidaConfig] = useState<SalidaConfig | null>(null);
+  const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
@@ -139,9 +165,9 @@ export default function MarcarPage() {
     const accion = siguienteAccionPara(marcajesHoy);
 
     if (accion.modo === "cerrado") {
-      setMensaje(accion.mensaje);
-      setPantalla("mensaje");
-      setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
+      // En vez de un callejón sin salida, muestra el historial y ofrece reabrir.
+      setHistorialCerrado(historialDelDia(marcajesHoy));
+      setPantalla("cerrado");
       return;
     }
 
@@ -186,6 +212,34 @@ export default function MarcarPage() {
   function confirmarMotivoOtro(motivo: string) {
     if (!accionPendiente) return;
     prepararConfirmacion({ tipo: accionPendiente.tipo, motivoOtro: motivo });
+  }
+
+  // Reabre el día (tras salida final) vía la ruta segura del servidor.
+  async function reabrirDia(motivo: string) {
+    if (!personaActual) return;
+    const supabase = createTerminalSupabaseClient();
+    const { data } = await supabase.auth.getSession();
+    let ok = false;
+    try {
+      const res = await fetch("/api/reabrir-dia", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${data.session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ personaId: personaActual.id, motivo }),
+      });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
+    setMensaje(
+      ok
+        ? `Listo, ${personaActual.nombres} — tu día está abierto de nuevo.`
+        : "No se pudo reabrir. Intenta otra vez o avisa a tu encargada.",
+    );
+    setPantalla("mensaje");
+    setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
   }
 
   function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string }) {
@@ -298,6 +352,19 @@ export default function MarcarPage() {
             onElegir={elegirTipoSalida}
             onCancelar={volverALista}
           />
+        )}
+
+        {pantalla === "cerrado" && personaActual && (
+          <PantallaCerrado
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            historial={historialCerrado}
+            onVolviAEntrar={() => setPantalla("motivo_reentrada")}
+            onCancelar={volverALista}
+          />
+        )}
+
+        {pantalla === "motivo_reentrada" && personaActual && (
+          <MotivoReentrada onElegir={reabrirDia} onCancelar={volverALista} />
         )}
 
         {pantalla === "motivo_otro" && (

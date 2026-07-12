@@ -276,6 +276,72 @@ export function ConfirmacionToast({
   );
 }
 
+// Día ya cerrado (marcó salida final). En vez de un callejón sin salida, muestra su
+// historial del día y ofrece reabrir si de verdad volvió a entrar.
+export function PantallaCerrado({
+  nombre,
+  historial,
+  onVolviAEntrar,
+  onCancelar,
+}: {
+  nombre: string;
+  historial: Array<{ label: string; hora: string }>;
+  onVolviAEntrar: () => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+      <p className="font-serif text-2xl">{nombre}</p>
+      <div className="w-full max-w-sm rounded-xl border border-sand bg-sand/25 px-5 py-4 text-left">
+        <div className="etiqueta mb-2 text-taupe">Tu día de hoy</div>
+        <ul className="flex flex-col gap-1.5 text-sm">
+          {historial.map((h, i) => (
+            <li key={i} className="flex justify-between gap-4">
+              <span className="text-tinta">{h.label}</span>
+              <span className="text-taupe">{h.hora}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="text-lg">Ya cerraste tu día. ¿Volviste a entrar?</p>
+      <div className="flex w-full max-w-sm flex-col gap-3">
+        <button onClick={onVolviAEntrar} className={`${BTN_PRIMARIO} py-5 text-xl`}>
+          Sí, volví a entrar
+        </button>
+        <button onClick={onCancelar} className={BTN_SECUNDARIO}>
+          No, ya me voy
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const MOTIVOS_REENTRADA = ["Seguiré laborando", "Solicitud del equipo", "Mi turno aún no termina"];
+
+export function MotivoReentrada({
+  onElegir,
+  onCancelar,
+}: {
+  onElegir: (motivo: string) => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
+      <p className="font-serif text-2xl">¿Por qué volviste a entrar?</p>
+      <div className="flex w-full max-w-sm flex-col gap-3">
+        {MOTIVOS_REENTRADA.map((m) => (
+          <button key={m} onClick={() => onElegir(m)} className={`${TILE} px-5 py-4 text-lg`}>
+            {m}
+          </button>
+        ))}
+      </div>
+      <button onClick={onCancelar} className="text-sm text-taupe underline">
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
 export function PantallaMensaje({ mensaje }: { mensaje: string }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
