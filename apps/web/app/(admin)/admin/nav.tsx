@@ -8,6 +8,7 @@ import { Marca } from "@/components/marca";
 
 const LINKS: Array<{ href: string; label: string; roles?: string[] }> = [
   { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/perfil", label: "Perfil" },
   { href: "/admin/horas", label: "Horas" },
   { href: "/admin/correcciones", label: "Correcciones", roles: ["admin", "lider_do", "supervisor_sede"] },
   { href: "/admin/horarios", label: "Horarios", roles: ["admin", "lider_do", "supervisor_sede"] },
