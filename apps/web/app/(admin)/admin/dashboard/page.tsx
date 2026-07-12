@@ -110,12 +110,32 @@ export default function DashboardPage() {
 
         {sedes.map((sede) => {
           const deSede = filas.filter((f) => f.sede === sede);
-          const presentes = deSede.filter((f) => f.estado === "abierta" || f.estado === "en_pausa").length;
+          const activos = deSede.filter((f) => f.estado === "abierta" || f.estado === "en_pausa");
           return (
             <section key={sede} className="mb-8">
               <h2 className="mb-2 font-medium">
-                {sede} <span className="text-sm font-normal text-neutral-400">— {presentes} presente{presentes === 1 ? "" : "s"} de {deSede.length}</span>
+                {sede} <span className="text-sm font-normal text-neutral-400">— {activos.length} trabajando de {deSede.length}</span>
               </h2>
+
+              {/* Trabajando ahora — para que la encargada verifique contra quién está físicamente */}
+              <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-green-700">
+                  Trabajando ahora · {activos.length}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {activos.length === 0 ? (
+                    <span className="text-sm text-neutral-400">Nadie marcado todavía.</span>
+                  ) : (
+                    activos.map((f) => (
+                      <span key={f.personaId} className="rounded-full border bg-white px-3 py-1 text-sm">
+                        {f.nombre}
+                        {f.estado === "en_pausa" && <span className="ml-1 text-amber-700">· en pausa</span>}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
                   <thead className="bg-neutral-50 text-left text-neutral-500">
