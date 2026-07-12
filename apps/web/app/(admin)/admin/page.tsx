@@ -16,7 +16,7 @@ export default function AdminIndexPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center">
-      <p className="text-neutral-500">Cargando…</p>
+      <p className="text-taupe">Cargando…</p>
     </div>
   );
 }

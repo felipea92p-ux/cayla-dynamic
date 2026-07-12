@@ -32,13 +32,14 @@ interface FilaPersona {
   enPausaSinRetorno: boolean;
 }
 
+// Estados: verde/ámbar cálidos para lo operativo, Rojo lleno para la alerta crítica.
 const ESTILO_ESTADO: Record<string, { label: string; clase: string }> = {
-  abierta: { label: "Presente", clase: "bg-green-100 text-green-800" },
-  en_pausa: { label: "En pausa", clase: "bg-amber-100 text-amber-800" },
-  cerrada: { label: "Salió", clase: "bg-neutral-200 text-neutral-600" },
-  auto_cerrada_pendiente: { label: "Auto-cerrada ⚠", clase: "bg-red-100 text-red-700" },
-  revisada: { label: "Salió (revisada)", clase: "bg-neutral-200 text-neutral-600" },
-  sin_marcar: { label: "Sin marcar", clase: "bg-neutral-100 text-neutral-400" },
+  abierta: { label: "Presente", clase: "bg-verde/15 text-verde" },
+  en_pausa: { label: "En pausa", clase: "bg-ambar/15 text-ambar" },
+  cerrada: { label: "Salió", clase: "bg-sand/50 text-taupe" },
+  auto_cerrada_pendiente: { label: "Auto-cerrada ⚠", clase: "bg-rojo text-crema" },
+  revisada: { label: "Salió (revisada)", clase: "bg-sand/50 text-taupe" },
+  sin_marcar: { label: "Sin marcar", clase: "text-taupe/50" },
 };
 
 export default function DashboardPage() {
@@ -101,9 +102,9 @@ export default function DashboardPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Asistencia de hoy</h1>
-          <span className="text-xs text-neutral-400">
+        <div className="mb-6 flex items-end justify-between">
+          <h1 className="font-serif text-3xl">Asistencia de hoy</h1>
+          <span className="text-xs text-taupe">
             {cargando ? "Cargando…" : `Actualizado ${actualizado} · se refresca solo cada 30s`}
           </span>
         </div>
@@ -112,59 +113,57 @@ export default function DashboardPage() {
           const deSede = filas.filter((f) => f.sede === sede);
           const activos = deSede.filter((f) => f.estado === "abierta" || f.estado === "en_pausa");
           return (
-            <section key={sede} className="mb-8">
-              <h2 className="mb-2 font-medium">
-                {sede} <span className="text-sm font-normal text-neutral-400">— {activos.length} trabajando de {deSede.length}</span>
+            <section key={sede} className="mb-10">
+              <h2 className="mb-3 font-serif text-xl">
+                {sede} <span className="text-base text-taupe">— {activos.length} trabajando de {deSede.length}</span>
               </h2>
 
               {/* Trabajando ahora — para que la encargada verifique contra quién está físicamente */}
-              <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-                <div className="text-xs font-medium uppercase tracking-wide text-green-700">
-                  Trabajando ahora · {activos.length}
-                </div>
+              <div className="mb-4 rounded-lg border border-verde/25 bg-verde/[0.07] px-4 py-3">
+                <div className="etiqueta text-verde">Trabajando ahora · {activos.length}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {activos.length === 0 ? (
-                    <span className="text-sm text-neutral-400">Nadie marcado todavía.</span>
+                    <span className="text-sm text-taupe/70">Nadie marcado todavía.</span>
                   ) : (
                     activos.map((f) => (
-                      <span key={f.personaId} className="rounded-full border bg-white px-3 py-1 text-sm">
+                      <span key={f.personaId} className="rounded-full border border-sand bg-crema px-3 py-1 text-sm">
                         {f.nombre}
-                        {f.estado === "en_pausa" && <span className="ml-1 text-amber-700">· en pausa</span>}
+                        {f.estado === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
                       </span>
                     ))
                   )}
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto rounded-lg border border-sand">
                 <table className="w-full text-sm">
-                  <thead className="bg-neutral-50 text-left text-neutral-500">
-                    <tr>
-                      <th className="px-4 py-2 font-normal">Nombre</th>
-                      <th className="px-4 py-2 font-normal">Estado</th>
-                      <th className="px-4 py-2 font-normal">Entrada</th>
-                      <th className="px-4 py-2 font-normal">Tardanza</th>
-                      <th className="px-4 py-2 font-normal">Salida final</th>
+                  <thead className="bg-sand text-left">
+                    <tr className="etiqueta text-taupe">
+                      <th className="px-4 py-2.5 font-medium">Nombre</th>
+                      <th className="px-4 py-2.5 font-medium">Estado</th>
+                      <th className="px-4 py-2.5 font-medium">Entrada</th>
+                      <th className="px-4 py-2.5 font-medium">Tardanza</th>
+                      <th className="px-4 py-2.5 font-medium">Salida final</th>
                     </tr>
                   </thead>
                   <tbody>
                     {deSede.map((f) => {
                       const estilo = ESTILO_ESTADO[f.estado] ?? ESTILO_ESTADO.sin_marcar;
                       return (
-                        <tr key={f.personaId} className="border-t">
-                          <td className="px-4 py-2">{f.nombre}</td>
-                          <td className="px-4 py-2">
+                        <tr key={f.personaId} className="border-t border-sand">
+                          <td className="px-4 py-2.5">{f.nombre}</td>
+                          <td className="px-4 py-2.5">
                             <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>
                           </td>
-                          <td className="px-4 py-2">{horaLima(f.entrada)}</td>
-                          <td className="px-4 py-2">
+                          <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
+                          <td className="px-4 py-2.5">
                             {f.minutosTarde === null || f.minutosTarde === 0 ? (
-                              <span className="text-neutral-300">—</span>
+                              <span className="text-taupe/40">—</span>
                             ) : (
-                              <span className="font-medium text-red-600">{f.minutosTarde} min</span>
+                              <span className="font-semibold text-rojo">{f.minutosTarde} min</span>
                             )}
                           </td>
-                          <td className="px-4 py-2">{horaLima(f.salidaFinal)}</td>
+                          <td className="px-4 py-2.5">{horaLima(f.salidaFinal)}</td>
                         </tr>
                       );
                     })}

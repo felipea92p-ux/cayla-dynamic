@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { Colibri } from "@/components/marca";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -26,15 +27,21 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-xl font-semibold">Panel de administración — Dynamic</h1>
+    <div className="flex flex-1 flex-col items-center justify-center gap-8 p-8">
+      <div className="flex flex-col items-center gap-4">
+        <Colibri tono="rojo" className="w-12" />
+        <div className="text-center">
+          <h1 className="font-serif text-3xl leading-none">Dynamic</h1>
+          <p className="etiqueta mt-2 text-taupe">Panel de administración · CAYLA</p>
+        </div>
+      </div>
       <form onSubmit={entrar} className="flex w-full max-w-xs flex-col gap-3">
         <input
           type="email"
           placeholder="correo"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded-lg border px-4 py-3 outline-none"
+          className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe"
           required
         />
         <input
@@ -42,14 +49,14 @@ export default function AdminLoginPage() {
           placeholder="contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-lg border px-4 py-3 outline-none"
+          className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe"
           required
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-rojo">{error}</p>}
         <button
           type="submit"
           disabled={cargando}
-          className="rounded-lg bg-black px-4 py-3 font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
         >
           {cargando ? "Entrando…" : "Entrar"}
         </button>

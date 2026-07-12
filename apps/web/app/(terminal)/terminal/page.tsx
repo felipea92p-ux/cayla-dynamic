@@ -16,7 +16,7 @@ export default function TerminalIndexPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center">
-      <p className="text-neutral-400">Cargando…</p>
+      <p className="text-taupe">Cargando…</p>
     </div>
   );
 }

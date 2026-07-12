@@ -84,9 +84,9 @@ export default function HorasPage() {
   const aplicarPreset = (p: "mes" | "mesPasado" | "anio") => { const r = rango(p); setDesde(r.desde); setHasta(r.hasta); };
 
   const Tile = ({ label, valor, tono = "neutral" }: { label: string; valor: string; tono?: "neutral" | "alerta" }) => (
-    <div className="rounded-xl border bg-white px-4 py-3">
-      <div className="text-xs uppercase tracking-wide text-neutral-400">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold [font-variant-numeric:tabular-nums] ${tono === "alerta" && valor !== "0" ? "text-red-600" : ""}`}>{valor}</div>
+    <div className="rounded-xl border bg-crema px-4 py-3">
+      <div className="text-xs uppercase tracking-wide text-taupe">{label}</div>
+      <div className={`mt-1 text-2xl font-semibold [font-variant-numeric:tabular-nums] ${tono === "alerta" && valor !== "0" ? "text-rojo" : ""}`}>{valor}</div>
     </div>
   );
 
@@ -95,12 +95,12 @@ export default function HorasPage() {
       <AdminNav />
       <main className="flex-1 p-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-          <h1 className="text-xl font-semibold">Resumen de horas</h1>
+          <h1 className="font-serif text-2xl">Resumen de horas</h1>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex gap-1 rounded-lg border p-1 text-sm">
-              <button onClick={() => aplicarPreset("mes")} className="rounded-md px-2.5 py-1 hover:bg-neutral-100">Este mes</button>
-              <button onClick={() => aplicarPreset("mesPasado")} className="rounded-md px-2.5 py-1 hover:bg-neutral-100">Mes pasado</button>
-              <button onClick={() => aplicarPreset("anio")} className="rounded-md px-2.5 py-1 hover:bg-neutral-100">Todo el año</button>
+              <button onClick={() => aplicarPreset("mes")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Este mes</button>
+              <button onClick={() => aplicarPreset("mesPasado")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Mes pasado</button>
+              <button onClick={() => aplicarPreset("anio")} className="rounded-md px-2.5 py-1 hover:bg-sand/60">Todo el año</button>
             </div>
             <label className="flex flex-col gap-1 text-sm">Desde
               <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border px-3 py-2" /></label>
@@ -116,20 +116,20 @@ export default function HorasPage() {
           <Tile label="Jornadas por revisar" valor={String(totales.porRevisar)} tono="alerta" />
         </div>
 
-        {cargando && <p className="text-sm text-neutral-400">Cargando…</p>}
-        {!cargando && filas.length === 0 && <p className="text-sm text-neutral-500">Sin marcajes en este periodo.</p>}
+        {cargando && <p className="text-sm text-taupe">Cargando…</p>}
+        {!cargando && filas.length === 0 && <p className="text-sm text-taupe">Sin marcajes en este periodo.</p>}
 
         {sedes.map((sede) => {
           const deSede = filas.filter((f) => f.sede === sede).sort((a, b) => b.horasTotales - a.horasTotales);
           const subHoras = deSede.reduce((s, f) => s + f.horasTotales, 0);
           return (
             <section key={sede} className="mb-8">
-              <h2 className="mb-2 font-medium">
-                {sede} <span className="text-sm font-normal text-neutral-400">— {deSede.length} personas · {subHoras.toFixed(0)} h</span>
+              <h2 className="mb-2 font-serif text-lg">
+                {sede} <span className="text-sm font-normal text-taupe">— {deSede.length} personas · {subHoras.toFixed(0)} h</span>
               </h2>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                  <thead className="bg-neutral-50 text-left text-neutral-500">
+                  <thead className="bg-sand/50 text-left text-taupe">
                     <tr>
                       <th className="px-4 py-2 font-normal">Nombre</th>
                       <th className="px-4 py-2 font-normal">Días</th>
@@ -145,15 +145,15 @@ export default function HorasPage() {
                         <td className="px-4 py-2">{f.nombre}</td>
                         <td className="px-4 py-2">{f.diasTrabajados}</td>
                         <td className="px-4 py-2 font-medium">{f.horasTotales.toFixed(1)}</td>
-                        <td className="px-4 py-2">{f.tardanzas || <span className="text-neutral-300">—</span>}</td>
-                        <td className="px-4 py-2">{f.minutosTarde ? `${f.minutosTarde} min` : <span className="text-neutral-300">—</span>}</td>
+                        <td className="px-4 py-2">{f.tardanzas || <span className="text-taupe/50">—</span>}</td>
+                        <td className="px-4 py-2">{f.minutosTarde ? `${f.minutosTarde} min` : <span className="text-taupe/50">—</span>}</td>
                         <td className="px-4 py-2 text-xs">
-                          {f.incompletas > 0 && <span className="mr-2 rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">{f.incompletas} sin salida</span>}
-                          {f.pendientesRevision > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">{f.pendientesRevision} por revisar</span>}
+                          {f.incompletas > 0 && <span className="mr-2 rounded-full bg-taupe/15 px-2 py-0.5 text-taupe">{f.incompletas} sin salida</span>}
+                          {f.pendientesRevision > 0 && <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">{f.pendientesRevision} por revisar</span>}
                         </td>
                       </tr>
                     ))}
-                    <tr className="border-t bg-neutral-50 font-medium">
+                    <tr className="border-t bg-sand/50 font-medium">
                       <td className="px-4 py-2">Subtotal {sede}</td>
                       <td className="px-4 py-2">{deSede.reduce((s, f) => s + f.diasTrabajados, 0)}</td>
                       <td className="px-4 py-2">{subHoras.toFixed(1)}</td>
@@ -167,7 +167,7 @@ export default function HorasPage() {
           );
         })}
 
-        <p className="max-w-2xl text-xs text-neutral-500">
+        <p className="max-w-2xl text-xs text-taupe">
           Las horas descuentan los almuerzos y pausas. La tardanza se calcula contra el horario de
           cada persona — mientras no haya horario cargado, esa columna queda en blanco. “Por revisar”
           incluye jornadas sin salida marcada o cerradas automáticamente por olvido.

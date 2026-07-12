@@ -9,6 +9,8 @@ export interface RosterEntry {
   nombres: string;
   apellidos: string;
   pinHash: string;
+  sedeCodigo: string;
+  sedeNombre: string;
 }
 
 export interface OutboxEntry {

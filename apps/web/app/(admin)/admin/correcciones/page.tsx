@@ -141,7 +141,7 @@ export default function CorreccionesPage() {
       <div className="flex min-h-screen flex-col">
         <AdminNav />
         <main className="flex flex-1 items-center justify-center p-6">
-          <p className="max-w-md text-center text-neutral-500">
+          <p className="max-w-md text-center text-taupe">
             No tienes permiso para corregir marcajes. Si necesitas un cambio, pídeselo a Felipe o Carlos.
           </p>
         </main>
@@ -153,8 +153,8 @@ export default function CorreccionesPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
-        <h1 className="mb-1 text-xl font-semibold">Corregir marcajes</h1>
-        <p className="mb-5 max-w-2xl text-sm text-neutral-500">
+        <h1 className="mb-1 font-serif text-2xl">Corregir marcajes</h1>
+        <p className="mb-5 max-w-2xl text-sm text-taupe">
           Ajusta la hora de entrada/salida, agrega un marcaje olvidado o elimina un duplicado.
           Cada cambio pide un motivo y queda registrado (quién, qué y cuándo).
         </p>
@@ -162,7 +162,7 @@ export default function CorreccionesPage() {
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">
             Persona
-            <select value={personaId} onChange={(e) => { setPersonaId(e.target.value); setCargado(false); }} className="min-w-56 rounded-lg border bg-white px-3 py-2">
+            <select value={personaId} onChange={(e) => { setPersonaId(e.target.value); setCargado(false); }} className="min-w-56 rounded-lg border bg-crema px-3 py-2">
               <option value="">Elegir…</option>
               {personasCorregibles.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
             </select>
@@ -171,13 +171,13 @@ export default function CorreccionesPage() {
             Fecha
             <input type="date" value={fecha} onChange={(e) => { setFecha(e.target.value); setCargado(false); }} className="rounded-lg border px-3 py-2" />
           </label>
-          <button onClick={cargarDia} disabled={!personaId || cargando} className="rounded-lg bg-black px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button onClick={cargarDia} disabled={!personaId || cargando} className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
             {cargando ? "Cargando…" : "Ver el día"}
           </button>
         </div>
 
         {mensaje && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}>
+          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
             {mensaje.texto}
           </div>
         )}
@@ -185,7 +185,7 @@ export default function CorreccionesPage() {
         {cargado && personaSel && (
           <div className="max-w-3xl">
             {jornada && (
-              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-neutral-50 px-4 py-3 text-sm">
+              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-sand/50 px-4 py-3 text-sm">
                 <span>Estado: <strong>{jornada.estado}</strong></span>
                 <span>Horas: <strong>{jornada.horas_trabajadas ?? "—"}</strong></span>
                 <span>Tardanza: <strong>{jornada.minutos_tarde ? `${jornada.minutos_tarde} min` : "—"}</strong></span>
@@ -193,11 +193,11 @@ export default function CorreccionesPage() {
             )}
 
             {marcajes.length === 0 ? (
-              <p className="mb-4 text-sm text-neutral-500">No hay marcajes ese día. Puedes agregar uno abajo.</p>
+              <p className="mb-4 text-sm text-taupe">No hay marcajes ese día. Puedes agregar uno abajo.</p>
             ) : (
               <div className="mb-4 overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
-                  <thead className="bg-neutral-50 text-left text-neutral-500">
+                  <thead className="bg-sand/50 text-left text-taupe">
                     <tr>
                       <th className="px-4 py-2 font-normal">Tipo</th>
                       <th className="px-4 py-2 font-normal">Hora</th>
@@ -213,26 +213,26 @@ export default function CorreccionesPage() {
                         <tr key={m.id} className="border-t">
                           <td className="px-4 py-2">
                             {TIPO_MARCA_LABELS[m.tipo]}
-                            {m.origen === "auto_cierre" && <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">auto-cierre</span>}
-                            {m.origen === "admin_correccion" && <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">manual</span>}
+                            {m.origen === "auto_cierre" && <span className="ml-2 rounded bg-rojo/10 px-1.5 py-0.5 text-xs text-rojo">auto-cierre</span>}
+                            {m.origen === "admin_correccion" && <span className="ml-2 rounded bg-taupe/15 px-1.5 py-0.5 text-xs text-taupe">manual</span>}
                           </td>
                           <td className="px-4 py-2">
                             <input type="time" value={horaLocal}
                               onChange={(e) => setHorasEditadas({ ...horasEditadas, [m.id]: e.target.value })}
                               className="rounded border px-2 py-1" />
                           </td>
-                          <td className="px-4 py-2 text-neutral-500">{m.origen}</td>
+                          <td className="px-4 py-2 text-taupe">{m.origen}</td>
                           <td className="px-4 py-2">
                             <div className="flex gap-2 text-xs">
                               <button
                                 disabled={!cambiada}
                                 onClick={() => { setAccion({ modo: "editar", marcaje: m, nuevaHora: horaLocal }); setMotivo(""); }}
-                                className="rounded border px-2 py-1 hover:bg-neutral-50 disabled:opacity-40">
+                                className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-40">
                                 Guardar hora
                               </button>
                               <button
                                 onClick={() => { setAccion({ modo: "eliminar", marcaje: m }); setMotivo(""); }}
-                                className="rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50">
+                                className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">
                                 Eliminar
                               </button>
                             </div>
@@ -246,12 +246,12 @@ export default function CorreccionesPage() {
             )}
 
             {/* Agregar marcaje faltante */}
-            <div className="rounded-lg border bg-neutral-50 p-4">
+            <div className="rounded-lg border bg-sand/50 p-4">
               <h2 className="mb-3 text-sm font-medium">Agregar un marcaje faltante</h2>
               <div className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-sm">
                   Tipo
-                  <select value={agregarTipo} onChange={(e) => setAgregarTipo(e.target.value as TipoMarca)} className="rounded-lg border bg-white px-3 py-2">
+                  <select value={agregarTipo} onChange={(e) => setAgregarTipo(e.target.value as TipoMarca)} className="rounded-lg border bg-crema px-3 py-2">
                     {TIPOS_AGREGABLES.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
                   </select>
                 </label>
@@ -267,7 +267,7 @@ export default function CorreccionesPage() {
                 )}
                 <button
                   onClick={() => { setAccion({ modo: "agregar", tipo: agregarTipo, hora: agregarHora, motivoOtro: agregarMotivoOtro }); setMotivo(""); }}
-                  className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white">
+                  className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema">
                   Agregar
                 </button>
               </div>
@@ -278,13 +278,13 @@ export default function CorreccionesPage() {
         {/* Modal: motivo de la corrección */}
         {accion && (
           <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4" onClick={() => !procesando && setAccion(null)}>
-            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-              <h3 className="mb-2 font-semibold">
+            <div className="w-full max-w-md rounded-xl bg-crema p-6 border border-sand" onClick={(e) => e.stopPropagation()}>
+              <h3 className="mb-2 font-serif text-lg">
                 {accion.modo === "editar" && "Confirmar cambio de hora"}
                 {accion.modo === "eliminar" && "Eliminar marcaje"}
                 {accion.modo === "agregar" && "Agregar marcaje"}
               </h3>
-              <p className="mb-4 text-sm text-neutral-600">
+              <p className="mb-4 text-sm text-taupe">
                 {accion.modo === "editar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]}: ${horaInput(accion.marcaje.timestamp_marca)} → ${accion.nuevaHora}`}
                 {accion.modo === "eliminar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Esta acción no se puede deshacer.`}
                 {accion.modo === "agregar" && `${TIPO_MARCA_LABELS[accion.tipo]} a las ${accion.hora}, para ${personaSel?.nombres} ${personaSel?.apellidos}.`}
@@ -296,7 +296,7 @@ export default function CorreccionesPage() {
               </label>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setAccion(null)} disabled={procesando} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
-                <button onClick={ejecutar} disabled={procesando} className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                <button onClick={ejecutar} disabled={procesando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
                   {procesando ? "Guardando…" : "Confirmar"}
                 </button>
               </div>

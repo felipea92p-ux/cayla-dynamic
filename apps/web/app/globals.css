@@ -1,26 +1,55 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* ── Paleta CAYLA ─────────────────────────────────────────────
+     Tres colores sagrados + tres secundarios de sistema interno.
+     Nunca blanco puro, nunca negro absoluto, sin gradientes ni sombras. */
+  --color-crema: #f5f0e8; /* fondo dominante  */
+  --color-tinta: #1a1a18; /* todo el texto    */
+  --color-rojo: #b8412d; /* acento sagrado (máx. usos por vista) */
+  --color-rojo-profundo: #8b2a1f; /* énfasis sobre crema */
+  --color-sand: #e8e0d0; /* recuadros, headers de tabla, líneas */
+  --color-taupe: #a47865; /* acento tonal, estados intermedios */
+  /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema. */
+  --color-verde: #5f7a52; /* presente / trabajando */
+  --color-ambar: #b0812f; /* en pausa */
+
+  /* ── Tipografía ───────────────────────────────────────────────
+     Serif para títulos y datos con alma; sans para el sistema. */
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-eb-garamond), ui-serif, Georgia, "Times New Roman", serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  /* La línea fina es el único elemento decorativo: por defecto, Sand. */
+  *,
+  ::after,
+  ::before {
+    border-color: var(--color-sand);
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    background-color: var(--color-crema);
+    color: var(--color-tinta);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Etiqueta de sistema: mayúsculas con tracking amplio (escala del manual). */
+.etiqueta {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* Isotipo recoloreable: usa el PNG de línea como máscara y lo tiñe con color plano. */
+.colibri {
+  display: inline-block;
+  aspect-ratio: 1755 / 1184;
+  background-color: currentColor;
+  -webkit-mask: url(/colibri.png) center / contain no-repeat;
+  mask: url(/colibri.png) center / contain no-repeat;
 }

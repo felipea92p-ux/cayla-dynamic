@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { Marca } from "@/components/marca";
 
 const LINKS: Array<{ href: string; label: string; roles?: string[] }> = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -26,22 +27,26 @@ export function AdminNav() {
   }
 
   return (
-    <header className="flex items-center justify-between border-b px-6 py-3">
-      <div className="flex items-center gap-6">
-        <span className="font-semibold">Dynamic — CAYLA</span>
-        <nav className="flex gap-4 text-sm">
+    <header className="flex items-center justify-between border-b border-sand px-6 py-3">
+      <div className="flex items-center gap-8">
+        <Marca tono="tinta" isotipo="rojo" />
+        <nav className="flex gap-5 text-sm">
           {LINKS.filter((l) => !l.roles || (rol !== null && l.roles.includes(rol))).map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className={pathname === l.href ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
+              className={
+                pathname === l.href
+                  ? "font-medium text-tinta"
+                  : "text-taupe transition-colors hover:text-tinta"
+              }
             >
               {l.label}
             </Link>
           ))}
         </nav>
       </div>
-      <button onClick={cerrarSesion} className="text-sm text-neutral-500 hover:text-black">
+      <button onClick={cerrarSesion} className="text-sm text-taupe transition-colors hover:text-tinta">
         Cerrar sesión
       </button>
     </header>

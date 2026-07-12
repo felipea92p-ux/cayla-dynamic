@@ -65,7 +65,7 @@ export default function ExportarPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-xl font-semibold">Exportar asistencia (CSV)</h1>
+      <h1 className="font-serif text-2xl">Exportar asistencia (CSV)</h1>
       <div className="flex items-end gap-4">
         <label className="flex flex-col gap-1 text-sm">
           Desde
@@ -88,13 +88,13 @@ export default function ExportarPage() {
         <button
           onClick={exportar}
           disabled={cargando}
-          className="rounded-lg bg-black px-5 py-2 font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-tinta px-5 py-2 font-medium text-crema disabled:opacity-50"
         >
           {cargando ? "Generando…" : "Descargar CSV"}
         </button>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <p className="max-w-md text-center text-xs text-neutral-500">
+      {error && <p className="text-sm text-rojo">{error}</p>}
+      <p className="max-w-md text-center text-xs text-taupe">
         Incluye a todas las personas y sedes visibles para tu rol. Ábrelo directamente con Excel o
         Google Sheets.
       </p>

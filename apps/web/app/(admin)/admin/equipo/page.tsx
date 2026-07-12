@@ -186,7 +186,7 @@ export default function EquipoPage() {
   }
 
   const formulario = (modo: "alta" | "edicion") => (
-    <div className="mb-6 grid max-w-3xl gap-3 rounded-lg border bg-neutral-50 p-4 sm:grid-cols-2">
+    <div className="mb-6 grid max-w-3xl gap-3 rounded-lg border bg-sand/50 p-4 sm:grid-cols-2">
       <label className="flex flex-col gap-1 text-sm">
         Nombres
         <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="rounded-lg border px-3 py-2" />
@@ -197,7 +197,7 @@ export default function EquipoPage() {
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Sede
-        <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-lg border bg-white px-3 py-2">
+        <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-lg border bg-crema px-3 py-2">
           <option value="">Elegir…</option>
           {sedes.map((s) => (
             <option key={s.id} value={s.id}>{s.codigo}</option>
@@ -206,7 +206,7 @@ export default function EquipoPage() {
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Rol
-        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} className="rounded-lg border bg-white px-3 py-2">
+        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} className="rounded-lg border bg-crema px-3 py-2">
           {ROLES_OPCIONES.map((r) => (
             <option key={r.valor} value={r.valor}>{r.label}</option>
           ))}
@@ -220,7 +220,7 @@ export default function EquipoPage() {
         <button
           onClick={modo === "alta" ? crearPersona : guardarEdicion}
           disabled={guardando}
-          className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
         >
           {guardando ? "Guardando…" : modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
         </button>
@@ -239,11 +239,11 @@ export default function EquipoPage() {
       <AdminNav />
       <main className="flex-1 p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Equipo</h1>
+          <h1 className="font-serif text-2xl">Equipo</h1>
           {!mostrandoAlta && !editandoId && (
             <button
               onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); }}
-              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white"
+              className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
             >
               + Agregar persona
             </button>
@@ -251,7 +251,7 @@ export default function EquipoPage() {
         </div>
 
         {mensaje && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}>
+          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
             {mensaje.texto}
           </div>
         )}
@@ -260,11 +260,11 @@ export default function EquipoPage() {
         {editandoId && formulario("edicion")}
 
         {cargando ? (
-          <p className="text-sm text-neutral-400">Cargando…</p>
+          <p className="text-sm text-taupe">Cargando…</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-neutral-500">
+              <thead className="bg-sand/50 text-left text-taupe">
                 <tr>
                   <th className="px-4 py-2 font-normal">Nombre</th>
                   <th className="px-4 py-2 font-normal">Sede</th>
@@ -276,24 +276,24 @@ export default function EquipoPage() {
               </thead>
               <tbody>
                 {personas.map((p) => (
-                  <tr key={p.id} className={`border-t ${p.estado === "inactivo" ? "text-neutral-400" : ""}`}>
+                  <tr key={p.id} className={`border-t ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
                     <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
                     <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
                     <td className="px-4 py-2">{ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol}</td>
-                    <td className="px-4 py-2">{p.email ?? <span className="text-neutral-300">—</span>}</td>
+                    <td className="px-4 py-2">{p.email ?? <span className="text-taupe/50">—</span>}</td>
                     <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${p.estado === "activo" ? "bg-green-100 text-green-800" : "bg-neutral-200 text-neutral-500"}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${p.estado === "activo" ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
                         {p.estado}
                       </span>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-2 text-xs">
-                        <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-neutral-50">Editar</button>
-                        <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-neutral-50">Nuevo PIN</button>
+                        <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
+                        <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
                         {p.estado === "activo" ? (
-                          <button onClick={() => cambiarEstado(p, "inactivo")} className="rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50">Desactivar</button>
+                          <button onClick={() => cambiarEstado(p, "inactivo")} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Desactivar</button>
                         ) : (
-                          <button onClick={() => cambiarEstado(p, "activo")} className="rounded border px-2 py-1 hover:bg-neutral-50">Reactivar</button>
+                          <button onClick={() => cambiarEstado(p, "activo")} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
                         )}
                       </div>
                     </td>
@@ -304,7 +304,7 @@ export default function EquipoPage() {
           </div>
         )}
 
-        <p className="mt-4 max-w-2xl text-xs text-neutral-500">
+        <p className="mt-4 max-w-2xl text-xs text-taupe">
           Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en el aviso verde —
           anótalo y entrégalo en privado. “Desactivar” no borra nada: la persona deja de aparecer en
           el terminal pero su historial se conserva.

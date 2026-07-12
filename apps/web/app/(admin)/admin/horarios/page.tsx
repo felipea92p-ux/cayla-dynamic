@@ -82,7 +82,7 @@ export default function HorariosPage() {
     return (
       <div className="flex min-h-screen flex-col"><AdminNav />
         <main className="flex flex-1 items-center justify-center p-6">
-          <p className="max-w-md text-center text-neutral-500">No tienes permiso para editar horarios.</p>
+          <p className="max-w-md text-center text-taupe">No tienes permiso para editar horarios.</p>
         </main>
       </div>
     );
@@ -94,25 +94,25 @@ export default function HorariosPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
-        <h1 className="mb-1 text-xl font-semibold">Horarios de entrada</h1>
-        <p className="mb-5 max-w-2xl text-sm text-neutral-500">
+        <h1 className="mb-1 font-serif text-2xl">Horarios de entrada</h1>
+        <p className="mb-5 max-w-2xl text-sm text-taupe">
           La hora de entrada define la tardanza (cualquier minuto después cuenta como tarde). Cuando
           un turno cambie, edítalo con la fecha desde la que aplica — el horario anterior se conserva,
           así las tardanzas de días previos no se alteran.
         </p>
 
         {mensaje && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}>{mensaje.texto}</div>
+          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>{mensaje.texto}</div>
         )}
 
-        {cargando ? <p className="text-sm text-neutral-400">Cargando…</p> : porSede.map((sede) => {
+        {cargando ? <p className="text-sm text-taupe">Cargando…</p> : porSede.map((sede) => {
           const deSede = editables.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
           return (
             <section key={sede} className="mb-8">
-              <h2 className="mb-2 font-medium">{sede}</h2>
+              <h2 className="mb-2 font-serif text-lg">{sede}</h2>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                  <thead className="bg-neutral-50 text-left text-neutral-500">
+                  <thead className="bg-sand/50 text-left text-taupe">
                     <tr>
                       <th className="px-4 py-2 font-normal">Nombre</th>
                       <th className="px-4 py-2 font-normal">Entrada</th>
@@ -127,11 +127,11 @@ export default function HorariosPage() {
                       return (
                         <tr key={p.id} className="border-t">
                           <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
-                          <td className="px-4 py-2">{h ? h.hora_entrada.slice(0, 5) : <span className="text-neutral-300">sin horario</span>}</td>
+                          <td className="px-4 py-2">{h ? h.hora_entrada.slice(0, 5) : <span className="text-taupe/50">sin horario</span>}</td>
                           <td className="px-4 py-2">{h ? h.hora_salida.slice(0, 5) : "—"}</td>
-                          <td className="px-4 py-2 text-neutral-500">{h ? h.vigente_desde : "—"}</td>
+                          <td className="px-4 py-2 text-taupe">{h ? h.vigente_desde : "—"}</td>
                           <td className="px-4 py-2">
-                            <button onClick={() => abrirEdicion(p)} className="rounded border px-2 py-1 text-xs hover:bg-neutral-50">
+                            <button onClick={() => abrirEdicion(p)} className="rounded border px-2 py-1 text-xs hover:bg-sand/50">
                               {h ? "Cambiar" : "Asignar"}
                             </button>
                           </td>
@@ -147,9 +147,9 @@ export default function HorariosPage() {
 
         {editando && (
           <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardando && setEditando(null)}>
-            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-              <h3 className="mb-1 font-semibold">Horario de {editando.nombres} {editando.apellidos}</h3>
-              <p className="mb-4 text-sm text-neutral-500">El nuevo horario aplica desde la fecha que elijas en adelante.</p>
+            <div className="w-full max-w-md rounded-xl bg-crema p-6 border border-sand" onClick={(e) => e.stopPropagation()}>
+              <h3 className="mb-1 font-serif text-lg">Horario de {editando.nombres} {editando.apellidos}</h3>
+              <p className="mb-4 text-sm text-taupe">El nuevo horario aplica desde la fecha que elijas en adelante.</p>
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1 text-sm">Hora de entrada
                   <input type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} className="rounded-lg border px-3 py-2" /></label>
@@ -160,7 +160,7 @@ export default function HorariosPage() {
               </div>
               <div className="mt-5 flex justify-end gap-3">
                 <button onClick={() => setEditando(null)} disabled={guardando} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
-                <button onClick={guardar} disabled={guardando} className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                <button onClick={guardar} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
                   {guardando ? "Guardando…" : "Guardar horario"}
                 </button>
               </div>

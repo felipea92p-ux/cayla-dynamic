@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   TIPO_MARCA_LABELS,
@@ -14,12 +14,15 @@ import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal
 import { verificarPin } from "@/lib/terminal/pin";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
+import { Marca } from "@/components/marca";
+import { RelojCentral } from "@/components/reloj";
 import {
   ConfirmacionToast,
   FormularioMotivoOtro,
   NombreGrid,
   PantallaMensaje,
   SelectorSalida,
+  SelectorSede,
   TecladoPin,
 } from "./components";
 
@@ -32,6 +35,7 @@ export default function MarcarPage() {
   const router = useRouter();
   const [terminal, setTerminal] = useState<TerminalInfo | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
   const marcajesHoyRef = useRef<Map<string, MarcajeDelDia[]>>(new Map());
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
@@ -61,6 +65,12 @@ export default function MarcarPage() {
         ? await refrescarInfoTerminal()
         : null) ?? leerInfoTerminalCacheada();
       setTerminal(info);
+      // Sede por defecto: la del terminal; un ?sede=CODIGO en la URL la sobreescribe.
+      const paramSede =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("sede")?.toUpperCase()
+          : null;
+      setSedeSeleccionada((actual) => actual ?? paramSede ?? info?.sedeCodigo ?? null);
       await cargarTodo();
     });
 
@@ -201,15 +211,42 @@ export default function MarcarPage() {
     setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
   }
 
+  // Sedes presentes en el roster (para el selector) y roster filtrado a la sede activa.
+  const sedesDisponibles = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const p of roster) mapa.set(p.sedeCodigo, p.sedeNombre);
+    return [...mapa.entries()]
+      .map(([codigo, nombre]) => ({ codigo, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [roster]);
+
+  const rosterFiltrado = useMemo(
+    () => (sedeSeleccionada ? roster.filter((p) => p.sedeCodigo === sedeSeleccionada) : roster),
+    [roster, sedeSeleccionada],
+  );
+
+  const sedeActivaNombre =
+    sedesDisponibles.find((s) => s.codigo === sedeSeleccionada)?.nombre ?? terminal?.sedeNombre ?? "…";
+
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
-        <span className="font-semibold">Dynamic — CAYLA</span>
-        <span className="text-neutral-400">{terminal?.sedeNombre ?? "…"}</span>
+      <header className="flex items-center justify-between border-b border-sand px-6 py-4">
+        <Marca tono="tinta" isotipo="rojo" />
+        <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center p-6">
-        {pantalla === "lista" && <NombreGrid roster={roster} onSeleccionar={seleccionarPersona} />}
+        {pantalla === "lista" && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-8">
+            <RelojCentral />
+            <SelectorSede
+              sedes={sedesDisponibles}
+              activa={sedeSeleccionada}
+              onCambiar={setSedeSeleccionada}
+            />
+            <NombreGrid roster={rosterFiltrado} onSeleccionar={seleccionarPersona} />
+          </div>
+        )}
 
         {pantalla === "pin" && personaActual && (
           <TecladoPin
