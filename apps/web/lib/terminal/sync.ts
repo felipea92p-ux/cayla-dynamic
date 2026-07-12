@@ -26,6 +26,14 @@ export async function sincronizarPendientes() {
 
       if (error) {
         await registrarIntentoFallido(entry.clientUuid, error.message);
+        // Una marca que falla repetidamente ESTANDO ONLINE es un rechazo permanente
+        // (día ya cerrado, sesión vencida, tipo inválido…), no un corte de red: el
+        // sync ni siquiera corre sin conexión. Tras varios intentos se descarta para
+        // no acumular "sin enviar" para siempre. Un fallo transitorio se resuelve
+        // mucho antes de 6 intentos, así que no se pierde nada real.
+        if ((entry.intentos ?? 0) + 1 >= 6) {
+          await eliminarDeOutbox(entry.clientUuid);
+        }
         continue; // no bloquea el resto de la cola por un fallo puntual
       }
       await eliminarDeOutbox(entry.clientUuid);
