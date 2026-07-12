@@ -117,9 +117,19 @@ export default function DashboardPage() {
       <main className="flex-1 p-6">
         <div className="mb-6 flex items-end justify-between">
           <h1 className="font-serif text-3xl">Asistencia de hoy</h1>
-          <span className="text-xs text-taupe">
-            {cargando ? "Cargando…" : `Actualizado ${actualizado} · se refresca solo cada 30s`}
-          </span>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-sand bg-crema px-4 py-2 text-sm font-medium text-tinta transition-colors hover:bg-sand/40"
+            >
+              📊 Ver en Google Sheets
+            </a>
+            <span className="text-xs text-taupe">
+              {cargando ? "Cargando…" : `Actualizado ${actualizado} · se refresca solo cada 30s`}
+            </span>
+          </div>
         </div>
 
         {sedes.map((sede) => {
