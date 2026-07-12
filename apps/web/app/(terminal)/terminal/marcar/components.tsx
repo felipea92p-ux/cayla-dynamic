@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TipoMarca } from "@cayla-dynamic/shared";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
 
@@ -176,10 +176,16 @@ export function ConfirmacionToast({
   onCancelar: () => void;
 }) {
   const [segundosRestantes, setSegundosRestantes] = useState(segundosTotal);
+  const yaConfirmoRef = useRef(false);
+  const confirmarUnaVez = () => {
+    if (yaConfirmoRef.current) return;
+    yaConfirmoRef.current = true;
+    onConfirmar();
+  };
 
   useEffect(() => {
     if (segundosRestantes <= 0) {
-      onConfirmar();
+      confirmarUnaVez();
       return;
     }
     const t = setTimeout(() => setSegundosRestantes((s) => s - 1), 1000);
@@ -195,7 +201,7 @@ export function ConfirmacionToast({
         <button onClick={onCancelar} className="rounded-lg border border-neutral-600 px-5 py-3">
           Cancelar
         </button>
-        <button onClick={onConfirmar} className="rounded-lg bg-white px-5 py-3 font-medium text-black">
+        <button onClick={confirmarUnaVez} className="rounded-lg bg-white px-5 py-3 font-medium text-black">
           Confirmar ahora
         </button>
       </div>

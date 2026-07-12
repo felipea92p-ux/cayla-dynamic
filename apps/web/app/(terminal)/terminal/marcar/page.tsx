@@ -39,8 +39,9 @@ export default function MarcarPage() {
   const [errorPin, setErrorPin] = useState<string | null>(null);
   const [intentosPin, setIntentosPin] = useState(0);
   const [opciones, setOpciones] = useState<Array<{ tipo: TipoMarca; motivoRequerido: boolean; label: string }>>([]);
-  const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string } | null>(null);
+  const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
   const [mensaje, setMensaje] = useState("");
+  const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
 
   const cargarTodo = useCallback(async () => {
     const [rosterData, marcajes] = await Promise.all([cargarRoster(), cargarMarcajesHoyPorPersona()]);
@@ -65,6 +66,7 @@ export default function MarcarPage() {
   }, [router, cargarTodo]);
 
   function volverALista() {
+    confirmandoRef.current = false;
     setPantalla("lista");
     setPersonaActual(null);
     setErrorPin(null);
@@ -132,15 +134,19 @@ export default function MarcarPage() {
   }
 
   function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string }) {
-    setAccionPendiente(accion);
+    // el client_uuid se fija AL PREPARAR: si por algo se envía dos veces, el
+    // servidor lo reconoce como el mismo marcaje (idempotencia) y no duplica.
+    setAccionPendiente({ ...accion, clientUuid: crypto.randomUUID() });
     setPantalla("confirmando");
   }
 
   async function confirmarMarcaje() {
     if (!personaActual || !accionPendiente || !terminal) return;
+    if (confirmandoRef.current) return; // ya se está procesando este marcaje
+    confirmandoRef.current = true;
 
     const entry = {
-      clientUuid: crypto.randomUUID(),
+      clientUuid: accionPendiente.clientUuid ?? crypto.randomUUID(),
       personaId: personaActual.id,
       terminalId: terminal.id,
       tipo: accionPendiente.tipo,

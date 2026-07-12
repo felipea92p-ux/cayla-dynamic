@@ -17,8 +17,11 @@ import { dirname, join } from "node:path";
 const __dir = dirname(fileURLToPath(import.meta.url));
 const [carpeta, mesArg, ...flags] = process.argv.slice(2);
 const COMMIT = flags.includes("--commit");
+// --hasta YYYY-MM-DD : ignora marcajes en o después de esa fecha (evita pisar datos ya en vivo)
+const hastaIdx = flags.indexOf("--hasta");
+const HASTA = hastaIdx >= 0 ? flags[hastaIdx + 1] : null; // exclusivo: fecha >= HASTA se ignora
 if (!carpeta || !mesArg) {
-  console.error("Uso: node importar.mjs <carpetaXlsx> <YYYY-MM|todo> [--commit]");
+  console.error("Uso: node importar.mjs <carpetaXlsx> <YYYY-MM|todo> [--hasta YYYY-MM-DD] [--commit]");
   process.exit(1);
 }
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -54,6 +57,7 @@ function leerMarcajesCrudos() {
         if (t.y !== ay || t.m !== am) continue;
       }
       const fecha = `${t.y}-${pad(t.m)}-${pad(t.d)}`;
+      if (HASTA && fecha >= HASTA) continue; // no importar fechas ya cubiertas por el terminal en vivo
       const clave = `${n}|${fecha}`;
       if (!porPersonaDia.has(clave)) porPersonaDia.set(clave, { normNombre: n, fecha, marks: [] });
       porPersonaDia.get(clave).marks.push({ ts: t.iso, reg: reg === "Entrada" ? "E" : "S" });
