@@ -580,6 +580,41 @@ export type Database = {
           },
         ]
       }
+      turnos: {
+        Row: {
+          fecha: string
+          hora_entrada: string
+          hora_salida: string | null
+          id: string
+          origen: string
+          persona_id: string
+        }
+        Insert: {
+          fecha: string
+          hora_entrada: string
+          hora_salida?: string | null
+          id?: string
+          origen?: string
+          persona_id: string
+        }
+        Update: {
+          fecha?: string
+          hora_entrada?: string
+          hora_salida?: string | null
+          id?: string
+          origen?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "turnos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
