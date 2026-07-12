@@ -70,10 +70,13 @@ export default function MarcarPage() {
         router.replace("/terminal/vincular");
         return;
       }
-      // Preferir info fresca (trae el ajuste de PIN actualizado); usar caché solo sin conexión.
-      const info = (typeof navigator !== "undefined" && navigator.onLine
-        ? await refrescarInfoTerminal()
-        : null) ?? leerInfoTerminalCacheada();
+      // La config fresca del servidor manda. Si no se puede refrescar (sin conexión o
+      // error puntual), usamos la caché pero SIN forzar PIN: nunca pedimos PIN con datos
+      // no confiables (todas las sedes están configuradas sin PIN).
+      const fresca =
+        typeof navigator !== "undefined" && navigator.onLine ? await refrescarInfoTerminal() : null;
+      const cache = leerInfoTerminalCacheada();
+      const info = fresca ?? (cache ? { ...cache, requierePin: false } : null);
       setTerminal(info);
       // Sede por defecto: la del terminal; un ?sede=CODIGO en la URL la sobreescribe.
       const paramSede =
@@ -102,9 +105,10 @@ export default function MarcarPage() {
   function seleccionarPersona(persona: RosterEntry) {
     setPersonaActual(persona);
     setErrorPin(null);
-    // En terminales de confianza (sin PIN) se salta directo a la acción.
-    // Solo se salta si el terminal lo pide EXPLÍCITAMENTE (por seguridad, ante duda se pide PIN).
-    if (terminal && terminal.requierePin === false) {
+    // Solo se pide PIN si el terminal lo exige EXPLÍCITAMENTE (requiere_pin=true fresco).
+    // Ante cualquier duda (sin PIN configurado, o dato incierto) se marca directo, para
+    // no bloquear el marcaje. Hoy las 3 sedes están sin PIN.
+    if (!terminal || terminal.requierePin !== true) {
       continuarConPersona(persona);
       return;
     }
