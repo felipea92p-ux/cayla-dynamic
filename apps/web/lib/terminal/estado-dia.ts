@@ -25,9 +25,16 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
     }
   }
 
-  // Superpone marcajes locales aún no sincronizados (offline u optimistas recién hechos).
+  // Superpone marcajes locales aún no sincronizados (offline u optimistas recién hechos),
+  // pero SOLO los de HOY: una marca vieja atascada de ayer no debe mostrarse como si
+  // fuera de hoy (eso confundía el estado del día tras cruzar la medianoche).
+  const hoy = fechaLimaHoy();
   const pendientes = await obtenerPendientes();
   for (const p of pendientes) {
+    const fechaMarca = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(
+      new Date(p.timestampCliente),
+    );
+    if (fechaMarca !== hoy) continue;
     const lista = mapa.get(p.personaId) ?? [];
     lista.push({ tipo: p.tipo, timestamp: p.timestampCliente });
     mapa.set(p.personaId, lista);
