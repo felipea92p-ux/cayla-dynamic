@@ -938,6 +938,35 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_objetivos_checklist: {
+        Args: { p_anio: number; p_mes: number; p_persona_id?: string }
+        Returns: Json
+      }
+      fn_objetivos_resumen: {
+        Args: { p_anio: number; p_mes: number }
+        Returns: Json
+      }
+      fn_objetivo_agregar: {
+        Args: {
+          p_anio: number
+          p_descripcion: string
+          p_mes: number
+          p_persona_id: string
+        }
+        Returns: Json
+      }
+      fn_objetivo_marcar: {
+        Args: { p_cumplido: boolean; p_item_id: string }
+        Returns: undefined
+      }
+      fn_objetivo_editar: {
+        Args: { p_descripcion: string; p_item_id: string }
+        Returns: undefined
+      }
+      fn_objetivo_eliminar: {
+        Args: { p_item_id: string }
+        Returns: undefined
+      }
       fn_proyeccion_planilla: {
         Args: { p_anio: number; p_mes: number }
         Returns: Json

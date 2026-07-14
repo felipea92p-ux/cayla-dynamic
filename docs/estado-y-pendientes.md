@@ -29,8 +29,10 @@ Migraciones 0019–0031 aplicadas + deploys (incl. **Provisiones anual /admin/pr
 
 Nota: la CTS-mayo es un depósito YA pagado (15-may); esto es registro histórico. Provisiones = régimen MYPE pequeña empresa (grati 8.33% + CTS 4.17% + vacaciones 4.17% sobre sueldo regular; factores en `configuracion.planilla_provisiones`; validar con contador).
 
+## CONSTRUIDO 2026-07-14, PENDIENTE DE SALIR A PROD
+- **Checklist de objetivos SMART** (migración 0032 + página /admin/objetivos + vista solo-lectura en Perfil). Objetivos con texto por persona/mes; marcan solo admin/líder DO (todos) y encargada (solo integrantes de SU sede); el plus sale automático del checklist vía sync a `objetivos_mensuales` (motor de planilla intacto); mes pagado bloqueado (corregir = reabrir periodo); el número manual de Planilla queda bloqueado cuando el mes tiene checklist. Verificado: 12/12 tests SQL contra Postgres local + flujo completo en navegador (agregar/marcar/plus/Perfil). **Falta:** Felipe pega `scripts/sql-manual/aplicar_0032.sql` en el SQL Editor de prod → preview → validar → preguntar → prod.
+
 ## PENDIENTES DE FONDO (siguientes)
-- **Checklist de objetivos SMART** (crear/marcar objetivos por persona/mes, barra de progreso, historial; solo líder de equipo/admin marcan; integrante VE los suyos; mes pagado = solo lectura). Hoy el plus usa un número simple (cumplidos/10).
 - **Incidencia "trabajó sin refrigerio"** (reportar cuando no marca pausa).
 - **Módulo disciplinario de tardanzas** (ver [[project_dynamic_protocolo_disciplinario]]).
 - **Bono de puntualidad** (auto-calculable) + otros 8 bonos (manuales).

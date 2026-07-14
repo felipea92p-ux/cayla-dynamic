@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
+import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
 
 const TZ = "America/Lima";
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
@@ -54,6 +55,7 @@ export default function PerfilPage() {
   const [desde, setDesde] = useState(inicioMes());
   const [hasta, setHasta] = useState(hoyLima());
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
+  const [objetivos, setObjetivos] = useState<ObjetivoItem[]>([]);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
 
@@ -78,14 +80,21 @@ export default function PerfilPage() {
     setCargando(true);
     const supabase = createAdminSupabaseClient();
     // minutos_salida_temprana no está en el schema cache de PostgREST: se lee vía RPC en paralelo.
-    const [{ data }, { data: extra }] = await Promise.all([
+    // Objetivos: los del mes de la fecha "Hasta" (checklist 0032, solo lectura aquí).
+    const [{ data }, { data: extra }, { data: objs }] = await Promise.all([
       supabase
         .from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado")
         .eq("persona_id", personaId).gte("fecha", desde).lte("fecha", hasta)
         .order("fecha"),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta, p_persona_id: personaId }),
+      supabase.rpc("fn_objetivos_checklist", {
+        p_anio: Number(hasta.slice(0, 4)),
+        p_mes: Number(hasta.slice(5, 7)),
+        p_persona_id: personaId,
+      }),
     ]);
+    setObjetivos(((objs as unknown as ObjetivoItem[] | null) ?? []).slice());
     const filasExtra = (extra as { persona_id: string; fecha: string; minutos_salida_temprana: number }[] | null) ?? [];
     const minutosPorFecha = new Map(filasExtra.map((e) => [e.fecha, e.minutos_salida_temprana]));
     const filas = ((data as Omit<Jornada, "minutos_salida_temprana">[] | null) ?? []).map((j) => ({
@@ -104,6 +113,10 @@ export default function PerfilPage() {
   const salidasTempranas = jornadas.filter((j) => (j.minutos_salida_temprana ?? 0) > 0).length;
   const horasExtra = jornadas.reduce((s, j) => s + (j.horas_extra_detectadas ?? 0), 0);
   const datosGrafico: DiaGrafico[] = jornadas.map((j) => ({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 }));
+  const objCumplidos = objetivos.filter((o) => o.cumplido).length;
+  const objNivel = nivelPlus(objCumplidos, objetivos.length);
+  const objPct = objetivos.length > 0 ? Math.round((objCumplidos / objetivos.length) * 100) : 0;
+  const objMesLabel = `${MESES[Number(hasta.slice(5, 7)) - 1]} ${hasta.slice(0, 4)}`;
 
   function incidencia(j: Jornada): string | null {
     if (j.estado === "auto_cerrada_pendiente") return "Auto-cerrada";
@@ -157,6 +170,43 @@ export default function PerfilPage() {
                 </div>
               ))}
             </div>
+
+            {/* Objetivos del mes (checklist, solo lectura — se gestionan en Objetivos) */}
+            {objetivos.length > 0 && (
+              <div className="mb-6 max-w-3xl rounded-lg border border-sand p-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="font-serif text-lg">Objetivos de {objMesLabel.toLowerCase()}</h2>
+                  <span className="flex items-center gap-2 text-sm">
+                    <span className="text-taupe">
+                      {objCumplidos}/{objetivos.length} cumplidos
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-0.5 ${
+                        objNivel.etiqueta === "Sin plus" || objNivel.etiqueta === "—"
+                          ? "bg-sand text-taupe"
+                          : "bg-verde/15 font-medium text-verde"
+                      }`}
+                    >
+                      {objNivel.etiqueta}
+                    </span>
+                  </span>
+                </div>
+                <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
+                  <div
+                    className={`h-full rounded-full ${objPct >= 60 ? "bg-verde" : objPct >= 30 ? "bg-ambar" : "bg-rojo"}`}
+                    style={{ width: `${objPct}%` }}
+                  />
+                </div>
+                <ul className="space-y-1 text-sm">
+                  {objetivos.map((o) => (
+                    <li key={o.id} className="flex items-start gap-2">
+                      <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
+                      <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Gráfico */}
             <div className="mb-8 rounded-lg border border-sand p-4">
