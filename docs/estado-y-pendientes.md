@@ -29,8 +29,8 @@ Migraciones 0019–0031 aplicadas + deploys (incl. **Provisiones anual /admin/pr
 
 Nota: la CTS-mayo es un depósito YA pagado (15-may); esto es registro histórico. Provisiones = régimen MYPE pequeña empresa (grati 8.33% + CTS 4.17% + vacaciones 4.17% sobre sueldo regular; factores en `configuracion.planilla_provisiones`; validar con contador).
 
-## CONSTRUIDO 2026-07-14, PENDIENTE DE SALIR A PROD
-- **Checklist de objetivos SMART** (migración 0032 + página /admin/objetivos + vista solo-lectura en Perfil). Objetivos con texto por persona/mes; marcan solo admin/líder DO (todos) y encargada (solo integrantes de SU sede); el plus sale automático del checklist vía sync a `objetivos_mensuales` (motor de planilla intacto); mes pagado bloqueado (corregir = reabrir periodo); el número manual de Planilla queda bloqueado cuando el mes tiene checklist. Verificado: 12/12 tests SQL contra Postgres local + flujo completo en navegador (agregar/marcar/plus/Perfil). **Falta:** Felipe pega `scripts/sql-manual/aplicar_0032.sql` en el SQL Editor de prod → preview → validar → preguntar → prod.
+## EN PRODUCCIÓN desde 2026-07-14 (tarde)
+- **Checklist de objetivos SMART** (migración 0032 aplicada en prod por Felipe + página /admin/objetivos + vista solo-lectura en Perfil; desplegado, /admin/objetivos responde 200). Objetivos con texto por persona/mes; marcan solo admin/líder DO (todos) y encargada (solo integrantes de SU sede); el plus sale automático del checklist vía sync a `objetivos_mensuales` (motor de planilla intacto); mes pagado bloqueado (corregir = reabrir periodo); el número manual de Planilla queda bloqueado cuando el mes tiene checklist. Verificado: 12/12 tests SQL contra Postgres local + flujo completo en navegador local + preview validado por Felipe.
 
 ## PENDIENTES DE FONDO (siguientes)
 - **Incidencia "trabajó sin refrigerio"** (reportar cuando no marca pausa).
