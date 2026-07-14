@@ -210,6 +210,7 @@ export type Database = {
           dias_laborables: number[]
           hora_entrada: string
           hora_salida: string
+          horario_por_dia: Json | null
           horas_semana_objetivo: number
           id: string
           persona_id: string
@@ -223,6 +224,7 @@ export type Database = {
           dias_laborables?: number[]
           hora_entrada: string
           hora_salida: string
+          horario_por_dia?: Json | null
           horas_semana_objetivo?: number
           id?: string
           persona_id: string
@@ -236,6 +238,7 @@ export type Database = {
           dias_laborables?: number[]
           hora_entrada?: string
           hora_salida?: string
+          horario_por_dia?: Json | null
           horas_semana_objetivo?: number
           id?: string
           persona_id?: string
@@ -260,6 +263,7 @@ export type Database = {
           horas_extra_detectadas: number
           horas_trabajadas: number | null
           id: string
+          minutos_salida_temprana: number | null
           minutos_tarde: number | null
           persona_id: string
           salida_final_ts: string | null
@@ -274,6 +278,7 @@ export type Database = {
           horas_extra_detectadas?: number
           horas_trabajadas?: number | null
           id?: string
+          minutos_salida_temprana?: number | null
           minutos_tarde?: number | null
           persona_id: string
           salida_final_ts?: string | null
@@ -288,6 +293,7 @@ export type Database = {
           horas_extra_detectadas?: number
           horas_trabajadas?: number | null
           id?: string
+          minutos_salida_temprana?: number | null
           minutos_tarde?: number | null
           persona_id?: string
           salida_final_ts?: string | null
@@ -386,6 +392,7 @@ export type Database = {
           estado: string
           fecha_estado_cambio: string | null
           fecha_ingreso: string
+          funcion: string
           id: string
           nombres: string
           pin_hash: string
@@ -403,6 +410,7 @@ export type Database = {
           estado?: string
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
+          funcion?: string
           id?: string
           nombres: string
           pin_hash: string
@@ -420,6 +428,7 @@ export type Database = {
           estado?: string
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
+          funcion?: string
           id?: string
           nombres?: string
           pin_hash?: string
@@ -582,24 +591,27 @@ export type Database = {
       }
       turnos: {
         Row: {
+          es_descanso: boolean
           fecha: string
-          hora_entrada: string
+          hora_entrada: string | null
           hora_salida: string | null
           id: string
           origen: string
           persona_id: string
         }
         Insert: {
+          es_descanso?: boolean
           fecha: string
-          hora_entrada: string
+          hora_entrada?: string | null
           hora_salida?: string | null
           id?: string
           origen?: string
           persona_id: string
         }
         Update: {
+          es_descanso?: boolean
           fecha?: string
-          hora_entrada?: string
+          hora_entrada?: string | null
           hora_salida?: string | null
           id?: string
           origen?: string
@@ -609,6 +621,86 @@ export type Database = {
           {
             foreignKeyName: "turnos_persona_id_fkey"
             columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_cobertura: {
+        Row: {
+          dia_semana: number
+          meta: number
+          sede_id: string
+          updated_at: string
+        }
+        Insert: {
+          dia_semana: number
+          meta?: number
+          sede_id: string
+          updated_at?: string
+        }
+        Update: {
+          dia_semana?: number
+          meta?: number
+          sede_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_cobertura_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asignaciones_salario: {
+        Row: {
+          asignado_por: string | null
+          created_at: string
+          id: string
+          nota: string | null
+          persona_id: string
+          rango: string
+          salario_mensual_soles: number
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          asignado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          rango: string
+          salario_mensual_soles: number
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          asignado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          rango?: string
+          salario_mensual_soles?: number
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignaciones_salario_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_salario_asignado_por_fkey"
+            columns: ["asignado_por"]
             isOneToOne: false
             referencedRelation: "personas"
             referencedColumns: ["id"]
@@ -727,11 +819,41 @@ export type Database = {
         Args: {
           p_almuerzo_max?: number
           p_almuerzo_min?: number
+          p_dias_laborables?: number[]
           p_hora_entrada: string
           p_hora_salida: string
           p_persona_id: string
           p_vigente_desde: string
         }
+        Returns: undefined
+      }
+      fn_set_horario_semanal: {
+        Args: {
+          p_horario: Json
+          p_persona_id: string
+          p_vigente_desde: string
+        }
+        Returns: undefined
+      }
+      fn_set_turno: {
+        Args: {
+          p_fecha: string
+          p_hora_entrada: string
+          p_hora_salida?: string | null
+          p_persona_id: string
+        }
+        Returns: undefined
+      }
+      fn_set_descanso: {
+        Args: { p_fecha: string; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_quitar_turno: {
+        Args: { p_fecha: string; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_set_meta_cobertura: {
+        Args: { p_dia_semana: number; p_meta: number; p_sede_id: string }
         Returns: undefined
       }
       fn_siguiente_tipo_esperado: {
@@ -741,6 +863,162 @@ export type Database = {
       fn_verificar_corrector: {
         Args: { p_persona_objetivo: string }
         Returns: string
+      }
+      fn_set_salario: {
+        Args: {
+          p_nota?: string
+          p_persona_id: string
+          p_rango: string
+          p_salario: number
+          p_vigente_desde: string
+        }
+        Returns: undefined
+      }
+      fn_salarios_vigentes: {
+        Args: never
+        Returns: {
+          persona_id: string
+          rango: string
+          salario_mensual_soles: number
+          vigente_desde: string
+        }[]
+      }
+      fn_historial_salario: {
+        Args: { p_persona_id: string }
+        Returns: {
+          rango: string
+          salario_mensual_soles: number
+          vigente_desde: string
+          vigente_hasta: string | null
+          asignado_por: string | null
+          nota: string | null
+          created_at: string
+        }[]
+      }
+      fn_personas_funciones: {
+        Args: never
+        Returns: Json
+      }
+      fn_areas: {
+        Args: never
+        Returns: Json
+      }
+      fn_guardar_area: {
+        Args: {
+          p_codigo: string
+          p_nombre: string
+          p_operativa: boolean
+          p_orden?: number
+        }
+        Returns: undefined
+      }
+      fn_area_activa: {
+        Args: { p_activa: boolean; p_codigo: string }
+        Returns: undefined
+      }
+      fn_feriados: {
+        Args: { p_anio: number }
+        Returns: Json
+      }
+      fn_set_feriado: {
+        Args: { p_fecha: string; p_nombre: string }
+        Returns: undefined
+      }
+      fn_quitar_feriado: {
+        Args: { p_fecha: string }
+        Returns: undefined
+      }
+      fn_set_objetivos: {
+        Args: {
+          p_anio: number
+          p_cumplidos: number
+          p_mes: number
+          p_persona_id: string
+          p_total?: number
+        }
+        Returns: undefined
+      }
+      fn_proyeccion_planilla: {
+        Args: { p_anio: number; p_mes: number }
+        Returns: Json
+      }
+      fn_periodos: {
+        Args: never
+        Returns: Json
+      }
+      fn_crear_periodo: {
+        Args: { p_fecha_fin: string; p_fecha_ini?: string }
+        Returns: Json
+      }
+      fn_periodo_pagado: {
+        Args: { p_pagado: boolean; p_periodo_id: string }
+        Returns: undefined
+      }
+      fn_eliminar_periodo: {
+        Args: { p_periodo_id: string }
+        Returns: undefined
+      }
+      fn_agregar_movimiento: {
+        Args: {
+          p_concepto: string
+          p_monto: number
+          p_periodo_id: string
+          p_persona_id: string
+          p_tipo: string
+        }
+        Returns: Json
+      }
+      fn_quitar_movimiento: {
+        Args: { p_movimiento_id: string }
+        Returns: undefined
+      }
+      fn_set_con_hijos: {
+        Args: { p_con_hijos: boolean; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_proyeccion_periodo: {
+        Args: { p_periodo_id: string }
+        Returns: Json
+      }
+      fn_simular_planilla: {
+        Args: { p_fin: string; p_ini: string }
+        Returns: Json
+      }
+      fn_ingresos: {
+        Args: never
+        Returns: Json
+      }
+      fn_set_fecha_ingreso: {
+        Args: { p_fecha: string; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_sembrar_ingresos: {
+        Args: never
+        Returns: Json
+      }
+      fn_provisiones: {
+        Args: { p_as_of?: string }
+        Returns: Json
+      }
+      fn_jornadas_extra: {
+        Args: { p_desde: string; p_hasta: string; p_persona_id?: string }
+        Returns: Json
+      }
+      fn_set_funcion: {
+        Args: { p_funcion: string; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_crear_persona: {
+        Args: {
+          p_apellidos: string
+          p_email: string | null
+          p_funcion: string
+          p_nombres: string
+          p_pin_hash: string
+          p_rol: string
+          p_sede_base_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {

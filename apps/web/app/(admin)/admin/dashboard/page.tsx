@@ -30,6 +30,7 @@ interface FilaPersona {
   entrada: string | null;
   salidaFinal: string | null;
   minutosTarde: number | null;
+  salidaTemprana: number | null;
   enPausaSinRetorno: boolean;
 }
 
@@ -58,7 +59,9 @@ export default function DashboardPage() {
     }
 
     const hoy = fechaLimaHoy();
-    const [{ data: personas }, { data: jornadas }] = await Promise.all([
+    // minutos_salida_temprana va por RPC (fn_jornadas_extra) porque el schema cache
+    // de PostgREST no expone la columna; el select directo fallaría entero.
+    const [{ data: personas }, { data: jornadas }, { data: extras }] = await Promise.all([
       supabase
         .from("personas")
         .select("id, nombres, apellidos, sedes:sede_base_id(codigo)")
@@ -68,9 +71,17 @@ export default function DashboardPage() {
         .from("jornadas")
         .select("persona_id, estado, entrada_ts, salida_final_ts, minutos_tarde, tiene_salida_no_retornada")
         .eq("fecha", hoy),
+      supabase.rpc("fn_jornadas_extra", { p_desde: hoy, p_hasta: hoy }),
     ]);
 
     const jornadaPorPersona = new Map((jornadas ?? []).map((j: any) => [j.persona_id, j]));
+    // Solo llegan filas con minutos > 0 y la fecha es fija (hoy), así que basta persona_id → minutos.
+    // Si la RPC falla, extras es null y el map queda vacío (sin badge, la página no se rompe).
+    const salidaTempranaPorPersona = new Map(
+      ((extras as { persona_id: string; fecha: string; minutos_salida_temprana: number }[] | null) ?? []).map(
+        (e) => [e.persona_id, e.minutos_salida_temprana],
+      ),
+    );
 
     const resultado: FilaPersona[] = (personas ?? []).map((p: any) => {
       const j = jornadaPorPersona.get(p.id);
@@ -82,6 +93,7 @@ export default function DashboardPage() {
         entrada: j?.entrada_ts ?? null,
         salidaFinal: j?.salida_final_ts ?? null,
         minutosTarde: j?.minutos_tarde ?? null,
+        salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
         enPausaSinRetorno: j?.tiene_salida_no_retornada ?? false,
       };
     });
@@ -194,7 +206,14 @@ export default function DashboardPage() {
                               </Link>
                             )}
                           </td>
-                          <td className="px-4 py-2.5">{horaLima(f.salidaFinal)}</td>
+                          <td className="px-4 py-2.5">
+                            {horaLima(f.salidaFinal)}
+                            {f.salidaTemprana ? (
+                              <Link href={linkCorregir(f.personaId)} className="ml-2 rounded-full bg-ambar/15 px-1.5 py-0.5 text-[10px] text-ambar hover:opacity-80">
+                                anticip. {f.salidaTemprana}m
+                              </Link>
+                            ) : null}
+                          </td>
                         </tr>
                       );
                     })}

@@ -20,12 +20,15 @@ export default function ExportarPage() {
     setError(null);
 
     const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase
-      .from("jornadas")
-      .select("fecha, entrada_ts, salida_final_ts, minutos_tarde, horas_trabajadas, estado, personas(nombres, apellidos), sedes(codigo)")
-      .gte("fecha", desde)
-      .lte("fecha", hasta)
-      .order("fecha");
+    const [{ data, error }, extraRes] = await Promise.all([
+      supabase
+        .from("jornadas")
+        .select("fecha, persona_id, entrada_ts, salida_final_ts, minutos_tarde, horas_trabajadas, horas_extra_detectadas, estado, personas(nombres, apellidos), sedes(codigo)")
+        .gte("fecha", desde)
+        .lte("fecha", hasta)
+        .order("fecha"),
+      supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
+    ]);
 
     setCargando(false);
 
@@ -33,6 +36,15 @@ export default function ExportarPage() {
       setError(error.message);
       return;
     }
+
+    // minutos_salida_temprana llega vía RPC (el caché de PostgREST no expone la columna);
+    // si la RPC falla, degradamos a columna vacía sin romper el export.
+    const extras = extraRes.error
+      ? []
+      : ((extraRes.data as { persona_id: string; fecha: string; minutos_salida_temprana: number }[] | null) ?? []);
+    const minutosPorClave = new Map(
+      extras.map((e) => [e.persona_id + "|" + e.fecha, e.minutos_salida_temprana]),
+    );
 
     const filas = (data ?? []).map((j: any) => ({
       fecha: j.fecha,
@@ -42,7 +54,9 @@ export default function ExportarPage() {
       entrada: j.entrada_ts ?? "",
       salida_final: j.salida_final_ts ?? "",
       minutos_tarde: j.minutos_tarde ?? "",
+      minutos_salida_temprana: minutosPorClave.get(j.persona_id + "|" + j.fecha) ?? "",
       horas_trabajadas: j.horas_trabajadas ?? "",
+      horas_extra: j.horas_extra_detectadas ?? "",
       estado: j.estado,
     }));
 
@@ -54,7 +68,9 @@ export default function ExportarPage() {
       "entrada",
       "salida_final",
       "minutos_tarde",
+      "minutos_salida_temprana",
       "horas_trabajadas",
+      "horas_extra",
       "estado",
     ]);
 

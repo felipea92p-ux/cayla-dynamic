@@ -15,6 +15,12 @@ interface Cuenta {
   tieneCuenta: boolean;
 }
 
+interface Promovible {
+  id: string;
+  nombre: string;
+  sede: string;
+}
+
 const ROL_LABEL: Record<string, string> = {
   admin: "Admin",
   lider_do: "Líder DO",
@@ -35,6 +41,7 @@ export default function CuentasPage() {
 
   // gestión de cuentas
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
+  const [promovibles, setPromovibles] = useState<Promovible[]>([]);
   const [cargando, setCargando] = useState(false);
   const [emailNuevo, setEmailNuevo] = useState<Record<string, string>>({});
   const [claveGenerada, setClaveGenerada] = useState<Record<string, string>>({});
@@ -56,6 +63,7 @@ export default function CuentasPage() {
     });
     const data = await res.json();
     setCuentas(data.cuentas ?? []);
+    setPromovibles(data.promovibles ?? []);
     setCargando(false);
   }, [token]);
 
@@ -78,6 +86,20 @@ export default function CuentasPage() {
     if (error) { setMsgMia({ tipo: "error", texto: error.message }); return; }
     setNueva(""); setConfirma("");
     setMsgMia({ tipo: "ok", texto: "Tu contraseña se cambió correctamente." });
+  }
+
+  async function promover(p: Promovible) {
+    setProcesando(p.id); setMsgGestion(null);
+    const res = await fetch("/api/admin/cuentas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+      body: JSON.stringify({ accion: "promover", personaId: p.id }),
+    });
+    const data = await res.json();
+    setProcesando(null);
+    if (data.error) { setMsgGestion(`${p.nombre}: ${data.error}`); return; }
+    setMsgGestion(`${p.nombre} ahora es encargada de ${p.sede}. Ya puedes crearle su cuenta abajo.`);
+    void listar();
   }
 
   async function accion(c: Cuenta, tipo: "resetear" | "crear") {
@@ -185,6 +207,31 @@ export default function CuentasPage() {
             </tbody>
           </table>
         </div>
+
+        <h2 className="mb-1 mt-8 font-serif text-lg">Convertir en encargada</h2>
+        <p className="mb-3 text-sm text-taupe">
+          Da acceso al panel de su sede a una integrante. Al convertirla, aparece arriba para crearle su cuenta.
+        </p>
+        {promovibles.length === 0 ? (
+          <p className="text-sm text-taupe">No hay integrantes por promover.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {promovibles.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+                <span className="text-sm text-tinta">
+                  {p.nombre} <span className="text-taupe">· {p.sede}</span>
+                </span>
+                <button
+                  onClick={() => promover(p)}
+                  disabled={procesando === p.id}
+                  className="rounded-lg border border-sand px-3 py-1 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
+                >
+                  {procesando === p.id ? "…" : "Hacer encargada"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );

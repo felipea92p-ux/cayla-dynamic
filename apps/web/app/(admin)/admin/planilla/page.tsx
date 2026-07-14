@@ -1,0 +1,1456 @@
+"use client";
+
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { AdminNav } from "../nav";
+import { useRolActual } from "@/lib/admin/use-rol";
+import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
+import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+
+// ── Fechas ───────────────────────────────────────────────────────────────────
+const MESES_LARGO = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+const MESES_ABR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+// Año actual en horario de Lima (para la gestión de feriados sin periodo cargado)
+function anioActualLima(): number {
+  return Number(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima", year: "numeric" }).format(new Date()),
+  );
+}
+
+// "2026-07-28" → "28 jul"
+function fechaCorta(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${Number(d)} ${MESES_ABR[Number(m) - 1]}`;
+}
+
+// "2026-06-15" → "15/06"
+function fechaDiaMes(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+// "2026-07-28" + 1 → "2026-07-29" (aritmética en UTC: sin sorpresas de zona)
+function sumarDias(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// timestamptz → "13 jul 2026" en Lima
+function fechaLima(iso: string): string {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima", day: "numeric", month: "short", year: "numeric",
+  }).format(new Date(iso));
+}
+
+function fmtHoras(n: number): string {
+  return `${n.toLocaleString("es-PE", { maximumFractionDigits: 2 })} h`;
+}
+
+// ── Tipos (forma del jsonb de fn_periodos / fn_proyeccion_periodo / fn_simular_planilla) ──
+interface PeriodoInfo {
+  id: string;
+  fecha_ini: string;
+  fecha_fin: string;
+  estado: "abierto" | "pagado";
+  pagado_at: string | null;
+  anio_etiqueta: number;
+  mes_etiqueta: number;
+}
+interface Feriado {
+  fecha: string;
+  nombre: string;
+}
+interface FeriadoDetalle {
+  fecha: string;
+  horas_trabajadas: number;
+  proporcional_horas: number;
+  antes_ingreso: boolean;
+}
+interface Movimiento {
+  id: string;
+  tipo: "bono" | "descuento";
+  concepto: string;
+  monto: number;
+}
+interface Fila {
+  persona_id: string;
+  nombre: string;
+  sede: string;
+  estado: string;
+  rango: string | null;
+  salario_ref: number | null;
+  horas_mes: number;
+  dias_trabajados: number;
+  dias_pendientes: number;
+  horas_sin_salario: number;
+  pago_base: number;
+  fecha_ingreso: string;
+  feriados_detalle: FeriadoDetalle[];
+  monto_feriados: number;
+  feriados_no_corresponde: number;
+  objetivos_cumplidos: number | null;
+  objetivos_total: number | null;
+  monto_plus: number;
+  bajo_desempeno: boolean;
+  feriados_sin_salario: number;
+  con_hijos: boolean;
+  asignacion_familiar: number;
+  bonos: number;
+  descuentos: number;
+  movimientos: Movimiento[];
+  provision_gratificacion: number;
+  provision_cts: number;
+  provision_vacaciones: number;
+  provision_total: number;
+  total: number; // ya incluye + asignación + bonos − descuentos
+}
+interface FactoresProvision {
+  gratificacion: number;
+  cts: number;
+  vacaciones: number;
+}
+interface Proyeccion {
+  periodo_id?: string;
+  estado?: "abierto" | "pagado";
+  pagado_at?: string | null;
+  simulacion: boolean;
+  fecha_ini: string;
+  fecha_fin: string;
+  anio_etiqueta: number;
+  mes_etiqueta: number;
+  dias: number;
+  base_horas: number;
+  feriados: Feriado[];
+  factores_provision: FactoresProvision;
+  asignacion_monto: number;
+  filas: Fila[];
+}
+interface MovForm {
+  tipo: "bono" | "descuento";
+  concepto: string;
+  monto: string;
+}
+
+function etiquetaPeriodo(p: PeriodoInfo): string {
+  return `${MESES_LARGO[p.mes_etiqueta - 1]} ${p.anio_etiqueta} · ${fechaCorta(p.fecha_ini)} → ${fechaCorta(p.fecha_fin)}`;
+}
+
+const COLS = 12; // columnas de la tabla principal
+
+// ── Tabla de planilla (compartida entre periodo oficial y simulador) ─────────
+// Componente a nivel de módulo: si viviera dentro de PlanillaPage se
+// remontaría en cada render y los inputs perderían el foco al tipear.
+function TablaPlanilla(props: {
+  filas: Fila[];
+  simulacion: boolean;
+  pagado: boolean;
+  sedeFiltro: string;
+  ocupado?: boolean;
+  objEdit?: Record<string, string>;
+  onObjChange?: (personaId: string, valor: string) => void;
+  onObjBlur?: (f: Fila) => void;
+  guardandoObj?: string | null;
+  movAbierto?: string | null;
+  onToggleMov?: (personaId: string) => void;
+  movForm?: MovForm;
+  onMovForm?: (mf: MovForm) => void;
+  onAgregarMov?: (f: Fila) => void;
+  onQuitarMov?: (m: Movimiento) => void;
+  guardandoMov?: boolean;
+}) {
+  const {
+    filas, simulacion, pagado, sedeFiltro, ocupado = false,
+    objEdit = {}, onObjChange, onObjBlur, guardandoObj = null,
+    movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov,
+    guardandoMov = false,
+  } = props;
+  const editable = !simulacion;
+  const hintPagado = "periodo pagado — reábrelo para modificar";
+
+  const totales = useMemo(
+    () =>
+      filas.reduce(
+        (acc, f) => ({
+          pago_base: acc.pago_base + f.pago_base,
+          feriados: acc.feriados + f.monto_feriados,
+          asignacion: acc.asignacion + f.asignacion_familiar,
+          plus: acc.plus + f.monto_plus,
+          bonos: acc.bonos + f.bonos,
+          descuentos: acc.descuentos + f.descuentos,
+          total: acc.total + f.total,
+        }),
+        { pago_base: 0, feriados: 0, asignacion: 0, plus: 0, bonos: 0, descuentos: 0, total: 0 },
+      ),
+    [filas],
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-sm">
+        <thead className="bg-sand/50 text-left text-taupe">
+          <tr>
+            <th className="px-4 py-2 font-normal">Nombre</th>
+            <th className="px-4 py-2 font-normal">Sede</th>
+            <th className="px-4 py-2 font-normal">Rango y salario</th>
+            <th className="px-4 py-2 font-normal">Horas</th>
+            <th className="px-4 py-2 text-right font-normal">Pago base</th>
+            <th className="px-4 py-2 text-right font-normal">Feriados</th>
+            <th className="px-4 py-2 text-right font-normal">Asig. familiar</th>
+            <th className="px-4 py-2 font-normal">Objetivos</th>
+            <th className="px-4 py-2 text-right font-normal">Plus</th>
+            <th className="px-4 py-2 text-right font-normal">Bonos</th>
+            <th className="px-4 py-2 text-right font-normal">Descuentos</th>
+            <th className="px-4 py-2 text-right font-normal">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.length === 0 && (
+            <tr>
+              <td colSpan={COLS} className="px-4 py-6 text-center text-taupe">
+                No hay personas para mostrar en este {simulacion ? "rango" : "periodo"}.
+              </td>
+            </tr>
+          )}
+          {filas.map((f) => {
+            const totalObj = f.objetivos_total ?? 10;
+            const movs = f.movimientos ?? [];
+            return (
+              <Fragment key={f.persona_id}>
+                <tr className={`border-t ${f.horas_sin_salario > 0 ? "bg-rojo/10" : ""}`}>
+                  <td className="px-4 py-2">
+                    {f.nombre}
+                    {f.estado !== "activo" && <span className="ml-1 text-xs text-taupe">({f.estado})</span>}
+                  </td>
+                  <td className="px-4 py-2">{f.sede}</td>
+                  <td className="px-4 py-2">
+                    {f.salario_ref !== null ? (
+                      <span className="whitespace-nowrap">
+                        {(f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—"} · {formatSoles(f.salario_ref)}
+                      </span>
+                    ) : (
+                      <span className="text-rojo">Sin salario</span>
+                    )}
+                    {f.horas_sin_salario > 0 && (
+                      <p className="mt-1 text-xs text-rojo">
+                        {fmtHoras(f.horas_sin_salario)} sin salario asignado — asígnale rango en Equipo
+                      </p>
+                    )}
+                    {f.feriados_sin_salario > 0 && (
+                      <p className="mt-1 text-xs text-rojo">
+                        {f.feriados_sin_salario} feriado(s) sin salario asignado ese día — el premio no se pudo calcular
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className="whitespace-nowrap">{fmtHoras(f.horas_mes)}</span>
+                    {f.dias_pendientes > 0 && (
+                      <span
+                        className="ml-2 whitespace-nowrap rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar"
+                        title="Días auto-cerrados sin revisar — corrígelos en Correcciones"
+                      >
+                        {f.dias_pendientes} pend.
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right">{formatSoles(f.pago_base)}</td>
+                  <td
+                    className="px-4 py-2 text-right"
+                    title={
+                      f.feriados_detalle.length > 0
+                        ? f.feriados_detalle
+                            .map((d) =>
+                              d.antes_ingreso
+                                ? `${fechaCorta(d.fecha)}: no corresponde (anterior al ingreso)`
+                                : `${fechaCorta(d.fecha)}: ${d.horas_trabajadas} h trabajadas + ${d.proporcional_horas} h proporcionales`,
+                            )
+                            .join("\n")
+                        : undefined
+                    }
+                  >
+                    {f.monto_feriados > 0 ? formatSoles(f.monto_feriados) : <span className="text-taupe/50">—</span>}
+                    {f.feriados_no_corresponde > 0 && (
+                      <p className="mt-1 text-xs text-ambar">
+                        {f.feriados_no_corresponde} feriado{f.feriados_no_corresponde === 1 ? "" : "s"} no le
+                        {f.feriados_no_corresponde === 1 ? " corresponde" : " corresponden"} — ingresó {fechaDiaMes(f.fecha_ingreso)}
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right whitespace-nowrap" title={f.con_hijos ? "Asignación familiar (con hijos)" : undefined}>
+                    {f.asignacion_familiar > 0 ? <>👶 {formatSoles(f.asignacion_familiar)}</> : <span className="text-taupe/50">—</span>}
+                  </td>
+                  <td className="px-4 py-2">
+                    {editable ? (
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <input
+                          type="number"
+                          min={0}
+                          max={totalObj}
+                          step={1}
+                          placeholder="—"
+                          value={objEdit[f.persona_id] ?? (f.objetivos_cumplidos ?? "")}
+                          onChange={(e) => onObjChange?.(f.persona_id, e.target.value)}
+                          onBlur={() => onObjBlur?.(f)}
+                          disabled={ocupado || pagado}
+                          title={pagado ? hintPagado : undefined}
+                          className="w-14 rounded-lg border px-2 py-1 text-right disabled:opacity-50"
+                        />
+                        <span className="text-taupe">/ {totalObj}</span>
+                        {guardandoObj === f.persona_id && <span className="text-xs text-taupe">…</span>}
+                      </div>
+                    ) : (
+                      <span className="whitespace-nowrap">
+                        {f.objetivos_cumplidos ?? "—"} / {totalObj}
+                      </span>
+                    )}
+                    {f.bajo_desempeno && (
+                      <span
+                        className="mt-1 inline-block whitespace-nowrap rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo"
+                        title="Menos del 30% de objetivos — amerita conversación (principios CAYLA)"
+                      >
+                        ⚠ bajo desempeño
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {f.monto_plus > 0 ? formatSoles(f.monto_plus) : <span className="text-taupe/50">—</span>}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {f.bonos > 0 ? (
+                      <span className="whitespace-nowrap text-verde">+{formatSoles(f.bonos)}</span>
+                    ) : (
+                      <span className="text-taupe/50">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                      {f.descuentos > 0 ? (
+                        <span className="text-rojo">−{formatSoles(f.descuentos)}</span>
+                      ) : (
+                        <span className="text-taupe/50">—</span>
+                      )}
+                      {editable && (
+                        <button
+                          onClick={() => onToggleMov?.(f.persona_id)}
+                          disabled={ocupado}
+                          title="Ver y editar bonos y descuentos"
+                          aria-label={`Bonos y descuentos de ${f.nombre}`}
+                          className={`rounded-lg border px-2 py-0.5 text-xs hover:bg-sand/50 disabled:opacity-50 ${movAbierto === f.persona_id ? "bg-sand/60" : ""}`}
+                        >
+                          ±
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right font-bold">{formatSoles(f.total)}</td>
+                </tr>
+                {editable && movAbierto === f.persona_id && movForm && (
+                  <tr className="border-t bg-sand/20">
+                    <td colSpan={COLS} className="px-4 py-3">
+                      <div className="max-w-2xl">
+                        <p className="mb-2 text-sm font-medium">Bonos y descuentos — {f.nombre}</p>
+                        {pagado && (
+                          <p className="mb-2 text-xs text-taupe">🔒 {hintPagado}</p>
+                        )}
+                        {movs.length === 0 ? (
+                          <p className="mb-2 text-sm text-taupe">Sin bonos ni descuentos en este periodo.</p>
+                        ) : (
+                          <ul className="mb-2 grid gap-1">
+                            {movs.map((m) => (
+                              <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
+                                <span>
+                                  <span className={m.tipo === "bono" ? "text-verde" : "text-rojo"}>
+                                    {m.tipo === "bono" ? "+" : "−"}{formatSoles(m.monto)}
+                                  </span>{" "}
+                                  <span className="text-taupe">({m.tipo})</span> — {m.concepto}
+                                </span>
+                                <button
+                                  onClick={() => onQuitarMov?.(m)}
+                                  disabled={pagado || guardandoMov || ocupado}
+                                  title={pagado ? hintPagado : "Quitar"}
+                                  className="text-xs text-rojo hover:underline disabled:opacity-50"
+                                >
+                                  ×
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="flex flex-wrap items-end gap-2 border-t pt-2">
+                          <label className="flex flex-col gap-1 text-xs text-taupe">
+                            Tipo
+                            <select
+                              value={movForm.tipo}
+                              onChange={(e) => onMovForm?.({ ...movForm, tipo: e.target.value as "bono" | "descuento" })}
+                              disabled={pagado || guardandoMov}
+                              title={pagado ? hintPagado : undefined}
+                              className="rounded-lg border bg-crema px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
+                            >
+                              <option value="bono">Bono</option>
+                              <option value="descuento">Descuento</option>
+                            </select>
+                          </label>
+                          <label className="flex flex-col gap-1 text-xs text-taupe">
+                            Concepto
+                            <input
+                              value={movForm.concepto}
+                              onChange={(e) => onMovForm?.({ ...movForm, concepto: e.target.value })}
+                              placeholder="ej. reconocimiento del mes"
+                              disabled={pagado || guardandoMov}
+                              title={pagado ? hintPagado : undefined}
+                              className="w-52 rounded-lg border px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-xs text-taupe">
+                            Monto (S/)
+                            <input
+                              type="number"
+                              min={0.01}
+                              step={0.01}
+                              value={movForm.monto}
+                              onChange={(e) => onMovForm?.({ ...movForm, monto: e.target.value })}
+                              placeholder="0.00"
+                              disabled={pagado || guardandoMov}
+                              title={pagado ? hintPagado : undefined}
+                              className="w-24 rounded-lg border px-2 py-1.5 text-right text-sm text-tinta disabled:opacity-50"
+                            />
+                          </label>
+                          <button
+                            onClick={() => onAgregarMov?.(f)}
+                            disabled={pagado || guardandoMov || ocupado}
+                            title={pagado ? hintPagado : undefined}
+                            className="rounded-lg bg-tinta px-3 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                          >
+                            {guardandoMov ? "Guardando…" : "Agregar"}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+        {filas.length > 0 && (
+          <tfoot>
+            <tr className="border-t bg-sand/50">
+              <td className="px-4 py-2 font-medium" colSpan={4}>
+                Total ({filas.length} {filas.length === 1 ? "persona" : "personas"}
+                {sedeFiltro !== "todas" ? ` — ${sedeFiltro}` : ""})
+              </td>
+              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.pago_base)}</td>
+              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.feriados)}</td>
+              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.asignacion)}</td>
+              <td className="px-4 py-2" />
+              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.plus)}</td>
+              <td className="px-4 py-2 text-right font-medium">
+                {totales.bonos > 0 ? <span className="text-verde">+{formatSoles(totales.bonos)}</span> : <span className="text-taupe/50">—</span>}
+              </td>
+              <td className="px-4 py-2 text-right font-medium">
+                {totales.descuentos > 0 ? <span className="text-rojo">−{formatSoles(totales.descuentos)}</span> : <span className="text-taupe/50">—</span>}
+              </td>
+              <td className="px-4 py-2 text-right font-bold">{formatSoles(totales.total)}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  );
+}
+
+export default function PlanillaPage() {
+  const router = useRouter();
+  const rol = useRolActual();
+  const puedeVer = rol === "admin" || rol === "lider_do";
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+
+  // Periodos
+  const [periodos, setPeriodos] = useState<PeriodoInfo[] | null>(null);
+  const [errorPeriodos, setErrorPeriodos] = useState<string | null>(null);
+  const [periodoSel, setPeriodoSel] = useState<string | null>(null);
+  const [guardandoPeriodo, setGuardandoPeriodo] = useState(false);
+
+  // Crear periodo (primero / encadenado)
+  const [primerIni, setPrimerIni] = useState("");
+  const [primerFin, setPrimerFin] = useState("");
+  const [mostrandoNuevo, setMostrandoNuevo] = useState(false);
+  const [nuevoFin, setNuevoFin] = useState("");
+  const [creandoPeriodo, setCreandoPeriodo] = useState(false);
+
+  // Proyección del periodo seleccionado
+  const [proy, setProy] = useState<Proyeccion | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
+
+  const [sedeFiltro, setSedeFiltro] = useState("todas");
+
+  // Objetivos: valor en edición por persona (solo las filas tocadas)
+  const [objEdit, setObjEdit] = useState<Record<string, string>>({});
+  const [guardandoObj, setGuardandoObj] = useState<string | null>(null);
+
+  // Bonos / descuentos: panel abierto + mini-form
+  const [movAbierto, setMovAbierto] = useState<string | null>(null);
+  const [movForm, setMovForm] = useState<MovForm>({ tipo: "bono", concepto: "", monto: "" });
+  const [guardandoMov, setGuardandoMov] = useState(false);
+
+  // Provisiones (plegable)
+  const [mostrandoProvisiones, setMostrandoProvisiones] = useState(false);
+
+  // Simulador (plegable, solo lectura)
+  const [mostrandoSim, setMostrandoSim] = useState(false);
+  const [simIni, setSimIni] = useState("");
+  const [simFin, setSimFin] = useState("");
+  const [simProy, setSimProy] = useState<Proyeccion | null>(null);
+  const [simCargando, setSimCargando] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
+  const reqIdSim = useRef(0);
+
+  // Gestión de feriados (lista del AÑO del periodo, no solo del rango)
+  const [mostrandoFeriados, setMostrandoFeriados] = useState(false);
+  const [feriadosAnio, setFeriadosAnio] = useState<Feriado[] | null>(null);
+  const [errorFeriados, setErrorFeriados] = useState<string | null>(null);
+  const [nuevoFeriado, setNuevoFeriado] = useState({ fecha: "", nombre: "" });
+  const [guardandoFeriado, setGuardandoFeriado] = useState(false);
+
+  // Si el rol no llega en ~6 s, avisar en vez de un "Cargando…" eterno
+  const [rolDemorado, setRolDemorado] = useState(false);
+  useEffect(() => {
+    if (rol !== null) {
+      setRolDemorado(false);
+      return;
+    }
+    const t = window.setTimeout(() => setRolDemorado(true), 6000);
+    return () => window.clearTimeout(t);
+  }, [rol]);
+
+  // Sin sesión no hay panel
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) router.replace("/admin/login");
+    });
+  }, [supabase, router]);
+
+  function avisar(tipo: "ok" | "error", texto: string) {
+    setMensaje({ tipo, texto });
+  }
+
+  // ── Periodos ───────────────────────────────────────────────────────────────
+  const cargarPeriodos = useCallback(async (): Promise<PeriodoInfo[] | null> => {
+    if (!puedeVer) return null;
+    setErrorPeriodos(null);
+    const { data, error } = await supabase.rpc("fn_periodos");
+    if (error) {
+      setErrorPeriodos(error.message);
+      return null;
+    }
+    const lista = ((data as unknown as PeriodoInfo[]) ?? []);
+    setPeriodos(lista);
+    return lista;
+  }, [supabase, puedeVer]);
+
+  // Carga inicial: lista + selección del más reciente
+  useEffect(() => {
+    void (async () => {
+      const lista = await cargarPeriodos();
+      if (lista && lista.length > 0) {
+        setPeriodoSel((prev) => prev ?? lista[0].id);
+      }
+    })();
+  }, [cargarPeriodos]);
+
+  const periodoActual = useMemo(
+    () => periodos?.find((p) => p.id === periodoSel) ?? null,
+    [periodos, periodoSel],
+  );
+  const esUltimo = periodos !== null && periodos.length > 0 && periodoSel === periodos[0].id;
+  const pagado = periodoActual?.estado === "pagado";
+  // Inicio encadenado del siguiente periodo: día siguiente al último cierre
+  const inicioEncadenado = periodos && periodos.length > 0 ? sumarDias(periodos[0].fecha_fin, 1) : null;
+
+  // Periodo VIGENTE: cargarProyeccion lo lee de aquí (no del closure) para que
+  // una recarga disparada desde un closure viejo (p. ej. post-guardado de
+  // objetivos) nunca pida ni pinte un periodo que ya no está seleccionado.
+  const periodoSelRef = useRef<string | null>(null);
+
+  const cargarProyeccion = useCallback(async () => {
+    if (!puedeVer) return;
+    const id = periodoSelRef.current;
+    if (!id) return;
+    const mi = ++reqId.current;
+    setCargando(true);
+    setErrorCarga(null);
+    // Toda recarga cierra el panel ± y limpia su formulario: si quedara abierto,
+    // un guardado posterior actuaría sobre filas/periodo que están por cambiar.
+    setMovAbierto(null);
+    setMovForm({ tipo: "bono", concepto: "", monto: "" });
+    const { data, error } = await supabase.rpc("fn_proyeccion_periodo", { p_periodo_id: id });
+    if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
+    setCargando(false);
+    if (error) {
+      setErrorCarga(error.message);
+      return;
+    }
+    setProy(data as unknown as Proyeccion);
+    setObjEdit({}); // los valores en edición eran del periodo anterior
+  }, [supabase, puedeVer]);
+
+  useEffect(() => {
+    periodoSelRef.current = periodoSel;
+    if (periodoSel) {
+      void cargarProyeccion(); // cierra el panel ± y limpia su form al arrancar
+    } else {
+      reqId.current++; // invalida cualquier carga en vuelo del periodo anterior
+      setCargando(false);
+      setMovAbierto(null);
+      setMovForm({ tipo: "bono", concepto: "", monto: "" });
+      setProy(null);
+    }
+  }, [periodoSel, cargarProyeccion]);
+
+  // Si el periodo seleccionado dejó de existir tras recargar fn_periodos (p. ej.
+  // fue eliminado desde otra pestaña), la selección cae al más reciente y la
+  // proyección vieja se despinta de inmediato (no debe quedar visible ni editable).
+  useEffect(() => {
+    if (periodos === null || !periodoSel) return;
+    if (periodos.some((p) => p.id === periodoSel)) return;
+    setProy(null);
+    setPeriodoSel(periodos.length > 0 ? periodos[0].id : null);
+  }, [periodos, periodoSel]);
+
+  async function crearPeriodo(fin: string, ini?: string) {
+    if (!fin) {
+      avisar("error", "Pon la fecha de cierre del periodo.");
+      return;
+    }
+    setCreandoPeriodo(true);
+    const { data, error } = await supabase.rpc(
+      "fn_crear_periodo",
+      ini ? { p_fecha_fin: fin, p_fecha_ini: ini } : { p_fecha_fin: fin },
+    );
+    setCreandoPeriodo(false);
+    if (error) {
+      avisar("error", `No se pudo crear el periodo: ${error.message}`);
+      return;
+    }
+    const nuevo = data as unknown as { id: string; fecha_ini: string; fecha_fin: string };
+    avisar("ok", `Periodo creado: ${fechaCorta(nuevo.fecha_ini)} → ${fechaCorta(nuevo.fecha_fin)}.`);
+    setMostrandoNuevo(false);
+    setNuevoFin("");
+    setPrimerIni("");
+    setPrimerFin("");
+    await cargarPeriodos();
+    setPeriodoSel(nuevo.id);
+  }
+
+  async function eliminarPeriodo() {
+    if (!periodoActual) return;
+    if (
+      !window.confirm(
+        `¿Eliminar el periodo ${fechaCorta(periodoActual.fecha_ini)} → ${fechaCorta(periodoActual.fecha_fin)}? ` +
+          "Se pierden los bonos y descuentos registrados en él. Solo se puede eliminar el último periodo abierto.",
+      )
+    )
+      return;
+    setGuardandoPeriodo(true);
+    const { error } = await supabase.rpc("fn_eliminar_periodo", { p_periodo_id: periodoActual.id });
+    setGuardandoPeriodo(false);
+    if (error) {
+      avisar("error", `No se pudo eliminar el periodo: ${error.message}`);
+      return;
+    }
+    avisar("ok", "Periodo eliminado.");
+    const lista = await cargarPeriodos();
+    setPeriodoSel(lista && lista.length > 0 ? lista[0].id : null);
+  }
+
+  async function marcarPagado(pagar: boolean) {
+    if (!periodoActual) return;
+    const texto = pagar
+      ? "Marcar este periodo como PAGADO congela objetivos, bonos y descuentos. ¿Continuar?"
+      : "¿Reabrir este periodo para modificarlo? Recuerda volver a marcarlo como PAGADO al terminar.";
+    if (!window.confirm(texto)) return;
+    setGuardandoPeriodo(true);
+    const { error } = await supabase.rpc("fn_periodo_pagado", {
+      p_periodo_id: periodoActual.id,
+      p_pagado: pagar,
+    });
+    setGuardandoPeriodo(false);
+    if (error) {
+      avisar("error", `No se pudo actualizar el periodo: ${error.message}`);
+      return;
+    }
+    avisar("ok", pagar ? "Periodo marcado como PAGADO 🔒." : "Periodo reabierto.");
+    await Promise.all([cargarPeriodos(), cargarProyeccion()]);
+  }
+
+  // ── Feriados (gestión anual, se conserva de la v1) ─────────────────────────
+  const anioFeriados = proy?.anio_etiqueta ?? periodoActual?.anio_etiqueta ?? anioActualLima();
+
+  const cargarFeriadosAnio = useCallback(async () => {
+    if (!puedeVer) return;
+    setErrorFeriados(null);
+    const { data, error } = await supabase.rpc("fn_feriados", { p_anio: anioFeriados });
+    if (error) {
+      setErrorFeriados(error.message);
+      setFeriadosAnio(null);
+      return;
+    }
+    setFeriadosAnio((data as unknown as Feriado[]) ?? []);
+  }, [supabase, anioFeriados, puedeVer]);
+
+  useEffect(() => {
+    if (mostrandoFeriados) void cargarFeriadosAnio();
+  }, [mostrandoFeriados, cargarFeriadosAnio]);
+
+  async function agregarFeriado() {
+    if (!nuevoFeriado.fecha || nuevoFeriado.nombre.trim().length < 2) {
+      avisar("error", "Pon la fecha y el nombre del feriado.");
+      return;
+    }
+    setGuardandoFeriado(true);
+    const { error } = await supabase.rpc("fn_set_feriado", {
+      p_fecha: nuevoFeriado.fecha,
+      p_nombre: nuevoFeriado.nombre.trim(),
+    });
+    setGuardandoFeriado(false);
+    if (error) {
+      avisar("error", `No se pudo guardar el feriado: ${error.message}`);
+      return;
+    }
+    setNuevoFeriado({ fecha: "", nombre: "" });
+    avisar("ok", "Feriado guardado.");
+    await Promise.all([cargarFeriadosAnio(), cargarProyeccion()]);
+  }
+
+  async function quitarFeriado(f: Feriado) {
+    if (!window.confirm(`¿Quitar el feriado "${f.nombre}" (${fechaCorta(f.fecha)})? La planilla dejará de pagarlo doble.`)) return;
+    setGuardandoFeriado(true);
+    const { error } = await supabase.rpc("fn_quitar_feriado", { p_fecha: f.fecha });
+    setGuardandoFeriado(false);
+    if (error) {
+      avisar("error", `No se pudo quitar el feriado: ${error.message}`);
+      return;
+    }
+    avisar("ok", "Feriado quitado.");
+    await Promise.all([cargarFeriadosAnio(), cargarProyeccion()]);
+  }
+
+  // ── Objetivos (etiqueta del periodo = mes de la fecha de cierre) ───────────
+  async function guardarObjetivos(f: Fila) {
+    if (!proy || proy.simulacion) return;
+    const bruto = objEdit[f.persona_id];
+    if (bruto === undefined) return; // no se tocó
+    const texto = bruto.trim();
+    const limpiar = () =>
+      setObjEdit((prev) => {
+        const { [f.persona_id]: _, ...resto } = prev;
+        return resto;
+      });
+    if (texto === "") {
+      limpiar(); // vaciar el input no borra el registro; vuelve a mostrar lo guardado
+      return;
+    }
+    const total = f.objetivos_total ?? 10;
+    const n = Number(texto);
+    if (!Number.isInteger(n) || n < 0 || n > total) {
+      avisar("error", `Los objetivos de ${f.nombre} deben ser un entero entre 0 y ${total}.`);
+      return;
+    }
+    if (n === f.objetivos_cumplidos) {
+      limpiar();
+      return;
+    }
+    setGuardandoObj(f.persona_id);
+    const { error } = await supabase.rpc("fn_set_objetivos", {
+      p_persona_id: f.persona_id,
+      p_anio: proy.anio_etiqueta,
+      p_mes: proy.mes_etiqueta,
+      p_cumplidos: n,
+      p_total: total,
+    });
+    setGuardandoObj(null);
+    if (error) {
+      avisar("error", `No se pudieron guardar los objetivos: ${error.message}`);
+      return;
+    }
+    avisar("ok", `Objetivos de ${f.nombre}: ${n} de ${total}.`);
+    await cargarProyeccion();
+  }
+
+  // ── Bonos / descuentos ─────────────────────────────────────────────────────
+  function toggleMov(personaId: string) {
+    setMovAbierto((prev) => (prev === personaId ? null : personaId));
+    setMovForm({ tipo: "bono", concepto: "", monto: "" });
+  }
+
+  async function agregarMovimiento(f: Fila) {
+    if (!proy?.periodo_id) return;
+    const concepto = movForm.concepto.trim();
+    const monto = Number(movForm.monto);
+    if (concepto.length < 2) {
+      avisar("error", "Pon el concepto del movimiento (mínimo 2 letras).");
+      return;
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      avisar("error", "El monto debe ser mayor a 0.");
+      return;
+    }
+    setGuardandoMov(true);
+    const { error } = await supabase.rpc("fn_agregar_movimiento", {
+      p_periodo_id: proy.periodo_id,
+      p_persona_id: f.persona_id,
+      p_tipo: movForm.tipo,
+      p_concepto: concepto,
+      p_monto: monto,
+    });
+    setGuardandoMov(false);
+    if (error) {
+      avisar("error", `No se pudo registrar el movimiento: ${error.message}`);
+      return;
+    }
+    avisar("ok", `${movForm.tipo === "bono" ? "Bono" : "Descuento"} de ${formatSoles(monto)} para ${f.nombre}.`);
+    await cargarProyeccion(); // cierra el panel ± y limpia el formulario
+
+  }
+
+  async function quitarMovimiento(m: Movimiento) {
+    if (!window.confirm(`¿Quitar el ${m.tipo} "${m.concepto}" de ${formatSoles(m.monto)}?`)) return;
+    setGuardandoMov(true);
+    const { error } = await supabase.rpc("fn_quitar_movimiento", { p_movimiento_id: m.id });
+    setGuardandoMov(false);
+    if (error) {
+      avisar("error", `No se pudo quitar el movimiento: ${error.message}`);
+      return;
+    }
+    avisar("ok", "Movimiento quitado.");
+    await cargarProyeccion();
+  }
+
+  // ── Simulador (solo lectura, nada se guarda) ───────────────────────────────
+  async function simular() {
+    if (!simIni || !simFin) {
+      avisar("error", "Pon las dos fechas del rango a simular.");
+      return;
+    }
+    const mi = ++reqIdSim.current;
+    setSimCargando(true);
+    setSimError(null);
+    const { data, error } = await supabase.rpc("fn_simular_planilla", { p_ini: simIni, p_fin: simFin });
+    if (mi !== reqIdSim.current) return;
+    setSimCargando(false);
+    if (error) {
+      setSimError(error.message);
+      setSimProy(null);
+      return;
+    }
+    setSimProy(data as unknown as Proyeccion);
+  }
+
+  // ── Filtro de sede ─────────────────────────────────────────────────────────
+  const sedes = useMemo(
+    () => Array.from(new Set((proy?.filas ?? []).map((f) => f.sede))).sort(),
+    [proy],
+  );
+  const filasVisibles = useMemo(
+    () => (proy?.filas ?? []).filter((f) => sedeFiltro === "todas" || f.sede === sedeFiltro),
+    [proy, sedeFiltro],
+  );
+  const simFilasVisibles = useMemo(
+    () => (simProy?.filas ?? []).filter((f) => sedeFiltro === "todas" || f.sede === sedeFiltro),
+    [simProy, sedeFiltro],
+  );
+  const provTotales = useMemo(
+    () =>
+      filasVisibles.reduce(
+        (acc, f) => ({
+          gratificacion: acc.gratificacion + f.provision_gratificacion,
+          cts: acc.cts + f.provision_cts,
+          vacaciones: acc.vacaciones + f.provision_vacaciones,
+          total: acc.total + f.provision_total,
+        }),
+        { gratificacion: 0, cts: 0, vacaciones: 0, total: 0 },
+      ),
+    [filasVisibles],
+  );
+
+  // ── CSV (columnas de la tabla + las 4 de provisiones; respeta el filtro) ───
+  // Nombre y contenido salen de proy (lo realmente cargado), NUNCA del selector
+  // de periodo: si el selector cambió y la carga aún no llega, el CSV sería del
+  // periodo equivocado. No hay CSV de la simulación.
+  function descargarCsvPlanilla() {
+    if (!proy || proy.simulacion) return;
+    const filas = filasVisibles.map((f) => ({
+      nombre: f.nombre,
+      sede: f.sede,
+      rango: f.rango ? (RANGO_LABEL[f.rango] ?? f.rango) : "sin salario",
+      salario_referencia: f.salario_ref ?? "",
+      horas: f.horas_mes,
+      dias_trabajados: f.dias_trabajados,
+      dias_pendientes: f.dias_pendientes,
+      horas_sin_salario: f.horas_sin_salario,
+      pago_base: f.pago_base,
+      monto_feriados: f.monto_feriados,
+      asignacion_familiar: f.asignacion_familiar,
+      objetivos_cumplidos: f.objetivos_cumplidos ?? "",
+      objetivos_total: f.objetivos_total ?? "",
+      monto_plus: f.monto_plus,
+      bonos: f.bonos,
+      descuentos: f.descuentos,
+      total: f.total,
+      provision_gratificacion: f.provision_gratificacion,
+      provision_cts: f.provision_cts,
+      provision_vacaciones: f.provision_vacaciones,
+      provision_total: f.provision_total,
+    }));
+    const csv = generarCsv(filas, [
+      "nombre",
+      "sede",
+      "rango",
+      "salario_referencia",
+      "horas",
+      "dias_trabajados",
+      "dias_pendientes",
+      "horas_sin_salario",
+      "pago_base",
+      "monto_feriados",
+      "asignacion_familiar",
+      "objetivos_cumplidos",
+      "objetivos_total",
+      "monto_plus",
+      "bonos",
+      "descuentos",
+      "total",
+      "provision_gratificacion",
+      "provision_cts",
+      "provision_vacaciones",
+      "provision_total",
+    ]);
+    descargarCsv(`planilla-${proy.fecha_ini}_${proy.fecha_fin}.csv`, csv);
+  }
+
+  // ── Gating ─────────────────────────────────────────────────────────────────
+  if (rol === null) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <AdminNav />
+        <main className="flex-1 p-6">
+          {rolDemorado ? (
+            <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+              No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
+            </p>
+          ) : (
+            <p className="text-sm text-taupe">Cargando…</p>
+          )}
+        </main>
+      </div>
+    );
+  }
+  if (!puedeVer) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <AdminNav />
+        <main className="flex-1 p-6">
+          <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            Solo administradores y líderes pueden ver la planilla.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
+  const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo;
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <AdminNav />
+      <main className="flex-1 p-6">
+        {/* Cabecera: selector de periodo */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <h1 className="font-serif text-2xl">Planilla</h1>
+          {periodos && periodos.length > 0 && (
+            <>
+              <select
+                value={periodoSel ?? ""}
+                onChange={(e) => {
+                  setPeriodoSel(e.target.value);
+                  setMensaje(null);
+                }}
+                className="rounded-lg border bg-crema px-3 py-1.5 text-sm"
+                aria-label="Periodo de pago"
+              >
+                {periodos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {etiquetaPeriodo(p)}
+                    {p.estado === "pagado" ? " · PAGADO" : ""}
+                  </option>
+                ))}
+              </select>
+              {periodoActual &&
+                (periodoActual.estado === "pagado" ? (
+                  <span className="whitespace-nowrap rounded-full bg-verde/15 px-2.5 py-0.5 text-xs font-medium text-verde">
+                    PAGADO 🔒
+                  </span>
+                ) : (
+                  <span className="whitespace-nowrap rounded-full bg-ambar/15 px-2.5 py-0.5 text-xs text-ambar">
+                    abierto
+                  </span>
+                ))}
+              <button
+                onClick={() => {
+                  setMostrandoNuevo((v) => !v);
+                  setMensaje(null);
+                }}
+                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50"
+              >
+                + Nuevo periodo
+              </button>
+              {esUltimo && periodoActual?.estado === "abierto" && (
+                <button
+                  onClick={() => void eliminarPeriodo()}
+                  disabled={guardandoPeriodo}
+                  className="rounded-lg border px-3 py-1.5 text-sm text-rojo hover:bg-rojo/10 disabled:opacity-50"
+                >
+                  Eliminar
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {mensaje && (
+          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
+            {mensaje.texto}
+          </div>
+        )}
+
+        {errorPeriodos && (
+          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            No se pudieron cargar los periodos: {errorPeriodos}{" "}
+            <button
+              onClick={() =>
+                void (async () => {
+                  const lista = await cargarPeriodos();
+                  if (lista && lista.length > 0) setPeriodoSel((prev) => prev ?? lista[0].id);
+                })()
+              }
+              className="font-medium underline"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {/* Aún cargando la lista */}
+        {periodos === null && !errorPeriodos && <p className="text-sm text-taupe">Cargando…</p>}
+
+        {/* Sin periodos: pantalla de arranque */}
+        {periodos !== null && periodos.length === 0 && (
+          <div className="max-w-xl rounded-lg border bg-sand/30 p-6">
+            <h2 className="mb-2 font-serif text-lg">Crear el primer periodo</h2>
+            <p className="mb-4 text-sm text-taupe">
+              La planilla se paga por periodos encadenados: tú eliges el día de cierre y el siguiente
+              periodo empieza automáticamente al día siguiente (sin huecos ni días contados dos veces).
+              Solo este primer periodo necesita fecha de inicio. Cada periodo debe durar entre 20 y 46 días.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-sm">
+                Fecha de inicio
+                <input
+                  type="date"
+                  value={primerIni}
+                  onChange={(e) => setPrimerIni(e.target.value)}
+                  className="rounded-lg border px-3 py-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Fecha de cierre
+                <input
+                  type="date"
+                  value={primerFin}
+                  onChange={(e) => setPrimerFin(e.target.value)}
+                  className="rounded-lg border px-3 py-2"
+                />
+              </label>
+              <button
+                onClick={() => void crearPeriodo(primerFin, primerIni)}
+                disabled={creandoPeriodo || !primerIni || !primerFin}
+                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+              >
+                {creandoPeriodo ? "Creando…" : "Crear periodo"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Con periodos: panel principal */}
+        {periodos !== null && periodos.length > 0 && (
+          <>
+            {/* Nuevo periodo (encadenado) */}
+            {mostrandoNuevo && inicioEncadenado && (
+              <div className="mb-4 max-w-2xl rounded-lg border bg-sand/30 p-4">
+                <p className="mb-2 text-sm font-medium">Nuevo periodo</p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col gap-1 text-sm">
+                    Inicio (encadenado)
+                    <input
+                      type="date"
+                      value={inicioEncadenado}
+                      readOnly
+                      disabled
+                      className="rounded-lg border px-3 py-2 opacity-60"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    Fecha de cierre
+                    <input
+                      type="date"
+                      value={nuevoFin}
+                      min={sumarDias(inicioEncadenado, 19)}
+                      max={sumarDias(inicioEncadenado, 45)}
+                      onChange={(e) => setNuevoFin(e.target.value)}
+                      className="rounded-lg border px-3 py-2"
+                    />
+                  </label>
+                  <button
+                    onClick={() => void crearPeriodo(nuevoFin)}
+                    disabled={creandoPeriodo || !nuevoFin}
+                    className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                  >
+                    {creandoPeriodo ? "Creando…" : "Crear periodo"}
+                  </button>
+                  <button
+                    onClick={() => setMostrandoNuevo(false)}
+                    className="rounded-lg border px-3 py-2 text-sm hover:bg-sand/50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-taupe">
+                  El inicio no se puede cambiar: siempre es el día siguiente al último cierre
+                  ({fechaCorta(periodos[0].fecha_fin)} → empieza el {fechaCorta(inicioEncadenado)}),
+                  para que ningún día quede fuera ni se pague dos veces. Duración permitida: 20 a 46 días.
+                </p>
+              </div>
+            )}
+
+            {errorCarga && (
+              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                No se pudo cargar la proyección: {errorCarga}{" "}
+                <button onClick={() => void cargarProyeccion()} className="font-medium underline">
+                  Reintentar
+                </button>
+              </div>
+            )}
+
+            {/* Candado del periodo */}
+            {periodoActual && (
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                {pagado ? (
+                  <>
+                    <span className="text-sm text-taupe">
+                      Pagado{periodoActual.pagado_at ? ` el ${fechaLima(periodoActual.pagado_at)}` : ""} — objetivos,
+                      bonos y descuentos congelados.
+                    </span>
+                    <button
+                      onClick={() => void marcarPagado(false)}
+                      disabled={guardandoPeriodo}
+                      className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50 disabled:opacity-50"
+                    >
+                      Reabrir periodo
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => void marcarPagado(true)}
+                    disabled={guardandoPeriodo || cargando}
+                    className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                  >
+                    {guardandoPeriodo ? "Guardando…" : "Marcar como PAGADO"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Cabecera resumen del periodo */}
+            {proy && (
+              <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-taupe">
+                <span className="whitespace-nowrap">
+                  {fechaCorta(proy.fecha_ini)} → {fechaCorta(proy.fecha_fin)}
+                </span>
+                <span>·</span>
+                <span>{proy.dias} días</span>
+                <span>·</span>
+                <span>Base full-time: {fmtHoras(proy.base_horas)}</span>
+                {proy.feriados.length > 0 && <span>·</span>}
+                {proy.feriados.map((f) => (
+                  <span key={f.fecha} className="whitespace-nowrap rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">
+                    {fechaCorta(f.fecha)} — {f.nombre}
+                  </span>
+                ))}
+                {proy.feriados.length === 0 && <span>· sin feriados en este periodo</span>}
+              </div>
+            )}
+
+            {/* Gestión de feriados (plegable) */}
+            <div className="mb-4">
+              <button
+                onClick={() => setMostrandoFeriados((v) => !v)}
+                className="text-sm text-taupe hover:text-tinta hover:underline"
+              >
+                {mostrandoFeriados ? "▾" : "▸"} Gestionar feriados
+              </button>
+              {mostrandoFeriados && (
+                <div className="mt-2 max-w-2xl rounded-lg border bg-sand/30 p-4">
+                  <p className="mb-2 text-sm font-medium">Feriados nacionales de {anioFeriados}</p>
+                  {errorFeriados ? (
+                    <p className="text-sm text-rojo">
+                      No se pudieron cargar los feriados: {errorFeriados}{" "}
+                      <button onClick={() => void cargarFeriadosAnio()} className="font-medium underline">Reintentar</button>
+                    </p>
+                  ) : feriadosAnio === null ? (
+                    <p className="text-sm text-taupe">Cargando…</p>
+                  ) : feriadosAnio.length === 0 ? (
+                    <p className="text-sm text-taupe">No hay feriados registrados este año.</p>
+                  ) : (
+                    <ul className="mb-3 grid gap-1 sm:grid-cols-2">
+                      {feriadosAnio.map((f) => (
+                        <li key={f.fecha} className="flex items-center justify-between gap-2 text-sm">
+                          <span>
+                            <span className="text-taupe">{fechaCorta(f.fecha)}</span> — {f.nombre}
+                          </span>
+                          <button
+                            onClick={() => void quitarFeriado(f)}
+                            disabled={guardandoFeriado}
+                            className="text-xs text-rojo hover:underline disabled:opacity-50"
+                          >
+                            Quitar
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-end gap-3 border-t pt-3">
+                    <label className="flex flex-col gap-1 text-sm">
+                      Fecha
+                      <input
+                        type="date"
+                        value={nuevoFeriado.fecha}
+                        onChange={(e) => setNuevoFeriado({ ...nuevoFeriado, fecha: e.target.value })}
+                        className="rounded-lg border px-3 py-2"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm">
+                      Nombre
+                      <input
+                        value={nuevoFeriado.nombre}
+                        onChange={(e) => setNuevoFeriado({ ...nuevoFeriado, nombre: e.target.value })}
+                        placeholder="ej. Fiestas Patrias"
+                        className="rounded-lg border px-3 py-2"
+                      />
+                    </label>
+                    <button
+                      onClick={() => void agregarFeriado()}
+                      disabled={guardandoFeriado}
+                      className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                    >
+                      {guardandoFeriado ? "Guardando…" : "Agregar feriado"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-taupe">
+                    Solo feriados nacionales por ley: cada uno paga el proporcional a todos, y doble a quien lo trabaja.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Filtro de sede + CSV */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                Sede
+                <select
+                  value={sedeFiltro}
+                  onChange={(e) => setSedeFiltro(e.target.value)}
+                  className="rounded-lg border bg-crema px-3 py-1.5"
+                >
+                  <option value="todas">Todas</option>
+                  {sedes.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                onClick={descargarCsvPlanilla}
+                disabled={cargando || errorCarga !== null || !proy || filasVisibles.length === 0}
+                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+              >
+                Descargar CSV
+              </button>
+            </div>
+
+            {/* Tabla del periodo */}
+            {cargando && !proy ? (
+              <p className="text-sm text-taupe">Cargando…</p>
+            ) : proy ? (
+              <TablaPlanilla
+                filas={filasVisibles}
+                simulacion={false}
+                pagado={pagado}
+                sedeFiltro={sedeFiltro}
+                ocupado={ocupado}
+                objEdit={objEdit}
+                onObjChange={(personaId, valor) => setObjEdit((prev) => ({ ...prev, [personaId]: valor }))}
+                onObjBlur={(f) => void guardarObjetivos(f)}
+                guardandoObj={guardandoObj}
+                movAbierto={movAbierto}
+                onToggleMov={toggleMov}
+                movForm={movForm}
+                onMovForm={setMovForm}
+                onAgregarMov={(f) => void agregarMovimiento(f)}
+                onQuitarMov={(m) => void quitarMovimiento(m)}
+                guardandoMov={guardandoMov}
+              />
+            ) : null}
+
+            {/* Provisiones (plegable) */}
+            {proy && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setMostrandoProvisiones((v) => !v)}
+                  className="text-sm text-taupe hover:text-tinta hover:underline"
+                >
+                  {mostrandoProvisiones ? "▾" : "▸"} Provisiones del periodo (gratificación · CTS · vacaciones)
+                </button>
+                {mostrandoProvisiones && (
+                  <div className="mt-2">
+                    <div className="max-w-3xl overflow-x-auto rounded-lg border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-sand/50 text-left text-taupe">
+                          <tr>
+                            <th className="px-4 py-2 font-normal">Nombre</th>
+                            <th className="px-4 py-2 text-right font-normal">Gratificación</th>
+                            <th className="px-4 py-2 text-right font-normal">CTS</th>
+                            <th className="px-4 py-2 text-right font-normal">Vacaciones</th>
+                            <th className="px-4 py-2 text-right font-normal">Total provisión</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filasVisibles.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="px-4 py-6 text-center text-taupe">
+                                No hay personas para mostrar en este periodo.
+                              </td>
+                            </tr>
+                          )}
+                          {filasVisibles.map((f) => (
+                            <tr key={f.persona_id} className="border-t">
+                              <td className="px-4 py-2">{f.nombre}</td>
+                              <td className="px-4 py-2 text-right">{formatSoles(f.provision_gratificacion)}</td>
+                              <td className="px-4 py-2 text-right">{formatSoles(f.provision_cts)}</td>
+                              <td className="px-4 py-2 text-right">{formatSoles(f.provision_vacaciones)}</td>
+                              <td className="px-4 py-2 text-right font-medium">{formatSoles(f.provision_total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        {filasVisibles.length > 0 && (
+                          <tfoot>
+                            <tr className="border-t bg-sand/50">
+                              <td className="px-4 py-2 font-medium">Total</td>
+                              <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.gratificacion)}</td>
+                              <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.cts)}</td>
+                              <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.vacaciones)}</td>
+                              <td className="px-4 py-2 text-right font-bold">{formatSoles(provTotales.total)}</td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                    <p className="mt-2 max-w-3xl text-xs text-taupe">
+                      Las provisiones NO forman parte del pago del periodo: son acumulación futura
+                      (ahorro/deuda que se va juntando). Factores MYPE editables en configuración — validar con el contador.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Simulador (plegable, solo lectura) */}
+            <div className="mt-4">
+              <button
+                onClick={() => setMostrandoSim((v) => !v)}
+                className="text-sm text-taupe hover:text-tinta hover:underline"
+              >
+                {mostrandoSim ? "▾" : "▸"} Simular otro rango de fechas
+              </button>
+              {mostrandoSim && (
+                <div className="mt-2 rounded-lg border bg-sand/30 p-4">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <label className="flex flex-col gap-1 text-sm">
+                      Desde
+                      <input
+                        type="date"
+                        value={simIni}
+                        onChange={(e) => setSimIni(e.target.value)}
+                        className="rounded-lg border px-3 py-2"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm">
+                      Hasta
+                      <input
+                        type="date"
+                        value={simFin}
+                        onChange={(e) => setSimFin(e.target.value)}
+                        className="rounded-lg border px-3 py-2"
+                      />
+                    </label>
+                    <button
+                      onClick={() => void simular()}
+                      disabled={simCargando || !simIni || !simFin}
+                      className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                    >
+                      {simCargando ? "Calculando…" : "Calcular"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-taupe">
+                    Rango libre de hasta 62 días, solo para mirar: no crea periodos ni guarda nada.
+                  </p>
+                  {simError && (
+                    <div className="mt-3 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                      No se pudo simular: {simError}
+                    </div>
+                  )}
+                  {simProy && !simError && (
+                    <div className="mt-3">
+                      <div className="mb-3 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                        SIMULACIÓN — nada de esto se guarda. {fechaCorta(simProy.fecha_ini)} →{" "}
+                        {fechaCorta(simProy.fecha_fin)} · {simProy.dias} días · base {fmtHoras(simProy.base_horas)}.
+                        Sin bonos ni descuentos (esos viven en cada periodo oficial).
+                      </div>
+                      <TablaPlanilla
+                        filas={simFilasVisibles}
+                        simulacion={true}
+                        pagado={false}
+                        sedeFiltro={sedeFiltro}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <p className="mt-4 max-w-2xl text-xs text-taupe">
+              Proyección referencial basada en horas registradas. El total por persona ya incluye
+              asignación familiar y bonos, y resta descuentos.
+            </p>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}

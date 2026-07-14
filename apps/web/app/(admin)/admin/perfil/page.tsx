@@ -38,6 +38,8 @@ interface Jornada {
   salida_final_ts: string | null;
   horas_trabajadas: number | null;
   minutos_tarde: number | null;
+  minutos_salida_temprana: number | null;
+  horas_extra_detectadas: number | null;
   estado: string;
 }
 
@@ -75,12 +77,22 @@ export default function PerfilPage() {
     if (!personaId) return;
     setCargando(true);
     const supabase = createAdminSupabaseClient();
-    const { data } = await supabase
-      .from("jornadas")
-      .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, estado")
-      .eq("persona_id", personaId).gte("fecha", desde).lte("fecha", hasta)
-      .order("fecha");
-    setJornadas((data as Jornada[]) ?? []);
+    // minutos_salida_temprana no está en el schema cache de PostgREST: se lee vía RPC en paralelo.
+    const [{ data }, { data: extra }] = await Promise.all([
+      supabase
+        .from("jornadas")
+        .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado")
+        .eq("persona_id", personaId).gte("fecha", desde).lte("fecha", hasta)
+        .order("fecha"),
+      supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta, p_persona_id: personaId }),
+    ]);
+    const filasExtra = (extra as { persona_id: string; fecha: string; minutos_salida_temprana: number }[] | null) ?? [];
+    const minutosPorFecha = new Map(filasExtra.map((e) => [e.fecha, e.minutos_salida_temprana]));
+    const filas = ((data as Omit<Jornada, "minutos_salida_temprana">[] | null) ?? []).map((j) => ({
+      ...j,
+      minutos_salida_temprana: minutosPorFecha.get(j.fecha) ?? null,
+    }));
+    setJornadas(filas);
     setCargado(true);
     setCargando(false);
   }, [personaId, desde, hasta]);
@@ -89,6 +101,8 @@ export default function PerfilPage() {
   const totalHoras = jornadas.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0);
   const diasTrabajados = jornadas.filter((j) => (j.horas_trabajadas ?? 0) > 0).length;
   const tardanzas = jornadas.filter((j) => (j.minutos_tarde ?? 0) > 0).length;
+  const salidasTempranas = jornadas.filter((j) => (j.minutos_salida_temprana ?? 0) > 0).length;
+  const horasExtra = jornadas.reduce((s, j) => s + (j.horas_extra_detectadas ?? 0), 0);
   const datosGrafico: DiaGrafico[] = jornadas.map((j) => ({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 }));
 
   function incidencia(j: Jornada): string | null {
@@ -128,12 +142,14 @@ export default function PerfilPage() {
         {cargado && persona && (
           <>
             {/* Resumen del periodo */}
-            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {[
                 { label: "Total del periodo", valor: fmtHoras(totalHoras) },
                 { label: "Días trabajados", valor: String(diasTrabajados) },
                 { label: "Promedio por día", valor: diasTrabajados ? fmtHoras(totalHoras / diasTrabajados) : "—" },
                 { label: "Días con tardanza", valor: String(tardanzas) },
+                { label: "Salidas anticipadas", valor: String(salidasTempranas) },
+                { label: "Tiempo adicional", valor: horasExtra > 0 ? fmtHoras(horasExtra) : "—" },
               ].map((c) => (
                 <div key={c.label} className="rounded-lg border border-sand bg-sand/30 px-4 py-3">
                   <div className="etiqueta text-taupe">{c.label}</div>
@@ -158,12 +174,14 @@ export default function PerfilPage() {
                     <th className="px-4 py-2.5 font-medium">Salida</th>
                     <th className="px-4 py-2.5 font-medium">Horas</th>
                     <th className="px-4 py-2.5 font-medium">Tardanza</th>
+                    <th className="px-4 py-2.5 font-medium">Sal. antic.</th>
+                    <th className="px-4 py-2.5 font-medium">T. adicional</th>
                     <th className="px-4 py-2.5 font-medium">Incidencia</th>
                   </tr>
                 </thead>
                 <tbody>
                   {jornadas.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
                   ) : (
                     jornadas.map((j) => {
                       const inc = incidencia(j);
@@ -175,6 +193,12 @@ export default function PerfilPage() {
                           <td className="px-4 py-2.5">{j.horas_trabajadas != null ? fmtHoras(j.horas_trabajadas) : "—"}</td>
                           <td className="px-4 py-2.5">
                             {j.minutos_tarde ? <span className="font-medium text-rojo">{j.minutos_tarde} min</span> : <span className="text-taupe/40">—</span>}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {j.minutos_salida_temprana ? <span className="text-ambar">{j.minutos_salida_temprana} min</span> : <span className="text-taupe/40">—</span>}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {j.horas_extra_detectadas && j.horas_extra_detectadas > 0 ? <span className="font-medium text-verde">{fmtHoras(j.horas_extra_detectadas)}</span> : <span className="text-taupe/40">—</span>}
                           </td>
                           <td className="px-4 py-2.5">
                             {inc ? (

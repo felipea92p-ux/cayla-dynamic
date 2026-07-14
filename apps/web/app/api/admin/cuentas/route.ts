@@ -59,7 +59,28 @@ export async function POST(req: Request) {
         email: p.auth_user_id ? emails[p.auth_user_id] ?? null : null,
         tieneCuenta: !!p.auth_user_id,
       }));
-      return NextResponse.json({ cuentas });
+      // Integrantes que se pueden promover a encargada (para darles acceso al panel de su sede)
+      const { data: integrantes } = await admin
+        .from("personas")
+        .select("id, nombres, apellidos, sedes:sede_base_id(codigo)")
+        .eq("rol", "integrante")
+        .eq("estado", "activo")
+        .order("nombres");
+      const promovibles = (integrantes ?? []).map((p: any) => ({
+        id: p.id,
+        nombre: `${p.nombres} ${p.apellidos}`,
+        sede: p.sedes?.codigo ?? "?",
+      }));
+      return NextResponse.json({ cuentas, promovibles });
+    }
+
+    if (accion === "promover") {
+      // Convierte a un integrante en encargada (supervisor_sede) de su sede.
+      const { data: p } = await admin.from("personas").select("id, rol").eq("id", personaId).maybeSingle();
+      if (!p) return NextResponse.json({ error: "persona no encontrada" }, { status: 404 });
+      const { error } = await admin.from("personas").update({ rol: "supervisor_sede" }).eq("id", personaId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
     }
 
     if (accion === "resetear") {

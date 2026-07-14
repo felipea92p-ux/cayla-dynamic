@@ -30,6 +30,8 @@ interface ResumenPersona {
   horasTotales: number;
   tardanzas: number;
   minutosTarde: number;
+  salidasTempranas: number;
+  horasExtra: number;
   incompletas: number;
   pendientesRevision: number;
 }
@@ -47,16 +49,17 @@ export default function HorasPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     setCargando(true);
 
-    const [{ data: personas }, { data: jornadas }] = await Promise.all([
+    const [{ data: personas }, { data: jornadas }, { data: salidasData }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, sedes:sede_base_id(codigo)").order("nombres"),
-      supabase.from("jornadas").select("persona_id, horas_trabajadas, minutos_tarde, estado").gte("fecha", desde).lte("fecha", hasta),
+      supabase.from("jornadas").select("persona_id, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado").gte("fecha", desde).lte("fecha", hasta),
+      supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
     ]);
 
     const acc = new Map<string, ResumenPersona>();
     for (const p of personas ?? []) {
       acc.set(p.id, {
         personaId: p.id, nombre: `${p.nombres} ${p.apellidos}`, sede: (p as any).sedes?.codigo ?? "?",
-        diasTrabajados: 0, horasTotales: 0, tardanzas: 0, minutosTarde: 0, incompletas: 0, pendientesRevision: 0,
+        diasTrabajados: 0, horasTotales: 0, tardanzas: 0, minutosTarde: 0, salidasTempranas: 0, horasExtra: 0, incompletas: 0, pendientesRevision: 0,
       });
     }
     for (const j of jornadas ?? []) {
@@ -65,7 +68,15 @@ export default function HorasPage() {
       r.diasTrabajados++;
       if (j.horas_trabajadas !== null) r.horasTotales += Number(j.horas_trabajadas); else r.incompletas++;
       if ((j.minutos_tarde ?? 0) > 0) { r.tardanzas++; r.minutosTarde += j.minutos_tarde!; }
+      if ((j.horas_extra_detectadas ?? 0) > 0) r.horasExtra += Number(j.horas_extra_detectadas);
       if (j.estado === "auto_cerrada_pendiente") r.pendientesRevision++;
+    }
+    // Salidas tempranas vía RPC (bypass del schema cache); solo devuelve filas con minutos > 0.
+    const salidas = (salidasData as { persona_id: string; fecha: string; minutos_salida_temprana: number }[] | null) ?? [];
+    for (const s of salidas) {
+      const r = acc.get(s.persona_id);
+      if (!r) continue;
+      r.salidasTempranas++;
     }
     setFilas([...acc.values()].filter((r) => r.diasTrabajados > 0));
     setCargando(false);
@@ -77,6 +88,8 @@ export default function HorasPage() {
     horas: filas.reduce((s, f) => s + f.horasTotales, 0),
     personas: filas.length,
     tardanzas: filas.reduce((s, f) => s + f.tardanzas, 0),
+    salidasTempranas: filas.reduce((s, f) => s + f.salidasTempranas, 0),
+    horasExtra: filas.reduce((s, f) => s + f.horasExtra, 0),
     porRevisar: filas.reduce((s, f) => s + f.pendientesRevision + f.incompletas, 0),
   }), [filas]);
 
@@ -109,10 +122,12 @@ export default function HorasPage() {
           </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Tile label="Horas totales" valor={`${totales.horas.toFixed(0)} h`} />
-          <Tile label="Personas con actividad" valor={String(totales.personas)} />
+          <Tile label="Tiempo adicional" valor={`${totales.horasExtra.toFixed(1)} h`} />
           <Tile label="Tardanzas" valor={String(totales.tardanzas)} tono="alerta" />
+          <Tile label="Salidas anticipadas" valor={String(totales.salidasTempranas)} tono="alerta" />
+          <Tile label="Personas con actividad" valor={String(totales.personas)} />
           <Tile label="Jornadas por revisar" valor={String(totales.porRevisar)} tono="alerta" />
         </div>
 
@@ -136,6 +151,8 @@ export default function HorasPage() {
                       <th className="px-4 py-2 font-normal">Horas</th>
                       <th className="px-4 py-2 font-normal">Tardanzas</th>
                       <th className="px-4 py-2 font-normal">Min. tarde</th>
+                      <th className="px-4 py-2 font-normal">Sal. antic.</th>
+                      <th className="px-4 py-2 font-normal">T. adicional</th>
                       <th className="px-4 py-2 font-normal">Observaciones</th>
                     </tr>
                   </thead>
@@ -147,6 +164,8 @@ export default function HorasPage() {
                         <td className="px-4 py-2 font-medium">{f.horasTotales.toFixed(1)}</td>
                         <td className="px-4 py-2">{f.tardanzas || <span className="text-taupe/50">—</span>}</td>
                         <td className="px-4 py-2">{f.minutosTarde ? `${f.minutosTarde} min` : <span className="text-taupe/50">—</span>}</td>
+                        <td className="px-4 py-2">{f.salidasTempranas ? <span className="text-ambar">{f.salidasTempranas}</span> : <span className="text-taupe/50">—</span>}</td>
+                        <td className="px-4 py-2">{f.horasExtra > 0 ? <span className="text-verde font-medium">{f.horasExtra.toFixed(1)}</span> : <span className="text-taupe/50">—</span>}</td>
                         <td className="px-4 py-2 text-xs">
                           {f.incompletas > 0 && <span className="mr-2 rounded-full bg-taupe/15 px-2 py-0.5 text-taupe">{f.incompletas} sin salida</span>}
                           {f.pendientesRevision > 0 && <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">{f.pendientesRevision} por revisar</span>}
@@ -158,7 +177,10 @@ export default function HorasPage() {
                       <td className="px-4 py-2">{deSede.reduce((s, f) => s + f.diasTrabajados, 0)}</td>
                       <td className="px-4 py-2">{subHoras.toFixed(1)}</td>
                       <td className="px-4 py-2">{deSede.reduce((s, f) => s + f.tardanzas, 0) || "—"}</td>
-                      <td className="px-4 py-2" colSpan={2}></td>
+                      <td className="px-4 py-2"></td>
+                      <td className="px-4 py-2">{deSede.reduce((s, f) => s + f.salidasTempranas, 0) || "—"}</td>
+                      <td className="px-4 py-2">{(() => { const e = deSede.reduce((s, f) => s + f.horasExtra, 0); return e > 0 ? e.toFixed(1) : "—"; })()}</td>
+                      <td className="px-4 py-2"></td>
                     </tr>
                   </tbody>
                 </table>
@@ -168,9 +190,13 @@ export default function HorasPage() {
         })}
 
         <p className="max-w-2xl text-xs text-taupe">
-          Las horas descuentan los almuerzos y pausas. La tardanza se calcula contra el horario de
-          cada persona — mientras no haya horario cargado, esa columna queda en blanco. “Por revisar”
-          incluye jornadas sin salida marcada o cerradas automáticamente por olvido.
+          Las horas descuentan los almuerzos y pausas. La tardanza, la salida anticipada y el tiempo
+          adicional se calculan contra el horario de cada persona — mientras no haya horario cargado, esas
+          columnas quedan en blanco. La salida anticipada y el tiempo adicional tienen una tolerancia de
+          15 min (solo se marcan si pasan de eso); la tardanza es exacta pero por minuto (los segundos
+          dentro del minuto no cuentan). “Sal. antic.” = días que cerró antes de su hora de salida;
+          “T. adicional” = tiempo trabajado por encima de lo programado. “Por revisar” incluye jornadas
+          sin salida marcada o cerradas automáticamente por olvido.
         </p>
       </main>
     </div>
