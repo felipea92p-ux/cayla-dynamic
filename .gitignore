@@ -12,5 +12,6 @@ supabase/.temp
 .expo
 # datos personales del equipo — nunca al repo
 scripts/datos-privados/
+scripts/sql-manual/aplicar_0031_historico_2025.sql
 .vercel
 .env*
