@@ -8,9 +8,11 @@ Prioridad: 🔴 afecta al equipo hoy · 🟡 valioso pronto · 🟢 cuando haya 
 - [x] **Menú no funciona en celular** — ✅ EN PRODUCCIÓN 2026-07-14: menú
   hamburguesa en pantallas chicas (enlaces apilados, se cierra solo al navegar)
   y wrap en escritorio. Verificado en navegador móvil + HTML de prod.
-- [ ] **"¿Olvidaste tu clave?" no existe** — si alguien olvida su clave, hoy no
-  hay forma de recuperarla sola; depende de Felipe. (Incluye cambiar la clave
-  temporal de Felipe.)
+- [x] **"¿Olvidaste tu clave?" no existe** — ✅ EN PRODUCCIÓN 2026-07-15: link
+  en el login → correo con enlace de recuperación (Supabase Auth), probado de
+  punta a punta (Felipe cambió su clave temporal con el flujo). El correo por
+  defecto de Supabase no es 100% confiable (falló una vez sin dar error);
+  pendiente evaluar SMTP propio si vuelve a pasar seguido.
 - [ ] **Dashboard sin cobertura en vivo** — muestra la asistencia de hoy pero no
   dice "hay 3 presentes en TRU y la meta es 4". El dato ya existe; falta la fila
   de cobertura por sede.
