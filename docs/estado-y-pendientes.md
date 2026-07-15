@@ -34,13 +34,11 @@ Nota: la CTS-mayo es un depósito YA pagado (15-may); esto es registro históric
 
 - **Fechas de ingreso reales 2025 (0033, aplicada en prod 2026-07-14):** las 7 que continúan de 2025 con ingreso = primera marca del CSV "Dynamic Time 2025" (Janis/Carlos 02/01 · Sandra 28/01 · Melany 13/03 · Chiara 15/05 · Danitza 30/09 · Joselyn 11/10) + horas sep-oct 2025 de Danitza (122.61h) y Joselyn (134.08h) con tramo de salario extendido. Verificación en prod: jornadas_sin_salario = 0 en las 7. El SQL vive en scripts/sql-manual/aplicar_0033_ingresos_2025.sql (fuera de git, datos personales). RESUELTO (Felipe 07-14): Keyla se ausentó mucho tiempo → su ingreso queda el de 2026 (los datos 2025 se conservan solo en el CSV); Raquel Pereda del CSV es OTRA persona; Felipe fundó CAYLA pero rara vez marca → queda 2026. No se cambia nada más.
 
-## PENDIENTES DE FONDO (siguientes)
-- **Incidencia "trabajó sin refrigerio"** (reportar cuando no marca pausa).
-- **Módulo disciplinario de tardanzas** (ver [[project_dynamic_protocolo_disciplinario]]).
-- **Bono de puntualidad** (auto-calculable) + otros 8 bonos (manuales).
-- **Cambiar clave temporal de Felipe** (está en `TU_NUEVA_CLAVE` / la del panel) + construir "¿Olvidaste tu clave?" en el login.
-- Revisar áreas reales de cada quien (Carlos/Sandra eran "Ejecutivo", Joselyn "Diseño&Producción" en 2025).
-- **Commitear** todo el código a git (nada commiteado aún).
+## PENDIENTES DE FONDO
+Ver **`docs/checklist-pendientes.md`** (checklist priorizado 2026-07-14, incluye
+hallazgos de la revisión del aplicativo: nav no responsive en celular, sin
+recuperación de clave, dashboard sin cobertura en vivo). El código ya está
+commiteado en git (falta push a GitHub, con permiso de Felipe).
 
 ## Cómo retomar en un chat nuevo
 Mi memoria (`MEMORY.md` + archivos) se carga sola. Di algo como:
