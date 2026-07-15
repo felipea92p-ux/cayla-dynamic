@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -9,7 +10,8 @@ import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 
 // ── Fechas ───────────────────────────────────────────────────────────────────
-const MESES_LARGO = [
+// Exportadas: las reutiliza /admin/planilla/boleta (misma fuente de verdad de formato).
+export const MESES_LARGO = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
@@ -23,7 +25,7 @@ function anioActualLima(): number {
 }
 
 // "2026-07-28" → "28 jul"
-function fechaCorta(iso: string): string {
+export function fechaCorta(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${Number(d)} ${MESES_ABR[Number(m) - 1]}`;
 }
@@ -41,13 +43,13 @@ function sumarDias(iso: string, n: number): string {
 }
 
 // timestamptz → "13 jul 2026" en Lima
-function fechaLima(iso: string): string {
+export function fechaLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", {
     timeZone: "America/Lima", day: "numeric", month: "short", year: "numeric",
   }).format(new Date(iso));
 }
 
-function fmtHoras(n: number): string {
+export function fmtHoras(n: number): string {
   return `${n.toLocaleString("es-PE", { maximumFractionDigits: 2 })} h`;
 }
 
@@ -65,19 +67,19 @@ interface Feriado {
   fecha: string;
   nombre: string;
 }
-interface FeriadoDetalle {
+export interface FeriadoDetalle {
   fecha: string;
   horas_trabajadas: number;
   proporcional_horas: number;
   antes_ingreso: boolean;
 }
-interface Movimiento {
+export interface Movimiento {
   id: string;
   tipo: "bono" | "descuento";
   concepto: string;
   monto: number;
 }
-interface Fila {
+export interface Fila {
   persona_id: string;
   nombre: string;
   sede: string;
@@ -109,12 +111,12 @@ interface Fila {
   provision_total: number;
   total: number; // ya incluye + asignación + bonos − descuentos
 }
-interface FactoresProvision {
+export interface FactoresProvision {
   gratificacion: number;
   cts: number;
   vacaciones: number;
 }
-interface Proyeccion {
+export interface Proyeccion {
   periodo_id?: string;
   estado?: "abierto" | "pagado";
   pagado_at?: string | null;
@@ -150,6 +152,7 @@ function TablaPlanilla(props: {
   simulacion: boolean;
   pagado: boolean;
   sedeFiltro: string;
+  periodoId?: string;
   ocupado?: boolean;
   objEdit?: Record<string, string>;
   onObjChange?: (personaId: string, valor: string) => void;
@@ -164,7 +167,7 @@ function TablaPlanilla(props: {
   guardandoMov?: boolean;
 }) {
   const {
-    filas, simulacion, pagado, sedeFiltro, ocupado = false,
+    filas, simulacion, pagado, sedeFiltro, periodoId, ocupado = false,
     objEdit = {}, onObjChange, onObjBlur, guardandoObj = null,
     movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov,
     guardandoMov = false,
@@ -225,6 +228,18 @@ function TablaPlanilla(props: {
                   <td className="px-4 py-2">
                     {f.nombre}
                     {f.estado !== "activo" && <span className="ml-1 text-xs text-taupe">({f.estado})</span>}
+                    {!simulacion && periodoId && (
+                      <>
+                        <br />
+                        <Link
+                          href={`/admin/planilla/boleta?periodo=${periodoId}&persona=${f.persona_id}`}
+                          target="_blank"
+                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta"
+                        >
+                          🧾 Ver boleta
+                        </Link>
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-2">{f.sede}</td>
                   <td className="px-4 py-2">
@@ -1303,6 +1318,7 @@ export default function PlanillaPage() {
                 simulacion={false}
                 pagado={pagado}
                 sedeFiltro={sedeFiltro}
+                periodoId={proy.periodo_id}
                 ocupado={ocupado}
                 objEdit={objEdit}
                 onObjChange={(personaId, valor) => setObjEdit((prev) => ({ ...prev, [personaId]: valor }))}
