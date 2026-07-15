@@ -31,8 +31,10 @@ Prioridad: 🔴 afecta al equipo hoy · 🟡 valioso pronto · 🟢 cuando haya 
 
 - [ ] **Objetivos: botón "copiar del mes anterior"** — cuando arranque agosto,
   la encargada va a tener que reescribir los objetivos de cada persona a mano.
-- [ ] **Boleta individual de pago** — la planilla exporta CSV general, pero no
-  hay un resumen por persona (imprimible/PDF) para entregar con el pago.
+- [x] **Boleta individual de pago** — ✅ Botón "🧾 Ver boleta" en cada fila de
+  Planilla, imprimible (Ctrl+P → PDF), con el bloque de valor acordado
+  (EsSalud/AFP/asignación familiar los cubre CAYLA; grati/CTS/vacaciones se
+  acumulan). Verificado en navegador, pendiente validar preview y desplegar.
 - [ ] **Espejo a Google Sheets más legible** — encabezados fijos, una fila por
   persona (pendiente de antes).
 
