@@ -5,9 +5,9 @@ Prioridad: 🔴 afecta al equipo hoy · 🟡 valioso pronto · 🟢 cuando haya 
 
 ## 🔴 Detectado revisando el aplicativo (nuevo)
 
-- [ ] **Menú no funciona en celular** — la barra de navegación no colapsa: en
-  pantallas angostas se corta y hay que hacer scroll horizontal (las encargadas
-  seguramente entran desde el teléfono). Falta menú hamburguesa/responsive.
+- [x] **Menú no funciona en celular** — ✅ EN PRODUCCIÓN 2026-07-14: menú
+  hamburguesa en pantallas chicas (enlaces apilados, se cierra solo al navegar)
+  y wrap en escritorio. Verificado en navegador móvil + HTML de prod.
 - [ ] **"¿Olvidaste tu clave?" no existe** — si alguien olvida su clave, hoy no
   hay forma de recuperarla sola; depende de Felipe. (Incluye cambiar la clave
   temporal de Felipe.)
