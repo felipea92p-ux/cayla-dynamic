@@ -1001,6 +1001,10 @@ export type Database = {
         Args: { p_movimiento_id: string }
         Returns: undefined
       }
+      fn_calcular_bono_puntualidad: {
+        Args: { p_periodo_id: string }
+        Returns: Json
+      }
       fn_set_con_hijos: {
         Args: { p_con_hijos: boolean; p_persona_id: string }
         Returns: undefined
