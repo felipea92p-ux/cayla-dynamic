@@ -23,8 +23,10 @@ Prioridad: 🔴 afecta al equipo hoy · 🟡 valioso pronto · 🟢 cuando haya 
   30 días + historial; Dynamic alerta, el admin decide, nada automático. Las
   tablas `alertas` y `push_tokens` ya existen en la base y hoy nadie las usa:
   son la base natural de este módulo.
-- [ ] **Bono de puntualidad auto-calculable** — Dynamic ya mide tardanzas por
-  minuto; falta la regla y mostrarlo en Planilla junto a los 8 bonos manuales.
+- [x] **Bono de puntualidad auto-calculable** — construido 2026-07-15, pendiente
+  aplicar migración 0034 y desplegar. Regla: cero tardanzas en el periodo = S/60
+  fijo por persona (no depende de cuántos más lo logren; ajustable después sin
+  deploy). Botón "🎯 Calcular bono de puntualidad" en Planilla.
 - [ ] **Incidencia "trabajó sin refrigerio"** — Incidencias ya detecta 4 tipos
   (auto-cerrada, sin salida, sin retorno de pausa, salida anticipada); falta
   este quinto: día largo sin pausa marcada.

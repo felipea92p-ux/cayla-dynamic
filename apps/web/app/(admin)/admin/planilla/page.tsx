@@ -489,6 +489,7 @@ export default function PlanillaPage() {
   const [errorPeriodos, setErrorPeriodos] = useState<string | null>(null);
   const [periodoSel, setPeriodoSel] = useState<string | null>(null);
   const [guardandoPeriodo, setGuardandoPeriodo] = useState(false);
+  const [guardandoBono, setGuardandoBono] = useState(false);
 
   // Crear periodo (primero / encadenado)
   const [primerIni, setPrimerIni] = useState("");
@@ -703,6 +704,37 @@ export default function PlanillaPage() {
     }
     avisar("ok", pagar ? "Periodo marcado como PAGADO 🔒." : "Periodo reabierto.");
     await Promise.all([cargarPeriodos(), cargarProyeccion()]);
+  }
+
+  async function calcularBonoPuntualidad() {
+    if (!periodoActual) return;
+    if (
+      !window.confirm(
+        "Esto calcula el bono de puntualidad de todo el periodo y lo agrega como bono automático " +
+          "a cada persona que no tuvo tardanzas. Si ya lo habías calculado antes en este periodo, se " +
+          "reemplaza (no se duplica). ¿Continuar?",
+      )
+    )
+      return;
+    setGuardandoBono(true);
+    const { data, error } = await supabase.rpc("fn_calcular_bono_puntualidad", {
+      p_periodo_id: periodoActual.id,
+    });
+    setGuardandoBono(false);
+    if (error) {
+      avisar("error", `No se pudo calcular el bono de puntualidad: ${error.message}`);
+      return;
+    }
+    const r = data as unknown as { poblacion: number; puntuales: number; monto_por_persona: number };
+    avisar(
+      "ok",
+      r.poblacion === 0
+        ? "No hay días trabajados en este periodo todavía: nadie califica."
+        : r.puntuales === 0
+          ? `Nadie logró cero tardanzas de las ${r.poblacion} personas con días trabajados: no se agregó ningún bono.`
+          : `${r.puntuales} de ${r.poblacion} personas lograron cero tardanzas → ${formatSoles(r.monto_por_persona)} cada una.`,
+    );
+    await cargarProyeccion();
   }
 
   // ── Feriados (gestión anual, se conserva de la v1) ─────────────────────────
@@ -980,7 +1012,7 @@ export default function PlanillaPage() {
     );
   }
 
-  const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo;
+  const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo || guardandoBono;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -1182,13 +1214,22 @@ export default function PlanillaPage() {
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => void marcarPagado(true)}
-                    disabled={guardandoPeriodo || cargando}
-                    className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
-                  >
-                    {guardandoPeriodo ? "Guardando…" : "Marcar como PAGADO"}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => void calcularBonoPuntualidad()}
+                      disabled={guardandoBono || cargando}
+                      className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50 disabled:opacity-50"
+                    >
+                      {guardandoBono ? "Calculando…" : "🎯 Calcular bono de puntualidad"}
+                    </button>
+                    <button
+                      onClick={() => void marcarPagado(true)}
+                      disabled={guardandoPeriodo || cargando}
+                      className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                    >
+                      {guardandoPeriodo ? "Guardando…" : "Marcar como PAGADO"}
+                    </button>
+                  </>
                 )}
               </div>
             )}
