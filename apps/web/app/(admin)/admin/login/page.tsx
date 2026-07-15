@@ -60,6 +60,9 @@ export default function AdminLoginPage() {
         >
           {cargando ? "Entrando…" : "Entrar"}
         </button>
+        <a href="/admin/olvide-clave" className="text-center text-sm text-taupe underline-offset-2 hover:underline">
+          ¿Olvidaste tu clave?
+        </a>
       </form>
     </div>
   );
