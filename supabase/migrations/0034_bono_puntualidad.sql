@@ -24,6 +24,13 @@
 --     periodo ya está 'pagado' (mismo candado que fn_agregar_movimiento).
 --   · Monto en `configuracion` (clave 'bono_puntualidad'): editable sin
 --     deploy, mismo patrón que planilla_provisiones / asignacion_familiar.
+-- ----------------------------------------------------------------------------
+-- CORRECCIÓN el mismo día (2026-07-15, antes de marcar nada como pagado):
+-- minutos_tarde queda NULL cuando no hay horario/turno con qué comparar (ej.
+-- Felipe como dueño, o alguien recién ingresado sin horario aún) — la primera
+-- versión trataba ese NULL como "0 tardanza" con coalesce, premiando a gente
+-- que el sistema nunca pudo medir. Ahora exige que TODOS los días tengan
+-- medición real (dias_sin_medir = 0), no solo que sumen 0.
 -- Re-ejecutable sin peligro.
 -- ============================================================================
 
@@ -60,14 +67,22 @@ begin
   end if;
   v_monto := coalesce((v_cfg->>'monto')::numeric, 0);
 
-  -- población y puntuales del periodo (solo días con horas_trabajadas > 0)
+  -- población y puntuales del periodo (solo días con horas_trabajadas > 0).
+  -- ¡OJO! minutos_tarde queda NULL cuando ese día no hay hora esperada con la
+  -- que comparar (sin turno/horario asignado) — NO es lo mismo que "llegó a
+  -- tiempo". Si tratáramos NULL como 0 (coalesce sin más), cualquiera sin
+  -- horario configurado (ej. el dueño, alguien recién ingresado) calificaría
+  -- por default sin que el sistema haya medido nada. Por eso dias_sin_medir:
+  -- si tiene AUNQUE SEA UN día sin poder medirse, no califica ese periodo.
   with por_persona as (
-    select j.persona_id, sum(coalesce(j.minutos_tarde, 0)) as tarde_total
+    select j.persona_id,
+           sum(coalesce(j.minutos_tarde, 0)) as tarde_total,
+           count(*) filter (where j.minutos_tarde is null) as dias_sin_medir
     from jornadas j
     where j.fecha between v_ini and v_fin and j.horas_trabajadas > 0
     group by j.persona_id
   )
-  select count(*), count(*) filter (where tarde_total = 0)
+  select count(*), count(*) filter (where tarde_total = 0 and dias_sin_medir = 0)
   into v_poblacion, v_puntuales
   from por_persona;
 
@@ -79,7 +94,9 @@ begin
 
   if v_monto > 0 and v_puntuales > 0 then
     with por_persona as (
-      select j.persona_id, sum(coalesce(j.minutos_tarde, 0)) as tarde_total
+      select j.persona_id,
+             sum(coalesce(j.minutos_tarde, 0)) as tarde_total,
+             count(*) filter (where j.minutos_tarde is null) as dias_sin_medir
       from jornadas j
       where j.fecha between v_ini and v_fin and j.horas_trabajadas > 0
       group by j.persona_id
@@ -87,7 +104,7 @@ begin
     insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto, creado_por)
     select p_periodo_id, pp.persona_id, 'bono', 'Bono puntualidad', v_monto, null
     from por_persona pp
-    where pp.tarde_total = 0;
+    where pp.tarde_total = 0 and pp.dias_sin_medir = 0;
   end if;
 
   select coalesce(jsonb_agg(jsonb_build_object(
