@@ -88,11 +88,20 @@ export default function HorariosPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     setCargando(true);
-    const [{ data: p }, { data: h }, { data: s }] = await Promise.all([
+    const [
+      { data: p, error: errP },
+      { data: h, error: errH },
+      { data: s, error: errS },
+    ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id").eq("estado", "activo").order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia").is("vigente_hasta", null),
       supabase.from("sedes").select("id, codigo"),
     ]);
+    if (errP || errH || errS) {
+      setMensaje({ tipo: "error", texto: `No se pudo cargar: ${(errP ?? errH ?? errS)!.message}` });
+      setCargando(false);
+      return; // no pisa `personas`/`horarios`/`sedes` con datos parciales
+    }
     setPersonas((p as Persona[]) ?? []);
     setHorarios(new Map(((h as Horario[]) ?? []).map((x) => [x.persona_id, x])));
     setSedes(Object.fromEntries(((s as any[]) ?? []).map((x) => [x.id, x.codigo])));

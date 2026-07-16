@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [filas, setFilas] = useState<FilaPersona[]>([]);
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -61,7 +62,11 @@ export default function DashboardPage() {
     const hoy = fechaLimaHoy();
     // minutos_salida_temprana va por RPC (fn_jornadas_extra) porque el schema cache
     // de PostgREST no expone la columna; el select directo fallaría entero.
-    const [{ data: personas }, { data: jornadas }, { data: extras }] = await Promise.all([
+    const [
+      { data: personas, error: errPersonas },
+      { data: jornadas, error: errJornadas },
+      { data: extras }, // fn_jornadas_extra ya está diseñada para fallar en silencio (ver comentario abajo)
+    ] = await Promise.all([
       supabase
         .from("personas")
         .select("id, nombres, apellidos, sedes:sede_base_id(codigo)")
@@ -73,6 +78,13 @@ export default function DashboardPage() {
         .eq("fecha", hoy),
       supabase.rpc("fn_jornadas_extra", { p_desde: hoy, p_hasta: hoy }),
     ]);
+
+    if (errPersonas || errJornadas) {
+      setError((errPersonas ?? errJornadas)!.message);
+      setCargando(false);
+      return; // no pisa `filas` con datos parciales/vacíos
+    }
+    setError(null);
 
     const jornadaPorPersona = new Map((jornadas ?? []).map((j: any) => [j.persona_id, j]));
     // Solo llegan filas con minutos > 0 y la fecha es fija (hoy), así que basta persona_id → minutos.
@@ -143,6 +155,15 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            No se pudo cargar la asistencia de hoy: {error}{" "}
+            <button onClick={() => void cargar()} className="font-medium underline">
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {sedes.map((sede) => {
           const deSede = filas.filter((f) => f.sede === sede);

@@ -42,6 +42,7 @@ export default function IncidenciasPage() {
   const [hasta, setHasta] = useState(HOY);
   const [filas, setFilas] = useState<Fila[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -49,7 +50,7 @@ export default function IncidenciasPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     setCargando(true);
 
-    const [{ data }, { data: extraData }] = await Promise.all([
+    const [{ data, error: errData }, { data: extraData }] = await Promise.all([
       supabase
         .from("jornadas")
         .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
@@ -57,6 +58,13 @@ export default function IncidenciasPage() {
         .order("fecha", { ascending: false }),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
     ]);
+
+    if (errData) {
+      setError(errData.message);
+      setCargando(false);
+      return; // no pisa `filas` con datos parciales/vacíos
+    }
+    setError(null);
 
     // Mapa persona_id|fecha → minutos de salida temprana (vía RPC, esquivando el schema cache).
     const minutosPorClave = new Map<string, number>();
@@ -120,7 +128,16 @@ export default function IncidenciasPage() {
           </label>
         </div>
 
-        {!cargando && visibles.length === 0 && (
+        {error && (
+          <div className="mb-6 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            No se pudieron cargar las incidencias: {error}{" "}
+            <button onClick={() => void cargar()} className="font-medium underline">
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {!cargando && !error && visibles.length === 0 && (
           <div className="rounded-lg border border-sand bg-sand/30 px-4 py-8 text-center text-taupe">
             🎉 Sin incidencias en el periodo. Todo en orden.
           </div>

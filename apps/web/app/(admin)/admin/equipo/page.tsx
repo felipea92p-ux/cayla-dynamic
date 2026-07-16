@@ -130,7 +130,7 @@ export default function EquipoPage() {
       router.replace("/admin/login");
       return;
     }
-    const [{ data: sedesData }, { data: personasData, error: personasError }, { data: funcionesData, error: funcionesError }, { data: areasData, error: areasError }, { data: ingresosData, error: ingresosError }] = await Promise.all([
+    const [{ data: sedesData, error: sedesError }, { data: personasData, error: personasError }, { data: funcionesData, error: funcionesError }, { data: areasData, error: areasError }, { data: ingresosData, error: ingresosError }] = await Promise.all([
       supabase.from("sedes").select("id, codigo").order("codigo"),
       supabase.from("personas").select("id, nombres, apellidos, rol, estado, email, sede_base_id").order("nombres"),
       supabase.rpc("fn_personas_funciones"),
@@ -146,8 +146,8 @@ export default function EquipoPage() {
           .map((r) => [r.persona_id, { fecha_ingreso: r.fecha_ingreso, primera_entrada: r.primera_entrada }] as const),
       ),
     );
-    if (personasError) {
-      setMensaje({ tipo: "error", texto: `No se pudo cargar el equipo: ${personasError.message}` });
+    if (personasError || sedesError) {
+      setMensaje({ tipo: "error", texto: `No se pudo cargar el equipo: ${(personasError ?? sedesError)!.message}` });
     }
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.

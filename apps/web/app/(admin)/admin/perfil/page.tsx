@@ -58,6 +58,7 @@ export default function PerfilPage() {
   const [objetivos, setObjetivos] = useState<ObjetivoItem[]>([]);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createAdminSupabaseClient();
@@ -78,10 +79,11 @@ export default function PerfilPage() {
   const cargar = useCallback(async () => {
     if (!personaId) return;
     setCargando(true);
+    setError(null);
     const supabase = createAdminSupabaseClient();
     // minutos_salida_temprana no está en el schema cache de PostgREST: se lee vía RPC en paralelo.
     // Objetivos: los del mes de la fecha "Hasta" (checklist 0032, solo lectura aquí).
-    const [{ data }, { data: extra }, { data: objs }] = await Promise.all([
+    const [{ data, error: errJornadas }, { data: extra }, { data: objs }] = await Promise.all([
       supabase
         .from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado")
@@ -94,6 +96,11 @@ export default function PerfilPage() {
         p_persona_id: personaId,
       }),
     ]);
+    if (errJornadas) {
+      setError(errJornadas.message);
+      setCargando(false);
+      return; // no pisa `jornadas`/`cargado` con datos parciales
+    }
     setObjetivos(((objs as unknown as ObjetivoItem[] | null) ?? []).slice());
     const filasExtra = (extra as { persona_id: string; fecha: string; minutos_salida_temprana: number }[] | null) ?? [];
     const minutosPorFecha = new Map(filasExtra.map((e) => [e.fecha, e.minutos_salida_temprana]));
@@ -151,6 +158,15 @@ export default function PerfilPage() {
             {cargando ? "Cargando…" : "Ver"}
           </button>
         </div>
+
+        {error && (
+          <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            No se pudo cargar el historial: {error}{" "}
+            <button onClick={() => void cargar()} className="font-medium underline">
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {cargado && persona && (
           <>

@@ -42,6 +42,7 @@ export default function HorasPage() {
   const [hasta, setHasta] = useState(fechaLimaHoy());
   const [filas, setFilas] = useState<ResumenPersona[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -49,11 +50,22 @@ export default function HorasPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     setCargando(true);
 
-    const [{ data: personas }, { data: jornadas }, { data: salidasData }] = await Promise.all([
+    const [
+      { data: personas, error: errPersonas },
+      { data: jornadas, error: errJornadas },
+      { data: salidasData },
+    ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, sedes:sede_base_id(codigo)").order("nombres"),
       supabase.from("jornadas").select("persona_id, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado").gte("fecha", desde).lte("fecha", hasta),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
     ]);
+
+    if (errPersonas || errJornadas) {
+      setError((errPersonas ?? errJornadas)!.message);
+      setCargando(false);
+      return; // no pisa `filas` con datos parciales/vacíos
+    }
+    setError(null);
 
     const acc = new Map<string, ResumenPersona>();
     for (const p of personas ?? []) {
@@ -131,8 +143,17 @@ export default function HorasPage() {
           <Tile label="Jornadas por revisar" valor={String(totales.porRevisar)} tono="alerta" />
         </div>
 
+        {error && (
+          <div className="mb-4 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            No se pudo cargar el resumen de horas: {error}{" "}
+            <button onClick={() => void cargar()} className="font-medium underline">
+              Reintentar
+            </button>
+          </div>
+        )}
+
         {cargando && <p className="text-sm text-taupe">Cargando…</p>}
-        {!cargando && filas.length === 0 && <p className="text-sm text-taupe">Sin marcajes en este periodo.</p>}
+        {!cargando && !error && filas.length === 0 && <p className="text-sm text-taupe">Sin marcajes en este periodo.</p>}
 
         {sedes.map((sede) => {
           const deSede = filas.filter((f) => f.sede === sede).sort((a, b) => b.horasTotales - a.horasTotales);

@@ -76,7 +76,7 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     const inicio = `${fecha}T00:00:00-05:00`;
     const fin = `${fecha}T23:59:59-05:00`;
-    const [{ data: mk }, { data: jor }] = await Promise.all([
+    const [{ data: mk, error: errMk }, { data: jor, error: errJor }] = await Promise.all([
       supabase.from("marcajes")
         .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision")
         .eq("persona_id", personaId).gte("timestamp_marca", inicio).lte("timestamp_marca", fin)
@@ -85,6 +85,11 @@ export default function CorreccionesPage() {
         .select("estado, horas_trabajadas, minutos_tarde")
         .eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
     ]);
+    if (errMk || errJor) {
+      setCargando(false);
+      avisar("error", `No se pudo cargar el día: ${(errMk ?? errJor)!.message}`);
+      return; // no pisa `marcajes`/`jornada` con datos parciales
+    }
     setMarcajes((mk as Marcaje[]) ?? []);
     setJornada((jor as Jornada) ?? null);
     setHorasEditadas(Object.fromEntries(((mk as Marcaje[]) ?? []).map((m) => [m.id, horaInput(m.timestamp_marca)])));

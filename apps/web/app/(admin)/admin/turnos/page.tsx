@@ -108,7 +108,14 @@ export default function TurnosPage() {
     const mi = ++reqId.current;
     setCargando(true);
     const domingo = addDays(lunes, 6);
-    const [{ data: p }, { data: h }, { data: t }, { data: m }, { data: f, error: fErr }, { data: ar, error: arErr }] = await Promise.all([
+    const [
+      { data: p, error: pErr },
+      { data: h, error: hErr },
+      { data: t, error: tErr },
+      { data: m, error: mErr },
+      { data: f, error: fErr },
+      { data: ar, error: arErr },
+    ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
@@ -117,6 +124,11 @@ export default function TurnosPage() {
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
+    if (pErr || hErr || tErr || mErr) {
+      setMsg({ tipo: "error", texto: `No se pudo cargar la semana: ${(pErr ?? hErr ?? tErr ?? mErr)!.message}` });
+      setCargando(false);
+      return; // no pisa personas/horarios/turnos/metas con datos parciales/vacíos
+    }
     setAreas(parseAreas(ar, arErr));
     // Si falla la RPC de funciones O la del catálogo de áreas, la cobertura puede
     // contar mal (degrada a defaults) — se avisa en pantalla en vez de fallar en silencio.
