@@ -2,10 +2,19 @@
 
 Hallazgo (reportes D y E): `api/espejo/route.ts` compara el token entrante
 contra la llave real `SUPABASE_SERVICE_ROLE_KEY` (acceso total a la base,
-bypass de RLS, `supabase.auth.admin.*`), y esa misma llave vive guardada en
-Google Apps Script (`scripts/espejo-sheets.gs`), llamando además directo a
-PostgREST en vez de pasar por esta ruta. Si esa llave se filtra por
-cualquier vía relacionada a Sheets/Apps Script, quien la obtenga tiene
+bypass de RLS, `supabase.auth.admin.*`).
+
+**Confirmado en vivo el 2026-07-16** (revisando el Apps Script real con
+Felipe): el script que de verdad corre en producción (`Código.gs` del
+proyecto "Dynamic — Espejo") **sí llama al puente `/api/espejo`** — no
+llama directo a PostgREST como decía `scripts/espejo-sheets.gs` en el repo
+(ese archivo está desactualizado, no refleja lo que corre hoy; considerar
+actualizarlo o borrarlo para que no confunda a futuro). Pero la propiedad
+de script `SUPABASE_KEY` que manda como `Authorization: Bearer` tiene que
+contener la llave real — es lo único que la ruta acepta hoy. El riesgo de
+fondo es el mismo: esa llave maestra vive guardada en "Propiedades del
+script" de Apps Script, fuera del control de Vercel/Supabase. Si se filtra
+por cualquier vía relacionada a Sheets/Apps Script, quien la obtenga tiene
 control total de la base — no solo del espejo de asistencia.
 
 **No aplicado** — requiere 3 pasos, uno de código y dos de configuración
@@ -58,23 +67,20 @@ Copiar el resultado. En Vercel → tu proyecto → Settings → Environment
 Variables: agregar `ESPEJO_TOKEN` con ese valor, para Production (y Preview
 si usas ese endpoint ahí también).
 
-## 3. Actualizar `scripts/espejo-sheets.gs`
+## 3. Actualizar la propiedad del script en Apps Script (más simple de lo
+   que parecía — el script en sí NO hay que tocarlo, solo el valor guardado)
 
-Hoy ese script llama DIRECTO a PostgREST con la llave `service_role` (no
-pasa por `/api/espejo` en absoluto — vale la pena que confirmes cuál de los
-dos está corriendo de verdad en la hoja de producción antes de tocar nada).
-El cambio real es dejar de mandar la llave real y, en su lugar:
-- Guardar el nuevo `ESPEJO_TOKEN` (el mismo valor del paso 2) en
-  "Propiedades del script" de Apps Script, reemplazando donde hoy vive la
-  llave `service_role`.
-- Apuntar la llamada a `https://cayla-dynamic.vercel.app/api/espejo` (esta
-  ruta) en vez de a PostgREST directo, con
-  `Authorization: Bearer <ESPEJO_TOKEN>`.
+En el editor de Apps Script (`script.google.com`, proyecto "Dynamic —
+Espejo"): ícono de engranaje ⚙️ ("Configuración del proyecto") en la barra
+izquierda → sección "Propiedades del script". Ahí vas a ver `SUPABASE_KEY`
+con el valor actual (la llave real) — edítala y reemplaza el valor por el
+`ESPEJO_TOKEN` nuevo del paso 2. El código (`Código.gs`) no necesita
+ningún cambio — ya llama a la URL correcta, solo estaba mandando el secreto
+equivocado.
 
-No incluyo el `.gs` reescrito completo porque no lo leí en esta revisión
-(quedó fuera de lo que los agentes tocaron a fondo) — pero el cambio es
-literalmente reemplazar el valor guardado y, si el script llama a PostgREST
-directo, cambiar la URL de destino a la ruta de arriba.
+(Aparte, sin apuro: el archivo `scripts/espejo-sheets.gs` del repo describe
+un script viejo que ya no es el que corre — vale la pena borrarlo o
+actualizarlo para que no confunda a alguien que lo lea después.)
 
 ## 4. Rotar la llave `service_role` real
 
