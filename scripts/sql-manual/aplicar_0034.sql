@@ -81,7 +81,10 @@ begin
   if v_estado = 'pagado' then
     raise exception 'Este periodo ya está PAGADO: reábrelo para modificarlo.';
   end if;
-  v_dias_periodo := (v_fin - v_ini) + 1;
+  -- Mientras el periodo sigue corriendo, el 66.66% se mide contra los días que
+  -- YA PASARON, no contra el periodo completo — si no, nadie podría llegar al
+  -- umbral hasta el último día, aunque tenga asistencia perfecta hasta hoy.
+  v_dias_periodo := least(v_fin, current_date) - v_ini + 1;
 
   select valor into v_cfg from configuracion where clave = 'bono_puntualidad';
   if v_cfg is null then
