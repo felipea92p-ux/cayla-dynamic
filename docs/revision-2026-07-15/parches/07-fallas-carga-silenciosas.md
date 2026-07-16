@@ -1,5 +1,17 @@
 # Parche propuesto 07 — fallas de carga silenciosas (Dashboard y 6 páginas más)
 
+## ✅ Aplicado 2026-07-16 (working tree, sin commit)
+
+Aplicado en las 8 páginas listadas abajo (Dashboard + 7). Verificado con
+`tsc --noEmit` (sin errores) y con el Dashboard corriendo en `next dev`
+local. **No verificado en vivo el banner de error en sí** — el entorno
+local no tiene Supabase local corriendo, así que no se pudo forzar una
+consulta fallida con una sesión real autenticada. Recomendado: probarlo tú
+mismo (una forma simple es cortar internet un instante mientras carga, o
+revisar el Dashboard/Incidencias el día que haya un hipo real de red).
+
+---
+
 Hallazgo (reporte C): en 7 páginas, si una consulta falla (red, RLS,
 timeout), el código no revisa `error` — `data` llega `null`, el `?? []` lo
 convierte en lista vacía, y la pantalla se ve "limpia" en vez de avisar. El

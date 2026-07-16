@@ -77,14 +77,21 @@ acotado · 🟢 cuando haya tiempo.
   alguien con asistencia perfecta verificada. Parche propuesto: ver
   [`parches/04-perfil-horas-null-blindness.md`](parches/04-perfil-horas-null-blindness.md).
 
-- [ ] **Fallas de carga silenciosas en 7 páginas — pueden mostrar "todo
-  bien" cuando la consulta en realidad falló** — *C*. La más delicada:
-  `dashboard/page.tsx` (el "quién está trabajando ahora" que miran a
-  diario) muestra a todos como "Sin marcar" si la consulta falla, sin
-  aviso. `incidencias/page.tsx` puede mostrar "🎉 Sin incidencias, todo en
-  orden" ante un error real. El patrón correcto ya existe en
-  `provisiones/page.tsx` — solo falta aplicarlo parejo. Parche propuesto
-  (Dashboard completo + lista de las otras 6): ver
+- [x] **Fallas de carga silenciosas en 7 páginas — podían mostrar "todo
+  bien" cuando la consulta en realidad falló** — *C*. ✅ **RESUELTO
+  2026-07-16**: aplicado el patrón de `provisiones/page.tsx` (banner rojo +
+  "Reintentar", sin pisar datos buenos con una carga fallida) en las 7
+  páginas: `dashboard`, `correcciones`, `horas`, `incidencias`, `perfil`,
+  `horarios`, `turnos` y `equipo` (8 en total, contando dashboard). En
+  `correcciones`, `horarios` y `turnos` se reutilizó el estado de mensaje/
+  error que la página ya tenía, en vez de agregar uno nuevo. Verificado con
+  `tsc --noEmit` (exit 0, sin errores en los 4 workspaces) y con el
+  Dashboard corriendo en `next dev` local (redirige correctamente a login
+  sin sesión, sin loops ni crashes). **No se pudo probar en vivo el banner
+  de error en sí** (mostrar el aviso rojo cuando la consulta realmente
+  falla) — el entorno local no tiene Supabase local corriendo para simular
+  una sesión autenticada; queda pendiente que Felipe lo confirme visualmente
+  en producción o con Supabase local levantado. Detalle original en
   [`parches/07-fallas-carga-silenciosas.md`](parches/07-fallas-carga-silenciosas.md).
 
 - [x] **PII real del equipo comiteada a git, fuera del patrón de gitignore
