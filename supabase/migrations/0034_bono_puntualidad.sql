@@ -5,7 +5,7 @@
 --   · Se mide por PERIODO de planilla (periodos_planilla), se repite cada vez
 --     que se cierra uno (más o menos mensual).
 --   · "Puntual" = 0 minutos de tardanza en TODOS los días MEDIDOS del periodo
---     (tolerancia cero, "puntualidad es ser impecable") + al menos 66.66% de
+--     (tolerancia cero, "puntualidad es ser impecable") + al menos 51% de
 --     asistencia MEDIDA sobre el total de días del periodo (evita que alguien
 --     con casi nada de asistencia califique por pura casualidad).
 --   · Un día "cuenta" (para asistencia y para tardanza) SOLO si el sistema
@@ -15,7 +15,7 @@
 --     IGNORA por completo: no suma ni resta, ni para asistencia ni tardanza.
 --     Con esta regla, alguien SIN NINGÚN horario configurado (ej. el dueño)
 --     queda excluido de forma natural — 0 días medidos ÷ días del periodo
---     nunca llega al 66.66%, sin necesidad de una excepción aparte por rol.
+--     nunca llega al 51%, sin necesidad de una excepción aparte por rol.
 --   · Monto FIJO por persona (S/60, ~4-5% del sueldo base de un integrante):
 --     cada quien que califica gana el monto completo, sin importar cuántos
 --     más también lo logren — sin bolsa que repartir, sin tramos por % de
@@ -39,16 +39,22 @@
 --       horarios, prácticamente nadie calificaba nunca (rompía con días de
 --       descanso trabajados, que ni siquiera deberían exigir medición).
 --   v3 (esta versión): los días sin medir se IGNORAN (no descalifican por sí
---       solos) + exige 66.66% de asistencia MEDIDA sobre el periodo completo.
+--       solos) + exige 51% de asistencia MEDIDA sobre el periodo completo.
 --       Balance entre no premiar sin datos y no bloquear por huecos parciales.
 -- Re-ejecutable sin peligro.
 -- ============================================================================
 
 insert into configuracion (clave, valor, descripcion) values (
   'bono_puntualidad',
-  '{"monto": 60, "asistencia_minima": 0.6666}'::jsonb,
+  '{"monto": 60, "asistencia_minima": 0.51}'::jsonb,
   'Bono de puntualidad por periodo: monto fijo para cada persona con cero tardanzas en sus días MEDIDOS (con horario real, sin contar descansos trabajados ni días sin horario configurado) y al menos asistencia_minima de días medidos sobre el total del periodo.'
 ) on conflict (clave) do nothing;
+
+-- si la fila ya existía de una corrida anterior de este mismo día, actualiza
+-- solo el umbral (no toca "monto" por si ya lo cambiaste aparte)
+update configuracion
+set valor = jsonb_set(valor, '{asistencia_minima}', '0.51'::jsonb)
+where clave = 'bono_puntualidad';
 
 create or replace function fn_calcular_bono_puntualidad(p_periodo_id uuid)
 returns jsonb
@@ -70,7 +76,7 @@ begin
   if v_estado = 'pagado' then
     raise exception 'Este periodo ya está PAGADO: reábrelo para modificarlo.';
   end if;
-  -- Mientras el periodo sigue corriendo, el 66.66% se mide contra los días que
+  -- Mientras el periodo sigue corriendo, el 51% se mide contra los días que
   -- YA PASARON, no contra el periodo completo — si no, nadie podría llegar al
   -- umbral hasta el último día, aunque tenga asistencia perfecta hasta hoy.
   -- ¡OJO zona horaria! current_date usa UTC (el servidor de Supabase), NO Lima
@@ -80,10 +86,10 @@ begin
 
   select valor into v_cfg from configuracion where clave = 'bono_puntualidad';
   if v_cfg is null then
-    v_cfg := '{"monto": 60, "asistencia_minima": 0.6666}'::jsonb;
+    v_cfg := '{"monto": 60, "asistencia_minima": 0.51}'::jsonb;
   end if;
   v_monto := coalesce((v_cfg->>'monto')::numeric, 0);
-  v_asistencia_min := coalesce((v_cfg->>'asistencia_minima')::numeric, 0.6666);
+  v_asistencia_min := coalesce((v_cfg->>'asistencia_minima')::numeric, 0.51);
 
   -- Un día "cuenta" solo si minutos_tarde no es NULL — fn_recalcular_jornada ya
   -- lo deja NULL cuando no hubo hora esperada con qué comparar (sin turno/
