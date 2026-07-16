@@ -1,26 +1,41 @@
 // Ajustes de configuración pedidos por Felipe (una sola corrida):
-//  - Felipe Alvarez → sede AQP (aparece en Arequipa, no en Trujillo).
+//  - Reasignar sede base de una persona (ver detalle en el JSON privado).
 //  - visible_todas_sedes = true para todos los activos → el selector de sede del
 //    terminal puede mostrar cualquier sede desde cualquier dispositivo.
-//  - Horarios provisionales: Claudia 10:45 (clon de Luana), Estefany 14:15 (clon de
-//    Paola), vigentes desde 2026-07-12. Carlos queda flexible (sin horario/tardanza).
+//  - Horarios provisionales para 2 personas de AQP, clonados de compañeras con
+//    horario similar, vigentes desde 2026-07-12. Una persona queda flexible
+//    (sin horario/tardanza).
 // (El PIN ya estaba desactivado en las 3 sedes; no se toca.)
+// Los nombres reales viven en scripts/datos-privados/aplicar-config-nombres.json
+// (EXCLUIDO del repo).
 //
 // Uso: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node aplicar-config.mjs
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const s = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const norm = (x) => x.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+const rutaNombres = join(dirname(fileURLToPath(import.meta.url)), "..", "datos-privados", "aplicar-config-nombres.json");
+let NOMBRES;
+try {
+  NOMBRES = JSON.parse(readFileSync(rutaNombres, "utf8"));
+} catch {
+  console.error(`No se pudo leer ${rutaNombres}. Crea ese archivo (no se sube al repo).`);
+  process.exit(1);
+}
 
 const { data: sedes } = await s.from("sedes").select("id, codigo");
 const AQP = sedes.find((x) => x.codigo === "AQP").id;
 const { data: personas } = await s.from("personas").select("id, nombres, apellidos, estado");
 const pid = (n) => personas.find((p) => norm(`${p.nombres} ${p.apellidos}`) === norm(n)).id;
 
-// 1) Felipe → AQP
+// 1) reasignar sede
 {
-  const { error } = await s.from("personas").update({ sede_base_id: AQP }).eq("id", pid("Felipe Alvarez"));
-  console.log(`1) Felipe Alvarez → sede AQP ${error ? "ERROR " + error.message : "✓"}`);
+  const { error } = await s.from("personas").update({ sede_base_id: AQP }).eq("id", pid(NOMBRES.felipeASedeAQP));
+  console.log(`1) ${NOMBRES.felipeASedeAQP} → sede AQP ${error ? "ERROR " + error.message : "✓"}`);
 }
 
 // 2) visible_todas_sedes = true en todos los activos
@@ -46,6 +61,7 @@ async function clonarHorario(destino, modelo, horaEntrada) {
   console.log(`   ${destino}: entrada ${horaEntrada} desde 2026-07-12 ${error ? "ERROR " + error.message : "✓"}`);
 }
 console.log("3) Horarios provisionales:");
-await clonarHorario("Claudia Solórzano", "Luana Rodriguez", "10:45");
-await clonarHorario("Estefany Gómez", "Paola Cahuana", "14:15");
-console.log("   Carlos Espejo: SIN horario (flexible) ✓");
+for (const c of NOMBRES.clones) {
+  await clonarHorario(c.destino, c.modelo, c.horaEntrada);
+}
+console.log(`   ${NOMBRES.flexibleSinHorario}: SIN horario (flexible) ✓`);

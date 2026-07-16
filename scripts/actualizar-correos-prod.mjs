@@ -2,7 +2,7 @@
 // Los datos personales viven en scripts/datos-privados/correos.json (EXCLUIDO del repo):
 //   { "Nombres Apellidos": "correo@ejemplo.com", ... }
 // Opcionalmente actualiza también el correo de LOGIN (auth) de una persona:
-//   node scripts/actualizar-correos-prod.mjs --login "Carlos Espejo"
+//   node scripts/actualizar-correos-prod.mjs --login "Nombre Apellido"
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

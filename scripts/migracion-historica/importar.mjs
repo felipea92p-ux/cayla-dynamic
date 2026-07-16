@@ -1,5 +1,6 @@
 // Importa el histórico de Dynamic (3 hojas .xlsx) al esquema nuevo.
-// SOLO las personas del roster actual (roster-actual.json). Mapea Entrada/Salida
+// SOLO las personas del roster actual (scripts/datos-privados/roster-actual.json,
+// EXCLUIDO del repo). Mapea Entrada/Salida
 // crudas a la máquina de estados (entrada / salida_almuerzo+retorno_almuerzo / salida_final)
 // y marca los días con patrón anómalo para revisión.
 //
@@ -29,7 +30,13 @@ const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_URL || !SERVICE) { console.error("Faltan SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY."); process.exit(1); }
 
 const supabase = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
-const roster = JSON.parse(readFileSync(join(__dir, "roster-actual.json"), "utf8"));
+let roster;
+try {
+  roster = JSON.parse(readFileSync(join(__dir, "..", "datos-privados", "roster-actual.json"), "utf8"));
+} catch {
+  console.error("No se pudo leer scripts/datos-privados/roster-actual.json. Crea ese archivo (no se sube al repo).");
+  process.exit(1);
+}
 const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const rosterPorNombre = new Map(roster.map((p) => [norm(`${p.nombres} ${p.apellidos}`), p]));
 const pad = (n) => String(n).padStart(2, "0");

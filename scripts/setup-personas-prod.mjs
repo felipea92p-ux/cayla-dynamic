@@ -1,9 +1,14 @@
 // Carga el roster real de CAYLA al proyecto Supabase de producción.
 // Se corre UNA sola vez. Genera PIN aleatorio único por persona y los imprime
 // (guardar esa salida — los PIN se almacenan solo como hash bcrypt).
+// El roster (nombres, sede, rol, email de quienes entran al panel) vive en
+// scripts/datos-privados/roster.json (EXCLUIDO del repo).
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,33 +22,14 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-// email solo para quienes entran al panel de administración
-const ROSTER = [
-  // TRU
-  { nombres: "Felipe", apellidos: "Alvarez", sede: "TRU", rol: "admin", email: "felipe.a92p@gmail.com" },
-  { nombres: "Janis", apellidos: "Revilla", sede: "TRU", rol: "supervisor_sede" },
-  { nombres: "Chiara", apellidos: "Flores", sede: "TRU", rol: "supervisor_sede" },
-  { nombres: "Danitza", apellidos: "Gutiérrez", sede: "TRU", rol: "supervisor_sede" },
-  { nombres: "Keyla", apellidos: "Ramos", sede: "TRU", rol: "integrante" },
-  { nombres: "Dayana", apellidos: "Quispe", sede: "TRU", rol: "integrante" },
-  { nombres: "Melany", apellidos: "Enriquez", sede: "TRU", rol: "integrante" },
-  { nombres: "Diana", apellidos: "Palacios", sede: "TRU", rol: "integrante" },
-  { nombres: "Danixa", apellidos: "Valverde", sede: "TRU", rol: "integrante" },
-  { nombres: "Angie", apellidos: "Chavez", sede: "TRU", rol: "integrante" },
-  { nombres: "Alessandra", apellidos: "Valdiviezo", sede: "TRU", rol: "integrante" },
-  // AQP
-  { nombres: "Carlos", apellidos: "Espejo", sede: "AQP", rol: "admin", email: "carlos.espejo@cayla.dev" },
-  { nombres: "Sandra", apellidos: "Ramirez", sede: "AQP", rol: "supervisor_sede" },
-  { nombres: "Estefany", apellidos: "Gómez", sede: "AQP", rol: "supervisor_sede" },
-  { nombres: "Paola", apellidos: "Cahuana", sede: "AQP", rol: "integrante" },
-  { nombres: "Mateo", apellidos: "Zarate", sede: "AQP", rol: "integrante" },
-  { nombres: "Sasha", apellidos: "Fernandez", sede: "AQP", rol: "integrante" },
-  { nombres: "Luana", apellidos: "Rodriguez", sede: "AQP", rol: "integrante" },
-  // LIM
-  { nombres: "Raquel", apellidos: "Ticona", sede: "LIM", rol: "supervisor_sede" },
-  { nombres: "Joselyn", apellidos: "Gavilan", sede: "LIM", rol: "integrante" },
-  { nombres: "Judith", apellidos: "Pillaca", sede: "LIM", rol: "integrante" },
-];
+const rutaRoster = join(dirname(fileURLToPath(import.meta.url)), "datos-privados", "roster.json");
+let ROSTER;
+try {
+  ROSTER = JSON.parse(readFileSync(rutaRoster, "utf8"));
+} catch {
+  console.error(`No se pudo leer ${rutaRoster}. Crea ese archivo (no se sube al repo).`);
+  process.exit(1);
+}
 
 function generarPinUnico(usados) {
   // evita PINs triviales y repetidos

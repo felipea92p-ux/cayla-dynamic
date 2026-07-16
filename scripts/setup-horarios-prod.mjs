@@ -3,7 +3,12 @@
 // cualquier minuto después de esa hora cuenta como tardanza.
 // hora_salida es solo referencia para el auto-cierre (estimada; ajustar luego).
 // Tras cargar, recalcula las jornadas de julio para que la tardanza aparezca.
+// Los horarios por persona viven en scripts/datos-privados/horarios-prod.json
+// (EXCLUIDO del repo).
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const BASE = process.env.SUPABASE_URL, SVC = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!BASE || !SVC) { console.error("Faltan SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY."); process.exit(1); }
@@ -11,19 +16,14 @@ const s = createClient(BASE, SVC, { auth: { persistSession: false } });
 
 // horarios por persona (nombre exacto en la BD). vigente_desde/hasta en fechas Lima.
 // Un tramo con vigente_hasta null = el vigente actual.
-const HORARIOS = {
-  // LIM: 9:00 hasta el 5 de julio; 8:00 desde el lunes 6 de julio.
-  "Raquel Ticona":  [{ desde: "2026-07-01", hasta: "2026-07-05", entrada: "09:00", salida: "18:00" }, { desde: "2026-07-06", hasta: null, entrada: "08:00", salida: "18:00" }],
-  "Joselyn Gavilan":[{ desde: "2026-07-01", hasta: "2026-07-05", entrada: "09:00", salida: "18:00" }, { desde: "2026-07-06", hasta: null, entrada: "08:00", salida: "18:00" }],
-  "Judith Pillaca": [{ desde: "2026-07-01", hasta: "2026-07-05", entrada: "09:00", salida: "18:00" }, { desde: "2026-07-06", hasta: null, entrada: "08:00", salida: "18:00" }],
-  // AQP mañana 10:45
-  "Luana Rodriguez":[{ desde: "2026-07-01", hasta: null, entrada: "10:45", salida: "19:00" }],
-  "Mateo Zarate":   [{ desde: "2026-07-01", hasta: null, entrada: "10:45", salida: "19:00" }],
-  // AQP tarde 14:15
-  "Paola Cahuana":  [{ desde: "2026-07-01", hasta: null, entrada: "14:15", salida: "21:00" }],
-  "Sasha Fernandez":[{ desde: "2026-07-01", hasta: null, entrada: "14:15", salida: "21:00" }],
-  "Sandra Ramirez": [{ desde: "2026-07-01", hasta: null, entrada: "14:15", salida: "21:00" }],
-};
+const rutaHorarios = join(dirname(fileURLToPath(import.meta.url)), "datos-privados", "horarios-prod.json");
+let HORARIOS;
+try {
+  HORARIOS = JSON.parse(readFileSync(rutaHorarios, "utf8"));
+} catch {
+  console.error(`No se pudo leer ${rutaHorarios}. Crea ese archivo (no se sube al repo).`);
+  process.exit(1);
+}
 
 async function main() {
   const { data: personas } = await s.from("personas").select("id, nombres, apellidos");

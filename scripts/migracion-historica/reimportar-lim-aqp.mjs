@@ -3,8 +3,10 @@
 //
 // Reglas acordadas con Felipe:
 //   - Las hojas son la fuente de la verdad para LIM y AQP (TRU no se toca).
-//   - HOY (2026-07-11): Carlos Espejo y Estefany Gómez van por el TERMINAL nuevo
+//   - HOY (2026-07-11): 2 personas de AQP van por el TERMINAL nuevo
 //     → se EXCLUYEN de la hoja de hoy (para no duplicar con el terminal).
+//     Sus nombres (si hace falta identificarlas de nuevo) están en
+//     scripts/datos-privados/roster.json.
 //   - Para el resto, HOY manda la hoja: si el terminal ya tiene marca de HOY de esa
 //     persona Y la hoja también, la hoja reemplaza (se borra la del terminal de hoy).
 //   - Si alguien tiene marca de HOY en el terminal pero NO en la hoja, se conserva

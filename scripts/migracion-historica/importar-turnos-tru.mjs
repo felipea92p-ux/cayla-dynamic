@@ -1,11 +1,16 @@
 // Lee las pestañas por persona del archivo de horarios de TRU y crea un turno
 // por día (hora de entrada = primer bloque ocupado; salida = último bloque).
 // Solo desde julio 2026 (tardanzas de este mes en adelante).
+// El mapeo pestaña -> "Nombres Apellidos" vive en
+// scripts/datos-privados/tab-a-persona-tru.json (EXCLUIDO del repo).
 //
 // Uso: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
 //      node scripts/migracion-historica/importar-turnos-tru.mjs <archivo.xlsx> [--commit]
 import { createClient } from "@supabase/supabase-js";
 import XLSX from "xlsx";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 const [archivo, ...flags] = process.argv.slice(2);
 const COMMIT = flags.includes("--commit");
@@ -15,12 +20,14 @@ const BASE = process.env.SUPABASE_URL, SVC = process.env.SUPABASE_SERVICE_ROLE_K
 if (!BASE || !SVC) { console.error("Faltan SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY."); process.exit(1); }
 const s = createClient(BASE, SVC, { auth: { persistSession: false } });
 
-// pestaña -> "Nombres Apellidos" en la BD
-const TAB_A_PERSONA = {
-  Janis: "Janis Revilla", ChiaraF: "Chiara Flores", Madany: "Melany Enriquez",
-  Diana: "Diana Palacios", Danitza: "Danitza Gutiérrez", Dayana: "Dayana Quispe",
-  Angie: "Angie Chavez", Danixa: "Danixa Valverde", Keyla: "Keyla Ramos",
-};
+const rutaTabAPersona = join(dirname(fileURLToPath(import.meta.url)), "..", "datos-privados", "tab-a-persona-tru.json");
+let TAB_A_PERSONA;
+try {
+  TAB_A_PERSONA = JSON.parse(readFileSync(rutaTabAPersona, "utf8"));
+} catch {
+  console.error(`No se pudo leer ${rutaTabAPersona}. Crea ese archivo (no se sube al repo).`);
+  process.exit(1);
+}
 const pad = (n) => String(n).padStart(2, "0");
 const hhmm = (s) => {
   const v = String(s ?? "").trim();
