@@ -95,15 +95,16 @@ acotado · 🟢 cuando haya tiempo.
   Ver [`parches/05-pii-gitignore.md`](parches/05-pii-gitignore.md) para el
   plan de limpieza antes de subir.
 
-- [ ] **La llave `service_role` de Supabase (acceso total, bypassea todo)
-  se reutiliza como "contraseña" del puente hacia Google Sheets** — *D y E,
-  mismo hallazgo*. `scripts/espejo-sheets.gs` guarda la llave real en
-  Google Apps Script y la manda a PostgREST directo cada hora;
-  `api/espejo/route.ts` compara el token entrante contra esa misma llave.
-  Si se filtra por cualquier vía (compartir el Apps Script, una captura de
-  pantalla), quien la obtenga tiene lectura/escritura total de toda la base
-  — no solo del espejo de asistencia. Ver
-  [`parches/06-espejo-secreto-propio.md`](parches/06-espejo-secreto-propio.md).
+- [x] **La llave `service_role` de Supabase (acceso total, bypassea todo)
+  se reutilizaba como "contraseña" del puente hacia Google Sheets** — *D y
+  E, mismo hallazgo*. ✅ **RESUELTO 2026-07-16**: `api/espejo/route.ts` ahora
+  compara contra un `ESPEJO_TOKEN` propio y aleatorio (no la llave real);
+  la propiedad `SUPABASE_KEY` en Apps Script se actualizó a ese mismo
+  token; verificado en vivo con "actualizarEspejo" corriendo sin error.
+  Detalle en [`parches/06-espejo-secreto-propio.md`](parches/06-espejo-secreto-propio.md).
+  Pendiente aparte, sin apuro: rotar la llave `service_role` real esta
+  semana (se escribió en el chat de esta sesión al recuperarla, por
+  higiene conviene regenerarla igual aunque nunca haya salido de aquí).
 
 - [ ] **`fn_set_meta_cobertura` usa un patrón de permiso inseguro y falla
   ABIERTO para cualquiera sin sesión** — *A y B, mismo hallazgo*. Usa
