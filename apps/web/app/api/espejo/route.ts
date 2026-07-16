@@ -7,12 +7,15 @@ import { NextResponse } from "next/server";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ESPEJO_TOKEN = process.env.ESPEJO_TOKEN;
 const TZ = "America/Lima";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: Request) {
-  if (!URL || !SERVICE) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
+  if (!URL || !SERVICE || !ESPEJO_TOKEN) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token || token !== SERVICE) return NextResponse.json({ error: "no autorizado" }, { status: 401 });
+  if (!token || token !== ESPEJO_TOKEN) return NextResponse.json({ error: "no autorizado" }, { status: 401 });
 
   const sb = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
@@ -74,7 +77,10 @@ export async function GET(req: Request) {
       marc.push([fecha(mk.timestamp_marca), hora(mk.timestamp_marca), info[mk.persona_id]?.nombre ?? mk.persona_id, sedeCod[mk.sede_id] ?? "?", String(mk.tipo).replace(/_/g, " ")]);
     });
 
-    return NextResponse.json({ resumen, marcajes: marc, actualizado: hoy });
+    return NextResponse.json(
+      { resumen, marcajes: marc, actualizado: hoy },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? "error" }, { status: 500 });
   }
