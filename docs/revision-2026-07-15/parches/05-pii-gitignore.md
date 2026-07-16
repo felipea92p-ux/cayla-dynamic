@@ -1,7 +1,42 @@
 # Parche propuesto 05 — datos reales del equipo fuera del patrón de gitignore
 
-Hallazgo (reporte E), verificado esta noche con `git ls-files` — estos 4
-archivos SÍ están comiteados (no solo presentes en disco):
+## ✅ Actualización 2026-07-16 — aplicado, con una corrección importante al diagnóstico
+
+**El supuesto de este documento ("el repo todavía no se subió a GitHub") era
+incorrecto.** Al hacer la limpieza se encontró que el repo ya tiene un
+remoto configurado (`github.com/felipea92p-ux/cayla-dynamic`) y que
+`origin/main` ya tenía estos archivos, incluido el commit original que los
+agregó (10-jul) — la rama local estaba 26 commits adelante sin subir.
+Confirmado en vivo con Felipe (captura de GitHub): el repo es **privado**,
+un solo colaborador — el riesgo real es bajo, no es una fuga pública, pero
+el historial ya subido sigue teniendo los datos (ver "Pendiente" abajo).
+
+Además del `git grep` de esta noche, una segunda pasada encontró **2
+archivos más** con nombres reales hardcodeados que no se habían detectado:
+`scripts/setup-horarios-prod.mjs` (horarios por persona) y
+`scripts/migracion-historica/aplicar-config.mjs` (ajustes puntuales de
+sede/horario). Se limpiaron con el mismo patrón.
+
+**Aplicado (solo en el working tree local, sin commit ni push):**
+- Los 4 archivos originales + los 2 nuevos ahora leen los datos reales desde
+  JSON en `scripts/datos-privados/` (gitignorado) en vez de tenerlos
+  hardcodeados.
+- `roster-actual.json` se movió físicamente a `datos-privados/` y se sacó
+  del tracking con `git rm --cached`.
+- Verificado con `git grep` que ningún archivo trackeado fuera de `docs/`
+  contiene ya los nombres reales del equipo.
+
+**Pendiente — requiere tu decisión, sin apuro dado que el repo es
+privado:** los commits viejos en `origin/main` (ya en GitHub) siguen
+teniendo los datos reales en su historial, aunque las versiones nuevas de
+los archivos ya no. Ver "Paso 3" más abajo para las dos opciones. Tampoco se
+hizo ningún `git add`/commit/push de esta limpieza — eso queda para cuando
+tú lo revises y decidas.
+
+---
+
+Hallazgo original (reporte E), verificado con `git ls-files` — estos 4
+archivos SÍ estaban comiteados (no solo presentes en disco):
 
 ```
 scripts/setup-personas-prod.mjs        (roster completo + correo personal de Felipe, línea 23)
@@ -9,17 +44,6 @@ scripts/migracion-historica/roster-actual.json
 scripts/migracion-historica/importar-turnos-tru.mjs
 scripts/migracion-historica/reimportar-lim-aqp.mjs
 ```
-
-**Buena noticia, confirmada:** el repo todavía **no se subió a GitHub** (es
-el pendiente "Subir el código a GitHub" que ya tenías anotado) — todo esto
-vive solo en tu Mac + iCloud, no en un remoto público/compartido todavía.
-Es el mejor momento posible para arreglarlo: antes de subir es un cambio
-simple; después de subido, hay que reescribir historia (mucho más delicado,
-puede romper cualquier clon existente).
-
-**No apliqué nada de esto** — mover archivos y reescribir historia de git
-son cosas que te toca decidir y ejecutar a ti (o pedírmelo explícitamente
-mañana con calma, no es algo para hacer de madrugada sin que estés mirando).
 
 ## Paso 1 — mover los datos reales a `scripts/datos-privados/` (ya gitignorado)
 

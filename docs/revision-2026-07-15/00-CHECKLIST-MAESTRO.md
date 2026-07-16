@@ -37,20 +37,24 @@ acotado · 🟢 cuando haya tiempo.
   protege. Afecta directo planilla, provisiones y el bono de puntualidad.
   Parche propuesto: ver [`parches/01-marcaje-pin-y-sede.sql`](parches/01-marcaje-pin-y-sede.sql).
 
-- [ ] **`fn_provisiones` tiene el mismo bug de zona horaria (UTC vs. Lima)
+- [x] **`fn_provisiones` tenía el mismo bug de zona horaria (UTC vs. Lima)
   que ya se corrigió hoy en el bono de puntualidad** — *A y B, mismo
-  hallazgo*. `supabase/migrations/0030_provisiones_anual.sql:35` usa
-  `current_date` desnudo. Después de las 7pm hora Lima puede mostrar la
-  fecha de "próximo desembolso" equivocada la noche misma del día de pago,
-  y correr un día antes de tiempo la ventana de aniversario de vacaciones.
-  Parche propuesto: ver [`parches/02-provisiones-zona-horaria.sql`](parches/02-provisiones-zona-horaria.sql).
+  hallazgo*. ✅ **RESUELTO 2026-07-16**: aplicado en producción vía SQL
+  Editor de Supabase y verificado en vivo contra `pg_get_functiondef`
+  (confirma que la línea nueva con `America/Lima` está activa y la vieja con
+  `current_date` desnudo ya no). Migración versionada en
+  [`0035_provisiones_zona_horaria.sql`](../../supabase/migrations/0035_provisiones_zona_horaria.sql).
+  Detalle del hallazgo original en
+  [`parches/02-provisiones-zona-horaria.sql`](parches/02-provisiones-zona-horaria.sql).
 
-- [ ] **`fn_auto_cierre` (corre cada 15 min, cron activo en producción) usa
-  un modelo de horario desactualizado y puede cerrar jornadas a la hora
-  equivocada** — *B*. Nunca se actualizó cuando el sistema de horarios
-  ganó `turnos` por día y horario-por-día-de-semana (0013-0017). Alguien
-  con un turno especial (ej. cierre nocturno) puede quedar auto-cerrado a
-  mitad de su turno, con `horas_trabajadas` corto. Parche propuesto: ver
+- [x] **`fn_auto_cierre` (corre cada 15 min, cron activo en producción) usaba
+  un modelo de horario desactualizado y podía cerrar jornadas a la hora
+  equivocada** — *B*. ✅ **RESUELTO 2026-07-16**: aplicado en producción vía
+  SQL Editor de Supabase y verificado en vivo contra `pg_get_functiondef`
+  (confirma que la cascada turno-del-día → horario_por_dia → legacy está
+  activa). Migración versionada en
+  [`0036_auto_cierre_horario.sql`](../../supabase/migrations/0036_auto_cierre_horario.sql).
+  Detalle del hallazgo original en
   [`parches/03-auto-cierre-horario.sql`](parches/03-auto-cierre-horario.sql).
 
 - [ ] **El candado de "periodo ya PAGADO" falta en 7 funciones que alimentan
@@ -83,17 +87,26 @@ acotado · 🟢 cuando haya tiempo.
   (Dashboard completo + lista de las otras 6): ver
   [`parches/07-fallas-carga-silenciosas.md`](parches/07-fallas-carga-silenciosas.md).
 
-- [ ] **PII real del equipo comiteada a git, fuera del patrón de gitignore
-  que el proyecto ya usa** — *E*. `scripts/setup-personas-prod.mjs` (roster
-  completo + correo personal de Felipe), `scripts/migracion-historica/roster-actual.json`
-  y `importar-turnos-tru.mjs` tienen nombres reales en texto plano,
-  trackeados por git — a diferencia de `actualizar-correos-prod.mjs` que sí
-  sigue el patrón correcto (`scripts/datos-privados/`, gitignorado).
-  **Esto bloquea que "Subir el código a GitHub" (pendiente en tu checklist
-  principal) se pueda hacer con seguridad tal como está hoy** — si se sube
-  así, esos datos quedan en el historial del repo remoto para siempre.
-  Ver [`parches/05-pii-gitignore.md`](parches/05-pii-gitignore.md) para el
-  plan de limpieza antes de subir.
+- [x] **PII real del equipo comiteada a git, fuera del patrón de gitignore
+  que el proyecto ya usa** — *E*. ✅ **RESUELTO (parcial) 2026-07-16**: se
+  descubrió durante la limpieza que el repo **ya tenía un remoto de GitHub
+  configurado** (`github.com/felipea92p-ux/cayla-dynamic`, 26 commits
+  locales por subir) — contradice lo que decía el hallazgo original ("aún no
+  se sube"). Confirmado en vivo con Felipe (captura del repo en GitHub): es
+  **privado**, un solo colaborador — riesgo de exposición bajo, no
+  crítico. Se limpiaron los 4 archivos originales **y 2 más que el audit de
+  anoche no había detectado** (`scripts/setup-horarios-prod.mjs` y
+  `scripts/migracion-historica/aplicar-config.mjs`, ambos con nombres reales
+  hardcodeados) — todos ahora leen de JSON en `scripts/datos-privados/`
+  (gitignorado), verificado con `git grep` que no queda ningún nombre real
+  en archivos trackeados fuera de `docs/`. `scripts/migracion-historica/roster-actual.json`
+  se movió y se sacó del tracking (`git rm --cached`). **Pendiente, sin
+  apuro dado que el repo es privado**: decidir si reescribir el historial
+  viejo de git (los commits ya subidos a `origin/main` siguen teniendo los
+  datos reales) — ver plan en
+  [`parches/05-pii-gitignore.md`](parches/05-pii-gitignore.md). Ningún
+  commit ni push nuevo se hizo — los cambios quedaron solo en el working
+  tree, a la espera de que Felipe revise y decida cuándo commitear.
 
 - [x] **La llave `service_role` de Supabase (acceso total, bypassea todo)
   se reutilizaba como "contraseña" del puente hacia Google Sheets** — *D y

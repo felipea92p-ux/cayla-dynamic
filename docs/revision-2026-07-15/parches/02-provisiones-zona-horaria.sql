@@ -9,13 +9,15 @@
 --     del día de pago (15-jul, 15-dic, etc.)
 --   - el aniversario de vacaciones puede correr un día antes de tiempo.
 --
--- NO APLICADO — este archivo es una propuesta para revisar y aplicar tú
--- mismo en el SQL Editor de Supabase si estás de acuerdo con el cambio.
+-- ✅ APLICADO EN PRODUCCIÓN 2026-07-16 — corrido en el SQL Editor de
+-- Supabase y verificado en vivo (pg_get_functiondef confirma la línea nueva
+-- con America/Lima activa y la vieja con current_date desnudo ausente).
+-- Versión definitiva versionada en
+-- supabase/migrations/0035_provisiones_zona_horaria.sql — este archivo queda
+-- como registro del hallazgo original, ya no como propuesta pendiente.
 -- Único cambio real: la línea `v_as_of := coalesce(p_as_of, current_date);`
 -- pasa a usar la fecha real de Lima. El resto de la función es idéntico a
--- supabase/migrations/0030_provisiones_anual.sql — lo repito completo para
--- que sea un CREATE OR REPLACE pegable de una sola vez, sin tener que armar
--- el diff a mano.
+-- supabase/migrations/0030_provisiones_anual.sql.
 -- ============================================================================
 
 create or replace function fn_provisiones(p_as_of date default null)

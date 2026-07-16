@@ -15,7 +15,12 @@
 -- pleno turno real, generando un salida_final falsa que corrompe
 -- horas_trabajadas.
 --
--- NO APLICADO — propuesta para revisar y aplicar tú mismo en el SQL Editor.
+-- ✅ APLICADO EN PRODUCCIÓN 2026-07-16 — corrido en el SQL Editor de
+-- Supabase y verificado en vivo (pg_get_functiondef confirma la cascada
+-- turno-del-día → horario_por_dia → legacy activa). Versión definitiva
+-- versionada en supabase/migrations/0036_auto_cierre_horario.sql — este
+-- archivo queda como registro del hallazgo original, ya no como propuesta
+-- pendiente.
 -- Único cambio: el `left join lateral` que resuelve `h.hora_salida` (líneas
 -- 62-70 de la versión original en 0007_auto_cierre.sql) se reemplaza por la
 -- misma cascada de 3 pasos que usa fn_recalcular_jornada. El resto de la
