@@ -93,6 +93,40 @@ function gradienteCobertura(horas: number[], meta: number): string {
   const paradas = horas.map((h, i) => `${colorCobertura(h, meta)} ${((i + 0.5) / n) * 100}%`);
   return `linear-gradient(to right, ${colorCobertura(horas[0], meta)} 0%, ${paradas.join(", ")}, ${colorCobertura(horas[n - 1], meta)} 100%)`;
 }
+// ── Silueta del día (Vista Semana): la forma de cuánta gente hay por hora ────
+// El área rellena es la cobertura; el área roja entre la línea de cobertura y la
+// meta es el DÉFICIT (lo que falta) — se ve el hueco, no solo un número.
+const SIL_W = 100, SIL_BASE = 46, SIL_TOP = 6;
+function siluetaSVG(cov: number[], meta: number, maxY: number) {
+  const n = cov.length;
+  const yF = (v: number) => SIL_BASE - (v / maxY) * (SIL_BASE - SIL_TOP);
+  const xF = (i: number) => (i / (n - 1)) * SIL_W;
+  let area = `M ${xF(0)} ${SIL_BASE}`;
+  for (let i = 0; i < n; i++) area += ` L ${xF(i).toFixed(1)} ${yF(cov[i]).toFixed(1)}`;
+  area += ` L ${xF(n - 1)} ${SIL_BASE} Z`;
+  let line = "";
+  for (let i = 0; i < n; i++) line += (i ? " L " : "M ") + `${xF(i).toFixed(1)} ${yF(cov[i]).toFixed(1)}`;
+  let deficit = "";
+  if (meta > 0) {
+    let t = "", b = "";
+    for (let i = 0; i < n; i++) t += (i ? " L " : "M ") + `${xF(i).toFixed(1)} ${yF(meta).toFixed(1)}`;
+    for (let i = n - 1; i >= 0; i--) b += ` L ${xF(i).toFixed(1)} ${yF(Math.min(cov[i], meta)).toFixed(1)}`;
+    deficit = t + b + " Z";
+  }
+  return { area, line, deficit, metaY: yF(meta) };
+}
+// El momento más flojo del día en HORAS CENTRALES (10:00–19:45), para los
+// puntitos. Se saltan el arranque y el cierre (franjas del inicio/fin) porque
+// ahí siempre hay menos gente por el ramp-up natural — si contáramos eso, TODOS
+// los días se verían cortos y el indicador perdería su señal. Pero un hueco real
+// de media tarde (ej. domingo sin nadie) sí cae dentro de esta ventana y se
+// refleja. Índices anclados a reloj sobre franjas de 0.5h desde HORA_INICIO_SEMANA.
+const FR_CORE_INI = Math.round((10 - HORA_INICIO_SEMANA) / 0.5);
+const FR_CORE_FIN = Math.round((19.75 - HORA_INICIO_SEMANA) / 0.5);
+function minEnHorario(cov: number[]): number {
+  const core = cov.slice(FR_CORE_INI, FR_CORE_FIN + 1);
+  return core.length ? Math.min(...core) : 0;
+}
 
 export default function TurnosPage() {
   const router = useRouter();
@@ -368,57 +402,60 @@ export default function TurnosPage() {
             {([
               { titulo: "Cobertura (áreas operativas)", metaPorDia: metas, filtro: esOperativa },
               { titulo: "Encargadas (supervisor_sede)", metaPorDia: metasEncargadas, filtro: esEncargada },
-            ] as const).map(({ titulo, metaPorDia, filtro }) => (
-              <div key={titulo}>
-                <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
-                <div className="overflow-x-auto rounded-lg border border-sand">
-                  <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
-                    <thead>
-                      <tr className="bg-sand/50 text-left text-taupe">
-                        <th className="sticky left-0 z-10 bg-sand/50 px-3 py-2 font-normal">Hora</th>
-                        {dias.map((iso) => {
-                          const { abr, num } = etiquetaDia(iso);
-                          const hoy = iso === hoyLima();
-                          return (
-                            <th key={iso} className={`px-2 py-2 text-center font-normal ${hoy ? "text-tinta" : ""}`}>
-                              <div className={hoy ? "font-medium" : ""}>{abr}</div>
-                              <div className="text-taupe">{num}</div>
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from({ length: N_FRANJAS_SEMANA }, (_, fi) => fi).map((fi) => {
-                        const hi = HORA_INICIO_SEMANA + fi * 0.5;
-                        const hf = hi + 0.5;
-                        const fmt = (h: number) => `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 === 0 ? "00" : Math.round((h % 1) * 60)}`;
+            ] as const).map(({ titulo, metaPorDia, filtro }) => {
+              // Cobertura por franja de cada día + escala vertical común (para que
+              // los 7 días sean comparables de un vistazo).
+              const covPorDia = dias.map((iso) => coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, filtro));
+              const metaMax = Math.max(0, ...dias.map((iso) => metaPorDia.get(diaSemana(iso)) ?? 0));
+              const maxY = Math.max(6, ...covPorDia.flat(), metaMax + 1);
+              return (
+                <div key={titulo}>
+                  <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
+                  <div className="overflow-x-auto">
+                    <div className="grid min-w-[640px] grid-cols-7 gap-2">
+                      {dias.map((iso, di) => {
+                        const { abr, num } = etiquetaDia(iso);
+                        const hoy = iso === hoyLima();
+                        const dia = diaSemana(iso);
+                        const meta = metaPorDia.get(dia) ?? 0;
+                        const cov = covPorDia[di];
+                        const s = siluetaSVG(cov, meta, maxY);
+                        const min = minEnHorario(cov);
+                        const falta = Math.max(0, meta - min);
                         return (
-                          <tr key={fi} className="border-t border-sand/40">
-                            <td className="sticky left-0 z-10 bg-crema px-3 py-1 whitespace-nowrap text-taupe">{fmt(hi)}–{fmt(hf)}</td>
-                            {dias.map((iso) => {
-                              const dia = diaSemana(iso);
-                              const meta = metaPorDia.get(dia) ?? 0;
-                              const n = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, filtro)[fi];
-                              return (
-                                <td key={iso}
-                                  onClick={() => irADia(iso)}
-                                  className="cursor-pointer border-l border-sand/40 px-2 py-1 text-center font-medium transition-opacity hover:opacity-80"
-                                  style={{ backgroundColor: colorCobertura(n, meta), color: "var(--color-crema)", textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
-                                  title={`${fmt(hi)}–${fmt(hf)}: ${n} persona${n === 1 ? "" : "s"}${meta > 0 ? ` (meta ${meta})` : ""} — clic para ver el detalle de ese día`}
-                                >
-                                  {n}
-                                </td>
-                              );
-                            })}
-                          </tr>
+                          <button key={iso} onClick={() => irADia(iso)}
+                            className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}>
+                            <div className={`text-sm ${hoy ? "text-tinta" : ""}`}>
+                              <span className="font-serif">{abr}</span> <span className="text-xs text-taupe">{num}</span>
+                            </div>
+                            {/* Puntitos: meta como personas — lleno = cubierto, contorno rojo = falta */}
+                            <div className="my-1 flex h-3 items-center justify-center gap-0.5">
+                              {meta === 0 ? (
+                                <span className="text-[10px] text-taupe/50">sin meta</span>
+                              ) : meta > 6 ? (
+                                <span className={`text-xs font-medium ${falta > 0 ? "text-rojo" : "text-verde"}`}>{min}/{meta}</span>
+                              ) : (
+                                Array.from({ length: meta }, (_, i) => (
+                                  <span key={i} className="inline-block h-2 w-2 rounded-full"
+                                    style={i < min ? { backgroundColor: "var(--color-verde)" } : { border: "1.5px solid var(--color-rojo)", boxSizing: "border-box" }} />
+                                ))
+                              )}
+                            </div>
+                            <svg viewBox={`0 0 ${SIL_W} 52`} width="100%" preserveAspectRatio="none" className="block h-12">
+                              <path d={s.area} style={{ fill: "var(--color-verde)", fillOpacity: 0.18 }} />
+                              {s.deficit && <path d={s.deficit} style={{ fill: "var(--color-rojo)", fillOpacity: 0.32 }} />}
+                              {meta > 0 && <line x1="0" y1={s.metaY} x2={SIL_W} y2={s.metaY} style={{ stroke: "var(--color-taupe)", strokeWidth: 1, strokeDasharray: "3 2" }} />}
+                              <path d={s.line} fill="none" style={{ stroke: "var(--color-verde)", strokeWidth: 1.6, strokeLinejoin: "round" }} />
+                            </svg>
+                            <div className="mt-0.5 text-[10px] text-taupe">mín {min} · meta {meta || "—"}</div>
+                          </button>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="overflow-x-auto">
