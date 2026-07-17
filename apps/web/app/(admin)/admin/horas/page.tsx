@@ -29,6 +29,7 @@ interface ResumenPersona {
   diasTrabajados: number;
   horasTotales: number;
   tardanzas: number;
+  diasTardeMedidos: number;
   minutosTarde: number;
   salidasTempranas: number;
   horasExtra: number;
@@ -71,7 +72,7 @@ export default function HorasPage() {
     for (const p of personas ?? []) {
       acc.set(p.id, {
         personaId: p.id, nombre: `${p.nombres} ${p.apellidos}`, sede: (p as any).sedes?.codigo ?? "?",
-        diasTrabajados: 0, horasTotales: 0, tardanzas: 0, minutosTarde: 0, salidasTempranas: 0, horasExtra: 0, incompletas: 0, pendientesRevision: 0,
+        diasTrabajados: 0, horasTotales: 0, tardanzas: 0, diasTardeMedidos: 0, minutosTarde: 0, salidasTempranas: 0, horasExtra: 0, incompletas: 0, pendientesRevision: 0,
       });
     }
     for (const j of jornadas ?? []) {
@@ -79,6 +80,7 @@ export default function HorasPage() {
       if (!r) continue;
       r.diasTrabajados++;
       if (j.horas_trabajadas !== null) r.horasTotales += Number(j.horas_trabajadas); else r.incompletas++;
+      if (j.minutos_tarde !== null) r.diasTardeMedidos++;
       if ((j.minutos_tarde ?? 0) > 0) { r.tardanzas++; r.minutosTarde += j.minutos_tarde!; }
       if ((j.horas_extra_detectadas ?? 0) > 0) r.horasExtra += Number(j.horas_extra_detectadas);
       if (j.estado === "auto_cerrada_pendiente") r.pendientesRevision++;
@@ -183,7 +185,13 @@ export default function HorasPage() {
                         <td className="px-4 py-2">{f.nombre}</td>
                         <td className="px-4 py-2">{f.diasTrabajados}</td>
                         <td className="px-4 py-2 font-medium">{f.horasTotales.toFixed(1)}</td>
-                        <td className="px-4 py-2">{f.tardanzas || <span className="text-taupe/50">—</span>}</td>
+                        <td className="px-4 py-2">
+                          {f.diasTardeMedidos === 0 ? (
+                            <span className="text-taupe/50">sin medir</span>
+                          ) : (
+                            <>{f.tardanzas} <span className="text-taupe/50">/ {f.diasTardeMedidos}</span></>
+                          )}
+                        </td>
                         <td className="px-4 py-2">{f.minutosTarde ? `${f.minutosTarde} min` : <span className="text-taupe/50">—</span>}</td>
                         <td className="px-4 py-2">{f.salidasTempranas ? <span className="text-ambar">{f.salidasTempranas}</span> : <span className="text-taupe/50">—</span>}</td>
                         <td className="px-4 py-2">{f.horasExtra > 0 ? <span className="text-verde font-medium">{f.horasExtra.toFixed(1)}</span> : <span className="text-taupe/50">—</span>}</td>

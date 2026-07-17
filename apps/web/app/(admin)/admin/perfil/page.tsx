@@ -116,7 +116,9 @@ export default function PerfilPage() {
   const persona = personas.find((p) => p.id === personaId);
   const totalHoras = jornadas.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0);
   const diasTrabajados = jornadas.filter((j) => (j.horas_trabajadas ?? 0) > 0).length;
+  const diasTardeMedidos = jornadas.filter((j) => j.minutos_tarde !== null).length;
   const tardanzas = jornadas.filter((j) => (j.minutos_tarde ?? 0) > 0).length;
+  const diasSalidaMedidos = jornadas.filter((j) => j.minutos_salida_temprana !== null).length;
   const salidasTempranas = jornadas.filter((j) => (j.minutos_salida_temprana ?? 0) > 0).length;
   const horasExtra = jornadas.reduce((s, j) => s + (j.horas_extra_detectadas ?? 0), 0);
   const datosGrafico: DiaGrafico[] = jornadas.map((j) => ({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 }));
@@ -176,8 +178,8 @@ export default function PerfilPage() {
                 { label: "Total del periodo", valor: fmtHoras(totalHoras) },
                 { label: "Días trabajados", valor: String(diasTrabajados) },
                 { label: "Promedio por día", valor: diasTrabajados ? fmtHoras(totalHoras / diasTrabajados) : "—" },
-                { label: "Días con tardanza", valor: String(tardanzas) },
-                { label: "Salidas anticipadas", valor: String(salidasTempranas) },
+                { label: "Días con tardanza", valor: `${tardanzas} de ${diasTardeMedidos} medidos` },
+                { label: "Salidas anticipadas", valor: `${salidasTempranas} de ${diasSalidaMedidos} medidos` },
                 { label: "Tiempo adicional", valor: horasExtra > 0 ? fmtHoras(horasExtra) : "—" },
               ].map((c) => (
                 <div key={c.label} className="rounded-lg border border-sand bg-sand/30 px-4 py-3">
