@@ -58,6 +58,20 @@ type Celda =
 const ROLES_ADMIN = ["admin", "lider_do"];
 const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : "");
 
+// ── Línea de tiempo / mapa de calor de cobertura (7h–21h) ───────────────────
+const HORA_INICIO = 7;
+const HORA_FIN = 21;
+const MARCAS_HORA = [7, 9, 11, 13, 15, 17, 19, 21];
+function horaADecimal(hm: string): number {
+  const [h, m] = hm.split(":").map(Number);
+  return (h ?? 0) + (m ?? 0) / 60;
+}
+// % horizontal dentro del rango visible, recortado a [0, 100] para turnos que
+// empiezan antes de las 7 o terminan después de las 21.
+function pctEnRango(horaDec: number): number {
+  return Math.min(100, Math.max(0, ((horaDec - HORA_INICIO) / (HORA_FIN - HORA_INICIO)) * 100));
+}
+
 export default function TurnosPage() {
   const router = useRouter();
   const yo = usePersonaActual();
@@ -170,6 +184,22 @@ export default function TurnosPage() {
   // La cobertura solo cuenta a las áreas OPERATIVAS DE SEDE (según el catálogo
   // dinámico de áreas); las demás áreas no.
   const cobertura = useCallback((fecha: string) => personas.reduce((n, p) => n + (esOperativaEn(areas, p.funcion) && trabaja(celda(p.id, fecha)) ? 1 : 0), 0), [personas, celda, areas]);
+  // Cuántas personas operativas cubren cada hora del día (para el mapa de calor).
+  const coberturaPorHora = useCallback((fecha: string): number[] => {
+    const horas = Array.from({ length: HORA_FIN - HORA_INICIO }, () => 0);
+    for (const p of personas) {
+      if (!esOperativaEn(areas, p.funcion)) continue;
+      const c = celda(p.id, fecha);
+      if (c.tipo !== "turno" && c.tipo !== "default") continue;
+      const e = horaADecimal(c.entrada);
+      const s = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+      for (let i = 0; i < horas.length; i++) {
+        const hi = HORA_INICIO + i, hf = hi + 1;
+        if (e < hf && s > hi) horas[i]++;
+      }
+    }
+    return horas;
+  }, [personas, areas, celda]);
 
   function abrir(personaId: string, fecha: string) {
     const c = celda(personaId, fecha);
@@ -223,8 +253,9 @@ export default function TurnosPage() {
           <div>
             <h1 className="mb-1 font-serif text-2xl">Turnos y cobertura</h1>
             <p className="max-w-2xl text-sm text-taupe">
-              Arma la semana por sede. Toca una celda para poner el turno o marcar descanso. La fila de abajo
-              te dice si la sede está cubierta según la meta del día.
+              Arma la semana por sede. Toca la fila de una persona en un día para poner su turno o marcar
+              descanso. La barra de cada quien muestra su rango de horario; la franja de abajo de cada día es
+              el mapa de calor de cobertura hora por hora (más verde = más gente).
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -251,96 +282,116 @@ export default function TurnosPage() {
         )}
 
         {cargando ? <p className="text-sm text-taupe">Cargando…</p> : (
-          <div className="overflow-x-auto rounded-lg border border-sand">
-            <table className="w-full border-collapse text-sm [font-variant-numeric:tabular-nums]">
-              <thead>
-                <tr className="bg-sand/50 text-left text-taupe">
-                  <th className="sticky left-0 z-10 bg-sand/50 px-3 py-2 font-normal">Persona</th>
-                  {dias.map((iso) => {
-                    const { abr, num } = etiquetaDia(iso);
-                    const hoy = iso === hoyLima();
-                    return (
-                      <th key={iso} className={`px-2 py-2 text-center font-normal ${hoy ? "text-tinta" : ""}`}>
-                        <div className={hoy ? "font-medium" : ""}>{abr}</div>
-                        <div className="text-xs text-taupe">{num}</div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {personas.length === 0 ? (
-                  <tr><td colSpan={8} className="px-3 py-6 text-center text-taupe">No hay personas activas en esta sede.</td></tr>
-                ) : personas.map((p) => (
-                  <tr key={p.id} className="border-t border-sand">
-                    <td className="sticky left-0 z-10 bg-crema px-3 py-2 whitespace-nowrap">
-                      {p.nombres} {p.apellidos}
-                      {!esOperativaEn(areas, p.funcion) && (
-                        <span className="ml-2 whitespace-nowrap rounded-full bg-ambar/15 px-1.5 py-0.5 text-[10px] text-ambar">{areaCorto(areas, p.funcion)}</span>
-                      )}
-                    </td>
-                    {dias.map((iso) => {
+          <div className="overflow-x-auto">
+            <div className="min-w-[700px] space-y-4">
+              {personas.length === 0 ? (
+                <p className="rounded-lg border border-sand px-4 py-6 text-center text-sm text-taupe">No hay personas activas en esta sede.</p>
+              ) : dias.map((iso) => {
+                const { abr, num } = etiquetaDia(iso);
+                const hoy = iso === hoyLima();
+                const dia = diaSemana(iso);
+                const meta = metas.get(dia) ?? 0;
+                const prog = cobertura(iso);
+                const horas = coberturaPorHora(iso);
+                let claseProg = "text-taupe";
+                if (meta > 0 && prog < meta) claseProg = "text-rojo font-medium";
+                else if (meta > 0 && prog === meta) claseProg = "text-verde font-medium";
+                else if (meta > 0 && prog > meta) claseProg = "text-ambar font-medium";
+                return (
+                  <section key={iso} className={`overflow-hidden rounded-lg border ${hoy ? "border-tinta" : "border-sand"}`}>
+                    {/* Cabecera del día: fecha + meta editable + progreso */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
+                      <div className={hoy ? "text-tinta" : ""}>
+                        <span className="font-serif text-lg">{abr}</span>{" "}
+                        <span className="text-sm text-taupe">{num}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <label className="flex items-center gap-1.5 text-taupe">
+                          Meta
+                          {esAdmin ? (
+                            <input type="number" min={0} value={meta}
+                              onChange={(e) => editarMeta(dia, e.target.value)}
+                              onBlur={(e) => comprometerMeta(dia, e.target.value)}
+                              className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
+                          ) : (
+                            <span>{meta || "—"}</span>
+                          )}
+                        </label>
+                        <span className={claseProg}>
+                          {prog}{meta > 0 ? ` / ${meta}` : ""} cubiertos
+                          {meta > 0 && prog < meta && ` · faltan ${meta - prog}`}
+                          {meta > 0 && prog > meta && ` · sobran ${prog - meta}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Eje de horas */}
+                    <div className="relative ml-[176px] h-4 border-b border-sand/60 text-[10px] text-taupe">
+                      {MARCAS_HORA.map((h) => (
+                        <span key={h} className="absolute -translate-x-1/2" style={{ left: `${pctEnRango(h)}%` }}>{h}h</span>
+                      ))}
+                    </div>
+
+                    {/* Una fila por persona: barra = su rango de turno ese día */}
+                    {personas.map((p) => {
                       const c = celda(p.id, iso);
+                      const operativa = esOperativaEn(areas, p.funcion);
                       return (
-                        <td key={iso} className="border-l border-sand/60 p-1 text-center">
-                          <button onClick={() => abrir(p.id, iso)} className="w-full rounded px-1 py-1.5 text-xs transition-colors hover:bg-sand/40">
-                            {c.tipo === "turno" && <span className="text-tinta">{c.entrada}{c.salida ? `–${c.salida}` : ""}</span>}
-                            {c.tipo === "default" && <span className="italic text-taupe">{c.entrada}{c.salida ? `–${c.salida}` : ""}</span>}
-                            {c.tipo === "descanso" && <span className="rounded bg-sand px-1.5 py-0.5 text-taupe">descanso</span>}
-                            {c.tipo === "libre" && <span className="text-taupe/40">+</span>}
-                          </button>
-                        </td>
+                        <button key={p.id} onClick={() => abrir(p.id, iso)}
+                          className="flex w-full items-center border-t border-sand/60 text-left transition-colors hover:bg-sand/20">
+                          <span className="w-[176px] shrink-0 truncate px-3 py-2 text-xs">
+                            {p.nombres} {p.apellidos}
+                            {!operativa && (
+                              <span className="ml-1.5 whitespace-nowrap rounded-full bg-ambar/15 px-1.5 py-0.5 text-[10px] text-ambar">{areaCorto(areas, p.funcion)}</span>
+                            )}
+                          </span>
+                          <span className="relative h-7 flex-1">
+                            {(c.tipo === "turno" || c.tipo === "default") && (() => {
+                              const left = pctEnRango(horaADecimal(c.entrada));
+                              const right = pctEnRango(c.salida ? horaADecimal(c.salida) : HORA_FIN);
+                              return (
+                                <span
+                                  className={`absolute top-1.5 h-4 rounded ${operativa ? "bg-verde" : "bg-ambar"} ${c.tipo === "default" ? "opacity-50" : ""}`}
+                                  style={{ left: `${left}%`, width: `${Math.max(1, right - left)}%` }}
+                                  title={`${c.entrada}${c.salida ? `–${c.salida}` : ""}`}
+                                />
+                              );
+                            })()}
+                            {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
+                            {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe/40">+</span>}
+                          </span>
+                        </button>
                       );
                     })}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-sand bg-crema">
-                  <td className="sticky left-0 z-10 bg-crema px-3 py-2 text-taupe">Programados / meta</td>
-                  {dias.map((iso) => {
-                    const prog = cobertura(iso);
-                    const meta = metas.get(diaSemana(iso)) ?? 0;
-                    let clase = "text-taupe";
-                    if (meta > 0 && prog < meta) clase = "text-rojo font-medium";
-                    else if (meta > 0 && prog === meta) clase = "text-verde font-medium";
-                    else if (meta > 0 && prog > meta) clase = "text-ambar font-medium";
-                    return (
-                      <td key={iso} className="border-l border-sand/60 px-2 py-2 text-center">
-                        <div className={clase}>{prog}{meta > 0 ? ` / ${meta}` : ""}</div>
-                        {meta > 0 && prog < meta && <div className="text-[10px] text-rojo">faltan {meta - prog}</div>}
-                        {meta > 0 && prog > meta && <div className="text-[10px] text-ambar">sobran {prog - meta}</div>}
-                      </td>
-                    );
-                  })}
-                </tr>
-                <tr className="border-t border-sand bg-crema">
-                  <td className="sticky left-0 z-10 bg-crema px-3 py-2 text-taupe">Meta de la sede</td>
-                  {dias.map((iso) => {
-                    const dia = diaSemana(iso);
-                    return (
-                      <td key={iso} className="border-l border-sand/60 px-2 py-1.5 text-center">
-                        {esAdmin ? (
-                          <input type="number" min={0} value={metas.get(dia) ?? 0}
-                            onChange={(e) => editarMeta(dia, e.target.value)}
-                            onBlur={(e) => comprometerMeta(dia, e.target.value)}
-                            className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center text-xs" />
-                        ) : (
-                          <span className="text-xs text-taupe">{metas.get(dia) ?? "—"}</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tfoot>
-            </table>
+
+                    {/* Mapa de calor de cobertura por hora */}
+                    <div className="flex items-stretch border-t-2 border-sand">
+                      <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
+                      <div className="flex flex-1">
+                        {horas.map((n, i) => (
+                          <div
+                            key={i}
+                            className="flex flex-1 items-center justify-center text-[10px] font-medium text-tinta"
+                            style={{ backgroundColor: `rgba(95, 122, 82, ${meta > 0 ? Math.min(n / meta, 1) : Math.min(n / 6, 1)})` }}
+                            title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}`}
+                          >
+                            {n > 0 ? n : ""}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
           </div>
         )}
 
         <p className="mt-3 text-xs text-taupe">
-          <span className="italic">En cursiva</span> = horario por defecto del periodo (no se ha fijado turno ese día).
-          La cobertura cuenta solo a las <strong>áreas operativas de sede</strong> ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")})
-          que trabajan; el descanso y las demás áreas (etiqueta ámbar) no cuentan. El área se cambia en Equipo.
+          Cada barra es el rango de entrada–salida del turno de esa persona ese día (más clarita = horario por
+          defecto del periodo, no se fijó turno puntual). El mapa de calor de abajo cuenta solo a las{" "}
+          <strong>áreas operativas de sede</strong> ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}
+          ) — más verde = más gente cubriendo esa hora frente a la meta del día. El área se cambia en Equipo.
         </p>
 
         {edit && (() => {
