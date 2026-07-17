@@ -410,7 +410,10 @@ export default function TurnosPage() {
               const maxY = Math.max(6, ...covPorDia.flat(), metaMax + 1);
               return (
                 <div key={titulo}>
-                  <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
+                  <h2 className="font-serif text-lg">{titulo}</h2>
+                  <p className="mb-2 text-xs text-taupe">
+                    Verde = gente que trabaja a cada hora · rojo = lo que falta para tu meta (línea punteada). Abajo: cuánta gente te falta en la hora más floja del día.
+                  </p>
                   <div className="overflow-x-auto">
                     <div className="grid min-w-[640px] grid-cols-7 gap-2">
                       {dias.map((iso, di) => {
@@ -425,21 +428,8 @@ export default function TurnosPage() {
                         return (
                           <button key={iso} onClick={() => irADia(iso)}
                             className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}>
-                            <div className={`text-sm ${hoy ? "text-tinta" : ""}`}>
+                            <div className={`mb-1 text-sm ${hoy ? "text-tinta" : ""}`}>
                               <span className="font-serif">{abr}</span> <span className="text-xs text-taupe">{num}</span>
-                            </div>
-                            {/* Puntitos: meta como personas — lleno = cubierto, contorno rojo = falta */}
-                            <div className="my-1 flex h-3 items-center justify-center gap-0.5">
-                              {meta === 0 ? (
-                                <span className="text-[10px] text-taupe/50">sin meta</span>
-                              ) : meta > 6 ? (
-                                <span className={`text-xs font-medium ${falta > 0 ? "text-rojo" : "text-verde"}`}>{min}/{meta}</span>
-                              ) : (
-                                Array.from({ length: meta }, (_, i) => (
-                                  <span key={i} className="inline-block h-2 w-2 rounded-full"
-                                    style={i < min ? { backgroundColor: "var(--color-verde)" } : { border: "1.5px solid var(--color-rojo)", boxSizing: "border-box" }} />
-                                ))
-                              )}
                             </div>
                             <svg viewBox={`0 0 ${SIL_W} 52`} width="100%" preserveAspectRatio="none" className="block h-12">
                               <path d={s.area} style={{ fill: "var(--color-verde)", fillOpacity: 0.18 }} />
@@ -447,7 +437,26 @@ export default function TurnosPage() {
                               {meta > 0 && <line x1="0" y1={s.metaY} x2={SIL_W} y2={s.metaY} style={{ stroke: "var(--color-taupe)", strokeWidth: 1, strokeDasharray: "3 2" }} />}
                               <path d={s.line} fill="none" style={{ stroke: "var(--color-verde)", strokeWidth: 1.6, strokeLinejoin: "round" }} />
                             </svg>
-                            <div className="mt-0.5 text-[10px] text-taupe">mín {min} · meta {meta || "—"}</div>
+                            {/* Estado en una sola línea clara: cubierto, o cuánta gente falta */}
+                            <div className="mt-1.5 flex h-4 items-center justify-center gap-1 text-xs">
+                              {meta === 0 ? (
+                                <span className="text-[11px] text-taupe/60">sin meta</span>
+                              ) : falta === 0 ? (
+                                <span className="font-medium text-verde">✓ cubierto</span>
+                              ) : (
+                                <>
+                                  {meta <= 6 && (
+                                    <span className="flex gap-0.5">
+                                      {Array.from({ length: meta }, (_, i) => (
+                                        <span key={i} className="inline-block h-2 w-2 rounded-full"
+                                          style={i < min ? { backgroundColor: "var(--color-verde)" } : { border: "1.5px solid var(--color-rojo)", boxSizing: "border-box" }} />
+                                      ))}
+                                    </span>
+                                  )}
+                                  <span className="font-medium text-rojo">{falta === 1 ? "falta 1" : `faltan ${falta}`}</span>
+                                </>
+                              )}
+                            </div>
                           </button>
                         );
                       })}
