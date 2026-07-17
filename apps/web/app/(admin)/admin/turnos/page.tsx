@@ -62,6 +62,11 @@ const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : "");
 const HORA_INICIO = 7;
 const HORA_FIN = 21;
 const MARCAS_HORA = [7, 9, 11, 13, 15, 17, 19, 21];
+// Vista Semana: franjas de 30 min ancladas a :15/:45 (7:45, 8:15, 8:45…), igual
+// que las horas de entrada reales del equipo — fijo, no automático (decisión
+// de Felipe: más simple y predecible que recalcularlo cada vez).
+const HORA_INICIO_SEMANA = 7.75; // 07:45
+const N_FRANJAS_SEMANA = 27; // hasta 21:15
 function horaADecimal(hm: string): number {
   const [h, m] = hm.split(":").map(Number);
   return (h ?? 0) + (m ?? 0) / 60;
@@ -107,6 +112,20 @@ export default function TurnosPage() {
     return (localStorage.getItem("turnos_vista") as "dia" | "semana" | null) ?? "dia";
   });
   useEffect(() => { localStorage.setItem("turnos_vista", vista); }, [vista]);
+  // Clic en una celda de Vista Semana → salta a Vista Día y hace scroll a ese
+  // día específico (se limpia solo después de saltar, para no repetir el
+  // scroll si luego el usuario navega manualmente dentro de Vista Día).
+  const [diaFoco, setDiaFoco] = useState<string | null>(null);
+  function irADia(iso: string) {
+    setDiaFoco(iso);
+    setVista("dia");
+  }
+  useEffect(() => {
+    if (vista !== "dia" || !diaFoco) return;
+    const el = document.getElementById(`turnos-dia-${diaFoco}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setDiaFoco(null);
+  }, [vista, diaFoco]);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
@@ -225,26 +244,30 @@ export default function TurnosPage() {
   // Cuántas encargadas (supervisor_sede) están programadas ese día — independiente
   // del área, es por rol.
   const encargadasCubiertas = useCallback((fecha: string) => personas.reduce((n, p) => n + (p.rol === "supervisor_sede" && trabaja(celda(p.id, fecha)) ? 1 : 0), 0), [personas, celda]);
-  // Cuántas personas operativas cubren cada franja del día (para el mapa de
-  // calor) — tamaño de franja configurable en horas (1 = Vista Día, 0.5 =
-  // Vista Semana, más fina para calzar con horas de entrada tipo 7:45/8:15).
-  const coberturaPorFranja = useCallback((fecha: string, tamHoras: number): number[] => {
-    const nFranjas = Math.round((HORA_FIN - HORA_INICIO) / tamHoras);
+  // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
+  // la franja de la Vista Día (operativas, 1h) y las 2 tablas de la Vista
+  // Semana (operativas y encargadas, 30 min ancladas a :15/:45).
+  const coberturaPorFranja = useCallback((fecha: string, horaInicio: number, nFranjas: number, tamHoras: number, filtro: (p: Persona) => boolean): number[] => {
     const franjas = Array.from({ length: nFranjas }, () => 0);
     for (const p of personas) {
-      if (!esOperativaEn(areas, p.funcion)) continue;
+      if (!filtro(p)) continue;
       const c = celda(p.id, fecha);
       if (c.tipo !== "turno" && c.tipo !== "default") continue;
       const e = horaADecimal(c.entrada);
       const s = c.salida ? horaADecimal(c.salida) : HORA_FIN;
       for (let i = 0; i < franjas.length; i++) {
-        const hi = HORA_INICIO + i * tamHoras, hf = hi + tamHoras;
+        const hi = horaInicio + i * tamHoras, hf = hi + tamHoras;
         if (e < hf && s > hi) franjas[i]++;
       }
     }
     return franjas;
-  }, [personas, areas, celda]);
-  const coberturaPorHora = useCallback((fecha: string) => coberturaPorFranja(fecha, 1), [coberturaPorFranja]);
+  }, [personas, celda]);
+  const esOperativa = useCallback((p: Persona) => esOperativaEn(areas, p.funcion), [areas]);
+  const esEncargada = (p: Persona) => p.rol === "supervisor_sede";
+  const coberturaPorHora = useCallback(
+    (fecha: string) => coberturaPorFranja(fecha, HORA_INICIO, HORA_FIN - HORA_INICIO, 1, esOperativa),
+    [coberturaPorFranja, esOperativa],
+  );
 
   function abrir(personaId: string, fecha: string) {
     const c = celda(personaId, fecha);
@@ -341,49 +364,61 @@ export default function TurnosPage() {
         )}
 
         {cargando ? <p className="text-sm text-taupe">Cargando…</p> : vista === "semana" ? (
-          <div className="overflow-x-auto rounded-lg border border-sand">
-            <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
-              <thead>
-                <tr className="bg-sand/50 text-left text-taupe">
-                  <th className="sticky left-0 z-10 bg-sand/50 px-3 py-2 font-normal">Hora</th>
-                  {dias.map((iso) => {
-                    const { abr, num } = etiquetaDia(iso);
-                    const hoy = iso === hoyLima();
-                    return (
-                      <th key={iso} className={`px-2 py-2 text-center font-normal ${hoy ? "text-tinta" : ""}`}>
-                        <div className={hoy ? "font-medium" : ""}>{abr}</div>
-                        <div className="text-taupe">{num}</div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: Math.round((HORA_FIN - HORA_INICIO) / 0.5) }, (_, fi) => fi).map((fi) => {
-                  const hi = HORA_INICIO + fi * 0.5;
-                  const hf = hi + 0.5;
-                  const fmt = (h: number) => `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 === 0 ? "00" : "30"}`;
-                  return (
-                    <tr key={fi} className="border-t border-sand/40">
-                      <td className="sticky left-0 z-10 bg-crema px-3 py-1 whitespace-nowrap text-taupe">{fmt(hi)}–{fmt(hf)}</td>
-                      {dias.map((iso) => {
-                        const dia = diaSemana(iso);
-                        const meta = metas.get(dia) ?? 0;
-                        const n = coberturaPorFranja(iso, 0.5)[fi];
+          <div className="space-y-6">
+            {([
+              { titulo: "Cobertura (áreas operativas)", metaPorDia: metas, filtro: esOperativa },
+              { titulo: "Encargadas (supervisor_sede)", metaPorDia: metasEncargadas, filtro: esEncargada },
+            ] as const).map(({ titulo, metaPorDia, filtro }) => (
+              <div key={titulo}>
+                <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
+                <div className="overflow-x-auto rounded-lg border border-sand">
+                  <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
+                    <thead>
+                      <tr className="bg-sand/50 text-left text-taupe">
+                        <th className="sticky left-0 z-10 bg-sand/50 px-3 py-2 font-normal">Hora</th>
+                        {dias.map((iso) => {
+                          const { abr, num } = etiquetaDia(iso);
+                          const hoy = iso === hoyLima();
+                          return (
+                            <th key={iso} className={`px-2 py-2 text-center font-normal ${hoy ? "text-tinta" : ""}`}>
+                              <div className={hoy ? "font-medium" : ""}>{abr}</div>
+                              <div className="text-taupe">{num}</div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: N_FRANJAS_SEMANA }, (_, fi) => fi).map((fi) => {
+                        const hi = HORA_INICIO_SEMANA + fi * 0.5;
+                        const hf = hi + 0.5;
+                        const fmt = (h: number) => `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 === 0 ? "00" : Math.round((h % 1) * 60)}`;
                         return (
-                          <td key={iso} className="border-l border-sand/40 px-2 py-1 text-center font-medium"
-                            style={{ backgroundColor: colorCobertura(n, meta), color: "var(--color-crema)", textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
-                            title={`${fmt(hi)}–${fmt(hf)}: ${n} persona${n === 1 ? "" : "s"}${meta > 0 ? ` (meta ${meta})` : ""}`}
-                          >
-                            {n}
-                          </td>
+                          <tr key={fi} className="border-t border-sand/40">
+                            <td className="sticky left-0 z-10 bg-crema px-3 py-1 whitespace-nowrap text-taupe">{fmt(hi)}–{fmt(hf)}</td>
+                            {dias.map((iso) => {
+                              const dia = diaSemana(iso);
+                              const meta = metaPorDia.get(dia) ?? 0;
+                              const n = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, filtro)[fi];
+                              return (
+                                <td key={iso}
+                                  onClick={() => irADia(iso)}
+                                  className="cursor-pointer border-l border-sand/40 px-2 py-1 text-center font-medium transition-opacity hover:opacity-80"
+                                  style={{ backgroundColor: colorCobertura(n, meta), color: "var(--color-crema)", textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
+                                  title={`${fmt(hi)}–${fmt(hf)}: ${n} persona${n === 1 ? "" : "s"}${meta > 0 ? ` (meta ${meta})` : ""} — clic para ver el detalle de ese día`}
+                                >
+                                  {n}
+                                </td>
+                              );
+                            })}
+                          </tr>
                         );
                       })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -405,7 +440,7 @@ export default function TurnosPage() {
                 const enc = encargadasCubiertas(iso);
                 const claseEnc = metaEnc > 0 && enc < metaEnc ? "text-rojo font-medium" : "text-verde font-medium";
                 return (
-                  <section key={iso} className={`overflow-hidden rounded-lg border ${hoy ? "border-tinta" : "border-sand"}`}>
+                  <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-lg border ${hoy ? "border-tinta" : "border-sand"}`}>
                     {/* Cabecera del día: fecha + meta editable + progreso */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
                       <div className={hoy ? "text-tinta" : ""}>
