@@ -33,6 +33,15 @@ interface Fila {
 }
 
 const HOY = hoyLima();
+// Patrón de tardanzas: ventana fija de 30 días desde hoy (independiente del
+// filtro Desde/Hasta que el admin puede mover) — es sobre el estado disciplinario
+// ACTUAL de la persona, no sobre lo que el admin esté mirando en un momento dado.
+// El número no sale de una ley (el marco peruano no fija una cifra: exige
+// reiteración + sanciones progresivas documentadas antes de poder despedir por
+// esto — D.S. 003-97-TR art. 25 + jurisprudencia de la Corte Suprema), es el
+// umbral que Felipe eligió para que Dynamic avise y arranque ese proceso.
+const VENTANA_PATRON_DIAS = 30;
+const UMBRAL_PATRON_TARDANZAS = 3;
 
 export default function IncidenciasPage() {
   const router = useRouter();
@@ -50,17 +59,25 @@ export default function IncidenciasPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     setCargando(true);
 
-    const [{ data, error: errData }, { data: extraData }] = await Promise.all([
+    const desdePatron = haceDias(VENTANA_PATRON_DIAS - 1); // hoy inclusive = 30 días
+
+    const [{ data, error: errData }, { data: extraData }, { data: tardias, error: errTardias }] = await Promise.all([
       supabase
         .from("jornadas")
         .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
         .gte("fecha", desde).lte("fecha", hasta)
         .order("fecha", { ascending: false }),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
+      supabase
+        .from("jornadas")
+        .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+        .gte("fecha", desdePatron).lte("fecha", HOY)
+        .gt("minutos_tarde", 0)
+        .order("fecha", { ascending: false }),
     ]);
 
-    if (errData) {
-      setError(errData.message);
+    if (errData || errTardias) {
+      setError((errData ?? errTardias)!.message);
       setCargando(false);
       return; // no pisa `filas` con datos parciales/vacíos
     }
@@ -91,6 +108,29 @@ export default function IncidenciasPage() {
         salida: j.salida_final_ts,
       });
     }
+
+    // Patrón de tardanzas: 3+ en los últimos 30 días. Viene ordenado por fecha
+    // descendente, así que la primera vez que aparece cada persona ya es su
+    // tardanza más reciente.
+    const porPersonaTardias = new Map<string, { count: number; ultima: any }>();
+    for (const j of (tardias as any[]) ?? []) {
+      const prev = porPersonaTardias.get(j.persona_id);
+      if (prev) prev.count++;
+      else porPersonaTardias.set(j.persona_id, { count: 1, ultima: j });
+    }
+    for (const { count, ultima: j } of porPersonaTardias.values()) {
+      if (count < UMBRAL_PATRON_TARDANZAS) continue;
+      out.push({
+        personaId: j.persona_id,
+        nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
+        sede: j.personas?.sedes?.codigo ?? "?",
+        fecha: j.fecha,
+        tipo: `Patrón de tardanzas (${count} en ${VENTANA_PATRON_DIAS} días)`,
+        entrada: j.entrada_ts,
+        salida: null,
+      });
+    }
+
     setFilas(out);
     setCargando(false);
   }, [router, desde, hasta]);
@@ -117,7 +157,7 @@ export default function IncidenciasPage() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${visibles.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde

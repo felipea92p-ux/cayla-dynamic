@@ -19,10 +19,16 @@ Prioridad: 🔴 afecta al equipo hoy · 🟡 valioso pronto · 🟢 cuando haya 
 
 ## 🔴 Acordados pendientes (con spec lista)
 
-- [ ] **Módulo disciplinario de tardanzas** — alertas por patrón en ventana de
-  30 días + historial; Dynamic alerta, el admin decide, nada automático. Las
-  tablas `alertas` y `push_tokens` ya existen en la base y hoy nadie las usa:
-  son la base natural de este módulo.
+- [x] **Módulo disciplinario de tardanzas** — ✅ HECHO 2026-07-17: Incidencias
+  ahora avisa "Patrón de tardanzas (N en 30 días)" cuando alguien acumula 3+
+  tardanzas en los últimos 30 días (ventana fija desde hoy, no depende del
+  filtro Desde/Hasta de la página). Investigado el marco legal peruano antes
+  de construirlo (D.S. 003-97-TR art. 25 + jurisprudencia): la ley no fija un
+  número, exige reiteración + sanciones progresivas DOCUMENTADAS antes de
+  poder despedir por esto — por eso Dynamic solo avisa, no sanciona ni decide
+  nada solo. No se usaron las tablas `alertas`/`push_tokens` (necesitan una
+  app móvil con push que no existe todavía) — se implementó reutilizando la
+  página Incidencias que el equipo ya mira a diario.
 - [x] **Bono de puntualidad auto-calculable** — construido 2026-07-15, pendiente
   aplicar migración 0034 y desplegar. Regla: cero tardanzas en el periodo = S/60
   fijo por persona (no depende de cuántos más lo logren; ajustable después sin
@@ -51,8 +57,9 @@ Prioridad: 🔴 afecta al equipo hoy · 🟡 valioso pronto · 🟢 cuando haya 
   Joselyn "Diseño & Producción" en 2025.
 - [ ] **Validar provisiones con el contador** — factores MYPE (grati 8.33% +
   CTS 4.17% + vacaciones 4.17%) están configurables; falta el visto legal.
-- [ ] **Subir el código a GitHub** — los commits están solo en la Mac de
-  Felipe; decir "sube" cuando quiera el respaldo en la nube.
+- [x] **Subir el código a GitHub** — ✅ HECHO 2026-07-17: repo privado en
+  `github.com/felipea92p-ux/cayla-dynamic`, al día. Antes de subir se limpió
+  la PII que había en 6 scripts (ver `docs/revision-2026-07-15/`).
 
 ## 🟢 Fase 2 (más adelante)
 
