@@ -57,17 +57,22 @@ acotado · 🟢 cuando haya tiempo.
   Detalle del hallazgo original en
   [`parches/03-auto-cierre-horario.sql`](parches/03-auto-cierre-horario.sql).
 
-- [ ] **El candado de "periodo ya PAGADO" falta en 7 funciones que alimentan
-  Planilla** — *B*. `fn_corregir_marcaje`, `fn_agregar_marcaje`,
-  `fn_eliminar_marcaje`, `fn_set_turno`/`fn_set_descanso`/`fn_quitar_turno`,
-  `fn_set_horario_semanal`, `fn_set_salario`, `fn_set_fecha_ingreso`,
-  `fn_set_con_hijos` pueden alterar silenciosamente los números de un
-  periodo que ya se marcó como pagado — el mismo problema que
-  `0026_parche_planilla_v2.sql` ya resolvió para feriados, pero nunca se
-  extendió a estas. Requiere una decisión de producto además de técnica
-  (¿el candado va sobre la fecha del cambio, o sobre "cualquier periodo
-  pagado posterior a hoy"?) — no incluí parche automático, ver detalle en
-  el reporte B.
+- [x] **El candado de "periodo ya PAGADO" faltaba en 9 funciones que
+  alimentan Planilla** — *B*. ✅ **RESUELTO 2026-07-17**: aplicado en
+  producción y verificado en vivo contra `pg_get_functiondef` (9/9
+  funciones confirmadas). Decisiones de producto de Felipe: `fn_corregir_marcaje`/
+  `fn_agregar_marcaje`/`fn_eliminar_marcaje`/`fn_set_turno`/`fn_set_descanso`/
+  `fn_quitar_turno` bloquean si la fecha puntual cae en un periodo pagado
+  (mismo criterio que feriados); `fn_set_horario_semanal`/`fn_set_salario`
+  bloquean si existe un periodo pagado que termine en o después de la fecha
+  de vigencia (por el efecto en cascada hacia adelante); `fn_set_fecha_ingreso`
+  bloquea solo si esa persona en particular ya tiene jornadas trabajadas en
+  un periodo pagado. **`fn_set_con_hijos` quedó deliberadamente SIN
+  candado** — bloquearla mientras exista cualquier periodo pagado la
+  congelaría para siempre desde el primer mes pagado; el riesgo real es
+  acotado (solo importa si se reabre un periodo viejo para recalcularlo).
+  Migración versionada en
+  [`0037_candado_periodo_pagado.sql`](../../supabase/migrations/0037_candado_periodo_pagado.sql).
 
 - [ ] **"Días con tardanza: 0" en Perfil y Horas puede ser falso** — *C,
   mismo bug que ya se encontró y corrigió HOY en el bono de puntualidad,
