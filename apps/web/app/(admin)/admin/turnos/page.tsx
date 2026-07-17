@@ -89,6 +89,7 @@ export default function TurnosPage() {
   const [horarios, setHorarios] = useState<Map<string, Horario[]>>(new Map());
   const [turnos, setTurnos] = useState<Map<string, Turno>>(new Map());
   const [metas, setMetas] = useState<Map<number, number>>(new Map());
+  const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
@@ -101,6 +102,14 @@ export default function TurnosPage() {
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(lunes, i)), [lunes]);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
+
+  // Deep-link: al llegar con ?fecha=<YYYY-MM-DD> (desde Incidencias, ej. déficit
+  // de encargadas), salta directo a la semana de esa fecha.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const f = sp.get("fecha");
+    if (f) setLunes(lunesDeLaSemana(f));
+  }, []);
 
   // sedes + sede inicial
   useEffect(() => {
@@ -133,7 +142,7 @@ export default function TurnosPage() {
       supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
-      supabase.from("metas_cobertura").select("dia_semana, meta").eq("sede_id", sedeSel),
+      supabase.from("metas_cobertura").select("dia_semana, meta, meta_encargadas").eq("sede_id", sedeSel),
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
     ]);
@@ -158,6 +167,7 @@ export default function TurnosPage() {
     setHorarios(mapH);
     setTurnos(new Map(((t as any[]) ?? []).map((x) => [`${x.persona_id}|${x.fecha}`, { es_descanso: x.es_descanso, hora_entrada: x.hora_entrada, hora_salida: x.hora_salida }])));
     setMetas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta])));
+    setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
     setCargando(false);
   }, [supabase, sedeSel, lunes]);
 
@@ -184,6 +194,9 @@ export default function TurnosPage() {
   // La cobertura solo cuenta a las áreas OPERATIVAS DE SEDE (según el catálogo
   // dinámico de áreas); las demás áreas no.
   const cobertura = useCallback((fecha: string) => personas.reduce((n, p) => n + (esOperativaEn(areas, p.funcion) && trabaja(celda(p.id, fecha)) ? 1 : 0), 0), [personas, celda, areas]);
+  // Cuántas encargadas (supervisor_sede) están programadas ese día — independiente
+  // del área, es por rol.
+  const encargadasCubiertas = useCallback((fecha: string) => personas.reduce((n, p) => n + (p.rol === "supervisor_sede" && trabaja(celda(p.id, fecha)) ? 1 : 0), 0), [personas, celda]);
   // Cuántas personas operativas cubren cada hora del día (para el mapa de calor).
   const coberturaPorHora = useCallback((fecha: string): number[] => {
     const horas = Array.from({ length: HORA_FIN - HORA_INICIO }, () => 0);
@@ -235,6 +248,16 @@ export default function TurnosPage() {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
     const { error } = await supabase.rpc("fn_set_meta_cobertura", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
     if (error) { setMsg({ tipo: "error", texto: `No se pudo guardar la meta: ${error.message}` }); await cargar(); }
+  }
+
+  function editarMetaEncargadas(dia: number, valor: string) {
+    const meta = Math.max(0, Math.round(Number(valor) || 0));
+    setMetasEncargadas((m) => new Map(m).set(dia, meta));
+  }
+  async function comprometerMetaEncargadas(dia: number, valor: string) {
+    const meta = Math.max(0, Math.round(Number(valor) || 0));
+    const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
+    if (error) { setMsg({ tipo: "error", texto: `No se pudo guardar la meta de encargadas: ${error.message}` }); await cargar(); }
   }
 
   if (rol !== null && !puedeVer) {
@@ -297,6 +320,9 @@ export default function TurnosPage() {
                 if (meta > 0 && prog < meta) claseProg = "text-rojo font-medium";
                 else if (meta > 0 && prog === meta) claseProg = "text-verde font-medium";
                 else if (meta > 0 && prog > meta) claseProg = "text-ambar font-medium";
+                const metaEnc = metasEncargadas.get(dia) ?? 0;
+                const enc = encargadasCubiertas(iso);
+                const claseEnc = metaEnc > 0 && enc < metaEnc ? "text-rojo font-medium" : "text-verde font-medium";
                 return (
                   <section key={iso} className={`overflow-hidden rounded-lg border ${hoy ? "border-tinta" : "border-sand"}`}>
                     {/* Cabecera del día: fecha + meta editable + progreso */}
@@ -321,6 +347,21 @@ export default function TurnosPage() {
                           {prog}{meta > 0 ? ` / ${meta}` : ""} cubiertos
                           {meta > 0 && prog < meta && ` · faltan ${meta - prog}`}
                           {meta > 0 && prog > meta && ` · sobran ${prog - meta}`}
+                        </span>
+                        <label className="flex items-center gap-1.5 border-l border-sand pl-3 text-taupe">
+                          Encargadas
+                          {esAdmin ? (
+                            <input type="number" min={0} value={metaEnc}
+                              onChange={(e) => editarMetaEncargadas(dia, e.target.value)}
+                              onBlur={(e) => comprometerMetaEncargadas(dia, e.target.value)}
+                              className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
+                          ) : (
+                            <span>{metaEnc || "—"}</span>
+                          )}
+                        </label>
+                        <span className={claseEnc}>
+                          {enc}{metaEnc > 0 ? ` / ${metaEnc}` : ""}
+                          {metaEnc > 0 && enc < metaEnc && ` · faltan ${metaEnc - enc}`}
                         </span>
                       </div>
                     </div>

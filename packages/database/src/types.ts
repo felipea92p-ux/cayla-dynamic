@@ -631,18 +631,21 @@ export type Database = {
         Row: {
           dia_semana: number
           meta: number
+          meta_encargadas: number
           sede_id: string
           updated_at: string
         }
         Insert: {
           dia_semana: number
           meta?: number
+          meta_encargadas?: number
           sede_id: string
           updated_at?: string
         }
         Update: {
           dia_semana?: number
           meta?: number
+          meta_encargadas?: number
           sede_id?: string
           updated_at?: string
         }
@@ -853,6 +856,10 @@ export type Database = {
         Returns: undefined
       }
       fn_set_meta_cobertura: {
+        Args: { p_dia_semana: number; p_meta: number; p_sede_id: string }
+        Returns: undefined
+      }
+      fn_set_meta_encargadas: {
         Args: { p_dia_semana: number; p_meta: number; p_sede_id: string }
         Returns: undefined
       }

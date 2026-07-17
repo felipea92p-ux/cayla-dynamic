@@ -13,6 +13,20 @@ function haceDias(n: number): string {
   const d = new Date(); d.setDate(d.getDate() - n);
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
 }
+// ── Semana actual (lunes–domingo), mismo criterio que admin/turnos ──────────
+function parseISO(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+function toISO(dt: Date): string { return dt.toISOString().slice(0, 10); }
+function addDias(iso: string, n: number): string {
+  const d = parseISO(iso); d.setUTCDate(d.getUTCDate() + n); return toISO(d);
+}
+function diaSemanaNum(iso: string): number { return parseISO(iso).getUTCDay(); } // 0=domingo…6=sábado
+function lunesDeLaSemana(iso: string): string {
+  const dow = diaSemanaNum(iso);
+  return addDias(iso, dow === 0 ? -6 : 1 - dow);
+}
 function fechaLarga(f: string): string {
   const [y, m, d] = f.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, weekday: "short", day: "2-digit", month: "short" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
@@ -23,7 +37,7 @@ function horaLima(ts: string | null): string {
 }
 
 interface Fila {
-  personaId: string;
+  personaId: string | null; // null = incidencia de sede (no de una persona puntual)
   nombre: string;
   sede: string;
   fecha: string;
@@ -60,8 +74,19 @@ export default function IncidenciasPage() {
     setCargando(true);
 
     const desdePatron = haceDias(VENTANA_PATRON_DIAS - 1); // hoy inclusive = 30 días
+    const lunesActual = lunesDeLaSemana(HOY);
+    const domingoActual = addDias(lunesActual, 6);
 
-    const [{ data, error: errData }, { data: extraData }, { data: tardias, error: errTardias }] = await Promise.all([
+    const [
+      { data, error: errData },
+      { data: extraData },
+      { data: tardias, error: errTardias },
+      { data: sedesData, error: errSedes },
+      { data: encargadasData, error: errEnc },
+      { data: metasData, error: errMetas },
+      { data: horariosData, error: errHorarios },
+      { data: turnosData, error: errTurnos },
+    ] = await Promise.all([
       supabase
         .from("jornadas")
         .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
@@ -74,10 +99,17 @@ export default function IncidenciasPage() {
         .gte("fecha", desdePatron).lte("fecha", HOY)
         .gt("minutos_tarde", 0)
         .order("fecha", { ascending: false }),
+      // Déficit de encargadas: mira la semana actual (lunes–domingo), no el filtro
+      // Desde/Hasta — es sobre la cobertura planeada de AHORA, no un rango histórico.
+      supabase.from("sedes").select("id, codigo"),
+      supabase.from("personas").select("id, sede_base_id").eq("rol", "supervisor_sede").eq("estado", "activo"),
+      supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
     ]);
 
-    if (errData || errTardias) {
-      setError((errData ?? errTardias)!.message);
+    if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
+      setError((errData ?? errTardias ?? errSedes ?? errEnc ?? errMetas ?? errHorarios ?? errTurnos)!.message);
       setCargando(false);
       return; // no pisa `filas` con datos parciales/vacíos
     }
@@ -131,6 +163,53 @@ export default function IncidenciasPage() {
       });
     }
 
+    // Déficit de encargadas: para cada sede/día de la semana actual con meta
+    // definida, ¿cuántas supervisor_sede están programadas? Misma cascada
+    // turno del día → horario_por_dia → legacy que usa admin/turnos.
+    const codigoPorSede = new Map(((sedesData as { id: string; codigo: string }[] | null) ?? []).map((s) => [s.id, s.codigo]));
+    const sedePorEncargada = new Map(((encargadasData as { id: string; sede_base_id: string }[] | null) ?? []).map((p) => [p.id, p.sede_base_id]));
+    const turnoPorClave = new Map(
+      ((turnosData as { persona_id: string; fecha: string; hora_entrada: string | null; es_descanso: boolean }[] | null) ?? [])
+        .map((t) => [`${t.persona_id}|${t.fecha}`, t]),
+    );
+    const horariosPorPersona = new Map<string, { hora_entrada: string; dias_laborables: number[]; horario_por_dia: Record<string, unknown> | null; vigente_desde: string; vigente_hasta: string | null }[]>();
+    for (const h of (horariosData as any[]) ?? []) {
+      const arr = horariosPorPersona.get(h.persona_id) ?? [];
+      arr.push(h);
+      horariosPorPersona.set(h.persona_id, arr);
+    }
+    function trabajaEseDia(personaId: string, fecha: string): boolean {
+      const t = turnoPorClave.get(`${personaId}|${fecha}`);
+      if (t) return !t.es_descanso;
+      const tramos = (horariosPorPersona.get(personaId) ?? [])
+        .filter((h) => h.vigente_desde <= fecha && (h.vigente_hasta == null || h.vigente_hasta >= fecha))
+        .sort((a, b) => (a.vigente_desde < b.vigente_desde ? 1 : -1));
+      const h = tramos[0];
+      if (!h) return false;
+      const dow = diaSemanaNum(fecha);
+      if (h.horario_por_dia) return Boolean((h.horario_por_dia as Record<string, unknown>)[String(dow)]);
+      return (h.dias_laborables ?? []).includes(dow);
+    }
+    const diasSemanaActual = Array.from({ length: 7 }, (_, i) => addDias(lunesActual, i));
+    for (const dia of diasSemanaActual) {
+      const dow = diaSemanaNum(dia);
+      for (const m of (metasData as { sede_id: string; dia_semana: number; meta_encargadas: number }[] | null) ?? []) {
+        if (m.dia_semana !== dow) continue;
+        const encargadas = [...sedePorEncargada.entries()].filter(([, sedeId]) => sedeId === m.sede_id).map(([id]) => id);
+        const cubiertas = encargadas.filter((id) => trabajaEseDia(id, dia)).length;
+        if (cubiertas >= m.meta_encargadas) continue;
+        out.push({
+          personaId: null,
+          nombre: `Sede ${codigoPorSede.get(m.sede_id) ?? "?"}`,
+          sede: codigoPorSede.get(m.sede_id) ?? "?",
+          fecha: dia,
+          tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`,
+          entrada: null,
+          salida: null,
+        });
+      }
+    }
+
     setFilas(out);
     setCargando(false);
   }, [router, desde, hasta]);
@@ -157,7 +236,7 @@ export default function IncidenciasPage() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${visibles.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde
@@ -210,9 +289,15 @@ export default function IncidenciasPage() {
                         <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
                         <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
                         <td className="px-4 py-2.5 text-right">
-                          <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
-                            Corregir ›
-                          </Link>
+                          {f.personaId ? (
+                            <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                              Corregir ›
+                            </Link>
+                          ) : (
+                            <Link href={`/admin/turnos?fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                              Ver turnos ›
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     ))}
