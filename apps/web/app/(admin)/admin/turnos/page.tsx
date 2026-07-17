@@ -99,6 +99,14 @@ export default function TurnosPage() {
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [sedeSel, setSedeSel] = useState<string>("");
   const [lunes, setLunes] = useState<string>(() => lunesDeLaSemana(hoyLima()));
+  // Vista Día (línea de tiempo por persona) o Vista Semana (mapa de calor
+  // hora × día, para comparar cobertura entre los 7 días de un vistazo).
+  // Recuerda la preferencia entre visitas.
+  const [vista, setVista] = useState<"dia" | "semana">(() => {
+    if (typeof window === "undefined") return "dia";
+    return (localStorage.getItem("turnos_vista") as "dia" | "semana" | null) ?? "dia";
+  });
+  useEffect(() => { localStorage.setItem("turnos_vista", vista); }, [vista]);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
@@ -217,22 +225,26 @@ export default function TurnosPage() {
   // Cuántas encargadas (supervisor_sede) están programadas ese día — independiente
   // del área, es por rol.
   const encargadasCubiertas = useCallback((fecha: string) => personas.reduce((n, p) => n + (p.rol === "supervisor_sede" && trabaja(celda(p.id, fecha)) ? 1 : 0), 0), [personas, celda]);
-  // Cuántas personas operativas cubren cada hora del día (para el mapa de calor).
-  const coberturaPorHora = useCallback((fecha: string): number[] => {
-    const horas = Array.from({ length: HORA_FIN - HORA_INICIO }, () => 0);
+  // Cuántas personas operativas cubren cada franja del día (para el mapa de
+  // calor) — tamaño de franja configurable en horas (1 = Vista Día, 0.5 =
+  // Vista Semana, más fina para calzar con horas de entrada tipo 7:45/8:15).
+  const coberturaPorFranja = useCallback((fecha: string, tamHoras: number): number[] => {
+    const nFranjas = Math.round((HORA_FIN - HORA_INICIO) / tamHoras);
+    const franjas = Array.from({ length: nFranjas }, () => 0);
     for (const p of personas) {
       if (!esOperativaEn(areas, p.funcion)) continue;
       const c = celda(p.id, fecha);
       if (c.tipo !== "turno" && c.tipo !== "default") continue;
       const e = horaADecimal(c.entrada);
       const s = c.salida ? horaADecimal(c.salida) : HORA_FIN;
-      for (let i = 0; i < horas.length; i++) {
-        const hi = HORA_INICIO + i, hf = hi + 1;
-        if (e < hf && s > hi) horas[i]++;
+      for (let i = 0; i < franjas.length; i++) {
+        const hi = HORA_INICIO + i * tamHoras, hf = hi + tamHoras;
+        if (e < hf && s > hi) franjas[i]++;
       }
     }
-    return horas;
+    return franjas;
   }, [personas, areas, celda]);
+  const coberturaPorHora = useCallback((fecha: string) => coberturaPorFranja(fecha, 1), [coberturaPorFranja]);
 
   function abrir(personaId: string, fecha: string) {
     const c = celda(personaId, fecha);
@@ -302,6 +314,10 @@ export default function TurnosPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-sand p-0.5 text-sm">
+              <button onClick={() => setVista("dia")} className={`rounded px-3 py-1.5 ${vista === "dia" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"}`}>Día</button>
+              <button onClick={() => setVista("semana")} className={`rounded px-3 py-1.5 ${vista === "semana" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"}`}>Semana</button>
+            </div>
             {esAdmin && (
               <select value={sedeSel} onChange={(e) => setSedeSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
                 {sedes.map((s) => <option key={s.id} value={s.id}>{s.codigo}</option>)}
@@ -324,7 +340,52 @@ export default function TurnosPage() {
           </div>
         )}
 
-        {cargando ? <p className="text-sm text-taupe">Cargando…</p> : (
+        {cargando ? <p className="text-sm text-taupe">Cargando…</p> : vista === "semana" ? (
+          <div className="overflow-x-auto rounded-lg border border-sand">
+            <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
+              <thead>
+                <tr className="bg-sand/50 text-left text-taupe">
+                  <th className="sticky left-0 z-10 bg-sand/50 px-3 py-2 font-normal">Hora</th>
+                  {dias.map((iso) => {
+                    const { abr, num } = etiquetaDia(iso);
+                    const hoy = iso === hoyLima();
+                    return (
+                      <th key={iso} className={`px-2 py-2 text-center font-normal ${hoy ? "text-tinta" : ""}`}>
+                        <div className={hoy ? "font-medium" : ""}>{abr}</div>
+                        <div className="text-taupe">{num}</div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: Math.round((HORA_FIN - HORA_INICIO) / 0.5) }, (_, fi) => fi).map((fi) => {
+                  const hi = HORA_INICIO + fi * 0.5;
+                  const hf = hi + 0.5;
+                  const fmt = (h: number) => `${String(Math.floor(h)).padStart(2, "0")}:${h % 1 === 0 ? "00" : "30"}`;
+                  return (
+                    <tr key={fi} className="border-t border-sand/40">
+                      <td className="sticky left-0 z-10 bg-crema px-3 py-1 whitespace-nowrap text-taupe">{fmt(hi)}–{fmt(hf)}</td>
+                      {dias.map((iso) => {
+                        const dia = diaSemana(iso);
+                        const meta = metas.get(dia) ?? 0;
+                        const n = coberturaPorFranja(iso, 0.5)[fi];
+                        return (
+                          <td key={iso} className="border-l border-sand/40 px-2 py-1 text-center font-medium"
+                            style={{ backgroundColor: colorCobertura(n, meta), color: "var(--color-crema)", textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
+                            title={`${fmt(hi)}–${fmt(hf)}: ${n} persona${n === 1 ? "" : "s"}${meta > 0 ? ` (meta ${meta})` : ""}`}
+                          >
+                            {n}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[700px] space-y-4">
               {personas.length === 0 ? (
