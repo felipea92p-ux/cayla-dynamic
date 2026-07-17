@@ -115,17 +115,18 @@ function siluetaSVG(cov: number[], meta: number, maxY: number) {
   }
   return { area, line, deficit, metaY: yF(meta) };
 }
-// El momento más flojo del día en HORAS CENTRALES (10:00–19:45), para los
-// puntitos. Se saltan el arranque y el cierre (franjas del inicio/fin) porque
-// ahí siempre hay menos gente por el ramp-up natural — si contáramos eso, TODOS
-// los días se verían cortos y el indicador perdería su señal. Pero un hueco real
-// de media tarde (ej. domingo sin nadie) sí cae dentro de esta ventana y se
-// refleja. Índices anclados a reloj sobre franjas de 0.5h desde HORA_INICIO_SEMANA.
-const FR_CORE_INI = Math.round((10 - HORA_INICIO_SEMANA) / 0.5);
-const FR_CORE_FIN = Math.round((19.75 - HORA_INICIO_SEMANA) / 0.5);
-function minEnHorario(cov: number[]): number {
-  const core = cov.slice(FR_CORE_INI, FR_CORE_FIN + 1);
-  return core.length ? Math.min(...core) : 0;
+// Qué % del día tuviste tu meta COMPLETA. El "día" = desde que entra el primero
+// hasta que sale el último (decisión de Felipe: no penalizar horas en que la
+// tienda no opera). Una franja cuenta como cubierta solo si tuvo la meta o más.
+// Así un día lleno de 2pm–8pm pero corto en la mañana ya no se ve "todo rojo":
+// muestra el % real que estuvo cubierto.
+function pctCubierto(cov: number[], meta: number): { pct: number; hayTurnos: boolean } {
+  const idx = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+  if (idx.length === 0) return { pct: 0, hayTurnos: false };
+  if (meta <= 0) return { pct: 0, hayTurnos: true };
+  const ventana = cov.slice(idx[0], idx[idx.length - 1] + 1);
+  const cubiertas = ventana.filter((v) => v >= meta).length;
+  return { pct: Math.round((cubiertas / ventana.length) * 100), hayTurnos: true };
 }
 
 export default function TurnosPage() {
@@ -412,7 +413,7 @@ export default function TurnosPage() {
                 <div key={titulo}>
                   <h2 className="font-serif text-lg">{titulo}</h2>
                   <p className="mb-2 text-xs text-taupe">
-                    Verde = gente que trabaja a cada hora · rojo = lo que falta para tu meta (línea punteada). Abajo: cuánta gente te falta en la hora más floja del día.
+                    Verde = gente que trabaja a cada hora · rojo = lo que falta para tu meta (línea punteada). Abajo: qué % del día (desde que entra el primero hasta que sale el último) tuviste tu meta completa.
                   </p>
                   <div className="overflow-x-auto">
                     <div className="grid min-w-[640px] grid-cols-7 gap-2">
@@ -423,8 +424,7 @@ export default function TurnosPage() {
                         const meta = metaPorDia.get(dia) ?? 0;
                         const cov = covPorDia[di];
                         const s = siluetaSVG(cov, meta, maxY);
-                        const min = minEnHorario(cov);
-                        const falta = Math.max(0, meta - min);
+                        const { pct, hayTurnos } = pctCubierto(cov, meta);
                         return (
                           <button key={iso} onClick={() => irADia(iso)}
                             className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}>
@@ -437,24 +437,17 @@ export default function TurnosPage() {
                               {meta > 0 && <line x1="0" y1={s.metaY} x2={SIL_W} y2={s.metaY} style={{ stroke: "var(--color-taupe)", strokeWidth: 1, strokeDasharray: "3 2" }} />}
                               <path d={s.line} fill="none" style={{ stroke: "var(--color-verde)", strokeWidth: 1.6, strokeLinejoin: "round" }} />
                             </svg>
-                            {/* Estado en una sola línea clara: cubierto, o cuánta gente falta */}
-                            <div className="mt-1.5 flex h-4 items-center justify-center gap-1 text-xs">
+                            {/* Resumen: qué % del día estuvo con la meta completa */}
+                            <div className="mt-1.5 flex h-4 items-center justify-center text-xs">
                               {meta === 0 ? (
                                 <span className="text-[11px] text-taupe/60">sin meta</span>
-                              ) : falta === 0 ? (
-                                <span className="font-medium text-verde">✓ cubierto</span>
+                              ) : !hayTurnos ? (
+                                <span className="text-[11px] text-taupe/60">sin turnos</span>
                               ) : (
-                                <>
-                                  {meta <= 6 && (
-                                    <span className="flex gap-0.5">
-                                      {Array.from({ length: meta }, (_, i) => (
-                                        <span key={i} className="inline-block h-2 w-2 rounded-full"
-                                          style={i < min ? { backgroundColor: "var(--color-verde)" } : { border: "1.5px solid var(--color-rojo)", boxSizing: "border-box" }} />
-                                      ))}
-                                    </span>
-                                  )}
-                                  <span className="font-medium text-rojo">{falta === 1 ? "falta 1" : `faltan ${falta}`}</span>
-                                </>
+                                <span className="font-medium"
+                                  style={{ color: pct === 100 ? "var(--color-verde)" : pct === 0 ? "var(--color-rojo)" : "var(--color-ambar)" }}>
+                                  {pct === 100 ? "✓ cubierto todo" : `cubierto ${pct}%`}
+                                </span>
                               )}
                             </div>
                           </button>
