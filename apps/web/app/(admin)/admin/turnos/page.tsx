@@ -38,7 +38,7 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; }
-interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string }> | null; vigente_desde: string; vigente_hasta: string | null; }
+interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; }
 // De los tramos de una persona, el vigente en `fecha` (mismo criterio que fn_recalcular_jornada).
 function tramoVigente(lista: Horario[] | undefined, fecha: string): Horario | undefined {
   if (!lista) return undefined;
@@ -50,8 +50,8 @@ interface Turno { es_descanso: boolean; hora_entrada: string | null; hora_salida
 interface Sede { id: string; codigo: string; nombre: string }
 
 type Celda =
-  | { tipo: "turno"; entrada: string; salida: string | null }
-  | { tipo: "default"; entrada: string; salida: string | null }
+  | { tipo: "turno"; entrada: string; salida: string | null; refrigerio?: number }
+  | { tipo: "default"; entrada: string; salida: string | null; refrigerio?: number }
   | { tipo: "descanso" }
   | { tipo: "libre" };
 
@@ -70,6 +70,23 @@ function horaADecimal(hm: string): number {
 // empiezan antes de las 7 o terminan después de las 21.
 function pctEnRango(horaDec: number): number {
   return Math.min(100, Math.max(0, ((horaDec - HORA_INICIO) / (HORA_FIN - HORA_INICIO)) * 100));
+}
+// Rojo (#b8412d) → Verde (#5f7a52) según qué tan cerca está de la meta; a partir
+// de la meta queda verde sólido (el excedente ya no necesita más degradado).
+const ROJO_RGB: [number, number, number] = [184, 65, 45];
+const VERDE_RGB: [number, number, number] = [95, 122, 82];
+function colorCobertura(n: number, meta: number): string {
+  const ratio = meta > 0 ? Math.min(n / meta, 1) : Math.min(n / 6, 1);
+  const [r, g, b] = ROJO_RGB.map((c0, i) => Math.round(c0 + (VERDE_RGB[i] - c0) * ratio));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+// Degradado continuo (sin cuadritos) para la franja de cobertura: un color por
+// hora, con el punto de color anclado al MEDIO de cada hora para que el
+// degradado se sienta suave en vez de a bloques.
+function gradienteCobertura(horas: number[], meta: number): string {
+  const n = horas.length;
+  const paradas = horas.map((h, i) => `${colorCobertura(h, meta)} ${((i + 0.5) / n) * 100}%`);
+  return `linear-gradient(to right, ${colorCobertura(horas[0], meta)} 0%, ${paradas.join(", ")}, ${colorCobertura(horas[n - 1], meta)} 100%)`;
 }
 
 export default function TurnosPage() {
@@ -181,7 +198,10 @@ export default function TurnosPage() {
       const dow = String(diaSemana(fecha));
       if (h.horario_por_dia) {
         const d = h.horario_por_dia[dow];
-        if (d) return { tipo: "default", entrada: hhmm(d.e), salida: hhmm(d.s) };
+        // el refrigerio (r, en minutos) solo se conoce para el horario base con
+        // jsonb — un turno puntual (arriba) no guarda esa hora, así que su barra
+        // queda sin hueco (dato que no tenemos, mejor no inventarlo).
+        if (d) return { tipo: "default", entrada: hhmm(d.e), salida: hhmm(d.s), refrigerio: d.r };
         return { tipo: "libre" }; // ese día no está en el horario base = descanso
       }
       // legacy sin jsonb: hora única + dias_laborables
@@ -390,12 +410,32 @@ export default function TurnosPage() {
                             {(c.tipo === "turno" || c.tipo === "default") && (() => {
                               const left = pctEnRango(horaADecimal(c.entrada));
                               const right = pctEnRango(c.salida ? horaADecimal(c.salida) : HORA_FIN);
+                              const claseColor = `${operativa ? "bg-verde" : "bg-ambar"} ${c.tipo === "default" ? "opacity-50" : ""}`;
+                              const tituloBase = `${c.entrada}${c.salida ? `–${c.salida}` : ""}`;
+                              // Hueco de refrigerio: no sabemos la hora exacta en que empieza (el
+                              // sistema solo guarda cuántos minutos dura), así que se dibuja
+                              // aproximado, centrado a la mitad del turno — no es literal.
+                              if (c.refrigerio && c.refrigerio > 0) {
+                                const durHoras = c.refrigerio / 60;
+                                const salidaDec = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+                                const centro = (horaADecimal(c.entrada) + salidaDec) / 2;
+                                const huecoIni = pctEnRango(centro - durHoras / 2);
+                                const huecoFin = pctEnRango(centro + durHoras / 2);
+                                return (
+                                  <>
+                                    <span className={`absolute top-1.5 h-4 rounded-l ${claseColor}`}
+                                      style={{ left: `${left}%`, width: `${Math.max(0.5, huecoIni - left)}%` }}
+                                      title={`${tituloBase} (refrigerio ~${c.refrigerio}min hacia la mitad)`} />
+                                    <span className={`absolute top-1.5 h-4 rounded-r ${claseColor}`}
+                                      style={{ left: `${huecoFin}%`, width: `${Math.max(0.5, right - huecoFin)}%` }}
+                                      title={`${tituloBase} (refrigerio ~${c.refrigerio}min hacia la mitad)`} />
+                                  </>
+                                );
+                              }
                               return (
-                                <span
-                                  className={`absolute top-1.5 h-4 rounded ${operativa ? "bg-verde" : "bg-ambar"} ${c.tipo === "default" ? "opacity-50" : ""}`}
+                                <span className={`absolute top-1.5 h-4 rounded ${claseColor}`}
                                   style={{ left: `${left}%`, width: `${Math.max(1, right - left)}%` }}
-                                  title={`${c.entrada}${c.salida ? `–${c.salida}` : ""}`}
-                                />
+                                  title={tituloBase} />
                               );
                             })()}
                             {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
@@ -405,19 +445,21 @@ export default function TurnosPage() {
                       );
                     })}
 
-                    {/* Mapa de calor de cobertura por hora */}
+                    {/* Mapa de calor de cobertura por hora: degradado continuo rojo→verde
+                        (rojo = lejos de la meta, verde = la alcanza o la pasa), con el
+                        número exacto de cada hora superpuesto para no perder precisión. */}
                     <div className="flex items-stretch border-t-2 border-sand">
                       <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
-                      <div className="flex flex-1">
+                      <div className="relative h-8 flex-1" style={{ background: gradienteCobertura(horas, meta) }}>
                         {horas.map((n, i) => (
-                          <div
+                          <span
                             key={i}
-                            className="flex flex-1 items-center justify-center text-[10px] font-medium text-tinta"
-                            style={{ backgroundColor: `rgba(95, 122, 82, ${meta > 0 ? Math.min(n / meta, 1) : Math.min(n / 6, 1)})` }}
-                            title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}`}
+                            className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-medium text-crema"
+                            style={{ left: `${((i + 0.5) / horas.length) * 100}%`, textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
+                            title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}${meta > 0 ? ` (meta ${meta})` : ""}`}
                           >
                             {n > 0 ? n : ""}
-                          </div>
+                          </span>
                         ))}
                       </div>
                     </div>
