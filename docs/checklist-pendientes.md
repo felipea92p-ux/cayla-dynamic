@@ -53,6 +53,10 @@ Prioridad: 🔴 afecta al equipo hoy · 🟡 valioso pronto · 🟢 cuando haya 
 - [ ] **Cuenta de Estefany** — falta su correo para crearle acceso.
 - [ ] **Metas de cobertura por sede/día** — criterio de servicio de Felipe
   (habilita la cobertura en vivo del dashboard y las franjas horarias).
+  Parcialmente hecho 2026-07-17: Turnos ahora se ve como línea de tiempo +
+  mapa de calor de cobertura por hora, y hay una meta mínima de
+  **encargadas** (supervisor_sede) editable por sede/día que avisa en
+  Incidencias si no se llega. Falta la cobertura en vivo del Dashboard.
 - [ ] **Revisar áreas reales de cada quien** — Carlos/Sandra eran "Ejecutivo",
   Joselyn "Diseño & Producción" en 2025.
 - [ ] **Validar provisiones con el contador** — factores MYPE (grati 8.33% +

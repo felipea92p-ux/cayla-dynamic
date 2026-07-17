@@ -132,17 +132,15 @@ acotado · 🟢 cuando haya tiempo.
   semana (se escribió en el chat de esta sesión al recuperarla, por
   higiene conviene regenerarla igual aunque nunca haya salido de aquí).
 
-- [ ] **`fn_set_meta_cobertura` usa un patrón de permiso inseguro y falla
-  ABIERTO para cualquiera sin sesión** — *A y B, mismo hallazgo*. Usa
-  `fn_rol_actual() not in (...)` en vez del patrón `is not true` que el
-  propio equipo adoptó como regla después de escribir esta función —
-  `NULL NOT IN (...)` es NULL, no dispara la excepción. Combinado con que
-  el `execute` nunca se revocó de `public`/`anon`, cualquiera sin sesión
-  puede sobrescribir la meta de cobertura de cualquier sede. Impacto
-  acotado (solo el número de "meta" del dashboard, no dinero), pero
-  confirma que el patrón inseguro no es un caso aislado. Parche completo
-  (guard corregido + revoke) al final de
-  [`parches/01-marcaje-pin-y-sede.sql`](parches/01-marcaje-pin-y-sede.sql).
+- [x] **`fn_set_meta_cobertura` usaba un patrón de permiso inseguro y fallaba
+  ABIERTO para cualquiera sin sesión** — *A y B, mismo hallazgo*. ✅
+  **RESUELTO 2026-07-17**: corregido al patrón `is not true` (más el
+  `revoke` de `public`/`anon`) como parte de
+  [`0038_meta_encargadas.sql`](../../supabase/migrations/0038_meta_encargadas.sql)
+  — se aprovechó estar tocando esa misma función para agregar la meta de
+  encargadas mínimas. Nota: esto es independiente del PIN del terminal
+  (`parches/01-marcaje-pin-y-sede.sql`), que sigue sin aplicarse — Felipe
+  no lo ha pedido.
 
 ---
 
