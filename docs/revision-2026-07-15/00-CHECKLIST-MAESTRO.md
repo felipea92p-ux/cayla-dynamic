@@ -74,12 +74,13 @@ acotado · 🟢 cuando haya tiempo.
   Migración versionada en
   [`0037_candado_periodo_pagado.sql`](../../supabase/migrations/0037_candado_periodo_pagado.sql).
 
-- [ ] **"Días con tardanza: 0" en Perfil y Horas puede ser falso** — *C,
+- [x] **"Días con tardanza: 0" en Perfil y Horas podía ser falso** — *C,
   mismo bug que ya se encontró y corrigió HOY en el bono de puntualidad,
-  vivo en el frontend*. `perfil/page.tsx:112-113` y `horas/page.tsx:70`
-  tratan "sin datos para medir" igual que "confirmado a tiempo"
-  (`minutos_tarde ?? 0`). Alguien sin horario cargado se ve idéntico a
-  alguien con asistencia perfecta verificada. Parche propuesto: ver
+  vivo en el frontend*. ✅ **RESUELTO 2026-07-17**: `perfil/page.tsx` ahora
+  muestra "X de Y medidos" y `horas/page.tsx` muestra "sin medir" cuando
+  nadie pudo medirse (gente por RxH o sin horario asignado aún) — ya no se
+  confunde con asistencia perfecta. Verificado con `tsc --noEmit` (exit 0).
+  Detalle original en
   [`parches/04-perfil-horas-null-blindness.md`](parches/04-perfil-horas-null-blindness.md).
 
 - [x] **Fallas de carga silenciosas en 7 páginas — podían mostrar "todo
