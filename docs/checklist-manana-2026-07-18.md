@@ -8,19 +8,23 @@ Prioridad: 🔴 hazlo primero · 🟡 esta semana · 🟢 cuando haya tiempo.
 
 ---
 
-## ⚠️ ADVERTENCIA CRÍTICA sobre el botón "Sincronizar ingresos desde marcas"
+## ✅ RESUELTO (2026-07-18): el botón "Sincronizar ingresos desde marcas" fue ELIMINADO
 
-**NO usar ese botón en modo masivo.** Reemplaza la fecha de ingreso de TODOS por
-su primera marca del terminal — pero el terminal recién arrancó en enero 2026,
-así que a las empleadas de 2025 (Carlos, Janis, Sandra, Melany, Danitza,
-Joselyn…) les BORRA su antigüedad real: las mueve de 2025 a 2026, perdiendo CTS,
-vacaciones y gratificaciones acumuladas. Es plata y derecho real.
+**Ya no existe.** Se quitó de la pantalla de Equipo y se hizo `drop` de la función
+`fn_sembrar_ingresos` en producción (migración `0041_drop_sembrar_ingresos.sql`,
+confirmado en la base: la función ya no aparece en `pg_proc`).
 
-El botón SOLO es seguro para una recién ingresada puntual cuya fecha registrada
-quedó *después* de su primera marca. Para ese caso, mejor edítala a mano (Equipo
-→ editar → el campo muestra la sugerencia de primera marca). **Deuda técnica
-anotada abajo: al botón le falta un guard que impida retroceder una fecha de
-ingreso más antigua.** Hoy (2026-07-17) todas las fechas están correctas.
+Motivo: la fecha de ingreso es una **decisión de negocio** ("desde cuándo le
+corresponden beneficios"), no un dato calculable desde las marcas. A veces va
+*antes* de la primera marca (empleadas de 2025, cuya antigüedad real es anterior
+al arranque del terminal en enero 2026) y a veces *después* (Estefany/Judith).
+Un botón que la igualaba a la primera marca solo podía hacer daño: retrocedía la
+antigüedad de las de 2025 (borrando CTS/vacaciones/gratis) y se saltaba el candado
+de periodo pagado. Ningún guard lo salvaba, porque el error era tratar una decisión
+como un cálculo.
+
+**Cómo se hace ahora:** la fecha de ingreso se edita **persona por persona** en
+Equipo → editar. Se contrata de una en una; el masivo no tenía caso de uso real.
 
 ---
 
@@ -33,10 +37,8 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
   propósito.** Decisión de Felipe (2026-07-17): no les corresponde el feriado
   del 29 de junio, por eso su fecha de ingreso arranca en julio y NO en su
   primera marca real (23/06 y 26/06). La fecha de ingreso acá es la fecha desde
-  la que corresponden beneficios, no la marca literal. **⚠️ NO usar "Sincronizar
-  ingresos desde marcas" sobre ellas** — ese botón las regresaría a junio y les
-  metería el feriado que no les toca. Si algún día se corre el botón masivo,
-  volver a fijar a estas dos a mano.
+  la que corresponden beneficios, no la marca literal. (El botón que las habría
+  regresado a junio ya fue eliminado — ver arriba. Su fecha solo se toca a mano.)
 - [x] **Janis Revilla — RESUELTO 2026-07-17.** Es de confianza y actúa como
   administradora Y encargada a la vez. Se desacopló el conteo de cobertura del
   rol: nueva marca `es_encargada_piso` (migración 0040) — Janis mantiene TODOS
@@ -76,17 +78,13 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
 
 ## 1. 🔴 Alto valor / correctitud
 
-- [ ] **`fn_sembrar_ingresos` (el botón masivo) es peligroso por DOS razones —
-  ver también la advertencia crítica arriba.**
-  1. **Retrocede antigüedades reales**: pone fecha = primera marca del terminal,
-     borrando la fecha 2025 de las empleadas viejas (el terminal arrancó en
-     2026). Fix de fondo: que solo actualice cuando la primera marca sea ANTERIOR
-     a la fecha registrada (nunca la mueva hacia adelante ni pise una fecha 2025
-     con una marca 2026), o mejor, retirar el botón masivo y dejar solo la
-     edición por persona.
-  2. **Saltea el candado de periodo PAGADO** que `fn_set_fecha_ingreso` sí tiene
-     desde 0037 — el día que pagues un mes, este botón podría alterar feriados de
-     una planilla cerrada. Agregarle el mismo guard.
+- [x] **`fn_sembrar_ingresos` (el botón masivo) — ELIMINADO 2026-07-18.** Se
+  retiró de la pantalla y se hizo `drop` de la función en producción (ver la
+  sección "RESUELTO" arriba). Se decidió eliminarlo en vez de ponerle guards
+  porque ningún guard lo arreglaba: la "opción segura" de solo-hacia-atrás igual
+  habría retrocedido a Estefany/Judith de julio a junio. La fecha de ingreso se
+  edita ahora solo persona por persona, con el candado de periodo pagado intacto
+  (ese candado vive en `fn_set_fecha_ingreso`, que se conserva).
 - [ ] **Cobertura EN VIVO en el Dashboard** — es el primer pendiente del checklist
   de anoche y ahora tiene todo lo necesario para hacerse bien: ya existe el
   modelo de meta por tramo (mañana/tarde) y `metas_cobertura`. El Dashboard hoy

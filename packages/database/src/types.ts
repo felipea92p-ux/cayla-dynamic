@@ -1039,10 +1039,6 @@ export type Database = {
         Args: { p_fecha: string; p_persona_id: string }
         Returns: undefined
       }
-      fn_sembrar_ingresos: {
-        Args: never
-        Returns: Json
-      }
       fn_provisiones: {
         Args: { p_as_of?: string }
         Returns: Json

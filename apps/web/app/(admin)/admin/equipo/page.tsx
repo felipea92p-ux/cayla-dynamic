@@ -318,21 +318,6 @@ export default function EquipoPage() {
     avisar("ok", "Cambios guardados.");
   }
 
-  async function sincronizarIngresos() {
-    if (!window.confirm("Pondrá la fecha de ingreso de cada persona igual a su primera entrada marcada. Las fechas que hayas ajustado a mano y ya no coincidan se sobrescribirán. ¿Continuar?")) {
-      return;
-    }
-    const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase.rpc("fn_sembrar_ingresos");
-    if (error) {
-      avisar("error", `No se pudieron sincronizar las fechas de ingreso: ${error.message}`);
-      return;
-    }
-    const info = data as { actualizados: number } | null;
-    await cargar();
-    avisar("ok", `${info?.actualizados ?? 0} fecha(s) de ingreso actualizada(s) desde las marcas.`);
-  }
-
   async function cambiarEstado(p: Persona, nuevo: "activo" | "inactivo") {
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase
@@ -652,14 +637,6 @@ export default function EquipoPage() {
           <h1 className="font-serif text-2xl">Equipo</h1>
           {!mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
-              {puedeSalarios && (
-                <button
-                  onClick={() => void sincronizarIngresos()}
-                  className="rounded-lg border px-4 py-2 text-sm"
-                >
-                  Sincronizar ingresos desde marcas
-                </button>
-              )}
               <button
                 onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); setSalEditId(null); setHistId(null); }}
                 className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
