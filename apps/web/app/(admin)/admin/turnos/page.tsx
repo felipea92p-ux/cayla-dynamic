@@ -78,20 +78,15 @@ function pctEnRango(horaDec: number): number {
 }
 // Rojo (#b8412d) → Verde (#5f7a52) según qué tan cerca está de la meta; a partir
 // de la meta queda verde sólido (el excedente ya no necesita más degradado).
+// Sin meta no hay contra qué medir: taupe neutro, no rojo (el rojo sin
+// significado solo mete ruido de alarma).
 const ROJO_RGB: [number, number, number] = [184, 65, 45];
 const VERDE_RGB: [number, number, number] = [95, 122, 82];
 function colorCobertura(n: number, meta: number): string {
-  const ratio = meta > 0 ? Math.min(n / meta, 1) : Math.min(n / 6, 1);
+  if (meta <= 0) return "rgb(164, 120, 101)"; // taupe
+  const ratio = Math.min(n / meta, 1);
   const [r, g, b] = ROJO_RGB.map((c0, i) => Math.round(c0 + (VERDE_RGB[i] - c0) * ratio));
   return `rgb(${r}, ${g}, ${b})`;
-}
-// Degradado continuo (sin cuadritos) para la franja de cobertura: un color por
-// hora, con el punto de color anclado al MEDIO de cada hora para que el
-// degradado se sienta suave en vez de a bloques.
-function gradienteCobertura(horas: number[], meta: number): string {
-  const n = horas.length;
-  const paradas = horas.map((h, i) => `${colorCobertura(h, meta)} ${((i + 0.5) / n) * 100}%`);
-  return `linear-gradient(to right, ${colorCobertura(horas[0], meta)} 0%, ${paradas.join(", ")}, ${colorCobertura(horas[n - 1], meta)} 100%)`;
 }
 // La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
 // de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
@@ -204,11 +199,15 @@ export default function TurnosPage() {
   // Vista Día (línea de tiempo por persona) o Vista Semana (mapa de calor
   // hora × día, para comparar cobertura entre los 7 días de un vistazo).
   // Recuerda la preferencia entre visitas.
-  const [vista, setVista] = useState<"dia" | "semana">(() => {
-    if (typeof window === "undefined") return "dia";
-    return (localStorage.getItem("turnos_vista") as "dia" | "semana" | null) ?? "dia";
-  });
-  useEffect(() => { localStorage.setItem("turnos_vista", vista); }, [vista]);
+  // La preferencia guardada se lee DESPUÉS de montar (no en el primer render):
+  // el HTML llega del servidor con "dia" y leer localStorage durante la
+  // hidratación haría chocar servidor y navegador (error de hidratación).
+  const [vista, setVistaRaw] = useState<"dia" | "semana">("dia");
+  useEffect(() => {
+    const v = localStorage.getItem("turnos_vista");
+    if (v === "semana") setVistaRaw("semana");
+  }, []);
+  const setVista = (v: "dia" | "semana") => { setVistaRaw(v); localStorage.setItem("turnos_vista", v); };
   // Clic en una celda de Vista Semana → salta a Vista Día y hace scroll a ese
   // día específico (se limpia solo después de saltar, para no repetir el
   // scroll si luego el usuario navega manualmente dentro de Vista Día).
@@ -336,13 +335,6 @@ export default function TurnosPage() {
     return { tipo: "libre" };
   }, [turnos, horarios]);
 
-  const trabaja = (c: Celda) => c.tipo === "turno" || c.tipo === "default";
-  // La cobertura solo cuenta a las áreas OPERATIVAS DE SEDE (según el catálogo
-  // dinámico de áreas); las demás áreas no.
-  const cobertura = useCallback((fecha: string) => personas.reduce((n, p) => n + (esOperativaEn(areas, p.funcion) && trabaja(celda(p.id, fecha)) ? 1 : 0), 0), [personas, celda, areas]);
-  // Cuántas encargadas (supervisor_sede) están programadas ese día — independiente
-  // del área, es por rol.
-  const encargadasCubiertas = useCallback((fecha: string) => personas.reduce((n, p) => n + (p.rol === "supervisor_sede" && trabaja(celda(p.id, fecha)) ? 1 : 0), 0), [personas, celda]);
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
   // la franja de la Vista Día (operativas, 1h) y las 2 tablas de la Vista
   // Semana (operativas y encargadas, 30 min ancladas a :15/:45).
@@ -433,8 +425,8 @@ export default function TurnosPage() {
             <h1 className="mb-1 font-serif text-2xl">Turnos y cobertura</h1>
             <p className="max-w-2xl text-sm text-taupe">
               Arma la semana por sede. Toca la fila de una persona en un día para poner su turno o marcar
-              descanso. La barra de cada quien muestra su rango de horario; la franja de abajo de cada día es
-              el mapa de calor de cobertura hora por hora (más verde = más gente).
+              descanso. La meta tiene dos tramos: mañana y tarde (el corte es 14:15) — la franja de abajo
+              de cada día compara la gente de cada hora contra la meta de su tramo.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -476,8 +468,15 @@ export default function TurnosPage() {
                 tipo === "op"
                   ? Array.from({ length: N_FRANJAS_SEMANA }, (_, i) => metaDeHora(HORA_INICIO_SEMANA + i * 0.5, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0))
                   : Array.from({ length: N_FRANJAS_SEMANA }, () => metasEncargadas.get(dia) ?? 0);
-              const metaMax = Math.max(0, ...dias.map((iso) => Math.max(metas.get(diaSemana(iso)) ?? 0, metasTarde.get(diaSemana(iso)) ?? 0, metasEncargadas.get(diaSemana(iso)) ?? 0)));
-              const maxY = Math.max(6, ...covPorDia.flat(), metaMax + 1);
+              // Escala vertical propia de CADA tabla (si la de encargadas usara la
+              // meta de operativas, sus siluetas de meta 2 saldrían aplastadas).
+              const metaMax = Math.max(0, ...dias.map((iso) => {
+                const dia = diaSemana(iso);
+                return tipo === "op"
+                  ? Math.max(metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0)
+                  : metasEncargadas.get(dia) ?? 0;
+              }));
+              const maxY = Math.max(tipo === "op" ? 6 : 3, ...covPorDia.flat(), metaMax + 1);
               const colorPct = colorDePct;
               return (
                 <div key={titulo}>
@@ -499,6 +498,12 @@ export default function TurnosPage() {
                         const r = tipo === "op"
                           ? resumenOperativas(cov, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0, HORA_INICIO_SEMANA, 0.5)
                           : { ...resumenEncargadas(cov, metasEncargadas.get(dia) ?? 0), supHoras: 0, sug: null as string | null, redistribuir: null };
+                        // Con meta puesta pero NADIE programado, el día no está "cerrado":
+                        // alguien olvidó armar los turnos — eso se avisa en rojo, no en gris.
+                        const metaDia = tipo === "op"
+                          ? Math.max(metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0)
+                          : metasEncargadas.get(dia) ?? 0;
+                        const nadieProgramado = !r.hayTurnos && metaDia > 0;
                         return (
                           <button key={iso} onClick={() => irADia(iso)}
                             className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}
@@ -514,7 +519,9 @@ export default function TurnosPage() {
                               <path d={s.line} fill="none" style={{ stroke: "var(--color-verde)", strokeWidth: 1.6, strokeLinejoin: "round" }} />
                             </svg>
                             <div className="mt-1.5 flex h-4 items-center justify-center text-xs">
-                              {r.sinMeta ? (
+                              {nadieProgramado ? (
+                                <span className="font-medium text-rojo">¡nadie programado!</span>
+                              ) : r.sinMeta ? (
                                 <span className="text-[11px] text-taupe/60">sin meta</span>
                               ) : !r.hayTurnos ? (
                                 <span className="text-[11px] text-taupe/60">sin turnos</span>
@@ -593,8 +600,8 @@ export default function TurnosPage() {
                           )}
                           <span className="text-taupe/60">mañ/tar</span>
                         </label>
-                        <span className="font-medium" style={{ color: r.sinMeta || !r.hayTurnos ? "var(--color-taupe)" : colorDePct(r.pct) }}>
-                          {r.sinMeta ? "sin meta" : !r.hayTurnos ? "sin turnos" : `cubierto ${r.pct}%`}
+                        <span className="font-medium" style={{ color: !r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "var(--color-rojo)" : r.sinMeta || !r.hayTurnos ? "var(--color-taupe)" : colorDePct(r.pct) }}>
+                          {!r.hayTurnos && Math.max(metaMan, metaTar) > 0 ? "¡nadie programado!" : r.sinMeta ? "sin meta" : !r.hayTurnos ? "sin turnos" : `cubierto ${r.pct}%`}
                           {r.supHoras > 0 && <span className="text-ambar"> · sobra {r.supHoras}h</span>}
                         </span>
                         <label className="flex items-center gap-1.5 border-l border-sand pl-3 text-taupe">
@@ -608,8 +615,8 @@ export default function TurnosPage() {
                             <span>{metaEnc || "—"}</span>
                           )}
                         </label>
-                        <span className="font-medium" style={{ color: rEnc.sinMeta || !rEnc.hayTurnos ? "var(--color-taupe)" : colorDePct(rEnc.pct) }}>
-                          {rEnc.sinMeta ? "sin meta" : !rEnc.hayTurnos ? "sin turnos" : `cubierto ${rEnc.pct}%`}
+                        <span className="font-medium" style={{ color: !rEnc.hayTurnos && metaEnc > 0 ? "var(--color-rojo)" : rEnc.sinMeta || !rEnc.hayTurnos ? "var(--color-taupe)" : colorDePct(rEnc.pct) }}>
+                          {!rEnc.hayTurnos && metaEnc > 0 ? "¡ninguna programada!" : rEnc.sinMeta ? "sin meta" : !rEnc.hayTurnos ? "sin turnos" : `cubierto ${rEnc.pct}%`}
                         </span>
                       </div>
                     </div>
@@ -711,7 +718,7 @@ export default function TurnosPage() {
           Cada barra es el rango de entrada–salida del turno de esa persona ese día (más clarita = horario por
           defecto del periodo, no se fijó turno puntual). El mapa de calor de abajo cuenta solo a las{" "}
           <strong>áreas operativas de sede</strong> ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}
-          ) — más verde = más gente cubriendo esa hora frente a la meta del día. El área se cambia en Equipo.
+          ) — más verde = más cerca de la meta de ese tramo (mañana o tarde). El área se cambia en Equipo.
         </p>
 
         {edit && (() => {
