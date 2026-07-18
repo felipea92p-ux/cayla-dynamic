@@ -52,12 +52,10 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
   (reforzar ese día o cuadrar turnos para que coincidan más), NO bajar la meta.
   Mi consejo anterior de bajarla a 5/5 era erróneo — habría maquillado una
   necesidad real de gente.
-- [ ] 🟢 **Revisar roles inesperados**: Melany Enriquez figura como
-  `supervisor_sede` (en el roster original era integrante) y Catherine Pereyra
-  también, con área Comercial y sin horario. Confirmar si son promociones a
-  propósito.
-- [ ] ✅ **Chiara Flores** — falsa alarma mía: su "02/01/2026" es su primera
-  marca (2 de enero). Su fecha está bien, no la toques.
+- [x] **Roles de Melany Enriquez y Catherine Pereyra (supervisor_sede) — CONFIRMADOS
+  por Felipe (2026-07-17), son a propósito.** No tocar.
+- [x] **Chiara Flores** — su "02/01/2026" es su primera marca (2 de enero), fecha
+  correcta. No tocar. (Fue falsa alarma mía.)
 
 ---
 
