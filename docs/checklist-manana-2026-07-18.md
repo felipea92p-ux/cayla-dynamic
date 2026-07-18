@@ -44,9 +44,14 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
   desplegado. **Pendiente chico (🟢):** agregar un checkbox en Equipo para
   marcar "encargada de piso" a otra persona sin tocar SQL (por ahora solo Janis
   está marcada, vía la migración).
-- [ ] 🟡 **Meta de operativas de TRU = 8/8 es imposible** — tu pico real de gente
-  simultánea es 6. Ponla en 5/5 (o 6/6) en la cabecera de cada día en Turnos,
-  para que el "% cubierto" refleje tu realidad y no una aspiración inalcanzable.
+- [x] **Meta de operativas TRU = 8 — SE QUEDA EN 8, es correcta.** Corrección de
+  Felipe (2026-07-17): 8 es su exigencia real (ese día hay más clientes, quiere
+  8 en piso). El sistema muestra "faltan / 57%" porque con los turnos actuales
+  el máximo simultáneo es 6 — o sea, el tablero está diciendo la verdad: **ese
+  día falta personal para la exigencia**. La señal roja es correcta y accionable
+  (reforzar ese día o cuadrar turnos para que coincidan más), NO bajar la meta.
+  Mi consejo anterior de bajarla a 5/5 era erróneo — habría maquillado una
+  necesidad real de gente.
 - [ ] 🟢 **Revisar roles inesperados**: Melany Enriquez figura como
   `supervisor_sede` (en el roster original era integrante) y Catherine Pereyra
   también, con área Comercial y sin horario. Confirmar si son promociones a
