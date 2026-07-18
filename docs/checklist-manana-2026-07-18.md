@@ -59,6 +59,21 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
 
 ---
 
+## 1b. 🎨 Turnos — pedido de Felipe 2026-07-17 (continúa en chat nuevo)
+
+- [ ] **Pulir la estética de Turnos** para que combine con el look del dashboard
+  semanal (mismos tonos, tipografía, ritmo visual). Hoy funciona bien pero se
+  siente menos cuidado que las siluetas de la Vista Semana.
+- [ ] **Tercera vista "integrada"** además de Día y Semana. Felipe la describe
+  como: una sábana completa donde se ven **las horas (filas) × los 7 días
+  (columnas)** de toda la semana a la vez, con quién trabaja y cómo se distribuye
+  la cobertura — todo integrado en una sola pantalla. Es la vista panorámica que
+  falta: Día = detalle de un día, Semana = siluetas resumen por día, Integrada =
+  la semana entera hora por hora de un vistazo. Diseñarla bien (probablemente un
+  grid hora×día con calor de cobertura + iniciales/nombres de quién cubre cada
+  celda). **Antes de construir, hacer preguntas de diseño** (Felipe lo pidió
+  explícitamente varias veces esta noche — le gusta afinar con AskUserQuestion).
+
 ## 1. 🔴 Alto valor / correctitud
 
 - [ ] **`fn_sembrar_ingresos` (el botón masivo) es peligroso por DOS razones —
