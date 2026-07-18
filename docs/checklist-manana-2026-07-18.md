@@ -8,15 +8,35 @@ Prioridad: 🔴 hazlo primero · 🟡 esta semana · 🟢 cuando haya tiempo.
 
 ---
 
+## ⚠️ ADVERTENCIA CRÍTICA sobre el botón "Sincronizar ingresos desde marcas"
+
+**NO usar ese botón en modo masivo.** Reemplaza la fecha de ingreso de TODOS por
+su primera marca del terminal — pero el terminal recién arrancó en enero 2026,
+así que a las empleadas de 2025 (Carlos, Janis, Sandra, Melany, Danitza,
+Joselyn…) les BORRA su antigüedad real: las mueve de 2025 a 2026, perdiendo CTS,
+vacaciones y gratificaciones acumuladas. Es plata y derecho real.
+
+El botón SOLO es seguro para una recién ingresada puntual cuya fecha registrada
+quedó *después* de su primera marca. Para ese caso, mejor edítala a mano (Equipo
+→ editar → el campo muestra la sugerencia de primera marca). **Deuda técnica
+anotada abajo: al botón le falta un guard que impida retroceder una fecha de
+ingreso más antigua.** Hoy (2026-07-17) todas las fechas están correctas.
+
+---
+
 ## 0. TUS DECISIONES (personales, no técnicas — 5 min en total)
 
 Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
 **Equipo → editar a la persona**.
 
-- [ ] 🔴 **Estefany Gómez** — fecha de ingreso hoy 13/07/2026, su primera marca
-  real es **23/06/2026**. Si la regla es "cuenta desde que marcó" (periodo de
-  prueba incluido, que es lo legalmente correcto en Perú), cámbiala a 23/06.
-- [ ] 🔴 **Judith Pillaca** — igual: hoy 01/07, primera marca **26/06/2026**.
+- [x] **Estefany Gómez (13/07) y Judith Pillaca (01/07) — SE QUEDAN ASÍ, a
+  propósito.** Decisión de Felipe (2026-07-17): no les corresponde el feriado
+  del 29 de junio, por eso su fecha de ingreso arranca en julio y NO en su
+  primera marca real (23/06 y 26/06). La fecha de ingreso acá es la fecha desde
+  la que corresponden beneficios, no la marca literal. **⚠️ NO usar "Sincronizar
+  ingresos desde marcas" sobre ellas** — ese botón las regresaría a junio y les
+  metería el feriado que no les toca. Si algún día se corre el botón masivo,
+  volver a fijar a estas dos a mano.
 - [ ] 🟡 **Janis Revilla** — su rol en la base es `admin`, por eso NO cuenta como
   encargada en la cobertura de Turnos. Si su función real es encargada de piso,
   cámbiale el rol a "Líder de equipo (encargada)". **Ojo:** al dejar de ser
@@ -36,15 +56,17 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
 
 ## 1. 🔴 Alto valor / correctitud
 
-- [ ] **El botón "Sincronizar ingresos desde marcas" saltea el candado de
-  periodo PAGADO.** `fn_sembrar_ingresos` (0027) escribe la fecha de ingreso de
-  todos sin verificar `periodos_planilla.estado='pagado'` — a diferencia de
-  `fn_set_fecha_ingreso` que sí lo verifica desde el parche 0037. Hoy no explotó
-  porque (aparentemente) no hay ningún periodo marcado como pagado todavía. Pero
-  el día que pagues un mes y alguien use ese botón, puede alterar en silencio los
-  feriados de una planilla ya cerrada. **Fix:** agregar el mismo guard de
-  periodo pagado dentro de `fn_sembrar_ingresos` (migración nueva). Bajo riesgo,
-  cambio acotado.
+- [ ] **`fn_sembrar_ingresos` (el botón masivo) es peligroso por DOS razones —
+  ver también la advertencia crítica arriba.**
+  1. **Retrocede antigüedades reales**: pone fecha = primera marca del terminal,
+     borrando la fecha 2025 de las empleadas viejas (el terminal arrancó en
+     2026). Fix de fondo: que solo actualice cuando la primera marca sea ANTERIOR
+     a la fecha registrada (nunca la mueva hacia adelante ni pise una fecha 2025
+     con una marca 2026), o mejor, retirar el botón masivo y dejar solo la
+     edición por persona.
+  2. **Saltea el candado de periodo PAGADO** que `fn_set_fecha_ingreso` sí tiene
+     desde 0037 — el día que pagues un mes, este botón podría alterar feriados de
+     una planilla cerrada. Agregarle el mismo guard.
 - [ ] **Cobertura EN VIVO en el Dashboard** — es el primer pendiente del checklist
   de anoche y ahora tiene todo lo necesario para hacerse bien: ya existe el
   modelo de meta por tramo (mañana/tarde) y `metas_cobertura`. El Dashboard hoy
