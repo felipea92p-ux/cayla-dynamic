@@ -93,41 +93,103 @@ function gradienteCobertura(horas: number[], meta: number): string {
   const paradas = horas.map((h, i) => `${colorCobertura(h, meta)} ${((i + 0.5) / n) * 100}%`);
   return `linear-gradient(to right, ${colorCobertura(horas[0], meta)} 0%, ${paradas.join(", ")}, ${colorCobertura(horas[n - 1], meta)} 100%)`;
 }
+// La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
+// de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
+const CORTE_TARDE = 14.25; // 14:15
+const metaDeHora = (horaFranjaIni: number, metaMan: number, metaTar: number) =>
+  horaFranjaIni >= CORTE_TARDE ? metaTar : metaMan;
+// Degradado del mapa de calor (Vista Día), coloreando cada hora contra la meta
+// de SU tramo (mañana o tarde).
+function gradienteCoberturaBanda(horas: number[], metaMan: number, metaTar: number, hi0: number): string {
+  const n = horas.length;
+  const col = (i: number) => colorCobertura(horas[i], metaDeHora(hi0 + i, metaMan, metaTar));
+  const paradas = horas.map((_, i) => `${col(i)} ${((i + 0.5) / n) * 100}%`);
+  return `linear-gradient(to right, ${col(0)} 0%, ${paradas.join(", ")}, ${col(n - 1)} 100%)`;
+}
+
 // ── Silueta del día (Vista Semana): la forma de cuánta gente hay por hora ────
-// El área rellena es la cobertura; el área roja entre la línea de cobertura y la
-// meta es el DÉFICIT (lo que falta) — se ve el hueco, no solo un número.
+// 3 tonos: verde = cubierto (bajo la meta), rojo = falta (hueco), ámbar = sobra
+// (por encima de la meta). La meta es una línea escalonada (sube en la tarde).
 const SIL_W = 100, SIL_BASE = 46, SIL_TOP = 6;
-function siluetaSVG(cov: number[], meta: number, maxY: number) {
+function siluetaSVG(cov: number[], metaArr: number[], maxY: number) {
   const n = cov.length;
   const yF = (v: number) => SIL_BASE - (v / maxY) * (SIL_BASE - SIL_TOP);
   const xF = (i: number) => (i / (n - 1)) * SIL_W;
-  let area = `M ${xF(0)} ${SIL_BASE}`;
-  for (let i = 0; i < n; i++) area += ` L ${xF(i).toFixed(1)} ${yF(cov[i]).toFixed(1)}`;
-  area += ` L ${xF(n - 1)} ${SIL_BASE} Z`;
+  const mn = (i: number) => Math.min(cov[i], metaArr[i]);
+  const mx = (i: number) => Math.max(cov[i], metaArr[i]);
+  // La meta / falta / sobra solo aplican en la VENTANA operativa (de la primera
+  // a la última franja con gente), igual que el cálculo — así no se pinta rojo
+  // antes de abrir ni después de cerrar.
+  const nz = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+  const i0 = nz.length ? nz[0] : 0, i1 = nz.length ? nz[nz.length - 1] : -1;
+  const hayVentana = i1 >= i0;
+  // verde: desde el piso hasta lo cubierto (min de cobertura y meta), todo el día
+  let green = `M ${xF(0)} ${SIL_BASE}`;
+  for (let i = 0; i < n; i++) green += ` L ${xF(i).toFixed(1)} ${yF(mn(i)).toFixed(1)}`;
+  green += ` L ${xF(n - 1)} ${SIL_BASE} Z`;
+  let deficit = "", surplus = "", metaLine = "";
+  if (hayVentana) {
+    let dTop = "", dBot = "", sTop = "", sBot = "", mL = "";
+    for (let i = i0; i <= i1; i++) {
+      const px = xF(i).toFixed(1);
+      dTop += (i === i0 ? "M " : " L ") + `${px} ${yF(metaArr[i]).toFixed(1)}`;
+      sTop += (i === i0 ? "M " : " L ") + `${px} ${yF(mx(i)).toFixed(1)}`;
+      mL += (i === i0 ? "M " : " L ") + `${px} ${yF(metaArr[i]).toFixed(1)}`;
+    }
+    for (let i = i1; i >= i0; i--) {
+      dBot += ` L ${xF(i).toFixed(1)} ${yF(mn(i)).toFixed(1)}`;
+      sBot += ` L ${xF(i).toFixed(1)} ${yF(metaArr[i]).toFixed(1)}`;
+    }
+    deficit = dTop + dBot + " Z";
+    surplus = sTop + sBot + " Z";
+    metaLine = mL;
+  }
   let line = "";
   for (let i = 0; i < n; i++) line += (i ? " L " : "M ") + `${xF(i).toFixed(1)} ${yF(cov[i]).toFixed(1)}`;
-  let deficit = "";
-  if (meta > 0) {
-    let t = "", b = "";
-    for (let i = 0; i < n; i++) t += (i ? " L " : "M ") + `${xF(i).toFixed(1)} ${yF(meta).toFixed(1)}`;
-    for (let i = n - 1; i >= 0; i--) b += ` L ${xF(i).toFixed(1)} ${yF(Math.min(cov[i], meta)).toFixed(1)}`;
-    deficit = t + b + " Z";
-  }
-  return { area, line, deficit, metaY: yF(meta) };
+  return { green, deficit, surplus, metaLine, line };
 }
-// Qué % del día tuviste tu meta COMPLETA. El "día" = desde que entra el primero
-// hasta que sale el último (decisión de Felipe: no penalizar horas en que la
-// tienda no opera). Una franja cuenta como cubierta solo si tuvo la meta o más.
-// Así un día lleno de 2pm–8pm pero corto en la mañana ya no se ve "todo rojo":
-// muestra el % real que estuvo cubierto.
-function pctCubierto(cov: number[], meta: number): { pct: number; hayTurnos: boolean } {
+
+// Resumen de OPERATIVAS: promedio de qué tan lleno corriste vs la meta del tramo
+// (topado a 100% por franja para que la tarde de sobra NO tape una mañana vacía),
+// más el motor de sugerencia: redistribuir (hay gente que mover) vs falta
+// personal (déficit sin sobra en ningún lado → contratar).
+function resumenOperativas(cov: number[], metaMan: number, metaTar: number, hi0: number, tam: number) {
   const idx = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
-  if (idx.length === 0) return { pct: 0, hayTurnos: false };
-  if (meta <= 0) return { pct: 0, hayTurnos: true };
-  const ventana = cov.slice(idx[0], idx[idx.length - 1] + 1);
-  const cubiertas = ventana.filter((v) => v >= meta).length;
-  return { pct: Math.round((cubiertas / ventana.length) * 100), hayTurnos: true };
+  if (idx.length === 0) return { hayTurnos: false, sinMeta: false, pct: 0, supHoras: 0, sug: null as string | null, redistribuir: null as "adelantar" | "retrasar" | null };
+  let suma = 0, n = 0, defMan = 0, defTar = 0, supMan = 0, supTar = 0, supFr = 0;
+  for (let i = idx[0]; i <= idx[idx.length - 1]; i++) {
+    const tarde = hi0 + i * tam >= CORTE_TARDE;
+    const m = tarde ? metaTar : metaMan;
+    if (m <= 0) continue;
+    suma += Math.min(cov[i] / m, 1); n++;
+    if (cov[i] < m) { if (tarde) defTar++; else defMan++; }
+    else if (cov[i] > m) { if (tarde) supTar++; else supMan++; supFr++; }
+  }
+  if (n === 0) return { hayTurnos: true, sinMeta: true, pct: 0, supHoras: 0, sug: null, redistribuir: null };
+  const hayDef = defMan + defTar > 0, haySup = supMan + supTar > 0;
+  let sug: string | null = null;
+  let redistribuir: "adelantar" | "retrasar" | null = null;
+  if (hayDef && haySup) {
+    if (defMan > 0 && supTar > 0) { sug = "Sobra gente en la tarde y falta en la mañana."; redistribuir = "adelantar"; }
+    else if (defTar > 0 && supMan > 0) { sug = "Sobra gente en la mañana y falta en la tarde."; redistribuir = "retrasar"; }
+    else sug = "Reparte mejor: hay horas con exceso y otras con falta.";
+  } else if (hayDef && !haySup) {
+    sug = "Te falta personal ese día — ni moviendo turnos alcanza.";
+  }
+  return { hayTurnos: true, sinMeta: false, pct: Math.round((suma / n) * 100), supHoras: Math.round(supFr * tam * 10) / 10, sug, redistribuir };
 }
+
+// Resumen de ENCARGADAS: estricto. 2 encargadas es un PISO que siempre debe
+// haber, no un promedio — % de franjas de la ventana donde hubo la meta o más.
+function resumenEncargadas(cov: number[], meta: number): { pct: number; hayTurnos: boolean; sinMeta: boolean } {
+  const idx = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+  if (idx.length === 0) return { pct: 0, hayTurnos: false, sinMeta: false };
+  if (meta <= 0) return { pct: 0, hayTurnos: true, sinMeta: true };
+  const ventana = cov.slice(idx[0], idx[idx.length - 1] + 1);
+  return { pct: Math.round((ventana.filter((v) => v >= meta).length / ventana.length) * 100), hayTurnos: true, sinMeta: false };
+}
+// Verde ≥90 · ámbar 60-89 · rojo <60 (umbral elegido por Felipe).
+const colorDePct = (pct: number) => (pct >= 90 ? "var(--color-verde)" : pct >= 60 ? "var(--color-ambar)" : "var(--color-rojo)");
 
 export default function TurnosPage() {
   const router = useRouter();
@@ -167,7 +229,8 @@ export default function TurnosPage() {
   const [funcionesFallo, setFuncionesFallo] = useState(false);
   const [horarios, setHorarios] = useState<Map<string, Horario[]>>(new Map());
   const [turnos, setTurnos] = useState<Map<string, Turno>>(new Map());
-  const [metas, setMetas] = useState<Map<number, number>>(new Map());
+  const [metas, setMetas] = useState<Map<number, number>>(new Map()); // meta operativas MAÑANA
+  const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
   const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -221,7 +284,7 @@ export default function TurnosPage() {
       supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
-      supabase.from("metas_cobertura").select("dia_semana, meta, meta_encargadas").eq("sede_id", sedeSel),
+      supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
       supabase.rpc("fn_areas"), // catálogo dinámico de áreas (nunca .from("areas"): schema cache trabado)
     ]);
@@ -246,6 +309,7 @@ export default function TurnosPage() {
     setHorarios(mapH);
     setTurnos(new Map(((t as any[]) ?? []).map((x) => [`${x.persona_id}|${x.fecha}`, { es_descanso: x.es_descanso, hora_entrada: x.hora_entrada, hora_salida: x.hora_salida }])));
     setMetas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta])));
+    setMetasTarde(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_tarde ?? x.meta ?? 0])));
     setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
     setCargando(false);
   }, [supabase, sedeSel, lunes]);
@@ -329,14 +393,16 @@ export default function TurnosPage() {
   const quitar = () => edit && ejecutar(() => supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
 
   // Al teclear solo actualiza el estado local (para que el semáforo reaccione en vivo).
-  function editarMeta(dia: number, valor: string) {
+  function editarMeta(dia: number, tramo: "manana" | "tarde", valor: string) {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
-    setMetas((m) => new Map(m).set(dia, meta));
+    (tramo === "manana" ? setMetas : setMetasTarde)((m) => new Map(m).set(dia, meta));
   }
-  // Guarda de verdad al salir del campo — una sola escritura, sin carrera por tecla.
-  async function comprometerMeta(dia: number, valor: string) {
-    const meta = Math.max(0, Math.round(Number(valor) || 0));
-    const { error } = await supabase.rpc("fn_set_meta_cobertura", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
+  // Guarda de verdad al salir del campo — manda mañana + tarde juntas (una sola escritura).
+  async function comprometerMeta(dia: number) {
+    const { error } = await supabase.rpc("fn_set_meta_cobertura", {
+      p_sede_id: sedeSel, p_dia_semana: dia,
+      p_meta_manana: metas.get(dia) ?? 0, p_meta_tarde: metasTarde.get(dia) ?? 0,
+    });
     if (error) { setMsg({ tipo: "error", texto: `No se pudo guardar la meta: ${error.message}` }); await cargar(); }
   }
 
@@ -401,19 +467,25 @@ export default function TurnosPage() {
         {cargando ? <p className="text-sm text-taupe">Cargando…</p> : vista === "semana" ? (
           <div className="space-y-6">
             {([
-              { titulo: "Cobertura (áreas operativas)", metaPorDia: metas, filtro: esOperativa },
-              { titulo: "Encargadas (supervisor_sede)", metaPorDia: metasEncargadas, filtro: esEncargada },
-            ] as const).map(({ titulo, metaPorDia, filtro }) => {
-              // Cobertura por franja de cada día + escala vertical común (para que
-              // los 7 días sean comparables de un vistazo).
+              { titulo: "Cobertura (áreas operativas)", tipo: "op", filtro: esOperativa },
+              { titulo: "Encargadas (supervisor_sede)", tipo: "enc", filtro: esEncargada },
+            ] as const).map(({ titulo, tipo, filtro }) => {
               const covPorDia = dias.map((iso) => coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, filtro));
-              const metaMax = Math.max(0, ...dias.map((iso) => metaPorDia.get(diaSemana(iso)) ?? 0));
+              // meta por franja de cada día: operativas cambia mañana/tarde; encargadas es plana.
+              const metaArrDe = (dia: number): number[] =>
+                tipo === "op"
+                  ? Array.from({ length: N_FRANJAS_SEMANA }, (_, i) => metaDeHora(HORA_INICIO_SEMANA + i * 0.5, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0))
+                  : Array.from({ length: N_FRANJAS_SEMANA }, () => metasEncargadas.get(dia) ?? 0);
+              const metaMax = Math.max(0, ...dias.map((iso) => Math.max(metas.get(diaSemana(iso)) ?? 0, metasTarde.get(diaSemana(iso)) ?? 0, metasEncargadas.get(diaSemana(iso)) ?? 0)));
               const maxY = Math.max(6, ...covPorDia.flat(), metaMax + 1);
+              const colorPct = colorDePct;
               return (
                 <div key={titulo}>
                   <h2 className="font-serif text-lg">{titulo}</h2>
                   <p className="mb-2 text-xs text-taupe">
-                    Verde = gente que trabaja a cada hora · rojo = lo que falta para tu meta (línea punteada). Abajo: qué % del día (desde que entra el primero hasta que sale el último) tuviste tu meta completa.
+                    {tipo === "op"
+                      ? "Verde = cubierto · rojo = falta · ámbar = sobra (la meta sube en la tarde, línea punteada). Abajo: qué tan lleno corriste vs tu meta, en promedio del día."
+                      : "Encargadas es un piso: siempre debe haber la meta. Abajo: qué % del día tuviste ese mínimo (o más)."}
                   </p>
                   <div className="overflow-x-auto">
                     <div className="grid min-w-[640px] grid-cols-7 gap-2">
@@ -421,34 +493,44 @@ export default function TurnosPage() {
                         const { abr, num } = etiquetaDia(iso);
                         const hoy = iso === hoyLima();
                         const dia = diaSemana(iso);
-                        const meta = metaPorDia.get(dia) ?? 0;
                         const cov = covPorDia[di];
-                        const s = siluetaSVG(cov, meta, maxY);
-                        const { pct, hayTurnos } = pctCubierto(cov, meta);
+                        const metaArr = metaArrDe(dia);
+                        const s = siluetaSVG(cov, metaArr, maxY);
+                        const r = tipo === "op"
+                          ? resumenOperativas(cov, metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0, HORA_INICIO_SEMANA, 0.5)
+                          : { ...resumenEncargadas(cov, metasEncargadas.get(dia) ?? 0), supHoras: 0, sug: null as string | null, redistribuir: null };
                         return (
                           <button key={iso} onClick={() => irADia(iso)}
-                            className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}>
+                            className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}
+                            title={r.sug ?? undefined}>
                             <div className={`mb-1 text-sm ${hoy ? "text-tinta" : ""}`}>
                               <span className="font-serif">{abr}</span> <span className="text-xs text-taupe">{num}</span>
                             </div>
                             <svg viewBox={`0 0 ${SIL_W} 52`} width="100%" preserveAspectRatio="none" className="block h-12">
-                              <path d={s.area} style={{ fill: "var(--color-verde)", fillOpacity: 0.18 }} />
-                              {s.deficit && <path d={s.deficit} style={{ fill: "var(--color-rojo)", fillOpacity: 0.32 }} />}
-                              {meta > 0 && <line x1="0" y1={s.metaY} x2={SIL_W} y2={s.metaY} style={{ stroke: "var(--color-taupe)", strokeWidth: 1, strokeDasharray: "3 2" }} />}
+                              <path d={s.green} style={{ fill: "var(--color-verde)", fillOpacity: 0.18 }} />
+                              <path d={s.deficit} style={{ fill: "var(--color-rojo)", fillOpacity: 0.32 }} />
+                              {tipo === "op" && <path d={s.surplus} style={{ fill: "var(--color-ambar)", fillOpacity: 0.55 }} />}
+                              <path d={s.metaLine} fill="none" style={{ stroke: "var(--color-taupe)", strokeWidth: 1, strokeDasharray: "3 2" }} />
                               <path d={s.line} fill="none" style={{ stroke: "var(--color-verde)", strokeWidth: 1.6, strokeLinejoin: "round" }} />
                             </svg>
-                            {/* Resumen: qué % del día estuvo con la meta completa */}
                             <div className="mt-1.5 flex h-4 items-center justify-center text-xs">
-                              {meta === 0 ? (
+                              {r.sinMeta ? (
                                 <span className="text-[11px] text-taupe/60">sin meta</span>
-                              ) : !hayTurnos ? (
+                              ) : !r.hayTurnos ? (
                                 <span className="text-[11px] text-taupe/60">sin turnos</span>
                               ) : (
-                                <span className="font-medium"
-                                  style={{ color: pct === 100 ? "var(--color-verde)" : pct === 0 ? "var(--color-rojo)" : "var(--color-ambar)" }}>
-                                  {pct === 100 ? "✓ cubierto todo" : `cubierto ${pct}%`}
-                                </span>
+                                <span className="font-medium" style={{ color: colorPct(r.pct) }}>cubierto {r.pct}%</span>
                               )}
+                            </div>
+                            {/* Aviso corto: redistribuir (ámbar) o falta personal (rojo) */}
+                            <div className="flex h-3 items-center justify-center">
+                              {r.redistribuir ? (
+                                <span className="text-[10px] text-ambar">↔ reparte turnos</span>
+                              ) : r.sug ? (
+                                <span className="text-[10px] text-rojo">+ falta personal</span>
+                              ) : r.supHoras > 0 ? (
+                                <span className="text-[10px] text-taupe/60">sobra {r.supHoras}h</span>
+                              ) : null}
                             </div>
                           </button>
                         );
@@ -468,40 +550,52 @@ export default function TurnosPage() {
                 const { abr, num } = etiquetaDia(iso);
                 const hoy = iso === hoyLima();
                 const dia = diaSemana(iso);
-                const meta = metas.get(dia) ?? 0;
-                const prog = cobertura(iso);
-                const horas = coberturaPorHora(iso);
-                let claseProg = "text-taupe";
-                if (meta > 0 && prog < meta) claseProg = "text-rojo font-medium";
-                else if (meta > 0 && prog === meta) claseProg = "text-verde font-medium";
-                else if (meta > 0 && prog > meta) claseProg = "text-ambar font-medium";
+                const metaMan = metas.get(dia) ?? 0;
+                const metaTar = metasTarde.get(dia) ?? 0;
                 const metaEnc = metasEncargadas.get(dia) ?? 0;
-                const enc = encargadasCubiertas(iso);
-                const claseEnc = metaEnc > 0 && enc < metaEnc ? "text-rojo font-medium" : "text-verde font-medium";
+                const horas = coberturaPorHora(iso);
+                const covFr = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa);
+                const covFrEnc = coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esEncargada);
+                const r = resumenOperativas(covFr, metaMan, metaTar, HORA_INICIO_SEMANA, 0.5);
+                const rEnc = resumenEncargadas(covFrEnc, metaEnc);
+                // Candidato concreto a mover (para la sugerencia de redistribución)
+                let candidato = "";
+                if (r.redistribuir === "adelantar") {
+                  const c = personas.find((p) => { if (!esOperativa(p)) return false; const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && horaADecimal(cel.entrada) >= CORTE_TARDE; });
+                  if (c) candidato = `Ej. adelanta a ${c.nombres}.`;
+                } else if (r.redistribuir === "retrasar") {
+                  const c = personas.find((p) => { if (!esOperativa(p)) return false; const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && cel.salida !== null && cel.salida !== undefined && horaADecimal(cel.salida) <= CORTE_TARDE + 1; });
+                  if (c) candidato = `Ej. retrasa la salida de ${c.nombres}.`;
+                }
                 return (
                   <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-lg border ${hoy ? "border-tinta" : "border-sand"}`}>
-                    {/* Cabecera del día: fecha + meta editable + progreso */}
+                    {/* Cabecera del día: fecha + metas editables (mañana/tarde) + resumen */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
                       <div className={hoy ? "text-tinta" : ""}>
                         <span className="font-serif text-lg">{abr}</span>{" "}
                         <span className="text-sm text-taupe">{num}</span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <label className="flex items-center gap-1.5 text-taupe">
-                          Meta
+                          Meta op.
                           {esAdmin ? (
-                            <input type="number" min={0} value={meta}
-                              onChange={(e) => editarMeta(dia, e.target.value)}
-                              onBlur={(e) => comprometerMeta(dia, e.target.value)}
-                              className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
+                            <>
+                              <input type="number" min={0} value={metaMan} title="meta de la mañana (hasta 14:15)"
+                                onChange={(e) => editarMeta(dia, "manana", e.target.value)} onBlur={() => comprometerMeta(dia)}
+                                className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
+                              <span className="text-taupe/60">/</span>
+                              <input type="number" min={0} value={metaTar} title="meta de la tarde (desde 14:15)"
+                                onChange={(e) => editarMeta(dia, "tarde", e.target.value)} onBlur={() => comprometerMeta(dia)}
+                                className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
+                            </>
                           ) : (
-                            <span>{meta || "—"}</span>
+                            <span>{metaMan}/{metaTar}</span>
                           )}
+                          <span className="text-taupe/60">mañ/tar</span>
                         </label>
-                        <span className={claseProg}>
-                          {prog}{meta > 0 ? ` / ${meta}` : ""} cubiertos
-                          {meta > 0 && prog < meta && ` · faltan ${meta - prog}`}
-                          {meta > 0 && prog > meta && ` · sobran ${prog - meta}`}
+                        <span className="font-medium" style={{ color: r.sinMeta || !r.hayTurnos ? "var(--color-taupe)" : colorDePct(r.pct) }}>
+                          {r.sinMeta ? "sin meta" : !r.hayTurnos ? "sin turnos" : `cubierto ${r.pct}%`}
+                          {r.supHoras > 0 && <span className="text-ambar"> · sobra {r.supHoras}h</span>}
                         </span>
                         <label className="flex items-center gap-1.5 border-l border-sand pl-3 text-taupe">
                           Encargadas
@@ -509,17 +603,22 @@ export default function TurnosPage() {
                             <input type="number" min={0} value={metaEnc}
                               onChange={(e) => editarMetaEncargadas(dia, e.target.value)}
                               onBlur={(e) => comprometerMetaEncargadas(dia, e.target.value)}
-                              className="w-12 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
+                              className="w-11 rounded border border-sand bg-crema px-1 py-0.5 text-center" />
                           ) : (
                             <span>{metaEnc || "—"}</span>
                           )}
                         </label>
-                        <span className={claseEnc}>
-                          {enc}{metaEnc > 0 ? ` / ${metaEnc}` : ""}
-                          {metaEnc > 0 && enc < metaEnc && ` · faltan ${metaEnc - enc}`}
+                        <span className="font-medium" style={{ color: rEnc.sinMeta || !rEnc.hayTurnos ? "var(--color-taupe)" : colorDePct(rEnc.pct) }}>
+                          {rEnc.sinMeta ? "sin meta" : !rEnc.hayTurnos ? "sin turnos" : `cubierto ${rEnc.pct}%`}
                         </span>
                       </div>
                     </div>
+                    {/* Sugerencia: redistribuir (hay gente que mover) o falta personal (contratar) */}
+                    {r.sug && (
+                      <div className="border-t border-sand/60 px-4 py-1.5 text-xs" style={{ color: r.redistribuir ? "var(--color-ambar)" : "var(--color-rojo)" }}>
+                        {r.redistribuir ? "↔ " : "＋ "}{r.sug}{candidato && ` ${candidato}`}
+                      </div>
+                    )}
 
                     {/* Eje de horas */}
                     <div className="relative ml-[176px] h-4 border-b border-sand/60 text-[10px] text-taupe">
@@ -585,17 +684,20 @@ export default function TurnosPage() {
                         número exacto de cada hora superpuesto para no perder precisión. */}
                     <div className="flex items-stretch border-t-2 border-sand">
                       <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
-                      <div className="relative h-8 flex-1" style={{ background: gradienteCobertura(horas, meta) }}>
-                        {horas.map((n, i) => (
+                      <div className="relative h-8 flex-1" style={{ background: gradienteCoberturaBanda(horas, metaMan, metaTar, HORA_INICIO) }}>
+                        {horas.map((n, i) => {
+                          const metaHora = metaDeHora(HORA_INICIO + i, metaMan, metaTar);
+                          return (
                           <span
                             key={i}
                             className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-medium text-crema"
                             style={{ left: `${((i + 0.5) / horas.length) * 100}%`, textShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
-                            title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}${meta > 0 ? ` (meta ${meta})` : ""}`}
+                            title={`${HORA_INICIO + i}h–${HORA_INICIO + i + 1}h: ${n} persona${n === 1 ? "" : "s"}${metaHora > 0 ? ` (meta ${metaHora})` : ""}`}
                           >
                             {n > 0 ? n : ""}
                           </span>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </section>

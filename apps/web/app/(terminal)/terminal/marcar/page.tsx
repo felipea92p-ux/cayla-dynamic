@@ -316,7 +316,12 @@ export default function MarcarPage() {
   }, [roster]);
 
   const rosterFiltrado = useMemo(
-    () => (sedeSeleccionada ? roster.filter((p) => p.sedeCodigo === sedeSeleccionada) : roster),
+    () =>
+      (sedeSeleccionada ? roster.filter((p) => p.sedeCodigo === sedeSeleccionada) : roster)
+        // orden alfabético estable: la caché offline (IndexedDB getAll) devuelve
+        // por id, no por nombre, así que se reordena acá siempre.
+        .slice()
+        .sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`, "es")),
     [roster, sedeSeleccionada],
   );
 

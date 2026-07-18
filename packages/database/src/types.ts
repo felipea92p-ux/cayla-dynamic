@@ -632,6 +632,7 @@ export type Database = {
           dia_semana: number
           meta: number
           meta_encargadas: number
+          meta_tarde: number
           sede_id: string
           updated_at: string
         }
@@ -639,6 +640,7 @@ export type Database = {
           dia_semana: number
           meta?: number
           meta_encargadas?: number
+          meta_tarde?: number
           sede_id: string
           updated_at?: string
         }
@@ -646,6 +648,7 @@ export type Database = {
           dia_semana?: number
           meta?: number
           meta_encargadas?: number
+          meta_tarde?: number
           sede_id?: string
           updated_at?: string
         }
@@ -856,7 +859,7 @@ export type Database = {
         Returns: undefined
       }
       fn_set_meta_cobertura: {
-        Args: { p_dia_semana: number; p_meta: number; p_sede_id: string }
+        Args: { p_dia_semana: number; p_meta_manana: number; p_meta_tarde: number; p_sede_id: string }
         Returns: undefined
       }
       fn_set_meta_encargadas: {
