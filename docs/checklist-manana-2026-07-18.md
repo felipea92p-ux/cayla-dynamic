@@ -61,20 +61,17 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
 
 ---
 
-## 1b. 🎨 Turnos — pedido de Felipe 2026-07-17 (continúa en chat nuevo)
+## 1b. 🎨 Turnos — pedido de Felipe 2026-07-17 (DESPLEGADO 2026-07-18)
 
-- [ ] **Pulir la estética de Turnos** para que combine con el look del dashboard
-  semanal (mismos tonos, tipografía, ritmo visual). Hoy funciona bien pero se
-  siente menos cuidado que las siluetas de la Vista Semana.
-- [ ] **Tercera vista "integrada"** además de Día y Semana. Felipe la describe
-  como: una sábana completa donde se ven **las horas (filas) × los 7 días
-  (columnas)** de toda la semana a la vez, con quién trabaja y cómo se distribuye
-  la cobertura — todo integrado en una sola pantalla. Es la vista panorámica que
-  falta: Día = detalle de un día, Semana = siluetas resumen por día, Integrada =
-  la semana entera hora por hora de un vistazo. Diseñarla bien (probablemente un
-  grid hora×día con calor de cobertura + iniciales/nombres de quién cubre cada
-  celda). **Antes de construir, hacer preguntas de diseño** (Felipe lo pidió
-  explícitamente varias veces esta noche — le gusta afinar con AskUserQuestion).
+- [x] **Estética de Turnos pulida** — control segmentado de 3 vistas, etiquetas
+  24h, pie de página limitado a la Vista Día. (Pulido más profundo de la Vista
+  Día quedó como opción abierta para otra pasada.)
+- [x] **Tercera vista "Integrada"** — DESPLEGADA. Sábana hora×día (franjas de
+  30 min 07:45–21:45 × 7 días); celda = nº de operativas + calor vs la meta del
+  tramo; puntos taupe = encargadas; recorta horas cerradas. Clic en celda →
+  panel de quién cubre + editar por persona (reusa `fn_set_turno`). Es un tercer
+  botón: NO reemplaza Día ni Semana. Doble conteo (operativa+encargada): cuenta
+  en ambas, por decisión de Felipe. Diseño afinado con AskUserQuestion.
 
 ## 1. 🔴 Alto valor / correctitud
 
@@ -85,12 +82,11 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
   habría retrocedido a Estefany/Judith de julio a junio. La fecha de ingreso se
   edita ahora solo persona por persona, con el candado de periodo pagado intacto
   (ese candado vive en `fn_set_fecha_ingreso`, que se conserva).
-- [ ] **Cobertura EN VIVO en el Dashboard** — es el primer pendiente del checklist
-  de anoche y ahora tiene todo lo necesario para hacerse bien: ya existe el
-  modelo de meta por tramo (mañana/tarde) y `metas_cobertura`. El Dashboard hoy
-  muestra "quién está trabajando" pero no "hay 4 operativas ahora en TRU y la
-  meta de la tarde es 5". Sería el mayor salto de valor de producto: la encargada
-  ve en tiempo real si su sede está corta ESTE momento, sin abrir Turnos.
+- [x] **Cobertura EN VIVO en el Dashboard — DESPLEGADO 2026-07-18.** Dentro de la
+  tarjeta "Trabajando ahora", por sede: operativas y encargadas EN PISO (solo
+  Presente, no en pausa) vs la meta del tramo vigente (corte 14:15), con semáforo
+  rojo/verde y "faltan N". Degrada suave si faltan metas o función. Pendiente de
+  Felipe: probarlo logueado con datos reales (yo no pude iniciar sesión).
 
 ---
 
