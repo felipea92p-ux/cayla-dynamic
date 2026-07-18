@@ -87,6 +87,11 @@ Detalle completo en `docs/revision-2026-07-15/00-CHECKLIST-MAESTRO.md`.
 - [ ] **La sugerencia de redistribución de Turnos nombra un candidato pero no
   verifica** que moverlo no cree un hueco donde estaba. Es una pista, no un
   optimizador — está bien así, pero tenlo presente antes de confiar ciego.
+- [ ] **`fn_set_horario` / `fn_quitar_horario` (0011/0015) son código muerto** —
+  ningún lado del frontend las llama (todo usa `fn_set_horario_semanal`). Pero
+  siguen ejecutables por cualquier sesión autenticada y escriben horarios sin el
+  candado de periodo pagado. Lo más limpio: hacerles `drop function` (nadie las
+  usa). Bajo riesgo, quita superficie de ataque.
 - [ ] Código muerto y consistencia menor (dead code, `aria-label` en celdas de
   Turnos, etiqueta "(hora de Perú)" en fechas) — ver lista 🟢 del checklist maestro.
 
