@@ -174,14 +174,16 @@ function resumenOperativas(cov: number[], metaMan: number, metaTar: number, hi0:
   return { hayTurnos: true, sinMeta: false, pct: Math.round((suma / n) * 100), supHoras: Math.round(supFr * tam * 10) / 10, sug, redistribuir };
 }
 
-// Resumen de ENCARGADAS: estricto. 2 encargadas es un PISO que siempre debe
-// haber, no un promedio — % de franjas de la ventana donde hubo la meta o más.
+// Resumen de ENCARGADAS: promedio de llenado vs la meta (igual que operativas,
+// con meta plana todo el día). Decisión de Felipe 2026-07-17: 1 encargada de
+// una meta de 2 se lee "cubierto 50%", no piso estricto en 0%.
 function resumenEncargadas(cov: number[], meta: number): { pct: number; hayTurnos: boolean; sinMeta: boolean } {
   const idx = cov.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
   if (idx.length === 0) return { pct: 0, hayTurnos: false, sinMeta: false };
   if (meta <= 0) return { pct: 0, hayTurnos: true, sinMeta: true };
   const ventana = cov.slice(idx[0], idx[idx.length - 1] + 1);
-  return { pct: Math.round((ventana.filter((v) => v >= meta).length / ventana.length) * 100), hayTurnos: true, sinMeta: false };
+  const suma = ventana.reduce((s, v) => s + Math.min(v / meta, 1), 0);
+  return { pct: Math.round((suma / ventana.length) * 100), hayTurnos: true, sinMeta: false };
 }
 // Verde ≥90 · ámbar 60-89 · rojo <60 (umbral elegido por Felipe).
 const colorDePct = (pct: number) => (pct >= 90 ? "var(--color-verde)" : pct >= 60 ? "var(--color-ambar)" : "var(--color-rojo)");
@@ -484,7 +486,7 @@ export default function TurnosPage() {
                   <p className="mb-2 text-xs text-taupe">
                     {tipo === "op"
                       ? "Verde = cubierto · rojo = falta · ámbar = sobra (la meta sube en la tarde, línea punteada). Abajo: qué tan lleno corriste vs tu meta, en promedio del día."
-                      : "Encargadas es un piso: siempre debe haber la meta. Abajo: qué % del día tuviste ese mínimo (o más)."}
+                      : "Abajo: qué tan lleno corriste vs tu meta de encargadas, en promedio del día (1 de 2 = 50%)."}
                   </p>
                   <div className="overflow-x-auto">
                     <div className="grid min-w-[640px] grid-cols-7 gap-2">
