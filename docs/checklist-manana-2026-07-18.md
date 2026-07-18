@@ -37,11 +37,13 @@ Estas no son bugs, son datos que solo tú puedes confirmar. Todas se hacen en
   ingresos desde marcas" sobre ellas** — ese botón las regresaría a junio y les
   metería el feriado que no les toca. Si algún día se corre el botón masivo,
   volver a fijar a estas dos a mano.
-- [ ] 🟡 **Janis Revilla** — su rol en la base es `admin`, por eso NO cuenta como
-  encargada en la cobertura de Turnos. Si su función real es encargada de piso,
-  cámbiale el rol a "Líder de equipo (encargada)". **Ojo:** al dejar de ser
-  admin pierde acceso a planilla/salarios de toda la empresa y queda limitada a
-  su sede. Solo hazlo si eso corresponde a su función.
+- [x] **Janis Revilla — RESUELTO 2026-07-17.** Es de confianza y actúa como
+  administradora Y encargada a la vez. Se desacopló el conteo de cobertura del
+  rol: nueva marca `es_encargada_piso` (migración 0040) — Janis mantiene TODOS
+  sus permisos de admin y además cuenta como encargada en Turnos. Aplicado y
+  desplegado. **Pendiente chico (🟢):** agregar un checkbox en Equipo para
+  marcar "encargada de piso" a otra persona sin tocar SQL (por ahora solo Janis
+  está marcada, vía la migración).
 - [ ] 🟡 **Meta de operativas de TRU = 8/8 es imposible** — tu pico real de gente
   simultánea es 6. Ponla en 5/5 (o 6/6) en la cabecera de cada día en Turnos,
   para que el "% cubierto" refleje tu realidad y no una aspiración inalcanzable.
