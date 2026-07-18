@@ -37,7 +37,7 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
   return { abr: DIAS_ABR[d.getUTCDay()], num: `${d.getUTCDate()} ${MESES[d.getUTCMonth()]}` };
 }
 
-interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; }
+interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; }
 interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; }
 // De los tramos de una persona, el vigente en `fecha` (mismo criterio que fn_recalcular_jornada).
 function tramoVigente(lista: Horario[] | undefined, fecha: string): Horario | undefined {
@@ -299,8 +299,8 @@ export default function TurnosPage() {
     // Si falla la RPC de funciones O la del catálogo de áreas, la cobertura puede
     // contar mal (degrada a defaults) — se avisa en pantalla en vez de fallar en silencio.
     setFuncionesFallo(Boolean(fErr) || Boolean(arErr));
-    const mapF = new Map(((f as { persona_id: string; funcion: string }[] | null) ?? []).map((x) => [x.persona_id, x.funcion]));
-    setPersonas((((p as Omit<Persona, "funcion">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id) ?? AREA_DEFAULT }))));
+    const mapF = new Map(((f as { persona_id: string; funcion: string; es_encargada_piso?: boolean }[] | null) ?? []).map((x) => [x.persona_id, { funcion: x.funcion, esEncargadaPiso: Boolean(x.es_encargada_piso) }]));
+    setPersonas((((p as Omit<Persona, "funcion" | "esEncargadaPiso">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false }))));
     const mapH = new Map<string, Horario[]>();
     for (const x of (h as any[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
@@ -356,7 +356,10 @@ export default function TurnosPage() {
     return franjas;
   }, [personas, celda]);
   const esOperativa = useCallback((p: Persona) => esOperativaEn(areas, p.funcion), [areas]);
-  const esEncargada = (p: Persona) => p.rol === "supervisor_sede";
+  // Cuenta como encargada quien tiene el rol supervisor_sede O la marca
+  // es_encargada_piso (un admin de confianza que además está en el piso, como
+  // Janis — mantiene sus permisos de admin y de paso suma en la cobertura).
+  const esEncargada = (p: Persona) => p.rol === "supervisor_sede" || p.esEncargadaPiso;
   const coberturaPorHora = useCallback(
     (fecha: string) => coberturaPorFranja(fecha, HORA_INICIO, HORA_FIN - HORA_INICIO, 1, esOperativa),
     [coberturaPorFranja, esOperativa],

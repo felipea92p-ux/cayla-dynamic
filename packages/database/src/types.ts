@@ -1019,6 +1019,10 @@ export type Database = {
         Args: { p_con_hijos: boolean; p_persona_id: string }
         Returns: undefined
       }
+      fn_set_encargada_piso: {
+        Args: { p_persona_id: string; p_valor: boolean }
+        Returns: undefined
+      }
       fn_proyeccion_periodo: {
         Args: { p_periodo_id: string }
         Returns: Json
