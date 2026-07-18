@@ -66,11 +66,20 @@ const MARCAS_HORA = [7, 9, 11, 13, 15, 17, 19, 21];
 // que las horas de entrada reales del equipo — fijo, no automático (decisión
 // de Felipe: más simple y predecible que recalcularlo cada vez).
 const HORA_INICIO_SEMANA = 7.75; // 07:45
-const N_FRANJAS_SEMANA = 27; // hasta 21:15
+const N_FRANJAS_SEMANA = 28; // 07:45 → 21:45 (28 franjas de 30 min; la operación máxima real)
 function horaADecimal(hm: string): number {
   const [h, m] = hm.split(":").map(Number);
   return (h ?? 0) + (m ?? 0) / 60;
 }
+// Hora decimal → "HH:MM" en formato 24h (07.75 → "07:45"). Decisión de Felipe:
+// siempre 24h en Turnos, nunca a.m./p.m., para no dar lugar a confusión.
+function decimalAHHMM(dec: number): string {
+  const h = Math.floor(dec + 1e-9);
+  const m = Math.round((dec - h) * 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+// Inicio decimal de la franja i de la Vista Semana / Integrada.
+const inicioFranja = (i: number) => HORA_INICIO_SEMANA + i * 0.5;
 // % horizontal dentro del rango visible, recortado a [0, 100] para turnos que
 // empiezan antes de las 7 o terminan después de las 21.
 function pctEnRango(horaDec: number): number {
@@ -204,12 +213,19 @@ export default function TurnosPage() {
   // La preferencia guardada se lee DESPUÉS de montar (no en el primer render):
   // el HTML llega del servidor con "dia" y leer localStorage durante la
   // hidratación haría chocar servidor y navegador (error de hidratación).
-  const [vista, setVistaRaw] = useState<"dia" | "semana">("dia");
+  // Tres vistas: Día = detalle por persona de un día · Semana = siluetas resumen
+  // por día · Integrada = la sábana hora×día de toda la semana (quién cubre cada
+  // franja de un vistazo). Recuerda la preferencia entre visitas.
+  type Vista = "dia" | "semana" | "integrada";
+  const [vista, setVistaRaw] = useState<Vista>("dia");
   useEffect(() => {
     const v = localStorage.getItem("turnos_vista");
-    if (v === "semana") setVistaRaw("semana");
+    if (v === "semana" || v === "integrada") setVistaRaw(v);
   }, []);
-  const setVista = (v: "dia" | "semana") => { setVistaRaw(v); localStorage.setItem("turnos_vista", v); };
+  const setVista = (v: Vista) => { setVistaRaw(v); localStorage.setItem("turnos_vista", v); };
+  // Panel de la Vista Integrada: al tocar una celda (una franja de un día) se
+  // abre mostrando quién cubre esa media hora, con acceso a editar por persona.
+  const [panel, setPanel] = useState<{ fecha: string; franjaIdx: number } | null>(null);
   // Clic en una celda de Vista Semana → salta a Vista Día y hace scroll a ese
   // día específico (se limpia solo después de saltar, para no repetir el
   // scroll si luego el usuario navega manualmente dentro de Vista Día).
@@ -364,6 +380,19 @@ export default function TurnosPage() {
     (fecha: string) => coberturaPorFranja(fecha, HORA_INICIO, HORA_FIN - HORA_INICIO, 1, esOperativa),
     [coberturaPorFranja, esOperativa],
   );
+  // Quiénes (según `filtro`) cubren una franja de 30 min concreta de un día —
+  // para el panel de la Vista Integrada. Mismo criterio de solape que la cuenta.
+  const personasEnFranja = useCallback((fecha: string, franjaIdx: number, filtro: (p: Persona) => boolean): Persona[] => {
+    const hi = inicioFranja(franjaIdx), hf = hi + 0.5;
+    return personas.filter((p) => {
+      if (!filtro(p)) return false;
+      const c = celda(p.id, fecha);
+      if (c.tipo !== "turno" && c.tipo !== "default") return false;
+      const e = horaADecimal(c.entrada);
+      const s = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+      return e < hf && s > hi;
+    });
+  }, [personas, celda]);
 
   function abrir(personaId: string, fecha: string) {
     const c = celda(personaId, fecha);
@@ -436,8 +465,12 @@ export default function TurnosPage() {
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-sand p-0.5 text-sm">
-              <button onClick={() => setVista("dia")} className={`rounded px-3 py-1.5 ${vista === "dia" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"}`}>Día</button>
-              <button onClick={() => setVista("semana")} className={`rounded px-3 py-1.5 ${vista === "semana" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"}`}>Semana</button>
+              {([["dia", "Día"], ["semana", "Semana"], ["integrada", "Integrada"]] as const).map(([v, txt]) => (
+                <button key={v} onClick={() => setVista(v)}
+                  className={`rounded px-3 py-1.5 transition-colors ${vista === v ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"}`}>
+                  {txt}
+                </button>
+              ))}
             </div>
             {esAdmin && (
               <select value={sedeSel} onChange={(e) => setSedeSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
@@ -553,6 +586,100 @@ export default function TurnosPage() {
               );
             })}
           </div>
+        ) : vista === "integrada" ? (
+          (() => {
+            // ── Vista Integrada: la sábana hora×día de toda la semana ──────────
+            // Filas = franjas de 30 min, columnas = los 7 días. Cada celda: número
+            // de operativas + color de calor vs la meta de su tramo; puntos taupe
+            // = encargadas. Reusa el mismo motor de cobertura que las otras vistas.
+            const covOp = dias.map((iso) => coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esOperativa));
+            const covEnc = dias.map((iso) => coberturaPorFranja(iso, HORA_INICIO_SEMANA, N_FRANJAS_SEMANA, 0.5, esEncargada));
+            // Ventana operativa real de la semana: se recortan las franjas sin
+            // nadie (antes de abrir / después de cerrar) para que no estorben —
+            // distintas sedes abren a distinta hora (pedido de Felipe).
+            let f0 = N_FRANJAS_SEMANA, f1 = -1;
+            for (let i = 0; i < N_FRANJAS_SEMANA; i++) {
+              if (covOp.some((a) => a[i] > 0) || covEnc.some((a) => a[i] > 0)) { if (i < f0) f0 = i; if (i > f1) f1 = i; }
+            }
+            const hayGente = f1 >= f0;
+            const filas = hayGente ? Array.from({ length: f1 - f0 + 1 }, (_, k) => f0 + k) : [];
+            const cols = "3.25rem repeat(7, minmax(0, 1fr))";
+            return (
+              <div>
+                <p className="mb-3 max-w-3xl text-xs text-taupe">
+                  Toda la semana, hora por hora. El <strong>número</strong> es cuántas operativas cubren esa media
+                  hora; el <strong>color</strong> va de rojo (falta) a verde (llega a la meta de su tramo). Los{" "}
+                  <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son encargadas.
+                  Toca una celda para ver quién cubre y editar sus turnos.
+                </p>
+                {!hayGente ? (
+                  <p className="rounded-lg border border-sand px-4 py-6 text-center text-sm text-taupe">
+                    No hay turnos programados esta semana en esta sede.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-sand bg-crema p-2">
+                    <div className="min-w-[720px]">
+                      {/* Cabecera: los 7 días */}
+                      <div className="grid" style={{ gridTemplateColumns: cols }}>
+                        <div />
+                        {dias.map((iso) => {
+                          const { abr, num } = etiquetaDia(iso);
+                          const hoy = iso === hoyLima();
+                          return (
+                            <div key={iso} className={`px-1 pb-2 text-center ${hoy ? "text-tinta" : "text-taupe"}`}>
+                              <div className={`font-serif text-sm leading-none ${hoy ? "text-tinta" : "text-tinta/80"}`}>{abr}</div>
+                              <div className="mt-0.5 text-[10px] leading-none">{num}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Una fila por franja de 30 min */}
+                      {filas.map((fi) => {
+                        const t = decimalAHHMM(inicioFranja(fi));
+                        return (
+                          <div key={fi} className="grid" style={{ gridTemplateColumns: cols }}>
+                            <div className="flex items-center justify-end pr-2 text-[10px] tabular-nums text-taupe/70">{t}</div>
+                            {dias.map((iso, di) => {
+                              const dia = diaSemana(iso);
+                              const nOp = covOp[di][fi];
+                              const nEnc = covEnc[di][fi];
+                              const metaOp = metaDeHora(inicioFranja(fi), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
+                              const metaEnc = metasEncargadas.get(dia) ?? 0;
+                              const encFalta = metaEnc > 0 && nEnc < metaEnc;
+                              const bg = nOp > 0
+                                ? colorCobertura(nOp, metaOp)
+                                : nEnc > 0
+                                ? "rgba(164, 120, 101, 0.12)" // solo encargada esa hora
+                                : metaOp > 0
+                                ? "rgba(184, 65, 45, 0.10)" // meta puesta pero nadie: falta suave
+                                : "rgba(232, 224, 208, 0.35)"; // sin meta: sand tenue
+                              const claro = nOp > 0;
+                              return (
+                                <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
+                                  title={`${t}–${decimalAHHMM(inicioFranja(fi) + 0.5)} · ${nOp} operativa${nOp === 1 ? "" : "s"}${metaOp > 0 ? ` (meta ${metaOp})` : ""}${nEnc > 0 ? ` · ${nEnc} encargada${nEnc === 1 ? "" : "s"}` : ""}`}
+                                  className="relative m-[1.5px] flex h-6 items-center justify-center rounded-[3px] text-[11px] font-medium tabular-nums transition-all hover:z-10 hover:ring-2 hover:ring-tinta/25"
+                                  style={{ background: bg, color: claro ? "var(--color-crema)" : "var(--color-taupe)", textShadow: claro ? "0 1px 2px rgba(0,0,0,0.30)" : "none" }}>
+                                  {nOp > 0 ? nOp : ""}
+                                  {nEnc > 0 && (
+                                    <span className="pointer-events-none absolute right-[3px] top-[3px] flex gap-[2px]">
+                                      {Array.from({ length: nEnc }).map((_, k) => (
+                                        <span key={k} className="h-[3px] w-[3px] rounded-full"
+                                          style={{ background: claro ? "var(--color-crema)" : "var(--color-taupe)", opacity: encFalta ? 0.4 : 0.95 }} />
+                                      ))}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[700px] space-y-4">
@@ -719,12 +846,88 @@ export default function TurnosPage() {
           </div>
         )}
 
-        <p className="mt-3 text-xs text-taupe">
-          Cada barra es el rango de entrada–salida del turno de esa persona ese día (más clarita = horario por
-          defecto del periodo, no se fijó turno puntual). El mapa de calor de abajo cuenta solo a las{" "}
-          <strong>áreas operativas de sede</strong> ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}
-          ) — más verde = más cerca de la meta de ese tramo (mañana o tarde). El área se cambia en Equipo.
-        </p>
+        {vista === "dia" && !cargando && (
+          <p className="mt-3 text-xs text-taupe">
+            Cada barra es el rango de entrada–salida del turno de esa persona ese día (más clarita = horario por
+            defecto del periodo, no se fijó turno puntual). El mapa de calor de abajo cuenta solo a las{" "}
+            <strong>áreas operativas de sede</strong> ({areas.filter((a) => a.operativa && a.activa).map((a) => a.nombre).join(", ")}
+            ) — más verde = más cerca de la meta de ese tramo (mañana o tarde). El área se cambia en Equipo.
+          </p>
+        )}
+
+        {/* Panel de la Vista Integrada: quién cubre esta franja + editar por persona */}
+        {panel && (() => {
+          const { abr, num } = etiquetaDia(panel.fecha);
+          const desde = decimalAHHMM(inicioFranja(panel.franjaIdx));
+          const hasta = decimalAHHMM(inicioFranja(panel.franjaIdx) + 0.5);
+          const ops = personasEnFranja(panel.fecha, panel.franjaIdx, esOperativa);
+          const encs = personasEnFranja(panel.fecha, panel.franjaIdx, esEncargada);
+          const cubren = new Set([...ops, ...encs].map((p) => p.id));
+          const resto = personas.filter((p) => !cubren.has(p.id));
+          const dia = diaSemana(panel.fecha);
+          const metaOp = metaDeHora(inicioFranja(panel.franjaIdx), metas.get(dia) ?? 0, metasTarde.get(dia) ?? 0);
+          const metaEnc = metasEncargadas.get(dia) ?? 0;
+          // Editar por persona reusa el modal existente (fn_set_turno): un turno es
+          // de una persona, no de "la hora" — la sábana es solo la puerta de entrada.
+          const abrirDesdePanel = (id: string) => { setPanel(null); abrir(id, panel.fecha); };
+          return (
+            <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => setPanel(null)}>
+              <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-4 flex items-baseline justify-between gap-3">
+                  <h3 className="font-serif text-lg">{abr} <span className="text-taupe">{num}</span></h3>
+                  <span className="text-sm tabular-nums text-taupe">{desde}–{hasta}</span>
+                </div>
+
+                <div className="mb-4">
+                  <div className="etiqueta mb-2 text-taupe">Operativas · {ops.length}{metaOp > 0 ? ` / meta ${metaOp}` : ""}</div>
+                  {ops.length === 0 ? (
+                    <p className="text-sm text-taupe/60">Nadie esta media hora.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {ops.map((p) => (
+                        <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
+                          className="rounded-full border border-sand bg-crema px-3 py-1 text-sm transition-colors hover:bg-sand/40">
+                          {p.nombres} {p.apellidos}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <div className="etiqueta mb-2 text-taupe">Encargadas · {encs.length}{metaEnc > 0 ? ` / meta ${metaEnc}` : ""}</div>
+                  {encs.length === 0 ? (
+                    <p className="text-sm text-taupe/60">Ninguna esta media hora.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {encs.map((p) => (
+                        <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
+                          className="rounded-full border border-taupe/30 bg-taupe/10 px-3 py-1 text-sm text-taupe transition-colors hover:bg-taupe/20">
+                          {p.nombres} {p.apellidos}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {resto.length > 0 && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="etiqueta text-taupe">Agregar a este día</span>
+                    <select value="" onChange={(e) => e.target.value && abrirDesdePanel(e.target.value)}
+                      className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
+                      <option value="">Elegir persona…</option>
+                      {resto.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
+                    </select>
+                  </label>
+                )}
+
+                <div className="mt-5 flex justify-end">
+                  <button onClick={() => setPanel(null)} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40">Cerrar</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {edit && (() => {
           const p = personas.find((x) => x.id === edit.personaId);
