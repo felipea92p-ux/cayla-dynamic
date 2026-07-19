@@ -20,11 +20,58 @@ function horaInput(tsISO: string) {
 function construirTs(fecha: string, horaHHMM: string) {
   return `${fecha}T${horaHHMM}:00-05:00`;
 }
+// Un timestamptz guardado como texto crudo en la auditoría (ej. "2026-07-18
+// 19:15:00+00") o un ISO -> hora Lima "hh:mm a.m.". Tolera el espacio en vez de
+// T y offsets cortos como "-05"; si aun así no parsea, muestra el texto crudo.
+function horaTextoLima(s: string | null): string {
+  if (!s) return "—";
+  const t = s.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
+  const d = new Date(t);
+  if (isNaN(d.getTime())) return s;
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+}
+// Sello de auditoría: cuándo se hizo el cambio (fecha corta + hora Lima).
+function selloLima(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+}
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
 const ROLES_ADMIN = ["admin", "lider_do"];
 interface Marcaje { id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string; origen: string; estado_revision: string; }
 interface Jornada { estado: string; horas_trabajadas: number | null; minutos_tarde: number | null; }
+// Fila de correcciones_auditoria (el registro de quién cambió qué, cuándo y por qué).
+// Sin embeds de PostgREST a propósito: en este repo el schema cache está trabado
+// para varias relaciones, así que el nombre de quién corrigió se resuelve aparte
+// desde la lista de personas ya cargada (ver `nombrePorId`).
+interface Auditoria {
+  id: string;
+  campo_modificado: string;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  corregido_at: string;
+  motivo: string;
+  corregido_por: string; // id de quien hizo el cambio
+}
+// Traduce una fila de auditoría a lenguaje llano: qué acción fue y su detalle.
+// El tipo de marcaje ya viene embebido en el valor de agregado/eliminado
+// ("entrada @ ts"); para una hora corregida solo cambian las horas.
+function describirCambio(row: Auditoria): { accion: string; detalle: string } {
+  const lblTipo = (t?: string | null) => (t && TIPO_MARCA_LABELS[t as TipoMarca]) || t || "marcaje";
+  if (row.campo_modificado === "timestamp_marca") {
+    return { accion: "Hora corregida", detalle: `${horaTextoLima(row.valor_anterior)} → ${horaTextoLima(row.valor_nuevo)}` };
+  }
+  if (row.campo_modificado === "marcaje_agregado") {
+    const [tipo, ts] = (row.valor_nuevo ?? "").split(" @ ");
+    return { accion: "Marcaje agregado", detalle: `${lblTipo(tipo)} a las ${horaTextoLima(ts)}` };
+  }
+  if (row.campo_modificado === "marcaje_eliminado") {
+    const [tipo, ts] = (row.valor_anterior ?? "").split(" @ ");
+    return { accion: "Marcaje eliminado", detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
+  }
+  return { accion: row.campo_modificado, detalle: `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}` };
+}
 
 // Tipos que un admin puede agregar manualmente (los pares salida/retorno y entrada/salida final)
 const TIPOS_AGREGABLES = TIPOS_MARCA;
@@ -43,6 +90,8 @@ export default function CorreccionesPage() {
   const [fecha, setFecha] = useState(fechaHoyLima());
   const [marcajes, setMarcajes] = useState<Marcaje[]>([]);
   const [jornada, setJornada] = useState<Jornada | null>(null);
+  const [auditoria, setAuditoria] = useState<Auditoria[]>([]); // últimas correcciones de esta persona
+  const [auditoriaError, setAuditoriaError] = useState(false); // para no confundir "sin correcciones" con "no cargó"
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
@@ -76,7 +125,7 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     const inicio = `${fecha}T00:00:00-05:00`;
     const fin = `${fecha}T23:59:59-05:00`;
-    const [{ data: mk, error: errMk }, { data: jor, error: errJor }] = await Promise.all([
+    const [{ data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }] = await Promise.all([
       supabase.from("marcajes")
         .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision")
         .eq("persona_id", personaId).gte("timestamp_marca", inicio).lte("timestamp_marca", fin)
@@ -84,6 +133,12 @@ export default function CorreccionesPage() {
       supabase.from("jornadas")
         .select("estado, horas_trabajadas, minutos_tarde")
         .eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
+      // Historial de correcciones de la persona. Columnas planas (sin embeds: el
+      // schema cache está trabado). Falla suave: si no llega, no bloquea el día,
+      // pero se marca el error para NO mostrar "sin correcciones" en falso.
+      supabase.from("correcciones_auditoria")
+        .select("id, campo_modificado, valor_anterior, valor_nuevo, corregido_at, motivo, corregido_por")
+        .eq("persona_id", personaId).order("corregido_at", { ascending: false }).limit(30),
     ]);
     if (errMk || errJor) {
       setCargando(false);
@@ -92,6 +147,8 @@ export default function CorreccionesPage() {
     }
     setMarcajes((mk as Marcaje[]) ?? []);
     setJornada((jor as Jornada) ?? null);
+    setAuditoriaError(Boolean(errAud));
+    setAuditoria(errAud ? [] : ((aud as Auditoria[]) ?? []));
     setHorasEditadas(Object.fromEntries(((mk as Marcaje[]) ?? []).map((m) => [m.id, horaInput(m.timestamp_marca)])));
     setCargado(true);
     setCargando(false);
@@ -154,6 +211,9 @@ export default function CorreccionesPage() {
   }
 
   const personaSel = useMemo(() => personas.find((p) => p.id === personaId), [personas, personaId]);
+  // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
+  // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
+  const nombrePorId = useMemo(() => new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`])), [personas]);
   const puedeCorregir = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
   const esSupervisor = rol === "supervisor_sede";
 
@@ -298,6 +358,40 @@ export default function CorreccionesPage() {
                   Agregar
                 </button>
               </div>
+            </div>
+
+            {/* Historial de correcciones: el motivo de cada cambio, quién y cuándo.
+                Es donde se LEE la auditoría que cada corrección va guardando. */}
+            <div className="mt-4 overflow-hidden rounded-lg border">
+              <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
+                Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
+              </h2>
+              {auditoriaError ? (
+                <p className="px-4 py-4 text-sm text-rojo">
+                  No se pudo cargar el historial de correcciones. <button onClick={cargarDia} className="font-medium underline">Reintentar</button>
+                </p>
+              ) : auditoria.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-taupe">Esta persona no tiene correcciones registradas.</p>
+              ) : (
+                <ul className="divide-y">
+                  {auditoria.map((row) => {
+                    const { accion, detalle } = describirCambio(row);
+                    return (
+                      <li key={row.id} className="px-4 py-3 text-sm">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                          <span className="font-medium">
+                            {accion} <span className="font-normal text-taupe">· {detalle}</span>
+                          </span>
+                          <span className="text-xs text-taupe">
+                            {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "otra persona"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-taupe">“{row.motivo}”</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </div>
         )}
