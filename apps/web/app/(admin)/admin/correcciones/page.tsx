@@ -12,6 +12,11 @@ const TZ = "America/Lima";
 function fechaHoyLima() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 }
+// Día de la semana (0=domingo … 6=sábado) de un ISO — misma clave que horario_por_dia.
+function dowDe(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
 // "HH:MM" en hora Lima para el input de tipo time
 function horaInput(tsISO: string) {
   return new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(tsISO));
@@ -35,6 +40,28 @@ function selloLima(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+}
+
+interface TurnoDia { hora_entrada: string | null; es_descanso: boolean; }
+interface HorarioTramo { hora_entrada: string | null; horario_por_dia: Record<string, { e?: string; s?: string; r?: number }> | null; }
+// Contra qué hora se mide la tardanza ese día y de dónde sale. Replica la
+// prioridad del backend (fn_recalcular_jornada): el turno del día manda; solo si
+// no hay turno se cae al horario base. `deTurno` marca el override para resaltarlo.
+function calcularEsperado(fecha: string, turno: TurnoDia | null, horario: HorarioTramo | null): { hora: string | null; origen: string; deTurno: boolean } | null {
+  if (turno) {
+    if (turno.es_descanso) return { hora: null, origen: "descanso (turno del día)", deTurno: true };
+    if (turno.hora_entrada) return { hora: turno.hora_entrada.slice(0, 5), origen: "turno del día", deTurno: true };
+  }
+  if (horario) {
+    const hpd = horario.horario_por_dia;
+    if (hpd) {
+      const d = hpd[String(dowDe(fecha))];
+      if (d?.e) return { hora: d.e.slice(0, 5), origen: "horario base", deTurno: false };
+      return { hora: null, origen: "descanso (horario base)", deTurno: false };
+    }
+    if (horario.hora_entrada) return { hora: horario.hora_entrada.slice(0, 5), origen: "horario base", deTurno: false };
+  }
+  return null; // sin turno ni horario vigente: no hay contra qué medir
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
@@ -92,6 +119,9 @@ export default function CorreccionesPage() {
   const [jornada, setJornada] = useState<Jornada | null>(null);
   const [auditoria, setAuditoria] = useState<Auditoria[]>([]); // últimas correcciones de esta persona
   const [auditoriaError, setAuditoriaError] = useState(false); // para no confundir "sin correcciones" con "no cargó"
+  // Contra qué hora se mide la tardanza ese día y de dónde sale (turno del día vs
+  // horario base) — para que "N min tarde" nunca sea un número sin contexto.
+  const [esperado, setEsperado] = useState<{ hora: string | null; origen: string; deTurno: boolean } | null>(null);
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
@@ -125,7 +155,7 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     const inicio = `${fecha}T00:00:00-05:00`;
     const fin = `${fecha}T23:59:59-05:00`;
-    const [{ data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }] = await Promise.all([
+    const [{ data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }] = await Promise.all([
       supabase.from("marcajes")
         .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision")
         .eq("persona_id", personaId).gte("timestamp_marca", inicio).lte("timestamp_marca", fin)
@@ -139,6 +169,12 @@ export default function CorreccionesPage() {
       supabase.from("correcciones_auditoria")
         .select("id, campo_modificado, valor_anterior, valor_nuevo, corregido_at, motivo, corregido_por")
         .eq("persona_id", personaId).order("corregido_at", { ascending: false }).limit(30),
+      // Contra qué se mide la tardanza ese día: el turno puntual manda sobre el
+      // horario base (misma prioridad que fn_recalcular_jornada). Fallan suave.
+      supabase.from("turnos").select("hora_entrada, es_descanso").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
+      supabase.from("horarios_asignados").select("hora_entrada, horario_por_dia, vigente_desde")
+        .eq("persona_id", personaId).lte("vigente_desde", fecha).or(`vigente_hasta.is.null,vigente_hasta.gte.${fecha}`)
+        .order("vigente_desde", { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (errMk || errJor) {
       setCargando(false);
@@ -147,6 +183,7 @@ export default function CorreccionesPage() {
     }
     setMarcajes((mk as Marcaje[]) ?? []);
     setJornada((jor as Jornada) ?? null);
+    setEsperado(calcularEsperado(fecha, turno as TurnoDia | null, horario as HorarioTramo | null));
     setAuditoriaError(Boolean(errAud));
     setAuditoria(errAud ? [] : ((aud as Auditoria[]) ?? []));
     setHorasEditadas(Object.fromEntries(((mk as Marcaje[]) ?? []).map((m) => [m.id, horaInput(m.timestamp_marca)])));
@@ -276,6 +313,26 @@ export default function CorreccionesPage() {
                 <span>Estado: <strong>{jornada.estado}</strong></span>
                 <span>Horas: <strong>{jornada.horas_trabajadas ?? "—"}</strong></span>
                 <span>Tardanza: <strong>{jornada.minutos_tarde ? `${jornada.minutos_tarde} min` : "—"}</strong></span>
+              </div>
+            )}
+
+            {/* De dónde sale la tardanza: la hora esperada de ese día y su origen.
+                Si viene de un turno puntual (pisa el horario base), se resalta. */}
+            {esperado && (
+              <div className="mb-4 rounded-lg border px-4 py-2.5 text-sm">
+                {esperado.hora ? (
+                  <>
+                    Entrada esperada ese día: <strong>{esperado.hora}</strong>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${esperado.deTurno ? "bg-ambar/15 text-ambar" : "bg-taupe/15 text-taupe"}`}>
+                      {esperado.origen}
+                    </span>
+                    {esperado.deTurno && (
+                      <span className="ml-2 text-xs text-taupe">— este día tiene un turno propio que manda sobre el horario base. Se cambia en Turnos.</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-taupe">Ese día no mide tardanza: {esperado.origen}.</span>
+                )}
               </div>
             )}
 
