@@ -31,6 +31,8 @@ function lunesDeLaSemana(iso: string): string {
   return addDays(iso, dow === 0 ? -6 : 1 - dow);
 }
 const DIAS_ABR = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+// Para la frase "cambia su horario de los sábados…" (plural, en minúscula).
+const DIAS_PLURAL = ["domingos", "lunes", "martes", "miércoles", "jueves", "viernes", "sábados"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function etiquetaDia(iso: string): { abr: string; num: string } {
   const d = parseISO(iso);
@@ -204,70 +206,117 @@ const colorDePct = (pct: number) => (pct >= 90 ? "var(--color-verde)" : pct >= 6
 // —de hoy en adelante— para que la encargada los revise: los que sean excepción
 // real, se dejan; los que sean "espejos viejos", se ajustan en la Vista Día.
 // Solo lectura: no toca nada.
-interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; }
+interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; espejo: boolean }
 const rangoTxt = (e: string | null, s: string | null) => (e ? `${e}${s ? `–${s}` : ""}` : "descanso");
+// El horario semanal completo de un tramo, como el jsonb que espera
+// fn_set_horario_semanal ({"1":{e,s,r}, …}). Sirve para cambiar UN día sin
+// perder el resto de la semana. Un tramo legacy (sin jsonb) se reconstruye
+// desde dias_laborables + hora_entrada/salida.
+function horarioSemanalDesdeTramo(tr: Horario | undefined): Record<string, { e: string; s: string; r?: number }> {
+  const out: Record<string, { e: string; s: string; r?: number }> = {};
+  if (tr?.horario_por_dia) {
+    for (const [k, v] of Object.entries(tr.horario_por_dia)) {
+      if (v?.e) out[k] = { e: hhmm(v.e), s: hhmm(v.s ?? v.e), ...(v.r != null ? { r: v.r } : {}) };
+    }
+  } else if (tr) {
+    for (const d of tr.dias_laborables ?? []) out[String(d)] = { e: hhmm(tr.hora_entrada), s: hhmm(tr.hora_salida) };
+  }
+  return out;
+}
+// Horas que ESE tramo de horario define para un día de la semana ({e:null} = descansa).
+function horasDeTramo(tr: Horario, dow: string): { e: string | null; s: string | null } {
+  if (tr.horario_por_dia) {
+    const d = tr.horario_por_dia[dow];
+    return d ? { e: hhmm(d.e), s: hhmm(d.s) } : { e: null, s: null };
+  }
+  if ((tr.dias_laborables ?? []).includes(Number(dow))) return { e: hhmm(tr.hora_entrada), s: hhmm(tr.hora_salida) };
+  return { e: null, s: null };
+}
 
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [divs, setDivs] = useState<Divergencia[] | null>(null);
   const [error, setError] = useState(false);
   const [abierto, setAbierto] = useState(true);
+  const [procesando, setProcesando] = useState<string | null>(null); // clave de fila, o "bulk"
+  const [confirmarBulk, setConfirmarBulk] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => {
+  const cargar = useCallback(async () => {
     if (!sedeSel) return;
-    let cancelado = false;
-    (async () => {
-      setDivs(null); setError(false);
-      const hoy = hoyLima();
-      const { data: personas, error: eP } = await supabase.from("personas")
-        .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo");
-      if (eP) { if (!cancelado) setError(true); return; }
-      const ids = (personas ?? []).map((p) => p.id);
-      const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
-      if (ids.length === 0) { if (!cancelado) setDivs([]); return; }
-      const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
-        supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", hoy).order("fecha"),
-        supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").in("persona_id", ids),
-      ]);
-      if (eT || eH) { if (!cancelado) setError(true); return; }
-      const hMap = new Map<string, Horario[]>();
-      for (const h of (horarios as any[]) ?? []) {
-        const arr = hMap.get(h.persona_id) ?? [];
-        arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null });
-        hMap.set(h.persona_id, arr);
+    setDivs(null); setError(false);
+    const hoy = hoyLima();
+    const { data: personas, error: eP } = await supabase.from("personas")
+      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo");
+    if (eP) { setError(true); return; }
+    const ids = (personas ?? []).map((p) => p.id);
+    const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
+    if (ids.length === 0) { setDivs([]); return; }
+    const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", hoy).order("fecha"),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").in("persona_id", ids),
+    ]);
+    if (eT || eH) { setError(true); return; }
+    const hMap = new Map<string, Horario[]>();
+    for (const h of (horarios as any[]) ?? []) {
+      const arr = hMap.get(h.persona_id) ?? [];
+      arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null });
+      hMap.set(h.persona_id, arr);
+    }
+    const res: Divergencia[] = [];
+    for (const t of (turnos as any[]) ?? []) {
+      const tramos = hMap.get(t.persona_id);
+      const tramo = tramoVigente(tramos, t.fecha);
+      const dow = String(diaSemana(t.fecha));
+      const base = tramo ? horasDeTramo(tramo, dow) : null;
+      const tE = t.es_descanso ? null : hhmm(t.hora_entrada);
+      const tS = t.es_descanso ? null : hhmm(t.hora_salida);
+      // ¿Coincide con algún horario ANTERIOR (ya reemplazado) de esa persona? Entonces
+      // casi seguro es un "espejo viejo": era copia del horario de su momento y quedó
+      // atrás cuando el horario cambió. Si no coincide con ninguno, alguien lo escribió
+      // a propósito (excepción real) — por eso NO se limpian en automático.
+      const espejo = (tramos ?? []).some((x) => {
+        if (x === tramo) return false;
+        const h = horasDeTramo(x, dow);
+        return tE === null ? h.e === null : h.e === tE && h.s === tS;
+      });
+      const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo };
+      if (!base) {
+        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "sin horario base ese día" });
+      } else if (tE === null) {
+        if (base.e) res.push({ ...fila, turnoTxt: "descanso", baseTxt: rangoTxt(base.e, base.s) });
+      } else if (!base.e) {
+        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "descanso" });
+      } else if (tE !== base.e || (tS && base.s && tS !== base.s)) {
+        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(base.e, base.s) });
       }
-      const res: Divergencia[] = [];
-      for (const t of (turnos as any[]) ?? []) {
-        const tramo = tramoVigente(hMap.get(t.persona_id), t.fecha);
-        const dow = String(diaSemana(t.fecha));
-        // Hora base de ese día (null = ese día descansa según el horario)
-        let baseE: string | null = null, baseS: string | null = null, hayBase = false;
-        if (tramo) {
-          hayBase = true;
-          if (tramo.horario_por_dia) {
-            const d = tramo.horario_por_dia[dow];
-            if (d) { baseE = hhmm(d.e); baseS = hhmm(d.s); }
-          } else if ((tramo.dias_laborables ?? []).includes(Number(dow))) {
-            baseE = hhmm(tramo.hora_entrada); baseS = hhmm(tramo.hora_salida);
-          }
-        }
-        const tE = t.es_descanso ? null : hhmm(t.hora_entrada);
-        const tS = t.es_descanso ? null : hhmm(t.hora_salida);
-        const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?" };
-        if (!hayBase) {
-          res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "sin horario base ese día" });
-        } else if (t.es_descanso) {
-          if (baseE) res.push({ ...fila, turnoTxt: "descanso", baseTxt: rangoTxt(baseE, baseS) });
-        } else if (!baseE) {
-          res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "descanso" });
-        } else if (tE !== baseE || (tS && baseS && tS !== baseS)) {
-          res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(baseE, baseS) });
-        }
-      }
-      if (!cancelado) setDivs(res);
-    })();
-    return () => { cancelado = true; };
+    }
+    setDivs(res);
   }, [sedeSel, supabase]);
+
+  useEffect(() => { void cargar(); }, [cargar]);
+
+  // Quitar el turno puntual ⇒ ese día vuelve a regir el horario base. La RPC
+  // recalcula la jornada de esa fecha (y el candado bloquea periodos pagados).
+  async function usarHorarioBase(d: Divergencia, clave: string) {
+    setProcesando(clave); setAviso(null);
+    const { error: e } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
+    setProcesando(null);
+    if (e) { setAviso(`No se pudo quitar el turno de ${d.persona}: ${e.message}`); return; }
+    await cargar();
+  }
+
+  async function limpiarEspejos(lista: Divergencia[]) {
+    setProcesando("bulk"); setAviso(null); setConfirmarBulk(false);
+    const fallos: string[] = [];
+    for (const d of lista) {
+      const { error: e } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
+      if (e) fallos.push(`${d.persona} (${d.fecha})`);
+    }
+    setProcesando(null);
+    if (fallos.length) setAviso(`No se pudieron quitar ${fallos.length}: ${fallos.join(", ")}. El resto sí.`);
+    await cargar();
+  }
 
   if (error) {
     return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo revisar los turnos contra el horario base.</div>;
@@ -280,30 +329,65 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       </div>
     );
   }
+  const espejos = divs.filter((d) => d.espejo);
   return (
     <div className="mb-4 max-w-2xl overflow-hidden rounded-lg border border-ambar/40 bg-ambar/[0.06]">
-      <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm">
+      <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
         <span className="font-medium text-ambar">
-          {divs.length} turno{divs.length === 1 ? "" : "s"} no coincide{divs.length === 1 ? "" : "n"} con el horario base <span className="font-normal text-taupe">· de hoy en adelante</span>
+          {divs.length} turno{divs.length === 1 ? "" : "s"} no coincide{divs.length === 1 ? "" : "n"} con el horario base
+          {espejos.length > 0 && <span className="font-normal text-rojo"> · {espejos.length} probable{espejos.length === 1 ? "" : "s"} espejo viejo</span>}
         </span>
-        <span className="text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
+        <span className="shrink-0 text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
       </button>
       {abierto && (
         <div className="border-t border-ambar/20">
           <p className="px-4 py-2 text-xs text-taupe">
-            El turno del día manda sobre el horario base. Revisa cada uno: si es una excepción a propósito, déjalo; si quedó viejo, tócalo para ajustarlo. Toca una fila para ir a ese día.
+            El turno del día manda sobre el horario base. <strong>Espejo viejo</strong> = coincide con un horario anterior de esa persona (quedó atrás al cambiar el horario).{" "}
+            <strong>Excepción</strong> = no coincide con ninguno, se puso a propósito. Nada se borra solo: tú decides fila por fila.
           </p>
-          <ul className="divide-y divide-ambar/15">
+
+          {espejos.length > 0 && (
+            <div className="border-t border-ambar/20 px-4 py-2">
+              {confirmarBulk ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-rojo">Se quitarán {espejos.length} turnos y se recalcularán esas jornadas. ¿Confirmas?</span>
+                  <button onClick={() => limpiarEspejos(espejos)} className="rounded bg-tinta px-2.5 py-1 font-medium text-crema">Sí, quitar {espejos.length}</button>
+                  <button onClick={() => setConfirmarBulk(false)} className="rounded border px-2.5 py-1">Cancelar</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmarBulk(true)} disabled={procesando !== null}
+                  className="rounded border border-rojo/30 px-3 py-1 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
+                  {procesando === "bulk" ? "Quitando…" : `Quitar los ${espejos.length} espejos viejos`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {aviso && <div className="border-t border-ambar/20 bg-rojo/10 px-4 py-2 text-xs text-rojo">{aviso}</div>}
+
+          <ul className="divide-y divide-ambar/15 border-t border-ambar/20">
             {divs.map((d, i) => {
               const { abr, num } = etiquetaDia(d.fecha);
+              const clave = `${d.personaId}-${d.fecha}-${i}`;
               return (
-                <li key={`${d.personaId}-${d.fecha}-${i}`}>
-                  <button onClick={() => onIrADia(d.fecha)} className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-4 py-2 text-left text-sm transition-colors hover:bg-ambar/10">
-                    <span className="font-medium">{d.persona} <span className="font-normal text-taupe">· {abr} {num}</span></span>
+                <li key={clave} className="px-4 py-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                    <button onClick={() => onIrADia(d.fecha)} className="text-left text-sm hover:underline">
+                      <span className="font-medium">{d.persona}</span> <span className="text-taupe">· {abr} {num}</span>
+                    </button>
                     <span className="text-xs">
-                      <span className="text-ambar">turno {d.turnoTxt}</span> <span className="text-taupe">· horario base {d.baseTxt}</span>
+                      <span className="text-ambar">turno {d.turnoTxt}</span> <span className="text-taupe">· base {d.baseTxt}</span>
                     </span>
-                  </button>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {d.espejo
+                      ? <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-[10px] text-rojo">probable espejo viejo</span>
+                      : <span className="rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] text-taupe">excepción a propósito</span>}
+                    <button onClick={() => usarHorarioBase(d, clave)} disabled={procesando !== null}
+                      className="rounded border px-2 py-0.5 text-[11px] hover:bg-sand/40 disabled:opacity-40">
+                      {procesando === clave ? "Quitando…" : "Usar el horario base"}
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -536,6 +620,34 @@ export default function TurnosPage() {
   const guardarTurno = () => {
     if (!edit || !entrada) { setMsg({ tipo: "error", texto: "Pon al menos la hora de entrada." }); return; }
     return ejecutar(() => supabase.rpc("fn_set_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha, p_hora_entrada: entrada, p_hora_salida: salida || null }));
+  };
+  // "De aquí en adelante": el cambio NO es puntual, es la nueva regla. Toma el
+  // horario base vigente, le cambia SOLO ese día de la semana y lo guarda con
+  // vigencia desde esa fecha (fn_set_horario_semanal ya recalcula las jornadas).
+  // Además quita el turno puntual, que dejaría de tener sentido: la regla lo cubre.
+  const guardarDesdeAqui = async () => {
+    if (!edit) return;
+    if (!entrada || !salida) { setMsg({ tipo: "error", texto: "Para cambiar el horario base necesito entrada y salida." }); return; }
+    const tr = tramoVigente(horarios.get(edit.personaId), edit.fecha);
+    const semanal = horarioSemanalDesdeTramo(tr);
+    const dow = String(diaSemana(edit.fecha));
+    const previo = tr?.horario_por_dia?.[dow];
+    semanal[dow] = { e: entrada, s: salida, ...(previo?.r != null ? { r: previo.r } : {}) };
+    setGuardando(true);
+    const { error } = await supabase.rpc("fn_set_horario_semanal", {
+      p_persona_id: edit.personaId, p_vigente_desde: edit.fecha, p_horario: semanal,
+    });
+    if (!error) {
+      const c = celda(edit.personaId, edit.fecha);
+      if (c.tipo === "turno" || c.tipo === "descanso") {
+        await supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha });
+      }
+    }
+    setGuardando(false);
+    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    setEdit(null);
+    await cargar();
+    setMsg({ tipo: "ok", texto: `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.` });
   };
   const marcarDescanso = () => edit && ejecutar(() => supabase.rpc("fn_set_descanso", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
   const quitar = () => edit && ejecutar(() => supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
@@ -1074,17 +1186,29 @@ export default function TurnosPage() {
                       <label className="flex flex-col gap-1 text-sm">Salida
                         <input type="time" value={salida} onChange={(e) => setSalida(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" /></label>
                     </div>
-                    <div className="mt-5 flex flex-wrap justify-between gap-2">
+                    {/* La pregunta que evita que una excepción se coma la regla:
+                        ¿es solo por hoy, o de ahora en adelante? Lo decide quien sabe. */}
+                    <div className="mt-5 rounded-lg border border-sand p-3">
+                      <p className="mb-2 text-xs text-taupe">¿Este cambio es solo por este día, o de ahora en adelante?</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={guardarTurno} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                          {guardando ? "…" : "Solo este día"}
+                        </button>
+                        <button onClick={guardarDesdeAqui} disabled={guardando} className="rounded-lg border border-sand px-4 py-2 text-sm hover:bg-sand/40 disabled:opacity-50">
+                          De aquí en adelante
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[11px] leading-relaxed text-taupe">
+                        <strong>Solo este día</strong> deja un turno puntual (no toca su horario).{" "}
+                        <strong>De aquí en adelante</strong> cambia su horario base de los {DIAS_PLURAL[diaSemana(edit.fecha)]} desde esta fecha y no deja turno puntual.
+                      </p>
+                    </div>
+                    <div className="mt-3 flex flex-wrap justify-between gap-2">
                       <div className="flex gap-2">
                         <button onClick={marcarDescanso} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm hover:bg-sand/40">Descanso</button>
                         <button onClick={quitar} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm text-taupe hover:bg-sand/40">Quitar</button>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => setEdit(null)} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
-                        <button onClick={guardarTurno} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                          {guardando ? "…" : "Guardar"}
-                        </button>
-                      </div>
+                      <button onClick={() => setEdit(null)} disabled={guardando} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
                     </div>
                   </>
                 )}
