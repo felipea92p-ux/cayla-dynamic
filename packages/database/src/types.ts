@@ -1061,6 +1061,7 @@ export type Database = {
       }
       fn_agregar_movimiento: {
         Args: {
+          p_categoria?: string | null
           p_concepto: string
           p_monto: number
           p_periodo_id: string

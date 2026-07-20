@@ -132,8 +132,28 @@ export interface Proyeccion {
   asignacion_monto: number;
   filas: Fila[];
 }
+// Lo que se elige en el desplegable. "vacaciones" y "otros" NO son tipos nuevos
+// en la base: son etiquetas (categoría) sobre un movimiento que suma, igual que
+// un bono. La aritmética de la planilla no cambia — para restar, siempre Descuento.
+type ClaseMov = "bono" | "descuento" | "vacaciones" | "otros";
+const CLASE_A_TIPO: Record<ClaseMov, "bono" | "descuento"> = {
+  bono: "bono", descuento: "descuento", vacaciones: "bono", otros: "bono",
+};
+const CLASE_A_CATEGORIA: Record<ClaseMov, string | null> = {
+  bono: null, descuento: null, vacaciones: "vacaciones", otros: "otros",
+};
+const CLASE_LABEL: Record<ClaseMov, string> = {
+  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", otros: "Otros",
+};
+const CLASE_PLACEHOLDER: Record<ClaseMov, string> = {
+  bono: "ej. reconocimiento del mes",
+  descuento: "ej. adelanto quincenal",
+  vacaciones: "ej. Vacaciones 22–28 jul 2026",
+  otros: "ej. reintegro",
+};
+
 interface MovForm {
-  tipo: "bono" | "descuento";
+  tipo: ClaseMov;
   concepto: string;
   monto: string;
 }
@@ -400,13 +420,15 @@ function TablaPlanilla(props: {
                             Tipo
                             <select
                               value={movForm.tipo}
-                              onChange={(e) => onMovForm?.({ ...movForm, tipo: e.target.value as "bono" | "descuento" })}
+                              onChange={(e) => onMovForm?.({ ...movForm, tipo: e.target.value as ClaseMov })}
                               disabled={pagado || guardandoMov}
                               title={pagado ? hintPagado : undefined}
                               className="rounded-lg border bg-crema px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
                             >
                               <option value="bono">Bono</option>
                               <option value="descuento">Descuento</option>
+                              <option value="vacaciones">Vacaciones</option>
+                              <option value="otros">Otros</option>
                             </select>
                           </label>
                           <label className="flex flex-col gap-1 text-xs text-taupe">
@@ -414,7 +436,7 @@ function TablaPlanilla(props: {
                             <input
                               value={movForm.concepto}
                               onChange={(e) => onMovForm?.({ ...movForm, concepto: e.target.value })}
-                              placeholder="ej. reconocimiento del mes"
+                              placeholder={CLASE_PLACEHOLDER[movForm.tipo]}
                               disabled={pagado || guardandoMov}
                               title={pagado ? hintPagado : undefined}
                               className="w-52 rounded-lg border px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
@@ -853,16 +875,17 @@ export default function PlanillaPage() {
     const { error } = await supabase.rpc("fn_agregar_movimiento", {
       p_periodo_id: proy.periodo_id,
       p_persona_id: f.persona_id,
-      p_tipo: movForm.tipo,
+      p_tipo: CLASE_A_TIPO[movForm.tipo],
       p_concepto: concepto,
       p_monto: monto,
+      p_categoria: CLASE_A_CATEGORIA[movForm.tipo],
     });
     setGuardandoMov(false);
     if (error) {
       avisar("error", `No se pudo registrar el movimiento: ${error.message}`);
       return;
     }
-    avisar("ok", `${movForm.tipo === "bono" ? "Bono" : "Descuento"} de ${formatSoles(monto)} para ${f.nombre}.`);
+    avisar("ok", `${CLASE_LABEL[movForm.tipo]} de ${formatSoles(monto)} para ${f.nombre}.`);
     await cargarProyeccion(); // cierra el panel ± y limpia el formulario
 
   }
