@@ -251,7 +251,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     setDivs(null); setError(false);
     const hoy = hoyLima();
     const { data: personas, error: eP } = await supabase.from("personas")
-      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true);
+      .select("id, nombres, apellidos").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false);
     if (eP) { setError(true); return; }
     const ids = (personas ?? []).map((p) => p.id);
     const nombre = new Map((personas ?? []).map((p: any) => [p.id, `${p.nombres} ${p.apellidos}`]));
@@ -551,7 +551,7 @@ export default function TurnosPage() {
       { data: f, error: fErr },
       { data: ar, error: arErr },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
       supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),

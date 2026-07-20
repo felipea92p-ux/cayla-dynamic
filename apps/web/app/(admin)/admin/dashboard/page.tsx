@@ -121,7 +121,8 @@ export default function DashboardPage() {
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
         .eq("estado", "activo")
-        .eq("en_planilla", true) // accionistas y no-trabajadores no se miden
+        .eq("en_planilla", true)
+        .eq("sueldo_fijo", false) // quien cobra fijo no marca: no se le mide asistencia
         .order("nombres"),
       supabase
         .from("jornadas")
