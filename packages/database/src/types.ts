@@ -627,6 +627,51 @@ export type Database = {
           },
         ]
       }
+      vacaciones: {
+        Row: {
+          creado_at: string
+          creado_por: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          observacion: string | null
+          persona_id: string
+        }
+        Insert: {
+          creado_at?: string
+          creado_por: string
+          fecha_fin: string
+          fecha_inicio: string
+          id?: string
+          observacion?: string | null
+          persona_id: string
+        }
+        Update: {
+          creado_at?: string
+          creado_por?: string
+          fecha_fin?: string
+          fecha_inicio?: string
+          id?: string
+          observacion?: string | null
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacaciones_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metas_cobertura: {
         Row: {
           dia_semana: number
@@ -856,6 +901,19 @@ export type Database = {
       }
       fn_quitar_turno: {
         Args: { p_fecha: string; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_set_vacaciones: {
+        Args: {
+          p_fecha_fin: string
+          p_fecha_inicio: string
+          p_observacion?: string | null
+          p_persona_id: string
+        }
+        Returns: string
+      }
+      fn_quitar_vacaciones: {
+        Args: { p_id: string }
         Returns: undefined
       }
       fn_set_meta_cobertura: {
