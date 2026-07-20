@@ -90,7 +90,7 @@ export default function VacacionesPage() {
     // Sin embeds de PostgREST a propósito (el schema cache de este proyecto está
     // trabado para varias relaciones): el nombre se resuelve desde `personas`.
     const [{ data: p, error: eP }, { data: v, error: eV }, { data: r }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").eq("en_planilla", true).order("nombres"),
       supabase.from("vacaciones")
         .select("id, persona_id, fecha_inicio, fecha_fin, observacion, creado_por, creado_at")
         .order("fecha_inicio", { ascending: false }),
@@ -103,9 +103,14 @@ export default function VacacionesPage() {
       setCargando(false);
       return; // no pisa la lista con datos parciales
     }
-    setPersonas((p as Persona[]) ?? []);
+    const lista = (p as Persona[]) ?? [];
+    setPersonas(lista);
     setVacaciones((v as Vacacion[]) ?? []);
-    setResumen(Array.isArray(r) ? (r as unknown as Resumen[]) : []);
+    // El resumen viene de una función SQL que no conoce `en_planilla`, así que se
+    // filtra acá contra la lista ya filtrada: quien no es trabajador (accionistas)
+    // no acumula beneficios y no debe figurar en el saldo.
+    const enPlanilla = new Set(lista.map((x) => x.id));
+    setResumen(Array.isArray(r) ? (r as unknown as Resumen[]).filter((x) => enPlanilla.has(x.persona_id)) : []);
     setCargando(false);
   }, [supabase, router]);
 

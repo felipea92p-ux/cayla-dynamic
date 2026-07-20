@@ -121,6 +121,7 @@ export default function DashboardPage() {
         .from("personas")
         .select("id, nombres, apellidos, rol, sede_base_id, sedes:sede_base_id(codigo)")
         .eq("estado", "activo")
+        .eq("en_planilla", true) // accionistas y no-trabajadores no se miden
         .order("nombres"),
       supabase
         .from("jornadas")

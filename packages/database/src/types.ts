@@ -389,6 +389,7 @@ export type Database = {
           created_at: string
           documento: string | null
           email: string | null
+          en_planilla: boolean
           estado: string
           fecha_estado_cambio: string | null
           fecha_ingreso: string
@@ -407,6 +408,7 @@ export type Database = {
           created_at?: string
           documento?: string | null
           email?: string | null
+          en_planilla?: boolean
           estado?: string
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
@@ -425,6 +427,7 @@ export type Database = {
           created_at?: string
           documento?: string | null
           email?: string | null
+          en_planilla?: boolean
           estado?: string
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
