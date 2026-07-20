@@ -206,7 +206,9 @@ const colorDePct = (pct: number) => (pct >= 90 ? "var(--color-verde)" : pct >= 6
 // —de hoy en adelante— para que la encargada los revise: los que sean excepción
 // real, se dejan; los que sean "espejos viejos", se ajustan en la Vista Día.
 // Solo lectura: no toca nada.
-interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; espejo: boolean }
+// tE/tS = las horas REALES del turno (null = ese turno es descanso). Se guardan
+// para poder promover el turno a horario base ("Hacer permanente") sin re-consultar.
+interface Divergencia { fecha: string; personaId: string; persona: string; turnoTxt: string; baseTxt: string; espejo: boolean; tE: string | null; tS: string | null }
 const rangoTxt = (e: string | null, s: string | null) => (e ? `${e}${s ? `–${s}` : ""}` : "descanso");
 // El horario semanal completo de un tramo, como el jsonb que espera
 // fn_set_horario_semanal ({"1":{e,s,r}, …}). Sirve para cambiar UN día sin
@@ -241,6 +243,8 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   const [procesando, setProcesando] = useState<string | null>(null); // clave de fila, o "bulk"
   const [confirmarBulk, setConfirmarBulk] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Tramos de horario de cada persona, para poder promover un turno a horario base.
+  const tramosRef = useRef<Map<string, Horario[]>>(new Map());
 
   const cargar = useCallback(async () => {
     if (!sedeSel) return;
@@ -263,6 +267,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null });
       hMap.set(h.persona_id, arr);
     }
+    tramosRef.current = hMap;
     const res: Divergencia[] = [];
     for (const t of (turnos as any[]) ?? []) {
       const tramos = hMap.get(t.persona_id);
@@ -280,7 +285,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
         const h = horasDeTramo(x, dow);
         return tE === null ? h.e === null : h.e === tE && h.s === tS;
       });
-      const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo };
+      const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
       if (!base) {
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "sin horario base ese día" });
       } else if (tE === null) {
@@ -303,6 +308,37 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     const { error: e } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
     if (e) { setAviso(`No se pudo quitar el turno de ${d.persona}: ${e.message}`); return; }
+    await cargar();
+  }
+
+  // "Hacer permanente": gana el TURNO. Su hora pasa a ser el horario base de ese
+  // día de la semana desde esa fecha, y el turno puntual se retira (la regla ya
+  // lo cubre). Es lo correcto cuando alguien cambió el horario de verdad y quedó
+  // guardado como turno — borrarlo perdería ese cambio.
+  async function hacerPermanente(d: Divergencia, clave: string) {
+    setProcesando(clave); setAviso(null);
+    const tramos = tramosRef.current.get(d.personaId);
+    const tramo = tramoVigente(tramos, d.fecha);
+    const semanal = horarioSemanalDesdeTramo(tramo);
+    const dow = String(diaSemana(d.fecha));
+    if (d.tE) {
+      const previo = tramo?.horario_por_dia?.[dow];
+      const baseS = tramo ? horasDeTramo(tramo, dow).s : null;
+      semanal[dow] = { e: d.tE, s: d.tS ?? baseS ?? d.tE, ...(previo?.r != null ? { r: previo.r } : {}) };
+    } else {
+      delete semanal[dow]; // el turno era descanso ⇒ ese día sale de su horario
+    }
+    if (Object.keys(semanal).length === 0) {
+      setProcesando(null);
+      setAviso(`No puedo dejar a ${d.persona} sin ningún día de trabajo. Ajusta su horario en la pantalla Horarios.`);
+      return;
+    }
+    const { error: e1 } = await supabase.rpc("fn_set_horario_semanal", {
+      p_persona_id: d.personaId, p_vigente_desde: d.fecha, p_horario: semanal,
+    });
+    if (e1) { setProcesando(null); setAviso(`No se pudo cambiar el horario de ${d.persona}: ${e1.message}`); return; }
+    await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
+    setProcesando(null);
     await cargar();
   }
 
@@ -341,9 +377,11 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       </button>
       {abierto && (
         <div className="border-t border-ambar/20">
-          <p className="px-4 py-2 text-xs text-taupe">
-            El turno del día manda sobre el horario base. <strong>Espejo viejo</strong> = coincide con un horario anterior de esa persona (quedó atrás al cambiar el horario).{" "}
-            <strong>Excepción</strong> = no coincide con ninguno, se puso a propósito. Nada se borra solo: tú decides fila por fila.
+          <p className="px-4 py-2 text-xs leading-relaxed text-taupe">
+            El turno del día manda sobre el horario base. Decide cuál de los dos tiene la razón:{" "}
+            <strong className="text-tinta">Hacer permanente</strong> = la hora del turno pasa a ser su horario base desde esa fecha (úsalo si de verdad le cambiaron el horario).{" "}
+            <strong className="text-tinta">Usar el horario base</strong> = descarta el turno y vuelve a su horario (úsalo si el turno quedó viejo).{" "}
+            Nada se borra solo: tú decides fila por fila.
           </p>
 
           {espejos.length > 0 && (
@@ -355,10 +393,15 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
                   <button onClick={() => setConfirmarBulk(false)} className="rounded border px-2.5 py-1">Cancelar</button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmarBulk(true)} disabled={procesando !== null}
-                  className="rounded border border-rojo/30 px-3 py-1 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
-                  {procesando === "bulk" ? "Quitando…" : `Quitar los ${espejos.length} espejos viejos`}
-                </button>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <button onClick={() => setConfirmarBulk(true)} disabled={procesando !== null}
+                    className="rounded border border-rojo/30 px-3 py-1 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
+                    {procesando === "bulk" ? "Quitando…" : `Quitar los ${espejos.length} espejos viejos`}
+                  </button>
+                  <span className="text-[11px] text-taupe">
+                    Esto <strong>descarta</strong> esas horas. Si a esa gente le cambiaron el horario de verdad, usa <strong>Hacer permanente</strong> fila por fila.
+                  </span>
+                </div>
               )}
             </div>
           )}
@@ -383,9 +426,13 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
                     {d.espejo
                       ? <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-[10px] text-rojo">probable espejo viejo</span>
                       : <span className="rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] text-taupe">excepción a propósito</span>}
+                    <button onClick={() => hacerPermanente(d, clave)} disabled={procesando !== null}
+                      className="rounded border border-tinta/30 bg-tinta/5 px-2 py-0.5 text-[11px] font-medium hover:bg-tinta/10 disabled:opacity-40">
+                      {procesando === clave ? "Aplicando…" : "Hacer permanente"}
+                    </button>
                     <button onClick={() => usarHorarioBase(d, clave)} disabled={procesando !== null}
-                      className="rounded border px-2 py-0.5 text-[11px] hover:bg-sand/40 disabled:opacity-40">
-                      {procesando === clave ? "Quitando…" : "Usar el horario base"}
+                      className="rounded border px-2 py-0.5 text-[11px] text-taupe hover:bg-sand/40 disabled:opacity-40">
+                      Usar el horario base
                     </button>
                   </div>
                 </li>
