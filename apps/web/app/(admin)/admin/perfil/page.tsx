@@ -114,14 +114,26 @@ export default function PerfilPage() {
   }, [personaId, desde, hasta]);
 
   const persona = personas.find((p) => p.id === personaId);
+  // Un día no puede tener más de 24 horas: si las tiene, no es un día — es un
+  // AGREGADO. Vienen de la carga del histórico 2025, donde las horas de todo un
+  // mes se guardaron en una sola fecha (15-nov y 15-dic) porque en 2025 no había
+  // marcas diarias; solo se tenía el total mensual de la hoja de gratificaciones.
+  // Son horas REALES y la planilla las usó, así que suman al total del periodo —
+  // pero no son un día, así que no entran al promedio ni al gráfico (una barra
+  // de 270 h aplasta la escala y vuelve el gráfico ilegible).
+  const esAgregado = (j: Jornada) => (j.horas_trabajadas ?? 0) > 24;
+  const agregados = jornadas.filter(esAgregado);
+  const jornadasReales = jornadas.filter((j) => !esAgregado(j));
   const totalHoras = jornadas.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0);
-  const diasTrabajados = jornadas.filter((j) => (j.horas_trabajadas ?? 0) > 0).length;
+  const horasAgregadas = agregados.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0);
+  const horasReales = totalHoras - horasAgregadas;
+  const diasTrabajados = jornadasReales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length;
   const diasTardeMedidos = jornadas.filter((j) => j.minutos_tarde !== null).length;
   const tardanzas = jornadas.filter((j) => (j.minutos_tarde ?? 0) > 0).length;
   const diasSalidaMedidos = jornadas.filter((j) => j.minutos_salida_temprana !== null).length;
   const salidasTempranas = jornadas.filter((j) => (j.minutos_salida_temprana ?? 0) > 0).length;
   const horasExtra = jornadas.reduce((s, j) => s + (j.horas_extra_detectadas ?? 0), 0);
-  const datosGrafico: DiaGrafico[] = jornadas.map((j) => ({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 }));
+  const datosGrafico: DiaGrafico[] = jornadasReales.map((j) => ({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 }));
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const objNivel = nivelPlus(objCumplidos, objetivos.length);
   const objPct = objetivos.length > 0 ? Math.round((objCumplidos / objetivos.length) * 100) : 0;
@@ -177,7 +189,7 @@ export default function PerfilPage() {
               {[
                 { label: "Total del periodo", valor: fmtHoras(totalHoras) },
                 { label: "Días trabajados", valor: String(diasTrabajados) },
-                { label: "Promedio por día", valor: diasTrabajados ? fmtHoras(totalHoras / diasTrabajados) : "—" },
+                { label: "Promedio por día", valor: diasTrabajados ? fmtHoras(horasReales / diasTrabajados) : "—" },
                 { label: "Días con tardanza", valor: `${tardanzas} de ${diasTardeMedidos} medidos` },
                 { label: "Salidas anticipadas", valor: `${salidasTempranas} de ${diasSalidaMedidos} medidos` },
                 { label: "Tiempo adicional", valor: horasExtra > 0 ? fmtHoras(horasExtra) : "—" },
@@ -188,6 +200,17 @@ export default function PerfilPage() {
                 </div>
               ))}
             </div>
+
+            {/* Los agregados históricos se explican, no se esconden: sus horas son
+                reales y la planilla las usó, así que deben seguir sumando al total. */}
+            {agregados.length > 0 && (
+              <p className="mb-6 -mt-3 max-w-3xl text-xs text-taupe">
+                Incluye <strong>{agregados.length} registro{agregados.length === 1 ? "" : "s"} histórico{agregados.length === 1 ? "" : "s"} de 2025</strong> ({fmtHoras(horasAgregadas)}):
+                el total de un mes completo guardado en una sola fecha, porque en 2025 todavía no había marcaje diario.
+                Suman al <strong>total del periodo</strong> (y la planilla los usó para CTS y gratificación),
+                pero no cuentan como día, así que quedan fuera del promedio y del gráfico.
+              </p>
+            )}
 
             {/* Objetivos del mes (checklist, solo lectura — se gestionan en Objetivos) */}
             {objetivos.length > 0 && (
@@ -255,7 +278,14 @@ export default function PerfilPage() {
                       const inc = incidencia(j);
                       return (
                         <tr key={j.fecha} className="border-t border-sand">
-                          <td className="px-4 py-2.5 capitalize">{fechaLarga(j.fecha)}</td>
+                          <td className="px-4 py-2.5 capitalize">
+                            {fechaLarga(j.fecha)}
+                            {esAgregado(j) && (
+                              <span className="ml-2 whitespace-nowrap rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] normal-case text-taupe">
+                                total del mes · histórico 2025
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-2.5">{horaLima(j.entrada_ts)}</td>
                           <td className="px-4 py-2.5">{horaLima(j.salida_final_ts)}</td>
                           <td className="px-4 py-2.5">{j.horas_trabajadas != null ? fmtHoras(j.horas_trabajadas) : "—"}</td>
