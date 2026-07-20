@@ -31,7 +31,27 @@ function selloLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
+const soles = (n: number) => `S/ ${n.toFixed(2)}`;
+
 interface Persona { id: string; nombres: string; apellidos: string; }
+// Resumen por persona (fn_vacaciones_resumen). Es SOLO INFORMATIVO: el monto es
+// un estimado para comparar contra el cálculo a mano, no se paga automáticamente.
+interface Resumen {
+  persona_id: string;
+  nombre: string;
+  dias_ganados: number;
+  dias_tomados: number;
+  dias_saldo: number;
+  dias_con_marca: number;
+  horas_marcadas: number;
+  feriados_en_periodo: number;
+  horas_feriados: number;
+  horas_base: number;
+  factor: number;
+  salario: number | null;
+  monto_estimado: number | null;
+  aniversario_next: string;
+}
 interface Vacacion {
   id: string;
   persona_id: string;
@@ -50,6 +70,7 @@ export default function VacacionesPage() {
 
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [vacaciones, setVacaciones] = useState<Vacacion[]>([]);
+  const [resumen, setResumen] = useState<Resumen[]>([]);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
@@ -68,11 +89,14 @@ export default function VacacionesPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     // Sin embeds de PostgREST a propósito (el schema cache de este proyecto está
     // trabado para varias relaciones): el nombre se resuelve desde `personas`.
-    const [{ data: p, error: eP }, { data: v, error: eV }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: v, error: eV }, { data: r }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.from("vacaciones")
         .select("id, persona_id, fecha_inicio, fecha_fin, observacion, creado_por, creado_at")
         .order("fecha_inicio", { ascending: false }),
+      // Resumen (saldo de días + monto estimado). Falla suave a propósito: es
+      // informativo, y si no llega no debe bloquear el registro de vacaciones.
+      supabase.rpc("fn_vacaciones_resumen", {}),
     ]);
     if (eP || eV) {
       setMsg({ tipo: "error", texto: `No se pudo cargar: ${(eP ?? eV)!.message}` });
@@ -81,6 +105,7 @@ export default function VacacionesPage() {
     }
     setPersonas((p as Persona[]) ?? []);
     setVacaciones((v as Vacacion[]) ?? []);
+    setResumen(Array.isArray(r) ? (r as unknown as Resumen[]) : []);
     setCargando(false);
   }, [supabase, router]);
 
@@ -221,6 +246,56 @@ export default function VacacionesPage() {
             </ul>
           )}
         </div>
+
+        {/* Saldo por persona — el cruce con Provisiones. SOLO INFORMATIVO. */}
+        {resumen.length > 0 && (
+          <div className="mt-6 max-w-4xl overflow-hidden rounded-lg border">
+            <div className="border-b bg-sand/50 px-4 py-2">
+              <h2 className="text-sm font-medium">Saldo por persona</h2>
+              <p className="mt-0.5 text-xs text-taupe">
+                Días ganados desde su aniversario de ingreso, menos los ya tomados. El monto es un{" "}
+                <strong>estimado para que lo compares con tu cálculo</strong> — el sistema no paga nada solo.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-sand/30 text-left text-taupe">
+                  <tr>
+                    <th className="px-4 py-2 font-normal">Persona</th>
+                    <th className="px-4 py-2 text-right font-normal">Ganados</th>
+                    <th className="px-4 py-2 text-right font-normal">Tomados</th>
+                    <th className="px-4 py-2 text-right font-normal">Saldo</th>
+                    <th className="px-4 py-2 text-right font-normal">Factor</th>
+                    <th className="px-4 py-2 text-right font-normal">Monto estimado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumen.map((r) => (
+                    <tr key={r.persona_id} className="border-t align-top">
+                      <td className="px-4 py-2">
+                        {r.nombre}
+                        {/* Los componentes a la vista: un monto sin desglose no se puede auditar. */}
+                        <div className="mt-0.5 text-xs text-taupe">
+                          {r.horas_marcadas} h marcadas en {r.dias_con_marca} días · base {r.horas_base} h
+                          {r.feriados_en_periodo > 0 && <> · {r.feriados_en_periodo} feriados (+{r.horas_feriados} h)</>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">{r.dias_ganados}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{r.dias_tomados}</td>
+                      <td className={`px-4 py-2 text-right font-medium tabular-nums ${r.dias_saldo < 0 ? "text-rojo" : ""}`}>
+                        {r.dias_saldo}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-taupe">{r.factor}</td>
+                      <td className="px-4 py-2 text-right font-medium tabular-nums">
+                        {r.monto_estimado === null ? <span className="text-taupe/60">sin salario</span> : soles(r.monto_estimado)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

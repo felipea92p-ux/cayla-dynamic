@@ -916,6 +916,10 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      fn_vacaciones_resumen: {
+        Args: { p_as_of?: string }
+        Returns: Json
+      }
       fn_set_meta_cobertura: {
         Args: { p_dia_semana: number; p_meta_manana: number; p_meta_tarde: number; p_sede_id: string }
         Returns: undefined
