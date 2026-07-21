@@ -55,6 +55,7 @@ export default function PerfilPage() {
   const [desde, setDesde] = useState(inicioMes());
   const [hasta, setHasta] = useState(hoyLima());
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
+  const [levTard, setLevTard] = useState<Map<string, string>>(new Map()); // fecha → motivo (tardanza levantada)
   const [objetivos, setObjetivos] = useState<ObjetivoItem[]>([]);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
@@ -83,7 +84,7 @@ export default function PerfilPage() {
     const supabase = createAdminSupabaseClient();
     // minutos_salida_temprana no está en el schema cache de PostgREST: se lee vía RPC en paralelo.
     // Objetivos: los del mes de la fecha "Hasta" (checklist 0032, solo lectura aquí).
-    const [{ data, error: errJornadas }, { data: extra }, { data: objs }] = await Promise.all([
+    const [{ data, error: errJornadas }, { data: extra }, { data: objs }, { data: levData }] = await Promise.all([
       supabase
         .from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado")
@@ -95,6 +96,8 @@ export default function PerfilPage() {
         p_mes: Number(hasta.slice(5, 7)),
         p_persona_id: personaId,
       }),
+      // Tardanzas levantadas del rango: se muestran tachadas (falla suave).
+      supabase.from("tardanzas_justificadas").select("fecha, motivo").eq("persona_id", personaId).gte("fecha", desde).lte("fecha", hasta),
     ]);
     if (errJornadas) {
       setError(errJornadas.message);
@@ -109,6 +112,7 @@ export default function PerfilPage() {
       minutos_salida_temprana: minutosPorFecha.get(j.fecha) ?? null,
     }));
     setJornadas(filas);
+    setLevTard(new Map(((levData as { fecha: string; motivo: string }[] | null) ?? []).map((t) => [t.fecha, t.motivo])));
     setCargado(true);
     setCargando(false);
   }, [personaId, desde, hasta]);
@@ -129,7 +133,7 @@ export default function PerfilPage() {
   const horasReales = totalHoras - horasAgregadas;
   const diasTrabajados = jornadasReales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length;
   const diasTardeMedidos = jornadas.filter((j) => j.minutos_tarde !== null).length;
-  const tardanzas = jornadas.filter((j) => (j.minutos_tarde ?? 0) > 0).length;
+  const tardanzas = jornadas.filter((j) => (j.minutos_tarde ?? 0) > 0 && !levTard.has(j.fecha)).length;
   const diasSalidaMedidos = jornadas.filter((j) => j.minutos_salida_temprana !== null).length;
   const salidasTempranas = jornadas.filter((j) => (j.minutos_salida_temprana ?? 0) > 0).length;
   const horasExtra = jornadas.reduce((s, j) => s + (j.horas_extra_detectadas ?? 0), 0);
@@ -290,7 +294,11 @@ export default function PerfilPage() {
                           <td className="px-4 py-2.5">{horaLima(j.salida_final_ts)}</td>
                           <td className="px-4 py-2.5">{j.horas_trabajadas != null ? fmtHoras(j.horas_trabajadas) : "—"}</td>
                           <td className="px-4 py-2.5">
-                            {j.minutos_tarde ? <span className="font-medium text-rojo">{j.minutos_tarde} min</span> : <span className="text-taupe/40">—</span>}
+                            {j.minutos_tarde ? (
+                              levTard.has(j.fecha)
+                                ? <span className="text-taupe" title="Tardanza levantada"><s>{j.minutos_tarde} min</s> · levantada</span>
+                                : <span className="font-medium text-rojo">{j.minutos_tarde} min</span>
+                            ) : <span className="text-taupe/40">—</span>}
                           </td>
                           <td className="px-4 py-2.5">
                             {j.minutos_salida_temprana ? <span className="text-ambar">{j.minutos_salida_temprana} min</span> : <span className="text-taupe/40">—</span>}

@@ -102,6 +102,7 @@ export default function IncidenciasPage() {
       { data: turnosData, error: errTurnos },
       { data: aceptadasData },
       { data: faltasData },
+      { data: levTardData },
     ] = await Promise.all([
       supabase
         .from("jornadas")
@@ -126,6 +127,8 @@ export default function IncidenciasPage() {
       supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo").gte("fecha", desde).lte("fecha", hasta),
       // Faltas del rango (le tocaba y no marcó). Falla suave: si no llega, no se muestran.
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
+      // Tardanzas levantadas (perdonadas): no cuentan para el patrón. Ventana del patrón.
+      supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", desdePatron).lte("fecha", HOY),
     ]);
 
     if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
@@ -173,8 +176,13 @@ export default function IncidenciasPage() {
     // Patrón de tardanzas: 3+ en los últimos 30 días. Viene ordenado por fecha
     // descendente, así que la primera vez que aparece cada persona ya es su
     // tardanza más reciente.
+    // Días con tardanza LEVANTADA: no cuentan para el patrón.
+    const levantadas = new Set(
+      ((levTardData as { persona_id: string; fecha: string }[] | null) ?? []).map((t) => `${t.persona_id}|${t.fecha}`),
+    );
     const porPersonaTardias = new Map<string, { count: number; ultima: any }>();
     for (const j of (tardias as any[]) ?? []) {
+      if (levantadas.has(`${j.persona_id}|${j.fecha}`)) continue; // tardanza perdonada
       const prev = porPersonaTardias.get(j.persona_id);
       if (prev) prev.count++;
       else porPersonaTardias.set(j.persona_id, { count: 1, ultima: j });

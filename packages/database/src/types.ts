@@ -633,6 +633,66 @@ export type Database = {
           },
         ]
       }
+      tardanzas_justificadas: {
+        Row: {
+          creado_at: string
+          creado_por: string
+          fecha: string
+          id: string
+          motivo: string
+          observacion: string | null
+          persona_id: string
+        }
+        Insert: {
+          creado_at?: string
+          creado_por: string
+          fecha: string
+          id?: string
+          motivo: string
+          observacion?: string | null
+          persona_id: string
+        }
+        Update: {
+          creado_at?: string
+          creado_por?: string
+          fecha?: string
+          id?: string
+          motivo?: string
+          observacion?: string | null
+          persona_id?: string
+        }
+        Relationships: []
+      }
+      justificaciones_asistencia: {
+        Row: {
+          creado_at: string
+          creado_por: string
+          fecha: string
+          id: string
+          motivo: string
+          observacion: string | null
+          persona_id: string
+        }
+        Insert: {
+          creado_at?: string
+          creado_por: string
+          fecha: string
+          id?: string
+          motivo: string
+          observacion?: string | null
+          persona_id: string
+        }
+        Update: {
+          creado_at?: string
+          creado_por?: string
+          fecha?: string
+          id?: string
+          motivo?: string
+          observacion?: string | null
+          persona_id?: string
+        }
+        Relationships: []
+      }
       incidencias_aceptadas: {
         Row: {
           aceptado_at: string
@@ -976,6 +1036,14 @@ export type Database = {
         Returns: undefined
       }
       fn_quitar_justificacion: {
+        Args: { p_persona_id: string; p_fecha: string }
+        Returns: undefined
+      }
+      fn_levantar_tardanza: {
+        Args: { p_persona_id: string; p_fecha: string; p_motivo: string; p_observacion?: string | null }
+        Returns: undefined
+      }
+      fn_quitar_levantamiento: {
         Args: { p_persona_id: string; p_fecha: string }
         Returns: undefined
       }

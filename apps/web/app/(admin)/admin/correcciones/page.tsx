@@ -122,6 +122,13 @@ export default function CorreccionesPage() {
   // Contra qué hora se mide la tardanza ese día y de dónde sale (turno del día vs
   // horario base) — para que "N min tarde" nunca sea un número sin contexto.
   const [esperado, setEsperado] = useState<{ hora: string | null; origen: string; deTurno: boolean } | null>(null);
+  // Levantamiento de tardanza de ese día (perdón por fuerza mayor): si existe, la
+  // tardanza se muestra tachada y no cuenta. La hora real NO se toca.
+  const [levTardanza, setLevTardanza] = useState<{ motivo: string; observacion: string | null } | null>(null);
+  const [levModal, setLevModal] = useState(false);
+  const [levMotivo, setLevMotivo] = useState("fuerza_mayor");
+  const [levObs, setLevObs] = useState("");
+  const [levGuardando, setLevGuardando] = useState(false);
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
@@ -155,7 +162,7 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     const inicio = `${fecha}T00:00:00-05:00`;
     const fin = `${fecha}T23:59:59-05:00`;
-    const [{ data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }] = await Promise.all([
+    const [{ data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }] = await Promise.all([
       supabase.from("marcajes")
         .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision")
         .eq("persona_id", personaId).gte("timestamp_marca", inicio).lte("timestamp_marca", fin)
@@ -175,6 +182,8 @@ export default function CorreccionesPage() {
       supabase.from("horarios_asignados").select("hora_entrada, horario_por_dia, vigente_desde")
         .eq("persona_id", personaId).lte("vigente_desde", fecha).or(`vigente_hasta.is.null,vigente_hasta.gte.${fecha}`)
         .order("vigente_desde", { ascending: false }).limit(1).maybeSingle(),
+      // ¿La tardanza de ese día fue levantada (perdonada por fuerza mayor)?
+      supabase.from("tardanzas_justificadas").select("motivo, observacion").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
     ]);
     if (errMk || errJor) {
       setCargando(false);
@@ -184,6 +193,7 @@ export default function CorreccionesPage() {
     setMarcajes((mk as Marcaje[]) ?? []);
     setJornada((jor as Jornada) ?? null);
     setEsperado(calcularEsperado(fecha, turno as TurnoDia | null, horario as HorarioTramo | null));
+    setLevTardanza((levT as { motivo: string; observacion: string | null } | null) ?? null);
     setAuditoriaError(Boolean(errAud));
     setAuditoria(errAud ? [] : ((aud as Auditoria[]) ?? []));
     setHorasEditadas(Object.fromEntries(((mk as Marcaje[]) ?? []).map((m) => [m.id, horaInput(m.timestamp_marca)])));
@@ -213,6 +223,35 @@ export default function CorreccionesPage() {
   }, [autoCargar, personaId, cargarDia]);
 
   function avisar(tipo: "ok" | "error", texto: string) { setMensaje({ tipo, texto }); }
+
+  const MOTIVOS_TARD = [
+    { valor: "fuerza_mayor", label: "Fuerza mayor" },
+    { valor: "salud", label: "Salud" },
+    { valor: "transporte", label: "Transporte" },
+    { valor: "otro", label: "Otro" },
+  ];
+  const motivoTardLabel = (m: string | null | undefined) => MOTIVOS_TARD.find((x) => x.valor === m)?.label ?? m ?? "";
+
+  async function levantarTardanza() {
+    if (!personaId) return;
+    if (levMotivo === "otro" && levObs.trim().length < 3) { avisar("error", "Para 'Otro' la observación es obligatoria."); return; }
+    setLevGuardando(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_levantar_tardanza", {
+      p_persona_id: personaId, p_fecha: fecha, p_motivo: levMotivo, p_observacion: levObs.trim() || null,
+    });
+    setLevGuardando(false);
+    if (error) { avisar("error", error.message); return; }
+    setLevModal(false); setLevObs(""); setLevMotivo("fuerza_mayor");
+    await cargarDia();
+    avisar("ok", "Tardanza levantada. La hora real no se tocó.");
+  }
+  async function quitarLevantamiento() {
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_quitar_levantamiento", { p_persona_id: personaId, p_fecha: fecha });
+    if (error) { avisar("error", error.message); return; }
+    await cargarDia();
+  }
 
   async function ejecutar() {
     if (!accion) return;
@@ -312,7 +351,24 @@ export default function CorreccionesPage() {
               <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-sand/50 px-4 py-3 text-sm">
                 <span>Estado: <strong>{jornada.estado}</strong></span>
                 <span>Horas: <strong>{jornada.horas_trabajadas ?? "—"}</strong></span>
-                <span>Tardanza: <strong>{jornada.minutos_tarde ? `${jornada.minutos_tarde} min` : "—"}</strong></span>
+                <span className="flex items-center gap-2">
+                  Tardanza:{" "}
+                  {!jornada.minutos_tarde ? (
+                    <strong>—</strong>
+                  ) : levTardanza ? (
+                    <>
+                      <s className="text-taupe">{jornada.minutos_tarde} min</s>
+                      <span className="rounded-full bg-verde/15 px-2 py-0.5 text-xs text-verde">levantada · {motivoTardLabel(levTardanza.motivo)}</span>
+                      <button onClick={() => void quitarLevantamiento()} className="text-xs text-taupe underline hover:text-tinta">quitar</button>
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-rojo">{jornada.minutos_tarde} min</strong>
+                      <button onClick={() => { setLevModal(true); setLevMotivo("fuerza_mayor"); setLevObs(""); }}
+                        className="rounded border border-sand px-2 py-0.5 text-xs text-taupe hover:bg-sand/40">Levantar</button>
+                    </>
+                  )}
+                </span>
               </div>
             )}
 
@@ -449,6 +505,36 @@ export default function CorreccionesPage() {
                   })}
                 </ul>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal: levantar tardanza (no cambia la hora) */}
+        {levModal && (
+          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => !levGuardando && setLevModal(false)}>
+            <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="mb-1 font-serif text-lg">Levantar tardanza</h3>
+              <p className="mb-4 text-sm text-taupe">
+                Se perdona la tardanza (deja de contar y suma al bono de puntualidad).
+                <strong> La hora real no se toca</strong> — queda tachada con su motivo.
+              </p>
+              <label className="mb-3 flex flex-col gap-1 text-sm">
+                Motivo
+                <select value={levMotivo} onChange={(e) => setLevMotivo(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2">
+                  {MOTIVOS_TARD.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+                </select>
+              </label>
+              <label className="mb-4 flex flex-col gap-1 text-sm">
+                Observación {levMotivo === "otro" ? <span className="text-rojo">(obligatoria)</span> : <span className="text-taupe">(opcional)</span>}
+                <textarea value={levObs} onChange={(e) => setLevObs(e.target.value)} rows={2}
+                  className="rounded-lg border border-sand bg-crema px-3 py-2" placeholder="ej. paro de transporte" />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setLevModal(false)} disabled={levGuardando} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
+                <button onClick={() => void levantarTardanza()} disabled={levGuardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                  {levGuardando ? "…" : "Levantar"}
+                </button>
+              </div>
             </div>
           </div>
         )}
