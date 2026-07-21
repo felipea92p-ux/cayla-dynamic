@@ -45,7 +45,20 @@ interface Fila {
   entrada: string | null;
   salida: string | null;
   aceptable?: string; // clave de tipo (p. ej. 'salida_anticipada') si se puede "Aceptar"
+  esFalta?: boolean;
+  justificada?: boolean;
+  motivoFalta?: string | null;
 }
+
+// Motivos del desplegable de justificación (mismo enum que fn_set_justificacion).
+const MOTIVOS: { valor: string; label: string }[] = [
+  { valor: "permiso_concedido", label: "Permiso concedido" },
+  { valor: "cumpleanos", label: "Cumpleaños" },
+  { valor: "estudios", label: "Estudios" },
+  { valor: "descanso_medico", label: "Descanso médico" },
+  { valor: "otro", label: "Otro" },
+];
+const MOTIVO_LABEL = (m: string | null | undefined) => MOTIVOS.find((x) => x.valor === m)?.label ?? m ?? "";
 
 const HOY = hoyLima();
 // Patrón de tardanzas: ventana fija de 30 días desde hoy (independiente del
@@ -88,6 +101,7 @@ export default function IncidenciasPage() {
       { data: horariosData, error: errHorarios },
       { data: turnosData, error: errTurnos },
       { data: aceptadasData },
+      { data: faltasData },
     ] = await Promise.all([
       supabase
         .from("jornadas")
@@ -110,6 +124,8 @@ export default function IncidenciasPage() {
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
       // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
       supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo").gte("fecha", desde).lte("fecha", hasta),
+      // Faltas del rango (le tocaba y no marcó). Falla suave: si no llega, no se muestran.
+      supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
     ]);
 
     if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
@@ -223,6 +239,23 @@ export default function IncidenciasPage() {
       }
     }
 
+    // Faltas: le tocaba y no marcó. Injustificadas en rojo (cuentan), justificadas
+    // atenuadas (no cuentan, con su motivo). Vienen de fn_faltas (ya scopeada por rol).
+    for (const f of (faltasData as { persona_id: string; nombre: string; sede: string; fecha: string; justificada: boolean; motivo: string | null }[] | null) ?? []) {
+      out.push({
+        personaId: f.persona_id,
+        nombre: f.nombre,
+        sede: f.sede,
+        fecha: f.fecha,
+        tipo: f.justificada ? `Falta justificada · ${MOTIVO_LABEL(f.motivo)}` : "Falta injustificada",
+        entrada: null,
+        salida: null,
+        esFalta: true,
+        justificada: f.justificada,
+        motivoFalta: f.motivo,
+      });
+    }
+
     setFilas(out);
     setCargando(false);
   }, [router, desde, hasta]);
@@ -245,6 +278,35 @@ export default function IncidenciasPage() {
     setFilas((prev) => prev.filter((x) => !(x.personaId === f.personaId && x.fecha === f.fecha && x.aceptable === f.aceptable)));
   }
 
+  // ── Justificar una falta ─────────────────────────────────────────────────
+  const [justif, setJustif] = useState<{ personaId: string; fecha: string; nombre: string } | null>(null);
+  const [motivoSel, setMotivoSel] = useState("permiso_concedido");
+  const [observ, setObserv] = useState("");
+  const [guardandoJustif, setGuardandoJustif] = useState(false);
+
+  async function guardarJustificacion() {
+    if (!justif) return;
+    if (motivoSel === "otro" && observ.trim().length < 3) { setError("Para 'Otro' la observación es obligatoria."); return; }
+    setGuardandoJustif(true);
+    const supabase = createAdminSupabaseClient();
+    const { error: e } = await supabase.rpc("fn_set_justificacion", {
+      p_persona_id: justif.personaId, p_fecha: justif.fecha, p_motivo: motivoSel,
+      p_observacion: observ.trim() || null,
+    });
+    setGuardandoJustif(false);
+    if (e) { setError(`No se pudo justificar: ${e.message}`); return; }
+    setJustif(null); setObserv(""); setMotivoSel("permiso_concedido");
+    await cargar();
+  }
+
+  async function quitarJustificacion(f: Fila) {
+    if (!f.personaId) return;
+    const supabase = createAdminSupabaseClient();
+    const { error: e } = await supabase.rpc("fn_quitar_justificacion", { p_persona_id: f.personaId, p_fecha: f.fecha });
+    if (e) { setError(`No se pudo quitar la justificación: ${e.message}`); return; }
+    await cargar();
+  }
+
   // Encargada: solo su sede.
   const visibles = useMemo(() => {
     if (rol === "supervisor_sede" && yo) {
@@ -265,7 +327,7 @@ export default function IncidenciasPage() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${visibles.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde
@@ -314,7 +376,9 @@ export default function IncidenciasPage() {
                       <tr key={`${f.personaId}-${f.fecha}-${i}`} className="border-t border-sand">
                         <td className="px-4 py-2.5">{f.nombre}</td>
                         <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
-                        <td className="px-4 py-2.5"><span className="font-medium text-rojo">{f.tipo}</span></td>
+                        <td className="px-4 py-2.5">
+                          <span className={`font-medium ${f.justificada ? "text-taupe" : "text-rojo"}`}>{f.tipo}</span>
+                        </td>
                         <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
                         <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
                         <td className="px-4 py-2.5 text-right">
@@ -327,6 +391,24 @@ export default function IncidenciasPage() {
                                 className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-50"
                               >
                                 {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : "Aceptar"}
+                              </button>
+                            )}
+                            {f.esFalta && f.personaId && !f.justificada && (
+                              <button
+                                onClick={() => { setJustif({ personaId: f.personaId!, fecha: f.fecha, nombre: f.nombre }); setMotivoSel("permiso_concedido"); setObserv(""); }}
+                                title="Registrar el motivo de esta falta (permiso, descanso médico, etc.)"
+                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40"
+                              >
+                                Justificar
+                              </button>
+                            )}
+                            {f.esFalta && f.personaId && f.justificada && (
+                              <button
+                                onClick={() => void quitarJustificacion(f)}
+                                title="Quitar la justificación (vuelve a contar como falta)"
+                                className="text-xs text-taupe underline hover:text-tinta"
+                              >
+                                quitar justif.
                               </button>
                             )}
                             {f.personaId ? (
@@ -348,6 +430,33 @@ export default function IncidenciasPage() {
             </section>
           );
         })}
+
+        {/* Modal: justificar una falta */}
+        {justif && (
+          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardandoJustif && setJustif(null)}>
+            <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
+              <h3 className="mb-1 font-serif text-lg">Justificar falta</h3>
+              <p className="mb-4 text-sm text-taupe">{justif.nombre} · {fechaLarga(justif.fecha)}</p>
+              <label className="mb-3 flex flex-col gap-1 text-sm">
+                Motivo
+                <select value={motivoSel} onChange={(e) => setMotivoSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2">
+                  {MOTIVOS.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
+                </select>
+              </label>
+              <label className="mb-4 flex flex-col gap-1 text-sm">
+                Observación {motivoSel === "otro" ? <span className="text-rojo">(obligatoria)</span> : <span className="text-taupe">(opcional)</span>}
+                <textarea value={observ} onChange={(e) => setObserv(e.target.value)} rows={2}
+                  className="rounded-lg border border-sand bg-crema px-3 py-2" placeholder="ej. permiso por trámite" />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setJustif(null)} disabled={guardandoJustif} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
+                <button onClick={() => void guardarJustificacion()} disabled={guardandoJustif} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                  {guardandoJustif ? "Guardando…" : "Justificar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -960,6 +960,25 @@ export type Database = {
         Args: { p_persona_id: string; p_fecha: string; p_tipo: string }
         Returns: undefined
       }
+      fn_faltas: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          persona_id: string
+          nombre: string
+          sede: string
+          fecha: string
+          justificada: boolean
+          motivo: string | null
+        }[]
+      }
+      fn_set_justificacion: {
+        Args: { p_persona_id: string; p_fecha: string; p_motivo: string; p_observacion?: string | null }
+        Returns: undefined
+      }
+      fn_quitar_justificacion: {
+        Args: { p_persona_id: string; p_fecha: string }
+        Returns: undefined
+      }
       fn_vacaciones_resumen: {
         Args: { p_as_of?: string }
         Returns: Json
