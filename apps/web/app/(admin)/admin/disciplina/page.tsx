@@ -251,6 +251,8 @@ export default function DisciplinaPage() {
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <span><strong>{nombres.get(d.persona_id) ?? "—"}</strong> <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]}</span></span>
                     <div className="flex items-center gap-2">
+                      <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
+                        className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
                       <button onClick={() => firmar(d.id)} disabled={ocupado === d.id}
                         className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">Firmar</button>
                       <button onClick={() => anular(d.id)} disabled={ocupado === d.id}
@@ -286,6 +288,8 @@ export default function DisciplinaPage() {
                       <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]} · {d.correlativo}</span>
                     </span>
                     <div className="flex items-center gap-2">
+                      <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
+                        className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
                       <select value={medio[d.id] ?? "fisico"} onChange={(e) => setMedio((m) => ({ ...m, [d.id]: e.target.value }))}
                         className="rounded border bg-crema px-2 py-1 text-xs">
                         <option value="fisico">Físico</option>
