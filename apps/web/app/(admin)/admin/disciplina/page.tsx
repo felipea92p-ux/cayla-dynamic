@@ -1,0 +1,308 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { usePersonaActual } from "@/lib/admin/use-rol";
+import { AdminNav } from "../nav";
+
+const TZ = "America/Lima";
+
+function hoyLima(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+}
+// Fechas planas: se formatean en UTC para que no se corran un día por zona horaria.
+function fechaCorta(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "short", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, d)));
+}
+function addDias(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+function selloLima(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+}
+
+const NIVEL_LABEL: Record<string, string> = {
+  verbal: "Llamada verbal",
+  amonestacion: "Amonestación escrita",
+  suspension: "Suspensión sin goce",
+  imputacion: "Imputación de cargos",
+  despido: "Carta de despido",
+};
+const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
+
+interface TardanzaRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; }
+interface FaltaRow { persona_id: string; nombre: string; sede: string; consecutivas: number; en_30: number; en_180: number; nivel: string; }
+interface Hecho { fecha: string; minutos?: number; }
+interface Doc {
+  id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
+  periodo_desde: string | null; periodo_hasta: string | null; hechos: Hecho[];
+  suspension_dias: number | null; suspension_desde: string | null; suspension_hasta: string | null;
+  correlativo: string | null; creado_at: string;
+}
+
+export default function DisciplinaPage() {
+  const router = useRouter();
+  const yo = usePersonaActual();
+  const rol = yo?.rol ?? null;
+  const puede = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
+
+  const [tardanzas, setTardanzas] = useState<TardanzaRow[]>([]);
+  const [faltas, setFaltas] = useState<FaltaRow[]>([]);
+  const [docs, setDocs] = useState<Doc[]>([]);
+  const [nombres, setNombres] = useState<Map<string, string>>(new Map());
+  const [cargando, setCargando] = useState(true);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [medio, setMedio] = useState<Record<string, string>>({});
+
+  // Los tipos generados de la BD aún no incluyen las funciones/tabla del módulo
+  // disciplinario (migraciones 0055-0060); se regeneran al aplicarlas en Supabase.
+  // Hasta entonces, el cliente va sin tipar para este módulo aislado.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = useMemo<any>(() => createAdminSupabaseClient(), []);
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    const { data: sesion } = await supabase.auth.getSession();
+    if (!sesion.session) { router.replace("/admin/login"); return; }
+    const [{ data: t }, { data: f }, { data: d, error: eD }, { data: p }] = await Promise.all([
+      supabase.rpc("fn_tardanzas_resumen", {}),
+      supabase.rpc("fn_faltas_resumen", {}),
+      supabase.from("expediente_disciplinario")
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, correlativo, creado_at")
+        .in("estado", ["borrador", "firmado"])
+        .order("creado_at", { ascending: false }),
+      supabase.from("personas").select("id, nombres, apellidos"),
+    ]);
+    if (eD) setMsg({ tipo: "error", texto: `No se pudo cargar el legajo: ${eD.message}` });
+    setTardanzas(Array.isArray(t) ? (t as TardanzaRow[]) : []);
+    setFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
+    setDocs(Array.isArray(d) ? (d as unknown as Doc[]) : []);
+    setNombres(new Map(((p as Array<{ id: string; nombres: string; apellidos: string }>) ?? []).map((x) => [x.id, `${x.nombres} ${x.apellidos}`])));
+    setCargando(false);
+  }, [supabase, router]);
+
+  useEffect(() => { void cargar(); }, [cargar]);
+
+  async function generar(tipo: "tardanza" | "falta", personaId: string) {
+    setOcupado(personaId); setMsg(null);
+    const fn = tipo === "tardanza" ? "fn_expediente_generar_tardanza" : "fn_expediente_generar_falta";
+    const { error } = await supabase.rpc(fn, { p_persona_id: personaId });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: "Borrador generado. Revísalo abajo y fírmalo cuando esté listo." });
+  }
+
+  async function firmar(id: string) {
+    setOcupado(id); setMsg(null);
+    const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: `Firmado — documento ${data ?? ""}. Ya puedes entregarlo.` });
+  }
+
+  async function entregar(id: string) {
+    const m = medio[id] ?? "fisico";
+    setOcupado(id); setMsg(null);
+    const { error } = await supabase.rpc("fn_expediente_entregar", { p_id: id, p_medio: m });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: "Marcado como entregado. Guarda el cargo firmado en el legajo." });
+  }
+
+  async function guardarDias(d: Doc, dias: number) {
+    if (dias < 1) return;
+    const desde = d.suspension_desde ?? addDias(hoyLima(), 1);
+    setOcupado(d.id); setMsg(null);
+    const { error } = await supabase.rpc("fn_expediente_editar_borrador", {
+      p_id: d.id, p_suspension_dias: dias, p_suspension_desde: desde, p_suspension_hasta: addDias(desde, dias - 1),
+    });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    await cargar();
+  }
+
+  async function anular(id: string) {
+    const motivo = window.prompt("Motivo de la anulación (queda registrado en el documento):");
+    if (!motivo || motivo.trim().length < 3) return;
+    setOcupado(id); setMsg(null);
+    const { error } = await supabase.rpc("fn_expediente_anular", { p_id: id, p_motivo: motivo.trim() });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: "Documento anulado." });
+  }
+
+  const borradores = docs.filter((d) => d.estado === "borrador");
+  const firmados = docs.filter((d) => d.estado === "firmado");
+
+  if (rol !== null && !puede) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <AdminNav />
+        <main className="flex flex-1 items-center justify-center p-6">
+          <p className="max-w-md text-center text-taupe">No tienes permiso para el módulo disciplinario.</p>
+        </main>
+      </div>
+    );
+  }
+
+  function fechasDe(h: Hecho[]): string {
+    if (!Array.isArray(h) || h.length === 0) return "—";
+    return h.map((x) => fechaCorta(x.fecha) + (x.minutos != null ? ` (${x.minutos}′)` : "")).join(" · ");
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <AdminNav />
+      <main className="flex-1 p-6">
+        <h1 className="mb-1 font-serif text-2xl">Disciplina</h1>
+        <p className="mb-5 max-w-2xl text-sm text-taupe">
+          El sistema detecta quién cruzó un umbral y <strong>arma el borrador del memo</strong> con las pruebas puestas;
+          tú lo revisas y firmas. Tardanza y falta van <strong>separadas</strong>: pesan distinto en la escala.
+        </p>
+
+        {msg && (
+          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
+            {msg.texto}
+          </div>
+        )}
+
+        {/* Semáforo de tardanzas */}
+        <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
+          <div className="border-b bg-sand/50 px-4 py-2">
+            <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ }).format(new Date())}</h2>
+            <p className="mt-0.5 text-xs text-taupe">Umbral RIT art. 7: 3 en el mes corresponde amonestación.</p>
+          </div>
+          {cargando ? (
+            <p className="px-4 py-6 text-sm text-taupe">Cargando…</p>
+          ) : tardanzas.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-taupe">Nadie con tardanzas relevantes este mes.</p>
+          ) : (
+            <ul className="divide-y">
+              {tardanzas.map((t) => (
+                <li key={t.persona_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span>
+                    <strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "amonestacion" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>
+                      {t.tardanzas_mes} {t.umbral === "amonestacion" ? "· amonestación" : "· aviso"}
+                    </span>
+                  </span>
+                  <button onClick={() => generar("tardanza", t.persona_id)} disabled={ocupado === t.persona_id}
+                    className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+                    {ocupado === t.persona_id ? "Generando…" : "Generar borrador"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Semáforo de faltas */}
+        <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
+          <div className="border-b bg-sand/50 px-4 py-2">
+            <h2 className="text-sm font-medium">Faltas — últimos 180 días</h2>
+            <p className="mt-0.5 text-xs text-taupe">Umbrales art. 25-h: 4 consecutivas · 6 en 30 días · 16 en 180 días.</p>
+          </div>
+          {cargando ? (
+            <p className="px-4 py-6 text-sm text-taupe">Cargando…</p>
+          ) : faltas.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-taupe">Nadie en umbral de faltas. Buena señal.</p>
+          ) : (
+            <ul className="divide-y">
+              {faltas.map((f) => (
+                <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span>
+                    <strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${f.nivel === "rojo" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>
+                      {f.consecutivas} consec · {f.en_30} en 30d · {f.en_180} en 180d
+                    </span>
+                  </span>
+                  <button onClick={() => generar("falta", f.persona_id)} disabled={ocupado === f.persona_id}
+                    className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+                    {ocupado === f.persona_id ? "Generando…" : "Generar borrador"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Borradores pendientes de firma */}
+        <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
+          <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
+            Borradores pendientes {borradores.length > 0 && <span className="font-normal text-taupe">· {borradores.length}</span>}
+          </h2>
+          {borradores.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-taupe">No hay borradores por firmar.</p>
+          ) : (
+            <ul className="divide-y">
+              {borradores.map((d) => (
+                <li key={d.id} className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <span><strong>{nombres.get(d.persona_id) ?? "—"}</strong> <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]}</span></span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => firmar(d.id)} disabled={ocupado === d.id}
+                        className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">Firmar</button>
+                      <button onClick={() => anular(d.id)} disabled={ocupado === d.id}
+                        className="rounded border border-rojo/30 px-2 py-0.5 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">Anular</button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-taupe">Hechos: {fechasDe(d.hechos)}</p>
+                  {d.nivel === "suspension" && (
+                    <label className="mt-1 flex items-center gap-2 text-xs text-taupe">
+                      Días de suspensión:
+                      <input type="number" min={1} max={15} defaultValue={d.suspension_dias ?? 1}
+                        onBlur={(e) => guardarDias(d, Number(e.target.value))}
+                        className="w-16 rounded border px-2 py-1" />
+                      {d.suspension_desde && <span>del {fechaCorta(d.suspension_desde)}{d.suspension_hasta ? ` al ${fechaCorta(d.suspension_hasta)}` : ""}</span>}
+                    </label>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Firmados — pendientes de entrega */}
+        {firmados.length > 0 && (
+          <div className="max-w-3xl overflow-hidden rounded-lg border">
+            <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">Firmados — por entregar · {firmados.length}</h2>
+            <ul className="divide-y">
+              {firmados.map((d) => (
+                <li key={d.id} className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <span>
+                      <strong>{nombres.get(d.persona_id) ?? "—"}</strong>{" "}
+                      <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]} · {d.correlativo}</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <select value={medio[d.id] ?? "fisico"} onChange={(e) => setMedio((m) => ({ ...m, [d.id]: e.target.value }))}
+                        className="rounded border bg-crema px-2 py-1 text-xs">
+                        <option value="fisico">Físico</option>
+                        <option value="correo">Correo</option>
+                        <option value="notarial">Notarial</option>
+                      </select>
+                      <button onClick={() => entregar(d.id)} disabled={ocupado === d.id}
+                        className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">Marcar entregado</button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-taupe/70">Firmado {selloLima(d.creado_at)}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

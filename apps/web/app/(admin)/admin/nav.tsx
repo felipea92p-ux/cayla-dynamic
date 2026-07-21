@@ -12,6 +12,7 @@ const LINKS: Array<{ href: string; label: string; roles?: string[] }> = [
   { href: "/admin/perfil", label: "Perfil" },
   { href: "/admin/horas", label: "Horas" },
   { href: "/admin/incidencias", label: "Incidencias", roles: ["admin", "lider_do", "supervisor_sede"] },
+  { href: "/admin/disciplina", label: "Disciplina", roles: ["admin", "lider_do", "supervisor_sede"] },
   { href: "/admin/correcciones", label: "Correcciones", roles: ["admin", "lider_do", "supervisor_sede"] },
   { href: "/admin/horarios", label: "Horarios", roles: ["admin", "lider_do", "supervisor_sede"] },
   { href: "/admin/turnos", label: "Turnos", roles: ["admin", "lider_do", "supervisor_sede"] },
