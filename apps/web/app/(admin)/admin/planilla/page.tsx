@@ -145,8 +145,10 @@ const CLASE_A_TIPO: Record<ClaseMov, "bono" | "descuento"> = {
 const CLASE_A_CATEGORIA: Record<ClaseMov, string | null> = {
   bono: null, descuento: null, vacaciones: "vacaciones", gratificacion: "gratificacion", cts: "cts", otros: "otros",
 };
+// Nombres discretos del sistema interno (decisión de Felipe): por dentro siguen
+// siendo grati/CTS (categoría, cálculo, candado), solo cambia lo que se lee.
 const CLASE_LABEL: Record<ClaseMov, string> = {
-  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", gratificacion: "Gratificación", cts: "CTS", otros: "Otros",
+  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", gratificacion: "Bono Gratitud", cts: "Bono Comprometidos", otros: "Otros",
 };
 const CLASE_PLACEHOLDER: Record<ClaseMov, string> = {
   bono: "ej. reconocimiento del mes",
@@ -455,8 +457,8 @@ function TablaPlanilla(props: {
                               <option value="descuento">Descuento</option>
                               <option value="vacaciones">Vacaciones</option>
                               {/* Solo en el periodo que corresponde (fecha de pago legal dentro del rango) */}
-                              {gc?.gratiAplica && <option value="gratificacion">Gratificación</option>}
-                              {gc?.ctsAplica && <option value="cts">CTS</option>}
+                              {gc?.gratiAplica && <option value="gratificacion">{CLASE_LABEL.gratificacion}</option>}
+                              {gc?.ctsAplica && <option value="cts">{CLASE_LABEL.cts}</option>}
                               <option value="otros">Otros</option>
                             </select>
                           </label>
