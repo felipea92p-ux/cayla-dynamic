@@ -135,20 +135,25 @@ export interface Proyeccion {
 // Lo que se elige en el desplegable. "vacaciones" y "otros" NO son tipos nuevos
 // en la base: son etiquetas (categoría) sobre un movimiento que suma, igual que
 // un bono. La aritmética de la planilla no cambia — para restar, siempre Descuento.
-type ClaseMov = "bono" | "descuento" | "vacaciones" | "otros";
+// gratificacion/cts tampoco son tipos nuevos en la base: son categorías sobre un
+// bono. Su MONTO lo calcula el sistema (fn_grati_cts_periodo) para el periodo que
+// contiene la fecha de pago legal, y se autocompleta al elegirlas.
+type ClaseMov = "bono" | "descuento" | "vacaciones" | "gratificacion" | "cts" | "otros";
 const CLASE_A_TIPO: Record<ClaseMov, "bono" | "descuento"> = {
-  bono: "bono", descuento: "descuento", vacaciones: "bono", otros: "bono",
+  bono: "bono", descuento: "descuento", vacaciones: "bono", gratificacion: "bono", cts: "bono", otros: "bono",
 };
 const CLASE_A_CATEGORIA: Record<ClaseMov, string | null> = {
-  bono: null, descuento: null, vacaciones: "vacaciones", otros: "otros",
+  bono: null, descuento: null, vacaciones: "vacaciones", gratificacion: "gratificacion", cts: "cts", otros: "otros",
 };
 const CLASE_LABEL: Record<ClaseMov, string> = {
-  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", otros: "Otros",
+  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", gratificacion: "Gratificación", cts: "CTS", otros: "Otros",
 };
 const CLASE_PLACEHOLDER: Record<ClaseMov, string> = {
   bono: "ej. reconocimiento del mes",
   descuento: "ej. adelanto quincenal",
   vacaciones: "ej. Vacaciones 22–28 jul 2026",
+  gratificacion: "el sistema lo calcula",
+  cts: "el sistema lo calcula",
   otros: "ej. reintegro",
 };
 
@@ -156,6 +161,14 @@ interface MovForm {
   tipo: ClaseMov;
   concepto: string;
   monto: string;
+}
+// Grati/CTS que toca en el periodo, calculado por fn_grati_cts_periodo.
+interface GratiCts {
+  gratiAplica: boolean;
+  gratiConcepto: string;
+  ctsAplica: boolean;
+  ctsConcepto: string;
+  porPersona: Record<string, { grati: number; cts: number }>;
 }
 
 function etiquetaPeriodo(p: PeriodoInfo): string {
@@ -185,13 +198,26 @@ function TablaPlanilla(props: {
   onAgregarMov?: (f: Fila) => void;
   onQuitarMov?: (m: Movimiento) => void;
   guardandoMov?: boolean;
+  gc?: GratiCts | null;
 }) {
   const {
     filas, simulacion, pagado, sedeFiltro, periodoId, ocupado = false,
     objEdit = {}, onObjChange, onObjBlur, guardandoObj = null,
     movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov,
-    guardandoMov = false,
+    guardandoMov = false, gc = null,
   } = props;
+  // Al elegir grati/CTS en el desplegable, autocompleta concepto y el monto que el
+  // sistema calculó para esa persona en este periodo. El resto queda manual.
+  const alCambiarTipo = (f: Fila, t: ClaseMov) => {
+    if ((t === "gratificacion" || t === "cts") && gc) {
+      const gp = gc.porPersona[f.persona_id];
+      const monto = t === "gratificacion" ? gp?.grati : gp?.cts;
+      const concepto = t === "gratificacion" ? gc.gratiConcepto : gc.ctsConcepto;
+      onMovForm?.({ tipo: t, concepto: concepto || CLASE_LABEL[t], monto: monto ? String(monto) : "" });
+    } else {
+      onMovForm?.({ ...movForm!, tipo: t });
+    }
+  };
   const editable = !simulacion;
   const hintPagado = "periodo pagado — reábrelo para modificar";
 
@@ -420,7 +446,7 @@ function TablaPlanilla(props: {
                             Tipo
                             <select
                               value={movForm.tipo}
-                              onChange={(e) => onMovForm?.({ ...movForm, tipo: e.target.value as ClaseMov })}
+                              onChange={(e) => alCambiarTipo(f, e.target.value as ClaseMov)}
                               disabled={pagado || guardandoMov}
                               title={pagado ? hintPagado : undefined}
                               className="rounded-lg border bg-crema px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
@@ -428,6 +454,9 @@ function TablaPlanilla(props: {
                               <option value="bono">Bono</option>
                               <option value="descuento">Descuento</option>
                               <option value="vacaciones">Vacaciones</option>
+                              {/* Solo en el periodo que corresponde (fecha de pago legal dentro del rango) */}
+                              {gc?.gratiAplica && <option value="gratificacion">Gratificación</option>}
+                              {gc?.ctsAplica && <option value="cts">CTS</option>}
                               <option value="otros">Otros</option>
                             </select>
                           </label>
@@ -522,6 +551,7 @@ export default function PlanillaPage() {
 
   // Proyección del periodo seleccionado
   const [proy, setProy] = useState<Proyeccion | null>(null);
+  const [gc, setGc] = useState<GratiCts | null>(null);
   const [cargando, setCargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -637,6 +667,18 @@ export default function PlanillaPage() {
     }
     setProy(data as unknown as Proyeccion);
     setObjEdit({}); // los valores en edición eran del periodo anterior
+    // Grati/CTS que toca en este periodo (falla suave: si no llega, el desplegable
+    // simplemente no muestra esas opciones y la planilla sigue igual).
+    const { data: gcData } = await supabase.rpc("fn_grati_cts_periodo", { p_periodo_id: id });
+    if (mi !== reqId.current) return;
+    const g = gcData as any;
+    setGc(g ? {
+      gratiAplica: Boolean(g.grati_aplica),
+      gratiConcepto: g.grati_concepto ?? "",
+      ctsAplica: Boolean(g.cts_aplica),
+      ctsConcepto: g.cts_concepto ?? "",
+      porPersona: Object.fromEntries(((g.personas as any[]) ?? []).map((x) => [x.persona_id, { grati: Number(x.grati) || 0, cts: Number(x.cts) || 0 }])),
+    } : null);
   }, [supabase, puedeVer]);
 
   useEffect(() => {
@@ -1395,6 +1437,7 @@ export default function PlanillaPage() {
                 onAgregarMov={(f) => void agregarMovimiento(f)}
                 onQuitarMov={(m) => void quitarMovimiento(m)}
                 guardandoMov={guardandoMov}
+                gc={gc}
               />
             ) : null}
 
