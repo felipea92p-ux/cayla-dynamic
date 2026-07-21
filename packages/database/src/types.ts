@@ -633,6 +633,36 @@ export type Database = {
           },
         ]
       }
+      incidencias_aceptadas: {
+        Row: {
+          aceptado_at: string
+          aceptado_por: string
+          fecha: string
+          id: string
+          nota: string | null
+          persona_id: string
+          tipo: string
+        }
+        Insert: {
+          aceptado_at?: string
+          aceptado_por: string
+          fecha: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          tipo: string
+        }
+        Update: {
+          aceptado_at?: string
+          aceptado_por?: string
+          fecha?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       vacaciones: {
         Row: {
           creado_at: string
@@ -920,6 +950,14 @@ export type Database = {
       }
       fn_quitar_vacaciones: {
         Args: { p_id: string }
+        Returns: undefined
+      }
+      fn_aceptar_incidencia: {
+        Args: { p_persona_id: string; p_fecha: string; p_tipo: string; p_nota?: string | null }
+        Returns: undefined
+      }
+      fn_quitar_aceptacion: {
+        Args: { p_persona_id: string; p_fecha: string; p_tipo: string }
         Returns: undefined
       }
       fn_vacaciones_resumen: {

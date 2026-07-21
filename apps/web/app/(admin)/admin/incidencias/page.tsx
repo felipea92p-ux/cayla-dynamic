@@ -44,6 +44,7 @@ interface Fila {
   tipo: string;
   entrada: string | null;
   salida: string | null;
+  aceptable?: string; // clave de tipo (p. ej. 'salida_anticipada') si se puede "Aceptar"
 }
 
 const HOY = hoyLima();
@@ -86,6 +87,7 @@ export default function IncidenciasPage() {
       { data: metasData, error: errMetas },
       { data: horariosData, error: errHorarios },
       { data: turnosData, error: errTurnos },
+      { data: aceptadasData },
     ] = await Promise.all([
       supabase
         .from("jornadas")
@@ -106,6 +108,8 @@ export default function IncidenciasPage() {
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
+      // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
+      supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo").gte("fecha", desde).lte("fecha", hasta),
     ]);
 
     if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
@@ -114,6 +118,11 @@ export default function IncidenciasPage() {
       return; // no pisa `filas` con datos parciales/vacíos
     }
     setError(null);
+    // Set de claves aceptadas: `persona|fecha|tipo`. Falla suave (si no llega, no oculta nada).
+    const aceptadas = new Set(
+      (aceptadasData as { persona_id: string; fecha: string; tipo: string }[] | null ?? [])
+        .map((a) => `${a.persona_id}|${a.fecha}|${a.tipo}`),
+    );
 
     // Mapa persona_id|fecha → minutos de salida temprana (vía RPC, esquivando el schema cache).
     const minutosPorClave = new Map<string, number>();
@@ -125,11 +134,14 @@ export default function IncidenciasPage() {
     for (const j of (data as any[]) ?? []) {
       const minutosTemprana = minutosPorClave.get(`${j.persona_id}|${j.fecha}`) ?? 0;
       let tipo: string | null = null;
+      let aceptable: string | undefined;
       if (j.estado === "auto_cerrada_pendiente") tipo = "Auto-cerrada (revisar)";
       else if (j.fecha < HOY && j.estado === "abierta") tipo = "Sin salida final";
       else if (j.fecha < HOY && j.tiene_salida_no_retornada) tipo = "No regresó de pausa";
-      else if (minutosTemprana > 0) tipo = `Salida anticipada (${minutosTemprana} min)`;
+      else if (minutosTemprana > 0) { tipo = `Salida anticipada (${minutosTemprana} min)`; aceptable = "salida_anticipada"; }
       if (!tipo) continue;
+      // Si ya la aceptaste (visto bueno), no la muestres.
+      if (aceptable && aceptadas.has(`${j.persona_id}|${j.fecha}|${aceptable}`)) continue;
       out.push({
         personaId: j.persona_id,
         nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
@@ -138,6 +150,7 @@ export default function IncidenciasPage() {
         tipo,
         entrada: j.entrada_ts,
         salida: j.salida_final_ts,
+        aceptable,
       });
     }
 
@@ -216,6 +229,22 @@ export default function IncidenciasPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
+  const [aceptando, setAceptando] = useState<string | null>(null);
+  // "Aceptar" (visto bueno): registra la incidencia como revisada y la saca de la
+  // lista. Deja rastro (quién/cuándo), no la borra. Solo salida anticipada por ahora.
+  async function aceptar(f: Fila) {
+    if (!f.personaId || !f.aceptable) return;
+    const clave = `${f.personaId}|${f.fecha}|${f.aceptable}`;
+    setAceptando(clave);
+    const supabase = createAdminSupabaseClient();
+    const { error: e } = await supabase.rpc("fn_aceptar_incidencia", {
+      p_persona_id: f.personaId, p_fecha: f.fecha, p_tipo: f.aceptable,
+    });
+    setAceptando(null);
+    if (e) { setError(`No se pudo aceptar: ${e.message}`); return; }
+    setFilas((prev) => prev.filter((x) => !(x.personaId === f.personaId && x.fecha === f.fecha && x.aceptable === f.aceptable)));
+  }
+
   // Encargada: solo su sede.
   const visibles = useMemo(() => {
     if (rol === "supervisor_sede" && yo) {
@@ -289,15 +318,27 @@ export default function IncidenciasPage() {
                         <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
                         <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
                         <td className="px-4 py-2.5 text-right">
-                          {f.personaId ? (
-                            <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
-                              Corregir ›
-                            </Link>
-                          ) : (
-                            <Link href={`/admin/turnos?fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
-                              Ver turnos ›
-                            </Link>
-                          )}
+                          <div className="flex items-center justify-end gap-3">
+                            {f.aceptable && f.personaId && (
+                              <button
+                                onClick={() => void aceptar(f)}
+                                disabled={aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}`}
+                                title="Dar por buena esta salida anticipada y quitarla de la lista"
+                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-50"
+                              >
+                                {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : "Aceptar"}
+                              </button>
+                            )}
+                            {f.personaId ? (
+                              <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                                Corregir ›
+                              </Link>
+                            ) : (
+                              <Link href={`/admin/turnos?fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                                Ver turnos ›
+                              </Link>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
