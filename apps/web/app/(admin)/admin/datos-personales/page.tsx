@@ -43,6 +43,7 @@ export default function DatosPersonalesPage() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [q, setQ] = useState("");
+  const [soloSinFicha, setSoloSinFicha] = useState(false);
   const fichaRef = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
@@ -103,7 +104,9 @@ export default function DatosPersonalesPage() {
   }
 
   const personaSel = personas.find((p) => p.id === sel) ?? null;
-  const lista = personas.filter((p) => `${p.nombres} ${p.apellidos}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const lista = personas.filter((p) =>
+    `${p.nombres} ${p.apellidos}`.toLowerCase().includes(q.trim().toLowerCase())
+    && (!soloSinFicha || !fichas.has(p.id)));
   const sinFicha = personas.filter((p) => !fichas.has(p.id)).length;
 
   if (rol !== null && !puede) {
@@ -158,7 +161,12 @@ export default function DatosPersonalesPage() {
             <div className="border-b bg-sand/50 px-3 py-2">
               <div className="flex items-baseline justify-between">
                 <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
-                {sinFicha > 0 && <span className="text-xs text-amber-800">{sinFicha} sin ficha</span>}
+                {sinFicha > 0 && (
+                  <button onClick={() => setSoloSinFicha((v) => !v)} aria-pressed={soloSinFicha}
+                    className={`rounded-full px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-amber-200 text-amber-900" : "text-amber-800 hover:bg-amber-100"}`}>
+                    {sinFicha} sin ficha
+                  </button>
+                )}
               </div>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre…"
                 className="mt-2 w-full rounded-lg border bg-crema px-3 py-1.5 text-sm" />
