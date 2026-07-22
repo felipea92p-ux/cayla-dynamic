@@ -440,7 +440,7 @@ export default function EquipoPage() {
   }
 
   const formulario = (modo: "alta" | "edicion") => (
-    <div className="mb-6 grid max-w-3xl gap-3 rounded-lg border bg-sand/50 p-4 sm:grid-cols-2">
+    <div className="mb-6 grid max-w-3xl gap-4 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
       <label className="flex flex-col gap-1 text-sm">
         Nombres
         <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="rounded-lg border px-3 py-2" />
@@ -585,7 +585,7 @@ export default function EquipoPage() {
     const p = personas.find((x) => x.id === salEditId);
     if (!p) return null;
     return (
-      <div className="mb-6 grid max-w-2xl gap-3 rounded-lg border border-rojo/30 bg-sand/40 p-4 sm:grid-cols-2">
+      <div className="mb-6 grid max-w-2xl gap-4 rounded-2xl border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
         <p className="text-sm font-medium sm:col-span-2">Salario de {p.nombres} {p.apellidos}</p>
         <label className="flex flex-col gap-1 text-sm">
           Rango
@@ -628,7 +628,7 @@ export default function EquipoPage() {
     const p = personas.find((x) => x.id === histId);
     if (!p) return null;
     return (
-      <div className="mb-6 max-w-2xl rounded-lg border bg-sand/30 p-4">
+      <div className="mb-6 max-w-2xl rounded-2xl border border-sand bg-papel p-5">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-sm font-medium">Historial de salario — {p.nombres} {p.apellidos}</p>
           <button onClick={() => setHistId(null)} className="text-xs text-taupe hover:underline">Cerrar</button>
@@ -703,11 +703,14 @@ export default function EquipoPage() {
         {puedeSalarios && histId && panelHistorial()}
 
         {cargando ? (
-          <p className="text-sm text-taupe">Cargando…</p>
+          <div className="flex flex-col items-center gap-4 py-24 text-taupe">
+            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
+            <span className="text-sm">Cargando el equipo…</span>
+          </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto rounded-2xl border border-sand">
             <table className="w-full text-sm">
-              <thead className="bg-sand/50 text-left text-taupe">
+              <thead className="bg-sand/70 text-left text-taupe">
                 <tr>
                   <th className="px-4 py-2 font-normal">Nombre</th>
                   <th className="px-4 py-2 font-normal">Sede</th>
@@ -721,7 +724,7 @@ export default function EquipoPage() {
               </thead>
               <tbody>
                 {personas.map((p) => (
-                  <tr key={p.id} className={`border-t ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
+                  <tr key={p.id} className={`border-t bg-papel transition-colors hover:bg-crema ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
                     <td className="px-4 py-2">
                       <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
                       {p.con_hijos && (

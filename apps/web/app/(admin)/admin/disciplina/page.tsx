@@ -177,7 +177,7 @@ export default function DisciplinaPage() {
         )}
 
         {/* Semáforo de tardanzas */}
-        <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
+        <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ }).format(new Date())}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
             <p className="mt-0.5 text-xs text-taupe">Umbral RIT art. 7: 3 en el mes corresponde amonestación.</p>
@@ -207,7 +207,7 @@ export default function DisciplinaPage() {
         </div>
 
         {/* Semáforo de faltas */}
-        <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
+        <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <h2 className="text-sm font-medium">Faltas — últimos 180 días{!cargando && faltas.length > 0 && <span className="font-normal text-taupe"> · {faltas.length}</span>}</h2>
             <p className="mt-0.5 text-xs text-taupe">Umbrales art. 25-h: 4 consecutivas · 6 en 30 días · 16 en 180 días.</p>
@@ -237,7 +237,7 @@ export default function DisciplinaPage() {
         </div>
 
         {/* Borradores pendientes de firma */}
-        <div ref={borradoresRef} className="mb-6 max-w-3xl scroll-mt-4 overflow-hidden rounded-lg border">
+        <div ref={borradoresRef} className="mb-6 max-w-3xl scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Borradores pendientes {borradores.length > 0 && <span className="font-normal text-taupe">· {borradores.length}</span>}
           </h2>
@@ -276,7 +276,7 @@ export default function DisciplinaPage() {
 
         {/* Firmados — pendientes de entrega */}
         {firmados.length > 0 && (
-          <div className="max-w-3xl overflow-hidden rounded-lg border">
+          <div className="max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
             <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">Firmados — por entregar · {firmados.length}</h2>
             <ul className="divide-y">
               {firmados.map((d) => (

@@ -158,7 +158,7 @@ export default function DatosPersonalesPage() {
 
         <div className="grid gap-6 md:grid-cols-[260px_1fr]">
           {/* Lista de personas */}
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
             <div className="border-b bg-sand/50 px-3 py-2">
               <div className="flex items-baseline justify-between">
                 <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
@@ -201,7 +201,7 @@ export default function DatosPersonalesPage() {
           </div>
 
           {/* Ficha */}
-          <div ref={fichaRef} className="scroll-mt-4 rounded-lg border p-4">
+          <div ref={fichaRef} className="scroll-mt-4 rounded-2xl border border-sand bg-papel p-5">
             {!personaSel ? (
               <p className="text-sm text-taupe">Elige a alguien de la lista para ver o editar su ficha.</p>
             ) : (

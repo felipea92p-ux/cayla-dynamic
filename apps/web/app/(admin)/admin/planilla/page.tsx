@@ -241,9 +241,9 @@ function TablaPlanilla(props: {
   );
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
       <table className="w-full text-sm">
-        <thead className="bg-sand/50 text-left text-taupe">
+        <thead className="bg-sand/70 text-left text-taupe">
           <tr>
             <th className="px-4 py-2 font-normal">Nombre</th>
             <th className="px-4 py-2 font-normal">Sede</th>
@@ -1454,9 +1454,9 @@ export default function PlanillaPage() {
                 </button>
                 {mostrandoProvisiones && (
                   <div className="mt-2">
-                    <div className="max-w-3xl overflow-x-auto rounded-lg border">
+                    <div className="max-w-3xl overflow-x-auto rounded-2xl border border-sand bg-papel">
                       <table className="w-full text-sm">
-                        <thead className="bg-sand/50 text-left text-taupe">
+                        <thead className="bg-sand/70 text-left text-taupe">
                           <tr>
                             <th className="px-4 py-2 font-normal">Nombre</th>
                             <th className="px-4 py-2 text-right font-normal">Gratificación</th>
