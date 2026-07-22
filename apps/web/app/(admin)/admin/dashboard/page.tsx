@@ -250,26 +250,36 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <AdminNav />
-      <main className="flex-1 p-6">
-        <div className="mb-6 flex items-end justify-between">
-          <h1 className="font-serif text-3xl">Asistencia de hoy</h1>
-          <div className="flex items-center gap-4">
-            <a
-              href="https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg border border-sand bg-crema px-4 py-2 text-sm font-medium text-tinta transition-colors hover:bg-sand/40"
-            >
-              📊 Ver en Google Sheets
-            </a>
-            <span className="text-xs text-taupe">
-              {cargando ? "Cargando…" : `Actualizado ${actualizado} · se refresca solo cada 30s`}
-            </span>
+      <main className="flex-1 p-6 sm:p-8">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-serif text-3xl leading-tight">Asistencia de hoy</h1>
+            <p className="mt-1.5 flex items-center gap-2 text-xs text-taupe">
+              {cargando && filas.length === 0 ? (
+                "Cargando…"
+              ) : (
+                <>
+                  <span className="relative flex h-2 w-2" aria-hidden>
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verde/60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-verde" />
+                  </span>
+                  En vivo · actualizado {actualizado} · se refresca cada 30s
+                </>
+              )}
+            </p>
           </div>
+          <a
+            href="https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-sand bg-papel px-4 py-2 text-sm font-medium text-tinta transition-all hover:-translate-y-0.5 hover:border-taupe"
+          >
+            Ver en Google Sheets ↗
+          </a>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo">
             No se pudo cargar la asistencia de hoy: {error}{" "}
             <button onClick={() => void cargar()} className="font-medium underline">
               Reintentar
@@ -277,6 +287,13 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {cargando && filas.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 py-24 text-taupe">
+            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
+            <span className="text-sm">Cargando la asistencia de hoy…</span>
+          </div>
+        ) : (
+          <>
         {(() => {
           const rojosT = discTard.filter((t) => t.umbral === "amonestacion");
           const avisoT = discTard.filter((t) => t.umbral === "aviso").length;
@@ -284,27 +301,27 @@ export default function DashboardPage() {
           const ambarF = discFaltas.filter((f) => f.nivel === "ambar").length;
           if (!rojosT.length && !avisoT && !rojosF.length && !ambarF) return null;
           return (
-            <Link href="/admin/disciplina" className="mb-8 block rounded-lg border border-sand bg-crema/50 p-4 transition-colors hover:bg-sand/30">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm font-medium text-tinta">Disciplina — necesita tu atención</span>
+            <Link href="/admin/disciplina" className="mb-10 block rounded-2xl border border-sand bg-rojo/[0.04] p-5 transition-all hover:-translate-y-0.5 hover:border-taupe">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-serif text-lg text-tinta">Disciplina — necesita tu atención</span>
                 <span className="text-xs font-medium text-rojo">Ver disciplina →</span>
               </div>
               {rojosT.map((t) => (
-                <div key={t.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-1.5 text-sm">
+                <div key={t.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
                   <span><strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
                     <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">corresponde amonestación por tardanzas</span></span>
                   {t.ultima_fecha && <span className="text-xs font-medium text-rojo">actúa antes del {fechaBonita(masDiasHabiles(t.ultima_fecha, 10))}</span>}
                 </div>
               ))}
               {rojosF.map((f) => (
-                <div key={f.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-1.5 text-sm">
+                <div key={f.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
                   <span><strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
                     <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">causal por faltas (art. 25-h)</span></span>
                   <span className="text-xs font-medium text-rojo">acción inmediata</span>
                 </div>
               ))}
-              <div className="border-t border-sand/60 pt-2 text-xs text-taupe">
-                {avisoT > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">{avisoT} en aviso (tardanzas)</span>}
+              <div className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
+                {avisoT > 0 && <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-ambar">{avisoT} en aviso (tardanzas)</span>}
                 {avisoT > 0 ? " · " : ""}Faltas: {rojosF.length + ambarF > 0 ? `${rojosF.length + ambarF} en alerta` : "sin alertas"}
               </div>
             </Link>
@@ -320,20 +337,20 @@ export default function DashboardPage() {
           const opPiso = deSede.filter((f) => f.esOperativa && f.estado === "abierta").length;
           const encPiso = deSede.filter((f) => f.esEncargada && f.estado === "abierta").length;
           return (
-            <section key={sedeId} className="mb-10">
-              <h2 className="mb-3 font-serif text-xl">
-                {codigo} <span className="text-base text-taupe">— {activos.length} trabajando de {deSede.length}</span>
+            <section key={sedeId} className="mb-12">
+              <h2 className="mb-4 font-serif text-xl">
+                {codigo} <span className="text-base font-normal text-taupe">— {activos.length} trabajando de {deSede.length}</span>
               </h2>
 
               {/* Trabajando ahora — para que la encargada verifique contra quién está físicamente */}
-              <div className="mb-4 rounded-lg border border-verde/25 bg-verde/[0.07] px-4 py-3">
+              <div className="mb-5 rounded-2xl border border-verde/20 bg-verde/[0.06] px-5 py-4">
                 <div className="etiqueta text-verde">Trabajando ahora · {activos.length}</div>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {activos.length === 0 ? (
                     <span className="text-sm text-taupe/70">Nadie marcado todavía.</span>
                   ) : (
                     activos.map((f) => (
-                      <span key={f.personaId} className="rounded-full border border-sand bg-crema px-3 py-1 text-sm">
+                      <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm transition-colors hover:border-taupe">
                         {f.nombre}
                         {f.estado === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
                       </span>
@@ -341,28 +358,28 @@ export default function DashboardPage() {
                   )}
                 </div>
                 {/* Cobertura del momento: cuánta gente en piso ahora vs la meta del tramo vigente */}
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-verde/15 pt-2.5 text-sm">
+                <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-verde/15 pt-3 text-sm">
                   <LineaCobertura label="Operativas en piso" n={opPiso} meta={tramoTarde ? meta.tar : meta.man} tramo={tramoLabel} />
                   <LineaCobertura label="Encargadas" n={encPiso} meta={meta.enc} />
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-sand">
+              <div className="overflow-x-auto rounded-2xl border border-sand">
                 <table className="w-full text-sm">
-                  <thead className="bg-sand text-left">
+                  <thead className="bg-sand/70 text-left">
                     <tr className="etiqueta text-taupe">
-                      <th className="px-4 py-2.5 font-medium">Nombre</th>
-                      <th className="px-4 py-2.5 font-medium">Estado</th>
-                      <th className="px-4 py-2.5 font-medium">Entrada</th>
-                      <th className="px-4 py-2.5 font-medium">Tardanza</th>
-                      <th className="px-4 py-2.5 font-medium">Salida final</th>
+                      <th className="px-4 py-3 font-medium">Nombre</th>
+                      <th className="px-4 py-3 font-medium">Estado</th>
+                      <th className="px-4 py-3 font-medium">Entrada</th>
+                      <th className="px-4 py-3 font-medium">Tardanza</th>
+                      <th className="px-4 py-3 font-medium">Salida final</th>
                     </tr>
                   </thead>
                   <tbody>
                     {deSede.map((f) => {
                       const estilo = ESTILO_ESTADO[f.estado] ?? ESTILO_ESTADO.sin_marcar;
                       return (
-                        <tr key={f.personaId} className="border-t border-sand">
+                        <tr key={f.personaId} className="border-t border-sand bg-papel transition-colors hover:bg-crema">
                           <td className="px-4 py-2.5">{f.nombre}</td>
                           <td className="px-4 py-2.5">
                             {f.estado === "auto_cerrada_pendiente" ? (
@@ -400,6 +417,8 @@ export default function DashboardPage() {
             </section>
           );
         })}
+          </>
+        )}
       </main>
     </div>
   );

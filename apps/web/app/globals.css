@@ -5,6 +5,7 @@
      Tres colores sagrados + tres secundarios de sistema interno.
      Nunca blanco puro, nunca negro absoluto, sin gradientes ni sombras. */
   --color-crema: #f5f0e8; /* fondo dominante  */
+  --color-papel: #fbf8f2; /* superficie elevada (tarjetas): más clara que crema, eleva sin sombra */
   --color-tinta: #1a1a18; /* todo el texto    */
   --color-rojo: #b8412d; /* acento sagrado (máx. usos por vista) */
   --color-rojo-profundo: #8b2a1f; /* énfasis sobre crema */
@@ -44,6 +45,14 @@
   font-size: 0.7rem;
   font-weight: 500;
 }
+
+/* Aleteo del colibrí para estados de carga: un flotar suave, no un giro. */
+@keyframes aletea {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.aletea { animation: aletea 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .aletea { animation: none; } }
 
 /* Isotipo recoloreable: usa el PNG de línea como máscara y lo tiñe con color plano. */
 .colibri {
