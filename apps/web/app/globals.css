@@ -38,6 +38,17 @@
   }
 }
 
+/* Vitalidad: el botón primario (fondo tinta) "prende" en el acento sagrado al
+   pasar el cursor. Es transición, no color fijo — solo prende el que tocas, así
+   sigue habiendo "un rojo por vista". Sin capa: gana sobre las utilidades. */
+.bg-tinta {
+  transition: background-color 180ms ease;
+}
+button.bg-tinta:not(:disabled):hover,
+a.bg-tinta:hover {
+  background-color: var(--color-rojo);
+}
+
 /* Etiqueta de sistema: mayúsculas con tracking amplio (escala del manual). */
 .etiqueta {
   text-transform: uppercase;
