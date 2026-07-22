@@ -205,30 +205,50 @@ export default function DatosPersonalesPage() {
                   <h2 className="font-serif text-lg">{personaSel.nombres} {personaSel.apellidos}</h2>
                   <span className="text-xs text-taupe">DNI: {personaSel.documento ?? "—"} · {sedes.get(personaSel.sede_base_id)}</span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {campo("Nombre completo (como en el DNI)", "nombre_dni")}
-                  {campo("Fecha de nacimiento", "fecha_nacimiento", "date")}
-                  {campo("Estado civil", "estado_civil")}
-                  {campo("Celular", "celular")}
-                  <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                    <span className="text-taupe">Dirección</span>
-                    <input value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-lg border px-3 py-2" />
-                  </label>
-                  {campo("Entidad bancaria", "entidad_bancaria")}
-                  {campo("N.° de cuenta", "numero_cuenta")}
-                  {campo("Grado de instrucción", "grado_instruccion")}
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-taupe">¿Hijos menores a cargo?</span>
-                    <select value={form.hijos_menores} onChange={(e) => setForm((f) => ({ ...f, hijos_menores: e.target.value as Form["hijos_menores"] }))}
-                      className="rounded-lg border bg-crema px-3 py-2">
-                      <option value="">—</option>
-                      <option value="si">Sí</option>
-                      <option value="no">No</option>
-                    </select>
-                  </label>
-                  {campoFoto("Foto DNI", "foto_dni_url")}
-                  {campoFoto("Foto personal", "foto_personal_url")}
-                  {campoFoto("Foto profesional", "foto_profesional_url")}
+                <div className="space-y-4">
+                  <section>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Identidad</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {campo("Nombre completo (como en el DNI)", "nombre_dni")}
+                      {campo("Fecha de nacimiento", "fecha_nacimiento", "date")}
+                      {campo("Estado civil", "estado_civil")}
+                      {campo("Grado de instrucción", "grado_instruccion")}
+                      <label className="flex flex-col gap-1 text-sm">
+                        <span className="text-taupe">¿Hijos menores a cargo?</span>
+                        <select value={form.hijos_menores} onChange={(e) => setForm((f) => ({ ...f, hijos_menores: e.target.value as Form["hijos_menores"] }))}
+                          className="rounded-lg border bg-crema px-3 py-2">
+                          <option value="">—</option>
+                          <option value="si">Sí</option>
+                          <option value="no">No</option>
+                        </select>
+                      </label>
+                    </div>
+                  </section>
+                  <section>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Contacto</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {campo("Celular", "celular")}
+                      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+                        <span className="text-taupe">Dirección</span>
+                        <input value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-lg border px-3 py-2" />
+                      </label>
+                    </div>
+                  </section>
+                  <section>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Banco</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {campo("Entidad bancaria", "entidad_bancaria")}
+                      {campo("N.° de cuenta", "numero_cuenta")}
+                    </div>
+                  </section>
+                  <section>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Documentos</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {campoFoto("Foto DNI", "foto_dni_url")}
+                      {campoFoto("Foto personal", "foto_personal_url")}
+                      {campoFoto("Foto profesional", "foto_profesional_url")}
+                    </div>
+                  </section>
                 </div>
                 <button onClick={guardar} disabled={guardando}
                   className="mt-4 rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
