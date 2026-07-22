@@ -689,7 +689,7 @@ export default function EquipoPage() {
                 {personas.map((p) => (
                   <tr key={p.id} className={`border-t ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
                     <td className="px-4 py-2">
-                      {p.nombres} {p.apellidos}
+                      <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
                       {p.con_hijos && (
                         <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
                       )}

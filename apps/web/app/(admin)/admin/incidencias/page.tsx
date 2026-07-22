@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -71,8 +71,10 @@ const HOY = hoyLima();
 const VENTANA_PATRON_DIAS = 30;
 const UMBRAL_PATRON_TARDANZAS = 3;
 
-export default function IncidenciasPage() {
+function IncidenciasContenido() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const personaFiltro = searchParams.get("persona");
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const [desde, setDesde] = useState(haceDias(30));
@@ -325,7 +327,14 @@ export default function IncidenciasPage() {
     return filas;
   }, [filas, rol, yo]);
 
-  const porSede = [...new Set(visibles.map((f) => f.sede))].sort();
+  // Vista filtrada por persona (viene del perfil vía ?persona=id). Filtra en memoria
+  // lo ya cargado; personaId null (incidencias de sede) queda fuera al filtrar por persona.
+  const vista = useMemo(
+    () => (personaFiltro ? visibles.filter((f) => f.personaId === personaFiltro) : visibles),
+    [visibles, personaFiltro],
+  );
+  const nombreFiltro = vista.length > 0 && personaFiltro ? vista[0].nombre : null;
+  const porSede = [...new Set(vista.map((f) => f.sede))].sort();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -333,7 +342,7 @@ export default function IncidenciasPage() {
       <main className="flex-1 p-6">
         <div className="mb-1 flex items-end justify-between">
           <h1 className="font-serif text-2xl">Incidencias</h1>
-          <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${visibles.length} por revisar`}</span>
+          <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
         <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
@@ -346,6 +355,17 @@ export default function IncidenciasPage() {
           </label>
         </div>
 
+        {personaFiltro && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rojo/30 bg-rojo/5 px-4 py-2.5 text-sm">
+            <span>
+              {nombreFiltro
+                ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong> en este periodo.</>
+                : "La persona seleccionada no tiene incidencias por revisar en este periodo."}
+            </span>
+            <button onClick={() => router.push("/admin/incidencias")} className="shrink-0 font-medium text-rojo hover:underline">Ver todas →</button>
+          </div>
+        )}
+
         {error && (
           <div className="mb-6 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las incidencias: {error}{" "}
@@ -355,14 +375,14 @@ export default function IncidenciasPage() {
           </div>
         )}
 
-        {!cargando && !error && visibles.length === 0 && (
+        {!cargando && !error && vista.length === 0 && !personaFiltro && (
           <div className="rounded-lg border border-sand bg-sand/30 px-4 py-8 text-center text-taupe">
             🎉 Sin incidencias en el periodo. Todo en orden.
           </div>
         )}
 
         {porSede.map((sede) => {
-          const deSede = visibles.filter((f) => f.sede === sede);
+          const deSede = vista.filter((f) => f.sede === sede);
           if (deSede.length === 0) return null;
           return (
             <section key={sede} className="mb-8">
@@ -467,5 +487,13 @@ export default function IncidenciasPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function IncidenciasPage() {
+  return (
+    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+      <IncidenciasContenido />
+    </Suspense>
   );
 }

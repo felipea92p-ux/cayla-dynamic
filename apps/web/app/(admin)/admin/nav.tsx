@@ -42,7 +42,7 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown },
   ] },
   { label: "Cuenta", items: [
-    { href: "/admin/perfil", label: "Perfil", Icon: User },
+    { href: "/admin/perfil", label: "Mi perfil", Icon: User },
   ] },
 ];
 

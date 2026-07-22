@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 
@@ -37,8 +37,10 @@ interface ResumenPersona {
   pendientesRevision: number;
 }
 
-export default function HorasPage() {
+function HorasContenido() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const personaFiltro = searchParams.get("persona");
   const [desde, setDesde] = useState(primerDiaDelMes());
   const [hasta, setHasta] = useState(fechaLimaHoy());
   const [filas, setFilas] = useState<ResumenPersona[]>([]);
@@ -98,16 +100,24 @@ export default function HorasPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  const totales = useMemo(() => ({
-    horas: filas.reduce((s, f) => s + f.horasTotales, 0),
-    personas: filas.length,
-    tardanzas: filas.reduce((s, f) => s + f.tardanzas, 0),
-    salidasTempranas: filas.reduce((s, f) => s + f.salidasTempranas, 0),
-    horasExtra: filas.reduce((s, f) => s + f.horasExtra, 0),
-    porRevisar: filas.reduce((s, f) => s + f.pendientesRevision + f.incompletas, 0),
-  }), [filas]);
+  // Vista filtrada por persona (viene del perfil vía ?persona=id). No re-consulta la BD:
+  // filtra en memoria lo ya cargado, así los totales y tablas reflejan solo a esa persona.
+  const filasVista = useMemo(
+    () => (personaFiltro ? filas.filter((f) => f.personaId === personaFiltro) : filas),
+    [filas, personaFiltro],
+  );
+  const nombreFiltro = filasVista.length > 0 && personaFiltro ? filasVista[0].nombre : null;
 
-  const sedes = useMemo(() => [...new Set(filas.map((f) => f.sede))].sort(), [filas]);
+  const totales = useMemo(() => ({
+    horas: filasVista.reduce((s, f) => s + f.horasTotales, 0),
+    personas: filasVista.length,
+    tardanzas: filasVista.reduce((s, f) => s + f.tardanzas, 0),
+    salidasTempranas: filasVista.reduce((s, f) => s + f.salidasTempranas, 0),
+    horasExtra: filasVista.reduce((s, f) => s + f.horasExtra, 0),
+    porRevisar: filasVista.reduce((s, f) => s + f.pendientesRevision + f.incompletas, 0),
+  }), [filasVista]);
+
+  const sedes = useMemo(() => [...new Set(filasVista.map((f) => f.sede))].sort(), [filasVista]);
   const aplicarPreset = (p: "mes" | "mesPasado" | "anio") => { const r = rango(p); setDesde(r.desde); setHasta(r.hasta); };
 
   const Tile = ({ label, valor, tono = "neutral" }: { label: string; valor: string; tono?: "neutral" | "alerta" }) => (
@@ -136,6 +146,17 @@ export default function HorasPage() {
           </div>
         </div>
 
+        {personaFiltro && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rojo/30 bg-rojo/5 px-4 py-2.5 text-sm">
+            <span>
+              {nombreFiltro
+                ? <>Mostrando solo a <strong>{nombreFiltro}</strong> en este periodo.</>
+                : "La persona seleccionada no registra marcajes en este periodo — prueba a ampliar el rango de fechas."}
+            </span>
+            <button onClick={() => router.push("/admin/horas")} className="shrink-0 font-medium text-rojo hover:underline">Ver a todos →</button>
+          </div>
+        )}
+
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Tile label="Horas totales" valor={`${totales.horas.toFixed(0)} h`} />
           <Tile label="Tiempo adicional" valor={`${totales.horasExtra.toFixed(1)} h`} />
@@ -155,10 +176,10 @@ export default function HorasPage() {
         )}
 
         {cargando && <p className="text-sm text-taupe">Cargando…</p>}
-        {!cargando && !error && filas.length === 0 && <p className="text-sm text-taupe">Sin marcajes en este periodo.</p>}
+        {!cargando && !error && filasVista.length === 0 && !personaFiltro && <p className="text-sm text-taupe">Sin marcajes en este periodo.</p>}
 
         {sedes.map((sede) => {
-          const deSede = filas.filter((f) => f.sede === sede).sort((a, b) => b.horasTotales - a.horasTotales);
+          const deSede = filasVista.filter((f) => f.sede === sede).sort((a, b) => b.horasTotales - a.horasTotales);
           const subHoras = deSede.reduce((s, f) => s + f.horasTotales, 0);
           return (
             <section key={sede} className="mb-8">
@@ -229,5 +250,13 @@ export default function HorasPage() {
         </p>
       </main>
     </div>
+  );
+}
+
+export default function HorasPage() {
+  return (
+    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+      <HorasContenido />
+    </Suspense>
   );
 }

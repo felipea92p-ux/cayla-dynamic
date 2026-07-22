@@ -206,9 +206,12 @@ export default function DatosPersonalesPage() {
               <p className="text-sm text-taupe">Elige a alguien de la lista para ver o editar su ficha.</p>
             ) : (
               <>
-                <div className="mb-3 flex items-baseline justify-between">
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
                   <h2 className="font-serif text-lg">{personaSel.nombres} {personaSel.apellidos}</h2>
-                  <span className="text-xs text-taupe">DNI: {personaSel.documento ?? "—"} · {sedes.get(personaSel.sede_base_id)}</span>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-taupe">DNI: {personaSel.documento ?? "—"} · {sedes.get(personaSel.sede_base_id)}</span>
+                    <button onClick={() => router.push(`/admin/personas/${personaSel.id}`)} className="text-tinta hover:underline">Ver perfil →</button>
+                  </div>
                 </div>
                 <div className="space-y-4">
                   <section>
