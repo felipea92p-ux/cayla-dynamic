@@ -180,7 +180,7 @@ export default function DisciplinaPage() {
         {/* Semáforo de tardanzas */}
         <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
           <div className="border-b bg-sand/50 px-4 py-2">
-            <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ }).format(new Date())}</h2>
+            <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ }).format(new Date())}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
             <p className="mt-0.5 text-xs text-taupe">Umbral RIT art. 7: 3 en el mes corresponde amonestación.</p>
           </div>
           {cargando ? (
@@ -210,7 +210,7 @@ export default function DisciplinaPage() {
         {/* Semáforo de faltas */}
         <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
           <div className="border-b bg-sand/50 px-4 py-2">
-            <h2 className="text-sm font-medium">Faltas — últimos 180 días</h2>
+            <h2 className="text-sm font-medium">Faltas — últimos 180 días{!cargando && faltas.length > 0 && <span className="font-normal text-taupe"> · {faltas.length}</span>}</h2>
             <p className="mt-0.5 text-xs text-taupe">Umbrales art. 25-h: 4 consecutivas · 6 en 30 días · 16 en 180 días.</p>
           </div>
           {cargando ? (
