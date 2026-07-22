@@ -170,8 +170,14 @@ export default function DatosPersonalesPage() {
                   </button>
                 )}
               </div>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre…"
-                className="mt-2 w-full rounded-lg border bg-crema px-3 py-1.5 text-sm" />
+              <div className="relative mt-2">
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre…"
+                  className="w-full rounded-lg border bg-crema px-3 py-1.5 pr-8 text-sm" />
+                {q && (
+                  <button onClick={() => setQ("")} aria-label="Limpiar búsqueda"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 leading-none text-taupe hover:text-tinta">×</button>
+                )}
+              </div>
             </div>
             {cargando ? (
               <p className="px-3 py-4 text-sm text-taupe">Cargando…</p>
