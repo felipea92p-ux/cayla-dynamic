@@ -139,7 +139,7 @@ export default function MemoPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <AdminNav />
-      <style>{`@media print { header, .no-print { display: none !important; } .memo { border: 0 !important; margin: 0 !important; padding: 0 !important; } @page { margin: 18mm; } } .memo p { margin: 0 0 10px; text-align: justify; } .memo h2 { font-size: 15px; margin: 0 0 4px; }`}</style>
+      <style>{`@media print { header, .no-print { display: none !important; } .memo { border: 0 !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; color: #1a1a1a !important; } .memo table, .memo thead, .memo tr, .memo .firma { break-inside: avoid; } } .memo p { margin: 0 0 10px; text-align: justify; } .memo h2 { font-size: 15px; margin: 0 0 4px; } @page { margin: 18mm; }`}</style>
       <main className="flex-1 p-6">
         <div className="no-print mb-4 flex max-w-[760px] items-center justify-between">
           <button onClick={() => router.push("/admin/disciplina")} className="text-sm text-taupe hover:text-tinta">← Volver a Disciplina</button>
@@ -210,7 +210,7 @@ export default function MemoPage() {
               </table>
             )}
 
-            <div className="mt-10 grid grid-cols-2 gap-8 text-[12px]">
+            <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px]">
               <div>
                 <div className="mb-1 border-t pt-1">{firmante}</div>
                 <p className="text-taupe">{EMPRESA.cargo} — {EMPRESA.nombre}</p>
