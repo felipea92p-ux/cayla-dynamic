@@ -65,9 +65,11 @@ export default function DatosPersonalesPage() {
 
   function seleccionar(id: string) {
     setSel(id); setMsg(null);
-    // En móvil la ficha queda debajo de la lista: la traemos a la vista.
+    // En móvil la ficha queda debajo de la lista: la traemos a la vista
+    // (respetando la preferencia de "reducir movimiento" del sistema).
     if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setTimeout(() => fichaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+      const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setTimeout(() => fichaRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 60);
     }
     const f = fichas.get(id);
     setForm(f ? {
