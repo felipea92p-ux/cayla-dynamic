@@ -62,11 +62,7 @@ export default function DisciplinaPage() {
   const [medio, setMedio] = useState<Record<string, string>>({});
   const borradoresRef = useRef<HTMLDivElement>(null);
 
-  // Los tipos generados de la BD aún no incluyen las funciones/tabla del módulo
-  // disciplinario (migraciones 0055-0060); se regeneran al aplicarlas en Supabase.
-  // Hasta entonces, el cliente va sin tipar para este módulo aislado.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = useMemo<any>(() => createAdminSupabaseClient(), []);
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const cargar = useCallback(async () => {
     setCargando(true);

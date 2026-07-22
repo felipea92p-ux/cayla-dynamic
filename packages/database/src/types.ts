@@ -34,6 +34,129 @@ export type Database = {
   }
   public: {
     Tables: {
+      datos_personales: {
+        Row: {
+          persona_id: string
+          nombre_dni: string | null
+          fecha_nacimiento: string | null
+          estado_civil: string | null
+          direccion: string | null
+          celular: string | null
+          entidad_bancaria: string | null
+          numero_cuenta: string | null
+          grado_instruccion: string | null
+          hijos_menores: boolean | null
+          foto_dni_url: string | null
+          foto_personal_url: string | null
+          foto_profesional_url: string | null
+          actualizado_por: string | null
+          actualizado_at: string
+        }
+        Insert: {
+          persona_id: string
+          nombre_dni?: string | null
+          fecha_nacimiento?: string | null
+          estado_civil?: string | null
+          direccion?: string | null
+          celular?: string | null
+          entidad_bancaria?: string | null
+          numero_cuenta?: string | null
+          grado_instruccion?: string | null
+          hijos_menores?: boolean | null
+          foto_dni_url?: string | null
+          foto_personal_url?: string | null
+          foto_profesional_url?: string | null
+          actualizado_por?: string | null
+          actualizado_at?: string
+        }
+        Update: {
+          persona_id?: string
+          nombre_dni?: string | null
+          fecha_nacimiento?: string | null
+          estado_civil?: string | null
+          direccion?: string | null
+          celular?: string | null
+          entidad_bancaria?: string | null
+          numero_cuenta?: string | null
+          grado_instruccion?: string | null
+          hijos_menores?: boolean | null
+          foto_dni_url?: string | null
+          foto_personal_url?: string | null
+          foto_profesional_url?: string | null
+          actualizado_por?: string | null
+          actualizado_at?: string
+        }
+        Relationships: []
+      }
+      expediente_disciplinario: {
+        Row: {
+          id: string
+          correlativo: string | null
+          persona_id: string
+          tipo_causal: string
+          nivel: string
+          estado: string
+          periodo_desde: string | null
+          periodo_hasta: string | null
+          hechos: Json
+          suspension_dias: number | null
+          suspension_desde: string | null
+          suspension_hasta: string | null
+          doc_previo_id: string | null
+          firmante_id: string | null
+          firmado_at: string | null
+          medio_entrega: string | null
+          entregado_at: string | null
+          observacion: string | null
+          creado_por: string
+          creado_at: string
+        }
+        Insert: {
+          id?: string
+          correlativo?: string | null
+          persona_id: string
+          tipo_causal: string
+          nivel: string
+          estado?: string
+          periodo_desde?: string | null
+          periodo_hasta?: string | null
+          hechos?: Json
+          suspension_dias?: number | null
+          suspension_desde?: string | null
+          suspension_hasta?: string | null
+          doc_previo_id?: string | null
+          firmante_id?: string | null
+          firmado_at?: string | null
+          medio_entrega?: string | null
+          entregado_at?: string | null
+          observacion?: string | null
+          creado_por: string
+          creado_at?: string
+        }
+        Update: {
+          id?: string
+          correlativo?: string | null
+          persona_id?: string
+          tipo_causal?: string
+          nivel?: string
+          estado?: string
+          periodo_desde?: string | null
+          periodo_hasta?: string | null
+          hechos?: Json
+          suspension_dias?: number | null
+          suspension_desde?: string | null
+          suspension_hasta?: string | null
+          doc_previo_id?: string | null
+          firmante_id?: string | null
+          firmado_at?: string | null
+          medio_entrega?: string | null
+          entregado_at?: string | null
+          observacion?: string | null
+          creado_por?: string
+          creado_at?: string
+        }
+        Relationships: []
+      }
       alertas: {
         Row: {
           canal: string
@@ -1045,6 +1168,78 @@ export type Database = {
       }
       fn_quitar_levantamiento: {
         Args: { p_persona_id: string; p_fecha: string }
+        Returns: undefined
+      }
+      fn_tardanzas_resumen: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          persona_id: string
+          nombre: string
+          sede: string
+          tardanzas_mes: number
+          umbral: string
+          ultima_fecha: string | null
+        }[]
+      }
+      fn_faltas_resumen: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          persona_id: string
+          nombre: string
+          sede: string
+          consecutivas: number
+          en_30: number
+          en_180: number
+          nivel: string
+        }[]
+      }
+      fn_expediente_generar_tardanza: {
+        Args: { p_persona_id: string }
+        Returns: string
+      }
+      fn_expediente_generar_falta: {
+        Args: { p_persona_id: string }
+        Returns: string
+      }
+      fn_expediente_firmar: {
+        Args: { p_id: string }
+        Returns: string
+      }
+      fn_expediente_entregar: {
+        Args: { p_id: string; p_medio: string; p_fecha?: string }
+        Returns: undefined
+      }
+      fn_expediente_editar_borrador: {
+        Args: {
+          p_id: string
+          p_suspension_dias?: number | null
+          p_suspension_desde?: string | null
+          p_suspension_hasta?: string | null
+          p_observacion?: string | null
+          p_hechos?: Json
+        }
+        Returns: undefined
+      }
+      fn_expediente_anular: {
+        Args: { p_id: string; p_motivo: string }
+        Returns: undefined
+      }
+      fn_set_datos_personales: {
+        Args: {
+          p_persona_id: string
+          p_nombre_dni?: string | null
+          p_fecha_nacimiento?: string | null
+          p_estado_civil?: string | null
+          p_direccion?: string | null
+          p_celular?: string | null
+          p_entidad_bancaria?: string | null
+          p_numero_cuenta?: string | null
+          p_grado_instruccion?: string | null
+          p_hijos_menores?: boolean | null
+          p_foto_dni_url?: string | null
+          p_foto_personal_url?: string | null
+          p_foto_profesional_url?: string | null
+        }
         Returns: undefined
       }
       fn_vacaciones_resumen: {

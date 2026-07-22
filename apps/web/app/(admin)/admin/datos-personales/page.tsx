@@ -32,8 +32,7 @@ export default function DatosPersonalesPage() {
   const rol = yo?.rol ?? null;
   const puede = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = useMemo<any>(() => createAdminSupabaseClient(), []);
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [sedes, setSedes] = useState<Map<string, string>>(new Map());
   const [fichas, setFichas] = useState<Map<string, Ficha>>(new Map());

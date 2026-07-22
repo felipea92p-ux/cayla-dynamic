@@ -121,8 +121,7 @@ export default function DashboardPage() {
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminSupabaseClient() as any;
+    const sb = createAdminSupabaseClient();
     void (async () => {
       const [{ data: t }, { data: f }] = await Promise.all([
         sb.rpc("fn_tardanzas_resumen", {}),

@@ -41,8 +41,7 @@ export default function MemoPage() {
   const params = useParams();
   const id = (params?.id as string) ?? "";
   const router = useRouter();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = useMemo<any>(() => createAdminSupabaseClient(), []);
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [doc, setDoc] = useState<Doc | null>(null);
   const [persona, setPersona] = useState<Persona | null>(null);
@@ -59,9 +58,9 @@ export default function MemoPage() {
       .select("id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, firmante_id, firmado_at, creado_at")
       .eq("id", id).maybeSingle();
     if (eD || !d) { setErr("No se encontró el documento (o no tienes permiso para verlo)."); setCargando(false); return; }
-    const doc = d as Doc;
+    const doc = d as unknown as Doc;
     setDoc(doc);
-    const ids = [doc.persona_id, doc.firmante_id].filter(Boolean);
+    const ids = [doc.persona_id, doc.firmante_id].filter((x): x is string => Boolean(x));
     const [{ data: ps }, { data: sedes }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, documento, funcion, sede_base_id").in("id", ids),
       supabase.from("sedes").select("id, codigo"),
