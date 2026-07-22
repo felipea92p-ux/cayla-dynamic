@@ -28,15 +28,15 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   { label: "Personas", items: [
     { href: "/admin/equipo", label: "Equipo", Icon: Users },
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
-    { href: "/admin/vacaciones", label: "Vacaciones", Icon: TreePalm, roles: DO },
+    { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
   ] },
   { label: "Nómina", items: [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
     { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
+    { href: "/admin/vacaciones", label: "Vacaciones", Icon: TreePalm, roles: DO },
   ] },
   { label: "Gestión", items: [
-    { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     { href: "/admin/areas", label: "Áreas", Icon: Store, roles: DO },
     { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
     { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound },
