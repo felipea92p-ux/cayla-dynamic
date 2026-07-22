@@ -9,7 +9,7 @@ import { Marca } from "@/components/marca";
 import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
-  FileDown, User, LogOut, Menu, X, type LucideIcon,
+  Building2, FileDown, User, LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
 
 const DO = ["admin", "lider_do"];
@@ -38,6 +38,7 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   { label: "Gestión", items: [
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     { href: "/admin/areas", label: "Áreas", Icon: Store, roles: DO },
+    { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
     { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound },
     { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown },
   ] },

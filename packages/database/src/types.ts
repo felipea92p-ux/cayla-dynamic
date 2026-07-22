@@ -1318,6 +1318,14 @@ export type Database = {
         Args: { p_activa: boolean; p_codigo: string }
         Returns: undefined
       }
+      fn_guardar_sede: {
+        Args: { p_codigo: string; p_nombre: string }
+        Returns: undefined
+      }
+      fn_sede_activa: {
+        Args: { p_activa: boolean; p_codigo: string }
+        Returns: undefined
+      }
       fn_feriados: {
         Args: { p_anio: number }
         Returns: Json
@@ -1413,6 +1421,10 @@ export type Database = {
         Returns: undefined
       }
       fn_set_encargada_piso: {
+        Args: { p_persona_id: string; p_valor: boolean }
+        Returns: undefined
+      }
+      fn_set_visible_todas_sedes: {
         Args: { p_persona_id: string; p_valor: boolean }
         Returns: undefined
       }

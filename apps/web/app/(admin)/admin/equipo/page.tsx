@@ -72,6 +72,7 @@ interface Persona {
   sede_base_id: string;
   funcion: string;
   con_hijos: boolean;
+  visible_todas_sedes: boolean;
 }
 
 type Rol = "integrante" | "supervisor_sede" | "lider_do" | "admin";
@@ -85,9 +86,10 @@ interface FormPersona {
   email: string;
   conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
+  visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -152,15 +154,15 @@ export default function EquipoPage() {
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
-      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean }[] | null) ?? []))
-        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false }] as const),
+      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean }[] | null) ?? []))
+        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false }] as const),
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes">[]) ?? []).map((p) => {
         const extra = funciones.get(p.id);
-        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false };
+        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false };
       }),
     );
     setCargando(false);
@@ -311,6 +313,20 @@ export default function EquipoPage() {
         return;
       }
     }
+    // Visible en todas las sedes: mismo patrón dirty-check. Viaja por su propia RPC
+    // (columna atrapada en el schema cache) y solo se escribe si cambió.
+    const visibleOriginal = personas.find((p) => p.id === editandoId)?.visible_todas_sedes ?? false;
+    if (funcionesOk && form.visibleTodasSedes !== visibleOriginal) {
+      const { error: errorVisible } = await supabase.rpc("fn_set_visible_todas_sedes", {
+        p_persona_id: editandoId,
+        p_valor: form.visibleTodasSedes,
+      });
+      if (errorVisible) {
+        setGuardando(false);
+        avisar("error", "Datos guardados, pero la visibilidad entre sedes no se pudo cambiar: " + errorVisible.message);
+        return;
+      }
+    }
     setGuardando(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
@@ -358,6 +374,7 @@ export default function EquipoPage() {
       email: p.email ?? "",
       conHijos: p.con_hijos,
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
+      visibleTodasSedes: p.visible_todas_sedes,
     });
   }
 
@@ -527,6 +544,23 @@ export default function EquipoPage() {
             className="h-4 w-4 accent-tinta disabled:opacity-50"
           />
           Asignación familiar (tiene hijos) — S/ 113 fijos por periodo
+        </label>
+      )}
+      {modo === "edicion" && puedeSalarios && (
+        // Bandera para gente que rota entre locales: aparece en el terminal de CUALQUIER
+        // sede, no solo en el de su sede base. Llega/viaja por RPC (schema cache).
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={form.visibleTodasSedes}
+            onChange={(e) => setForm({ ...form, visibleTodasSedes: e.target.checked })}
+            disabled={!funcionesOk}
+            className="mt-0.5 h-4 w-4 accent-tinta disabled:opacity-50"
+          />
+          <span>
+            Visible en todas las sedes
+            <span className="block text-xs text-taupe/70">Para quien marca en más de un local. Aparece en el terminal de cualquier sede, no solo en el de su sede base.</span>
+          </span>
         </label>
       )}
       <div className="flex gap-3 sm:col-span-2">

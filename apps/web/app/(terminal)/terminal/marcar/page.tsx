@@ -126,6 +126,23 @@ export default function MarcarPage() {
     return () => clearInterval(t);
   }, []);
 
+  // Refresca la lista de personas cuando alguien vuelve a mirar el terminal (foco)
+  // y cada 2 min. Así una persona recién agregada en el panel aparece sola, sin que
+  // nadie tenga que recargar la página. Offline no hace nada (cargarRoster ya cae a
+  // la caché); mid-marcaje es inofensivo (solo actualiza la lista de fondo).
+  useEffect(() => {
+    const refrescar = () => { if (typeof navigator === "undefined" || navigator.onLine) void cargarTodo(); };
+    const onVisibilidad = () => { if (document.visibilityState === "visible") refrescar(); };
+    document.addEventListener("visibilitychange", onVisibilidad);
+    window.addEventListener("focus", refrescar);
+    const iv = window.setInterval(refrescar, 120_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilidad);
+      window.removeEventListener("focus", refrescar);
+      window.clearInterval(iv);
+    };
+  }, [cargarTodo]);
+
   function volverALista() {
     confirmandoRef.current = false;
     setPantalla("lista");
