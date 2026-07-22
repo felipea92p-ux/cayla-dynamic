@@ -42,6 +42,7 @@ export default function DatosPersonalesPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [q, setQ] = useState("");
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -97,6 +98,8 @@ export default function DatosPersonalesPage() {
   }
 
   const personaSel = personas.find((p) => p.id === sel) ?? null;
+  const lista = personas.filter((p) => `${p.nombres} ${p.apellidos}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const sinFicha = personas.filter((p) => !fichas.has(p.id)).length;
 
   if (rol !== null && !puede) {
     return (
@@ -147,12 +150,21 @@ export default function DatosPersonalesPage() {
         <div className="grid gap-6 md:grid-cols-[260px_1fr]">
           {/* Lista de personas */}
           <div className="overflow-hidden rounded-lg border">
-            <h2 className="border-b bg-sand/50 px-3 py-2 text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
+            <div className="border-b bg-sand/50 px-3 py-2">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
+                {sinFicha > 0 && <span className="text-xs text-amber-800">{sinFicha} sin ficha</span>}
+              </div>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre…"
+                className="mt-2 w-full rounded-lg border bg-crema px-3 py-1.5 text-sm" />
+            </div>
             {cargando ? (
               <p className="px-3 py-4 text-sm text-taupe">Cargando…</p>
+            ) : lista.length === 0 ? (
+              <p className="px-3 py-4 text-sm text-taupe">Nadie coincide con “{q}”.</p>
             ) : (
               <ul className="max-h-[70vh] divide-y overflow-y-auto">
-                {personas.map((p) => (
+                {lista.map((p) => (
                   <li key={p.id}>
                     <button onClick={() => seleccionar(p.id)}
                       className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm ${sel === p.id ? "bg-sand/60 font-medium text-tinta" : "hover:bg-sand/30"}`}>
