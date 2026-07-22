@@ -209,7 +209,10 @@ export default function PerfilPersonaPage() {
         <button onClick={() => router.back()} className="mb-4 text-sm text-taupe hover:text-tinta">← Volver</button>
 
         {cargando ? (
-          <p className="text-sm text-taupe">Cargando…</p>
+          <div className="flex flex-col items-center gap-4 py-24 text-taupe">
+            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
+            <span className="text-sm">Cargando el perfil…</span>
+          </div>
         ) : err ? (
           <p className="max-w-xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
         ) : persona && (
@@ -239,7 +242,7 @@ export default function PerfilPersonaPage() {
               <>
                 <div className="grid gap-5 lg:grid-cols-2">
                   {/* Datos personales */}
-                  <section className="rounded-lg border p-4">
+                  <section className="rounded-2xl border border-sand bg-papel p-5">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Datos personales</h2>
                       <Link href="/admin/datos-personales" className="text-xs text-tinta hover:underline">Editar →</Link>
@@ -264,7 +267,7 @@ export default function PerfilPersonaPage() {
 
                   {/* Compensación — solo DO */}
                   {puedeSalario && (
-                  <section className="rounded-lg border p-4">
+                  <section className="rounded-2xl border border-sand bg-papel p-5">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Compensación</h2>
                       <Link href="/admin/planilla" className="text-xs text-tinta hover:underline">Planilla →</Link>
@@ -282,7 +285,7 @@ export default function PerfilPersonaPage() {
                   )}
 
                   {/* Disciplina / legajo */}
-                  <section className="rounded-lg border p-4 lg:col-span-2">
+                  <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</h2>
                       <Link href="/admin/disciplina" className="text-xs text-tinta hover:underline">Disciplina →</Link>
@@ -313,8 +316,8 @@ export default function PerfilPersonaPage() {
                     abre YA filtrado por esta persona (si no filtrara, el enlace mentiría). */}
                 <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
                   <span className="py-1 text-taupe">Registro de {persona.nombres}:</span>
-                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-lg border px-3 py-1 hover:bg-sand/40">Horas y tardanzas</Link>
-                  <Link href={`/admin/incidencias?persona=${persona.id}`} className="rounded-lg border px-3 py-1 hover:bg-sand/40">Incidencias</Link>
+                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Horas y tardanzas</Link>
+                  <Link href={`/admin/incidencias?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Incidencias</Link>
                 </div>
               </>
             ) : (
@@ -352,7 +355,7 @@ export default function PerfilPersonaPage() {
                         { label: "Salidas anticipadas", valor: `${stats.salidasTempranas} de ${stats.diasSalidaMedidos} medidos` },
                         { label: "Tiempo adicional", valor: stats.horasExtra > 0 ? fmtHoras(stats.horasExtra) : "—" },
                       ].map((c) => (
-                        <div key={c.label} className="rounded-lg border border-sand bg-sand/30 px-4 py-3">
+                        <div key={c.label} className="rounded-2xl border border-sand bg-papel px-4 py-3 transition-all hover:-translate-y-0.5 hover:border-taupe">
                           <div className="etiqueta text-taupe">{c.label}</div>
                           <div className="mt-1 font-serif text-2xl">{c.valor}</div>
                         </div>
@@ -369,7 +372,7 @@ export default function PerfilPersonaPage() {
                     )}
 
                     {objetivos.length > 0 && (
-                      <div className="mb-6 max-w-3xl rounded-lg border border-sand p-4">
+                      <div className="mb-6 max-w-3xl rounded-2xl border border-sand bg-papel p-5">
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                           <h2 className="font-serif text-lg">Objetivos de {objMesLabel.toLowerCase()}</h2>
                           <span className="flex items-center gap-2 text-sm">
@@ -391,14 +394,14 @@ export default function PerfilPersonaPage() {
                       </div>
                     )}
 
-                    <div className="mb-8 rounded-lg border border-sand p-4">
+                    <div className="mb-8 rounded-2xl border border-sand bg-papel p-5">
                       <h2 className="mb-3 font-serif text-lg">Horas por día</h2>
                       <GraficoHoras dias={stats.datosGrafico} meta={META_DIA} />
                     </div>
 
-                    <div className="overflow-x-auto rounded-lg border border-sand">
+                    <div className="overflow-x-auto rounded-2xl border border-sand">
                       <table className="w-full text-sm">
-                        <thead className="bg-sand text-left">
+                        <thead className="bg-sand/70 text-left">
                           <tr className="etiqueta text-taupe">
                             <th className="px-4 py-2.5 font-medium">Fecha</th>
                             <th className="px-4 py-2.5 font-medium">Entrada</th>
@@ -417,7 +420,7 @@ export default function PerfilPersonaPage() {
                             jornadas.map((j) => {
                               const inc = incidencia(j);
                               return (
-                                <tr key={j.fecha} className="border-t border-sand">
+                                <tr key={j.fecha} className="border-t border-sand bg-papel transition-colors hover:bg-crema">
                                   <td className="px-4 py-2.5 capitalize">
                                     {fechaLarga(j.fecha)}
                                     {stats.esAgregado(j) && (
