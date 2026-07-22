@@ -89,6 +89,26 @@ const ESTILO_ESTADO: Record<string, { label: string; clase: string }> = {
   sin_marcar: { label: "Sin marcar", clase: "text-taupe/50" },
 };
 
+// Suma N días hábiles (salta sáb/dom) a una fecha ISO — para el plazo de inmediatez.
+function masDiasHabiles(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  let dt = new Date(Date.UTC(y, m - 1, d));
+  let sumados = 0;
+  while (sumados < n) {
+    dt = new Date(dt.getTime() + 86_400_000);
+    const dow = dt.getUTCDay();
+    if (dow !== 0 && dow !== 6) sumados++;
+  }
+  return dt.toISOString().slice(0, 10);
+}
+function fechaBonita(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+}
+
+interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; ultima_fecha: string | null }
+interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: string }
+
 export default function DashboardPage() {
   const router = useRouter();
   const [filas, setFilas] = useState<FilaPersona[]>([]);
@@ -96,6 +116,22 @@ export default function DashboardPage() {
   const [actualizado, setActualizado] = useState<string>("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [discTard, setDiscTard] = useState<TardRow[]>([]);
+  const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
+
+  // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminSupabaseClient() as any;
+    void (async () => {
+      const [{ data: t }, { data: f }] = await Promise.all([
+        sb.rpc("fn_tardanzas_resumen", {}),
+        sb.rpc("fn_faltas_resumen", {}),
+      ]);
+      setDiscTard(Array.isArray(t) ? (t as TardRow[]) : []);
+      setDiscFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
+    })();
+  }, []);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -241,6 +277,40 @@ export default function DashboardPage() {
             </button>
           </div>
         )}
+
+        {(() => {
+          const rojosT = discTard.filter((t) => t.umbral === "amonestacion");
+          const avisoT = discTard.filter((t) => t.umbral === "aviso").length;
+          const rojosF = discFaltas.filter((f) => f.nivel === "rojo");
+          const ambarF = discFaltas.filter((f) => f.nivel === "ambar").length;
+          if (!rojosT.length && !avisoT && !rojosF.length && !ambarF) return null;
+          return (
+            <Link href="/admin/disciplina" className="mb-8 block rounded-lg border border-sand bg-crema/50 p-4 transition-colors hover:bg-sand/30">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium text-tinta">Disciplina — necesita tu atención</span>
+                <span className="text-xs font-medium text-rojo">Ver disciplina →</span>
+              </div>
+              {rojosT.map((t) => (
+                <div key={t.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-1.5 text-sm">
+                  <span><strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
+                    <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">corresponde amonestación por tardanzas</span></span>
+                  {t.ultima_fecha && <span className="text-xs font-medium text-rojo">actúa antes del {fechaBonita(masDiasHabiles(t.ultima_fecha, 10))}</span>}
+                </div>
+              ))}
+              {rojosF.map((f) => (
+                <div key={f.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-1.5 text-sm">
+                  <span><strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
+                    <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">causal por faltas (art. 25-h)</span></span>
+                  <span className="text-xs font-medium text-rojo">acción inmediata</span>
+                </div>
+              ))}
+              <div className="border-t border-sand/60 pt-2 text-xs text-taupe">
+                {avisoT > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">{avisoT} en aviso (tardanzas)</span>}
+                {avisoT > 0 ? " · " : ""}Faltas: {rojosF.length + ambarF > 0 ? `${rojosF.length + ambarF} en alerta` : "sin alertas"}
+              </div>
+            </Link>
+          );
+        })()}
 
         {sedes.map(({ sedeId, codigo }) => {
           const deSede = filas.filter((f) => f.sedeId === sedeId);
