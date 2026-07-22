@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -60,6 +60,7 @@ export default function DisciplinaPage() {
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [medio, setMedio] = useState<Record<string, string>>({});
+  const borradoresRef = useRef<HTMLDivElement>(null);
 
   // Los tipos generados de la BD aún no incluyen las funciones/tabla del módulo
   // disciplinario (migraciones 0055-0060); se regeneran al aplicarlas en Supabase.
@@ -98,6 +99,8 @@ export default function DisciplinaPage() {
     if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Borrador generado. Revísalo abajo y fírmalo cuando esté listo." });
+    const suave = typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setTimeout(() => borradoresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 80);
   }
 
   async function firmar(id: string) {
@@ -238,7 +241,7 @@ export default function DisciplinaPage() {
         </div>
 
         {/* Borradores pendientes de firma */}
-        <div className="mb-6 max-w-3xl overflow-hidden rounded-lg border">
+        <div ref={borradoresRef} className="mb-6 max-w-3xl scroll-mt-4 overflow-hidden rounded-lg border">
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Borradores pendientes {borradores.length > 0 && <span className="font-normal text-taupe">· {borradores.length}</span>}
           </h2>
