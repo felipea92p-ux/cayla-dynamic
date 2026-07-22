@@ -9,7 +9,7 @@ import { Marca } from "@/components/marca";
 import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
-  Building2, FileDown, User, LogOut, Menu, X, type LucideIcon,
+  Building2, FileDown, LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
 
 const DO = ["admin", "lider_do"];
@@ -42,10 +42,15 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound },
     { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown },
   ] },
-  { label: "Cuenta", items: [
-    { href: "/admin/perfil", label: "Mi perfil", Icon: User },
-  ] },
 ];
+
+// El perfil de una persona (/admin/personas/[id]) se entra desde Equipo, así que
+// mientras estás en él, resaltamos "Equipo" para no dejar la ubicación huérfana.
+function esActivo(pathname: string, href: string): boolean {
+  if (pathname === href) return true;
+  if (href === "/admin/equipo" && pathname.startsWith("/admin/personas")) return true;
+  return false;
+}
 
 export function AdminNav() {
   const pathname = usePathname();
@@ -79,7 +84,7 @@ export function AdminNav() {
                 {g.items.map((it) => (
                   <Link key={it.href} href={it.href}
                     className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${
-                      pathname === it.href ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/30 hover:text-tinta"}`}>
+                      esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/30 hover:text-tinta"}`}>
                     <it.Icon size={15} strokeWidth={1.8} aria-hidden />
                     {it.label}
                   </Link>
@@ -114,7 +119,7 @@ export function AdminNav() {
                 {g.items.map((it) => (
                   <Link key={it.href} href={it.href}
                     className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm ${
-                      pathname === it.href
+                      esActivo(pathname, it.href)
                         ? "bg-sand/60 font-medium text-tinta"
                         : "text-taupe hover:bg-sand/40 hover:text-tinta"}`}>
                     <it.Icon size={17} strokeWidth={1.8} aria-hidden />
