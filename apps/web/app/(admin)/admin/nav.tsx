@@ -77,8 +77,8 @@ export function AdminNav() {
                 {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px bg-sand" />}
                 {g.items.map((it) => (
                   <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors ${
-                      pathname === it.href ? "font-medium text-tinta" : "text-taupe hover:text-tinta"}`}>
+                    className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${
+                      pathname === it.href ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/30 hover:text-tinta"}`}>
                     <it.Icon size={15} strokeWidth={1.8} aria-hidden />
                     {it.label}
                   </Link>
