@@ -6,24 +6,44 @@ import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { Marca } from "@/components/marca";
+import {
+  LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
+  Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
+  FileDown, User, LogOut, Menu, X, type LucideIcon,
+} from "lucide-react";
 
-const LINKS: Array<{ href: string; label: string; roles?: string[] }> = [
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/perfil", label: "Perfil" },
-  { href: "/admin/horas", label: "Horas" },
-  { href: "/admin/incidencias", label: "Incidencias", roles: ["admin", "lider_do", "supervisor_sede"] },
-  { href: "/admin/disciplina", label: "Disciplina", roles: ["admin", "lider_do", "supervisor_sede"] },
-  { href: "/admin/correcciones", label: "Correcciones", roles: ["admin", "lider_do", "supervisor_sede"] },
-  { href: "/admin/horarios", label: "Horarios", roles: ["admin", "lider_do", "supervisor_sede"] },
-  { href: "/admin/turnos", label: "Turnos", roles: ["admin", "lider_do", "supervisor_sede"] },
-  { href: "/admin/vacaciones", label: "Vacaciones", roles: ["admin", "lider_do"] },
-  { href: "/admin/objetivos", label: "Objetivos", roles: ["admin", "lider_do", "supervisor_sede"] },
-  { href: "/admin/planilla", label: "Planilla", roles: ["admin", "lider_do"] },
-  { href: "/admin/provisiones", label: "Provisiones", roles: ["admin", "lider_do"] },
-  { href: "/admin/equipo", label: "Equipo" },
-  { href: "/admin/areas", label: "Áreas", roles: ["admin", "lider_do"] },
-  { href: "/admin/cuentas", label: "Cuentas" },
-  { href: "/admin/exportar", label: "Exportar CSV" },
+const DO = ["admin", "lider_do"];
+const SEDE = ["admin", "lider_do", "supervisor_sede"];
+
+type Item = { href: string; label: string; Icon: LucideIcon; roles?: string[] };
+const GRUPOS: Array<{ label?: string; items: Item[] }> = [
+  { items: [{ href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard }] },
+  { label: "Asistencia", items: [
+    { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE },
+    { href: "/admin/correcciones", label: "Correcciones", Icon: PencilLine, roles: SEDE },
+    { href: "/admin/turnos", label: "Turnos", Icon: CalendarClock, roles: SEDE },
+    { href: "/admin/horarios", label: "Horarios", Icon: Clock, roles: SEDE },
+    { href: "/admin/horas", label: "Horas", Icon: Hourglass },
+  ] },
+  { label: "Personas", items: [
+    { href: "/admin/equipo", label: "Equipo", Icon: Users },
+    { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
+    { href: "/admin/vacaciones", label: "Vacaciones", Icon: TreePalm, roles: DO },
+    { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
+  ] },
+  { label: "Nómina", items: [
+    { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
+    { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
+  ] },
+  { label: "Gestión", items: [
+    { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
+    { href: "/admin/areas", label: "Áreas", Icon: Store, roles: DO },
+    { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound },
+    { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown },
+  ] },
+  { label: "Cuenta", items: [
+    { href: "/admin/perfil", label: "Perfil", Icon: User },
+  ] },
 ];
 
 export function AdminNav() {
@@ -32,10 +52,7 @@ export function AdminNav() {
   const rol = useRolActual();
   const [abierto, setAbierto] = useState(false);
 
-  // Al navegar a otra página, el menú móvil se cierra solo.
-  useEffect(() => {
-    setAbierto(false);
-  }, [pathname]);
+  useEffect(() => { setAbierto(false); }, [pathname]);
 
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
@@ -43,82 +60,73 @@ export function AdminNav() {
     router.replace("/admin/login");
   }
 
-  const visibles = LINKS.filter((l) => !l.roles || (rol !== null && l.roles.includes(rol)));
+  const visible = (it: Item) => !it.roles || (rol !== null && it.roles.includes(rol));
+  const grupos = GRUPOS
+    .map((g) => ({ ...g, items: g.items.filter(visible) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <header className="border-b border-sand">
       <div className="flex items-center justify-between px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-6 xl:gap-8">
           <Marca tono="tinta" isotipo="rojo" />
-          {/* Navegación horizontal — solo en pantallas grandes */}
-          <nav className="hidden flex-wrap gap-x-5 gap-y-1 text-sm xl:flex">
-            {visibles.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={
-                  pathname === l.href
-                    ? "font-medium text-tinta"
-                    : "text-taupe transition-colors hover:text-tinta"
-                }
-              >
-                {l.label}
-              </Link>
+          {/* Barra horizontal — desktop. Grupos separados por un divisor sutil. */}
+          <nav className="hidden flex-wrap items-center gap-x-2 gap-y-1 text-sm xl:flex">
+            {grupos.map((g, gi) => (
+              <div key={gi} className="flex items-center gap-x-0.5">
+                {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px bg-sand" />}
+                {g.items.map((it) => (
+                  <Link key={it.href} href={it.href}
+                    className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors ${
+                      pathname === it.href ? "font-medium text-tinta" : "text-taupe hover:text-tinta"}`}>
+                    <it.Icon size={15} strokeWidth={1.8} aria-hidden />
+                    {it.label}
+                  </Link>
+                ))}
+              </div>
             ))}
           </nav>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={cerrarSesion}
-            className="hidden text-sm text-taupe transition-colors hover:text-tinta xl:block"
-          >
-            Cerrar sesión
+          <button onClick={cerrarSesion}
+            className="hidden items-center gap-1.5 text-sm text-taupe transition-colors hover:text-tinta xl:flex">
+            <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
           </button>
-          {/* Botón hamburguesa — solo en pantallas chicas */}
-          <button
-            onClick={() => setAbierto((a) => !a)}
-            aria-label={abierto ? "Cerrar menú" : "Abrir menú"}
-            aria-expanded={abierto}
-            className="rounded-lg border border-sand p-2 text-tinta xl:hidden"
-          >
-            {abierto ? (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            )}
+          <button onClick={() => setAbierto((a) => !a)}
+            aria-label={abierto ? "Cerrar menú" : "Abrir menú"} aria-expanded={abierto}
+            className="rounded-lg border border-sand p-2 text-tinta xl:hidden">
+            {abierto ? <X size={20} strokeWidth={1.8} /> : <Menu size={20} strokeWidth={1.8} />}
           </button>
         </div>
       </div>
 
-      {/* Menú desplegable móvil */}
+      {/* Menú desplegable móvil — vertical, con títulos de grupo e íconos. */}
       {abierto && (
-        <nav className="border-t border-sand px-4 pb-4 pt-2 sm:px-6 xl:hidden">
-          <div className="grid gap-1">
-            {visibles.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={`rounded-lg px-3 py-2.5 text-sm ${
-                  pathname === l.href
-                    ? "bg-sand/60 font-medium text-tinta"
-                    : "text-taupe hover:bg-sand/40 hover:text-tinta"
-                }`}
-              >
-                {l.label}
-              </Link>
-            ))}
-            <button
-              onClick={cerrarSesion}
-              className="mt-2 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe hover:text-tinta"
-            >
-              Cerrar sesión
-            </button>
-          </div>
+        <nav className="border-t border-sand px-4 pb-4 pt-1 sm:px-6 xl:hidden">
+          {grupos.map((g, gi) => (
+            <div key={gi}>
+              {g.label && (
+                <p className="px-3 pb-1 pt-3 text-[11px] uppercase tracking-wider text-taupe/70">{g.label}</p>
+              )}
+              <div className="grid gap-0.5">
+                {g.items.map((it) => (
+                  <Link key={it.href} href={it.href}
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm ${
+                      pathname === it.href
+                        ? "bg-sand/60 font-medium text-tinta"
+                        : "text-taupe hover:bg-sand/40 hover:text-tinta"}`}>
+                    <it.Icon size={17} strokeWidth={1.8} aria-hidden />
+                    {it.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button onClick={cerrarSesion}
+            className="mt-3 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe hover:text-tinta">
+            <LogOut size={17} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+          </button>
         </nav>
       )}
     </header>
