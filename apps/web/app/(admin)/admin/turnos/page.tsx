@@ -367,7 +367,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   }
   const espejos = divs.filter((d) => d.espejo);
   return (
-    <div className="mb-4 max-w-2xl overflow-hidden rounded-lg border border-ambar/40 bg-ambar/[0.06]">
+    <div className="mb-4 max-w-2xl overflow-hidden rounded-2xl border border-ambar/40 bg-ambar/[0.06]">
       <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
         <span className="font-medium text-ambar">
           {divs.length} turno{divs.length === 1 ? "" : "s"} no coincide{divs.length === 1 ? "" : "n"} con el horario base
@@ -777,7 +777,7 @@ export default function TurnosPage() {
 
         {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} />}
 
-        {cargando ? <p className="text-sm text-taupe">Cargando…</p> : vista === "semana" ? (
+        {cargando ? <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div> : vista === "semana" ? (
           <div className="space-y-6">
             {([
               { titulo: "Cobertura (áreas operativas)", tipo: "op", filtro: esOperativa },
@@ -990,7 +990,7 @@ export default function TurnosPage() {
                   if (c) candidato = `Ej. retrasa la salida de ${c.nombres}.`;
                 }
                 return (
-                  <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-lg border ${hoy ? "border-tinta" : "border-sand"}`}>
+                  <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-2xl border bg-papel ${hoy ? "border-tinta" : "border-sand"}`}>
                     {/* Cabecera del día: fecha + metas editables (mañana/tarde) + resumen */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
                       <div className={hoy ? "text-tinta" : ""}>

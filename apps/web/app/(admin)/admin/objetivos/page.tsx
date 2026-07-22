@@ -259,11 +259,11 @@ export default function ObjetivosPage() {
         {!personaId ? (
           <p className="text-sm text-taupe">Elige una persona para ver o gestionar sus objetivos.</p>
         ) : cargando && !cargado ? (
-          <p className="text-sm text-taupe">Cargando…</p>
+          <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
         ) : cargado ? (
           <div className="max-w-3xl">
             {/* Barra de progreso + nivel del plus */}
-            <div className="mb-4 rounded-lg border border-sand bg-sand/30 p-4">
+            <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm">
                   <span className="font-serif text-xl">{cumplidos}</span>
@@ -310,7 +310,7 @@ export default function ObjetivosPage() {
             )}
 
             {/* Lista */}
-            <ul className="mb-4 divide-y divide-sand rounded-lg border border-sand">
+            <ul className="mb-4 divide-y divide-sand rounded-2xl border border-sand bg-papel">
               {items.length === 0 ? (
                 <li className="px-4 py-6 text-center text-sm text-taupe">
                   Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.

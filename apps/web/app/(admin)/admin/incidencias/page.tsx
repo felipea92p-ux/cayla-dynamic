@@ -387,9 +387,9 @@ function IncidenciasContenido() {
           return (
             <section key={sede} className="mb-8">
               <h2 className="mb-3 font-serif text-lg">{sede} <span className="text-base text-taupe">· {deSede.length}</span></h2>
-              <div className="overflow-x-auto rounded-lg border border-sand">
+              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
                 <table className="w-full text-sm">
-                  <thead className="bg-sand text-left">
+                  <thead className="bg-sand/70 text-left">
                     <tr className="etiqueta text-taupe">
                       <th className="px-4 py-2.5 font-medium">Persona</th>
                       <th className="px-4 py-2.5 font-medium">Fecha</th>
@@ -492,7 +492,7 @@ function IncidenciasContenido() {
 
 export default function IncidenciasPage() {
   return (
-    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+    <Suspense fallback={<main className="p-6"><div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div></main>}>
       <IncidenciasContenido />
     </Suspense>
   );

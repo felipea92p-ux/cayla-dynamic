@@ -397,7 +397,7 @@ export default function CorreccionesPage() {
             ) : (
               <div className="mb-4 overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
-                  <thead className="bg-sand/50 text-left text-taupe">
+                  <thead className="bg-sand/70 text-left text-taupe">
                     <tr>
                       <th className="px-4 py-2 font-normal">Tipo</th>
                       <th className="px-4 py-2 font-normal">Hora</th>
@@ -475,7 +475,7 @@ export default function CorreccionesPage() {
 
             {/* Historial de correcciones: el motivo de cada cambio, quién y cuándo.
                 Es donde se LEE la auditoría que cada corrección va guardando. */}
-            <div className="mt-4 overflow-hidden rounded-lg border">
+            <div className="mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
               <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
                 Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
               </h2>

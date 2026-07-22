@@ -121,7 +121,7 @@ function HorasContenido() {
   const aplicarPreset = (p: "mes" | "mesPasado" | "anio") => { const r = rango(p); setDesde(r.desde); setHasta(r.hasta); };
 
   const Tile = ({ label, valor, tono = "neutral" }: { label: string; valor: string; tono?: "neutral" | "alerta" }) => (
-    <div className="rounded-xl border bg-crema px-4 py-3">
+    <div className="rounded-xl border border-sand bg-papel px-4 py-3">
       <div className="text-xs uppercase tracking-wide text-taupe">{label}</div>
       <div className={`mt-1 text-2xl font-semibold [font-variant-numeric:tabular-nums] ${tono === "alerta" && valor !== "0" ? "text-rojo" : ""}`}>{valor}</div>
     </div>
@@ -175,7 +175,12 @@ function HorasContenido() {
           </div>
         )}
 
-        {cargando && <p className="text-sm text-taupe">Cargando…</p>}
+        {cargando && (
+          <div className="flex flex-col items-center gap-4 py-20 text-taupe">
+            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
+            <span className="text-sm">Cargando…</span>
+          </div>
+        )}
         {!cargando && !error && filasVista.length === 0 && !personaFiltro && <p className="text-sm text-taupe">Sin marcajes en este periodo.</p>}
 
         {sedes.map((sede) => {
@@ -186,9 +191,9 @@ function HorasContenido() {
               <h2 className="mb-2 font-serif text-lg">
                 {sede} <span className="text-sm font-normal text-taupe">— {deSede.length} personas · {subHoras.toFixed(0)} h</span>
               </h2>
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
                 <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                  <thead className="bg-sand/50 text-left text-taupe">
+                  <thead className="bg-sand/70 text-left text-taupe">
                     <tr>
                       <th className="px-4 py-2 font-normal">Nombre</th>
                       <th className="px-4 py-2 font-normal">Días</th>
