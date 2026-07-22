@@ -141,9 +141,9 @@ export default function CuentasPage() {
 
         <h2 className="mb-3 mt-8 font-serif text-lg">Gestionar cuentas del equipo</h2>
         {msgGestion && <p className="mb-3 text-sm text-rojo">{msgGestion}</p>}
-        <div className="overflow-x-auto rounded-lg border border-sand">
+        <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
           <table className="w-full text-sm">
-            <thead className="bg-sand text-left">
+            <thead className="bg-sand/70 text-left">
               <tr className="etiqueta text-taupe">
                 <th className="px-4 py-2.5 font-medium">Persona</th>
                 <th className="px-4 py-2.5 font-medium">Rol</th>

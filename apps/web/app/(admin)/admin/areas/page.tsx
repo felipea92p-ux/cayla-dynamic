@@ -141,7 +141,7 @@ export default function AreasPage() {
   const formulario = (modo: "alta" | "edicion") => {
     const codigo = modo === "alta" ? slugDeNombre(form.nombre) : editandoCodigo ?? "";
     return (
-      <div className="mb-6 grid max-w-2xl gap-3 rounded-lg border bg-sand/50 p-4 sm:grid-cols-2">
+      <div className="mb-6 grid max-w-2xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           Nombre
           <input
@@ -207,7 +207,7 @@ export default function AreasPage() {
         </div>
 
         {rol === null ? (
-          <p className="text-sm text-taupe">Cargando…</p>
+          <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
         ) : !puedeGestionar ? (
           <div className="max-w-2xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
             Solo administradores y líderes pueden gestionar áreas.
@@ -238,11 +238,11 @@ export default function AreasPage() {
             {editandoCodigo && formulario("edicion")}
 
             {cargando ? (
-              <p className="text-sm text-taupe">Cargando…</p>
+              <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
                 <table className="w-full text-sm">
-                  <thead className="bg-sand/50 text-left text-taupe">
+                  <thead className="bg-sand/70 text-left text-taupe">
                     <tr>
                       <th className="px-4 py-2 font-normal">Nombre</th>
                       <th className="px-4 py-2 font-normal">Código</th>

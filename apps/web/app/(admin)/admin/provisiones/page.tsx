@@ -214,7 +214,7 @@ export default function ProvisionesPage() {
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
-            <p className="text-sm text-taupe">Cargando…</p>
+            <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
           )}
         </main>
       </div>
@@ -273,7 +273,7 @@ export default function ProvisionesPage() {
         )}
 
         {/* Cargando inicial */}
-        {cargando && !data && <p className="text-sm text-taupe">Cargando…</p>}
+        {cargando && !data && <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>}
 
         {data && (
           <>
@@ -304,9 +304,9 @@ export default function ProvisionesPage() {
             </div>
 
             {/* Tabla anual */}
-            <div className="overflow-x-auto rounded-lg border">
+            <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
               <table className="w-full text-sm">
-                <thead className="bg-sand/50 text-left text-taupe">
+                <thead className="bg-sand/70 text-left text-taupe">
                   {/* Encabezados de grupo (fechas de pago del payload) */}
                   <tr>
                     <th className="px-4 py-2" colSpan={2} />

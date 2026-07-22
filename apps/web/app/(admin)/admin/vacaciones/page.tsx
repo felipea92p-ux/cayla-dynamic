@@ -179,7 +179,7 @@ export default function VacacionesPage() {
         )}
 
         {/* Registrar un periodo */}
-        <div className="mb-6 max-w-3xl rounded-lg border bg-sand/50 p-4">
+        <div className="mb-6 max-w-3xl rounded-2xl border border-sand bg-papel p-5">
           <h2 className="mb-3 text-sm font-medium">Registrar un periodo</h2>
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1 text-sm">
@@ -214,7 +214,7 @@ export default function VacacionesPage() {
         </div>
 
         {/* Periodos registrados */}
-        <div className="max-w-3xl overflow-hidden rounded-lg border">
+        <div className="max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Periodos registrados {vacaciones.length > 0 && <span className="font-normal text-taupe">· {vacaciones.length}</span>}
           </h2>
@@ -254,7 +254,7 @@ export default function VacacionesPage() {
 
         {/* Saldo por persona — el cruce con Provisiones. SOLO INFORMATIVO. */}
         {resumen.length > 0 && (
-          <div className="mt-6 max-w-4xl overflow-hidden rounded-lg border">
+          <div className="mt-6 max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
             <div className="border-b bg-sand/50 px-4 py-2">
               <h2 className="text-sm font-medium">Saldo por persona</h2>
               <p className="mt-0.5 text-xs text-taupe">
@@ -264,7 +264,7 @@ export default function VacacionesPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
-                <thead className="bg-sand/30 text-left text-taupe">
+                <thead className="bg-sand/70 text-left text-taupe">
                   <tr>
                     <th className="px-4 py-2 font-normal">Persona</th>
                     <th className="px-4 py-2 text-right font-normal">Ganados</th>
