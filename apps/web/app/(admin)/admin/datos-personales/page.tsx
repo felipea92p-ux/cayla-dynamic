@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -43,6 +43,7 @@ export default function DatosPersonalesPage() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [q, setQ] = useState("");
+  const fichaRef = useRef<HTMLDivElement>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -63,6 +64,10 @@ export default function DatosPersonalesPage() {
 
   function seleccionar(id: string) {
     setSel(id); setMsg(null);
+    // En móvil la ficha queda debajo de la lista: la traemos a la vista.
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setTimeout(() => fichaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    }
     const f = fichas.get(id);
     setForm(f ? {
       nombre_dni: f.nombre_dni ?? "", fecha_nacimiento: f.fecha_nacimiento ?? "", estado_civil: f.estado_civil ?? "",
@@ -181,7 +186,7 @@ export default function DatosPersonalesPage() {
           </div>
 
           {/* Ficha */}
-          <div className="rounded-lg border p-4">
+          <div ref={fichaRef} className="scroll-mt-4 rounded-lg border p-4">
             {!personaSel ? (
               <p className="text-sm text-taupe">Elige a alguien de la lista para ver o editar su ficha.</p>
             ) : (
