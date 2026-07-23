@@ -73,6 +73,9 @@ export default function PerfilPersonaPage() {
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
+  const [miFirma, setMiFirma] = useState<string | null>(null);
+  const [subiendoFirma, setSubiendoFirma] = useState(false);
+  const [firmaMsg, setFirmaMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true); setErr(null);
@@ -171,6 +174,56 @@ export default function PerfilPersonaPage() {
     if (j.estado === "auto_cerrada_pendiente") return "Auto-cerrada";
     if (j.entrada_ts && !j.salida_final_ts) return "Sin salida";
     return null;
+  }
+
+  // "Mi firma": solo en TU propio perfil, si puedes firmar (admin/líder).
+  const esMiPerfil = !!yo && yo.id === id;
+  useEffect(() => {
+    if (!esMiPerfil) return;
+    void (async () => {
+      const { data } = await supabase.rpc("fn_firma_persona", { p_persona_id: id });
+      if (typeof data === "string" && data.startsWith("data:image")) setMiFirma(data);
+    })();
+  }, [esMiPerfil, supabase, id]);
+
+  async function subirFirma(file: File) {
+    setSubiendoFirma(true); setFirmaMsg(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error("La imagen no es válida."));
+          img.onload = () => {
+            const escala = Math.min(1, 520 / img.width);
+            const w = Math.round(img.width * escala), h = Math.round(img.height * escala);
+            const canvas = document.createElement("canvas");
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return reject(new Error("Sin canvas."));
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL("image/png"));
+          };
+          img.src = reader.result as string;
+        };
+        reader.readAsDataURL(file);
+      });
+      const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl });
+      if (error) throw error;
+      setMiFirma(dataUrl);
+      setFirmaMsg({ tipo: "ok", texto: "Firma guardada. Aparecerá en los memos leves que firmes." });
+    } catch (e) {
+      setFirmaMsg({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo guardar la firma." });
+    } finally {
+      setSubiendoFirma(false);
+    }
+  }
+  async function quitarFirma() {
+    setSubiendoFirma(true);
+    const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
+    if (!error) { setMiFirma(null); setFirmaMsg({ tipo: "ok", texto: "Firma quitada." }); }
+    setSubiendoFirma(false);
   }
 
   if (rol !== null && !puede) {
@@ -345,6 +398,26 @@ export default function PerfilPersonaPage() {
                       </ul>
                     )}
                   </section>
+                  {esMiPerfil && puedeSalario && (
+                    <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
+                      <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
+                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
+                      {firmaMsg && <div className={`mb-3 rounded-lg px-3 py-2 text-sm ${firmaMsg.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>{firmaMsg.texto}</div>}
+                      <div className="flex flex-wrap items-center gap-4">
+                        {miFirma ? (
+                          <img src={miFirma} alt="Tu firma" className="h-16 rounded-lg border border-sand bg-white object-contain px-2" />
+                        ) : (
+                          <span className="text-sm text-taupe/70">Aún no has subido tu firma.</span>
+                        )}
+                        <label className="cursor-pointer rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+                          {subiendoFirma ? "Guardando…" : miFirma ? "Cambiar firma" : "Subir firma"}
+                          <input type="file" accept="image/png,image/jpeg" className="hidden" disabled={subiendoFirma}
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirFirma(f); e.target.value = ""; }} />
+                        </label>
+                        {miFirma && <button onClick={() => void quitarFirma()} disabled={subiendoFirma} className="text-xs text-rojo hover:underline">Quitar</button>}
+                      </div>
+                    </section>
+                  )}
                 </div>
 
                 {/* El perfil consolida; el detalle vive en cada módulo. Solo enlazamos lo que

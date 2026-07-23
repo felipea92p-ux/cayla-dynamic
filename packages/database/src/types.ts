@@ -1428,6 +1428,14 @@ export type Database = {
         Args: { p_persona_id: string; p_valor: boolean }
         Returns: undefined
       }
+      fn_set_mi_firma: {
+        Args: { p_dataurl: string | null }
+        Returns: undefined
+      }
+      fn_firma_persona: {
+        Args: { p_persona_id: string }
+        Returns: string | null
+      }
       fn_proyeccion_periodo: {
         Args: { p_periodo_id: string }
         Returns: Json

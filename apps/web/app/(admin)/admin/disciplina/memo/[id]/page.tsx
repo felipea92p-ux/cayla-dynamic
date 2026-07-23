@@ -47,6 +47,7 @@ export default function MemoPage() {
   const [persona, setPersona] = useState<Persona | null>(null);
   const [sede, setSede] = useState<string>("");
   const [firmante, setFirmante] = useState<string>(EMPRESA.firmante);
+  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -70,6 +71,11 @@ export default function MemoPage() {
     setPersona(p);
     const f = pl.find((x) => x.id === doc.firmante_id);
     if (f) setFirmante(`${f.nombres} ${f.apellidos}`);
+    // Firma escaneada del firmante (solo se muestra en niveles leves; ver render).
+    if (doc.firmante_id) {
+      const { data: fu } = await supabase.rpc("fn_firma_persona", { p_persona_id: doc.firmante_id });
+      setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
+    }
     const smap = new Map(((sedes as Array<{ id: string; codigo: string }>) ?? []).map((s) => [s.id, s.codigo]));
     if (p) setSede(smap.get(p.sede_base_id) ?? "");
     setCargando(false);
@@ -211,6 +217,11 @@ export default function MemoPage() {
 
             <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px]">
               <div>
+                {firmaUrl && !esNivel4 ? (
+                  <img src={firmaUrl} alt="" aria-hidden className="mb-[-6px] h-14 object-contain object-left" />
+                ) : (
+                  <div className="h-14" aria-hidden />
+                )}
                 <div className="mb-1 border-t pt-1">{firmante}</div>
                 <p className="text-taupe">{EMPRESA.cargo} — {EMPRESA.nombre}</p>
               </div>
