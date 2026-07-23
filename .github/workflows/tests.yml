@@ -1,0 +1,15 @@
+name: Pruebas de base de datos
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  db-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase db start
+      - run: supabase test db
