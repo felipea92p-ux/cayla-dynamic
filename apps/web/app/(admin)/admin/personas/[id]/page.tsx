@@ -205,21 +205,27 @@ export default function PerfilPersonaPage() {
             sctx.drawImage(img, 0, 0, cw, ch);
             // Recorta el rectángulo de la firma (píxeles con tinta) quitando el blanco
             // del escaneo — así la firma llena el marco y no sale diminuta.
-            let minX = cw, minY = ch, maxX = 0, maxY = 0, hay = false;
             const d = sctx.getImageData(0, 0, cw, ch).data;
+            const rowInk = new Array(ch).fill(0), colInk = new Array(cw).fill(0);
             for (let y = 0; y < ch; y++) {
               for (let x = 0; x < cw; x++) {
                 const i = (y * cw + x) * 4;
                 const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-                if (d[i + 3] > 40 && lum < 205) {
-                  if (x < minX) minX = x; if (x > maxX) maxX = x;
-                  if (y < minY) minY = y; if (y > maxY) maxY = y;
-                  hay = true;
-                }
+                if (d[i + 3] > 40 && lum < 210) { rowInk[y]++; colInk[x]++; }
               }
             }
-            if (!hay) { minX = 0; minY = 0; maxX = cw - 1; maxY = ch - 1; }
-            const pad = Math.round(Math.min(cw, ch) * 0.04);
+            // Recorte por DENSIDAD: descarta filas/columnas casi vacías (puntitos sueltos,
+            // borde del papel, sombras) que antes inflaban el recorte y dejaban espacio muerto.
+            let rowMax = 1, colMax = 1;
+            for (let y = 0; y < ch; y++) if (rowInk[y] > rowMax) rowMax = rowInk[y];
+            for (let x = 0; x < cw; x++) if (colInk[x] > colMax) colMax = colInk[x];
+            const rThr = rowMax * 0.05, cThr = colMax * 0.05;
+            let minX = 0, minY = 0, maxX = cw - 1, maxY = ch - 1;
+            while (minY < maxY && rowInk[minY] < rThr) minY++;
+            while (maxY > minY && rowInk[maxY] < rThr) maxY--;
+            while (minX < maxX && colInk[minX] < cThr) minX++;
+            while (maxX > minX && colInk[maxX] < cThr) maxX--;
+            const pad = Math.round(Math.min(cw, ch) * 0.02);
             minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
             maxX = Math.min(cw - 1, maxX + pad); maxY = Math.min(ch - 1, maxY + pad);
             const bw = maxX - minX + 1, bh = maxY - minY + 1;
@@ -432,7 +438,12 @@ export default function PerfilPersonaPage() {
                       {firmaMsg && <div className={`mb-3 rounded-lg px-3 py-2 text-sm ${firmaMsg.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>{firmaMsg.texto}</div>}
                       <div className="flex flex-wrap items-center gap-4">
                         {miFirma ? (
-                          <img src={miFirma} alt="Tu firma" className="h-16 rounded-lg border border-sand bg-white object-contain px-2" />
+                          <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
+                            <div className="flex h-20 items-end justify-center">
+                              <img src={miFirma} alt="Tu firma" className="block h-20 w-auto max-w-full" />
+                            </div>
+                            <div className="border-t border-tinta/40 pt-1 text-[11px] text-taupe">Así se verá sobre la línea del memo</div>
+                          </div>
                         ) : (
                           <span className="text-sm text-taupe/70">Aún no has subido tu firma.</span>
                         )}
