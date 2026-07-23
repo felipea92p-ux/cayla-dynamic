@@ -22,6 +22,8 @@ export interface OutboxEntry {
   timestampCliente: string;
   intentos: number;
   ultimoError?: string;
+  /** Apartada tras rechazos repetidos. NO se borra: queda recuperable. */
+  descartada?: boolean;
 }
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
@@ -56,9 +58,34 @@ export async function encolarMarcaje(entry: OutboxEntry) {
   await db.put("outbox", entry);
 }
 
+/** Solo lo que todavía debe intentarse. Lo apartado se conserva, pero no se reintenta. */
 export async function obtenerPendientes(): Promise<OutboxEntry[]> {
   const db = await getDb();
-  return db.getAll("outbox");
+  const todas: OutboxEntry[] = await db.getAll("outbox");
+  return todas.filter((e) => !e.descartada);
+}
+
+/**
+ * Una marca que el servidor rechaza una y otra vez NO se borra: se APARTA.
+ * Antes se hacía db.delete() y la marca desaparecía del sistema sin dejar rastro
+ * — si el rechazo venía de un bug (y venía: marcas atrasadas, ver mig. 0068), se
+ * perdía asistencia real en silencio. Ahora queda guardada y recuperable.
+ */
+export async function marcarComoDescartada(clientUuid: string, error: string) {
+  const db = await getDb();
+  const entry: OutboxEntry | undefined = await db.get("outbox", clientUuid);
+  if (entry) {
+    entry.descartada = true;
+    entry.ultimoError = error;
+    await db.put("outbox", entry);
+  }
+}
+
+/** Marcas apartadas: sirven para diagnosticar y, si hace falta, reponerlas a mano. */
+export async function obtenerDescartadas(): Promise<OutboxEntry[]> {
+  const db = await getDb();
+  const todas: OutboxEntry[] = await db.getAll("outbox");
+  return todas.filter((e) => e.descartada === true);
 }
 
 export async function eliminarDeOutbox(clientUuid: string) {

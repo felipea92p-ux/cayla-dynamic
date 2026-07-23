@@ -1181,6 +1181,16 @@ export type Database = {
           ultima_fecha: string | null
         }[]
       }
+      fn_dias_por_revisar: {
+        Args: { p_limite?: number }
+        Returns: {
+          persona_id: string
+          nombre: string
+          sede: string
+          fecha: string
+          marcas: number
+        }[]
+      }
       fn_faltas_resumen: {
         Args: Record<PropertyKey, never>
         Returns: {

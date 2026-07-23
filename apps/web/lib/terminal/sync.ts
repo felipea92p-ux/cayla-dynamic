@@ -1,5 +1,10 @@
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
-import { obtenerPendientes, eliminarDeOutbox, registrarIntentoFallido } from "./offline-db";
+import {
+  obtenerPendientes,
+  eliminarDeOutbox,
+  registrarIntentoFallido,
+  marcarComoDescartada,
+} from "./offline-db";
 
 let sincronizando = false;
 
@@ -26,13 +31,16 @@ export async function sincronizarPendientes() {
 
       if (error) {
         await registrarIntentoFallido(entry.clientUuid, error.message);
-        // Una marca que falla repetidamente ESTANDO ONLINE es un rechazo permanente
-        // (día ya cerrado, sesión vencida, tipo inválido…), no un corte de red: el
-        // sync ni siquiera corre sin conexión. Tras varios intentos se descarta para
-        // no acumular "sin enviar" para siempre. Un fallo transitorio se resuelve
-        // mucho antes de 6 intentos, así que no se pierde nada real.
+        // Tras varios intentos se deja de reintentar para no acumular "sin enviar"
+        // para siempre — pero la marca NO se borra: se APARTA.
+        //
+        // Antes aquí había un db.delete() con el razonamiento de que un rechazo
+        // repetido "es permanente, no se pierde nada real". Ese razonamiento falló:
+        // la causa #1 de rechazo permanente era una marca ATRASADA (mig. 0068), o
+        // sea justo una marca real. Se perdía asistencia en silencio, sin rastro.
+        // Regla nueva: una marca que una persona hizo de verdad jamás se destruye.
         if ((entry.intentos ?? 0) + 1 >= 6) {
-          await eliminarDeOutbox(entry.clientUuid);
+          await marcarComoDescartada(entry.clientUuid, error.message);
         }
         continue; // no bloquea el resto de la cola por un fallo puntual
       }

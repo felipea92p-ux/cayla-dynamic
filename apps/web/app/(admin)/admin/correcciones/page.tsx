@@ -67,6 +67,8 @@ function calcularEsperado(fecha: string, turno: TurnoDia | null, horario: Horari
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
 const ROLES_ADMIN = ["admin", "lider_do"];
 interface Marcaje { id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string; origen: string; estado_revision: string; }
+/** Día que el sistema selló solo, por haber quedado con una secuencia imposible (mig. 0068). */
+interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; }
 interface Jornada { estado: string; horas_trabajadas: number | null; minutos_tarde: number | null; }
 // Fila de correcciones_auditoria (el registro de quién cambió qué, cuándo y por qué).
 // Sin embeds de PostgREST a propósito: en este repo el schema cache está trabado
@@ -133,6 +135,9 @@ export default function CorreccionesPage() {
   const [cargando, setCargando] = useState(false);
   const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
+  // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
+  const [porRevisar, setPorRevisar] = useState<DiaPorRevisar[]>([]);
 
   // edición local de horas por marcaje
   const [horasEditadas, setHorasEditadas] = useState<Record<string, string>>({});
@@ -152,6 +157,10 @@ export default function CorreccionesPage() {
       const { data: p } = await supabase
         .from("personas").select("id, nombres, apellidos, rol, sede_base_id").eq("estado", "activo").order("nombres");
       setPersonas((p as Persona[]) ?? []);
+      // Días sellados por el sistema. Falla suave a propósito: si la base todavía
+      // no tiene la migración 0068, la pantalla sigue funcionando igual (sin lista).
+      const { data: dr } = await supabase.rpc("fn_dias_por_revisar", { p_limite: 50 });
+      setPorRevisar((dr as DiaPorRevisar[]) ?? []);
     });
   }, [router]);
 
@@ -322,6 +331,33 @@ export default function CorreccionesPage() {
           Cada cambio pide un motivo y queda registrado (quién, qué y cuándo).
         </p>
 
+        {porRevisar.length > 0 && (
+          <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
+            <p className="text-sm font-medium text-tinta">
+              {porRevisar.length === 1
+                ? "1 día quedó con una secuencia imposible"
+                : `${porRevisar.length} días quedaron con una secuencia imposible`}
+            </p>
+            <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+              Ocurre cuando la terminal pierde señal y una marca llega tarde. No se perdió nada:
+              solo hay que ordenar el día. Toca uno para cargarlo.
+            </p>
+            <ul className="flex flex-col">
+              {porRevisar.map((d) => (
+                <li key={`${d.persona_id}-${d.fecha}`}>
+                  <button
+                    onClick={() => { setPersonaId(d.persona_id); setFecha(d.fecha); setCargado(false); }}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-ambar/10"
+                  >
+                    <span className="font-medium text-tinta">{d.nombre}</span>
+                    <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">
             Persona
@@ -347,6 +383,16 @@ export default function CorreccionesPage() {
 
         {cargado && personaSel && (
           <div className="max-w-3xl">
+            {marcajes.some((m) => m.estado_revision === "pendiente_revision") && (
+              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
+                <strong className="text-tinta">Este día está sellado para revisión.</strong>{" "}
+                <span className="text-taupe">
+                  La secuencia de marcas no es posible (por ejemplo, dos salidas seguidas sin retorno
+                  entre medio). Suele pasar cuando una marca llega tarde tras un corte de señal.
+                  Ordénalo y queda resuelto.
+                </span>
+              </div>
+            )}
             {jornada && (
               <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-sand/50 px-4 py-3 text-sm">
                 <span>Estado: <strong>{jornada.estado}</strong></span>
