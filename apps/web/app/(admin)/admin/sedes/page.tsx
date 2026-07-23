@@ -179,6 +179,7 @@ export default function SedesPage() {
                         <td className="px-4 py-2">
                           {edicionHabilitada && (
                             <div className="flex flex-wrap gap-2 text-xs">
+                              <button onClick={() => router.push(`/admin/reporte-sede?sede=${s.codigo}`)} className="rounded border px-2 py-1 hover:bg-sand/50">Hoja</button>
                               <button onClick={() => empezarEdicion(s)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
                               {s.activa ? (
                                 <button onClick={() => cambiarActiva(s, false)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Desactivar</button>
