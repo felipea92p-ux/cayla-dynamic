@@ -217,18 +217,16 @@ export default function MemoPage() {
 
             <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px]">
               <div>
-                <div className="flex h-32 items-end justify-center overflow-hidden pb-1">
+                <div className="h-28">
                   {firmaUrl && !esNivel4 && (
-                    <img src={firmaUrl} alt="" aria-hidden className="max-h-32 object-contain" />
+                    <img src={firmaUrl} alt="" aria-hidden className="h-full w-full object-contain object-bottom" />
                   )}
                 </div>
                 <div className="border-t pt-1">{firmante}</div>
                 <p className="text-taupe">{EMPRESA.cargo} — {EMPRESA.nombre}</p>
               </div>
               <div>
-                <div className="flex h-32 items-start overflow-hidden">
-                  <span className="text-taupe">Recibí conforme:</span>
-                </div>
+                <div className="h-28 text-taupe">Recibí conforme:</div>
                 <div className="border-t pt-1">{nombre} · DNI {persona?.documento ?? "____"}</div>
                 <p className="mt-1 text-taupe">Fecha: __________  Hora: ______</p>
               </div>
