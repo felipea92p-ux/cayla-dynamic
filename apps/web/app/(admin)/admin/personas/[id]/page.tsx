@@ -72,6 +72,7 @@ export default function PerfilPersonaPage() {
   const [docs, setDocs] = useState<DocLite[]>([]);
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
 
   const cargar = useCallback(async () => {
     setCargando(true); setErr(null);
@@ -206,7 +207,41 @@ export default function PerfilPersonaPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
-        <button onClick={() => router.back()} className="mb-4 text-sm text-taupe hover:text-tinta">← Volver</button>
+        <style>{`
+          .solo-print{display:none}
+          @page{margin:16mm}
+          @media print{
+            header,.no-print{display:none!important}
+            .solo-print{display:flex!important}
+            body{background:#fff!important}
+            main{padding:0!important}
+            section{break-inside:avoid;background:#fff!important}
+            .colibri{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+          }
+        `}</style>
+        <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-3">
+          <button onClick={() => router.back()} className="text-sm text-taupe hover:text-tinta">← Volver</button>
+          {persona && (
+            <div className="flex items-center gap-3">
+              {puedeSalario && (
+                <label className="flex items-center gap-1.5 text-xs text-taupe">
+                  <input type="checkbox" checked={incluirSueldo} onChange={(e) => setIncluirSueldo(e.target.checked)} className="h-3.5 w-3.5 accent-tinta" />
+                  Incluir sueldo en el PDF
+                </label>
+              )}
+              <button onClick={() => { setTab("ficha"); setTimeout(() => window.print(), 60); }} className="rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">Descargar PDF</button>
+            </div>
+          )}
+        </div>
+        {persona && (
+          <div className="solo-print mb-6 items-center gap-3 border-b border-sand pb-4">
+            <span className="colibri w-10 text-rojo" aria-hidden />
+            <div>
+              <div className="font-serif text-xl">Ficha de {ficha?.nombre_dni || nombre}</div>
+              <div className="text-xs text-taupe">CAYLA · Dynamic · {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" })}</div>
+            </div>
+          </div>
+        )}
 
         {cargando ? (
           <div className="flex flex-col items-center gap-4 py-24 text-taupe">
@@ -233,7 +268,7 @@ export default function PerfilPersonaPage() {
             </div>
 
             {/* Pestañas */}
-            <div className="mb-6 flex gap-1 border-b border-sand">
+            <div className="no-print mb-6 flex gap-1 border-b border-sand">
               <TabBtn valor="ficha">Ficha</TabBtn>
               <TabBtn valor="desempeno">Desempeño</TabBtn>
             </div>
@@ -245,7 +280,7 @@ export default function PerfilPersonaPage() {
                   <section className="rounded-2xl border border-sand bg-papel p-5">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Datos personales</h2>
-                      <Link href="/admin/datos-personales" className="text-xs text-tinta hover:underline">Editar →</Link>
+                      <Link href="/admin/datos-personales" className="no-print text-xs text-tinta hover:underline">Editar →</Link>
                     </div>
                     {ficha ? (
                       <div>
@@ -267,10 +302,10 @@ export default function PerfilPersonaPage() {
 
                   {/* Compensación — solo DO */}
                   {puedeSalario && (
-                  <section className="rounded-2xl border border-sand bg-papel p-5">
+                  <section className={`rounded-2xl border border-sand bg-papel p-5 ${!incluirSueldo ? "no-print" : ""}`}>
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Compensación</h2>
-                      <Link href="/admin/planilla" className="text-xs text-tinta hover:underline">Planilla →</Link>
+                      <Link href="/admin/planilla" className="no-print text-xs text-tinta hover:underline">Planilla →</Link>
                     </div>
                     {salario ? (
                       <div>
@@ -288,7 +323,7 @@ export default function PerfilPersonaPage() {
                   <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</h2>
-                      <Link href="/admin/disciplina" className="text-xs text-tinta hover:underline">Disciplina →</Link>
+                      <Link href="/admin/disciplina" className="no-print text-xs text-tinta hover:underline">Disciplina →</Link>
                     </div>
                     {docs.length === 0 ? (
                       <p className="text-sm text-taupe">Sin antecedentes disciplinarios. Buena señal.</p>
@@ -314,7 +349,7 @@ export default function PerfilPersonaPage() {
 
                 {/* El perfil consolida; el detalle vive en cada módulo. Solo enlazamos lo que
                     abre YA filtrado por esta persona (si no filtrara, el enlace mentiría). */}
-                <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
+                <div className="no-print mt-6 flex flex-wrap items-center gap-2 text-sm">
                   <span className="py-1 text-taupe">Registro de {persona.nombres}:</span>
                   <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Horas y tardanzas</Link>
                   <Link href={`/admin/incidencias?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Incidencias</Link>
