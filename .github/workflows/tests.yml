@@ -1,15 +1,42 @@
 name: Pruebas de base de datos
+
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
+
 jobs:
   db-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase db start
-      - run: supabase test db
+
+      - name: Iniciar base local (aplica las migraciones)
+        run: supabase db start
+
+      - name: Correr pruebas (pgTAP)
+        run: supabase test db
+
+  ui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Correr pruebas de interfaz (Vitest)
+        run: pnpm test
