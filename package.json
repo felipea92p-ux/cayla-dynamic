@@ -7,6 +7,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "seed:dev": "node scripts/seed-dev.mjs"
   },
   "devDependencies": {
@@ -14,6 +16,7 @@
     "bcryptjs": "^2.4.3",
     "turbo": "^2.5.0",
     "typescript": "^5.6.0",
+    "vitest": "^4.1.10",
     "xlsx": "^0.18.5"
   }
 }
