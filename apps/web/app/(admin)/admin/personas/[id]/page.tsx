@@ -196,14 +196,41 @@ export default function PerfilPersonaPage() {
           const img = new Image();
           img.onerror = () => reject(new Error("La imagen no es válida."));
           img.onload = () => {
-            const escala = Math.min(1, 520 / img.width);
-            const w = Math.round(img.width * escala), h = Math.round(img.height * escala);
-            const canvas = document.createElement("canvas");
-            canvas.width = w; canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return reject(new Error("Sin canvas."));
-            ctx.drawImage(img, 0, 0, w, h);
-            resolve(canvas.toDataURL("image/png"));
+            const s0 = Math.min(1, 1000 / img.width);
+            const cw = Math.round(img.width * s0), ch = Math.round(img.height * s0);
+            const src = document.createElement("canvas");
+            src.width = cw; src.height = ch;
+            const sctx = src.getContext("2d");
+            if (!sctx) return reject(new Error("Sin canvas."));
+            sctx.drawImage(img, 0, 0, cw, ch);
+            // Recorta el rectángulo de la firma (píxeles con tinta) quitando el blanco
+            // del escaneo — así la firma llena el marco y no sale diminuta.
+            let minX = cw, minY = ch, maxX = 0, maxY = 0, hay = false;
+            const d = sctx.getImageData(0, 0, cw, ch).data;
+            for (let y = 0; y < ch; y++) {
+              for (let x = 0; x < cw; x++) {
+                const i = (y * cw + x) * 4;
+                const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+                if (d[i + 3] > 40 && lum < 205) {
+                  if (x < minX) minX = x; if (x > maxX) maxX = x;
+                  if (y < minY) minY = y; if (y > maxY) maxY = y;
+                  hay = true;
+                }
+              }
+            }
+            if (!hay) { minX = 0; minY = 0; maxX = cw - 1; maxY = ch - 1; }
+            const pad = Math.round(Math.min(cw, ch) * 0.04);
+            minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+            maxX = Math.min(cw - 1, maxX + pad); maxY = Math.min(ch - 1, maxY + pad);
+            const bw = maxX - minX + 1, bh = maxY - minY + 1;
+            const s1 = Math.min(1, 520 / bw);
+            const ow = Math.max(1, Math.round(bw * s1)), oh = Math.max(1, Math.round(bh * s1));
+            const out = document.createElement("canvas");
+            out.width = ow; out.height = oh;
+            const octx = out.getContext("2d");
+            if (!octx) return reject(new Error("Sin canvas."));
+            octx.drawImage(src, minX, minY, bw, bh, 0, 0, ow, oh);
+            resolve(out.toDataURL("image/png"));
           };
           img.src = reader.result as string;
         };
