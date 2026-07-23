@@ -218,7 +218,7 @@ export default function MemoPage() {
             <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px]">
               <div>
                 {firmaUrl && !esNivel4 ? (
-                  <img src={firmaUrl} alt="" aria-hidden className="mx-auto mb-[-10px] block h-28 object-contain" />
+                  <img src={firmaUrl} alt="" aria-hidden className="mx-auto mb-[-22px] block h-40 object-contain" />
                 ) : (
                   <div className="h-14" aria-hidden />
                 )}
