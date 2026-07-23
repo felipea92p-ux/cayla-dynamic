@@ -116,6 +116,9 @@ export default function DisciplinaPage() {
   }
 
   async function firmar(id: string) {
+    if (!window.confirm(
+      "¿Firmar este documento? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo."
+    )) return;
     setOcupado(id); setMsg(null);
     const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id });
     setOcupado(null);

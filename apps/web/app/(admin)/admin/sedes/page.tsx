@@ -70,6 +70,9 @@ export default function SedesPage() {
   }
 
   async function cambiarActiva(s: Sede, activa: boolean) {
+    if (!activa && !window.confirm(
+      `¿Desactivar la sede "${s.nombre}"? Deja de ofrecerse para nuevas asignaciones. Quien ya está asignado ahí lo conserva — puedes reactivarla cuando quieras.`
+    )) return;
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_sede_activa", { p_codigo: s.codigo, p_activa: activa });
     if (error) { avisar("error", `No se pudo ${activa ? "reactivar" : "desactivar"} la sede: ${error.message}`); return; }

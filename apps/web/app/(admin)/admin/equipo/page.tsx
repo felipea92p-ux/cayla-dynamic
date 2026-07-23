@@ -335,6 +335,9 @@ export default function EquipoPage() {
   }
 
   async function cambiarEstado(p: Persona, nuevo: "activo" | "inactivo") {
+    if (nuevo === "inactivo" && !window.confirm(
+      `¿Desactivar a ${p.nombres} ${p.apellidos}? Deja de aparecer en asistencia y no podrá marcar. No se borra nada — puedes reactivarla cuando quieras.`
+    )) return;
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase
       .from("personas")

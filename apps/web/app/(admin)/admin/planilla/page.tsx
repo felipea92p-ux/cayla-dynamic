@@ -754,21 +754,27 @@ export default function PlanillaPage() {
 
   async function marcarPagado(pagar: boolean) {
     if (!periodoActual) return;
-    const texto = pagar
-      ? "Marcar este periodo como PAGADO congela objetivos, bonos y descuentos. ¿Continuar?"
-      : "¿Reabrir este periodo para modificarlo? Recuerda volver a marcarlo como PAGADO al terminar.";
-    if (!window.confirm(texto)) return;
-    setGuardandoPeriodo(true);
-    const { error } = await supabase.rpc("fn_periodo_pagado", {
-      p_periodo_id: periodoActual.id,
-      p_pagado: pagar,
-    });
-    setGuardandoPeriodo(false);
-    if (error) {
-      avisar("error", `No se pudo actualizar el periodo: ${error.message}`);
+    if (pagar) {
+      if (!window.confirm("Marcar este periodo como PAGADO congela objetivos, bonos y descuentos. ¿Continuar?")) return;
+      setGuardandoPeriodo(true);
+      const { error } = await supabase.rpc("fn_periodo_pagado", { p_periodo_id: periodoActual.id, p_pagado: true });
+      setGuardandoPeriodo(false);
+      if (error) { avisar("error", `No se pudo actualizar el periodo: ${error.message}`); return; }
+      avisar("ok", "Periodo marcado como PAGADO 🔒.");
+      await Promise.all([cargarPeriodos(), cargarProyeccion()]);
       return;
     }
-    avisar("ok", pagar ? "Periodo marcado como PAGADO 🔒." : "Periodo reabierto.");
+    // Reabrir un pago DEJA RASTRO: se pide el motivo y queda auditado (quién/cuándo/por qué).
+    const motivo = window.prompt(
+      "Vas a REABRIR un periodo ya pagado. ¿Por qué? (queda registrado)\nEj.: corregir una tardanza mal contada."
+    );
+    if (motivo === null) return;
+    if (motivo.trim().length < 4) { avisar("error", "El motivo de la reapertura es obligatorio (mínimo 4 caracteres)."); return; }
+    setGuardandoPeriodo(true);
+    const { error } = await supabase.rpc("fn_revertir_pago", { p_periodo_id: periodoActual.id, p_motivo: motivo.trim() });
+    setGuardandoPeriodo(false);
+    if (error) { avisar("error", `No se pudo reabrir: ${error.message}`); return; }
+    avisar("ok", "Periodo reabierto con registro. Corrige lo necesario y vuelve a marcarlo como PAGADO.");
     await Promise.all([cargarPeriodos(), cargarProyeccion()]);
   }
 

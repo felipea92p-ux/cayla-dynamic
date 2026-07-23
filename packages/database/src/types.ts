@@ -1436,6 +1436,10 @@ export type Database = {
         Args: { p_persona_id: string }
         Returns: string | null
       }
+      fn_revertir_pago: {
+        Args: { p_periodo_id: string; p_motivo: string }
+        Returns: undefined
+      }
       fn_proyeccion_periodo: {
         Args: { p_periodo_id: string }
         Returns: Json
