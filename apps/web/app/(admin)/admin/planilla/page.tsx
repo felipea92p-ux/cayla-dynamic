@@ -1348,16 +1348,16 @@ export default function PlanillaPage() {
                   ) : feriadosAnio.length === 0 ? (
                     <p className="text-sm text-taupe">No hay feriados registrados este año.</p>
                   ) : (
-                    <ul className="mb-3 grid gap-1 sm:grid-cols-2">
+                    <ul className="mb-3 grid gap-x-10 sm:grid-cols-2">
                       {feriadosAnio.map((f) => (
-                        <li key={f.fecha} className="flex items-center justify-between gap-2 text-sm">
-                          <span>
+                        <li key={f.fecha} className="flex items-center justify-between gap-3 border-b border-sand/60 py-1.5 text-sm">
+                          <span className="min-w-0">
                             <span className="text-taupe">{fechaCorta(f.fecha)}</span> — {f.nombre}
                           </span>
                           <button
                             onClick={() => void quitarFeriado(f)}
                             disabled={guardandoFeriado}
-                            className="text-xs text-rojo hover:underline disabled:opacity-50"
+                            className="shrink-0 text-xs text-rojo hover:underline disabled:opacity-50"
                           >
                             Quitar
                           </button>
