@@ -57,6 +57,7 @@ export default function DisciplinaPage() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [nombres, setNombres] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
+  const [resaltado, setResaltado] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [medio, setMedio] = useState<Record<string, string>>({});
@@ -86,6 +87,21 @@ export default function DisciplinaPage() {
   }, [supabase, router]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Atajo desde la alerta del Dashboard: si el hash apunta a una persona
+  // (#tard-ID o #falta-ID), baja hasta su fila en el semáforo y la resalta.
+  useEffect(() => {
+    if (cargando) return;
+    const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+    if (!hash) return;
+    const el = document.getElementById(hash);
+    if (!el) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    setResaltado(hash);
+    const t = setTimeout(() => setResaltado(null), 2800);
+    return () => clearTimeout(t);
+  }, [cargando]);
 
   async function generar(tipo: "tardanza" | "falta", personaId: string) {
     setOcupado(personaId); setMsg(null);
@@ -189,7 +205,7 @@ export default function DisciplinaPage() {
           ) : (
             <ul className="divide-y">
               {tardanzas.map((t) => (
-                <li key={t.persona_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <li key={t.persona_id} id={`tard-${t.persona_id}`} className={`flex flex-wrap items-center justify-between gap-3 scroll-mt-24 px-4 py-3 text-sm transition-colors ${resaltado === `tard-${t.persona_id}` ? "bg-rojo/10" : ""}`}>
                   <span>
                     <strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
                     <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "amonestacion" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>
@@ -219,7 +235,7 @@ export default function DisciplinaPage() {
           ) : (
             <ul className="divide-y">
               {faltas.map((f) => (
-                <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <li key={f.persona_id} id={`falta-${f.persona_id}`} className={`flex flex-wrap items-center justify-between gap-3 scroll-mt-24 px-4 py-3 text-sm transition-colors ${resaltado === `falta-${f.persona_id}` ? "bg-rojo/10" : ""}`}>
                   <span>
                     <strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
                     <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${f.nivel === "rojo" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>

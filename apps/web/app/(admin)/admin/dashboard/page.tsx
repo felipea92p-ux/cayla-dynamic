@@ -301,30 +301,32 @@ export default function DashboardPage() {
           const ambarF = discFaltas.filter((f) => f.nivel === "ambar").length;
           if (!rojosT.length && !avisoT && !rojosF.length && !ambarF) return null;
           return (
-            <Link href="/admin/disciplina" className="mb-10 block rounded-2xl border border-sand bg-rojo/[0.04] p-5 transition-all hover:-translate-y-0.5 hover:border-taupe">
+            <div className="mb-10 rounded-2xl border border-sand bg-rojo/[0.04] p-5">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-serif text-lg text-tinta">Disciplina — necesita tu atención</span>
-                <span className="text-xs font-medium text-rojo">Ver disciplina →</span>
+                <Link href="/admin/disciplina" className="text-xs font-medium text-rojo hover:underline">Ver disciplina →</Link>
               </div>
               {rojosT.map((t) => (
-                <div key={t.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                <Link key={t.persona_id} href={`/admin/disciplina#tard-${t.persona_id}`}
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-rojo/[0.06]">
                   <span><strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
                     <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">corresponde amonestación por tardanzas</span></span>
-                  {t.ultima_fecha && <span className="text-xs font-medium text-rojo">actúa antes del {fechaBonita(masDiasHabiles(t.ultima_fecha, 10))}</span>}
-                </div>
+                  {t.ultima_fecha && <span className="text-xs font-medium text-rojo">actúa antes del {fechaBonita(masDiasHabiles(t.ultima_fecha, 10))} →</span>}
+                </Link>
               ))}
               {rojosF.map((f) => (
-                <div key={f.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                <Link key={f.persona_id} href={`/admin/disciplina#falta-${f.persona_id}`}
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-rojo/[0.06]">
                   <span><strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
                     <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">causal por faltas (art. 25-h)</span></span>
-                  <span className="text-xs font-medium text-rojo">acción inmediata</span>
-                </div>
+                  <span className="text-xs font-medium text-rojo">acción inmediata →</span>
+                </Link>
               ))}
               <div className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
                 {avisoT > 0 && <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-ambar">{avisoT} en aviso (tardanzas)</span>}
                 {avisoT > 0 ? " · " : ""}Faltas: {rojosF.length + ambarF > 0 ? `${rojosF.length + ambarF} en alerta` : "sin alertas"}
               </div>
-            </Link>
+            </div>
           );
         })()}
 
