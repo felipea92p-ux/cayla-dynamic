@@ -846,6 +846,57 @@ export type Database = {
         }
         Relationships: []
       }
+      feriados: {
+        Row: {
+          fecha: string
+          nombre: string
+        }
+        Insert: {
+          fecha: string
+          nombre: string
+        }
+        Update: {
+          fecha?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
+      feriados_descanso_sustitutorio: {
+        Row: {
+          acta_ref: string | null
+          created_at: string
+          estado: string
+          fecha_descanso_sustitutorio: string
+          fecha_feriado: string
+          id: string
+          otorgado_por: string | null
+          persona_id: string
+          updated_at: string
+        }
+        Insert: {
+          acta_ref?: string | null
+          created_at?: string
+          estado?: string
+          fecha_descanso_sustitutorio: string
+          fecha_feriado: string
+          id?: string
+          otorgado_por?: string | null
+          persona_id: string
+          updated_at?: string
+        }
+        Update: {
+          acta_ref?: string | null
+          created_at?: string
+          estado?: string
+          fecha_descanso_sustitutorio?: string
+          fecha_feriado?: string
+          id?: string
+          otorgado_por?: string | null
+          persona_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       vacaciones: {
         Row: {
           creado_at: string
@@ -1134,6 +1185,36 @@ export type Database = {
       fn_quitar_vacaciones: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      fn_otorgar_descanso_sustitutorio: {
+        Args: {
+          p_persona_id: string
+          p_fecha_feriado: string
+          p_fecha_descanso: string
+          p_estado?: string
+          p_acta_ref?: string | null
+        }
+        Returns: string
+      }
+      fn_quitar_descanso_sustitutorio: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      fn_feriados_laborados: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          persona_id: string
+          nombre: string
+          sede: string
+          fecha_feriado: string
+          feriado_nombre: string
+          horas: number
+          sobretasa: number
+          dcs_id: string
+          fecha_descanso: string
+          estado: string
+          acta_ref: string
+        }[]
       }
       fn_aceptar_incidencia: {
         Args: { p_persona_id: string; p_fecha: string; p_tipo: string; p_nota?: string | null }
