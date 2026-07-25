@@ -1212,8 +1212,12 @@ export type Database = {
         Returns: string
       }
       fn_expediente_firmar: {
-        Args: { p_id: string }
+        Args: { p_id: string; p_firmante_id?: string | null }
         Returns: string
+      }
+      fn_firmantes_disponibles: {
+        Args: Record<PropertyKey, never>
+        Returns: { id: string; nombre: string }[]
       }
       fn_expediente_entregar: {
         Args: { p_id: string; p_medio: string; p_fecha?: string }
