@@ -61,6 +61,8 @@ export default function DisciplinaPage() {
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [medio, setMedio] = useState<Record<string, string>>({});
+  const [firmantes, setFirmantes] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
   const borradoresRef = useRef<HTMLDivElement>(null);
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
@@ -69,7 +71,7 @@ export default function DisciplinaPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: t }, { data: f }, { data: d, error: eD }, { data: p }] = await Promise.all([
+    const [{ data: t }, { data: f }, { data: d, error: eD }, { data: p }, { data: fi }] = await Promise.all([
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
@@ -77,12 +79,14 @@ export default function DisciplinaPage() {
         .in("estado", ["borrador", "firmado"])
         .order("creado_at", { ascending: false }),
       supabase.from("personas").select("id, nombres, apellidos"),
+      supabase.rpc("fn_firmantes_disponibles", {}),
     ]);
     if (eD) setMsg({ tipo: "error", texto: `No se pudo cargar el legajo: ${eD.message}` });
     setTardanzas(Array.isArray(t) ? (t as TardanzaRow[]) : []);
     setFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
     setDocs(Array.isArray(d) ? (d as unknown as Doc[]) : []);
     setNombres(new Map(((p as Array<{ id: string; nombres: string; apellidos: string }>) ?? []).map((x) => [x.id, `${x.nombres} ${x.apellidos}`])));
+    setFirmantes(Array.isArray(fi) ? (fi as Array<{ id: string; nombre: string }>) : []);
     setCargando(false);
   }, [supabase, router]);
 
@@ -116,11 +120,14 @@ export default function DisciplinaPage() {
   }
 
   async function firmar(id: string) {
-    if (!window.confirm(
-      "¿Firmar este documento? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo."
-    )) return;
+    const elegido = firmanteElegido[id];
+    const nombreElegido = elegido ? firmantes.find((f) => f.id === elegido)?.nombre : null;
+    const aviso = nombreElegido
+      ? `¿Firmar este documento como ${nombreElegido}? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.`
+      : "¿Firmar este documento? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.";
+    if (!window.confirm(aviso)) return;
     setOcupado(id); setMsg(null);
-    const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id });
+    const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id, p_firmante_id: elegido ?? null });
     setOcupado(null);
     if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
     await cargar();
@@ -269,6 +276,17 @@ export default function DisciplinaPage() {
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <span><strong>{nombres.get(d.persona_id) ?? "—"}</strong> <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]}</span></span>
                     <div className="flex items-center gap-2">
+                      {firmantes.length > 0 && (
+                        <select
+                          value={firmanteElegido[d.id] ?? yo?.id ?? ""}
+                          onChange={(e) => setFirmanteElegido((m) => ({ ...m, [d.id]: e.target.value }))}
+                          className="rounded-lg border border-sand bg-papel px-2 py-1 text-xs text-tinta"
+                          title="Quién firma">
+                          {firmantes.map((f) => (
+                            <option key={f.id} value={f.id}>{f.nombre}</option>
+                          ))}
+                        </select>
+                      )}
                       <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
                         className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
                       <button onClick={() => firmar(d.id)} disabled={ocupado === d.id}
