@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { useRolActual } from "@/lib/admin/use-rol";
+import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Marca } from "@/components/marca";
 import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
@@ -56,7 +56,8 @@ function esActivo(pathname: string, href: string): boolean {
 export function AdminNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const rol = useRolActual();
+  const persona = usePersonaActual();
+  const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
@@ -96,6 +97,11 @@ export function AdminNav() {
         </div>
 
         <div className="flex items-center gap-3">
+          {persona && (
+            <span className="hidden text-sm text-taupe xl:inline" title="Sesión activa">
+              {persona.nombreCompleto}
+            </span>
+          )}
           <button onClick={cerrarSesion}
             className="hidden items-center gap-1.5 text-sm text-taupe transition-colors hover:text-tinta xl:flex">
             <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
@@ -130,8 +136,13 @@ export function AdminNav() {
               </div>
             </div>
           ))}
+          {persona && (
+            <p className="mt-3 px-3 text-xs text-taupe" title="Sesión activa">
+              Sesión: {persona.nombreCompleto}
+            </p>
+          )}
           <button onClick={cerrarSesion}
-            className="mt-3 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe hover:text-tinta">
+            className="mt-2 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe hover:text-tinta">
             <LogOut size={17} strokeWidth={1.8} aria-hidden /> Cerrar sesión
           </button>
         </nav>
