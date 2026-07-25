@@ -16,3 +16,6 @@ scripts/sql-manual/aplicar_0031_historico_2025.sql
 scripts/sql-manual/aplicar_0033_ingresos_2025.sql
 .vercel
 .env*
+
+# Sentry Config File
+.env.sentry-build-plugin

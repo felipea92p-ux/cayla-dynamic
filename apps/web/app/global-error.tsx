@@ -1,5 +1,8 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
+import { useEffect } from "react";
+
 // Último recurso: si algo revienta tan arriba que ni el marco de la app carga,
 // esta pantalla se muestra sola. Lleva estilos propios (inline) porque reemplaza
 // TODO, incluido el <html> y la hoja de estilos. Casi nunca se ve — pero cuando
@@ -11,6 +14,12 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Next no reporta por su cuenta los errores que llegan hasta aquí: hay que avisarle
+  // a Sentry a mano, o el fallo más grave posible sería el único que nunca vemos.
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
   return (
     <html lang="es">
       <body
