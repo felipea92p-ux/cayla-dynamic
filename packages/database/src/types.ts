@@ -443,6 +443,9 @@ export type Database = {
       }
       marcajes: {
         Row: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
           client_uuid: string
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           id: string
@@ -456,6 +459,9 @@ export type Database = {
           tipo: Database["public"]["Enums"]["tipo_marca"]
         }
         Insert: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
           client_uuid: string
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           id?: string
@@ -469,6 +475,9 @@ export type Database = {
           tipo: Database["public"]["Enums"]["tipo_marca"]
         }
         Update: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
           client_uuid?: string
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           id?: string
@@ -1593,6 +1602,27 @@ export type Database = {
       fn_mi_firma: {
         Args: Record<string, never>
         Returns: string | null
+      }
+      fn_anular_marcaje: {
+        Args: { p_marcaje_id: string; p_motivo: string }
+        Returns: unknown
+      }
+      fn_reactivar_marcaje: {
+        Args: { p_marcaje_id: string; p_motivo: string }
+        Returns: unknown
+      }
+      fn_corregir_marca: {
+        Args: {
+          p_marcaje_id: string
+          p_nuevo_tipo?: string
+          p_nuevo_ts?: string
+          p_motivo?: string
+        }
+        Returns: unknown
+      }
+      fn_confirmar_auto_cierre: {
+        Args: { p_marcaje_id: string; p_motivo?: string }
+        Returns: unknown
       }
       fn_firma_de_memo: {
         Args: { p_doc_id: string }

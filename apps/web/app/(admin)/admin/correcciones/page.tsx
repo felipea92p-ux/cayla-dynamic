@@ -66,7 +66,22 @@ function calcularEsperado(fecha: string, turno: TurnoDia | null, horario: Horari
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
 const ROLES_ADMIN = ["admin", "lider_do"];
-interface Marcaje { id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string; origen: string; estado_revision: string; }
+interface Marcaje {
+  id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string;
+  origen: string; estado_revision: string;
+  // Anulada (mig. 0081): la marca sigue aquí, tachada, pero no cuenta para la jornada.
+  anulada_at: string | null; anulada_por: string | null; anulada_motivo: string | null;
+}
+
+// A qué familia pertenece cada tipo. Espeja fn_familia_marca (mig. 0081): una
+// salida solo puede pasar a ser otra salida, y un retorno a otro retorno. Nunca
+// una entrada en salida — dejaría el día con dos salidas y sin entrada.
+function familiaDe(tipo: TipoMarca): "entrada" | "salida" | "retorno" {
+  if (tipo === "entrada") return "entrada";
+  return tipo.startsWith("retorno") ? "retorno" : "salida";
+}
+const TIPOS_DE_LA_FAMILIA = (tipo: TipoMarca): TipoMarca[] =>
+  (Object.keys(TIPO_MARCA_LABELS) as TipoMarca[]).filter((t) => familiaDe(t) === familiaDe(tipo));
 /** Día que el sistema selló solo, por haber quedado con una secuencia imposible (mig. 0068). */
 interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; }
 interface Jornada { estado: string; horas_trabajadas: number | null; minutos_tarde: number | null; }
@@ -106,8 +121,10 @@ function describirCambio(row: Auditoria): { accion: string; detalle: string } {
 const TIPOS_AGREGABLES = TIPOS_MARCA;
 
 type Accion =
-  | { modo: "editar"; marcaje: Marcaje; nuevaHora: string }
-  | { modo: "eliminar"; marcaje: Marcaje }
+  | { modo: "editar"; marcaje: Marcaje; nuevaHora: string; nuevoTipo: TipoMarca }
+  | { modo: "anular"; marcaje: Marcaje }
+  | { modo: "reactivar"; marcaje: Marcaje }
+  | { modo: "confirmar"; marcaje: Marcaje }
   | { modo: "agregar"; tipo: TipoMarca; hora: string; motivoOtro: string };
 
 export default function CorreccionesPage() {
@@ -141,6 +158,7 @@ export default function CorreccionesPage() {
 
   // edición local de horas por marcaje
   const [horasEditadas, setHorasEditadas] = useState<Record<string, string>>({});
+  const [tiposEditados, setTiposEditados] = useState<Record<string, TipoMarca>>({});
   // acción pendiente de confirmar con motivo
   const [accion, setAccion] = useState<Accion | null>(null);
   const [motivo, setMotivo] = useState("");
@@ -173,7 +191,7 @@ export default function CorreccionesPage() {
     const fin = `${fecha}T23:59:59-05:00`;
     const [{ data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }] = await Promise.all([
       supabase.from("marcajes")
-        .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision")
+        .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision, anulada_at, anulada_por, anulada_motivo")
         .eq("persona_id", personaId).gte("timestamp_marca", inicio).lte("timestamp_marca", fin)
         .order("timestamp_marca"),
       supabase.from("jornadas")
@@ -269,13 +287,26 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     let error = null;
     if (accion.modo === "editar") {
-      ({ error } = await supabase.rpc("fn_corregir_marcaje", {
+      // Tipo y hora en una sola corrección (mig. 0081). Se manda solo lo que cambió.
+      const cambiaTipo = accion.nuevoTipo !== accion.marcaje.tipo;
+      const cambiaHora = accion.nuevaHora !== horaInput(accion.marcaje.timestamp_marca);
+      ({ error } = await supabase.rpc("fn_corregir_marca", {
         p_marcaje_id: accion.marcaje.id,
-        p_nuevo_ts: construirTs(fecha, accion.nuevaHora),
+        p_nuevo_tipo: cambiaTipo ? accion.nuevoTipo : undefined,
+        p_nuevo_ts: cambiaHora ? construirTs(fecha, accion.nuevaHora) : undefined,
         p_motivo: motivo.trim(),
       }));
-    } else if (accion.modo === "eliminar") {
-      ({ error } = await supabase.rpc("fn_eliminar_marcaje", {
+    } else if (accion.modo === "anular") {
+      // Anular, no borrar: la marca se queda en el historial (mig. 0081).
+      ({ error } = await supabase.rpc("fn_anular_marcaje", {
+        p_marcaje_id: accion.marcaje.id, p_motivo: motivo.trim(),
+      }));
+    } else if (accion.modo === "reactivar") {
+      ({ error } = await supabase.rpc("fn_reactivar_marcaje", {
+        p_marcaje_id: accion.marcaje.id, p_motivo: motivo.trim(),
+      }));
+    } else if (accion.modo === "confirmar") {
+      ({ error } = await supabase.rpc("fn_confirmar_auto_cierre", {
         p_marcaje_id: accion.marcaje.id, p_motivo: motivo.trim(),
       }));
     } else {
@@ -453,34 +484,77 @@ export default function CorreccionesPage() {
                   </thead>
                   <tbody>
                     {marcajes.map((m) => {
+                      const anulada = m.anulada_at !== null;
                       const horaLocal = horasEditadas[m.id] ?? horaInput(m.timestamp_marca);
-                      const cambiada = horaLocal !== horaInput(m.timestamp_marca);
+                      const tipoLocal = tiposEditados[m.id] ?? m.tipo;
+                      const cambiada = horaLocal !== horaInput(m.timestamp_marca) || tipoLocal !== m.tipo;
+                      const esAutoCierrePendiente = m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision";
+                      const opciones = TIPOS_DE_LA_FAMILIA(m.tipo);
                       return (
-                        <tr key={m.id} className="border-t">
+                        <tr key={m.id} className={`border-t ${anulada ? "opacity-55" : ""}`}>
                           <td className="px-4 py-2">
-                            {TIPO_MARCA_LABELS[m.tipo]}
+                            {anulada || opciones.length === 1 ? (
+                              <span className={anulada ? "line-through" : undefined}>{TIPO_MARCA_LABELS[m.tipo]}</span>
+                            ) : (
+                              // Solo tipos de su misma familia: una entrada no puede volverse salida.
+                              <select value={tipoLocal}
+                                onChange={(e) => setTiposEditados({ ...tiposEditados, [m.id]: e.target.value as TipoMarca })}
+                                className="rounded border px-2 py-1">
+                                {opciones.map((t) => <option key={t} value={t}>{TIPO_MARCA_LABELS[t]}</option>)}
+                              </select>
+                            )}
                             {m.origen === "auto_cierre" && <span className="ml-2 rounded bg-rojo/10 px-1.5 py-0.5 text-xs text-rojo">auto-cierre</span>}
                             {m.origen === "admin_correccion" && <span className="ml-2 rounded bg-taupe/15 px-1.5 py-0.5 text-xs text-taupe">manual</span>}
+                            {m.origen === "auto_cierre" && m.estado_revision === "revisada" && !anulada && (
+                              <span className="ml-2 rounded bg-verde/15 px-1.5 py-0.5 text-xs text-taupe">confirmada</span>
+                            )}
+                            {anulada && (
+                              <p className="mt-1 text-xs text-taupe">Anulada · {m.anulada_motivo}</p>
+                            )}
                           </td>
                           <td className="px-4 py-2">
-                            <input type="time" value={horaLocal}
-                              onChange={(e) => setHorasEditadas({ ...horasEditadas, [m.id]: e.target.value })}
-                              className="rounded border px-2 py-1" />
+                            {anulada ? (
+                              <span className="line-through text-taupe">{horaTextoLima(m.timestamp_marca)}</span>
+                            ) : (
+                              <input type="time" value={horaLocal}
+                                onChange={(e) => setHorasEditadas({ ...horasEditadas, [m.id]: e.target.value })}
+                                className="rounded border px-2 py-1" />
+                            )}
                           </td>
                           <td className="px-4 py-2 text-taupe">{m.origen}</td>
                           <td className="px-4 py-2">
-                            <div className="flex gap-2 text-xs">
-                              <button
-                                disabled={!cambiada}
-                                onClick={() => { setAccion({ modo: "editar", marcaje: m, nuevaHora: horaLocal }); setMotivo(""); }}
-                                className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-40">
-                                Guardar hora
-                              </button>
-                              <button
-                                onClick={() => { setAccion({ modo: "eliminar", marcaje: m }); setMotivo(""); }}
-                                className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">
-                                Eliminar
-                              </button>
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {anulada ? (
+                                <button
+                                  onClick={() => { setAccion({ modo: "reactivar", marcaje: m }); setMotivo(""); }}
+                                  title="Devolver esta marca al cálculo del día"
+                                  className="rounded border px-2 py-1 hover:bg-sand/50">
+                                  Reactivar
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    disabled={!cambiada}
+                                    onClick={() => { setAccion({ modo: "editar", marcaje: m, nuevaHora: horaLocal, nuevoTipo: tipoLocal }); setMotivo(""); }}
+                                    className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-40">
+                                    Guardar
+                                  </button>
+                                  {esAutoCierrePendiente && (
+                                    <button
+                                      onClick={() => { setAccion({ modo: "confirmar", marcaje: m }); setMotivo(""); }}
+                                      title="Esa es su salida final: el día deja de estar pendiente y pasa a medirse entero"
+                                      className="rounded border px-2 py-1 hover:bg-sand/50">
+                                      Confirmar
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => { setAccion({ modo: "anular", marcaje: m }); setMotivo(""); }}
+                                    title="La marca deja de contar, pero se queda en el historial con su motivo"
+                                    className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">
+                                    Anular
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -590,13 +664,24 @@ export default function CorreccionesPage() {
           <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4" onClick={() => !procesando && setAccion(null)}>
             <div className="w-full max-w-md rounded-xl bg-crema p-6 border border-sand" onClick={(e) => e.stopPropagation()}>
               <h3 className="mb-2 font-serif text-lg">
-                {accion.modo === "editar" && "Confirmar cambio de hora"}
-                {accion.modo === "eliminar" && "Eliminar marcaje"}
+                {accion.modo === "editar" && "Confirmar la corrección"}
+                {accion.modo === "anular" && "Anular esta marca"}
+                {accion.modo === "reactivar" && "Devolver esta marca al día"}
+                {accion.modo === "confirmar" && "Confirmar la salida del auto-cierre"}
                 {accion.modo === "agregar" && "Agregar marcaje"}
               </h3>
               <p className="mb-4 text-sm text-taupe">
-                {accion.modo === "editar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]}: ${horaInput(accion.marcaje.timestamp_marca)} → ${accion.nuevaHora}`}
-                {accion.modo === "eliminar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Esta acción no se puede deshacer.`}
+                {accion.modo === "editar" && [
+                  accion.nuevoTipo !== accion.marcaje.tipo
+                    ? `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} → ${TIPO_MARCA_LABELS[accion.nuevoTipo]}`
+                    : TIPO_MARCA_LABELS[accion.marcaje.tipo],
+                  accion.nuevaHora !== horaInput(accion.marcaje.timestamp_marca)
+                    ? `hora: ${horaInput(accion.marcaje.timestamp_marca)} → ${accion.nuevaHora}`
+                    : null,
+                ].filter(Boolean).join(" · ")}
+                {accion.modo === "anular" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Dejará de contar para el día, pero se queda en el historial y puedes deshacerlo.`}
+                {accion.modo === "reactivar" && `${TIPO_MARCA_LABELS[accion.marcaje.tipo]} de las ${horaInput(accion.marcaje.timestamp_marca)}. Volverá a contar para el cálculo del día.`}
+                {accion.modo === "confirmar" && `Das por buena la salida de las ${horaInput(accion.marcaje.timestamp_marca)} que puso el sistema. El día deja de estar pendiente y pasa a medirse entero, incluida la salida anticipada y el tiempo adicional.`}
                 {accion.modo === "agregar" && `${TIPO_MARCA_LABELS[accion.tipo]} a las ${accion.hora}, para ${personaSel?.nombres} ${personaSel?.apellidos}.`}
               </p>
               <label className="mb-4 flex flex-col gap-1 text-sm">
