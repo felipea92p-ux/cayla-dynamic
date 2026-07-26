@@ -1550,6 +1550,14 @@ export type Database = {
         Args: { p_persona_id: string }
         Returns: string | null
       }
+      fn_mi_firma: {
+        Args: Record<string, never>
+        Returns: string | null
+      }
+      fn_firma_de_memo: {
+        Args: { p_doc_id: string }
+        Returns: string | null
+      }
       fn_revertir_pago: {
         Args: { p_periodo_id: string; p_motivo: string }
         Returns: undefined

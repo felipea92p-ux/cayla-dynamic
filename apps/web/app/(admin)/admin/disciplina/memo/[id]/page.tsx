@@ -71,9 +71,13 @@ export default function MemoPage() {
     setPersona(p);
     const f = pl.find((x) => x.id === doc.firmante_id);
     if (f) setFirmante(`${f.nombres} ${f.apellidos}`);
-    // Firma escaneada del firmante (solo se muestra en niveles leves; ver render).
+    // Firma escaneada de quien suscribe ESTE documento. Se pide por documento y
+    // no por persona: así la encargada de una sede puede imprimir un memo suyo
+    // firmado por gerencia, sin poder pedir la firma de gerencia a secas. La
+    // función también deja fuera imputación y despido, que no llevan firma
+    // escaneada (ver render).
     if (doc.firmante_id) {
-      const { data: fu } = await supabase.rpc("fn_firma_persona", { p_persona_id: doc.firmante_id });
+      const { data: fu } = await supabase.rpc("fn_firma_de_memo", { p_doc_id: id });
       setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
     }
     const smap = new Map(((sedes as Array<{ id: string; codigo: string }>) ?? []).map((s) => [s.id, s.codigo]));

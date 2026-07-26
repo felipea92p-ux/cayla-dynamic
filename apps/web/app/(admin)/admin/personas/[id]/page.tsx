@@ -181,7 +181,7 @@ export default function PerfilPersonaPage() {
   useEffect(() => {
     if (!esMiPerfil) return;
     void (async () => {
-      const { data } = await supabase.rpc("fn_firma_persona", { p_persona_id: id });
+      const { data } = await supabase.rpc("fn_mi_firma");
       if (typeof data === "string" && data.startsWith("data:image")) setMiFirma(data);
     })();
   }, [esMiPerfil, supabase, id]);
