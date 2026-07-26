@@ -24,7 +24,8 @@ function diaSemana(iso: string): string {
 }
 const soles = (n: number) => `S/ ${n.toFixed(2)}`;
 
-interface Persona { id: string; nombres: string; apellidos: string; }
+interface Persona { id: string; nombres: string; apellidos: string; sede_base_id: string; }
+interface Sede { id: string; codigo: string; nombre: string; }
 interface Feriado { fecha: string; nombre: string; }
 // Una fila por persona que TRABAJÓ un feriado del rango, con su estado de
 // compensación. `estado` en null = todavía se le está pagando la sobretasa.
@@ -49,10 +50,15 @@ interface Registro {
   estado: string;
   acta_ref: string | null;
 }
+// Una pareja feriado → día libre. Se declaran EXPLÍCITAS, nunca se emparejan
+// solas: la regla 1:1 tiene que verse, no adivinarse.
+interface Pareja { feriado: string; descanso: string; }
+// Resultado de cada intento del lote. Un lote puede quedar a medias (un día que
+// cae en el descanso de una sola persona), y eso hay que mostrarlo fila por fila.
+interface Resultado { persona: string; feriado: string; descanso: string; error: string | null; }
 
 const ESTADOS = ["PENDIENTE", "OTORGADO", "NO_OTORGADO"] as const;
 
-// Primer día del mes en curso, en Lima.
 function inicioDeMes(): string {
   return `${hoyLima().slice(0, 7)}-01`;
 }
@@ -68,20 +74,22 @@ export default function FeriadosPage() {
   const puedeGestionar = rol === "admin" || rol === "lider_do";
 
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [sedes, setSedes] = useState<Sede[]>([]);
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [laborados, setLaborados] = useState<Laborado[]>([]);
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [resultados, setResultados] = useState<Resultado[]>([]);
 
   // rango de consulta
   const [desde, setDesde] = useState(inicioDeMes());
   const [hasta, setHasta] = useState(finDeMes());
 
-  // formulario
-  const [personaId, setPersonaId] = useState("");
-  const [fechaFeriado, setFechaFeriado] = useState("");
-  const [fechaDescanso, setFechaDescanso] = useState("");
+  // formulario por lotes
+  const [sedeFiltro, setSedeFiltro] = useState("");
+  const [elegidas, setElegidas] = useState<Set<string>>(new Set());
+  const [parejas, setParejas] = useState<Pareja[]>([{ feriado: "", descanso: "" }]);
   const [estado, setEstado] = useState<string>("PENDIENTE");
   const [actaRef, setActaRef] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -92,9 +100,10 @@ export default function FeriadosPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: f }, { data: l, error: eL }, { data: r }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos")
+    const [{ data: p, error: eP }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }] = await Promise.all([
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id")
         .eq("estado", "activo").eq("en_planilla", true).order("nombres"),
+      supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
       supabase.from("feriados").select("fecha, nombre").order("fecha", { ascending: false }).limit(40),
       supabase.rpc("fn_feriados_laborados", { p_desde: desde, p_hasta: hasta }),
       supabase.from("feriados_descanso_sustitutorio")
@@ -107,6 +116,7 @@ export default function FeriadosPage() {
       return;
     }
     setPersonas((p as Persona[]) ?? []);
+    setSedes((sd as Sede[]) ?? []);
     setFeriados((f as Feriado[]) ?? []);
     setLaborados(eL ? [] : ((l as unknown as Laborado[]) ?? []));
     setRegistros((r as Registro[]) ?? []);
@@ -119,8 +129,17 @@ export default function FeriadosPage() {
     () => new Map(personas.map((x) => [x.id, `${x.nombres} ${x.apellidos}`])),
     [personas],
   );
+  const visibles = useMemo(
+    () => (sedeFiltro ? personas.filter((p) => p.sede_base_id === sedeFiltro) : personas),
+    [personas, sedeFiltro],
+  );
+  // Solo cuentan las parejas completas: una a medio llenar no debe inflar el total.
+  const parejasCompletas = useMemo(
+    () => parejas.filter((x) => x.feriado && x.descanso),
+    [parejas],
+  );
+  const totalRegistros = elegidas.size * parejasCompletas.length;
 
-  // Lo que hoy se está pagando de más por no haber registrado la compensación.
   const sobretasaSinResolver = useMemo(
     () => laborados
       .filter((l) => l.estado !== "OTORGADO")
@@ -128,26 +147,65 @@ export default function FeriadosPage() {
     [laborados],
   );
 
-  async function registrar() {
-    if (!personaId) { setMsg({ tipo: "error", texto: "Elige a la persona." }); return; }
-    if (!fechaFeriado) { setMsg({ tipo: "error", texto: "Elige el feriado laborado." }); return; }
-    if (!fechaDescanso) { setMsg({ tipo: "error", texto: "Elige el día de descanso compensatorio." }); return; }
+  function alternar(id: string) {
+    setElegidas((prev) => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  }
+  function todasVisibles() {
+    const ids = visibles.map((p) => p.id);
+    const faltan = ids.some((id) => !elegidas.has(id));
+    setElegidas((prev) => {
+      const s = new Set(prev);
+      // Si falta alguna por marcar, marca todas; si ya estaban todas, las desmarca.
+      ids.forEach((id) => (faltan ? s.add(id) : s.delete(id)));
+      return s;
+    });
+  }
+  function cambiarPareja(i: number, campo: keyof Pareja, valor: string) {
+    setParejas((prev) => prev.map((p, k) => (k === i ? { ...p, [campo]: valor } : p)));
+  }
+
+  // Guarda de a uno y va acumulando el resultado. Secuencial a propósito: si algo
+  // falla quiero saber EXACTAMENTE en qué persona y en qué pareja, no un error suelto.
+  async function registrarLote() {
+    if (elegidas.size === 0) { setMsg({ tipo: "error", texto: "Elige al menos una persona." }); return; }
+    if (parejasCompletas.length === 0) { setMsg({ tipo: "error", texto: "Agrega al menos una pareja de feriado y día libre." }); return; }
     setGuardando(true);
     setMsg(null);
-    const { error } = await supabase.rpc("fn_otorgar_descanso_sustitutorio", {
-      p_persona_id: personaId,
-      p_fecha_feriado: fechaFeriado,
-      p_fecha_descanso: fechaDescanso,
-      p_estado: estado,
-      p_acta_ref: actaRef.trim() || null,
-    });
+    setResultados([]);
+
+    const salida: Resultado[] = [];
+    for (const personaId of elegidas) {
+      for (const par of parejasCompletas) {
+        const { error } = await supabase.rpc("fn_otorgar_descanso_sustitutorio", {
+          p_persona_id: personaId,
+          p_fecha_feriado: par.feriado,
+          p_fecha_descanso: par.descanso,
+          p_estado: estado,
+          p_acta_ref: actaRef.trim() || null,
+        });
+        salida.push({
+          persona: nombrePorId.get(personaId) ?? "—",
+          feriado: par.feriado,
+          descanso: par.descanso,
+          error: error?.message ?? null,
+        });
+      }
+    }
+
     setGuardando(false);
-    // El mensaje de la base ya viene en lenguaje claro (día de descanso semanal,
-    // acta faltante, feriado no laborado): se muestra tal cual.
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
-    setActaRef("");
+    setResultados(salida);
+    const ok = salida.filter((x) => !x.error).length;
+    const mal = salida.length - ok;
     await cargar();
-    setMsg({ tipo: "ok", texto: `Descanso sustitutorio registrado como ${estado}.` });
+    setMsg(
+      mal === 0
+        ? { tipo: "ok", texto: `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.` }
+        : { tipo: "error", texto: `${ok} guardado${ok === 1 ? "" : "s"}, ${mal} rechazado${mal === 1 ? "" : "s"}. El detalle está abajo.` },
+    );
   }
 
   async function quitar(id: string) {
@@ -189,36 +247,78 @@ export default function FeriadosPage() {
           </div>
         )}
 
-        {/* Registrar */}
+        {/* Registrar por lotes */}
         <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
-          <h2 className="mb-3 text-sm font-medium">Registrar un día libre a cambio</h2>
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              Persona
-              <select value={personaId} onChange={(e) => setPersonaId(e.target.value)}
-                className="min-w-56 rounded-lg border bg-crema px-3 py-2">
-                <option value="">Elegir…</option>
-                {personas.map((p) => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
+          <h2 className="mb-3 text-sm font-medium">Registrar días libres a cambio</h2>
+
+          {/* 1 · A quiénes */}
+          <div className="mb-4">
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <span className="text-sm">A quiénes</span>
+              <select value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}
+                className="rounded-lg border bg-crema px-2 py-1 text-sm">
+                <option value="">Todas las sedes</option>
+                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Feriado laborado
-              <select value={fechaFeriado} onChange={(e) => setFechaFeriado(e.target.value)}
-                className="min-w-56 rounded-lg border bg-crema px-3 py-2">
-                <option value="">Elegir…</option>
-                {feriados.map((f) => (
-                  <option key={f.fecha} value={f.fecha}>{fechaCorta(f.fecha)} — {f.nombre}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Día libre a cambio
-              <input type="date" value={fechaDescanso} onChange={(e) => setFechaDescanso(e.target.value)}
-                className="rounded-lg border px-3 py-2" />
-              {fechaDescanso && (
-                <span className="text-xs capitalize text-taupe">{diaSemana(fechaDescanso)}</span>
+              <button type="button" onClick={todasVisibles}
+                className="rounded border border-sand px-2 py-1 text-xs text-taupe hover:text-tinta">
+                Marcar / desmarcar visibles
+              </button>
+              {elegidas.size > 0 && (
+                <span className="text-xs text-taupe">{elegidas.size} elegida{elegidas.size === 1 ? "" : "s"}</span>
               )}
-            </label>
+            </div>
+            <div className="grid max-h-52 gap-1 overflow-y-auto rounded-lg border border-sand bg-crema p-2 sm:grid-cols-2 lg:grid-cols-3">
+              {visibles.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sand/40">
+                  <input type="checkbox" checked={elegidas.has(p.id)} onChange={() => alternar(p.id)} />
+                  {p.nombres} {p.apellidos}
+                </label>
+              ))}
+              {visibles.length === 0 && <p className="px-2 py-1 text-sm text-taupe">Sin personas en esa sede.</p>}
+            </div>
+          </div>
+
+          {/* 2 · Qué días — parejas explícitas */}
+          <div className="mb-4">
+            <p className="mb-2 text-sm">Qué días</p>
+            <div className="grid gap-2">
+              {parejas.map((par, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-2">
+                  <select value={par.feriado} onChange={(e) => cambiarPareja(i, "feriado", e.target.value)}
+                    className="min-w-56 rounded-lg border bg-crema px-3 py-2 text-sm">
+                    <option value="">Feriado trabajado…</option>
+                    {feriados.map((f) => (
+                      <option key={f.fecha} value={f.fecha}>{fechaCorta(f.fecha)} — {f.nombre}</option>
+                    ))}
+                  </select>
+                  <span className="text-taupe">→</span>
+                  <input type="date" value={par.descanso} onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
+                    className="rounded-lg border px-3 py-2 text-sm" />
+                  <span className="min-w-20 text-xs capitalize text-taupe">
+                    {par.descanso ? diaSemana(par.descanso) : ""}
+                  </span>
+                  {parejas.length > 1 && (
+                    <button type="button" onClick={() => setParejas((prev) => prev.filter((_, k) => k !== i))}
+                      className="rounded border border-rojo/30 px-2 py-1 text-xs text-rojo hover:bg-rojo/10">
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => setParejas((prev) => [...prev, { feriado: "", descanso: "" }])}
+              className="mt-2 rounded border border-sand px-2 py-1 text-xs text-taupe hover:text-tinta">
+              + Agregar otro día
+            </button>
+            <p className="mt-1 text-xs text-taupe">
+              Cada feriado se compensa con <strong>un</strong> día libre. Por eso se declaran de a pares:
+              así ves qué compensa qué, en vez de que el sistema lo adivine.
+            </p>
+          </div>
+
+          {/* 3 · Estado y acta */}
+          <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1 text-sm">
               Estado
               <select value={estado} onChange={(e) => setEstado(e.target.value)}
@@ -226,24 +326,48 @@ export default function FeriadosPage() {
                 {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </label>
+            <label className="flex min-w-72 flex-1 flex-col gap-1 text-sm">
+              Acta firmada {estado === "OTORGADO" && <span className="text-rojo">· obligatoria para OTORGADO</span>}
+              <input value={actaRef} onChange={(e) => setActaRef(e.target.value)}
+                className="rounded-lg border px-3 py-2" placeholder="ej. Acta 2026-07-28 Taller LIM" />
+            </label>
           </div>
-          <label className="mt-3 flex max-w-xl flex-col gap-1 text-sm">
-            Acta firmada {estado === "OTORGADO" && <span className="text-rojo">· obligatoria para OTORGADO</span>}
-            <input value={actaRef} onChange={(e) => setActaRef(e.target.value)}
-              className="rounded-lg border px-3 py-2" placeholder="ej. Acta 2026-07-28 Taller LIM" />
-          </label>
 
-          {/* Qué significa cada estado, en el momento de elegirlo. */}
           <p className="mt-3 max-w-2xl text-xs text-taupe">
             {estado === "PENDIENTE" && "Acuerdo tomado, todavía sin confirmar. La planilla sigue pagando la sobretasa, pero el día libre ya NO cuenta como falta."}
             {estado === "OTORGADO" && "El descanso se dio y está respaldado. Quita la sobretasa de la planilla. Requiere acta firmada y que el feriado ya tenga horas marcadas."}
             {estado === "NO_OTORGADO" && "El descanso no se dio. La planilla vuelve a pagar la sobretasa y el día deja de estar justificado."}
           </p>
 
-          <button onClick={registrar} disabled={guardando}
-            className="mt-3 rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
-            {guardando ? "Guardando…" : "Registrar"}
-          </button>
+          {/* Cuántos registros van a salir — antes de crearlos. */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button onClick={registrarLote} disabled={guardando || totalRegistros === 0}
+              className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
+              {guardando ? "Guardando…" : "Registrar"}
+            </button>
+            <span className="text-sm text-taupe">
+              {totalRegistros === 0
+                ? "Elige personas y al menos una pareja de días."
+                : `Se van a crear ${totalRegistros} registro${totalRegistros === 1 ? "" : "s"} · ${elegidas.size} persona${elegidas.size === 1 ? "" : "s"} × ${parejasCompletas.length} día${parejasCompletas.length === 1 ? "" : "s"}`}
+            </span>
+          </div>
+
+          {/* Detalle del lote: qué entró y qué no, y por qué. */}
+          {resultados.length > 0 && (
+            <div className="mt-4 overflow-hidden rounded-lg border border-sand">
+              <p className="border-b bg-sand/50 px-3 py-1.5 text-xs font-medium">Detalle del último envío</p>
+              <ul className="divide-y text-xs">
+                {resultados.map((r, i) => (
+                  <li key={i} className="px-3 py-1.5">
+                    <span className={r.error ? "text-rojo" : "text-taupe"}>
+                      {r.error ? "✕" : "✓"} {r.persona} · {fechaCorta(r.feriado)} → {fechaCorta(r.descanso)}
+                    </span>
+                    {r.error && <div className="mt-0.5 text-rojo">{r.error}</div>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Quién trabajó feriados en el rango */}
