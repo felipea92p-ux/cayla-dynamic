@@ -39,6 +39,8 @@ const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Fa
 interface TardanzaRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; consecutivas: number; en_30: number; en_180: number; nivel: string; }
 interface Hecho { fecha: string; minutos?: number; }
+/** Quién puede suscribir un documento concreto (fn_expediente_firmantes, mig. 0074). */
+interface Firmante { persona_id: string; nombre: string; cargo: string; tiene_firma: boolean; }
 interface Doc {
   id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
   periodo_desde: string | null; periodo_hasta: string | null; hechos: Hecho[];
@@ -61,7 +63,13 @@ export default function DisciplinaPage() {
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [medio, setMedio] = useState<Record<string, string>>({});
-  const [firmantes, setFirmantes] = useState<Array<{ id: string; nombre: string }>>([]);
+  // Quién puede suscribir CADA documento. Se pregunta por documento y no una
+  // vez para todos porque la respuesta depende del nivel y de la sede: una
+  // encargada puede firmar una amonestación verbal o escrita de SU tienda,
+  // pero no una suspensión ni la de otra sede (fn_expediente_firmantes, 0074).
+  // Antes se usaba fn_firmantes_disponibles, que solo listaba admin y líder DO:
+  // la delegación existía en la base pero la pantalla no la ofrecía.
+  const [firmantes, setFirmantes] = useState<Record<string, Firmante[]>>({});
   const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
   const borradoresRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +79,7 @@ export default function DisciplinaPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: t }, { data: f }, { data: d, error: eD }, { data: p }, { data: fi }] = await Promise.all([
+    const [{ data: t }, { data: f }, { data: d, error: eD }, { data: p }] = await Promise.all([
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
@@ -79,14 +87,26 @@ export default function DisciplinaPage() {
         .in("estado", ["borrador", "firmado"])
         .order("creado_at", { ascending: false }),
       supabase.from("personas").select("id, nombres, apellidos"),
-      supabase.rpc("fn_firmantes_disponibles", {}),
     ]);
     if (eD) setMsg({ tipo: "error", texto: `No se pudo cargar el legajo: ${eD.message}` });
     setTardanzas(Array.isArray(t) ? (t as TardanzaRow[]) : []);
     setFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
-    setDocs(Array.isArray(d) ? (d as unknown as Doc[]) : []);
+    const lista = Array.isArray(d) ? (d as unknown as Doc[]) : [];
+    setDocs(lista);
     setNombres(new Map(((p as Array<{ id: string; nombres: string; apellidos: string }>) ?? []).map((x) => [x.id, `${x.nombres} ${x.apellidos}`])));
-    setFirmantes(Array.isArray(fi) ? (fi as Array<{ id: string; nombre: string }>) : []);
+
+    // Los firmantes posibles de cada borrador. Solo para borradores: un
+    // documento ya firmado no cambia de firmante. Si alguna consulta falla, esa
+    // fila se queda sin desplegable y se firma con la sesión actual — el mismo
+    // comportamiento de antes, nunca un error en pantalla.
+    const borradores = lista.filter((x) => x.estado === "borrador");
+    const pares = await Promise.all(
+      borradores.map(async (x) => {
+        const { data: fs } = await supabase.rpc("fn_expediente_firmantes", { p_id: x.id });
+        return [x.id, Array.isArray(fs) ? (fs as Firmante[]) : []] as const;
+      }),
+    );
+    setFirmantes(Object.fromEntries(pares));
     setCargando(false);
   }, [supabase, router]);
 
@@ -121,9 +141,11 @@ export default function DisciplinaPage() {
 
   async function firmar(id: string) {
     const elegido = firmanteElegido[id];
-    const nombreElegido = elegido ? firmantes.find((f) => f.id === elegido)?.nombre : null;
-    const aviso = nombreElegido
-      ? `¿Firmar este documento como ${nombreElegido}? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.`
+    const f = elegido ? (firmantes[id] ?? []).find((x) => x.persona_id === elegido) : null;
+    // El cargo va en el aviso a propósito: es lo que se va a imprimir en el
+    // documento, y quien firma tiene que verlo antes de que sea definitivo.
+    const aviso = f
+      ? `¿Firmar este documento como ${f.nombre} (${f.cargo})? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.`
       : "¿Firmar este documento? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.";
     if (!window.confirm(aviso)) return;
     setOcupado(id); setMsg(null);
@@ -276,14 +298,19 @@ export default function DisciplinaPage() {
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <span><strong>{nombres.get(d.persona_id) ?? "—"}</strong> <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]}</span></span>
                     <div className="flex items-center gap-2">
-                      {firmantes.length > 0 && (
+                      {(firmantes[d.id] ?? []).length > 0 && (
                         <select
-                          value={firmanteElegido[d.id] ?? yo?.id ?? ""}
+                          value={firmanteElegido[d.id]
+                            ?? (firmantes[d.id] ?? []).find((f) => f.persona_id === yo?.id)?.persona_id
+                            ?? (firmantes[d.id] ?? [])[0]?.persona_id
+                            ?? ""}
                           onChange={(e) => setFirmanteElegido((m) => ({ ...m, [d.id]: e.target.value }))}
                           className="rounded-lg border border-sand bg-papel px-2 py-1 text-xs text-tinta"
-                          title="Quién firma">
-                          {firmantes.map((f) => (
-                            <option key={f.id} value={f.id}>{f.nombre}</option>
+                          title="Quién firma este documento">
+                          {(firmantes[d.id] ?? []).map((f) => (
+                            <option key={f.persona_id} value={f.persona_id}>
+                              {f.nombre} · {f.cargo}{f.tiene_firma ? "" : " (sin firma escaneada)"}
+                            </option>
                           ))}
                         </select>
                       )}
