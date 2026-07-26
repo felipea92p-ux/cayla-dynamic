@@ -1,7 +1,12 @@
 # CAYLA Dynamic — cómo se trabaja en este repo
 
-App de asistencia y planilla de CAYLA. Sedes **TRU · LIM · AQP**, ~23 integrantes.
-En producción y en uso real todos los días: **cayla-dynamic.vercel.app**.
+App de asistencia y planilla de CAYLA. Cuatro sedes — **Central (CCO)** ·
+**Taller LIM** · **Tienda AQP** · **Tienda TRU** — y ~30 personas entre activas e
+inactivas. En producción y en uso real todos los días: **cayla-dynamic.vercel.app**.
+
+Ojo con `docs/plan.md` y con cualquier texto viejo que hable de "3 sedes": el
+plan original era TRU/LIM/AQP y Central se sumó después. Central no es tienda:
+ahí están administración y Desarrollo Organizacional.
 
 Lo que registra este sistema **alimenta el pago**. Un error acá no es un bug de
 pantalla: es plata mal pagada a una persona real. Ese es el criterio que ordena

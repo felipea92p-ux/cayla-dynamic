@@ -44,7 +44,7 @@ reporta al final lo que no pudo tocar.
 Producción: **cayla-dynamic.vercel.app** · repo `~/Developer/cayla-dynamic`
 (GitHub `felipea92p-ux/cayla-dynamic`, al día). Equipo real usándola a diario.
 
-Sistema vivo y sano: terminal de marcaje en las 3 sedes, panel admin con 24
+Sistema vivo y sano: terminal de marcaje en las 4 sedes, panel admin con 24
 pantallas (planilla, provisiones, vacaciones, disciplina, turnos con cobertura,
 objetivos SMART, boletas, reportes), motor de faltas y tardanzas con expediente
 legal, feriados con descanso sustitutorio y actas firmadas. Migraciones hasta la
