@@ -35,7 +35,7 @@ interface Doc {
   suspension_dias: number | null; suspension_desde: string | null; suspension_hasta: string | null;
   firmante_id: string | null; firmado_at: string | null; creado_at: string;
 }
-interface Persona { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string }
+interface Persona { nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; rol: string }
 
 export default function MemoPage() {
   const params = useParams();
@@ -47,6 +47,12 @@ export default function MemoPage() {
   const [persona, setPersona] = useState<Persona | null>(null);
   const [sede, setSede] = useState<string>("");
   const [firmante, setFirmante] = useState<string>(EMPRESA.firmante);
+  // El cargo impreso sale de QUIÉN firmó, no de una constante. Estaba fijo en
+  // "Gerencia General": como fn_expediente_puede_actuar sí deja a una encargada
+  // suscribir un memo verbal o de amonestación de su sede, el papel salía
+  // diciendo que lo firmó Gerencia General. Un documento disciplinario que
+  // miente sobre quién lo suscribió se cae si alguien lo discute.
+  const [cargoFirmante, setCargoFirmante] = useState<string>(EMPRESA.cargo);
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -63,14 +69,22 @@ export default function MemoPage() {
     setDoc(doc);
     const ids = [doc.persona_id, doc.firmante_id].filter((x): x is string => Boolean(x));
     const [{ data: ps }, { data: sedes }] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, documento, funcion, sede_base_id").in("id", ids),
+      supabase.from("personas").select("id, nombres, apellidos, documento, funcion, sede_base_id, rol").in("id", ids),
       supabase.from("sedes").select("id, codigo"),
     ]);
     const pl = (ps as Array<Persona & { id: string }>) ?? [];
     const p = pl.find((x) => x.id === doc.persona_id) ?? null;
     setPersona(p);
     const f = pl.find((x) => x.id === doc.firmante_id);
-    if (f) setFirmante(`${f.nombres} ${f.apellidos}`);
+    if (f) {
+      setFirmante(`${f.nombres} ${f.apellidos}`);
+      // fn_cargo_de_rol vive en la base (mig. 0074) para que el panel y
+      // cualquier otro consumidor impriman exactamente el mismo cargo. Si la
+      // función aún no está aplicada, se queda el valor por defecto: el memo
+      // sigue imprimiéndose, nunca se rompe por esto.
+      const { data: cargo } = await supabase.rpc("fn_cargo_de_rol", { p_rol: f.rol });
+      if (typeof cargo === "string" && cargo) setCargoFirmante(cargo);
+    }
     // Firma escaneada de quien suscribe ESTE documento. Se pide por documento y
     // no por persona: así la encargada de una sede puede imprimir un memo suyo
     // firmado por gerencia, sin poder pedir la firma de gerencia a secas. La
@@ -191,7 +205,7 @@ export default function MemoPage() {
               <tbody>
                 <tr><td className="w-16 py-0.5 align-top text-taupe">Para:</td><td className="py-0.5"><strong>{nombre}</strong> · DNI {persona?.documento ?? "—"}</td></tr>
                 <tr><td className="py-0.5 align-top text-taupe">Cargo:</td><td className="py-0.5">{persona?.funcion ?? "—"} · Sede {sede || "—"}</td></tr>
-                <tr><td className="py-0.5 align-top text-taupe">De:</td><td className="py-0.5">{firmante} · {EMPRESA.cargo}</td></tr>
+                <tr><td className="py-0.5 align-top text-taupe">De:</td><td className="py-0.5">{firmante} · {cargoFirmante}</td></tr>
               </tbody>
             </table>
 
@@ -227,7 +241,7 @@ export default function MemoPage() {
                   )}
                 </div>
                 <div className="border-t pt-1">{firmante}</div>
-                <p className="text-taupe">{EMPRESA.cargo} — {EMPRESA.nombre}</p>
+                <p className="text-taupe">{cargoFirmante} — {EMPRESA.nombre}</p>
               </div>
               <div>
                 <div className="h-28 text-taupe">Recibí conforme:</div>

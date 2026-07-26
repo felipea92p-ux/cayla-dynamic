@@ -1319,6 +1319,46 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: { id: string; nombre: string }[]
       }
+      // ── Migración 0074 (rescate de la copia de iCloud) ──────────────────────
+      // El cargo que se imprime en un memo sale del rol de quien lo suscribe.
+      fn_cargo_de_rol: {
+        Args: { p_rol: string }
+        Returns: string | null
+      }
+      // Quiénes pueden suscribir ESTE documento (más estricta que
+      // fn_firmantes_disponibles: filtra por nivel y sede del documento).
+      fn_expediente_firmantes: {
+        Args: { p_id: string }
+        Returns: { persona_id: string; nombre: string; cargo: string; tiene_firma: boolean }[]
+      }
+      fn_expediente_adjuntar: {
+        Args: {
+          p_documento_id: string
+          p_path: string
+          p_tipo?: string
+          p_fecha_entrega?: string | null
+          p_nota?: string | null
+        }
+        Returns: string
+      }
+      fn_expediente_puede_adjuntar: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      // ── Migración 0075 (rescate) ────────────────────────────────────────────
+      // Los días de suspensión son días LABORABLES de esa persona, no de calendario.
+      fn_es_dia_laborable: {
+        Args: { p_persona_id: string; p_fecha: string }
+        Returns: boolean
+      }
+      fn_dias_suspension: {
+        Args: { p_persona_id: string; p_desde: string; p_dias: number }
+        Returns: { fecha: string }[]
+      }
+      fn_expediente_set_suspension: {
+        Args: { p_id: string; p_dias: number; p_desde: string }
+        Returns: { fecha: string }[]
+      }
       fn_expediente_entregar: {
         Args: { p_id: string; p_medio: string; p_fecha?: string }
         Returns: undefined
