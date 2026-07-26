@@ -129,6 +129,16 @@ de contar, no después.
 
 **Guards `SECURITY DEFINER` null-safe.** Siempre `if fn_es_admin_o_lider() is not true`,
 nunca `if not fn_es_admin_o_lider()` — un `null` no debe pasar como autorizado.
+Desde la 0078 los booleanos de permiso ya no devuelven `null`, pero la forma
+`is not true` sigue siendo la obligatoria: cualquier condición que compare un
+UUID contra `fn_persona_actual_id()` vuelve a producir `null` por su cuenta.
+
+**El terminal marca SIN PIN, y es a propósito** (decisión de Felipe, jul-2026).
+Se prioriza que marcar sea instantáneo; el control real es que la Mac mini está
+a la vista de todo el equipo, no una clave. Esto significa que el sistema **no
+garantiza** que una marca la hizo la persona a la que pertenece: no se puede usar
+una marca como prueba individual en un procedimiento disciplinario sin otro
+respaldo. No volver a proponer el PIN salvo que Felipe lo pida.
 
 **Reglas de planilla ya decididas, no se reabren:** régimen MYPE pequeña empresa,
 base de 6.5 h, pago = salario × horas / (6.5 × días). Los factores de provisiones

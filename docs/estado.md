@@ -5,7 +5,26 @@ copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 *Última consolidación: 2026-07-26 (fusiona los handoffs del 13, 14, 18, 20 y 23
-de julio, verificando cada punto contra el código actual).*
+de julio, verificando cada punto contra el código actual). Auditoría completa
+del sistema el 26-07 — 18 agentes sobre migraciones, dinero, seguridad, panel,
+terminal, tests y deploy.*
+
+---
+
+## ⚠️ PENDIENTE DE FELIPE: pegar `aplicar_0076_a_0079.sql`
+
+El paquete está listo en [`scripts/sql-manual/aplicar_0076_a_0079.sql`](../scripts/sql-manual/aplicar_0076_a_0079.sql).
+Probado tres veces seguidas contra una simulación de producción: cero errores,
+idempotente, con bloque de comprobación al final.
+
+**Mientras no se pegue, esto está abierto en producción hoy:**
+- 51 funciones `SECURITY DEFINER` ejecutables por el rol `anon` — la clave
+  pública que viaja en el JavaScript del sitio. Entre ellas: registrar marcas
+  por cualquier persona, sobrescribir cuentas bancarias, firmar memos.
+- Una terminal de sede puede sobrescribir la cuenta bancaria y el DNI de
+  cualquier colaboradora (**reproducido** contra Postgres limpio el 26-07).
+- Los días de suspensión sin goce cuentan como faltas injustificadas y empujan
+  al umbral legal de despido.
 
 ---
 
