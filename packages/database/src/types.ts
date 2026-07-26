@@ -1216,6 +1216,25 @@ export type Database = {
           acta_ref: string
         }[]
       }
+      fn_subir_acta_descanso: {
+        Args: { p_referencia: string; p_dataurl: string | null; p_nombre?: string | null }
+        Returns: string
+      }
+      fn_actas_descanso: {
+        Args: Record<string, never>
+        Returns: {
+          referencia: string
+          archivo_nombre: string | null
+          tiene_archivo: boolean
+          peso_kb: number
+          actualizado: string
+          registros: number
+        }[]
+      }
+      fn_acta_descanso: {
+        Args: { p_referencia: string }
+        Returns: string | null
+      }
       fn_aceptar_incidencia: {
         Args: { p_persona_id: string; p_fecha: string; p_tipo: string; p_nota?: string | null }
         Returns: undefined

@@ -56,8 +56,18 @@ interface Pareja { feriado: string; descanso: string; }
 // Resultado de cada intento del lote. Un lote puede quedar a medias (un día que
 // cae en el descanso de una sola persona), y eso hay que mostrarlo fila por fila.
 interface Resultado { persona: string; feriado: string; descanso: string; error: string | null; }
+// El acta SIN el archivo: la lista no baja los megabytes, solo dice si están.
+interface Acta {
+  referencia: string;
+  archivo_nombre: string | null;
+  tiene_archivo: boolean;
+  peso_kb: number;
+  actualizado: string;
+  registros: number;
+}
 
 const ESTADOS = ["PENDIENTE", "OTORGADO", "NO_OTORGADO"] as const;
+const MAX_ACTA_BYTES = 3 * 1024 * 1024;
 
 function inicioDeMes(): string {
   return `${hoyLima().slice(0, 7)}-01`;
@@ -81,6 +91,9 @@ export default function FeriadosPage() {
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [resultados, setResultados] = useState<Resultado[]>([]);
+  const [actas, setActas] = useState<Acta[]>([]);
+  const [refActa, setRefActa] = useState("");
+  const [subiendo, setSubiendo] = useState(false);
 
   // rango de consulta
   const [desde, setDesde] = useState(inicioDeMes());
@@ -100,7 +113,7 @@ export default function FeriadosPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }, { data: ac }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, sede_base_id")
         .eq("estado", "activo").eq("en_planilla", true).order("nombres"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
@@ -109,6 +122,7 @@ export default function FeriadosPage() {
       supabase.from("feriados_descanso_sustitutorio")
         .select("id, persona_id, fecha_feriado, fecha_descanso_sustitutorio, estado, acta_ref")
         .order("fecha_feriado", { ascending: false }),
+      supabase.rpc("fn_actas_descanso", {}),
     ]);
     if (eP) {
       setMsg({ tipo: "error", texto: `No se pudo cargar: ${eP.message}` });
@@ -120,6 +134,7 @@ export default function FeriadosPage() {
     setFeriados((f as Feriado[]) ?? []);
     setLaborados(eL ? [] : ((l as unknown as Laborado[]) ?? []));
     setRegistros((r as Registro[]) ?? []);
+    setActas(Array.isArray(ac) ? (ac as unknown as Acta[]) : []);
     setCargando(false);
   }, [supabase, router, desde, hasta]);
 
@@ -146,6 +161,59 @@ export default function FeriadosPage() {
       .reduce((acc, l) => acc + (l.sobretasa ?? 0), 0),
     [laborados],
   );
+
+  // Las referencias que ya existen en los acuerdos. Se ofrecen en una lista en
+  // vez de texto libre: si la referencia se tipea distinta, el acta queda
+  // huérfana y el papel no aparece junto a su acuerdo.
+  const referencias = useMemo(() => {
+    const s = new Set<string>();
+    registros.forEach((r) => { if (r.acta_ref) s.add(r.acta_ref); });
+    actas.forEach((a) => s.add(a.referencia));
+    return [...s].sort();
+  }, [registros, actas]);
+
+  const actaPorRef = useMemo(() => new Map(actas.map((a) => [a.referencia, a])), [actas]);
+
+  async function subirActa(file: File) {
+    if (!refActa) { setMsg({ tipo: "error", texto: "Elige a qué acuerdo pertenece el acta." }); return; }
+    if (file.size > MAX_ACTA_BYTES) {
+      setMsg({ tipo: "error", texto: `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB. El máximo es 3 MB — escanéalo en menor resolución o súbelo como PDF.` });
+      return;
+    }
+    setSubiendo(true);
+    setMsg(null);
+    const dataurl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(new Error("No se pudo leer el archivo."));
+      fr.readAsDataURL(file);
+    }).catch(() => null);
+    if (!dataurl) {
+      setSubiendo(false);
+      setMsg({ tipo: "error", texto: "No se pudo leer el archivo." });
+      return;
+    }
+    const { error } = await supabase.rpc("fn_subir_acta_descanso", {
+      p_referencia: refActa,
+      p_dataurl: dataurl,
+      p_nombre: file.name,
+    });
+    setSubiendo(false);
+    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: `Acta guardada para “${refActa}”.` });
+  }
+
+  // El archivo se pide solo al abrirlo, no al cargar la pantalla.
+  async function abrirActa(referencia: string) {
+    const { data, error } = await supabase.rpc("fn_acta_descanso", { p_referencia: referencia });
+    if (error || !data) { setMsg({ tipo: "error", texto: error?.message ?? "Esa acta no tiene archivo." }); return; }
+    const w = window.open();
+    if (!w) { setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes." }); return; }
+    w.document.write(
+      `<iframe src="${String(data)}" style="border:0;width:100%;height:100%"></iframe>`,
+    );
+  }
 
   function alternar(id: string) {
     setElegidas((prev) => {
@@ -367,6 +435,80 @@ export default function FeriadosPage() {
                 ))}
               </ul>
             </div>
+          )}
+        </div>
+
+        {/* Actas firmadas */}
+        <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
+          <h2 className="mb-1 text-sm font-medium">Actas firmadas</h2>
+          <p className="mb-3 max-w-2xl text-xs text-taupe">
+            El acuerdo se registra arriba; aquí se guarda el <strong>papel firmado</strong> que lo
+            respalda. Un acta cubre a todas las personas de ese acuerdo — se sube una sola vez.
+            PDF o foto, hasta 3 MB.
+          </p>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-sm">
+              ¿De qué acuerdo?
+              <select value={refActa} onChange={(e) => setRefActa(e.target.value)}
+                className="min-w-64 rounded-lg border bg-crema px-3 py-2">
+                <option value="">Elegir…</option>
+                {referencias.map((ref) => (
+                  <option key={ref} value={ref}>
+                    {ref}{actaPorRef.get(ref)?.tiene_archivo ? " — ya tiene acta" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Archivo
+              <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp"
+                disabled={!refActa || subiendo}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirActa(f); e.target.value = ""; }}
+                className="text-sm file:mr-3 file:rounded-lg file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
+            </label>
+            {subiendo && <span className="pb-2 text-sm text-taupe">Subiendo…</span>}
+          </div>
+
+          {referencias.length === 0 && (
+            <p className="mt-3 text-xs text-taupe">
+              Todavía no hay acuerdos registrados. Registra uno arriba y su referencia aparecerá acá.
+            </p>
+          )}
+
+          {actas.length > 0 && (
+            <ul className="mt-4 divide-y overflow-hidden rounded-lg border border-sand text-sm">
+              {actas.map((a) => (
+                <li key={a.referencia} className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2">
+                  <span>
+                    <strong>{a.referencia}</strong>{" "}
+                    <span className="text-xs text-taupe">
+                      · {a.registros} registro{a.registros === 1 ? "" : "s"}
+                      {a.archivo_nombre && <> · {a.archivo_nombre}</>}
+                      {a.peso_kb > 0 && <> · {a.peso_kb} KB</>}
+                    </span>
+                  </span>
+                  {a.tiene_archivo ? (
+                    <button onClick={() => abrirActa(a.referencia)}
+                      className="rounded border border-sand px-2 py-0.5 text-xs text-taupe hover:text-tinta">
+                      Ver acta
+                    </button>
+                  ) : (
+                    <span className="text-xs text-rojo">sin archivo</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Los acuerdos que todavía no tienen su papel. Es la lista de lo que falta. */}
+          {referencias.filter((r) => !actaPorRef.get(r)?.tiene_archivo).length > 0 && (
+            <p className="mt-3 text-xs text-taupe">
+              Sin acta subida:{" "}
+              <strong className="text-tinta">
+                {referencias.filter((r) => !actaPorRef.get(r)?.tiene_archivo).join(" · ")}
+              </strong>
+            </p>
           )}
         </div>
 
