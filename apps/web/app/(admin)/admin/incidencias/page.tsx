@@ -45,6 +45,7 @@ interface Fila {
   entrada: string | null;
   salida: string | null;
   aceptable?: string; // clave de tipo (p. ej. 'salida_anticipada') si se puede "Aceptar"
+  corregible?: boolean; // incidencia de marcaje: se resuelve registrando las marcas reales
   esFalta?: boolean;
   justificada?: boolean;
   motivoFalta?: string | null;
@@ -59,6 +60,26 @@ const MOTIVOS: { valor: string; label: string }[] = [
   { valor: "otro", label: "Otro" },
 ];
 const MOTIVO_LABEL = (m: string | null | undefined) => MOTIVOS.find((x) => x.valor === m)?.label ?? m ?? "";
+
+// Qué dice el botón de visto bueno en cada incidencia. El texto no es decoración:
+// quien lo pulsa tiene que saber QUÉ está afirmando, porque en el caso del almuerzo
+// esa afirmación decide cuántas horas se pagan.
+const ACEPTAR_UI: Record<string, { boton: string; ayuda: string }> = {
+  salida_anticipada: {
+    boton: "Aceptar",
+    ayuda: "Dar por buena esta salida anticipada y quitarla de la lista.",
+  },
+  sin_retorno_almuerzo: {
+    boton: "Trabajó de corrido",
+    ayuda:
+      "Confirmar que no tomó refrigerio y siguió trabajando: el día se paga tal como está calculado. " +
+      "Si sí almorzó, no uses este botón — registra en Correcciones la hora en que salió y la hora en que " +
+      "volvió, y las horas se recalculan solas.",
+  },
+};
+const ACEPTAR_BOTON = (t: string | undefined) => (t && ACEPTAR_UI[t]?.boton) || "Aceptar";
+const ACEPTAR_AYUDA = (t: string | undefined) =>
+  (t && ACEPTAR_UI[t]?.ayuda) || "Dar por buena esta incidencia y quitarla de la lista.";
 
 const HOY = hoyLima();
 // Patrón de tardanzas: ventana fija de 30 días desde hoy (independiente del
@@ -183,6 +204,7 @@ function IncidenciasContenido() {
           entrada: j.entrada_ts,
           salida: j.salida_final_ts,
           aceptable: inc.aceptable,
+          corregible: true, // todas estas se arreglan registrando las marcas que faltan
         });
       }
     }
@@ -286,7 +308,13 @@ function IncidenciasContenido() {
 
   const [aceptando, setAceptando] = useState<string | null>(null);
   // "Aceptar" (visto bueno): registra la incidencia como revisada y la saca de la
-  // lista. Deja rastro (quién/cuándo), no la borra. Solo salida anticipada por ahora.
+  // lista. Deja rastro (quién/cuándo), no la borra.
+  //
+  // Ojo con lo que significa aceptar en cada caso:
+  //   salida_anticipada    → "sé que se fue antes y está bien".
+  //   sin_retorno_almuerzo → "trabajó de corrido, no tomó refrigerio": el día se paga
+  //     tal como está calculado. Si NO trabajó de corrido, esto no se acepta: se
+  //     registran las marcas reales en Correcciones y la jornada se recalcula sola.
   async function aceptar(f: Fila) {
     if (!f.personaId || !f.aceptable) return;
     const clave = `${f.personaId}|${f.fecha}|${f.aceptable}`;
@@ -427,11 +455,20 @@ function IncidenciasContenido() {
                               <button
                                 onClick={() => void aceptar(f)}
                                 disabled={aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}`}
-                                title="Dar por buena esta salida anticipada y quitarla de la lista"
+                                title={ACEPTAR_AYUDA(f.aceptable)}
                                 className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-50"
                               >
-                                {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : "Aceptar"}
+                                {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : ACEPTAR_BOTON(f.aceptable)}
                               </button>
+                            )}
+                            {f.corregible && f.personaId && (
+                              <Link
+                                href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`}
+                                title="Abrir este día en Correcciones para registrar las marcas que faltan"
+                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40"
+                              >
+                                Corregir
+                              </Link>
                             )}
                             {f.esFalta && f.personaId && !f.justificada && (
                               <button

@@ -5,9 +5,16 @@
 -- no es parte de la secuencia de migraciones, por eso vive aquí y no en
 -- supabase/migrations.
 --
--- ADVERTENCIA: esto vuelve a ABRIR la ejecución anónima de 54 funciones y
--- devuelve la firma escaneada a una columna legible por la API. Es un botón de
--- emergencia, no una alternativa.
+-- QUÉ HACE Y QUÉ NO (probado el 26/07/2026 contra un Postgres con la 0076-0080
+-- aplicadas, 0 errores):
+--   SÍ devuelve la firma escaneada a su columna en `personas`, restaura
+--     fn_expediente_puede_actuar a la versión de antes, y vuelve a dar permiso
+--     de ejecución a `authenticated` — o sea, la app vuelve a funcionar igual.
+--   NO reabre la ejecución anónima. Es deliberado (ver la sección 3): no hay
+--     registro de cuáles de las 104 funciones estaban abiertas antes, así que
+--     reabrirlas en bloque dejaría el sistema PEOR que antes de la 0076.
+--
+-- Es un botón de emergencia, no una alternativa.
 --
 -- Correr TODO de una vez (es una sola transacción implícita en psql con
 -- ON_ERROR_STOP=1; si algo falla, no queda a medias).
