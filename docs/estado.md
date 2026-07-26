@@ -11,20 +11,31 @@ terminal, tests y deploy.*
 
 ---
 
-## ⚠️ PENDIENTE DE FELIPE: pegar `aplicar_0076_a_0079.sql`
+## ✅ APLICADO EN PRODUCCIÓN el 26-07-2026 — migraciones 0076 a 0080
 
-El paquete está listo en [`scripts/sql-manual/aplicar_0076_a_0079.sql`](../scripts/sql-manual/aplicar_0076_a_0079.sql).
-Probado tres veces seguidas contra una simulación de producción: cero errores,
-idempotente, con bloque de comprobación al final.
+Comprobación corrida por Felipe en el SQL Editor:
 
-**Mientras no se pegue, esto está abierto en producción hoy:**
-- 51 funciones `SECURITY DEFINER` ejecutables por el rol `anon` — la clave
-  pública que viaja en el JavaScript del sitio. Entre ellas: registrar marcas
-  por cualquier persona, sobrescribir cuentas bancarias, firmar memos.
-- Una terminal de sede puede sobrescribir la cuenta bancaria y el DNI de
-  cualquier colaboradora (**reproducido** contra Postgres limpio el 26-07).
-- Los días de suspensión sin goce cuentan como faltas injustificadas y empujan
-  al umbral legal de despido.
+| revisión | resultado |
+|---|---|
+| Funciones abiertas a `anon` | **1** (eran 51; la que queda es un trigger, que la API no expone) |
+| Migraciones registradas | **80** |
+| Huecos en la numeración | **ninguno** |
+| Permisos null-safe | **corregido** |
+| Feriados cargados hasta | **25/12/2032** |
+
+Qué cerró: la ejecución anónima de 51 funciones `SECURITY DEFINER` (registrar
+marcas por cualquiera, sobrescribir cuentas bancarias, fabricar y firmar
+memos) · el guard que dejaba a una terminal editar los datos bancarios de
+cualquier colaboradora · la suspensión que contaba como falta hacia el umbral
+legal de despido · el calendario de feriados que se acababa el 31-12-2026.
+
+**La lección, que costó un intento fallido:** el primer pegado no aplicó nada.
+El bloque que recorre las funciones abortaba entero al topar con una que no
+pertenece al rol `postgres` de Supabase — que **no es superusuario** — y las
+~1000 líneas siguientes nunca se ejecutaban, sin dejar rastro de por qué.
+Probar como superusuario local no reproduce esa condición. Desde ahora, todo
+bloque que recorra objetos en masa lleva manejo de excepción por elemento y
+reporta al final lo que no pudo tocar.
 
 ---
 
