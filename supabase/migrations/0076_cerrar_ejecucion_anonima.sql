@@ -45,6 +45,8 @@ do $$
 declare
   r record;
   n int := 0;
+  omitidas text[] := '{}';
+  s text;
 begin
   for r in
     select p.oid::regprocedure::text as sig
@@ -61,11 +63,34 @@ begin
         select 1 from pg_depend d
         where d.objid = p.oid and d.deptype = 'e')
   loop
-    execute format('grant execute on function %s to authenticated, service_role', r.sig);
-    execute format('revoke execute on function %s from public', r.sig);
-    n := n + 1;
+    -- Cada función se trata por separado y los fallos NO abortan el recorrido.
+    --
+    -- Este archivo se pega a mano en el SQL Editor, donde se corre como el rol
+    -- `postgres` de Supabase — que NO es superusuario. Si alguna función de
+    -- `public` pertenece a otro rol, el `grant` levanta "must be owner of
+    -- function" y, sin este bloque, el DO entero se cae y NADA de las 800
+    -- líneas siguientes llega a ejecutarse: la base queda igual que antes y sin
+    -- ninguna pista de por qué.
+    --
+    -- Lo que no se pudo tocar se reporta al final por nombre, para revisarlo a
+    -- mano. Es preferible cerrar 99 funciones y saber cuál falta, a no cerrar
+    -- ninguna.
+    begin
+      execute format('grant execute on function %s to authenticated, service_role', r.sig);
+      execute format('revoke execute on function %s from public', r.sig);
+      n := n + 1;
+    exception when others then
+      omitidas := array_append(omitidas, r.sig || '  (' || sqlerrm || ')');
+    end;
   end loop;
+
   raise notice 'Funciones cerradas a anon: %', n;
+  if array_length(omitidas, 1) > 0 then
+    raise warning 'NO se pudieron cerrar % función(es). Revisar a mano:', array_length(omitidas, 1);
+    foreach s in array omitidas loop
+      raise warning '  · %', s;
+    end loop;
+  end if;
 end $$;
 
 -- Que las FUTURAS nazcan cerradas. Esto es lo que convierte "acordarse del
