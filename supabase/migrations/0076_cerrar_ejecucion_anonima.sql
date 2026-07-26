@@ -160,25 +160,46 @@ alter table firmas_escaneadas enable row level security;
 revoke all on firmas_escaneadas from authenticated, anon;
 
 -- Mudanza de lo que ya está cargado.
-insert into firmas_escaneadas (persona_id, imagen)
-select id, firma_base64 from personas
-where firma_base64 is not null
-  and firma_base64 ~ '^data:image/(png|jpeg);base64,'
-on conflict (persona_id) do nothing;
-
-do $$
+--
+-- Todo el bloque va dentro de un condicional porque esta migración se pega A
+-- MANO en el SQL Editor, y una mano hace doble clic. En la segunda pasada la
+-- columna `personas.firma_base64` ya no existe (la borra el paso siguiente) y
+-- un `insert ... select firma_base64` reventaría a media migración, dejándola
+-- aplicada por la mitad. No se puede resolver con `if exists` a secas: el
+-- planificador valida la columna aunque la rama no se ejecute, así que la
+-- consulta va como texto y solo se compila si de verdad hay algo que mudar.
+do $mudanza$
 declare n_origen int; n_destino int; n_malformadas int;
 begin
-  select count(*) into n_origen   from personas where firma_base64 is not null;
-  select count(*) into n_destino  from firmas_escaneadas;
-  select count(*) into n_malformadas from personas
-    where firma_base64 is not null and firma_base64 !~ '^data:image/(png|jpeg);base64,';
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'personas' and column_name = 'firma_base64'
+  ) then
+    raise notice 'La mudanza de firmas ya se hizo (la columna firma_base64 no existe). Nada que hacer.';
+    return;
+  end if;
+
+  execute $mv$
+    insert into firmas_escaneadas (persona_id, imagen)
+    select id, firma_base64 from personas
+    where firma_base64 is not null
+      and firma_base64 ~ '^data:image/(png|jpeg);base64,'
+    on conflict (persona_id) do nothing
+  $mv$;
+
+  execute 'select count(*) from personas where firma_base64 is not null' into n_origen;
+  select count(*) into n_destino from firmas_escaneadas;
+  execute $ct$select count(*) from personas
+             where firma_base64 is not null
+               and firma_base64 !~ '^data:image/(png|jpeg);base64,'$ct$ into n_malformadas;
+
   raise notice 'Firmas en personas: % · migradas: % · descartadas por formato: %',
     n_origen, n_destino, n_malformadas;
   if n_malformadas > 0 then
     raise warning 'Hay % firma(s) con formato inválido que NO se migraron. Revisar antes de dar por buena la mudanza.', n_malformadas;
   end if;
-end $$;
+end
+$mudanza$;
 
 -- Y se va la columna: mientras exista, sigue viajando en cualquier `select *`
 -- sobre personas. El reverso de esta migración la recrea y copia de vuelta.
@@ -275,6 +296,61 @@ returns text language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function fn_firma_persona(uuid) to authenticated;
 revoke execute on function fn_firma_persona(uuid) from public, anon;
+
+-- ── fn_expediente_firmantes: seguía leyendo la columna que esta migración borra ──
+-- La 0074 la definió con `p.firma_base64 is not null` para el aviso "tiene
+-- firma". Al soltar la columna, Postgres no avisa (no rastrea dependencias
+-- dentro del cuerpo de una función): el diálogo de firmar habría reventado en
+-- runtime la próxima vez que alguien lo abriera. Misma lógica, fuente nueva.
+--
+-- Va dentro de un condicional porque esta función NACE en la 0074, que se
+-- aplicó en producción desde otra máquina. Si esta base todavía no la tiene,
+-- no se inventa aquí: la 0074 ya la trae bien y esta migración no debe
+-- adelantarse a ella. Cuando la 0074 sí está, se corrige.
+do $fix$
+begin
+  if exists (select 1 from pg_proc where proname = 'fn_expediente_firmantes') then
+    execute $ddl$
+create or replace function fn_expediente_firmantes(p_id uuid)
+returns table (persona_id uuid, nombre text, cargo text, tiene_firma boolean)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $fn$
+declare r expediente_disciplinario%rowtype;
+begin
+  select * into r from expediente_disciplinario where id = p_id;
+  if not found then raise exception 'El documento no existe.'; end if;
+  if fn_expediente_puede_actuar(r.persona_id, r.nivel) is not true then
+    raise exception 'Sin permiso sobre este documento.';
+  end if;
+
+  return query
+  select p.id,
+         (p.nombres || ' ' || p.apellidos)::text,
+         fn_cargo_de_rol(p.rol),
+         exists (select 1 from firmas_escaneadas f where f.persona_id = p.id)
+  from personas p
+  where p.estado = 'activo'
+    and fn_cargo_de_rol(p.rol) is not null
+    -- Mismo criterio que gobierna el módulo: admin y líder pueden con todo;
+    -- una encargada solo con verbal/amonestación de su propia sede.
+    and (
+      p.rol in ('admin', 'lider_do')
+      or (p.rol = 'supervisor_sede'
+          and r.nivel in ('verbal', 'amonestacion')
+          and p.sede_base_id = (select sede_base_id from personas where id = r.persona_id))
+    )
+  order by 2;
+end;
+$fn$;
+    $ddl$;
+    execute 'grant execute on function fn_expediente_firmantes(uuid) to authenticated';
+    execute 'revoke execute on function fn_expediente_firmantes(uuid) from public, anon';
+  end if;
+end
+$fix$;
 
 
 notify pgrst, 'reload schema';
