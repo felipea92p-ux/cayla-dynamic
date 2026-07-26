@@ -154,25 +154,37 @@ function IncidenciasContenido() {
     const out: Fila[] = [];
     for (const j of (data as any[]) ?? []) {
       const minutosTemprana = minutosPorClave.get(`${j.persona_id}|${j.fecha}`) ?? 0;
-      let tipo: string | null = null;
-      let aceptable: string | undefined;
-      if (j.estado === "auto_cerrada_pendiente") tipo = "Auto-cerrada (revisar)";
-      else if (j.fecha < HOY && j.estado === "abierta") tipo = "Sin salida final";
-      else if (j.fecha < HOY && j.tiene_salida_no_retornada) tipo = "No regresó de pausa";
-      else if (minutosTemprana > 0) { tipo = `Salida anticipada (${minutosTemprana} min)`; aceptable = "salida_anticipada"; }
-      if (!tipo) continue;
-      // Si ya la aceptaste (visto bueno), no la muestres.
-      if (aceptable && aceptadas.has(`${j.persona_id}|${j.fecha}|${aceptable}`)) continue;
-      out.push({
-        personaId: j.persona_id,
-        nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
-        sede: j.personas?.sedes?.codigo ?? "?",
-        fecha: j.fecha,
-        tipo,
-        entrada: j.entrada_ts,
-        salida: j.salida_final_ts,
-        aceptable,
-      });
+      // Un mismo día puede tener VARIAS incidencias a la vez: por ejemplo un día
+      // auto-cerrado en el que ADEMÁS falta la marca de retorno del almuerzo.
+      // Antes esto era una cadena de `else if` y solo se veía la primera, así que
+      // los demás avisos de ese día se perdían sin que nadie los llegara a ver.
+      const delDia: { tipo: string; aceptable?: string }[] = [];
+      if (j.estado === "auto_cerrada_pendiente") delDia.push({ tipo: "Auto-cerrada (revisar)" });
+      if (j.fecha < HOY && j.estado === "abierta") delDia.push({ tipo: "Sin salida final" });
+      if (j.fecha < HOY && j.tiene_salida_no_retornada) {
+        // Se nombra el HECHO observable —falta una marca— y no una interpretación:
+        // el sistema no puede saber si la persona se fue, si volvió sin marcar, o si
+        // no tomó refrigerio y siguió trabajando. Las tres cosas pasan. Decide quien
+        // revisa: registrando las marcas reales (y la jornada se recalcula sola), o
+        // aceptando el día tal como está si de verdad trabajó de corrido.
+        delDia.push({ tipo: "Sin marca de retorno del almuerzo", aceptable: "sin_retorno_almuerzo" });
+      }
+      if (minutosTemprana > 0) delDia.push({ tipo: `Salida anticipada (${minutosTemprana} min)`, aceptable: "salida_anticipada" });
+
+      for (const inc of delDia) {
+        // Si ya la aceptaste (visto bueno), no la muestres.
+        if (inc.aceptable && aceptadas.has(`${j.persona_id}|${j.fecha}|${inc.aceptable}`)) continue;
+        out.push({
+          personaId: j.persona_id,
+          nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
+          sede: j.personas?.sedes?.codigo ?? "?",
+          fecha: j.fecha,
+          tipo: inc.tipo,
+          entrada: j.entrada_ts,
+          salida: j.salida_final_ts,
+          aceptable: inc.aceptable,
+        });
+      }
     }
 
     // Patrón de tardanzas: 3+ en los últimos 30 días. Viene ordenado por fecha

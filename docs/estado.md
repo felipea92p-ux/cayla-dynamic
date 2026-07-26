@@ -42,6 +42,30 @@ vacaciones, tardanzas, faltas, marcajes fuera de orden) + vitest.
 
 ---
 
+## Decidido el 26-07, pendiente de construir (en este orden)
+
+1. **Liquidación por cese + foto del pago.** Pantalla propia: sueldo pendiente +
+   vacaciones truncas + grati trunca + CTS trunca, congelado e imprimible. La ley
+   da 48 h desde el cese (art. 4 D.S. 001-97-TR), así que **no** se puede prohibir
+   el cierre anticipado sin esto. Incluye el pago por horas del día de prueba, con
+   recordatorio del T-Registro de 24 h. Al marcar PAGADO se guarda copia intacta
+   de los montos y el sistema avisa si un recálculo posterior ya no coincide.
+2. **Blindar planilla con pruebas** (descanso sustitutorio, bono de puntualidad,
+   provisiones, feriado triple: hoy mueven dinero sin una sola prueba) y partir
+   `planilla/page.tsx` (1 587 líneas).
+3. **Los 4 scripts de `sql-manual` que divergen** de su migración fuente. El peor,
+   `aplicar_0017`, lleva la fórmula vieja de tardanza: pegarlo retrocede el
+   cálculo de horas de todo el equipo.
+4. **Terminal, 4 bordes graves:** marca rechazada que se anuncia como "Listo" y
+   desaparece · cola offline que se reenvía en orden de UUID y no cronológico ·
+   reloj de la Mac sin verificación de desfase · persona que marca en dos sedes
+   el mismo día y pierde una marca.
+
+**Grati/CTS:** se aplicará la regla legal de regularidad (la sobretasa de feriado
+entra solo si se percibió en ≥3 meses del semestre, como promedio entre 6) —
+Felipe pidió ver primero el impacto con
+[`consulta_impacto_regularidad_feriados.sql`](../scripts/sql-manual/consulta_impacto_regularidad_feriados.sql).
+
 ## 🔴 Atender primero
 
 1. **La migración `0076` está escrita pero sin commitear y sin rastro de las
