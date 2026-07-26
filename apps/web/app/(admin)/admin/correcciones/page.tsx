@@ -121,7 +121,7 @@ function describirCambio(row: Auditoria): { accion: string; detalle: string } {
 const TIPOS_AGREGABLES = TIPOS_MARCA;
 
 type Accion =
-  | { modo: "editar"; marcaje: Marcaje; nuevaHora: string; nuevoTipo: TipoMarca }
+  | { modo: "editar"; marcaje: Marcaje; nuevaHora: string; nuevoTipo: TipoMarca; posteriores: Marcaje[] }
   | { modo: "anular"; marcaje: Marcaje }
   | { modo: "reactivar"; marcaje: Marcaje }
   | { modo: "confirmar"; marcaje: Marcaje }
@@ -167,6 +167,10 @@ export default function CorreccionesPage() {
   const [accion, setAccion] = useState<Accion | null>(null);
   const [motivo, setMotivo] = useState("");
   const [procesando, setProcesando] = useState(false);
+  // Al convertir una marca en "salida final", lo que quedó después casi siempre
+  // sobra (el caso real: un regreso que nunca ocurrió y el auto-cierre). El
+  // sistema las propone marcadas, pero no las anula sin que se vean primero.
+  const [anularPosteriores, setAnularPosteriores] = useState<Record<string, boolean>>({});
   // formulario "agregar marcaje"
   const [agregarTipo, setAgregarTipo] = useState<TipoMarca>("entrada");
   const [agregarHora, setAgregarHora] = useState("08:00");
@@ -325,12 +329,35 @@ export default function CorreccionesPage() {
         p_motivo_otro: accion.tipo === "salida_otro" ? (accion.motivoOtro || undefined) : undefined,
       }));
     }
+    // Las marcas que quedaron después de una salida final, si se dejaron marcadas.
+    // Van después de la corrección: si esta falla, no se anula nada.
+    let anuladas = 0;
+    if (!error && accion.modo === "editar") {
+      for (const post of accion.posteriores) {
+        if (!anularPosteriores[post.id]) continue;
+        const { error: eAnu } = await supabase.rpc("fn_anular_marcaje", {
+          p_marcaje_id: post.id,
+          p_motivo: `${motivo.trim()} — queda después de la salida final`,
+        });
+        if (eAnu) { error = eAnu; break; }
+        anuladas += 1;
+      }
+    }
     setProcesando(false);
-    if (error) { avisar("error", error.message); return; }
+    if (error) {
+      avisar("error", anuladas > 0
+        ? `La corrección se guardó y se anularon ${anuladas}, pero luego falló: ${error.message}`
+        : error.message);
+      await cargarDia();
+      return;
+    }
     setAccion(null);
     setMotivo("");
+    setAnularPosteriores({});
     await cargarDia();
-    avisar("ok", "Corrección guardada y registrada en la auditoría.");
+    avisar("ok", anuladas > 0
+      ? `Corrección guardada y ${anuladas} ${anuladas === 1 ? "marca anulada" : "marcas anuladas"}. Todo queda en la auditoría.`
+      : "Corrección guardada y registrada en la auditoría.");
   }
 
   const personaSel = useMemo(() => personas.find((p) => p.id === personaId), [personas, personaId]);
@@ -560,7 +587,16 @@ export default function CorreccionesPage() {
                                 <>
                                   <button
                                     disabled={!cambiada}
-                                    onClick={() => { setAccion({ modo: "editar", marcaje: m, nuevaHora: horaLocal, nuevoTipo: tipoLocal }); setMotivo(""); }}
+                                    onClick={() => {
+                                      const nuevoTs = construirTs(fecha, horaLocal);
+                                      const posteriores = tipoLocal === "salida_final"
+                                        ? marcajes.filter((x) => x.id !== m.id && x.anulada_at === null
+                                            && new Date(x.timestamp_marca) > new Date(nuevoTs))
+                                        : [];
+                                      setAccion({ modo: "editar", marcaje: m, nuevaHora: horaLocal, nuevoTipo: tipoLocal, posteriores });
+                                      setAnularPosteriores(Object.fromEntries(posteriores.map((x) => [x.id, true])));
+                                      setMotivo("");
+                                    }}
                                     className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-40">
                                     Guardar
                                   </button>
@@ -709,6 +745,26 @@ export default function CorreccionesPage() {
                 {accion.modo === "confirmar" && `Das por buena la salida de las ${horaInput(accion.marcaje.timestamp_marca)} que puso el sistema. El día deja de estar pendiente y pasa a medirse entero, incluida la salida anticipada y el tiempo adicional.`}
                 {accion.modo === "agregar" && `${TIPO_MARCA_LABELS[accion.tipo]} a las ${accion.hora}, para ${personaSel?.nombres} ${personaSel?.apellidos}.`}
               </p>
+              {accion.modo === "editar" && accion.posteriores.length > 0 && (
+                <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-3 py-3 text-sm">
+                  <p className="mb-2 text-taupe">
+                    Después de esa salida final quedan {accion.posteriores.length}{" "}
+                    {accion.posteriores.length === 1 ? "marca" : "marcas"}. Se anularán con el mismo
+                    motivo; desmarca la que quieras conservar.
+                  </p>
+                  {accion.posteriores.map((post) => (
+                    <label key={post.id} className="flex items-center gap-2 py-0.5">
+                      <input type="checkbox"
+                        checked={anularPosteriores[post.id] ?? false}
+                        onChange={(e) => setAnularPosteriores({ ...anularPosteriores, [post.id]: e.target.checked })} />
+                      <span>
+                        {TIPO_MARCA_LABELS[post.tipo]} de las {horaInput(post.timestamp_marca)}
+                        {post.origen === "auto_cierre" && " (auto-cierre)"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
               <label className="mb-4 flex flex-col gap-1 text-sm">
                 Motivo (obligatorio)
                 <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} autoFocus
