@@ -160,3 +160,33 @@ base de 6.5 h, pago = salario × horas / (6.5 × días). Los factores de provisi
 
 **No crear documentos de estado con fecha en el nombre.** Ese hábito produjo cinco
 archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
+
+---
+
+## La red de seguridad (jul-2026)
+
+**Antes de subir a GitHub** corre solo un hook (`scripts/hooks/pre-push`) que
+verifica `typecheck` y las pruebas de interfaz. Si algo está en rojo, el push no
+se hace. Toma unos 10 segundos.
+
+Se eligió un hook local y **no** la protección de rama de GitHub porque esa
+habría exigido abrir un pull request por cada cambio — fricción constante para
+quien trabaja sola, a cambio de la misma garantía.
+
+Para que el hook funcione en un clon nuevo hay que activarlo una vez:
+```bash
+git config core.hooksPath scripts/hooks
+```
+
+**Para desplegar**, en vez de `npx vercel` directo:
+```bash
+./scripts/desplegar.sh          # vista previa
+./scripts/desplegar.sh prod     # producción, pregunta antes
+```
+Verifica que no haya cambios sin guardar, que GitHub esté al día, que las
+pruebas de GitHub de ese commit hayan pasado — **incluidas las de base de datos
+(pgTAP), que no corren en esta Mac porque necesitan Docker** — y recién ahí
+publica. Para producción pide escribir `publicar` como confirmación.
+
+En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
+Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.
