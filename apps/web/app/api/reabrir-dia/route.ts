@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   if (ue || !userData.user) return NextResponse.json({ error: "sesión inválida" }, { status: 401 });
   const { data: term } = await admin
     .from("terminales")
-    .select("id, activo")
+    .select("id, activo, sede_id")
     .eq("auth_user_id", userData.user.id)
     .maybeSingle();
   if (!term || !term.activo) {
@@ -50,6 +50,25 @@ export async function POST(req: Request) {
   const cierre = finals?.[0];
   if (!cierre) {
     return NextResponse.json({ error: "no hay salida final de hoy para reabrir" }, { status: 409 });
+  }
+
+  // 3b) Cada tienda reabre lo suyo (decisión de Felipe, jul-2026).
+  //
+  // Esta ruta corre con la llave de servicio, que salta RLS por completo: sin
+  // este chequeo, la terminal de TRU podía reabrir y alterar el día de una
+  // colaboradora de LIM o AQP con solo mandar su id.
+  //
+  // Se compara contra la sede DEL MARCAJE, no contra la sede base de la
+  // persona. Es lo que hace que el caso de quien viaja entre sedes funcione
+  // sin un `if` aparte: si Felipe marcó su salida en TRU, es la terminal de
+  // TRU la que puede corregirla — que es exactamente donde está el problema
+  // que se quiere arreglar. La sede sale del kiosco tocado, igual que en el
+  // resto del sistema.
+  if (cierre.sede_id !== term.sede_id) {
+    return NextResponse.json(
+      { error: "esa marca es de otra sede: se reabre desde la terminal donde se marcó" },
+      { status: 403 },
+    );
   }
 
   // 4) Reclasificar esa salida final como salida temporal (con motivo)…
