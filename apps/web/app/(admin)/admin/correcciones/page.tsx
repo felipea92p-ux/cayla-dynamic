@@ -155,6 +155,10 @@ export default function CorreccionesPage() {
   // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
   // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
   const [porRevisar, setPorRevisar] = useState<DiaPorRevisar[]>([]);
+  // ¿La secuencia de ESTE día sigue siendo imposible? Se pregunta en vivo a la
+  // base en cada carga, no se deduce del sello guardado en las marcas: el sello
+  // dice que el día estuvo roto alguna vez, no que lo siga estando.
+  const [diaIncoherente, setDiaIncoherente] = useState(false);
 
   // edición local de horas por marcaje
   const [horasEditadas, setHorasEditadas] = useState<Record<string, string>>({});
@@ -189,7 +193,8 @@ export default function CorreccionesPage() {
     const supabase = createAdminSupabaseClient();
     const inicio = `${fecha}T00:00:00-05:00`;
     const fin = `${fecha}T23:59:59-05:00`;
-    const [{ data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }] = await Promise.all([
+    const [{ data: incoh }, { data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }] = await Promise.all([
+      supabase.rpc("fn_dia_incoherente", { p_persona_id: personaId, p_fecha: fecha }),
       supabase.from("marcajes")
         .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision, anulada_at, anulada_por, anulada_motivo")
         .eq("persona_id", personaId).gte("timestamp_marca", inicio).lte("timestamp_marca", fin)
@@ -218,6 +223,8 @@ export default function CorreccionesPage() {
       return; // no pisa `marcajes`/`jornada` con datos parciales
     }
     setMarcajes((mk as Marcaje[]) ?? []);
+    // Falla suave: si la consulta no llega, no se inventa un sello que no sabemos si existe.
+    setDiaIncoherente(incoh === true);
     setJornada((jor as Jornada) ?? null);
     setEsperado(calcularEsperado(fecha, turno as TurnoDia | null, horario as HorarioTramo | null));
     setLevTardanza((levT as { motivo: string; observacion: string | null } | null) ?? null);
@@ -414,13 +421,31 @@ export default function CorreccionesPage() {
 
         {cargado && personaSel && (
           <div className="max-w-3xl">
-            {marcajes.some((m) => m.estado_revision === "pendiente_revision") && (
+            {/* Dos avisos distintos, no uno.
+                Antes había uno solo, que se mostraba cuando CUALQUIER marca del día
+                seguía en 'pendiente_revision'. Eso daba dos fallos: (a) un día ya
+                arreglado seguía en rojo, porque el sello es un estado guardado de
+                cuando estuvo roto y no una pregunta sobre si sigue roto — y las
+                marcas anuladas también contaban; (b) el texto hablaba siempre de
+                "secuencia imposible" aunque el motivo real fuera un auto-cierre,
+                que es otra cosa. Ahora se pregunta en vivo y cada caso dice lo suyo. */}
+            {diaIncoherente && (
               <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
-                <strong className="text-tinta">Este día está sellado para revisión.</strong>{" "}
+                <strong className="text-tinta">La secuencia de marcas de este día no es posible.</strong>{" "}
                 <span className="text-taupe">
-                  La secuencia de marcas no es posible (por ejemplo, dos salidas seguidas sin retorno
-                  entre medio). Suele pasar cuando una marca llega tarde tras un corte de señal.
-                  Ordénalo y queda resuelto.
+                  Por ejemplo, dos salidas seguidas sin retorno entre medio. Suele pasar cuando una
+                  marca llega tarde tras un corte de señal. Corrige el tipo o la hora de lo que esté
+                  mal, o anula lo que sobre — el aviso desaparece solo en cuanto el día cuadre.
+                </span>
+              </div>
+            )}
+            {marcajes.some((m) => m.anulada_at === null && m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision") && (
+              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
+                <strong className="text-tinta">Este día lo cerró el sistema.</strong>{" "}
+                <span className="text-taupe">
+                  Nadie marcó la salida, así que el auto-cierre nocturno puso una hora. Mientras
+                  siga sin revisar, ese día no mide salida anticipada ni tiempo adicional. Pulsa
+                  <em> Confirmar</em> si esa hora es la buena, o corrígela.
                 </span>
               </div>
             )}

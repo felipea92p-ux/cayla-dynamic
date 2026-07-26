@@ -1624,6 +1624,10 @@ export type Database = {
         Args: { p_marcaje_id: string; p_motivo?: string }
         Returns: unknown
       }
+      fn_dia_incoherente: {
+        Args: { p_persona_id: string; p_fecha: string }
+        Returns: boolean
+      }
       fn_firma_de_memo: {
         Args: { p_doc_id: string }
         Returns: string | null
