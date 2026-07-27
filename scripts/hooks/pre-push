@@ -1,0 +1,34 @@
+#!/bin/sh
+# Freno antes de subir a GitHub.
+#
+# `CLAUDE.md` describía este hook desde julio, pero el archivo nunca existió y
+# `core.hooksPath` apuntaba a una carpeta vacía: git no encontraba nada que
+# ejecutar y seguía adelante en silencio. Un freno que no frena es peor que no
+# tener freno, porque uno confía en él.
+#
+# Corre lo que se puede correr sin Docker (~10 s). Las pruebas de base de datos
+# (pgTAP) NO van acá: necesitan `supabase start` y tardan minutos. De esas se
+# encarga GitHub Actions, y `desplegar.sh` verifica que hayan pasado antes de
+# publicar.
+#
+# Para saltarlo a propósito en una urgencia real:  git push --no-verify
+
+set -e
+
+echo "→ typecheck…"
+npx pnpm typecheck >/dev/null 2>&1 || {
+  echo ""
+  echo "  ✗ El typecheck falló. No se sube."
+  echo "    Corre 'npx pnpm typecheck' para ver qué pasa."
+  exit 1
+}
+
+echo "→ pruebas de interfaz…"
+npx pnpm test >/dev/null 2>&1 || {
+  echo ""
+  echo "  ✗ Las pruebas fallaron. No se sube."
+  echo "    Corre 'npx pnpm test' para ver cuál."
+  exit 1
+}
+
+echo "✓ typecheck y pruebas en verde."
