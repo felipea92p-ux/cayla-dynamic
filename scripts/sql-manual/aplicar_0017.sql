@@ -1,3 +1,21 @@
+-- ============================================================================
+-- ⛔ NO PEGAR ESTE ARCHIVO — quedo DESFASADO de su migracion
+-- ----------------------------------------------------------------------------
+-- Fuente: supabase/migrations/0017_salida_temprana_extra.sql
+--
+-- Este script calcula la tardanza con round() donde la migracion — y lo que esta\nvivo en produccion — usa floor(). Con round, entrar a las 09:00:31 cuenta como\n1 minuto tarde; con floor cuenta como puntual, que es la regla acordada: los\nsegundos dentro del minuto de entrada no cuentan. Pegarlo convertiria en\ntardones a quienes llegaron a su hora, y las tardanzas alimentan el expediente\ndisciplinario.
+--
+-- Se conserva por historia. Si de verdad hace falta reconstruir esta parte, la
+-- version buena es la migracion, no este archivo.
+--
+-- El bloque de abajo aborta el script entero si alguien lo pega por error.
+-- Para ejecutarlo a proposito (no deberia hacer falta): borrar ese bloque.
+-- ============================================================================
+do $$
+begin
+  raise exception E'Este script esta desfasado de supabase/migrations/0017_salida_temprana_extra.sql y no debe pegarse. Lee el encabezado del archivo.';
+end $$;
+
 -- ============================================================
 -- Dynamic — salida temprana + horas extra (0017)
 -- Pegar TODO en Supabase → SQL Editor → Run. Es idempotente.

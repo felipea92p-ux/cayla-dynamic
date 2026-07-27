@@ -1,4 +1,22 @@
 -- ============================================================================
+-- ⛔ NO PEGAR ESTE ARCHIVO — quedo DESFASADO de su migracion
+-- ----------------------------------------------------------------------------
+-- Fuente: supabase/migrations/0019_salarios.sql
+--
+-- Este script lleva  if not fn_es_admin_o_lider()  donde la migracion tiene\nif fn_es_admin_o_lider() is not true. Pegarlo revierte el guard null-safe que\narreglo la 0078: un null volveria a pasar como autorizado.
+--
+-- Se conserva por historia. Si de verdad hace falta reconstruir esta parte, la
+-- version buena es la migracion, no este archivo.
+--
+-- El bloque de abajo aborta el script entero si alguien lo pega por error.
+-- Para ejecutarlo a proposito (no deberia hacer falta): borrar ese bloque.
+-- ============================================================================
+do $$
+begin
+  raise exception E'Este script esta desfasado de supabase/migrations/0019_salarios.sql y no debe pegarse. Lee el encabezado del archivo.';
+end $$;
+
+-- ============================================================================
 -- Salarios asignados por persona (rango + salario mensual), versionado
 -- ----------------------------------------------------------------------------
 -- Modelo de planilla de CAYLA (confirmado 2026-07-13 con Felipe):

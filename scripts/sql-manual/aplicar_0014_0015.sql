@@ -1,3 +1,21 @@
+-- ============================================================================
+-- ⛔ NO PEGAR ESTE ARCHIVO — quedo DESFASADO de su migracion
+-- ----------------------------------------------------------------------------
+-- Fuente: supabase/migrations/0014_turnos_cobertura.sql + 0015
+--
+-- Este script junta dos migraciones y trae ademas una version de fn_set_horario\nque no coincide con ninguna de las dos. No se ha verificado cual es mas nueva.
+--
+-- Se conserva por historia. Si de verdad hace falta reconstruir esta parte, la
+-- version buena es la migracion, no este archivo.
+--
+-- El bloque de abajo aborta el script entero si alguien lo pega por error.
+-- Para ejecutarlo a proposito (no deberia hacer falta): borrar ese bloque.
+-- ============================================================================
+do $$
+begin
+  raise exception E'Este script esta desfasado de supabase/migrations/0014_turnos_cobertura.sql + 0015 y no debe pegarse. Lee el encabezado del archivo.';
+end $$;
+
 -- ============================================================
 -- Dynamic — aplicar turnos+cobertura (0014) y horario base (0015)
 -- Pegar TODO esto en Supabase → SQL Editor → Run. Es idempotente.

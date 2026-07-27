@@ -1,4 +1,22 @@
 -- ============================================================================
+-- ⛔ NO PEGAR ESTE ARCHIVO — quedo DESFASADO de su migracion
+-- ----------------------------------------------------------------------------
+-- Fuente: supabase/migrations/0020_rpc_bypass_cache.sql
+--
+-- Este script trae ademas una version de fn_set_salario que no esta en la\nmigracion. No se ha verificado cual es mas nueva.
+--
+-- Se conserva por historia. Si de verdad hace falta reconstruir esta parte, la
+-- version buena es la migracion, no este archivo.
+--
+-- El bloque de abajo aborta el script entero si alguien lo pega por error.
+-- Para ejecutarlo a proposito (no deberia hacer falta): borrar ese bloque.
+-- ============================================================================
+do $$
+begin
+  raise exception E'Este script esta desfasado de supabase/migrations/0020_rpc_bypass_cache.sql y no debe pegarse. Lee el encabezado del archivo.';
+end $$;
+
+-- ============================================================================
 -- Plan B contra el caché de PostgREST trabado (incidente Supabase jul-2026)
 -- ----------------------------------------------------------------------------
 -- El schema cache no expone las columnas nuevas jornadas.minutos_salida_temprana
