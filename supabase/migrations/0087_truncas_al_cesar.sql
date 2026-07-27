@@ -108,8 +108,13 @@ begin
     return jsonb_build_object('error', 'Sin salario asignado vigente al ' || to_char(p_fecha_ref, 'DD/MM/YYYY'));
   end if;
 
-  select (valor #>> '{}')::numeric into v_asig_cfg from configuracion where clave = 'asignacion_familiar';
-  if v_p.con_hijos then v_asig := coalesce(v_asig_cfg, 0); end if;
+  -- Se lee EXACTAMENTE como la lee el motor de planilla (0069): el valor vive
+  -- como {"monto": 113.00}, no como número suelto. Si las dos formas de leerlo
+  -- divergieran, la boleta del mes y la liquidación darían asignaciones
+  -- distintas para la misma persona.
+  select coalesce((valor->>'monto')::numeric, 113.00) into v_asig_cfg
+    from configuracion where clave = 'asignacion_familiar';
+  if v_p.con_hijos then v_asig := coalesce(v_asig_cfg, 113.00); end if;
 
   -- Semestre que contiene la fecha de referencia.
   v_sem_ini := case when extract(month from p_fecha_ref) <= 6
@@ -170,6 +175,8 @@ declare
   v_p personas%rowtype; v_rc jsonb; v_base numeric;
   v_sem_ini date; v_desde date; v_m int; v_d int;
   v_gt numeric; v_be numeric; v_fecha_ref date;
+  v_sem date; v_m_sem int; v_d_sem int; v_semestres text[] := '{}';
+  v_pago_ini date; v_pago_fin date;
 begin
   select * into v_p from personas where id = p_persona_id;
   if not found then raise exception 'La persona no existe.'; end if;
@@ -185,13 +192,65 @@ begin
       'motivo', 'Menos de un mes integro de servicios (art. 5.1 D.S. 005-2002-TR).');
   end if;
 
-  -- Semestre del cese y desde cuándo se cuenta dentro de él.
+  -- ⚠ EL PUNTO DONDE ESTO SE EQUIVOCA SI SE ESCRIBE RÁPIDO.
+  -- Lo que se paga NO es "el semestre del cese": es TODO SEMESTRE AÚN NO
+  -- COBRADO. Son dos cosas distintas y fallan en direcciones opuestas:
+  --   · cese el 05/07 con la grati de enero–junio todavía sin pagar → si se
+  --     mira solo el semestre del cese (jul–dic) da S/0, cuando corresponden
+  --     seis meses completos. Se paga DE MENOS.
+  --   · cese el 20/12 con la grati de julio–diciembre ya cobrada el 14 → si se
+  --     mira el semestre del cese da seis meses otra vez. Se paga DOS VECES.
+  -- Por eso se recorren los DOS semestres candidatos y de cada uno se cuenta
+  -- solo si no hay ya un movimiento de gratificación cobrado que lo cubra.
   v_sem_ini := case when extract(month from p_fecha_cese) <= 6
                     then make_date(extract(year from p_fecha_cese)::int, 1, 1)
                     else make_date(extract(year from p_fecha_cese)::int, 7, 1) end;
-  v_desde := greatest(v_sem_ini, v_p.fecha_ingreso);
 
-  select meses, dias into v_m, v_d from fn_meses_y_dias(v_desde, p_fecha_cese);
+  v_m := 0; v_d := 0;
+  foreach v_sem in array array[
+      (v_sem_ini - interval '6 months')::date,   -- el semestre anterior
+      v_sem_ini                                   -- y el del cese
+  ] loop
+    -- ¿Ya cobró la gratificación que cubre este semestre?
+    --
+    -- OJO CON LA VENTANA, que es donde esto se equivoca: la grati NO se paga
+    -- dentro del semestre que cubre. La de enero–junio se paga en JULIO (fuera
+    -- del semestre) y la de julio–diciembre se paga en DICIEMBRE (dentro). Por
+    -- eso cada semestre tiene su propia ventana de pago, y no una regla común:
+    -- una ventana única haría que un pago de julio marcara como cobrados los
+    -- dos semestres a la vez.
+    if extract(month from v_sem) = 1 then
+      v_pago_ini := (v_sem + interval '6 months')::date;   -- 1 jul
+      v_pago_fin := (v_sem + interval '8 months')::date;   -- 1 sep
+    else
+      v_pago_ini := (v_sem + interval '5 months')::date;   -- 1 dic
+      v_pago_fin := (v_sem + interval '7 months')::date;   -- 1 feb
+    end if;
+
+    if not exists (
+      select 1 from movimientos_planilla mp
+      join periodos_planilla pp on pp.id = mp.periodo_id
+      where mp.persona_id = p_persona_id
+        and mp.categoria = 'gratificacion'
+        and pp.estado = 'pagado'
+        and pp.fecha_fin >= v_pago_ini
+        and pp.fecha_fin <  v_pago_fin
+        -- Y sobre todo: pagado ANTES del cese. Sin esta línea, un cese de
+        -- septiembre daría por cobrada la gratificación de diciembre —que
+        -- todavía no existe— y no pagaría nada de julio ni agosto.
+        and pp.fecha_fin <= p_fecha_cese
+    ) then
+      -- No cobrada: sus meses completos cuentan.
+      v_desde := greatest(v_sem, v_p.fecha_ingreso);
+      select meses, dias into v_m_sem, v_d_sem
+        from fn_meses_y_dias(v_desde, least(p_fecha_cese, (v_sem + interval '6 months' - interval '1 day')::date));
+      v_m := v_m + v_m_sem;
+      v_d := v_d + v_d_sem;
+      v_semestres := v_semestres || to_char(v_sem, 'MM/YYYY');
+    end if;
+  end loop;
+
+  v_desde := greatest(v_sem_ini, v_p.fecha_ingreso);
 
   -- La remuneración se toma del mes ANTERIOR al del cese (art. 5.3).
   v_fecha_ref := (date_trunc('month', p_fecha_cese) - interval '1 day')::date;
@@ -206,7 +265,8 @@ begin
   return jsonb_build_object(
     'aplica', true,
     'regimen', 'MYPE pequena empresa: media remuneracion por semestre',
-    'semestre_desde', v_sem_ini, 'contado_desde', v_desde, 'hasta', p_fecha_cese,
+    'semestres_no_cobrados', v_semestres,
+    'semestre_del_cese', v_sem_ini, 'hasta', p_fecha_cese,
     'meses_completos', v_m, 'dias_sueltos_no_pagados', v_d,
     'remuneracion_computable', v_rc,
     'formula', '(RC / 2) / 6 x meses_completos',
