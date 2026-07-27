@@ -4,7 +4,7 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: 2026-07-26, tarde. Migraciones 0081–0089 aplicadas, dos
+*Última consolidación: 2026-07-27. Migraciones 0081–0089 aplicadas, dos
 revisiones adversarias corridas sobre el trabajo del día, y 60 pruebas nuevas
 donde por la mañana no había ninguna sobre el cálculo que produce el sueldo.*
 
@@ -33,6 +33,16 @@ completa aplica desde cero sobre una base limpia (que es lo que hace el CI).
 | 0085–0087 | Tipo de vínculo · fecha de cese · beneficios truncos al cesar *(de la otra sesión)* |
 | 0088 | La gratificación se paga aunque el periodo **cruce el año** |
 | 0089 | Los cinco cabos sueltos de la auditoría (auto-cierre duplicado, día roto en silencio, candado con bloqueo, orden de la autorización) |
+| 0090 | **La planilla no la lee cualquiera.** El barrido de la 0076 había deshecho un `revoke` deliberado: cualquier sesión con login —el terminal de tienda incluido— podía pedir los sueldos de todo el equipo |
+| 0091 | **La hora de Lima en todo el sistema.** `current_date` resuelve en UTC: desde las 19:00 el sistema creía que era mañana. Nueve funciones afectadas, entre ellas el semáforo disciplinario. Cuarta vez que entra el mismo bug; ahora hay una prueba que lo impide |
+| 0092 | Una falta no se sanciona dos veces. La rama del art. 25-h no tenía el candado: cada pulsación fabricaba otra carta de preaviso idéntica |
+| 0093 | El descanso sustitutorio no toca una planilla pagada (medido: S/65 menos en un periodo cerrado, sin rastro) |
+| 0094 | **El memo no acusa por días ya justificados.** La pantalla decía «suspensión cumplida» y el papel entregado decía «inasistencia injustificada» |
+| 0095 | Ni horas negativas (el auto-cierre podía poner la salida antes de la entrada) ni reabrir un pago sin motivo |
+
+**Aplicadas hasta la 0095.** La 0085, 0086 y 0087 (tipo de vínculo, fecha de cese,
+beneficios truncos) siguen sin aplicar, sin urgencia: ninguna pantalla las usa
+todavía. Son los cimientos de la liquidación por cese.
 
 **Pendiente de correr una vez:** [`scripts/sql-manual/registrar_0088_0089.sql`](../scripts/sql-manual/registrar_0088_0089.sql).
 Las 0088 y 0089 se aplicaron cuando aún se llamaban 0085 y 0086, y el registro
@@ -61,6 +71,17 @@ base tiene los cambios pero el registro no lo dice. El script solo arregla eso.
 ---
 
 ## 🔴 Atender primero
+
+0. **La foto del pago.** La planilla se calcula EN VIVO cada vez que se abre, así
+   que un periodo marcado como PAGADO puede cambiar de total después. Hoy se
+   cerraron tres formas de que eso pasara (0093, 0095 y el candado de la 0089),
+   pero el número sigue sin congelarse. **Un costo que puede cambiar solo no
+   sirve para contabilidad**, y es lo que bloquea el apartado de costos que
+   Felipe necesita para el contador y, más adelante, para el puente con retail.
+   Al marcar PAGADO hay que guardar una copia intacta del desglose por persona y
+   sede; si un recálculo posterior ya no coincide, el sistema avisa en vez de
+   cambiarla en silencio. **Decidido el 27-07: el apartado de costos vive aquí,
+   no en retail** — retail lo consumirá cuando el puente exista.
 
 1. **El terminal decide en dos sitios a la vez.** "Qué toca marcar ahora" vive en
    SQL (`fn_siguiente_tipo_esperado`) y en el navegador
@@ -99,6 +120,18 @@ base tiene los cambios pero el registro no lo dice. El script solo arregla eso.
 6. **Partir `planilla/page.tsx` (1 587 líneas).** Maneja dinero. Los tests SQL que
    fijan la matemática ya existen (`supabase/tests/10` y `20`); falta el refactor
    antes de seguir tocándolo.
+
+**El catálogo completo de lo que queda está en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md)**: 24 hallazgos vivos de una
+auditoría por áreas con verificación adversaria (52 agentes; de 42 candidatos
+sobrevivieron 34, y 10 ya se cerraron). Cada uno con su evidencia y su arreglo.
+
+**El patrón que se repite, y que conviene mirar antes que los síntomas:** la
+misma regla escrita en dos sitios, y una corrección que arregla solo uno. Pasó
+con «qué toca marcar» (SQL y navegador), con «qué es una falta» (pantalla y
+documento) y con «quién puede leer la planilla» (un revoke y ningún guard). En
+los tres casos nadie se enteró hasta que alguien miró. Cada arreglo lleva ahora
+una prueba que compara las dos copias y falla si se separan.
 
 ## 🟡 Valioso pronto
 
