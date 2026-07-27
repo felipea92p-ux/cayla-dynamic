@@ -19,6 +19,16 @@ import {
 // Ayudita para escribir marcajes legibles: hora de Lima → instante real (Lima = UTC-5).
 const enLima = (fecha: string, hora: string) => `${fecha}T${hora}:00-05:00`;
 
+// ESPEJO: supabase/tests/90_espejo_de_la_maquina_de_estados.test.sql tiene estos
+// mismos casos, con los mismos nombres, contra fn_siguiente_tipo_esperado.
+//
+// "Qué marca toca ahora" se decide en dos sitios: aquí (dibuja los botones del
+// terminal) y en la base (acepta o rechaza la marca al llegar). Si divergen, el
+// terminal ofrece un botón que el servidor va a rechazar y la persona se queda
+// sin poder marcar. Pasó el 26-07-2026 con las marcas anuladas: se arregló la
+// versión SQL y esta se quedó atrás.
+//
+// Si tocas un caso aquí, tócalo allí.
 describe("determinarSiguienteAccion — qué marca toca ahora", () => {
   it("sin ningún marcaje, lo único posible es ENTRAR", () => {
     expect(determinarSiguienteAccion([])).toEqual({ modo: "unico", tipo: "entrada" });
