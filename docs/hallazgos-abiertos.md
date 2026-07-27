@@ -1,0 +1,420 @@
+# Hallazgos abiertos
+
+Catálogo vivo de lo que está mal y aún no se ha arreglado. **Se tacha y se borra
+según se cierra** — cuando quede vacío, se borra el archivo. El estado general y
+el orden de trabajo viven en [`estado.md`](estado.md).
+
+Salió de una auditoría por áreas con verificación adversaria: diez revisores
+independientes sobre el sistema, y cada hallazgo grave pasado por otro agente
+cuyo único trabajo era demostrar que era falso. De 42 candidatos sobrevivieron
+34; los 8 refutados están al final, con el motivo, para no volver a levantarlos.
+
+Cada uno lleva su evidencia. Antes de arreglar, **reproduce**: si el caso no se
+reproduce hoy, táchalo y anota por qué.
+
+
+---
+
+## Critica — 14
+
+### 1. El sueldo fijo paga el mes completo aunque la persona solo estuviera 6 días — y S/0 si cesó sin marcar
+
+`planilla-dinero` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0047_sueldo_fijo.sql:148 (y su redefinición vigente en 0069_feriado_descanso_sustitutorio.sql:355) — rama `case when pe.sueldo_fijo then coalesce(sf.salario, 0)` de fn_planilla_calcular
+
+**Qué pasa:** Para quien tiene `sueldo_fijo` el pago base es el salario mensual íntegro, sin prorratear por los días que la persona realmente estuvo vinculada dentro del periodo. Quien ingresa el día 25 de un periodo de 30 cobra el mes entero; quien cesa el día 3 cobra el mes entero. Y el espejo: si cesó y no tiene ninguna jornada en el periodo (lo normal en dirección y socios, que no marcan), el CTE `pers` la deja fuera —no está activa, no tiene jornadas, no tiene movimientos— y su último mes no se paga en absoluto, sin fila y sin aviso. Peor: fn_provisiones SÍ prorratea la misma situación día a día (0048:81-94, `generate_series(fecha_ingreso, as_of)` con salario/días del mes). Las dos funciones que reparten el mismo dinero discrepan entre sí, y como sueldo fijo lo tienen los salarios más altos del sistema, un solo evento vale miles de soles.
+
+**Arreglo:** Prorratear la rama de sueldo fijo por los días del periodo en que la persona estuvo efectivamente vinculada: `sf.salario * (días vinculados dentro del periodo) / v_dias`, tomando el inicio como `greatest(p_ini, pe.fecha_ingreso)` y el fin como `least(p_fin, fecha_cese)` (la 0086 ya trae `fecha_cese`; mientras no esté en producción, usar `fecha_estado_cambio` cuando el estado sea inactivo). Y ampliar el CTE `pers` para incluir a las personas con sueldo fijo y salario vigente que se solapen con el periodo aunque no tengan jornadas, para que el mes de cese aparezca. Alinear el criterio con el que fn_provisiones ya usa: si las dos funciones no comparten la misma definición de «días vinculados», vuelven a divergir.
+
+### 2. Otorgar un descanso sustitutorio cambia el total de un periodo YA PAGADO, sin lanzar error
+
+`planilla-dinero` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0072_descanso_sustitutorio_acuerdo_previo.sql:29 — fn_otorgar_descanso_sustitutorio (y fn_quitar_descanso_sustitutorio); consumido por fn_planilla_calcular en 0069:160-190
+
+**Qué pasa:** fn_planilla_calcular lee `feriados_descanso_sustitutorio` en vivo: cuando el estado es OTORGADO anula la sobretasa del feriado. fn_otorgar_descanso_sustitutorio no consulta `periodos_planilla` en ninguna línea, así que se puede otorgar un descanso por un feriado que cae dentro de un periodo cerrado y pagado. El recálculo baja el total y la boleta reimpresa (que también sale de fn_proyeccion_periodo, en vivo) ya no coincide con lo que se transfirió. Es la única puerta de esta familia que quedó sin candado: fn_agregar_marcaje, fn_anular_marcaje, fn_corregir_marca, fn_eliminar_marcaje, fn_reactivar_marcaje, fn_set_vacaciones, fn_set_feriado, fn_quitar_feriado, fn_set_salario, fn_set_fecha_ingreso y fn_set_objetivos todas la tienen, con el mismo mensaje «Reabre el periodo primero».
+
+**Arreglo:** Añadir a fn_otorgar_descanso_sustitutorio y a fn_quitar_descanso_sustitutorio el mismo guard que ya usan las otras once funciones, evaluado sobre `p_fecha_feriado`: `if exists (select 1 from periodos_planilla where estado='pagado' and p_fecha_feriado between fecha_ini and fecha_fin) then raise exception 'Ese feriado cae en un periodo ya PAGADO...' end if;`. Es la misma forma que la 0069 aplicó a fn_set_feriado — copiar textual mantiene el mensaje consistente.
+
+### 3. Llegar 3 horas tarde no cuenta como tardanza y encima paga el bono de puntualidad
+
+`asistencia-jornadas` · ⚖️ decisión injusta · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0081_marcas_se_anulan_no_se_borran.sql:174 (fn_recalcular_jornada) · consumidores: 0053_levantar_tardanza.sql:121-122 (fn_calcular_bono_puntualidad), 0067_tardanzas_faltas_as_of.sql:52 (fn_tardanzas_resumen), 0059_generar_tardanza.sql:66 (fn_expediente_generar_tardanza)
+
+**Qué pasa:** fn_recalcular_jornada borra la tardanza (la deja en NULL) cuando pasa de 180 minutos, con el comentario "implausible: turno distinto, no medible". Los tres consumidores filtran por `minutos_tarde is not null`, así que un NULL no significa "revisar" sino "no hubo tardanza": el día desaparece del semáforo, desaparece del expediente disciplinario y —lo peor— sale del denominador Y del numerador del bono de puntualidad, que exige `tarde_total = 0`. Resultado: cuanto más tarde llega una persona, menos la registra el sistema. El día tampoco entra a faltas (sí marcó), así que no queda rastro en ninguna parte.
+
+**Arreglo:** Dejar de destruir el dato. En fn_recalcular_jornada guardar siempre `minutos_tarde` real y, cuando pase de 180 min, sellar el día como "por revisar" (el mecanismo de estado_revision que ya existe desde la 0068/0084) en vez de poner NULL — así el caso "turno distinto" que motivó el cap se resuelve pidiendo revisión humana, no borrando. Mientras tanto, mínimo: en fn_calcular_bono_puntualidad un día con `minutos_tarde is null` y `horas_trabajadas > 0` debe descalificar el bono en lugar de ignorarse, y fn_tardanzas_resumen debe listar esos días como "sin medir" para que alguien los mire.
+
+### 4. Una salida después de medianoche crea una jornada de 21.67 horas y borra las horas reales del día anterior
+
+`asistencia-jornadas` · 💰 dinero · arreglo de **dias**
+
+**Dónde:** supabase/migrations/0068_marcajes_fuera_de_orden.sql:161 (fn_registrar_marcaje: v_fecha = fecha calendario de la marca) · supabase/migrations/0081_marcas_se_anulan_no_se_borran.sql:108,118 (fn_recalcular_jornada agrupa por fecha calendario) · apps/web/lib/terminal/estado-dia.ts:10-25 (el terminal so…
+
+**Qué pasa:** Todo se agrupa por la fecha calendario de cada marca. Quien cierra tienda o taller pasada la medianoche: (a) su `salida_final` real es RECHAZADA por fn_registrar_marcaje —"tipo salida_final no válido en el estado actual (se esperaba entrada)"— porque el día nuevo no tiene marcas; (b) el terminal, que también decide con las marcas de hoy, le ofrece "entrada", y esa entrada de madrugada queda como el inicio de un día nuevo; (c) el auto-cierre cierra ese día nuevo a la hora programada de salida, produciendo una jornada de 21.67 h; (d) el día anterior queda sin salida y el auto-cierre lo cierra a la hora programada, perdiendo las horas reales; (e) cuando esa persona llega a su turno real esa tarde, su entrada verdadera también se rechaza porque el sistema la cree adentro desde las 00:20.
+
+**Arreglo:** Que la jornada, no el calendario, sea la unidad. En fn_registrar_marcaje: si la persona tiene una jornada abierta del día anterior y la marca entrante es una salida/retorno dentro de una ventana razonable (p.ej. ≤ 8 h desde la última marca), atribuirla a la fecha de esa jornada abierta en vez de a la fecha calendario — y espejar la misma regla en `determinarSiguienteAccion` (packages/shared) y en estado-dia.ts, que hoy solo consulta desde las 00:00. Parche inmediato mientras tanto (minutos): un check en fn_recalcular_jornada que selle como "por revisar" toda jornada de más de 16 h en vez de dejarla pasar al pago.
+
+### 5. El generador del memo cuenta como falta los días de una suspensión ya cumplida y los días de descanso sustitutorio
+
+`disciplina-legal` · ⚖️ decisión injusta · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0060_generar_falta.sql:18-63 (fn_falta_contadores), rama sched líneas 40-54
+
+**Qué pasa:** La 0070 enseñó a las faltas que el descanso sustitutorio no es inasistencia, y la 0079 hizo lo mismo con los días de suspensión. Las dos corrigieron fn_faltas (el detalle) y fn_faltas_resumen (el semáforo), pero NINGUNA tocó fn_falta_contadores, que es la función que fn_expediente_generar_falta usa para armar los hechos del documento. Resultado: la pantalla dice 'justificado — suspensión' y el papel que se imprime y se entrega lista ese mismo día como inasistencia injustificada. Es exactamente el non bis in idem que el encabezado de la 0079 describe ('la sanción que ya se cumplió se convierte en la prueba para la siguiente'), sobreviviendo justo donde más duele: en el documento.
+
+**Arreglo:** Borrar fn_falta_contadores y hacer que fn_expediente_generar_falta consuma la MISMA definición de falta que el semáforo (fn_faltas_resumen / fn_faltas), parametrizada por persona y fecha desde. Mientras eso se hace: copiar a fn_falta_contadores las dos ramas que le faltan — fn_dia_suspendido(p_persona_id, ev.fecha) y feriados_descanso_sustitutorio en estado PENDIENTE/OTORGADO — dentro del CASE de `sched`. Dos definiciones de 'falta' en el mismo sistema es la causa raíz: mientras existan, la próxima corrección volverá a aplicarse solo a la mitad. Revisar además los documentos ya firmados cuyos hechos incluyan días cubiertos por una suspensión o un descanso sustitutorio.
+
+### 6. La rama del art. 25-h emite imputaciones ilimitadas sobre exactamente los mismos hechos
+
+`disciplina-legal` · ⚖️ decisión injusta · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0060_generar_falta.sql:94-101 (rama art. 25-h) vs. línea 108-110 (el candado, que solo vive en la rama else)
+
+**Qué pasa:** fn_expediente_generar_falta tiene dos caminos. En el de escalación sí verifica 'Ya hay una imputación vigente' antes de generar. En el de los umbrales del art. 25-h (4 consecutivas / 6 en 30 d / 16 en 180 d) no verifica nada: toma todas las faltas de los últimos 180 días 'hayan sido o no sancionadas' y crea una imputación. Como esas faltas siguen dentro de la ventana de 180 días después de firmar, cada nueva llamada al botón 'Generar borrador' produce otra imputación idéntica. El único freno es el chequeo de borrador pendiente, que se levanta en cuanto se firma el anterior.
+
+**Arreglo:** Subir el chequeo de imputación vigente a antes del if de la línea 97, para que gobierne las dos ramas. Y en la rama del art. 25-h exigir que exista al menos un hecho posterior al periodo_hasta de la última imputación firmada: si no lo hay, no hay nada nuevo que imputar. La ley permite mirar el historial completo para probar el umbral; no permite volver a imputar el mismo hecho.
+
+### 7. Cualquier sesión con login —incluida la del terminal de tienda— lee la planilla completa con todos los sueldos
+
+`seguridad-permisos` · 🔓 datos expuestos · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0076_cerrar_ejecucion_anonima.sql:79 (bucle de grant masivo) · función fn_planilla_calcular(date,date,uuid), última definición en supabase/migrations/0069_feriado_descanso_sustitutorio.sql:235
+
+**Qué pasa:** fn_planilla_calcular es SECURITY DEFINER y no tiene ninguna comprobación de permiso adentro. Sus tres hermanas sí la tienen (fn_provisiones, fn_proyeccion_planilla y fn_simular_planilla lanzan 'Solo un administrador o líder…'); fn_simular_planilla es exactamente un envoltorio que valida y después llama a fn_planilla_calcular. El guard se puso en el envoltorio, no en el núcleo. Las migraciones 0025, 0026 y 0027 lo compensaban con 'revoke execute … from public, anon, authenticated'. El bucle de la 0076 recorre TODAS las funciones de public y ejecuta 'grant execute … to authenticated' sin excepciones: deshizo ese revoke. El comentario de la 0076 (línea 41) dice 'Esto NO cambia lo que puede hacer un usuario con sesión' — es cierto para las funciones que estaban abiertas por el EXECUTE de PUBLIC, y falso para las dos que estaban revocadas a propósito (fn_planilla_calcular y fn_objetivos_sync_mes, revocada en 0032:129). La 0076 está aplicada en producción desde el 26-07-2026 según docs/estado.md. Devuelve por persona: nombre, sede, rango, salario_ref, pago_base, bonos, descuentos, total y las tres provisiones.
+
+**Arreglo:** Dos cosas, no una. (a) Meter el guard DENTRO de fn_planilla_calcular: 'if fn_es_admin_o_lider() is not true then raise exception …' — el revoke solo no basta, porque el próximo grant masivo lo vuelve a abrir; el guard adentro es el que no se puede deshacer por accidente. Ojo: fn_simular_planilla la llama y también fn_periodos/fn_proyeccion_periodo, así que hay que confirmar que todos los que la invocan pasan el guard (todos son de admin). (b) Revocar de authenticated fn_planilla_calcular y fn_objetivos_sync_mes, y añadir a la 0076 una lista negra explícita para que un futuro bucle nunca vuelva a otorgarlas. Verificación en el SQL Editor de producción: select has_function_privilege('authenticated','fn_planilla_calcular(date,date,uuid)','EXECUTE');
+
+### 8. Las vacaciones no se pagan: la planilla no sabe que existen, y la pantalla promete lo contrario
+
+`vacaciones-feriados` · 💰 dinero · arreglo de **dias**
+
+**Dónde:** supabase/migrations/0069_feriado_descanso_sustitutorio.sql (fn_planilla_calcular, definición vigente) + apps/web/app/(admin)/admin/vacaciones/page.tsx:170-172
+
+**Qué pasa:** fn_planilla_calcular paga solo horas marcadas y no consulta la tabla `vacaciones` en ninguna línea (no hay ni una referencia en su código ni una clave de vacaciones en el JSON que devuelve). Quien se va de vacaciones no marca, así que esos días valen S/0. Peor: como el feriado se acredita con `7.5 × horas_mes / base_horas`, estar de vacaciones también le recorta el pago del feriado del mes. Registrar las vacaciones en el sistema no cambia ni un centavo del cálculo; el único camino es que alguien recuerde agregar a mano un movimiento con categoría 'vacaciones' (0044), y nada en la pantalla de Planilla avisa que en ese periodo hubo vacaciones. La 0042 lo dejó anotado como 'se conecta después' y nunca se conectó, pero la pantalla ya le dice a quien opera que sí está resuelto: «Marcar aquí las vacaciones evita dos problemas: que la persona figure como falta todos esos días, y que se le pague de menos (las vacaciones son descanso remunerado)».
+
+**Arreglo:** Dos pasos, en este orden. (1) Inmediato, minutos: corregir el texto de la pantalla para que diga la verdad — registrar vacaciones evita la falta, y el pago de esos días se agrega como movimiento categoría 'vacaciones'. Mentirle a quien opera es peor que no decir nada. (2) De fondo: que fn_planilla_calcular acredite los días de vacaciones dentro del periodo con la remuneración vacacional (un treintavo del sueldo por día, como ya hace fn_vacaciones_truncas en la 0087, no la base de 6.5 h), y que devuelva `dias_vacaciones` y `monto_vacaciones` como componentes separados y auditables. Mientras eso no exista, agregar en la pantalla de Planilla un aviso por persona con días de vacaciones en el periodo y monto sugerido, para que el paso manual no dependa de la memoria.
+
+### 9. La ficha personal se borra entera si su consulta falló y alguien pulsa Guardar
+
+`frontend-admin` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** apps/web/app/(admin)/admin/datos-personales/page.tsx:52-60 (carga sin verificar error) y :83-105 (guardar)
+
+**Qué pasa:** `cargar()` no mira el error de ninguna de sus tres consultas. Si la de `datos_personales` falla (red, RLS, caché de PostgREST), `fichas` queda como un Map vacío: la lista marca a TODAS las personas con el sello ámbar «sin ficha», el contador dice «N sin ficha» y al elegir a alguien el formulario se llena con VACIO. Nada avisa de que hubo un fallo. Quien esté frente a la pantalla concluye lo razonable — «a esta le falta la ficha» — teclea lo que tiene a mano y pulsa «Guardar ficha». `fn_set_datos_personales` sobrescribe las 12 columnas con lo enviado, y lo que va en null se limpia (la propia migración lo dice en un comentario). Se pierden número de cuenta, banco, nombre del DNI, dirección, celular y los tres enlaces de documentos. La tabla no guarda historial: solo `actualizado_por`/`actualizado_at`. No hay forma de recuperarlo desde la app. La misma pantalla de Equipo sí se protege de esto («si la carga falló, escribirlo pisaría el área real» — equipo/page.tsx:269-285); Datos personales no.
+
+**Arreglo:** Dos cambios en `cargar()`: (a) destructurar `error` de las tres consultas y, si la de `datos_personales` falló, poner un estado `fichasOk = false`, mostrar el aviso rojo y NO pintar el sello «sin ficha» (que hoy es una afirmación que no se puede sostener); (b) deshabilitar el botón «Guardar ficha» mientras `fichasOk` sea false, con el mismo texto que usa Equipo («no se pudo cargar la ficha actual — deshabilitado para no pisarla»). Aparte, y con más valor a largo plazo: que el guardado envíe solo los campos que cambiaron, o que el RPC distinga «vacío» de «no enviado» — hoy un formulario en blanco es indistinguible de un borrado intencional.
+
+### 10. Otorgar un descanso sustitutorio cambia el monto de un periodo YA PAGADO
+
+`esquema-integridad` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0072_descanso_sustitutorio_acuerdo_previo.sql:29 (fn_otorgar_descanso_sustitutorio) y 0069_feriado_descanso_sustitutorio.sql:1 (tabla feriados_descanso_sustitutorio); pantalla apps/web/app/(admin)/admin/feriados/page.tsx:251 y :282
+
+**Qué pasa:** El esquema permite que exista una fila de feriados_descanso_sustitutorio cuya fecha_feriado cae dentro de un periodos_planilla con estado='pagado'. fn_planilla_calcular no guarda ningún monto: recalcula todo en vivo desde jornadas, feriados y descansos sustitutorios cada vez que se abre la pantalla. Por eso 12 funciones (fn_set_feriado, fn_set_salario, fn_set_turno, fn_corregir_marcaje, fn_anular_marcaje, fn_set_vacaciones…) llevan el candado de 'periodo pagado' desde la 0037. fn_otorgar_descanso_sustitutorio y fn_quitar_descanso_sustitutorio no lo llevan, y son las dos que más mueven la aguja: OTORGADO anula la sobretasa del feriado laborado, quitarlo la devuelve. Es un botón normal de la pantalla Feriados, con carga por lote y fecha de feriado libre — nadie tiene que forzar nada.
+
+**Arreglo:** Dejar de defender la regla función por función y ponerla en la tabla. Un trigger BEFORE INSERT/UPDATE/DELETE sobre feriados_descanso_sustitutorio que rechace cualquier fila cuya fecha_feriado o fecha_descanso_sustitutorio caiga en un periodo 'pagado' cierra el hueco hoy; lo que de verdad corresponde es el mismo trigger sobre todas las tablas que fn_planilla_calcular lee (jornadas, marcajes, feriados, vacaciones, asignaciones_salario, movimientos_planilla, feriados_descanso_sustitutorio), para que el candado sea una propiedad del dato y no de quien lo escribe. Mientras tanto, agregar el `if exists (… estado='pagado' …) then raise` a las dos funciones.
+
+### 11. El semáforo disciplinario cuenta HOY como falta después de las 7pm y salta a ROJO
+
+`esquema-integridad` · ⚖️ decisión injusta · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0079_suspension_no_es_falta.sql:163 (fn_faltas_resumen, `coalesce(p_as_of, current_date) - 1 as fin`) contra 0079:84 (fn_faltas, que sí usa `(now() at time zone 'America/Lima')::date - 1`); llamada sin p_as_of desde admin/disciplina/page.tsx:84, admin/dashboard/page.tsx:128 y adm…
+
+**Qué pasa:** El servidor de Supabase corre en UTC — el propio repo lo documenta en 0034:82 y 0035:1. `current_date` desnudo resuelve en UTC, así que entre las 19:00 y las 24:00 hora de Lima el servidor ya cree que es mañana. fn_faltas_resumen define su ventana como 'hasta ayer' (`current_date - 1`) justamente para no acusar a nadie por el día en curso; con la hora de UTC ese 'ayer' es HOY. La misma migración 0079 arregló fn_faltas (el detalle) con la hora de Lima y dejó fn_faltas_resumen (los contadores) con current_date. Resultado: cada tarde, la pantalla Disciplina se contradice consigo misma y los contadores que disparan el umbral legal del D.S. 003-97-TR (4 consecutivas / 6 en 30 d / 16 en 180 d) cuentan un día que todavía no terminó y cuya justificación probablemente se cargue mañana.
+
+**Arreglo:** Reemplazar los dos `current_date` de fn_faltas_resumen por `(now() at time zone 'America/Lima')::date`, igual que ya hace fn_faltas doce líneas más arriba en el mismo archivo. Y para que no vuelva a pasar una cuarta vez: prohibir `current_date` en el esquema con una prueba pgTAP que recorra pg_proc y falle si alguna función del sistema lo usa desnudo — es la tercera vez que este mismo bug entra (0034, 0035, y ahora 0079).
+
+### 12. fn_registrar_marcaje no tiene ni una prueba, y por ahí la cola offline reescribe una planilla ya pagada
+
+`pruebas-y-ci` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/tests/ (falta el archivo) · fn_registrar_marcaje, definida por última vez en supabase/migrations/0068_marcajes_fuera_de_orden.sql
+
+**Qué pasa:** Los 15 archivos de prueba insertan marcajes con INSERT directo a la tabla; ninguno llama a fn_registrar_marcaje. Es la única función que el terminal usa de verdad, la que CLAUDE.md declara puerta única de escritura, y la única de la familia (anular, corregir, confirmar, reactivar, agregar todas lo tienen) que NO comprueba si la fecha cae en un periodo ya pagado. Una Mac mini que estuvo sin internet vacía su cola con marcas de días ya pagados, entran sin resistencia, el trigger recalcula la jornada, y la planilla de un periodo cerrado cambia de número en silencio. La regla 'nada puede alterar un periodo de planilla ya pagado' está blindada en cinco puertas y abierta en la sexta, que es la que más se usa.
+
+**Arreglo:** Archivo nuevo supabase/tests/91_registrar_marcaje.test.sql con, como mínimo: (1) throws_like(fn_registrar_marcaje con fecha dentro de un periodo 'pagado', '%PAGADO%') — hoy falla, y es la prueba que obliga a poner el candado en fn_registrar_marcaje igual que en las otras cinco; (2) idempotencia: dos llamadas con el mismo client_uuid devuelven el mismo marcaje y dejan una sola fila; (3) reconciliación: una salida_final real que llega después de un auto_cierre del mismo día reemplaza la sintética, no la duplica; (4) marca atrasada de la cola offline que encaja bien en la secuencia NO sella el día. Luego agregar el bloque de periodo pagado a fn_registrar_marcaje en una migración.
+
+### 13. Cesar y reactivar a una persona (mig 0086, ya en main) sin ninguna prueba: al reactivarla la planilla le paga S/0.00
+
+`pruebas-y-ci` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0086_fecha_de_cese.sql:145-147 y :168-182 · supabase/tests/ (no existe 86_*.test.sql)
+
+**Qué pasa:** fn_cesar_persona cierra los tramos abiertos: `update asignaciones_salario set vigente_hasta = p_fecha_cese` y lo mismo en horarios_asignados. fn_reactivar_persona devuelve estado='activo' y limpia fecha_cese, pero NO vuelve a abrir esos dos tramos. Un cese registrado por error — el caso exacto para el que la propia migración dice que se conserva reactivar, 'porque a veces la baja fue un error' — deja a la colaboradora activa, marcando todos los días, y sin salario vigente ni horario vigente: fn_planilla_calcular le paga cero, y como tampoco tiene horario el motor de faltas y tardanzas deja de verla. La migración se commiteó a main sin un solo archivo de prueba (no hay 84, 85, 86 ni 87 en supabase/tests/).
+
+**Arreglo:** Archivo nuevo supabase/tests/86_cese_y_reactivacion.test.sql con: (1) tras cesar, salario y horario quedan cerrados en la fecha de cese; (2) tras reactivar, is(vigente_hasta, null) en ambos — esta aserción falla hoy y es la que fuerza el arreglo; (3) tras reactivar y trabajar el mes siguiente, is(pago_base, sueldo íntegro); (4) throws_like al intentar cesar dentro de un periodo pagado; (5) throws_like al registrar una marca posterior al cese (fn_marcaje_no_posterior_al_cese, hoy también sin prueba). El arreglo en fn_reactivar_persona es reabrir los tramos que el cese cerró en esa misma fecha.
+
+### 14. Corregir un auto-cierre desde Correcciones deja DOS salidas finales y paga horas que no existieron
+
+`consistencia-deuda` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0037_candado_periodo_pagado.sql:74 (fn_agregar_marcaje, definición viva) · apps/web/app/(admin)/admin/correcciones/page.tsx:324
+
+**Qué pasa:** Hay dos caminos para meter una salida final: fn_registrar_marcaje (terminal) y fn_agregar_marcaje (botón «Agregar marcaje» de Correcciones). El primero RECONCILIA: si el cron nocturno ya inventó una salida sintética ese día, la reemplaza. El segundo simplemente inserta. Resultado: la encargada arregla el día de alguien que olvidó marcar salida, escribe la hora real, la pantalla dice «Corrección guardada y registrada en la auditoría» — y el día se queda con la salida real Y la del auto-cierre. El recálculo se queda con la más tardía, que es la inventada.
+
+**Arreglo:** Mover el bloque de reconciliación de fn_registrar_marcaje (el que reemplaza la salida_final de origen 'auto_cierre' del mismo día) a fn_agregar_marcaje, o mejor: que fn_agregar_marcaje delegue en fn_registrar_marcaje con p_origen='admin_correccion' en vez de tener su propio INSERT. Segunda opción preferible: elimina la copia en vez de sincronizarla. Añadir prueba pgTAP que compare las dos vías con el mismo caso y falle si las horas difieren.
+
+
+---
+
+## Alta — 20
+
+### 1. El bono de puntualidad se mide contra los días transcurridos, pero se escribe como dinero real
+
+`planilla-dinero` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0034_bono_puntualidad.sql:85 (redefinida en 0053_levantar_tardanza.sql:97) — `v_dias_periodo := least(v_fin, hoy) - v_ini + 1`; el insert a movimientos_planilla en 0053:~130; texto del diálogo en apps/web/app/(admin)/admin/planilla/page.tsx:783
+
+**Qué pasa:** El umbral de asistencia del 51 % se divide entre los días ya transcurridos del periodo, no entre los días del periodo. Eso está comentado como intencional para que el número «se vea» mientras el mes corre — pero la función no calcula una vista previa: hace INSERT en `movimientos_planilla`, que es la tabla que suma al total y que fn_periodo_pagado congela tal como esté. Nada obliga a recalcular antes de pagar. Si alguien pulsa el botón el día 3 para curiosear y no vuelve a pulsarlo, los S/60 quedan puestos y se pagan. Encima el diálogo de confirmación de la pantalla dice literalmente «Esto calcula el bono de puntualidad de todo el periodo», que es lo contrario de lo que hace: quien lo lee no tiene forma de saber que el resultado depende del día en que pulsó.
+
+**Arreglo:** Separar las dos cosas que hoy están enredadas: el vistazo y el pago. Que fn_calcular_bono_puntualidad reciba un parámetro `p_solo_simular boolean default true` y con `true` devuelva el JSON sin tocar movimientos_planilla; que el INSERT solo ocurra con `false` y únicamente cuando `v_fin <= hoy` (periodo terminado), usando entonces el denominador completo `v_fin - v_ini + 1`. Mientras eso llega, el arreglo de minutos es que fn_periodo_pagado recalcule el bono antes de congelar. Y corregir el texto del diálogo: hoy promete «todo el periodo» y entrega «lo que va del periodo».
+
+### 2. El auto-cierre produce horas NEGATIVAS y le descuentan sueldo a quien sí trabajó
+
+`asistencia-jornadas` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0089_lo_que_encontro_la_auditoria_del_26.sql:83-84 (fn_auto_cierre) · supabase/migrations/0081_marcas_se_anulan_no_se_borran.sql:179 (fn_recalcular_jornada)
+
+**Qué pasa:** fn_auto_cierre estampa la salida sintética en `fecha + hora_salida programada` sin compararla con las marcas reales del día. Si la persona entró DESPUÉS de su hora programada de salida (turno equivocado, entró en la tarde para un evento nocturno o un cierre de inventario) y olvidó marcar su salida, el auto-cierre pone la salida ANTES de la entrada. fn_recalcular_jornada resta sin ningún piso: `salida − entrada` da negativo y se guarda. No hay constraint en `jornadas` que lo impida, y fn_planilla_calcular hace `coalesce(horas_trabajadas, 0)` y las suma tal cual: el día trabajado RESTA horas del mes.
+
+**Arreglo:** Dos líneas. En fn_auto_cierre: `v_ts_cierre := greatest((fecha + hora_salida) at time zone 'America/Lima', (select max(timestamp_marca) ...))` — la salida inventada nunca puede ser anterior a una marca real. Y un constraint en `jornadas`: `check (horas_trabajadas is null or horas_trabajadas >= 0)`, porque un número negativo de horas es un estado que no debe poder existir, no algo que se valide en el código.
+
+### 3. El cron de auto-cierre reescribe periodos de planilla YA PAGADOS
+
+`asistencia-jornadas` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0089_lo_que_encontro_la_auditoria_del_26.sql:31-129 (fn_auto_cierre, sin ninguna mención a periodos_planilla) · supabase/migrations/0068_marcajes_fuera_de_orden.sql:94 (fn_registrar_marcaje, ídem) · fn_periodo_pagado (marca pagado sin verificar nada)
+
+**Qué pasa:** fn_set_turno, fn_set_descanso, fn_quitar_turno, fn_set_horario_semanal, fn_agregar_marcaje, fn_anular_marcaje, fn_corregir_marcaje, fn_reactivar_marcaje, fn_eliminar_marcaje y fn_confirmar_auto_cierre todas verifican `periodos_planilla.estado = 'pagado'` antes de escribir. Las dos únicas que NO lo hacen son las dos que corren sin una persona delante: fn_registrar_marcaje (cola offline del terminal) y fn_auto_cierre (cron cada 15 min, migración 0007:118). Una marca rezagada de la cola offline con fecha dentro de un periodo pagado se acepta, deja la jornada 'abierta', y el siguiente barrido del cron le inventa una salida final — todo dentro del periodo pagado. Como los montos pagados no se congelan en ninguna tabla (fn_planilla_calcular recalcula desde `jornadas` cada vez), el número de una planilla ya pagada cambia solo.
+
+**Arreglo:** Mismo candado que ya tienen las otras diez funciones, en los dos caminos automáticos. En fn_auto_cierre: dentro del loop, `continue` si la fecha de la candidata cae en un periodo 'pagado', dejando en su lugar una fila en `alertas` para que alguien lo vea (avisar, no romper el cron). En fn_registrar_marcaje: aceptar igual la marca —jamás perder una marca real, ese es el criterio de la 0068— pero sellarla `pendiente_revision` y alertar, en vez de dejar que recalcule en silencio. Y en fn_periodo_pagado, negarse a marcar PAGADO si quedan jornadas 'abierta'/'en_pausa'/'auto_cerrada_pendiente' en el rango: es el candado que estado.md ya tiene anotado como acordado y sin construir.
+
+### 4. Trabajar un feriado genera tardanzas que empujan hacia la amonestación
+
+`asistencia-jornadas` · ⚖️ decisión injusta · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0067_tardanzas_faltas_as_of.sql:25-52 (fn_tardanzas_resumen) · supabase/migrations/0059_generar_tardanza.sql:66 (fn_expediente_generar_tardanza) · comparar con fn_faltas, que sí excluye feriados
+
+**Qué pasa:** fn_recalcular_jornada no conoce los feriados: en un feriado el horario_por_dia sigue vigente, así que mide la tardanza contra la hora normal de entrada. Y fn_tardanzas_resumen —el semáforo que decide 'aviso' o 'amonestacion'— solo excluye personas inactivas, sueldo_fijo, fuera de planilla y días con justificación previa; no excluye feriados ni vacaciones. fn_faltas sí los excluye explícitamente. Las dos mitades del mismo motor disciplinario aplican reglas distintas: la persona que vino voluntariamente un feriado (y a la que se le paga la sobretasa) acumula tardanzas por llegar tarde a un día en el que no tenía obligación de venir. Es exactamente el falso positivo que el proyecto define como el peor error, y alimenta un expediente que la ley (D.S. 003-97-TR art. 25) exige que sea sólido.
+
+**Arreglo:** Copiar la exclusión que fn_faltas ya tiene, a las tres funciones que cuentan tardanzas (fn_tardanzas_resumen, fn_expediente_generar_tardanza, fn_calcular_bono_puntualidad): no contar un día que sea feriado sin turno explícito asignado, ni un día de vacaciones o descanso sustitutorio. Si el feriado tiene turno explícito asignado (se le programó trabajar), la tardanza sí es medible — igual criterio que faltas, para que las dos mitades del motor digan lo mismo.
+
+### 5. La suspensión se calcula en días de calendario: una 'suspensión de 3 días' desde el viernes es 1 día real
+
+`disciplina-legal` · ⚖️ decisión injusta · arreglo de **horas**
+
+**Dónde:** apps/web/app/(admin)/admin/disciplina/page.tsx:169-179 (guardarDias → addDias(desde, dias - 1)) · supabase/migrations/0059_generar_tardanza.sql:82-84 (default current_date + 1)
+
+**Qué pasa:** El panel fija suspension_hasta sumando días de calendario y el generador propone por defecto 'mañana', sin preguntar si a esa persona le tocaba trabajar. Una suspensión sin goce de haber que cae en el día de descanso no es una sanción: la persona no deja de trabajar nada ni deja de cobrar nada. La 0075 se escribió justo para esto (documenta el caso real de Mateo, 25/07/2026, a quien le tocó un sábado que no trabaja) y aporta fn_dias_suspension / fn_es_dia_laborable — pero no está aplicada en producción y, aunque lo estuviera, ningún archivo de apps/web la llama. El memo entonces imprime 'SUSPENSIÓN SIN GOCE DE HABER por 3 día(s), del 24 al 26 de julio' cuando el efecto real fue un solo día.
+
+**Arreglo:** Aplicar la 0075 y hacer que guardarDias llame a fn_dias_suspension(persona, desde, dias) en vez de addDias: la función devuelve las fechas laborables concretas y el panel muestra el salto ('del jueves al lunes, se salta el descanso'). Mientras tanto, la pantalla debe al menos advertir cuando el rango propuesto incluye un día no laborable, porque hoy la encargada no tiene forma de darse cuenta.
+
+### 6. El guard del terminal en fn_registrar_marcaje cae abierto si el terminal no tiene auth_user_id: cualquiera fabrica marcas ajenas
+
+`seguridad-permisos` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0082_todo_el_sistema_conoce_las_anuladas.sql:315 (definición vigente de fn_registrar_marcaje) · columna terminales.auth_user_id, nullable
+
+**Qué pasa:** El único candado que impide que una sesión cualquiera se haga pasar por un terminal es 'if auth.uid() is not null and v_terminal_auth is not null and auth.uid() <> v_terminal_auth then raise'. Son tres condiciones unidas por AND: si terminales.auth_user_id es null, la segunda es falsa y no se lanza nada — la sesión pasa. Es la misma familia del 'if not X' que la 0078 vino a corregir, pero escrita al revés: aquí el null no viene del rol sino de una columna nullable. Y terminales.auth_user_id ES nullable, sin constraint que lo ate a activo. No hay pantalla de administración que cree terminales (no existe ningún .from("terminales") de escritura en apps/web): las filas se insertan a mano en el SQL Editor, y la vinculación (apps/web/app/(terminal)/terminal/vincular/page.tsx) solo hace signInWithPassword — no escribe auth_user_id. O sea: entre que Felipe da de alta un terminal y alguien le asocia su usuario, la fila vive con auth_user_id null y activo=true. Con la marca forjada entra una jornada completa que la planilla paga.
+
+**Arreglo:** Cambiar la condición a que exija identidad en vez de tolerar su ausencia: 'if v_terminal_auth is distinct from auth.uid() then raise exception …' (así el null del terminal también rebota), y cerrar el estado imposible en el esquema — 'alter table terminales add constraint terminal_activo_vinculado check (not activo or auth_user_id is not null)'. Un terminal activo sin dueño no debería poder existir. Antes de aplicar el check, correr en producción: select id, nombre_dispositivo, sede_id from terminales where activo and auth_user_id is null;
+
+### 7. Una encargada de sede puede borrar el horario de su equipo y reescribir las tardanzas de un mes YA PAGADO, sin dejar auditoría
+
+`seguridad-permisos` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** fn_set_horario (supabase/migrations/0015_horario_base_dias_refrigerio.sql:14) y fn_quitar_horario (supabase/migrations/0011_editor_horarios.sql:48)
+
+**Qué pasa:** Las dos recalculan todas las jornadas desde la fecha de vigencia hacia adelante, y ninguna comprueba si esas fechas caen en un periodo pagado. Su gemela fn_set_horario_semanal sí lo comprueba y lanza 'Ese horario tocaría un periodo ya PAGADO'. Es el caso 2 de Brooks: dos funciones que hacen lo mismo, una con candado y otra sin. Además el permiso lo da fn_verificar_corrector, que autoriza a supervisor_sede sobre cualquier persona de su sede — así que no hace falta ser admin. Y ninguna escribe en correcciones_auditoria. Lo que se altera no es cosmético: minutos_tarde alimenta el bono de puntualidad (dinero de un mes ya cerrado) y el expediente disciplinario (D.S. 003-97-TR). Detalle que decide el arreglo: ninguna pantalla las llama — el panel solo usa fn_set_horario_semanal (turnos/page.tsx:336 y :684, horarios/page.tsx:186). Son superficie RPC muerta que sigue con grant a authenticated.
+
+**Arreglo:** Borrar antes que parchear: como ninguna pantalla las usa, lo más limpio es 'drop function fn_set_horario(...)' y 'drop function fn_quitar_horario(...)' — código que no existe no se puede llamar por RPC. Si se prefiere conservarlas, copiarles literalmente el bloque de candado de fn_set_horario_semanal ('if exists (select 1 from periodos_planilla where estado = ''pagado'' and fecha_fin >= p_vigente_desde) then raise …') y hacer que registren en correcciones_auditoria como el resto de las correcciones.
+
+### 8. El descanso sustitutorio cambia el monto de un periodo de planilla YA PAGADO, sin candado y sin rastro
+
+`vacaciones-feriados` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0072_descanso_sustitutorio_acuerdo_previo.sql:36-90 (fn_otorgar_descanso_sustitutorio) y :92-101 (fn_quitar_descanso_sustitutorio)
+
+**Qué pasa:** Marcar un feriado como OTORGADO anula la sobretasa; borrar el registro la devuelve. Ambas funciones mueven el monto del feriado, y ninguna de las dos verifica si la fecha del feriado cae en un periodo `pagado`. Todas sus hermanas sí lo hacen: fn_set_feriado, fn_quitar_feriado, fn_set_vacaciones, fn_quitar_vacaciones, fn_set_descanso y fn_agregar_movimiento levantan la misma excepción. Como `periodos_planilla` no guarda foto de los montos y fn_proyeccion_periodo recalcula desde cero cada vez que se abre la pantalla, lo que la Planilla y la boleta muestran de un mes pagado deja de coincidir con lo que se depositó — y no queda fila en `reversas_pago`, que es el mecanismo de auditoría diseñado justo para esto (0066).
+
+**Arreglo:** Copiar el candado que ya usan fn_set_feriado y fn_quitar_feriado en ambas funciones, comparando contra `fecha_feriado` (y también contra `fecha_descanso_sustitutorio`, porque el día compensatorio no marcado afecta el pago del mes en que cae): si toca un periodo `pagado`, exigir que se reabra primero con fn_revertir_pago, que sí pide motivo y deja rastro.
+
+### 9. El día compensatorio puede caer sobre vacaciones, sobre otro feriado o antes del feriado que compensa
+
+`vacaciones-feriados` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0069_feriado_descanso_sustitutorio.sql:91-158 (fn_dcs_validar_dia_laborable) y :97-155 del trigger trg_dcs_validar_dia
+
+**Qué pasa:** El trigger fue escrito con una intención explícita en su propio comentario: «Un día libre sobre un día que ya era libre no compensa nada: sería regalar la sobretasa a cambio de nada». Pero solo mira el descanso semanal (turno puntual → horario_por_dia → dias_laborables). No consulta la tabla `vacaciones`, no consulta la tabla `feriados`, y no compara la fecha del descanso contra la del feriado. Resultado: se puede compensar un feriado laborado con un día en que la persona ya estaba de vacaciones pagadas, con otro feriado, o incluso con un día seis meses ANTERIOR al feriado que dice compensar. En los tres casos la persona entrega la sobretasa y no recibe descanso alguno, y la compensación es nula ante fiscalización (el D.S. 012-92-TR exige el descanso sustitutorio dentro de la semana siguiente, y por definición después del feriado trabajado).
+
+**Arreglo:** Extender fn_dcs_validar_dia_laborable con las tres verificaciones que faltan, con el mismo mensaje en lenguaje de negocio que ya usa: (a) rechazar si `new.fecha_descanso_sustitutorio` cae dentro de un periodo de `vacaciones` de esa persona; (b) rechazar si esa fecha existe en `feriados`; (c) rechazar si es anterior o igual a `new.fecha_feriado`. Vale la pena además avisar (no bloquear) cuando pasa de una semana del feriado, que es el plazo del D.S. 012-92-TR. Al ser un trigger, protege por igual a la pantalla y a cualquier carga por lotes.
+
+### 10. El CSV de asistencia y el resumen de horas se cortan en 1000 filas sin avisar
+
+`frontend-admin` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** apps/web/app/(admin)/admin/exportar/page.tsx:24-31 · apps/web/app/(admin)/admin/horas/page.tsx:62 · también reporte-sede/page.tsx:92 e incidencias/page.tsx:130-134
+
+**Qué pasa:** Las cuatro consultas piden `jornadas` por rango de fechas sin `.range()`, sin `.limit()` y sin pedir `count`. PostgREST corta la respuesta en `max_rows` y devuelve 200 OK con las primeras N filas: supabase-js no reporta nada, `error` es null. En Exportar la consulta va `.order("fecha")` ascendente, así que lo que se pierde son los días MÁS RECIENTES — el CSV se descarga entero, se abre bien en Excel y simplemente termina antes, sin ninguna marca. Ese archivo es el que va al contador. En Horas no hay `order`, así que las filas que se caen son arbitrarias: el total de horas de gente al azar sale corto, y el botón «Todo el año» es el camino directo al problema. Con ~28 personas que marcan y ~26 días laborables, un mes son ~730 filas: el tope se cruza al pedir dos meses. Hoy hay poco más de un mes de datos en producción, así que esto empieza a fallar en agosto.
+
+**Arreglo:** Paginar: pedir con `.range(desde, desde+999)` en bucle hasta que un lote venga con menos de 1000 filas, o mejor, mover la agregación a un RPC (`fn_horas_resumen(p_desde, p_hasta)`) que devuelva una fila por persona en vez de una por jornada — el resumen de horas ya suma en el cliente algo que Postgres agrega mejor, y una fila por persona nunca se acerca al tope. Como red de seguridad inmediata mientras tanto: pedir `{ count: 'exact' }` y, si `count > filas.length`, bloquear la descarga con un aviso explícito en vez de entregar un archivo incompleto.
+
+### 11. El memo disciplinario en borrador se imprime firmado por Felipe Alvarez / Gerencia General
+
+`frontend-admin` · ⚖️ decisión injusta · arreglo de **minutos**
+
+**Dónde:** apps/web/app/(admin)/admin/disciplina/memo/[id]/page.tsx:49,55,93,208,243-244
+
+**Qué pasa:** `firmante` y `cargoFirmante` arrancan con los valores fijos de la constante EMPRESA («Alvarez Pereyra Felipe Miguel» / «Gerencia General»). Solo se reemplazan si `doc.firmante_id` existe y además la fila de esa persona vuelve en la consulta a `personas`. Un borrador tiene `firmante_id` en null por definición, así que ninguna de las dos condiciones se cumple: el documento se pinta con «De: Alvarez Pereyra Felipe Miguel · Gerencia General» en la cabecera y con el mismo nombre y cargo bajo la línea de firma. Y el botón «Imprimir / Guardar PDF» está activo (se muestra siempre que `doc && !err`), al que se llega con un clic desde el botón «Ver memo» de cada borrador en Disciplina. El aviso de «borrador sin numerar» lleva la clase `no-print`: desaparece justo en el papel. Resultado: se puede imprimir y entregar un acta o amonestación que dice que la suscribió Gerencia General cuando nadie la ha firmado. El comentario de las líneas 50-54 explica que este archivo se cambió precisamente para que el memo no mintiera sobre quién lo suscribió; el valor por defecto sigue mintiendo. La misma ruta se activa cuando la consulta a `personas` falla o cuando RLS no devuelve al firmante (`personas_select_supervisor` solo expone la sede propia): ahí `ps` no se comprueba y `p` queda en null, así que el memo sale además dirigido a «—» con «DNI —» y se sigue pudiendo imprimir.
+
+**Arreglo:** Cuando `doc.firmante_id` sea null, no inventar firmante: dejar la línea «De:» y el bloque de firma en blanco (o «pendiente de firma») y deshabilitar el botón de imprimir con el motivo escrito al lado. Cuando `firmante_id` exista pero su fila no se pueda leer, mostrar el error en pantalla en vez de caer al default. Y quitar `no-print` del aviso de borrador: si de verdad hace falta imprimir un borrador para revisarlo, el papel tiene que decir que es un borrador. Mismo tratamiento para `persona`: sin destinatario no hay documento que imprimir.
+
+### 12. La Hoja de sede no revisa el error de ninguna de sus 8 consultas y se imprime en ceros
+
+`frontend-admin` · ⚖️ decisión injusta · arreglo de **horas**
+
+**Dónde:** apps/web/app/(admin)/admin/reporte-sede/page.tsx:80-143
+
+**Qué pasa:** Ninguna de las ocho consultas de `cargar()` destructura `error` (solo `areasRaw` lo hace, y para pasárselo a `parseAreas`). Si la de `jornadas` falla, `jorPorPersona` queda vacío y `filasCalc` se construye igual: todo el equipo con Días 0, Horas «0h 00m», Tardanzas «—», Sal. antic. «—». `setCargado(true)` se ejecuta pase lo que pase, así que el botón «Descargar PDF» se habilita y la hoja sale a papel diciendo que en esa sede nadie trabajó en el mes. Si la que falla es `fn_tardanzas_resumen` o `fn_faltas_resumen`, la sección «Necesita atención» imprime «Nada pendiente en disciplina. Buena señal.» — un falso negativo justo en el bloque que existe para no dejar pasar nada. Aparte hay una inconsistencia numérica propia: la línea 122 calcula `reales` para excluir los agregados históricos de 2025 (filas con más de 24 h), pero solo la usa para `dias` (:131); `horas`, `tardanzas` y `minTarde` (:132-134) siguen sumando sobre `js`, que los incluye. Al elegir un mes de 2025 la misma persona sale con los días de las jornadas reales y las horas de las jornadas reales MÁS el agregado.
+
+**Arreglo:** Aplicar el mismo patrón que ya usan Horas e Incidencias: destructurar `error` de `personas` y `jornadas`, y si alguna falló, `setError(...)` + `return` sin tocar `filas` ni `setCargado(true)` — así el botón de PDF queda deshabilitado. Para las RPC de disciplina, distinguir «sin alertas» de «no se pudo consultar»: si fallan, la sección debe decirlo, no felicitar. Y usar `reales` (o `js`) de forma consistente en las cuatro métricas: hoy la misma fila cuenta para las horas y no para los días.
+
+### 13. fn_siguiente_tipo_esperado no filtra las anuladas en su última consulta — deja a la persona atrapada sin poder cerrar su día
+
+`terminal-offline` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0082_todo_el_sistema_conoce_las_anuladas.sql:83-88
+
+**Qué pasa:** La 0082 promete en su encabezado que 'ninguna función del sistema siga contando una marca anulada como si estuviera viva', y añade 'and anulada_at is null' a las dos primeras consultas de fn_siguiente_tipo_esperado (¿tiene entrada? ¿tiene salida final?). La tercera —la que busca la ÚLTIMA marca del día para decidir qué retorno toca— se quedó sin el filtro. Consecuencia: si la marca anulada es la última del día (el caso literal que la 0081 pone como ejemplo: una salida_almuerzo marcada por error), la función sigue devolviendo 'retorno_almuerzo' y fn_registrar_marcaje RECHAZA cualquier otra cosa. La persona no puede marcar su salida final. Como el terminal ve lo mismo (hallazgo anterior), su única opción en pantalla es marcar un retorno de un refrigerio que nunca ocurrió, que deja el día sellado como incoherente. Se anuló una marca para arreglar el día y el resultado es un día que no se puede cerrar.
+
+**Arreglo:** Migración 0088 de una línea: añadir 'and anulada_at is null' al select de v_ultimo en fn_siguiente_tipo_esperado. Vale la pena acompañarla con una prueba pgTAP del caso 'última marca del día anulada → la persona puede elegir salida', porque es el único de los seis puntos de la 0082 que no quedó cubierto.
+
+### 14. No hay service worker: sin internet el terminal no arranca, y toda la arquitectura offline supone que la pestaña nunca se recarga
+
+`terminal-offline` · 🚫 operación bloqueada · arreglo de **dias**
+
+**Dónde:** apps/web/next.config.ts (sin PWA) · apps/web/public/ (sin manifest ni sw.js) · apps/web/package.json (sin serwist/workbox/next-pwa)
+
+**Qué pasa:** El terminal guarda roster e IndexedDB para trabajar sin conexión, y le dice a la gente 'se sincronizará cuando vuelva la conexión'. Pero la app se sirve desde Vercel sin service worker: el HTML y los chunks de JS se piden a la red en cada carga. Mientras la pestaña siga abierta, todo funciona; en cuanto la Mac mini se reinicia (corte de luz, actualización de macOS, alguien cierra Safari) durante una caída de internet, la pantalla que ve el equipo es el error del navegador y la sede se queda SIN forma de marcar. Peor: las marcas que ya estaban en la cola quedan encerradas en ese IndexedDB hasta que alguien logre volver a cargar la página, y sincronizarPendientes() solo corre mientras /terminal/marcar está montada.
+
+**Arreglo:** Añadir un service worker mínimo que cachee el app shell del terminal (documento, chunks, css, tipografías) con estrategia cache-first y un manifest para abrirlo en modo standalone. No hace falta una PWA completa: basta con que /terminal/marcar levante sin red. Mientras tanto, dejar escrito en docs/terminales-mac-mini.md que la pestaña no se debe cerrar y que un reinicio durante un corte deja la sede sin marcaje.
+
+### 15. La marca se encola DESPUÉS de intentar enviarla y el fetch no tiene tope de tiempo: con 'wifi conectado, internet caído' se pierde sin dejar rastro
+
+`terminal-offline` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** apps/web/app/(terminal)/terminal/marcar/page.tsx:299-315 · packages/database/src/client.ts:17-23 (createClient sin fetch propio ni timeout)
+
+**Qué pasa:** El flujo es 'intento enviar; si falla, encolo'. Todo el rato entre el toque de la persona y la respuesta del servidor la marca no existe en ninguna parte persistente. navigator.onLine solo dice si hay interfaz de red levantada, no si hay internet: el modo de falla habitual de una tienda (router encendido, ISP caído, o el enlace a medio morir) da onLine=true, así que se toma la rama en línea y el fetch se queda colgado hasta el timeout por defecto del navegador (decenas de segundos en Safari). Durante todo ese rato la pantalla se queda en 'Confirmando en 0s…' sin ningún indicio de que está esperando, con confirmandoRef bloqueado, y nadie más puede marcar. Si alguien pierde la paciencia y recarga o apaga —que es exactamente lo que hará alguien sin contexto técnico frente a una pantalla congelada— la promesa muere y encolarMarcaje NUNCA se ejecuta: la marca no queda ni en el servidor ni en la cola.
+
+**Arreglo:** Invertir el orden: encolar SIEMPRE primero (await encolarMarcaje), recién después intentar el envío y borrar de la cola al confirmar el servidor —que es como ya funciona sync.ts—. Y ponerle tope al envío en vivo (AbortSignal.timeout de 8-10 s): pasado eso se da por 'quedó en cola' y la pantalla avanza. Con eso el corte de luz a mitad de un marcaje deja de perder la marca y la pantalla deja de poder congelarse.
+
+### 16. fn_registrar_marcaje — la única puerta de escritura de marcajes — no tiene el candado de periodo pagado
+
+`esquema-integridad` · 💰 dinero · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0068_marcajes_fuera_de_orden.sql:94 (última definición de fn_registrar_marcaje)
+
+**Qué pasa:** Desde la 0037 llevan candado de periodo pagado fn_corregir_marcaje, fn_agregar_marcaje, fn_eliminar_marcaje, fn_anular_marcaje, fn_reactivar_marcaje, fn_set_turno, fn_set_descanso, fn_set_salario, fn_set_horario_semanal, fn_set_fecha_ingreso, fn_confirmar_auto_cierre y fn_agregar_movimiento. La que no lo lleva es fn_registrar_marcaje, que es precisamente la que el proyecto define como el único camino legítimo para escribir una marca. El timestamp lo pone el cliente (p_timestamp_cliente, el reloj de la Mac mini, que hoy no se verifica), así que una marca de la cola offline que se reenvía tarde, o una Mac con el reloj corrido, inserta la marca dentro del periodo pagado y el trigger recalcula la jornada sin decir nada. Ni siquiera queda en correcciones_auditoria, porque no es una corrección.
+
+**Arreglo:** Un trigger BEFORE INSERT OR UPDATE OR DELETE en marcajes que rechace cualquier fila cuya fecha (en hora de Lima) caiga en un periodo 'pagado'. Es el mismo trigger del hallazgo 1 y resuelve los dos de una vez: el candado deja de ser una línea que hay que acordarse de copiar en cada función nueva y pasa a ser una propiedad de la tabla. Para el caso legítimo de la cola offline que llega tarde, el trigger debe dar un mensaje que le diga a la encargada qué hacer ('esa marca es del 15/06, un mes ya pagado — avisa a DO para reabrir el periodo'), no un error de Postgres crudo.
+
+### 17. La red de seguridad que describe CLAUDE.md no existe: ni el hook de pre-push ni desplegar.sh, y core.hooksPath apunta a un directorio inexistente
+
+`pruebas-y-ci` · 🧱 deuda · arreglo de **horas**
+
+**Dónde:** CLAUDE.md sección 'La red de seguridad (jul-2026)' · scripts/hooks/ (no existe) · scripts/desplegar.sh (no existe) · .github/workflows/tests.yml
+
+**Qué pasa:** CLAUDE.md documenta dos guardianes: scripts/hooks/pre-push (typecheck + vitest antes de subir) y scripts/desplegar.sh (verifica que las pruebas de GitHub de ese commit hayan pasado, incluidas las pgTAP que no corren en esta Mac porque no hay Docker, y recién ahí publica). Ninguno de los dos existe en el árbol ni en toda la historia de git. Peor: `git config core.hooksPath` está en 'scripts/hooks', un directorio que no existe, y git ante eso no protesta — simplemente no corre ningún hook, en silencio. Resultado: el único sitio donde corre pgTAP es GitHub Actions, nada obliga a mirarlo, y nada lo consulta antes de `npx vercel --prod`. Además el workflow no corre typecheck en ningún job (el pre-push inexistente era el único que lo hacía).
+
+**Arreglo:** Crear scripts/hooks/pre-push (typecheck + pnpm test, y un chequeo de numeración duplicada en supabase/migrations — `ls supabase/migrations | cut -c1-4 | sort | uniq -d` habría atajado esto en un segundo) y scripts/desplegar.sh tal como los describe CLAUDE.md, commitearlos, y documentar `git config core.hooksPath scripts/hooks`. Añadir un job de typecheck al workflow. Mientras no existan, corregir CLAUDE.md: hoy describe protecciones que nadie tiene.
+
+### 18. Anular una salida temporal deja a la persona sin poder marcar su salida final
+
+`consistencia-deuda` · 🚫 operación bloqueada · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0082_todo_el_sistema_conoce_las_anuladas.sql:82-87 (fn_siguiente_tipo_esperado)
+
+**Qué pasa:** La 0082 prometió que ninguna función siguiera contando una marca anulada. Dentro de fn_siguiente_tipo_esperado hay tres consultas: las dos primeras filtran anulada_at is null, la tercera —la que mira cuál fue la última marca del día— no. Si se anula una salida a almuerzo (o cualquier salida temporal), el servidor sigue creyendo que la persona está fuera y solo acepta su «regreso». El navegador, en cambio, SÍ filtra las anuladas (apps/web/lib/terminal/estado-dia.ts:24), así que el terminal le muestra el botón de salida y el servidor lo rechaza. Sumado al borde ya conocido de «marca rechazada que se anuncia como Listo», la persona cree que marcó y no marcó: el día se cierra solo y se le pagan las horas del auto-cierre. docs/estado.md afirma hoy que «se arregló que las dos ignoren las marcas anuladas» — no es cierto.
+
+**Arreglo:** Añadir `and anulada_at is null` a la tercera consulta de fn_siguiente_tipo_esperado (la del `select tipo, timestamp_marca into v_ultimo`). Es una línea. Y como el defecto de raíz es que la regla vive en dos idiomas, añadir la prueba que docs/estado.md ya pide: comparar fn_siguiente_tipo_esperado contra determinarSiguienteAccion con el mismo juego de marcas, incluidas anuladas.
+
+### 19. Una tardanza perdonada sigue apareciendo como tardanza en Horas, Reporte por sede y el espejo a Google Sheets
+
+`consistencia-deuda` · ⚖️ decisión injusta · arreglo de **horas**
+
+**Dónde:** apps/web/app/(admin)/admin/horas/page.tsx:86 · apps/web/app/(admin)/admin/reporte-sede/page.tsx:133-134 · apps/web/app/api/espejo/route.ts:59
+
+**Qué pasa:** «Levantar una tardanza» (0053) se decidió como perdón TOTAL: no cuenta para el patrón disciplinario ni para el bono. El lado SQL lo respeta en todas partes (fn_tardanzas_resumen y fn_calcular_bono_puntualidad excluyen tardanzas_justificadas). Tres pantallas del panel cuentan por su cuenta desde jornadas.minutos_tarde, que nunca se toca al levantar, y por eso siguen mostrando la tardanza perdonada. Reporte por sede es el caso más grave: en la MISMA pantalla convive su columna «Tardanzas» (cuenta cruda) con la alerta que viene de fn_tardanzas_resumen (cuenta perdonada). Dos números distintos de lo mismo, lado a lado, y son las pantallas donde la encargada decide con quién conversar. El perfil de la persona (personas/[id]/page.tsx:160) y la pantalla de Incidencias sí excluyen: cuatro consumidores, dos respuestas.
+
+**Arreglo:** Que las tres superficies dejen de contar por su cuenta. Lo más barato y consistente: exponer una vista o RPC única —`fn_tardanzas_por_persona(desde, hasta)`— que ya aplique el descuento de tardanzas_justificadas, y que Horas, Reporte por sede y /api/espejo la consuman. Alternativa mínima si urge: cargar tardanzas_justificadas del rango y filtrar en las tres, como ya hace incidencias/page.tsx:216-221 — pero eso deja cuatro copias de la regla en vez de una.
+
+### 20. Un periodo de planilla ya pagado se puede reabrir sin motivo y sin dejar rastro
+
+`consistencia-deuda` · 💰 dinero · arreglo de **minutos**
+
+**Dónde:** supabase/migrations/0025_planilla_periodos.sql:176 (fn_periodo_pagado) frente a supabase/migrations/0066_reversas_pago.sql:28 (fn_revertir_pago)
+
+**Qué pasa:** La 0066 se escribió justo para esto: «Reabrir toca DINERO: debe quedar QUIÉN lo reabrió, CUÁNDO y POR QUÉ». Creó fn_revertir_pago, que exige motivo y escribe en reversas_pago. Pero dejó la puerta vieja abierta: fn_periodo_pagado(id, false) sigue concedida a `authenticated`, sigue reabriendo el periodo y no pide motivo ni escribe una sola fila de auditoría. La pantalla usa la puerta buena, pero PostgREST expone la otra a cualquier sesión de admin o líder. Y reabrir no es cosmético: es lo que levanta todos los candados que impiden anular, corregir o agregar marcajes de ese periodo. Se puede reabrir, mover marcas, volver a pagar, y no quedar rastro de la reapertura.
+
+**Arreglo:** Cambiar la firma a fn_periodo_pagado(p_periodo_id uuid) que solo MARQUE pagado, y que la única forma de reabrir sea fn_revertir_pago. Si se prefiere no tocar la firma: que fn_periodo_pagado lance excepción cuando p_pagado es false, con el mensaje «Para reabrir un pago usa Revertir pago: la ley del sistema es que quede el motivo». Actualizar la llamada de planilla/page.tsx:760 (que ya pasa true).
+
+
+---
+
+## Menores, sin verificar — 17
+
+No pasaron por el refutador: son de gravedad media o baja y se dejaron para revisar al abordarlos.
+
+- **fn_periodo_pagado(id, false) reabre un pago sin motivo y sin dejar rastro, esquivando fn_revertir_pago** — `planilla-dinero` · media · minutos  
+  La 0066 se escribió precisamente para que reabrir un pago exija un motivo y quede registrado en `reversas_pago` (quién, cuándo, por qué, y el pagado_at previo). Pero la función vieja siguió expuesta a `authenticated` con su parámetro booleano intacto: llamarla con `p_pagado=false` devuelve el periodo a 'abierto', borra…
+- **Los umbrales de reincidencia por tardanza (RIT art. 7 c y d) se borran cada 1 de mes** — `disciplina-legal` · media · horas  
+  El umbral b) del RIT sí es mensual ('tres o más tardanzas en un mismo mes calendario'), pero los umbrales c) y d) son de reincidencia: 2 tardanzas nuevas tras la amonestación, 1 tras la suspensión. El código aplica la ventana mensual a los tres. Consecuencia: las tardanzas cometidas después de una amonestación pero ant…
+- **El terminal de tienda descarga DNI, correo y hash de PIN de toda la sede, y los guarda en el disco de la Mac mini** — `seguridad-permisos` · media · horas  
+  La política da al terminal SELECT sobre las filas de personas de su sede — pero sobre todas las columnas, y personas incluye documento (el DNI), email, fecha_ingreso y pin_hash. El terminal solo necesita nombre y sede para dibujar la grilla. Peor: roster.ts pide pin_hash explícitamente y guardarRoster() lo persiste en …
+- **El monto estimado de vacaciones se cae a S/0 el día del aniversario y da un salto del 16 % al día siguiente** — `vacaciones-feriados` · media · horas  
+  El factor de ritmo de trabajo divide las horas marcadas entre `base_horas = 45 × (días desde el último aniversario − días de vacaciones) / 7`. El día exacto del aniversario esa resta vale 0, `base_horas` es 0, el `case` cae en el `else 0` y el factor pasa a 0 — con él, el monto estimado de TODO el saldo acumulado. Los …
+- **«Quitar» unas vacaciones no pide confirmación y convierte esos días en faltas** — `frontend-admin` · media · minutos  
+  El botón «Quitar» de cada periodo llama a `quitar(v)` directo, sin `window.confirm`. `fn_quitar_vacaciones` hace `delete from vacaciones where id = p_id` — no hay borrado lógico ni tabla de auditoría, así que no queda rastro de quién lo quitó ni forma de deshacerlo desde la app. Las consecuencias las describe la propia…
+- **En Disciplina la fecha etiquetada «Firmado» es en realidad la de creación del borrador** — `frontend-admin` · media · minutos  
+  La lista «Firmados — por entregar» imprime `Firmado {selloLima(d.creado_at)}`. `creado_at` es cuándo el sistema generó el borrador; la fecha real de la firma vive en `firmado_at`, una columna que el select de la línea 86 ni siquiera pide y que la interfaz `Doc` no declara. Entre generar el borrador y firmarlo pueden pa…
+- **Una respuesta vacía pero exitosa BORRA la caché offline del roster y deja la sede sin poder marcar** — `terminal-offline` · media · minutos  
+  cargarRoster solo cae a la caché cuando hay error. Si la consulta responde bien pero con cero filas, entra al camino feliz y llama guardarRoster([]), que empieza con tx.store.clear(): se borra el roster guardado. Y eso pasa sin ningún error de por medio cuando la política personas_select_terminal_roster deja de aplicar…
+- **acta_ref no tiene llave foránea: un descanso OTORGADO puede citar un acta que no existe** — `esquema-integridad` · media · horas  
+  feriados_descanso_sustitutorio.acta_ref es texto libre que apunta a actas_descanso_sustitutorio.referencia, que sí es UNIQUE — pero no hay FK entre las dos. La única defensa es chk_dcs_acta, que solo exige que el texto tenga 3 caracteres o más cuando el estado es OTORGADO. Y el estado OTORGADO no es cosmético: quita la…
+- **fn_periodo_pagado(id, false) reabre un periodo pagado sin motivo y sin dejar rastro en reversas_pago** — `esquema-integridad` · media · minutos  
+  La 0066 creó fn_revertir_pago con todo lo que corresponde: exige motivo de 4 caracteres, verifica que el periodo esté pagado y escribe una fila en reversas_pago con quién, cuándo y el pagado_at previo. Pero fn_periodo_pagado siguió existiendo con su segundo parámetro booleano intacto, y con p_pagado=false hace exactame…
+- **fn_provisiones perdió en la 0048 el arreglo de zona horaria que la 0035 le había puesto** — `esquema-integridad` · media · minutos  
+  La 0035 existe únicamente para arreglar este `current_date` desnudo en fn_provisiones; su encabezado explica el daño con nombre y apellido: 'después de las 7pm hora Lima el servidor ya cree que es el día siguiente — el próximo desembolso podía mostrar la fecha equivocada la noche misma del día de pago (15-jul, 15-dic) …
+- **Siete aserciones throws_ok(sql, null, null, ...) pasan con CUALQUIER excepción — incluida la que blinda el arreglo que promete la 0089** — `pruebas-y-ci` · media · horas  
+  throws_ok(sql, null, null, desc) en pgTAP solo comprueba que algo lanzó excepción, sin mirar cuál. Cinco de las siete son candados de dinero (periodo pagado, mover una marca de día) y una es el permiso de anular. El caso peor es 89:92: la 0089 promete en su cabecera 'Que la autorización se compruebe ANTES que el estado…
+- **fn_eliminar_marcaje sigue BORRANDO marcas de verdad, contra el principio append-only de la 0081** — `consistencia-deuda` · media · minutos  
+  La 0081 decidió el 26/07 que una marca se anula y no se borra, y su propio encabezado dice que fn_eliminar_marcaje «se mantiene por compatibilidad pero la pantalla deja de usarla». Nadie la llama desde el panel, pero sigue concedida a `authenticated` y por tanto expuesta como RPC. Además arrastra todo lo que se arregló…
+- **El registro de migraciones —el mecanismo creado para saber qué hay en producción— dice tres cosas falsas, y el script que lo repara le dice a Felipe que no hace falta** — `consistencia-deuda` · media · horas  
+  La 0077 existe para que «un SELECT diga la verdad de prod». Hoy no la dice: (a) las 74 y 75 no están registradas —el bloque semilla salta de la 73 a la 76 y ninguna de las dos se auto-registra, porque son anteriores a la 0077—; (b) el número 85 está ocupado por 'grati_en_periodos_que_cruzan_el_ano', que en el repo es l…
+- **La lista de documentos firmados muestra la fecha de creación rotulada como 'Firmado'** — `disciplina-legal` · baja · minutos  
+  En el bloque 'Firmados — por entregar' se imprime creado_at con la etiqueta 'Firmado'. La consulta ni siquiera pide firmado_at. Entre que se genera el borrador y se firma pueden pasar días: de la fecha de firma cuelgan los 12 meses de vigencia del antecedente (RIT art. 14.4) y el orden de la cadena, y es el dato que la…
+- **fn_set_vacaciones y fn_quitar_vacaciones usan el guard prohibido 'if not', no 'if ... is not true'** — `vacaciones-feriados` · baja · minutos  
+  Las dos únicas funciones de escritura de vacaciones son las últimas que quedan con la forma que el proyecto prohíbe explícitamente: `if not fn_es_admin_o_lider() then raise`. Hoy no es explotable porque desde la 0078 fn_es_admin_o_lider devuelve `coalesce(..., false)` y nunca es null, así que el hallazgo es latente, no…
+- **Cuentas muestra una tabla vacía cuando la llamada al servidor falla** — `frontend-admin` · baja · minutos  
+  `listar()` no mira `res.ok` ni `data.error`: hace `setCuentas(data.cuentas ?? [])` y `setPromovibles(data.promovibles ?? [])`. Si la ruta responde 401 (sesión vencida), 403 (la fila en `personas` de quien llama ya no es admin) o 500 («servidor sin configurar», que es lo que devuelve si falta `SUPABASE_SERVICE_ROLE_KEY`…
+- **El selector de sede se queda pegado: quien viene detrás no encuentra su nombre y no marca** — `terminal-offline` · baja · minutos  
+  Quien tiene visible_todas_sedes=true (el caso del founder, base TRU que marca en LIM y AQP, según la 0008) aparece en el roster de todos los terminales pero agrupado bajo SU sede base, no bajo la del terminal. Para encontrarlo hay que tocar la pestaña de la otra sede. volverALista limpia pantalla, persona, PIN, salidaC…
+
+---
+
+## Refutados — 8
+
+Parecían defectos y no lo son. Anotados para no volver a investigarlos.
+
+- **Un UPDATE directo a personas.con_hijos o a configuracion.asignacion_familiar reescribe el total de periodos ya pagados** — La mecánica se reproduce, pero el hallazgo es falso en su diagnóstico y su vector principal ya es una decisión documentada. (1) DECISIÓN YA TOMADA. La migración 0037_candado_periodo_pagado.sql, líneas 24-28, registra la decisión de Felipe del 2026-07-16: «"Con hijos" (asignación familiar): a propósito SIN candado — es una bandera sin fecha; bloquearla mientras exista cualquier periodo pagado la co…
+- **La gratificación y la CTS de quien cesa desaparecen del cálculo en vez de salir en cero** — El síntoma se reproduce, pero el hallazgo se equivoca en las tres cosas que lo harían accionable: el sitio, el arreglo y el número. 1) EL ARREGLO QUE PROPONE ES INERTE. Apliqué literalmente lo que pide el hallazgo —quitar `where p.estado = 'activo'` de fn_provisiones (0048:144)— sobre una copia del estado real del repo. fn_grati_cts_periodo vuelve a traer a la persona, y la pantalla de planilla si…
+- **Las migraciones 0074 y 0075 no están aplicadas: el memo imprime 'Gerencia General' aunque lo firme una encargada** — El hallazgo confunde el estado de la base LOCAL de auditoría con el de producción. Es cierto que en `cayla_85` faltan los objetos de la 0074/0075 — eso lo reproduje — pero la causa es una limitación del entorno local, no un hueco en producción, y el repo documenta en cuatro lugares independientes que ambas migraciones sí corrieron en prod. 1) POR QUÉ FALTAN EN LOCAL. La 0074 no puede aplicarse en …
+- **Se puede firmar y entregar una carta de despido con el legajo vacío: la cadena no está restringida en ningún lado** — La secuencia SQL del hallazgo se reproduce tal cual, pero lo que demuestra no es un defecto del sistema: es que un admin puede llamar a mano una función interna que ninguna pantalla usa. Tres refutaciones concretas: 1) NO HAY RUTA DE PRODUCTO. `fn_expediente_crear_borrador` no se invoca desde ninguna parte del front-end (`grep -rn "crear_borrador" apps/ packages/` → cero resultados). Las únicas do…
+- **fn_auto_cierre() está concedida a authenticated sin ningún guard: cualquier sesión cierra la jornada de todo el equipo** — El mecanismo que describe es cierto (el grant existe, la función es SECURITY DEFINER y no tiene guard, y una sesión `authenticated` sin fila en `personas` sí la ejecuta), pero la CONSECUENCIA que le atribuye es falsa, y es la consecuencia lo que convertiría esto en hallazgo. 1) NO "fabrica la salida de quien todavía está trabajando". El WHERE de fn_auto_cierre es puramente temporal: `now() >= (fec…
+- **El terminal lee marcas ANULADAS como si estuvieran vivas: ofrece la acción equivocada y la marca real se pierde en silencio** — El hallazgo describe un bug REAL pero YA CORREGIDO: es una lectura de código anterior al commit b7d624b ("El terminal, el espejo y reabrir-dia tampoco cuentan las marcas anuladas"), que está en HEAD. La premisa central — "estado-dia.ts:16-25 (select sin filtro de anulada_at)" — es falsa contra el código actual. Esas líneas exactas SON el filtro: `/Users/ArchiCaylo/Developer/cayla-dynamic/apps/web/…
+- **/api/reabrir-dia hace dos escrituras sin transacción: si la segunda no corre, un día cerrado de 10 h queda con horas = NULL** — El MECANISMO es cierto (dos escrituras HTTP separadas vía PostgREST, sin transacción, y el trigger `trg_marcajes_recalcular_jornada` recalcula ya en el UPDATE), y el estado intermedio se reproduce tal cual: horas NULL / en_pausa. Pero las dos afirmaciones que convierten eso en daño son FALSAS, y sin ellas no queda ni un número equivocado ni un flujo bloqueado. (1) "Desde el terminal el día ya no e…
+- **/api/reabrir-dia parte la operación en tres transacciones y puede dejar la jornada con horas NULL** — El mecanismo intermedio se reproduce, pero las dos afirmaciones que le dan peso al hallazgo son falsas: (1) el escenario que dispara el estado roto es imposible tal como se describe, y (2) el estado roto no persiste ni llega a planilla — se cura solo por dos caminos independientes. 1) "La Mac mini pierde red justo ahí, que es exactamente el escenario de la cola offline" — FALSO. Los tres pasos (up…

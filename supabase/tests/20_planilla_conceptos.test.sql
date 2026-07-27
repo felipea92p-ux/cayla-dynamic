@@ -23,6 +23,18 @@ select plan(11);
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000000ff', 'ZZTEST', 'Sede de laboratorio', true);
 
+-- Sesión de admin: desde la 0090, fn_planilla_calcular exige serlo. El guard vive
+-- dentro de la función porque el `revoke` que la protegía se deshizo solo cuando
+-- un barrido de permisos concedió en masa (ver 0090).
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id)
+values ('00000000-0000-0000-0000-00000000ad01', 'AdminPlanilla', 'Laboratorio',
+        '00000000-0000-0000-0000-0000000000ff', 'admin', 'test-hash',
+        '00000000-0000-0000-0000-00000000ad09');
+set session_replication_role = origin;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000ad09', true);
+
+
 -- Factores de provisión redondos, solo para esta prueba (se revierte con todo)
 insert into configuracion (clave, valor)
 values ('planilla_provisiones', '{"gratificacion":0.10,"cts":0.05,"vacaciones":0.05}'::jsonb)
