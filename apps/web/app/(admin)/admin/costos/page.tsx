@@ -177,12 +177,20 @@ export default function CostosPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
+  // El código de una sede puede ser "003": en una tabla que va a leer una
+  // persona, eso no dice nada. Se traduce al nombre usando por_sede, que ya
+  // viene cargado — sin pedirle otra cosa a la base.
+  const nombreDeSede = useMemo(
+    () => new Map((data?.por_sede ?? []).map((s) => [s.sede, s.nombre])),
+    [data],
+  );
+
   function descargarCsvCostos() {
     if (!data) return;
     const tipoDeSede = new Map(data.por_sede.map((s) => [s.sede, s.tipo]));
     const filas = data.por_persona.map((p) => ({
       nombre: p.nombre,
-      sede: p.sede,
+      sede: nombreDeSede.get(p.sede) ?? p.sede,
       tipo_de_sede: tipoDeSede.get(p.sede) ?? "",
       area: p.area ?? "",
       periodos_pagados: p.periodos,
@@ -457,7 +465,7 @@ export default function CostosPage() {
                 {data.por_persona.map((p) => (
                   <tr key={p.persona_id} className="border-b last:border-0">
                     <td className="px-3 py-2">{p.nombre}</td>
-                    <td className="px-3 py-2 text-taupe">{p.sede}</td>
+                    <td className="px-3 py-2 text-taupe">{nombreDeSede.get(p.sede) ?? p.sede}</td>
                     <td className={NUM}>{p.periodos}</td>
                     <td className={NUM}>{p.horas.toLocaleString("es-PE", { maximumFractionDigits: 1 })}</td>
                     <td className={NUM}>{formatSoles(p.neto)}</td>
