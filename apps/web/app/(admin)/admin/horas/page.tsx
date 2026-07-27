@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 function fechaLimaHoy(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
@@ -176,10 +177,7 @@ function HorasContenido() {
         )}
 
         {cargando && (
-          <div className="flex flex-col items-center gap-4 py-20 text-taupe">
-            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
-            <span className="text-sm">Cargando…</span>
-          </div>
+          <Cargando />
         )}
         {!cargando && !error && filasVista.length === 0 && !personaFiltro && <p className="text-sm text-taupe">Sin marcajes en este periodo.</p>}
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 const REFRESCO_MS = 30_000;
 // Corte mañana/tarde de la meta de cobertura — mismo valor fijo que Turnos (14:15).
@@ -288,10 +289,7 @@ export default function DashboardPage() {
         )}
 
         {cargando && filas.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 py-24 text-taupe">
-            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
-            <span className="text-sm">Cargando la asistencia de hoy…</span>
-          </div>
+          <Cargando texto="Cargando la asistencia de hoy…" />
         ) : (
           <>
         {(() => {

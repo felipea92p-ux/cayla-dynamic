@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
 
@@ -259,7 +260,7 @@ export default function ObjetivosPage() {
         {!personaId ? (
           <p className="text-sm text-taupe">Elige una persona para ver o gestionar sus objetivos.</p>
         ) : cargando && !cargado ? (
-          <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
+          <Cargando />
         ) : cargado ? (
           <div className="max-w-3xl">
             {/* Barra de progreso + nivel del plus */}

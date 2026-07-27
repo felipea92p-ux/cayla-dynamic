@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../../../nav";
+import { Cargando } from "@/components/cargando";
 
 const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550", firmante: "Alvarez Pereyra Felipe Miguel", cargo: "Gerencia General" };
 const TZ = "America/Lima";
@@ -174,7 +175,7 @@ export default function MemoPage() {
         </div>
 
         {cargando ? (
-          <p className="text-sm text-taupe">Cargando…</p>
+          <Cargando />
         ) : err ? (
           <p className="max-w-[760px] rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
         ) : doc && (

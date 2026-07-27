@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
+import { CargandoFila } from "@/components/cargando";
 
 interface Cuenta {
   id: string;
@@ -154,7 +155,7 @@ export default function CuentasPage() {
             </thead>
             <tbody>
               {cargando ? (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-taupe">Cargando…</td></tr>
+                <CargandoFila columnas={5} />
               ) : (
                 cuentas.map((c) => (
                   <tr key={c.id} className="border-t border-sand align-top">

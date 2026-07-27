@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function hoyLima(): string {
@@ -779,7 +780,7 @@ export default function TurnosPage() {
 
         {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} />}
 
-        {cargando ? <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div> : vista === "semana" ? (
+        {cargando ? <Cargando /> : vista === "semana" ? (
           <div className="space-y-6">
             {([
               { titulo: "Cobertura (áreas operativas)", tipo: "op", filtro: esOperativa },

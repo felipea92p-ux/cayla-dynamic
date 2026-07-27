@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, salarioSugerido, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
@@ -709,10 +710,7 @@ export default function EquipoPage() {
         {puedeSalarios && histId && panelHistorial()}
 
         {cargando ? (
-          <div className="flex flex-col items-center gap-4 py-24 text-taupe">
-            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
-            <span className="text-sm">Cargando el equipo…</span>
-          </div>
+          <Cargando texto="Cargando el equipo…" />
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-sand">
             <table className="w-full text-sm">

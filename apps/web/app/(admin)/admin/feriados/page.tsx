@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 const TZ = "America/Lima";
 
@@ -533,7 +534,7 @@ export default function FeriadosPage() {
             )}
           </div>
           {cargando ? (
-            <p className="px-4 py-6 text-sm text-taupe">Cargando…</p>
+            <Cargando />
           ) : laborados.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">Nadie marcó horas en un feriado de este rango.</p>
           ) : (

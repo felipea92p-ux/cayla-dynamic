@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; sede_base_id: string; email: string | null }
 interface Ficha {
@@ -200,7 +201,7 @@ export default function DatosPersonalesPage() {
               </div>
             </div>
             {cargando ? (
-              <p className="px-3 py-4 text-sm text-taupe">Cargando…</p>
+              <Cargando />
             ) : lista.length === 0 ? (
               <p className="px-3 py-4 text-sm text-taupe">Nadie coincide con “{q}”.</p>
             ) : (

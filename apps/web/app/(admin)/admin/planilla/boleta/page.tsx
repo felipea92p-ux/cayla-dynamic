@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
+import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import {
   MESES_LARGO,
@@ -80,7 +81,7 @@ function BoletaContenido() {
   if (rol === null || cargando) {
     return (
       <main className="p-6">
-        <p className="text-sm text-taupe">Cargando…</p>
+        <Cargando />
       </main>
     );
   }
@@ -242,7 +243,7 @@ function BoletaContenido() {
 
 export default function BoletaPage() {
   return (
-    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+    <Suspense fallback={<main className="p-6"><Cargando /></main>}>
       <BoletaContenido />
     </Suspense>
   );

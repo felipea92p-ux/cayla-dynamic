@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -216,7 +217,7 @@ export default function CostosPage() {
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
-            <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
+            <Cargando />
           )}
         </main>
       </div>
@@ -280,7 +281,7 @@ export default function CostosPage() {
         )}
 
         {cargando && !data && (
-          <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
+          <Cargando />
         )}
 
         {anios.length === 0 && !cargando && !error && (

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../../nav";
+import { Cargando } from "@/components/cargando";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
 
@@ -330,10 +331,7 @@ export default function PerfilPersonaPage() {
         )}
 
         {cargando ? (
-          <div className="flex flex-col items-center gap-4 py-24 text-taupe">
-            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
-            <span className="text-sm">Cargando el perfil…</span>
-          </div>
+          <Cargando texto="Cargando el perfil…" />
         ) : err ? (
           <p className="max-w-xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
         ) : persona && (

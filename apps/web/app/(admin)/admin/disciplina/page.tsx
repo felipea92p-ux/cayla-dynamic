@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 const TZ = "America/Lima";
 
@@ -231,7 +232,7 @@ export default function DisciplinaPage() {
             <p className="mt-0.5 text-xs text-taupe">Umbral RIT art. 7: 3 en el mes corresponde amonestación.</p>
           </div>
           {cargando ? (
-            <p className="px-4 py-6 text-sm text-taupe">Cargando…</p>
+            <Cargando />
           ) : tardanzas.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">Nadie con tardanzas relevantes este mes.</p>
           ) : (
@@ -261,7 +262,7 @@ export default function DisciplinaPage() {
             <p className="mt-0.5 text-xs text-taupe">Umbrales art. 25-h: 4 consecutivas · 6 en 30 días · 16 en 180 días.</p>
           </div>
           {cargando ? (
-            <p className="px-4 py-6 text-sm text-taupe">Cargando…</p>
+            <Cargando />
           ) : faltas.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">Nadie en umbral de faltas. Buena señal.</p>
           ) : (

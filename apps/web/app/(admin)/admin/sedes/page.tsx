@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 
 type TipoSede = "central" | "taller" | "tienda";
@@ -161,7 +162,7 @@ export default function SedesPage() {
         </div>
 
         {rol === null ? (
-          <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
+          <Cargando />
         ) : !puedeGestionar ? (
           <div className="max-w-2xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
             Solo administradores y líderes pueden gestionar sedes.
@@ -184,7 +185,7 @@ export default function SedesPage() {
             {editandoCodigo && formulario("edicion")}
 
             {cargando ? (
-              <div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div>
+              <Cargando />
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
                 <table className="w-full text-sm">

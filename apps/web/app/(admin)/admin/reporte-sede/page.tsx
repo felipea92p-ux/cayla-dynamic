@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 const TZ = "America/Lima";
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
@@ -212,10 +213,7 @@ function ReporteSedeContenido() {
         )}
 
         {cargando && !cargado ? (
-          <div className="flex flex-col items-center gap-4 py-24 text-taupe">
-            <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
-            <span className="text-sm">Armando la hoja…</span>
-          </div>
+          <Cargando texto="Armando la hoja…" />
         ) : cargado && sede && (
           <>
             <h2 className="mb-4 font-serif text-2xl">

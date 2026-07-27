@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -1131,7 +1132,7 @@ export default function PlanillaPage() {
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
-            <p className="text-sm text-taupe">Cargando…</p>
+            <Cargando />
           )}
         </main>
       </div>
@@ -1233,7 +1234,7 @@ export default function PlanillaPage() {
         )}
 
         {/* Aún cargando la lista */}
-        {periodos === null && !errorPeriodos && <p className="text-sm text-taupe">Cargando…</p>}
+        {periodos === null && !errorPeriodos && <Cargando />}
 
         {/* Sin periodos: pantalla de arranque */}
         {periodos !== null && periodos.length === 0 && (
@@ -1449,7 +1450,7 @@ export default function PlanillaPage() {
                       <button onClick={() => void cargarFeriadosAnio()} className="font-medium underline">Reintentar</button>
                     </p>
                   ) : feriadosAnio === null ? (
-                    <p className="text-sm text-taupe">Cargando…</p>
+                    <Cargando />
                   ) : feriadosAnio.length === 0 ? (
                     <p className="text-sm text-taupe">No hay feriados registrados este año.</p>
                   ) : (
@@ -1530,7 +1531,7 @@ export default function PlanillaPage() {
 
             {/* Tabla del periodo */}
             {cargando && !proy ? (
-              <p className="text-sm text-taupe">Cargando…</p>
+              <Cargando />
             ) : proy ? (
               <TablaPlanilla
                 filas={filasVisibles}

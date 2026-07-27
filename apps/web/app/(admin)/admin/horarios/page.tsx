@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 
@@ -225,7 +226,7 @@ export default function HorariosPage() {
           <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>{mensaje.texto}</div>
         )}
 
-        {cargando ? <p className="text-sm text-taupe">Cargando…</p> : porSede.map((sede) => {
+        {cargando ? <Cargando /> : porSede.map((sede) => {
           const deSede = editables.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
           return (
             <section key={sede} className="mb-8">

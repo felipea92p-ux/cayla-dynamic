@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
 
 const TZ = "America/Lima";
 function hoyLima(): string { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); }
@@ -541,7 +542,7 @@ function IncidenciasContenido() {
 
 export default function IncidenciasPage() {
   return (
-    <Suspense fallback={<main className="p-6"><div className="flex flex-col items-center gap-4 py-20 text-taupe"><span className="colibri aletea w-12 text-rojo/70" aria-hidden /><span className="text-sm">Cargando…</span></div></main>}>
+    <Suspense fallback={<main className="p-6"><Cargando /></main>}>
       <IncidenciasContenido />
     </Suspense>
   );
