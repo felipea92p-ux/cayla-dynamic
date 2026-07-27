@@ -43,6 +43,10 @@ export async function POST(req: Request) {
     .select("id, sede_id")
     .eq("persona_id", personaId)
     .eq("tipo", "salida_final")
+    // Una marca anulada (mig. 0081) ya no cuenta para nada: si se agarrara esta,
+    // se reabriría un día que en realidad sigue cerrado, y encima se reclasificaría
+    // una marca que alguien retiró a propósito.
+    .is("anulada_at", null)
     .gte("timestamp_marca", ini)
     .lte("timestamp_marca", fin)
     .order("timestamp_marca", { ascending: false })

@@ -16,6 +16,12 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
     const { data } = await supabase
       .from("marcajes")
       .select("persona_id, tipo, timestamp_marca")
+      // Las anuladas (mig. 0081) no existen para el estado del día. Sin este
+      // filtro, anular la entrada de alguien dejaba al terminal creyéndolo
+      // dentro: le ofrecería "salida" y no le dejaría volver a marcar entrada.
+      // La 0082 arregló esto en fn_siguiente_tipo_esperado, pero el terminal
+      // decide en el navegador con determinarSiguienteAccion, y esa es otra copia.
+      .is("anulada_at", null)
       .gte("timestamp_marca", inicioDia);
 
     for (const m of data ?? []) {

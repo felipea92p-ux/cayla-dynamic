@@ -41,7 +41,10 @@ export async function GET(req: Request) {
     const personas = await pageAll(() => sb.from("personas").select("id,nombres,apellidos,estado,sedes:sede_base_id(codigo)"));
     const sedes = await pageAll(() => sb.from("sedes").select("id,codigo"));
     const jornadas = await pageAll(() => sb.from("jornadas").select("persona_id,fecha,horas_trabajadas,minutos_tarde").gte("fecha", ini).lte("fecha", fin));
-    const marcajes = await pageAll(() => sb.from("marcajes").select("persona_id,tipo,timestamp_marca,sede_id").gte("timestamp_marca", `${ini}T00:00:00-05:00`).lte("timestamp_marca", `${fin}T23:59:59-05:00`).order("timestamp_marca"));
+    // Las marcas anuladas (mig. 0081) quedan fuera: la hoja debe reflejar el día
+    // que cuenta para el pago, no el rastro de lo que se retiró. Si se colaran,
+    // la hoja y la planilla contarían días distintos.
+    const marcajes = await pageAll(() => sb.from("marcajes").select("persona_id,tipo,timestamp_marca,sede_id").is("anulada_at", null).gte("timestamp_marca", `${ini}T00:00:00-05:00`).lte("timestamp_marca", `${fin}T23:59:59-05:00`).order("timestamp_marca"));
 
     const sedeCod: Record<string, string> = {};
     sedes.forEach((s: any) => { sedeCod[s.id] = s.codigo; });
