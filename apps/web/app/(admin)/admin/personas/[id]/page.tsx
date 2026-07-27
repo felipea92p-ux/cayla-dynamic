@@ -443,7 +443,7 @@ export default function PerfilPersonaPage() {
                             <div className="border-t border-tinta/40 pt-1 text-[11px] text-taupe">Así se verá sobre la línea del memo</div>
                           </div>
                         ) : (
-                          <span className="text-sm text-taupe/70">Aún no has subido tu firma.</span>
+                          <span className="text-sm text-taupe">Aún no has subido tu firma.</span>
                         )}
                         <label className="cursor-pointer rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
                           {subiendoFirma ? "Guardando…" : miFirma ? "Cambiar firma" : "Subir firma"}

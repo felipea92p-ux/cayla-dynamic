@@ -591,7 +591,7 @@ export default function EquipoPage() {
           />
           <span>
             Visible en todas las sedes
-            <span className="block text-xs text-taupe/70">Para quien marca en más de un local. Aparece en el terminal de cualquier sede, no solo en el de su sede base.</span>
+            <span className="block text-xs text-taupe">Para quien marca en más de un local. Aparece en el terminal de cualquier sede, no solo en el de su sede base.</span>
           </span>
         </label>
       )}

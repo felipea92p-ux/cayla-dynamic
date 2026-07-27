@@ -124,7 +124,7 @@ export function AdminNav() {
           {grupos.map((g, gi) => (
             <div key={gi}>
               {g.label && (
-                <p className="px-3 pb-1 pt-3 text-[11px] uppercase tracking-wider text-taupe/70">{g.label}</p>
+                <p className="px-3 pb-1 pt-3 text-[11px] uppercase tracking-wider text-taupe">{g.label}</p>
               )}
               <div className="grid gap-0.5">
                 {g.items.map((it) => (

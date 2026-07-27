@@ -330,20 +330,20 @@ export default function ProvisionesPage() {
                     <th className="px-4 py-2 font-normal">Sede</th>
                     <th className="border-l px-4 py-2 text-right font-normal">
                       {mesDePago(data.grati_s1_pago)}{" "}
-                      <span className="text-taupe/70">({data.grati_s1_periodo})</span>
+                      <span className="text-taupe">({data.grati_s1_periodo})</span>
                     </th>
                     <th className="px-4 py-2 text-right font-normal">
                       {mesDePago(data.grati_s2_pago)}{" "}
-                      <span className="text-taupe/70">({data.grati_s2_periodo})</span>
+                      <span className="text-taupe">({data.grati_s2_periodo})</span>
                     </th>
                     <th className="px-4 py-2 text-right font-normal">Total</th>
                     <th className="border-l px-4 py-2 text-right font-normal">
                       {mesDePago(data.cts_may_pago)}{" "}
-                      <span className="text-taupe/70">({data.cts_may_periodo})</span>
+                      <span className="text-taupe">({data.cts_may_periodo})</span>
                     </th>
                     <th className="px-4 py-2 text-right font-normal">
                       {mesDePago(data.cts_nov_pago)}{" "}
-                      <span className="text-taupe/70">({data.cts_nov_periodo})</span>
+                      <span className="text-taupe">({data.cts_nov_periodo})</span>
                     </th>
                     <th className="px-4 py-2 text-right font-normal">Total</th>
                     <th className="border-l px-4 py-2 text-right font-normal">Monto</th>

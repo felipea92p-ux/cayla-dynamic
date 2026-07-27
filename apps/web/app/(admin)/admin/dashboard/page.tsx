@@ -347,7 +347,7 @@ export default function DashboardPage() {
                 <div className="etiqueta text-verde">Trabajando ahora · {activos.length}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {activos.length === 0 ? (
-                    <span className="text-sm text-taupe/70">Nadie marcado todavía.</span>
+                    <span className="text-sm text-taupe">Nadie marcado todavía.</span>
                   ) : (
                     activos.map((f) => (
                       <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm transition-colors hover:border-taupe">

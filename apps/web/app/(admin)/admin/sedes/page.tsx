@@ -108,12 +108,12 @@ export default function SedesPage() {
               maxLength={8}
               className="rounded-lg border px-3 py-2 font-mono uppercase"
             />
-            <span className="text-xs text-taupe/70">Etiqueta corta que verás en tablas (2 a 8 letras/números). No cambia después.</span>
+            <span className="text-xs text-taupe">Etiqueta corta que verás en tablas (2 a 8 letras/números). No cambia después.</span>
           </>
         ) : (
           <>
             <input value={form.codigo} disabled className="rounded-lg border bg-crema px-3 py-2 font-mono text-taupe" />
-            <span className="text-xs text-taupe/70">Fijo — cambiar el nombre no cambia el código.</span>
+            <span className="text-xs text-taupe">Fijo — cambiar el nombre no cambia el código.</span>
           </>
         )}
       </label>
@@ -137,7 +137,7 @@ export default function SedesPage() {
             <option key={t.valor} value={t.valor}>{t.label} — {t.ayuda}</option>
           ))}
         </select>
-        <span className="text-xs text-taupe/70">
+        <span className="text-xs text-taupe">
           El reporte de costos separa lo que cuesta administrar de lo que cuesta operar una tienda. Si se
           marcan igual, los dos números se suman como si fueran lo mismo.
         </span>

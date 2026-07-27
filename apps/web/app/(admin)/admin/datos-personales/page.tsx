@@ -238,7 +238,7 @@ export default function DatosPersonalesPage() {
                 </div>
                 <div className="space-y-4">
                   <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Identidad</p>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}
                       {campo("Fecha de nacimiento", "fecha_nacimiento", "date")}
@@ -256,7 +256,7 @@ export default function DatosPersonalesPage() {
                     </div>
                   </section>
                   <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Contacto</p>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {campo("Celular", "celular")}
                       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
@@ -266,14 +266,14 @@ export default function DatosPersonalesPage() {
                     </div>
                   </section>
                   <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Banco</p>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Banco</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {campo("Entidad bancaria", "entidad_bancaria")}
                       {campo("N.° de cuenta", "numero_cuenta")}
                     </div>
                   </section>
                   <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe/70">Documentos</p>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Documentos</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {campoFoto("Foto DNI", "foto_dni_url")}
                       {campoFoto("Foto personal", "foto_personal_url")}

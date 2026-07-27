@@ -940,7 +940,7 @@ export default function TurnosPage() {
                         const t = decimalAHHMM(inicioFranja(fi));
                         return (
                           <div key={fi} className="grid" style={{ gridTemplateColumns: cols }}>
-                            <div className="flex items-center justify-end pr-2 text-[10px] tabular-nums text-taupe/70">{t}</div>
+                            <div className="flex items-center justify-end pr-2 text-[10px] tabular-nums text-taupe">{t}</div>
                             {dias.map((iso, di) => {
                               const dia = diaSemana(iso);
                               const nOp = covOp[di][fi];

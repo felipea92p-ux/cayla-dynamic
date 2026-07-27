@@ -365,7 +365,7 @@ export default function DisciplinaPage() {
                         className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">Marcar entregado</button>
                     </div>
                   </div>
-                  <p className="mt-1 text-xs text-taupe/70">Firmado {selloLima(d.creado_at)}</p>
+                  <p className="mt-1 text-xs text-taupe">Firmado {selloLima(d.creado_at)}</p>
                 </li>
               ))}
             </ul>

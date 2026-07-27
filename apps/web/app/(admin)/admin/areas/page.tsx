@@ -152,7 +152,7 @@ export default function AreasPage() {
             placeholder="ej. Logística y envíos"
             className="rounded-lg border px-3 py-2"
           />
-          <span className="text-xs text-taupe/70">
+          <span className="text-xs text-taupe">
             Código: <span className="font-mono">{codigo || "—"}</span>{" "}
             {modo === "alta"
               ? "(se deriva del nombre; no editable)"

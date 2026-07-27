@@ -224,7 +224,7 @@ function ReporteSedeContenido() {
             <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5">
               <div className="etiqueta text-verde">Hoy · {activos.length} trabajando de {filas.length}</div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {activos.length === 0 ? <span className="text-sm text-taupe/70">Nadie marcado todavía.</span> :
+                {activos.length === 0 ? <span className="text-sm text-taupe">Nadie marcado todavía.</span> :
                   activos.map((f) => (
                     <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm">
                       {f.nombre}{f.estadoHoy === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}

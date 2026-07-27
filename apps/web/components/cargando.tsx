@@ -44,7 +44,7 @@ export function SinDatos({ texto, pista }: { texto: string; pista?: string }) {
     <div className="flex flex-col items-center gap-2 py-16 text-center" role="status">
       <span className="colibri w-10 text-sand" aria-hidden />
       <p className="text-sm text-taupe">{texto}</p>
-      {pista && <p className="max-w-sm text-xs text-taupe/70">{pista}</p>}
+      {pista && <p className="max-w-sm text-xs text-taupe">{pista}</p>}
     </div>
   );
 }
