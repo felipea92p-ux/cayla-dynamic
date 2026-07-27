@@ -39,8 +39,12 @@ completa aplica desde cero sobre una base limpia (que es lo que hace el CI).
 | 0093 | El descanso sustitutorio no toca una planilla pagada (medido: S/65 menos en un periodo cerrado, sin rastro) |
 | 0094 | **El memo no acusa por días ya justificados.** La pantalla decía «suspensión cumplida» y el papel entregado decía «inasistencia injustificada» |
 | 0095 | Ni horas negativas (el auto-cierre podía poner la salida antes de la entrada) ni reabrir un pago sin motivo |
+| 0096 | **La foto del pago.** Al marcar un periodo como pagado se congela el desglose de cada persona. No se edita ni se borra; si un recálculo posterior ya no coincide, el sistema lo dice en vez de cambiar la cifra |
+| 0097 | **Costos.** Pantalla nueva en Nómina que suma lo que costó el equipo leyendo solo lo congelado. Separa lo que se transfirió de lo que le cuesta a CAYLA (con provisiones) |
 
-**Aplicadas hasta la 0095.** La 0085, 0086 y 0087 (tipo de vínculo, fecha de cese,
+**Escritas hasta la 0097; aplicadas en producción hasta la 0095.** Faltan pegar
+la **0096** (la foto del pago) y la **0097** (costos) — sin ellas la pantalla de
+Costos existe pero no tiene de dónde leer. La 0085, 0086 y 0087 (tipo de vínculo, fecha de cese,
 beneficios truncos) siguen sin aplicar, sin urgencia: ninguna pantalla las usa
 todavía. Son los cimientos de la liquidación por cese.
 
@@ -71,17 +75,6 @@ base tiene los cambios pero el registro no lo dice. El script solo arregla eso.
 ---
 
 ## 🔴 Atender primero
-
-0. **La foto del pago.** La planilla se calcula EN VIVO cada vez que se abre, así
-   que un periodo marcado como PAGADO puede cambiar de total después. Hoy se
-   cerraron tres formas de que eso pasara (0093, 0095 y el candado de la 0089),
-   pero el número sigue sin congelarse. **Un costo que puede cambiar solo no
-   sirve para contabilidad**, y es lo que bloquea el apartado de costos que
-   Felipe necesita para el contador y, más adelante, para el puente con retail.
-   Al marcar PAGADO hay que guardar una copia intacta del desglose por persona y
-   sede; si un recálculo posterior ya no coincide, el sistema avisa en vez de
-   cambiarla en silencio. **Decidido el 27-07: el apartado de costos vive aquí,
-   no en retail** — retail lo consumirá cuando el puente exista.
 
 1. **El terminal decide en dos sitios a la vez.** "Qué toca marcar ahora" vive en
    SQL (`fn_siguiente_tipo_esperado`) y en el navegador
@@ -132,6 +125,22 @@ con «qué toca marcar» (SQL y navegador), con «qué es una falta» (pantalla 
 documento) y con «quién puede leer la planilla» (un revoke y ningún guard). En
 los tres casos nadie se enteró hasta que alguien miró. Cada arreglo lleva ahora
 una prueba que compara las dos copias y falla si se separan.
+
+### Lo que la foto del pago sí cierra, y lo que no
+
+**Sí:** un periodo pagado ya no puede cambiar de total en silencio. Si algo se
+mueve, `fn_planilla_foto_diferencias` lo nombra persona por persona. Y ahora hay
+una cifra de costo que se puede entregar al contador y sumar por sede y por área.
+
+**No:** los periodos que ya estaban pagados antes de la 0096 tienen la foto
+*reconstruida* — es el número del día de la migración, no el del día del pago.
+La pantalla de Costos lo avisa arriba. No se puede saber cuánto se desvió cada
+uno; ese dato no existe en ninguna parte, y por eso la foto se construyó.
+
+**Y una decisión pendiente que la 0096 hace visible:** cuando la foto y el
+cálculo en vivo difieren, el sistema hoy solo lo *dice*. Nadie decidió todavía
+qué pasa entonces — si se reabre el periodo, si se ajusta en el siguiente, o si
+se deja constancia y ya. Es una decisión de negocio, no técnica.
 
 ## 🟡 Valioso pronto
 
