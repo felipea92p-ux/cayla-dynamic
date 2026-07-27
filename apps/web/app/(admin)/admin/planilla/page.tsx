@@ -63,6 +63,15 @@ interface PeriodoInfo {
   anio_etiqueta: number;
   mes_etiqueta: number;
 }
+// Una fila por persona cuya cifra pagada ya no coincide con el cálculo de hoy.
+// Sale de fn_planilla_foto_diferencias (0096): el sistema lo DICE, no lo corrige solo.
+interface Desvio {
+  persona_id: string;
+  nombre: string;
+  total_foto: number | null;
+  total_ahora: number | null;
+  diferencia: number;
+}
 interface Feriado {
   fecha: string;
   nombre: string;
@@ -542,6 +551,8 @@ export default function PlanillaPage() {
   const [errorPeriodos, setErrorPeriodos] = useState<string | null>(null);
   const [periodoSel, setPeriodoSel] = useState<string | null>(null);
   const [guardandoPeriodo, setGuardandoPeriodo] = useState(false);
+  // Desvíos de un periodo YA pagado: qué personas cambiaron de cifra desde el pago.
+  const [desvios, setDesvios] = useState<Desvio[] | null>(null);
   const [guardandoBono, setGuardandoBono] = useState(false);
 
   // Crear periodo (primero / encadenado)
@@ -641,6 +652,20 @@ export default function PlanillaPage() {
   );
   const esUltimo = periodos !== null && periodos.length > 0 && periodoSel === periodos[0].id;
   const pagado = periodoActual?.estado === "pagado";
+
+  // Solo tiene sentido preguntarlo cuando el periodo está pagado: es la única
+  // situación en la que existe una foto contra la que comparar.
+  const cargarDesvios = useCallback(async () => {
+    if (!puedeVer || !periodoActual || periodoActual.estado !== "pagado") { setDesvios(null); return; }
+    const { data, error } = await supabase.rpc("fn_planilla_foto_diferencias", {
+      p_periodo_id: periodoActual.id,
+    });
+    // Si la consulta falla no se dice «todo cuadra»: se deja en desconocido.
+    setDesvios(error ? null : ((data as unknown as Desvio[]) ?? []));
+  }, [supabase, puedeVer, periodoActual]);
+
+  useEffect(() => { void cargarDesvios(); }, [cargarDesvios]);
+
   // Inicio encadenado del siguiente periodo: día siguiente al último cierre
   const inicioEncadenado = periodos && periodos.length > 0 ? sumarDias(periodos[0].fecha_fin, 1) : null;
 
@@ -784,6 +809,38 @@ export default function PlanillaPage() {
     if (error) { avisar("error", `No se pudo reabrir: ${error.message}`); return; }
     avisar("ok", "Periodo reabierto con registro. Corrige lo necesario y vuelve a marcarlo como PAGADO.");
     await Promise.all([cargarPeriodos(), cargarProyeccion()]);
+  }
+
+  // Volver a pagar NO reabre el periodo: los candados de sus marcajes no se
+  // levantan en ningún momento (fn_repagar_periodo, migración 0098).
+  async function repagarPeriodo() {
+    if (!periodoActual) return;
+    const motivo = window.prompt(
+      "Vas a recalcular este periodo y guardar una copia nueva del desglose.\n" +
+        "La copia anterior se conserva y queda registrado quién lo hizo y por qué.\n\n" +
+        "¿Por qué se vuelve a pagar? (mínimo 4 caracteres)\nEj.: se corrigió una marca del 12."
+    );
+    if (motivo === null) return;
+    if (motivo.trim().length < 4) {
+      avisar("error", "El motivo es obligatorio: volver a pagar cambia una cifra que ya se entregó.");
+      return;
+    }
+    setGuardandoPeriodo(true);
+    const { data, error } = await supabase.rpc("fn_repagar_periodo", {
+      p_periodo_id: periodoActual.id,
+      p_motivo: motivo.trim(),
+    });
+    setGuardandoPeriodo(false);
+    if (error) { avisar("error", `No se pudo volver a pagar: ${error.message}`); return; }
+    const r = data as unknown as { diferencia: number; personas: number; version: number };
+    const d = Number(r?.diferencia ?? 0);
+    avisar(
+      "ok",
+      d === 0
+        ? "Copia nueva guardada. El total no cambió."
+        : `Copia nueva guardada. El total ${d > 0 ? "subió" : "bajó"} ${formatSoles(Math.abs(d))}.`,
+    );
+    await Promise.all([cargarPeriodos(), cargarProyeccion(), cargarDesvios()]);
   }
 
   async function calcularBonoPuntualidad() {
@@ -1277,14 +1334,54 @@ export default function PlanillaPage() {
               </div>
             )}
 
+            {/* El periodo pagado dejó de cuadrar. El sistema lo DICE; corregir es
+                decisión de una persona, nunca automática. */}
+            {pagado && desvios && desvios.length > 0 && (
+              <div className="mb-4 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                <p className="font-medium">
+                  Este periodo ya está pagado, pero su desglose dejó de coincidir con los datos de hoy.
+                </p>
+                <p className="mt-1 text-xs">
+                  Alguien corrigió algo de estas fechas después del pago. Lo que se transfirió no cambió — lo que
+                  cambió es lo que el sistema calcularía ahora.
+                </p>
+                <ul className="mt-2 space-y-0.5 text-xs">
+                  {desvios.slice(0, 8).map((d) => (
+                    <li key={d.persona_id}>
+                      <span className="font-medium">{d.nombre}</span>:{" "}
+                      {d.total_foto === null
+                        ? "no estaba en la planilla pagada y ahora sí"
+                        : d.total_ahora === null
+                          ? "estaba en la planilla pagada y ahora no aparece"
+                          : `${formatSoles(d.total_foto)} → ${formatSoles(d.total_ahora)} (${
+                              d.diferencia > 0 ? "+" : ""
+                            }${formatSoles(d.diferencia)})`}
+                    </li>
+                  ))}
+                  {desvios.length > 8 && <li>…y {desvios.length - 8} más.</li>}
+                </ul>
+                <button
+                  onClick={() => void repagarPeriodo()}
+                  disabled={guardandoPeriodo}
+                  className="mt-3 rounded-lg bg-ambar px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                >
+                  {guardandoPeriodo ? "Guardando…" : "Recalcular y volver a pagar"}
+                </button>
+                <p className="mt-2 text-xs opacity-80">
+                  Guarda una copia nueva del desglose. La anterior se conserva, y queda registrado quién lo hizo y
+                  por qué. El periodo no se reabre en ningún momento.
+                </p>
+              </div>
+            )}
+
             {/* Candado del periodo */}
             {periodoActual && (
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 {pagado ? (
                   <>
                     <span className="text-sm text-taupe">
-                      Pagado{periodoActual.pagado_at ? ` el ${fechaLima(periodoActual.pagado_at)}` : ""} — objetivos,
-                      bonos y descuentos congelados.
+                      Pagado{periodoActual.pagado_at ? ` el ${fechaLima(periodoActual.pagado_at)}` : ""} — el desglose
+                      quedó congelado; es la cifra que va a Costos.
                     </span>
                     <button
                       onClick={() => void marcarPagado(false)}

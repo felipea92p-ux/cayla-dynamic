@@ -1656,6 +1656,10 @@ export type Database = {
         Args: { p_as_of?: string }
         Returns: Json
       }
+      fn_repagar_periodo: {
+        Args: { p_periodo_id: string; p_motivo: string }
+        Returns: Json
+      }
       fn_costos_planilla: {
         Args: { p_desde: string; p_hasta: string }
         Returns: Json
