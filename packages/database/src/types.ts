@@ -1667,6 +1667,80 @@ export type Database = {
         Args: { p_periodo_id: string; p_motivo: string }
         Returns: Json
       }
+      fn_registrar_ausencia: {
+        Args: {
+          p_persona_id: string
+          p_tipo: string
+          p_fecha_inicio: string
+          p_fecha_fin: string
+          p_motivo?: string | null
+          p_doc_profesional?: string | null
+          p_doc_colegiatura?: string | null
+          p_doc_fecha?: string | null
+        }
+        Returns: string
+      }
+      fn_anular_ausencia: {
+        Args: { p_id: string; p_motivo: string }
+        Returns: undefined
+      }
+      fn_aprobar_ausencia: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      fn_ausencias: {
+        Args: { p_desde: string; p_hasta: string; p_persona_id?: string | null }
+        Returns: {
+          id: string
+          persona_id: string
+          nombre: string
+          sede: string
+          tipo: string
+          tipo_nombre: string
+          paga: boolean
+          requiere_aprobacion: boolean
+          fecha_inicio: string
+          fecha_fin: string
+          dias: number
+          motivo: string | null
+          doc_profesional: string | null
+          doc_colegiatura: string | null
+          doc_fecha: string | null
+          aprobada: boolean
+          registrada_tarde: boolean
+          registrada_por_nombre: string | null
+          registrada_at: string
+          anulada: boolean
+          anulada_motivo: string | null
+        }[]
+      }
+      fn_ausencias_alerta: {
+        Args: { p_persona_id?: string | null }
+        Returns: {
+          persona_id: string
+          nombre: string
+          tipo: string
+          tipo_nombre: string
+          veces: number
+          ventana_dias: number
+          umbral: number
+        }[]
+      }
+      fn_tipos_ausencia: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          codigo: string
+          nombre: string
+          paga: boolean
+          requiere_documento: boolean
+          requiere_aprobacion: boolean
+          descuenta_vacaciones: boolean
+          alerta_desde: number | null
+          ventana_alerta_dias: number | null
+          activo: boolean
+          orden: number
+        }[]
+      }
       fn_costos_planilla: {
         Args: { p_desde: string; p_hasta: string }
         Returns: Json

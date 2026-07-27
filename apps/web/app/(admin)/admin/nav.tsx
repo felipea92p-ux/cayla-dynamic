@@ -35,7 +35,7 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
     { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
     { href: "/admin/costos", label: "Costos", Icon: Coins, roles: DO },
-    { href: "/admin/vacaciones", label: "Vacaciones", Icon: TreePalm, roles: DO },
+    { href: "/admin/ausencias", label: "Ausencias", Icon: TreePalm, roles: SEDE },
     { href: "/admin/feriados", label: "Feriados", Icon: CalendarCheck, roles: DO },
   ] },
   { label: "Gestión", items: [
@@ -52,6 +52,8 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
 function esActivo(pathname: string, href: string): boolean {
   if (pathname === href) return true;
   if (href === "/admin/equipo" && pathname.startsWith("/admin/personas")) return true;
+  // Vacaciones se absorbió en Ausencias (0101); el enlace viejo sigue llevando allí.
+  if (href === "/admin/ausencias" && pathname === "/admin/vacaciones") return true;
   return false;
 }
 
