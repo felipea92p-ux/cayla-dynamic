@@ -755,7 +755,15 @@ export default function PlanillaPage() {
   async function marcarPagado(pagar: boolean) {
     if (!periodoActual) return;
     if (pagar) {
-      if (!window.confirm("Marcar este periodo como PAGADO congela objetivos, bonos y descuentos. ¿Continuar?")) return;
+      if (
+        !window.confirm(
+          "Marcar este periodo como PAGADO guarda una copia intacta del desglose de cada persona: " +
+            "es el número que queda para contabilidad y ya no cambia solo.\n\n" +
+            "Si después hay que corregir algo, se reabre con Revertir pago (queda el motivo) y se vuelve " +
+            "a marcar como pagado: se guarda una copia nueva y la anterior se conserva.\n\n¿Continuar?",
+        )
+      )
+        return;
       setGuardandoPeriodo(true);
       const { error } = await supabase.rpc("fn_periodo_pagado", { p_periodo_id: periodoActual.id, p_pagado: true });
       setGuardandoPeriodo(false);
