@@ -17,7 +17,13 @@ reproduce hoy, táchalo y anota por qué.
 
 ## Critica — 14
 
-### 1. El sueldo fijo paga el mes completo aunque la persona solo estuviera 6 días — y S/0 si cesó sin marcar
+### 1. ~~El sueldo fijo paga el mes completo aunque la persona solo estuviera 6 días — y S/0 si cesó sin marcar~~
+
+> ❌ **DESCARTADO** (Felipe, 27-07). El único caso con sueldo fijo e «ingreso» a mitad de mes es Catherine, que es **socia desde el inicio**: su fecha en la base viene de la carga inicial del sistema, no de una incorporación real. No es un caso que vaya a repetirse.
+>
+> Queda en pie una parte, para cuando se construya la liquidación por cese: quien tiene sueldo fijo y cesa sin marcar **no aparece en la planilla** — ni una fila, ni un aviso. Acordado que aparezca siempre.
+>
+> Y sigue abierta la discrepancia de fondo: `fn_provisiones` prorratea día a día y `fn_planilla_calcular` no. Dos funciones que reparten el mismo dinero con criterios distintos.
 
 `planilla-dinero` · 💰 dinero · arreglo de **horas**
 
