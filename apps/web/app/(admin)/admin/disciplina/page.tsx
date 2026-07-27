@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const TZ = "America/Lima";
 
@@ -89,7 +90,7 @@ export default function DisciplinaPage() {
         .order("creado_at", { ascending: false }),
       supabase.from("personas").select("id, nombres, apellidos"),
     ]);
-    if (eD) setMsg({ tipo: "error", texto: `No se pudo cargar el legajo: ${eD.message}` });
+    if (eD) setMsg({ tipo: "error", texto: mensajeDeError(eD, "cargar el legajo") });
     setTardanzas(Array.isArray(t) ? (t as TardanzaRow[]) : []);
     setFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
     const lista = Array.isArray(d) ? (d as unknown as Doc[]) : [];
@@ -133,7 +134,7 @@ export default function DisciplinaPage() {
     const fn = tipo === "tardanza" ? "fn_expediente_generar_tardanza" : "fn_expediente_generar_falta";
     const { error } = await supabase.rpc(fn, { p_persona_id: personaId });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Borrador generado. Revísalo abajo y fírmalo cuando esté listo." });
     const suave = typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -152,7 +153,7 @@ export default function DisciplinaPage() {
     setOcupado(id); setMsg(null);
     const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id, p_firmante_id: elegido ?? null });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: `Firmado — documento ${data ?? ""}. Ya puedes entregarlo.` });
   }
@@ -162,7 +163,7 @@ export default function DisciplinaPage() {
     setOcupado(id); setMsg(null);
     const { error } = await supabase.rpc("fn_expediente_entregar", { p_id: id, p_medio: m });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Marcado como entregado. Guarda el cargo firmado en el legajo." });
   }
@@ -175,7 +176,7 @@ export default function DisciplinaPage() {
       p_id: d.id, p_suspension_dias: dias, p_suspension_desde: desde, p_suspension_hasta: addDias(desde, dias - 1),
     });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
   }
 
@@ -185,7 +186,7 @@ export default function DisciplinaPage() {
     setOcupado(id); setMsg(null);
     const { error } = await supabase.rpc("fn_expediente_anular", { p_id: id, p_motivo: motivo.trim() });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Documento anulado." });
   }

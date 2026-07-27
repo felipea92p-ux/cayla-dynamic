@@ -7,6 +7,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const TZ = "America/Lima";
 
@@ -96,7 +97,7 @@ export default function ObjetivosPage() {
       supabase.rpc("fn_objetivos_resumen", { p_anio: anio, p_mes: mes }),
     ]);
     if (error) {
-      setMensaje({ tipo: "error", texto: `No se pudieron cargar los objetivos: ${error.message}` });
+      setMensaje({ tipo: "error", texto: mensajeDeError(error) });
     } else {
       setItems(((data as unknown as ObjetivoItem[] | null) ?? []).slice());
       setResumen((res as unknown as ResumenMes[] | null) ?? []);

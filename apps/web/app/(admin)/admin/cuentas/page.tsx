@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { CargandoFila, SinDatos } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 interface Cuenta {
   id: string;
@@ -84,7 +85,7 @@ export default function CuentasPage() {
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.auth.updateUser({ password: nueva });
     setGuardandoMia(false);
-    if (error) { setMsgMia({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsgMia({ tipo: "error", texto: mensajeDeError(error) }); return; }
     setNueva(""); setConfirma("");
     setMsgMia({ tipo: "ok", texto: "Tu contraseña se cambió correctamente." });
   }

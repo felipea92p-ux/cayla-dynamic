@@ -9,6 +9,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, salarioSugerido, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
@@ -151,7 +152,7 @@ export default function EquipoPage() {
       ),
     );
     if (personasError || sedesError) {
-      setMensaje({ tipo: "error", texto: `No se pudo cargar el equipo: ${(personasError ?? sedesError)!.message}` });
+      setMensaje({ tipo: "error", texto: mensajeDeError((personasError ?? sedesError)!, "cargar el equipo") });
     }
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.

@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const TZ = "America/Lima";
 
@@ -100,7 +101,7 @@ export default function VacacionesPage() {
       supabase.rpc("fn_vacaciones_resumen", {}),
     ]);
     if (eP || eV) {
-      setMsg({ tipo: "error", texto: `No se pudo cargar: ${(eP ?? eV)!.message}` });
+      setMsg({ tipo: "error", texto: mensajeDeError((eP ?? eV)!, "cargar las vacaciones") });
       setCargando(false);
       return; // no pisa la lista con datos parciales
     }
@@ -135,7 +136,7 @@ export default function VacacionesPage() {
       p_observacion: observacion.trim() || null,
     });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     setObservacion("");
     await cargar();
     setMsg({ tipo: "ok", texto: `Vacaciones registradas: ${diasForm} día${diasForm === 1 ? "" : "s"}.` });
@@ -146,7 +147,7 @@ export default function VacacionesPage() {
     setMsg(null);
     const { error } = await supabase.rpc("fn_quitar_vacaciones", { p_id: v.id });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Periodo de vacaciones quitado." });
   }

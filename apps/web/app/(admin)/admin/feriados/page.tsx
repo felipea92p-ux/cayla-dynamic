@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const TZ = "America/Lima";
 
@@ -126,7 +127,7 @@ export default function FeriadosPage() {
       supabase.rpc("fn_actas_descanso", {}),
     ]);
     if (eP) {
-      setMsg({ tipo: "error", texto: `No se pudo cargar: ${eP.message}` });
+      setMsg({ tipo: "error", texto: mensajeDeError(eP, "cargar") });
       setCargando(false);
       return;
     }
@@ -200,7 +201,7 @@ export default function FeriadosPage() {
       p_nombre: file.name,
     });
     setSubiendo(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: `Acta guardada para “${refActa}”.` });
   }
@@ -282,7 +283,7 @@ export default function FeriadosPage() {
     setMsg(null);
     const { error } = await supabase.rpc("fn_quitar_descanso_sustitutorio", { p_id: id });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Registro quitado. Ese feriado vuelve a pagar sobretasa." });
   }

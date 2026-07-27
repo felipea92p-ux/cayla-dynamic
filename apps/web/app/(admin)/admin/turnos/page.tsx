@@ -7,6 +7,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function hoyLima(): string {
@@ -561,7 +562,7 @@ export default function TurnosPage() {
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (pErr || hErr || tErr || mErr) {
-      setMsg({ tipo: "error", texto: `No se pudo cargar la semana: ${(pErr ?? hErr ?? tErr ?? mErr)!.message}` });
+      setMsg({ tipo: "error", texto: mensajeDeError((pErr ?? hErr ?? tErr ?? mErr)!, "cargar la semana") });
       setCargando(false);
       return; // no pisa personas/horarios/turnos/metas con datos parciales/vacíos
     }
@@ -660,7 +661,7 @@ export default function TurnosPage() {
     setGuardando(true);
     const { error } = await fn();
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     setEdit(null);
     await cargar();
   }
@@ -692,7 +693,7 @@ export default function TurnosPage() {
       }
     }
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     setEdit(null);
     await cargar();
     setMsg({ tipo: "ok", texto: `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.` });
@@ -711,7 +712,7 @@ export default function TurnosPage() {
       p_sede_id: sedeSel, p_dia_semana: dia,
       p_meta_manana: metas.get(dia) ?? 0, p_meta_tarde: metasTarde.get(dia) ?? 0,
     });
-    if (error) { setMsg({ tipo: "error", texto: `No se pudo guardar la meta: ${error.message}` }); await cargar(); }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "guardar la meta") }); await cargar(); }
   }
 
   function editarMetaEncargadas(dia: number, valor: string) {
@@ -721,7 +722,7 @@ export default function TurnosPage() {
   async function comprometerMetaEncargadas(dia: number, valor: string) {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
     const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
-    if (error) { setMsg({ tipo: "error", texto: `No se pudo guardar la meta de encargadas: ${error.message}` }); await cargar(); }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "guardar la meta de encargadas") }); await cargar(); }
   }
 
   if (rol !== null && !puedeVer) {

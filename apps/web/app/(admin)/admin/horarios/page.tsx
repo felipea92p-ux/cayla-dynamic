@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 
@@ -99,7 +100,7 @@ export default function HorariosPage() {
       supabase.from("sedes").select("id, codigo"),
     ]);
     if (errP || errH || errS) {
-      setMensaje({ tipo: "error", texto: `No se pudo cargar: ${(errP ?? errH ?? errS)!.message}` });
+      setMensaje({ tipo: "error", texto: mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios") });
       setCargando(false);
       return; // no pisa `personas`/`horarios`/`sedes` con datos parciales
     }
@@ -188,7 +189,7 @@ export default function HorariosPage() {
       p_persona_id: editando.id, p_vigente_desde: desde, p_horario: horario,
     });
     setGuardando(false);
-    if (error) { setMensaje({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMensaje({ tipo: "error", texto: mensajeDeError(error) }); return; }
     setEditando(null);
     await cargar();
     setMensaje({ tipo: "ok", texto: "Horario guardado. Las tardanzas desde esa fecha se recalcularon." });

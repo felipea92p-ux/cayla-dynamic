@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; sede_base_id: string; email: string | null }
 interface Ficha {
@@ -121,7 +122,7 @@ export default function DatosPersonalesPage() {
       p_foto_profesional_url: form.foto_profesional_url.trim() || null,
     });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Ficha guardada." });
   }
