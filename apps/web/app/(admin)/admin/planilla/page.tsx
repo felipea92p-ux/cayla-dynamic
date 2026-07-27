@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { Cargando, SinDatos } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -1452,7 +1452,7 @@ export default function PlanillaPage() {
                   ) : feriadosAnio === null ? (
                     <Cargando />
                   ) : feriadosAnio.length === 0 ? (
-                    <p className="text-sm text-taupe">No hay feriados registrados este año.</p>
+                    <SinDatos texto="No hay feriados registrados este año." pista="Los feriados se cargan en la pantalla Feriados. Sin ellos, el pago por feriado laborado no se calcula." />
                   ) : (
                     <ul className="mb-3 grid gap-x-10 sm:grid-cols-2">
                       {feriadosAnio.map((f) => (

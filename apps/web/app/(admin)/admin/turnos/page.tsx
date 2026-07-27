@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { Cargando, SinDatos } from "@/components/cargando";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function hoyLima(): string {
@@ -899,9 +899,24 @@ export default function TurnosPage() {
                   Toca una celda para ver quién cubre y editar sus turnos.
                 </p>
                 {!hayGente ? (
-                  <p className="rounded-lg border border-sand px-4 py-6 text-center text-sm text-taupe">
-                    No hay turnos programados esta semana en esta sede.
-                  </p>
+                  // Dos causas MUY distintas y hasta hoy el mismo mensaje para
+                  // las dos: "no hay turnos programados". Si la sede está vacía
+                  // —una recién creada, por ejemplo— eso manda a buscar cómo
+                  // crear turnos cuando lo que falta es asignar personas. El
+                  // mensaje tiene que nombrar la causa real, no el síntoma.
+                  <div className="rounded-lg border border-sand">
+                    {personas.length === 0 ? (
+                      <SinDatos
+                        texto="Todavía no hay nadie asignado a esta sede."
+                        pista="Los turnos se arman sobre el equipo de la sede. Ve a Equipo, abre a una persona y elige esta sede como su sede base."
+                      />
+                    ) : (
+                      <SinDatos
+                        texto="Nadie tiene turno ni horario esta semana en esta sede."
+                        pista="Toca la fila de una persona en un día para ponerle turno o marcarle descanso. Si su horario base ya está puesto en Horarios, aparece solo."
+                      />
+                    )}
+                  </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-sand bg-crema p-2">
                     <div className="min-w-[720px]">
@@ -970,7 +985,7 @@ export default function TurnosPage() {
           <div className="overflow-x-auto">
             <div className="min-w-[700px] space-y-4">
               {personas.length === 0 ? (
-                <p className="rounded-lg border border-sand px-4 py-6 text-center text-sm text-taupe">No hay personas activas en esta sede.</p>
+                <SinDatos texto="Todavía no hay nadie asignado a esta sede." pista="Ve a Equipo, abre a una persona y elige esta sede como su sede base." />
               ) : dias.map((iso) => {
                 const { abr, num } = etiquetaDia(iso);
                 const hoy = iso === hoyLima();

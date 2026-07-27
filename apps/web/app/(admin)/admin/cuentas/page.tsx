@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
-import { CargandoFila } from "@/components/cargando";
+import { CargandoFila, SinDatos } from "@/components/cargando";
 
 interface Cuenta {
   id: string;
@@ -214,7 +214,7 @@ export default function CuentasPage() {
           Da acceso al panel de su sede a una integrante. Al convertirla, aparece arriba para crearle su cuenta.
         </p>
         {promovibles.length === 0 ? (
-          <p className="text-sm text-taupe">No hay integrantes por promover.</p>
+          <SinDatos texto="No hay integrantes por promover." pista="Acá aparece quien todavía no tiene cuenta de acceso al panel. Si está vacío, es que todas las personas con rol de encargada o líder ya tienen la suya." />
         ) : (
           <div className="flex flex-wrap gap-2">
             {promovibles.map((p) => (

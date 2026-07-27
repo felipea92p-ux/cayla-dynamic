@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { Cargando, SinDatos } from "@/components/cargando";
 
 const TZ = "America/Lima";
 
@@ -592,7 +592,7 @@ export default function FeriadosPage() {
             Descansos registrados {registros.length > 0 && <span className="font-normal text-taupe">· {registros.length}</span>}
           </h2>
           {registros.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-taupe">Todavía no hay descansos sustitutorios registrados.</p>
+            <SinDatos texto="Todavía no hay descansos sustitutorios registrados." pista="Cuando alguien trabaja un feriado y se le da otro día libre a cambio, se anota acá para que quede constancia con su acta firmada." />
           ) : (
             <ul className="divide-y">
               {registros.map((r) => (

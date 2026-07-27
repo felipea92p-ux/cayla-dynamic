@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { Cargando, SinDatos } from "@/components/cargando";
 
 const TZ = "America/Lima";
 
@@ -222,7 +222,7 @@ export default function VacacionesPage() {
           {cargando ? (
             <Cargando />
           ) : vacaciones.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-taupe">Todavía no hay vacaciones registradas.</p>
+            <SinDatos texto="Todavía no hay vacaciones registradas." pista="Usa “Registrar vacaciones” arriba para anotar los días que alguien va a tomar. El saldo de cada persona se calcula solo desde su fecha de ingreso." />
           ) : (
             <ul className="divide-y">
               {vacaciones.map((v) => {
