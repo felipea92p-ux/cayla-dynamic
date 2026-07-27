@@ -248,7 +248,7 @@ export default function EquipoPage() {
     });
     if (error) {
       setGuardando(false);
-      avisar("error", `No se pudo crear: ${error.message}`);
+      avisar("error", mensajeDeError(error, "crear"));
       return;
     }
     // El PIN se muestra UNA sola vez: aunque la asignación familiar falle, el aviso
@@ -290,7 +290,7 @@ export default function EquipoPage() {
       .eq("id", editandoId);
     if (error) {
       setGuardando(false);
-      avisar("error", `No se pudo guardar: ${error.message}`);
+      avisar("error", mensajeDeError(error, "guardar"));
       return;
     }
     // El área se guarda por RPC (columna fuera del schema cache) solo si:
@@ -371,7 +371,7 @@ export default function EquipoPage() {
       .update({ estado: nuevo, fecha_estado_cambio: new Date().toISOString() })
       .eq("id", p.id);
     if (error) {
-      avisar("error", `No se pudo cambiar el estado: ${error.message}`);
+      avisar("error", mensajeDeError(error, "cambiar el estado"));
       return;
     }
     await cargar();
@@ -384,7 +384,7 @@ export default function EquipoPage() {
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.from("personas").update({ pin_hash: pinHash }).eq("id", p.id);
     if (error) {
-      avisar("error", `No se pudo regenerar el PIN: ${error.message}`);
+      avisar("error", mensajeDeError(error, "regenerar el PIN"));
       return;
     }
     avisar("ok", `Nuevo PIN de ${p.nombres} ${p.apellidos}: ${pin} — anótalo ahora, no se vuelve a mostrar.`);
@@ -446,7 +446,7 @@ export default function EquipoPage() {
     });
     setGuardandoSal(false);
     if (error) {
-      avisar("error", `No se pudo guardar el salario: ${error.message}`);
+      avisar("error", mensajeDeError(error, "guardar el salario"));
       return;
     }
     setSalEditId(null);
@@ -462,7 +462,7 @@ export default function EquipoPage() {
     const { data, error } = await supabase.rpc("fn_historial_salario", { p_persona_id: p.id });
     if (error) {
       // no abrir el panel con datos falsos ("Sin registros") cuando en realidad falló
-      avisar("error", `No se pudo cargar el historial: ${error.message}`);
+      avisar("error", mensajeDeError(error, "cargar el historial"));
       return;
     }
     setHist((data as TramoSalario[]) ?? []);

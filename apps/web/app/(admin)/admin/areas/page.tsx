@@ -7,6 +7,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { type Area, AREA_DEFAULT, parseAreas, slugDeNombre } from "@/lib/areas";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 interface FormArea {
   nombre: string;
@@ -115,7 +116,7 @@ export default function AreasPage() {
     });
     setGuardando(false);
     if (error) {
-      avisar("error", `No se pudo guardar: ${error.message}`);
+      avisar("error", mensajeDeError(error, "guardar"));
       return;
     }
     cancelarForm();
@@ -127,7 +128,7 @@ export default function AreasPage() {
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_area_activa", { p_codigo: a.codigo, p_activa: activa });
     if (error) {
-      avisar("error", `No se pudo ${activa ? "reactivar" : "desactivar"} el área: ${error.message}`);
+      avisar("error", mensajeDeError(error));
       return;
     }
     await cargar();

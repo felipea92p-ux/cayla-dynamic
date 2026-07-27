@@ -90,8 +90,18 @@ base tiene los cambios pero el registro no lo dice. El script solo arregla eso.
    el cierre anticipado sin esto. Incluye el pago por horas del día de prueba, con
    recordatorio del T-Registro de 24 h. Al marcar PAGADO se guarda copia intacta
    de los montos y el sistema avisa si un recálculo posterior ya no coincide.
-   *(Las 0085–0087 pusieron los cimientos: tipo de vínculo, fecha de cese y los
-   cálculos truncos. Falta la pantalla.)*
+   **Dónde quedó exactamente (27-07, pedido de Felipe: recordárselo):**
+   - `0085` tipo de vínculo y `0086` fecha de cese: **probadas**, en el repo, sin
+     aplicar en producción.
+   - `0087` truncas: **retirada de producción** con
+     [`quitar_0087_truncas.sql`](../scripts/sql-manual/quitar_0087_truncas.sql)
+     porque se aplicó sin pruebas y fallaba dos de seis casos.
+     `fn_grati_trunca` ya está corregida y pasa **6/6**;
+     **`fn_cts_trunca` y `fn_vacaciones_truncas` siguen SIN probar.**
+   - La trampa que falta cazar en CTS: el sexto de la gratificación es
+     `sueldo/12` en MYPE, no `sueldo/6` — usar el del régimen general paga de
+     más en cada liquidación.
+   - Falta la pantalla.
 
 3. **Los 4 scripts de `sql-manual` que divergen de su migración fuente.** El peor,
    `aplicar_0017`, lleva la fórmula vieja de tardanza: pegarlo retrocede el

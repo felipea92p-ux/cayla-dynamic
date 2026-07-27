@@ -132,7 +132,7 @@ export default function ObjetivosPage() {
     });
     setGuardando(false);
     if (error) {
-      avisar("error", `No se pudo agregar: ${error.message}`);
+      avisar("error", mensajeDeError(error, "agregar"));
       return;
     }
     setNuevoTexto("");
@@ -146,7 +146,7 @@ export default function ObjetivosPage() {
       p_cumplido: cumplido,
     });
     if (error) {
-      avisar("error", `No se pudo marcar: ${error.message}`);
+      avisar("error", mensajeDeError(error, "marcar"));
       return;
     }
     await cargar();
@@ -166,7 +166,7 @@ export default function ObjetivosPage() {
     });
     setGuardando(false);
     if (error) {
-      avisar("error", `No se pudo editar: ${error.message}`);
+      avisar("error", mensajeDeError(error, "editar"));
       return;
     }
     setEditandoId(null);
@@ -178,7 +178,7 @@ export default function ObjetivosPage() {
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_objetivo_eliminar", { p_item_id: item.id });
     if (error) {
-      avisar("error", `No se pudo eliminar: ${error.message}`);
+      avisar("error", mensajeDeError(error, "eliminar"));
       return;
     }
     await cargar();

@@ -9,6 +9,7 @@ import { Cargando, SinDatos } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 // ── Fechas ───────────────────────────────────────────────────────────────────
 // Exportadas: las reutiliza /admin/planilla/boleta (misma fuente de verdad de formato).
@@ -806,7 +807,7 @@ export default function PlanillaPage() {
     );
     setCreandoPeriodo(false);
     if (error) {
-      avisar("error", `No se pudo crear el periodo: ${error.message}`);
+      avisar("error", mensajeDeError(error, "crear el periodo"));
       return;
     }
     const nuevo = data as unknown as { id: string; fecha_ini: string; fecha_fin: string };
@@ -832,7 +833,7 @@ export default function PlanillaPage() {
     const { error } = await supabase.rpc("fn_eliminar_periodo", { p_periodo_id: periodoActual.id });
     setGuardandoPeriodo(false);
     if (error) {
-      avisar("error", `No se pudo eliminar el periodo: ${error.message}`);
+      avisar("error", mensajeDeError(error, "eliminar el periodo"));
       return;
     }
     avisar("ok", "Periodo eliminado.");
@@ -855,7 +856,7 @@ export default function PlanillaPage() {
       setGuardandoPeriodo(true);
       const { error } = await supabase.rpc("fn_periodo_pagado", { p_periodo_id: periodoActual.id, p_pagado: true });
       setGuardandoPeriodo(false);
-      if (error) { avisar("error", `No se pudo actualizar el periodo: ${error.message}`); return; }
+      if (error) { avisar("error", mensajeDeError(error, "actualizar el periodo")); return; }
       avisar("ok", "Periodo marcado como PAGADO 🔒.");
       await Promise.all([cargarPeriodos(), cargarProyeccion()]);
       return;
@@ -869,7 +870,7 @@ export default function PlanillaPage() {
     setGuardandoPeriodo(true);
     const { error } = await supabase.rpc("fn_revertir_pago", { p_periodo_id: periodoActual.id, p_motivo: motivo.trim() });
     setGuardandoPeriodo(false);
-    if (error) { avisar("error", `No se pudo reabrir: ${error.message}`); return; }
+    if (error) { avisar("error", mensajeDeError(error, "reabrir")); return; }
     avisar("ok", "Periodo reabierto con registro. Corrige lo necesario y vuelve a marcarlo como PAGADO.");
     await Promise.all([cargarPeriodos(), cargarProyeccion()]);
   }
@@ -894,7 +895,7 @@ export default function PlanillaPage() {
       p_motivo: motivo.trim(),
     });
     setGuardandoPeriodo(false);
-    if (error) { avisar("error", `No se pudo volver a pagar: ${error.message}`); return; }
+    if (error) { avisar("error", mensajeDeError(error, "volver a pagar")); return; }
     const r = data as unknown as { diferencia: number; personas: number; version: number };
     const d = Number(r?.diferencia ?? 0);
     avisar(
@@ -922,7 +923,7 @@ export default function PlanillaPage() {
     });
     setGuardandoBono(false);
     if (error) {
-      avisar("error", `No se pudo calcular el bono de puntualidad: ${error.message}`);
+      avisar("error", mensajeDeError(error, "calcular el bono de puntualidad"));
       return;
     }
     const r = data as unknown as { poblacion: number; puntuales: number; monto_por_persona: number };
@@ -968,7 +969,7 @@ export default function PlanillaPage() {
     });
     setGuardandoFeriado(false);
     if (error) {
-      avisar("error", `No se pudo guardar el feriado: ${error.message}`);
+      avisar("error", mensajeDeError(error, "guardar el feriado"));
       return;
     }
     setNuevoFeriado({ fecha: "", nombre: "" });
@@ -982,7 +983,7 @@ export default function PlanillaPage() {
     const { error } = await supabase.rpc("fn_quitar_feriado", { p_fecha: f.fecha });
     setGuardandoFeriado(false);
     if (error) {
-      avisar("error", `No se pudo quitar el feriado: ${error.message}`);
+      avisar("error", mensajeDeError(error, "quitar el feriado"));
       return;
     }
     avisar("ok", "Feriado quitado.");
@@ -1024,7 +1025,7 @@ export default function PlanillaPage() {
     });
     setGuardandoObj(null);
     if (error) {
-      avisar("error", `No se pudieron guardar los objetivos: ${error.message}`);
+      avisar("error", `No se pudieron guardar los objetivos: ` + mensajeDeError(error));
       return;
     }
     avisar("ok", `Objetivos de ${f.nombre}: ${n} de ${total}.`);
@@ -1060,7 +1061,7 @@ export default function PlanillaPage() {
     });
     setGuardandoMov(false);
     if (error) {
-      avisar("error", `No se pudo registrar el movimiento: ${error.message}`);
+      avisar("error", mensajeDeError(error, "registrar el movimiento"));
       return;
     }
     avisar("ok", `${CLASE_LABEL[movForm.tipo]} de ${formatSoles(monto)} para ${f.nombre}.`);
@@ -1111,7 +1112,7 @@ export default function PlanillaPage() {
     });
     setGuardandoMov(false);
     if (error) {
-      avisar("error", `No se pudo registrar: ${error.message}`);
+      avisar("error", mensajeDeError(error, "registrar"));
       return;
     }
     avisar("ok", `Registrado: a ${f.nombre} ya se le habían pagado ${formatSoles(monto)} el ${fecha.trim()}.`);
@@ -1124,7 +1125,7 @@ export default function PlanillaPage() {
     const { error } = await supabase.rpc("fn_quitar_movimiento", { p_movimiento_id: m.id });
     setGuardandoMov(false);
     if (error) {
-      avisar("error", `No se pudo quitar el movimiento: ${error.message}`);
+      avisar("error", mensajeDeError(error, "quitar el movimiento"));
       return;
     }
     avisar("ok", "Movimiento quitado.");

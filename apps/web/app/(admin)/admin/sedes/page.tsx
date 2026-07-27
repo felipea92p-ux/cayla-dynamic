@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 type TipoSede = "central" | "taller" | "tienda";
 interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: TipoSede }
@@ -75,7 +76,7 @@ export default function SedesPage() {
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_guardar_sede", { p_codigo: codigo, p_nombre: nombre, p_tipo: form.tipo });
     setGuardando(false);
-    if (error) { avisar("error", `No se pudo guardar: ${error.message}`); return; }
+    if (error) { avisar("error", mensajeDeError(error, "guardar")); return; }
     cancelarForm();
     await cargar();
     avisar("ok", eraEdicion ? "Cambios guardados." : `Sede “${nombre}” (${codigo}) creada.`);
@@ -87,7 +88,7 @@ export default function SedesPage() {
     )) return;
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_sede_activa", { p_codigo: s.codigo, p_activa: activa });
-    if (error) { avisar("error", `No se pudo ${activa ? "reactivar" : "desactivar"} la sede: ${error.message}`); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
     avisar("ok", activa
       ? `“${s.nombre}” reactivada: vuelve a ofrecerse al asignar personas.`
