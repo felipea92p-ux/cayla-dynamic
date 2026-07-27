@@ -10,10 +10,10 @@
   --color-rojo: #b8412d; /* acento sagrado (máx. usos por vista) */
   --color-rojo-profundo: #8b2a1f; /* énfasis sobre crema */
   --color-sand: #e8e0d0; /* recuadros, headers de tabla, líneas */
-  --color-taupe: #a47865; /* acento tonal, estados intermedios */
+  --color-taupe: #805c4c; /* acento tonal, estados intermedios */
   /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema. */
-  --color-verde: #5f7a52; /* presente / trabajando */
-  --color-ambar: #b0812f; /* en pausa */
+  --color-verde: #5b754f; /* presente / trabajando */
+  --color-ambar: #8d6726; /* en pausa */
 
   /* ── Tipografía ───────────────────────────────────────────────
      Serif para títulos y datos con alma; sans para el sistema. */
