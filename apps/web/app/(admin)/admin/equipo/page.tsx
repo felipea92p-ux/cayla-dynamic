@@ -457,10 +457,10 @@ export default function EquipoPage() {
         Sede
         <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-lg border bg-crema px-3 py-2">
           <option value="">Elegir…</option>
-          {/* Nombre primero: al dar de alta a alguien se elige "Taller LIM", no
-              "LIM". Con dos sedes en Lima el código solo no alcanza. */}
+          {/* El nombre, no el código: al dar de alta a alguien se elige
+              "Taller LIM", no "LIM". Con dos sedes en Lima no alcanza. */}
           {sedes.map((s) => (
-            <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>
+            <option key={s.id} value={s.id}>{s.nombre}</option>
           ))}
         </select>
       </label>

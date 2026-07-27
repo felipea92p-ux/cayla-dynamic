@@ -755,9 +755,9 @@ export default function TurnosPage() {
             </div>
             {esAdmin && (
               <select value={sedeSel} onChange={(e) => setSedeSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
-                {/* El nombre primero: quien arma turnos piensa en "Tienda LIM",
-                    no en "003". El código va detrás por si hace falta. */}
-                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>)}
+                {/* El nombre, no el código: quien arma turnos piensa en
+                    "Tienda LIM", no en "003". */}
+                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
             )}
             <div className="flex items-center gap-1">

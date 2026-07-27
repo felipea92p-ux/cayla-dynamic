@@ -190,7 +190,7 @@ function ReporteSedeContenido() {
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1 text-sm">Sede
               <select value={sedeId} onChange={(e) => { setSedeId(e.target.value); setCargado(false); }} className="min-w-40 rounded-xl border border-sand bg-crema px-3 py-2">
-                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>)}
+                {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1 text-sm">Mes
