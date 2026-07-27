@@ -1659,6 +1659,10 @@ export type Database = {
         Args: { p_as_of?: string }
         Returns: Json
       }
+      fn_planilla_congelar: {
+        Args: { p_periodo_id: string; p_origen: string; p_autor: string | null }
+        Returns: number
+      }
       fn_repagar_periodo: {
         Args: { p_periodo_id: string; p_motivo: string }
         Returns: Json

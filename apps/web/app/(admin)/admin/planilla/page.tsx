@@ -31,6 +31,16 @@ export function fechaCorta(iso: string): string {
   return `${Number(d)} ${MESES_ABR[Number(m) - 1]}`;
 }
 
+// Hoy en Lima como DD/MM/AAAA. Se arma con Intl y no con new Date().toISOString(),
+// que resuelve en UTC: a partir de las 19:00 de Lima daría el día siguiente.
+function hoyLimaDMA(): string {
+  const p = new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const v = (t: string) => p.find((x) => x.type === t)!.value;
+  return `${v("day")}/${v("month")}/${v("year")}`;
+}
+
 // "2026-06-15" → "15/06"
 function fechaDiaMes(iso: string): string {
   const [, m, d] = iso.split("-");
@@ -100,6 +110,8 @@ export interface Fila {
   dias_trabajados: number;
   dias_pendientes: number;
   horas_sin_salario: number;
+  dias_vacaciones: number;   // 0100 — por qué está en cero
+  dias_laborables: number;   // 0100 — 0 = no tiene horario asignado
   pago_base: number;
   fecha_ingreso: string;
   feriados_detalle: FeriadoDetalle[];
@@ -192,6 +204,26 @@ const COLS = 12; // columnas de la tabla principal
 // ── Tabla de planilla (compartida entre periodo oficial y simulador) ─────────
 // Componente a nivel de módulo: si viviera dentro de PlanillaPage se
 // remontaría en cada render y los inputs perderían el foco al tipear.
+// Por qué alguien aparece en S/0.00. Tres situaciones que hasta la 0100 se veían
+// idénticas, y solo una de ellas es inofensiva. La razón se decide AQUÍ y en
+// ningún otro sitio: si mañana hay una cuarta, se agrega en un solo lugar.
+type EstadoFiltro = "activos" | "inactivos" | "todos";
+function pasaEstado(f: Fila, e: EstadoFiltro): boolean {
+  if (e === "todos") return true;
+  return e === "activos" ? f.estado === "activo" : f.estado !== "activo";
+}
+
+function razonDelCero(f: Fila): { texto: string; grave: boolean } | null {
+  if (f.total > 0 || f.horas_mes > 0) return null;
+  if (f.dias_vacaciones > 0) {
+    return { texto: `De vacaciones (${f.dias_vacaciones} días del periodo)`, grave: false };
+  }
+  if (f.dias_laborables === 0) {
+    return { texto: "Sin horario asignado — el sistema no sabe qué días le tocaba venir", grave: true };
+  }
+  return { texto: `No marcó ningún día, y le tocaban ${f.dias_laborables}`, grave: true };
+}
+
 function TablaPlanilla(props: {
   filas: Fila[];
   simulacion: boolean;
@@ -209,13 +241,14 @@ function TablaPlanilla(props: {
   onMovForm?: (mf: MovForm) => void;
   onAgregarMov?: (f: Fila) => void;
   onQuitarMov?: (m: Movimiento) => void;
+  onYaPagado?: (f: Fila) => void;
   guardandoMov?: boolean;
   gc?: GratiCts | null;
 }) {
   const {
     filas, simulacion, pagado, sedeFiltro, periodoId, ocupado = false,
     objEdit = {}, onObjChange, onObjBlur, guardandoObj = null,
-    movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov,
+    movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov, onYaPagado,
     guardandoMov = false, gc = null,
   } = props;
   // Al elegir grati/CTS en el desplegable, autocompleta concepto y el monto que el
@@ -285,7 +318,33 @@ function TablaPlanilla(props: {
                 <tr className={`border-t ${f.horas_sin_salario > 0 ? "bg-rojo/10" : ""}`}>
                   <td className="px-4 py-2">
                     {f.nombre}
-                    {f.estado !== "activo" && <span className="ml-1 text-xs text-taupe">({f.estado})</span>}
+                    {f.estado !== "activo" && (
+                      <span className="ml-1.5 whitespace-nowrap rounded-full bg-sand px-2 py-0.5 text-xs text-taupe">
+                        ya no está
+                      </span>
+                    )}
+                    {editable && f.total > 0 && onYaPagado && (
+                      <>
+                        <br />
+                        <button
+                          onClick={() => onYaPagado(f)}
+                          disabled={ocupado}
+                          title="Registrar que ya se le pagó fuera de la planilla"
+                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
+                        >
+                          💸 Ya le pagué aparte
+                        </button>
+                      </>
+                    )}
+                    {(() => {
+                      const r = razonDelCero(f);
+                      if (!r) return null;
+                      return (
+                        <p className={`mt-0.5 text-xs ${r.grave ? "text-ambar" : "text-taupe"}`}>
+                          {r.grave ? "⚠ " : ""}{r.texto}
+                        </p>
+                      );
+                    })()}
                     {!simulacion && periodoId && (
                       <>
                         <br />
@@ -572,6 +631,9 @@ export default function PlanillaPage() {
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
 
   const [sedeFiltro, setSedeFiltro] = useState("todas");
+  // Activos / ya no están / todos. Arranca en "activos" porque es lo que se mira
+  // el 99 % de las veces; el aviso de abajo cubre el 1 % peligroso.
+  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
 
   // Objetivos: valor en edición por persona (solo las filas tocadas)
   const [objEdit, setObjEdit] = useState<Record<string, string>>({});
@@ -1006,6 +1068,56 @@ export default function PlanillaPage() {
 
   }
 
+  // «Ya le pagué aparte». No borra a la persona de la planilla: le pone un
+  // descuento por lo que ya recibió, con la fecha escrita en el concepto. Su
+  // total baja a cero (o a la diferencia) y en la boleta queda dicho por qué.
+  //
+  // Se prefiere esto a excluirla del periodo porque dentro de un año «esta
+  // persona no aparece en julio» no explica nada y parece un fallo; «se le
+  // descontó S/850 porque ya se le había pagado el 14/07» sí.
+  async function marcarYaPagado(f: Fila) {
+    if (!proy?.periodo_id) return;
+    const sugerido = Math.max(0, Math.round(f.total * 100) / 100);
+    const montoTxt = window.prompt(
+      `${f.nombre} — ¿cuánto le pagaste ya, fuera de la planilla?\n\n` +
+        `Este periodo le calcula ${formatSoles(f.total)}. Se registrará como un descuento por lo ` +
+        `que ya recibió, así su total queda en cero (o en la diferencia) y en su boleta queda ` +
+        `escrito por qué.`,
+      String(sugerido),
+    );
+    if (montoTxt === null) return;
+    const monto = Number(montoTxt.replace(",", "."));
+    if (!Number.isFinite(monto) || monto <= 0) {
+      avisar("error", "El monto tiene que ser un número mayor a 0.");
+      return;
+    }
+    const fecha = window.prompt(
+      "¿Qué día se lo pagaste? (formato DD/MM/AAAA)\n\nQueda escrito en su boleta y en la foto del pago.",
+      hoyLimaDMA(),
+    );
+    if (fecha === null) return;
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(fecha.trim())) {
+      avisar("error", "La fecha tiene que ir como DD/MM/AAAA — por ejemplo 14/07/2026.");
+      return;
+    }
+    setGuardandoMov(true);
+    const { error } = await supabase.rpc("fn_agregar_movimiento", {
+      p_periodo_id: proy.periodo_id,
+      p_persona_id: f.persona_id,
+      p_tipo: "descuento",
+      p_concepto: `Ya pagado el ${fecha.trim()} — fuera de planilla`,
+      p_monto: monto,
+      p_categoria: null,
+    });
+    setGuardandoMov(false);
+    if (error) {
+      avisar("error", `No se pudo registrar: ${error.message}`);
+      return;
+    }
+    avisar("ok", `Registrado: a ${f.nombre} ya se le habían pagado ${formatSoles(monto)} el ${fecha.trim()}.`);
+    await cargarProyeccion();
+  }
+
   async function quitarMovimiento(m: Movimiento) {
     if (!window.confirm(`¿Quitar el ${m.tipo} "${m.concepto}" de ${formatSoles(m.monto)}?`)) return;
     setGuardandoMov(true);
@@ -1045,12 +1157,16 @@ export default function PlanillaPage() {
     [proy],
   );
   const filasVisibles = useMemo(
-    () => (proy?.filas ?? []).filter((f) => sedeFiltro === "todas" || f.sede === sedeFiltro),
-    [proy, sedeFiltro],
+    () => (proy?.filas ?? []).filter(
+      (f) => (sedeFiltro === "todas" || f.sede === sedeFiltro) && pasaEstado(f, estadoFiltro),
+    ),
+    [proy, sedeFiltro, estadoFiltro],
   );
   const simFilasVisibles = useMemo(
-    () => (simProy?.filas ?? []).filter((f) => sedeFiltro === "todas" || f.sede === sedeFiltro),
-    [simProy, sedeFiltro],
+    () => (simProy?.filas ?? []).filter(
+      (f) => (sedeFiltro === "todas" || f.sede === sedeFiltro) && pasaEstado(f, estadoFiltro),
+    ),
+    [simProy, sedeFiltro, estadoFiltro],
   );
   const provTotales = useMemo(
     () =>
@@ -1065,6 +1181,18 @@ export default function PlanillaPage() {
       ),
     [filasVisibles],
   );
+
+  // Quienes el filtro está escondiendo Y tienen plata por cobrar. Se calcula
+  // sobre TODAS las filas del periodo, no sobre las visibles: el sentido del
+  // aviso es justamente contar lo que no se está viendo.
+  const ocultosPorCobrar = useMemo(() => {
+    if (estadoFiltro !== "activos") return null;
+    const ocultos = (proy?.filas ?? []).filter(
+      (f) => f.estado !== "activo" && f.total > 0 && (sedeFiltro === "todas" || f.sede === sedeFiltro),
+    );
+    if (ocultos.length === 0) return null;
+    return { n: ocultos.length, monto: ocultos.reduce((a, f) => a + f.total, 0) };
+  }, [proy, estadoFiltro, sedeFiltro]);
 
   // ── CSV (columnas de la tabla + las 4 de provisiones; respeta el filtro) ───
   // Nombre y contenido salen de proy (lo realmente cargado), NUNCA del selector
@@ -1505,21 +1633,56 @@ export default function PlanillaPage() {
               )}
             </div>
 
-            {/* Filtro de sede + CSV */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                Sede
-                <select
-                  value={sedeFiltro}
-                  onChange={(e) => setSedeFiltro(e.target.value)}
-                  className="rounded-lg border bg-crema px-3 py-1.5"
+            {/* La red de seguridad del filtro: si esconder a quienes ya no están
+                deja plata sin pagar a la vista, el sistema lo dice. Es la razón por
+                la que el filtro puede arrancar en «solo el equipo actual» sin riesgo. */}
+            {ocultosPorCobrar && (
+              <div className="mb-3 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                <strong className="font-medium">
+                  {ocultosPorCobrar.n === 1
+                    ? "Hay 1 persona que ya no está en el equipo"
+                    : `Hay ${ocultosPorCobrar.n} personas que ya no están en el equipo`}{" "}
+                  con {formatSoles(ocultosPorCobrar.monto)} por cobrar en este periodo,
+                </strong>{" "}
+                y el filtro las está ocultando. Trabajaron parte del periodo antes de irse.{" "}
+                <button
+                  onClick={() => setEstadoFiltro("todos")}
+                  className="font-medium underline"
                 >
-                  <option value="todas">Todas</option>
-                  {sedes.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
+                  Verlas
+                </button>
+              </div>
+            )}
+
+            {/* Filtros + CSV */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm">
+                  Sede
+                  <select
+                    value={sedeFiltro}
+                    onChange={(e) => setSedeFiltro(e.target.value)}
+                    className="rounded-lg border bg-crema px-3 py-1.5"
+                  >
+                    <option value="todas">Todas</option>
+                    {sedes.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  Mostrar
+                  <select
+                    value={estadoFiltro}
+                    onChange={(e) => setEstadoFiltro(e.target.value as EstadoFiltro)}
+                    className="rounded-lg border bg-crema px-3 py-1.5"
+                  >
+                    <option value="activos">Solo el equipo actual</option>
+                    <option value="inactivos">Solo quienes ya no están</option>
+                    <option value="todos">Todos</option>
+                  </select>
+                </label>
+              </div>
               <button
                 onClick={descargarCsvPlanilla}
                 disabled={cargando || errorCarga !== null || !proy || filasVisibles.length === 0}

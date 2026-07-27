@@ -106,6 +106,14 @@ export default function EquipoPage() {
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
+  // Filtros. Con ~30 personas y sin ninguno, encontrar a alguien era leer la
+  // tabla entera. El de estado arranca en "activos": esconder a quien ya no está
+  // en ESTA pantalla no tiene riesgo (en Planilla sí lo tendría, y allí se avisa).
+  const [busca, setBusca] = useState("");
+  const [fSede, setFSede] = useState("todas");
+  const [fArea, setFArea] = useState("todas");
+  const [fEstado, setFEstado] = useState<"activos" | "inactivos" | "todos">("activos");
+
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -194,6 +202,22 @@ export default function EquipoPage() {
   useEffect(() => {
     if (puedeSalarios) void cargarSalarios();
   }, [puedeSalarios, cargarSalarios]);
+
+  // Se compara sin tildes ni mayúsculas: buscar "nunez" tiene que encontrar a
+  // "Núñez". Escribir el apellido con la tilde exacta no puede ser un requisito.
+  const sinTildes = (t: string) =>
+    t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  const visibles = personas.filter((p) => {
+    if (fEstado === "activos" && p.estado !== "activo") return false;
+    if (fEstado === "inactivos" && p.estado === "activo") return false;
+    if (fSede !== "todas" && p.sede_base_id !== fSede) return false;
+    if (fArea !== "todas" && p.funcion !== fArea) return false;
+    const q = sinTildes(busca.trim());
+    if (q && !sinTildes(`${p.nombres} ${p.apellidos}`).includes(q)) return false;
+    return true;
+  });
+  const ocultas = personas.length - visibles.length;
 
   function codigoSede(id: string) {
     return sedes.find((s) => s.id === id)?.codigo ?? "?";
@@ -710,8 +734,64 @@ export default function EquipoPage() {
         {puedeSalarios && salEditId && editorSalario()}
         {puedeSalarios && histId && panelHistorial()}
 
+        {/* Filtros. Todo el filtrado ocurre en el navegador sobre lo que ya está
+            cargado: son ~30 personas, no hay nada que pedirle a la base. */}
+        {!cargando && (
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-xs text-taupe">
+              Buscar
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="nombre o apellido"
+                className="w-52 rounded-lg border px-3 py-1.5 text-sm text-tinta"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-taupe">
+              Sede
+              <select value={fSede} onChange={(e) => setFSede(e.target.value)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
+                <option value="todas">Todas</option>
+                {sedes.map((s) => (<option key={s.id} value={s.id}>{s.nombre}</option>))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-taupe">
+              Área
+              <select value={fArea} onChange={(e) => setFArea(e.target.value)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
+                <option value="todas">Todas</option>
+                {areas.filter((a) => a.activa).map((a) => (<option key={a.codigo} value={a.codigo}>{a.nombre}</option>))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-taupe">
+              Mostrar
+              <select value={fEstado} onChange={(e) => setFEstado(e.target.value as "activos" | "inactivos" | "todos")} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
+                <option value="activos">Solo el equipo actual</option>
+                <option value="inactivos">Solo quienes ya no están</option>
+                <option value="todos">Todos</option>
+              </select>
+            </label>
+            {ocultas > 0 && (
+              <button
+                onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
+                className="pb-1.5 text-xs text-taupe underline hover:text-tinta"
+              >
+                {ocultas === 1 ? "1 persona oculta" : `${ocultas} personas ocultas`} — quitar filtros
+              </button>
+            )}
+          </div>
+        )}
+
         {cargando ? (
           <Cargando texto="Cargando el equipo…" />
+        ) : visibles.length === 0 ? (
+          <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+            Ninguna persona coincide con lo que buscas.{" "}
+            <button
+              onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
+              className="font-medium underline"
+            >
+              Quitar filtros
+            </button>
+          </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-sand">
             <table className="w-full text-sm">
@@ -728,7 +808,7 @@ export default function EquipoPage() {
                 </tr>
               </thead>
               <tbody>
-                {personas.map((p) => (
+                {visibles.map((p) => (
                   <tr key={p.id} className={`border-t bg-papel transition-colors hover:bg-crema ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
                     <td className="px-4 py-2">
                       <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
