@@ -22,10 +22,12 @@ insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000000fa', 'ZZGRA', 'Sede de laboratorio', true);
 
 set session_replication_role = replica;
-insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, en_planilla)
+-- `en_planilla` es una columna GENERADA desde la 0085: sale de tipo_vinculo y no
+-- se puede escribir directo. Se pone el vínculo, y en_planilla se deduce sola.
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso, tipo_vinculo)
 values ('00000000-0000-0000-0000-0000000000c1', 'PruebaGrati', 'Laboratorio',
         '00000000-0000-0000-0000-0000000000fa', 'admin', 'test-hash',
-        '00000000-0000-0000-0000-0000000000c9', '2024-01-15', true);
+        '00000000-0000-0000-0000-0000000000c9', '2024-01-15', 'planilla');
 set session_replication_role = origin;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000c9', true);
