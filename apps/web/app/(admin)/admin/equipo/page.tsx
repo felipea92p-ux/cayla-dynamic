@@ -60,6 +60,7 @@ function generarPin(): string {
 interface Sede {
   id: string;
   codigo: string;
+  nombre: string;
 }
 
 interface Persona {
@@ -133,7 +134,7 @@ export default function EquipoPage() {
       return;
     }
     const [{ data: sedesData, error: sedesError }, { data: personasData, error: personasError }, { data: funcionesData, error: funcionesError }, { data: areasData, error: areasError }, { data: ingresosData, error: ingresosError }] = await Promise.all([
-      supabase.from("sedes").select("id, codigo").order("codigo"),
+      supabase.from("sedes").select("id, codigo, nombre").order("nombre"),
       supabase.from("personas").select("id, nombres, apellidos, rol, estado, email, sede_base_id").order("nombres"),
       supabase.rpc("fn_personas_funciones"),
       supabase.rpc("fn_areas"),
@@ -456,8 +457,10 @@ export default function EquipoPage() {
         Sede
         <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-lg border bg-crema px-3 py-2">
           <option value="">Elegir…</option>
+          {/* Nombre primero: al dar de alta a alguien se elige "Taller LIM", no
+              "LIM". Con dos sedes en Lima el código solo no alcanza. */}
           {sedes.map((s) => (
-            <option key={s.id} value={s.id}>{s.codigo}</option>
+            <option key={s.id} value={s.id}>{s.nombre} ({s.codigo})</option>
           ))}
         </select>
       </label>
