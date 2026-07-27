@@ -1656,6 +1656,24 @@ export type Database = {
         Args: { p_as_of?: string }
         Returns: Json
       }
+      fn_costos_planilla: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: Json
+      }
+      fn_planilla_congelar_pendientes: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      fn_planilla_foto_diferencias: {
+        Args: { p_periodo_id: string }
+        Returns: {
+          persona_id: string
+          nombre: string
+          total_foto: number
+          total_ahora: number
+          diferencia: number
+        }[]
+      }
       fn_jornadas_extra: {
         Args: { p_desde: string; p_hasta: string; p_persona_id?: string }
         Returns: Json
