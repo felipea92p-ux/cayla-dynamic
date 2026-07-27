@@ -626,18 +626,21 @@ export type Database = {
           codigo: string
           id: string
           nombre: string
+          tipo: string
         }
         Insert: {
           activa?: boolean
           codigo: string
           id?: string
           nombre: string
+          tipo?: string
         }
         Update: {
           activa?: boolean
           codigo?: string
           id?: string
           nombre?: string
+          tipo?: string
         }
         Relationships: []
       }
@@ -1482,7 +1485,7 @@ export type Database = {
         Returns: undefined
       }
       fn_guardar_sede: {
-        Args: { p_codigo: string; p_nombre: string }
+        Args: { p_codigo: string; p_nombre: string; p_tipo?: string | null }
         Returns: undefined
       }
       fn_sede_activa: {

@@ -66,7 +66,24 @@ interface PorGrupo {
   provisiones: number;
   costo: number;
 }
-interface PorSede extends PorGrupo { sede: string }
+interface PorSede extends PorGrupo {
+  sede: string;
+  tipo: "central" | "taller" | "tienda";
+  horas: number;
+  costo_por_persona: number | null;
+  costo_por_hora: number | null;
+}
+interface PorTipo {
+  tipo: "central" | "taller" | "tienda";
+  sedes: number;
+  personas: number;
+  horas: number;
+  neto: number;
+  provisiones: number;
+  costo: number;
+  costo_por_persona: number | null;
+  costo_por_hora: number | null;
+}
 interface PorArea extends PorGrupo { area: string | null; operativa: boolean }
 interface PorPersona {
   persona_id: string;
@@ -86,9 +103,16 @@ interface Costos {
   totales: Totales;
   por_periodo: PorPeriodo[];
   por_sede: PorSede[];
+  por_tipo: PorTipo[];
   por_area: PorArea[];
   por_persona: PorPersona[];
 }
+
+const ETIQUETA_TIPO: Record<string, string> = {
+  tienda: "Tiendas",
+  taller: "Taller",
+  central: "Central (administración y DO)",
+};
 
 const NUM = "px-3 py-2 text-right tabular-nums";
 const TH = "px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-taupe";
@@ -155,9 +179,11 @@ export default function CostosPage() {
 
   function descargarCsvCostos() {
     if (!data) return;
+    const tipoDeSede = new Map(data.por_sede.map((s) => [s.sede, s.tipo]));
     const filas = data.por_persona.map((p) => ({
       nombre: p.nombre,
       sede: p.sede,
+      tipo_de_sede: tipoDeSede.get(p.sede) ?? "",
       area: p.area ?? "",
       periodos_pagados: p.periodos,
       horas: p.horas,
@@ -166,7 +192,7 @@ export default function CostosPage() {
       costo_real: p.costo,
     }));
     const csv = generarCsv(filas, [
-      "nombre", "sede", "area", "periodos_pagados", "horas",
+      "nombre", "sede", "tipo_de_sede", "area", "periodos_pagados", "horas",
       "se_transfirio", "provisiones", "costo_real",
     ]);
     descargarCsv(`costos-${anio}.csv`, csv);
@@ -328,28 +354,62 @@ export default function CostosPage() {
               </tbody>
             </Tabla>
 
+            <Tabla titulo="Operar tiendas · producir · administrar">
+              <thead>
+                <tr className="border-b">
+                  <th className={TH}>Qué es</th>
+                  <th className={THN}>Sedes</th>
+                  <th className={THN}>Personas</th>
+                  <th className={THN}>Costo real</th>
+                  <th className={THN}>Por persona</th>
+                  <th className={THN}>Por hora</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.por_tipo.map((t) => (
+                  <tr key={t.tipo} className="border-b last:border-0">
+                    <td className="px-3 py-2">{ETIQUETA_TIPO[t.tipo] ?? t.tipo}</td>
+                    <td className={NUM}>{t.sedes}</td>
+                    <td className={NUM}>{t.personas}</td>
+                    <td className={`${NUM} font-medium`}>{formatSoles(t.costo)}</td>
+                    <td className={NUM}>{t.costo_por_persona === null ? "—" : formatSoles(t.costo_por_persona)}</td>
+                    <td className={NUM}>{t.costo_por_hora === null ? "—" : formatSoles(t.costo_por_hora)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Tabla>
+
             <Tabla titulo="Por sede">
               <thead>
                 <tr className="border-b">
                   <th className={TH}>Sede</th>
+                  <th className={TH}>Qué es</th>
                   <th className={THN}>Personas</th>
-                  <th className={THN}>Se transfirió</th>
-                  <th className={THN}>Provisiones</th>
                   <th className={THN}>Costo real</th>
+                  <th className={THN}>Por persona</th>
+                  <th className={THN}>Por hora</th>
                 </tr>
               </thead>
               <tbody>
                 {data.por_sede.map((s) => (
                   <tr key={s.sede} className="border-b last:border-0">
                     <td className="px-3 py-2">{s.nombre}</td>
+                    <td className="px-3 py-2 text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                     <td className={NUM}>{s.personas}</td>
-                    <td className={NUM}>{formatSoles(s.neto)}</td>
-                    <td className={NUM}>{formatSoles(s.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(s.costo)}</td>
+                    <td className={NUM}>{s.costo_por_persona === null ? "—" : formatSoles(s.costo_por_persona)}</td>
+                    <td className={NUM}>{s.costo_por_hora === null ? "—" : formatSoles(s.costo_por_hora)}</td>
                   </tr>
                 ))}
               </tbody>
             </Tabla>
+
+            <p className="-mt-4 mb-6 max-w-3xl text-xs text-taupe">
+              Compara por <strong className="font-medium">persona</strong> y por{" "}
+              <strong className="font-medium">hora</strong>, no por el total: una sede con nueve personas
+              siempre va a costar más que una con cuatro, y eso no dice nada. El desglose completo (lo que se
+              transfirió y las provisiones por separado) está en el CSV.
+            </p>
 
             <Tabla titulo="Por área">
               <thead>

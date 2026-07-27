@@ -6,9 +6,20 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { useRolActual } from "@/lib/admin/use-rol";
 
-interface Sede { id: string; codigo: string; nombre: string; activa: boolean }
-interface FormSede { codigo: string; nombre: string }
-const FORM_VACIO: FormSede = { codigo: "", nombre: "" };
+type TipoSede = "central" | "taller" | "tienda";
+interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: TipoSede }
+interface FormSede { codigo: string; nombre: string; tipo: TipoSede }
+const FORM_VACIO: FormSede = { codigo: "", nombre: "", tipo: "tienda" };
+
+// Qué es cada local. No es una etiqueta decorativa: el reporte de costos separa
+// lo que cuesta administrar de lo que cuesta operar una tienda, y sin esto los
+// dos números se suman como si fueran lo mismo.
+const TIPOS: Array<{ valor: TipoSede; label: string; ayuda: string }> = [
+  { valor: "tienda",  label: "Tienda",  ayuda: "Atiende clientas." },
+  { valor: "taller",  label: "Taller",  ayuda: "Produce; no atiende clientas." },
+  { valor: "central", label: "Central", ayuda: "Administración y Desarrollo Organizacional. No vende." },
+];
+const ETIQUETA_TIPO: Record<TipoSede, string> = { tienda: "Tienda", taller: "Taller", central: "Central" };
 const CODIGO_OK = /^[A-Z0-9]{2,8}$/;
 
 export default function SedesPage() {
@@ -30,7 +41,7 @@ export default function SedesPage() {
     const supabase = createAdminSupabaseClient();
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const { data, error } = await supabase.from("sedes").select("id, codigo, nombre, activa").order("codigo");
+    const { data, error } = await supabase.from("sedes").select("id, codigo, nombre, activa, tipo").order("codigo");
     setSedes((data as Sede[]) ?? []);
     setCargaError(error ? error.message : null);
     setCargando(false);
@@ -42,7 +53,7 @@ export default function SedesPage() {
   const avisar = (tipo: "ok" | "error", texto: string) => setMensaje({ tipo, texto });
 
   function empezarAlta() { setMostrandoAlta(true); setEditandoCodigo(null); setForm(FORM_VACIO); setMensaje(null); }
-  function empezarEdicion(s: Sede) { setEditandoCodigo(s.codigo); setMostrandoAlta(false); setForm({ codigo: s.codigo, nombre: s.nombre }); setMensaje(null); }
+  function empezarEdicion(s: Sede) { setEditandoCodigo(s.codigo); setMostrandoAlta(false); setForm({ codigo: s.codigo, nombre: s.nombre, tipo: s.tipo }); setMensaje(null); }
   function cancelarForm() { setMostrandoAlta(false); setEditandoCodigo(null); setForm(FORM_VACIO); }
 
   async function guardarSede() {
@@ -61,7 +72,7 @@ export default function SedesPage() {
     const eraEdicion = editandoCodigo !== null;
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.rpc("fn_guardar_sede", { p_codigo: codigo, p_nombre: nombre });
+    const { error } = await supabase.rpc("fn_guardar_sede", { p_codigo: codigo, p_nombre: nombre, p_tipo: form.tipo });
     setGuardando(false);
     if (error) { avisar("error", `No se pudo guardar: ${error.message}`); return; }
     cancelarForm();
@@ -112,6 +123,22 @@ export default function SedesPage() {
           placeholder="ej. Taller Lima"
           className="rounded-lg border px-3 py-2"
         />
+      </label>
+      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        Qué es esta sede
+        <select
+          value={form.tipo}
+          onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoSede })}
+          className="rounded-lg border bg-crema px-3 py-2"
+        >
+          {TIPOS.map((t) => (
+            <option key={t.valor} value={t.valor}>{t.label} — {t.ayuda}</option>
+          ))}
+        </select>
+        <span className="text-xs text-taupe/70">
+          El reporte de costos separa lo que cuesta administrar de lo que cuesta operar una tienda. Si se
+          marcan igual, los dos números se suman como si fueran lo mismo.
+        </span>
       </label>
       <div className="flex items-end gap-3 sm:col-span-2">
         <button onClick={guardarSede} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
@@ -165,6 +192,7 @@ export default function SedesPage() {
                     <tr>
                       <th className="px-4 py-2 font-normal">Nombre</th>
                       <th className="px-4 py-2 font-normal">Código</th>
+                      <th className="px-4 py-2 font-normal">Qué es</th>
                       <th className="px-4 py-2 font-normal">Estado</th>
                       <th className="px-4 py-2 font-normal">Acciones</th>
                     </tr>
@@ -174,6 +202,7 @@ export default function SedesPage() {
                       <tr key={s.codigo} className={`border-t ${s.activa ? "" : "text-taupe"}`}>
                         <td className="px-4 py-2">{s.nombre}</td>
                         <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
+                        <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                         <td className="px-4 py-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs ${s.activa ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
                             {s.activa ? "activa" : "inactiva"}
