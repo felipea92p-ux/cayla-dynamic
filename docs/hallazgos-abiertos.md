@@ -77,7 +77,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Subir el chequeo de imputación vigente a antes del if de la línea 97, para que gobierne las dos ramas. Y en la rama del art. 25-h exigir que exista al menos un hecho posterior al periodo_hasta de la última imputación firmada: si no lo hay, no hay nada nuevo que imputar. La ley permite mirar el historial completo para probar el umbral; no permite volver a imputar el mismo hecho.
 
-### 7. Cualquier sesión con login —incluida la del terminal de tienda— lee la planilla completa con todos los sueldos
+### 7. ~~Cualquier sesión con login —incluida la del terminal de tienda— lee la planilla completa con todos los sueldos~~
+
+> ✅ **CERRADO** por la migración 0090.
 
 `seguridad-permisos` · 🔓 datos expuestos · arreglo de **minutos**
 
@@ -117,7 +119,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Dejar de defender la regla función por función y ponerla en la tabla. Un trigger BEFORE INSERT/UPDATE/DELETE sobre feriados_descanso_sustitutorio que rechace cualquier fila cuya fecha_feriado o fecha_descanso_sustitutorio caiga en un periodo 'pagado' cierra el hueco hoy; lo que de verdad corresponde es el mismo trigger sobre todas las tablas que fn_planilla_calcular lee (jornadas, marcajes, feriados, vacaciones, asignaciones_salario, movimientos_planilla, feriados_descanso_sustitutorio), para que el candado sea una propiedad del dato y no de quien lo escribe. Mientras tanto, agregar el `if exists (… estado='pagado' …) then raise` a las dos funciones.
 
-### 11. El semáforo disciplinario cuenta HOY como falta después de las 7pm y salta a ROJO
+### 11. ~~El semáforo disciplinario cuenta HOY como falta después de las 7pm y salta a ROJO~~
+
+> ✅ **CERRADO** por la migración 0091.
 
 `esquema-integridad` · ⚖️ decisión injusta · arreglo de **minutos**
 
