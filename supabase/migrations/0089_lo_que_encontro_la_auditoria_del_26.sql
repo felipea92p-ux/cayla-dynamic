@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0086 — Los cinco cabos sueltos que dejó la auditoría del 26/07
+-- 0089 — Los cinco cabos sueltos que dejó la auditoría del 26/07
 -- ----------------------------------------------------------------------------
 -- PROMETE:
 --   1. Que corregir una marca no deje un día roto en silencio: si queda con una
@@ -424,7 +424,7 @@ end $$;
 
 
 insert into migraciones_aplicadas (numero, nombre)
-values (86, 'lo_que_encontro_la_auditoria_del_26')
+values (89, 'lo_que_encontro_la_auditoria_del_26')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';

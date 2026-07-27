@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0085 — La gratificación se paga aunque el periodo cruce el año
+-- 0088 — La gratificación se paga aunque el periodo cruce el año
 -- ----------------------------------------------------------------------------
 -- PROMETE: que un periodo de planilla que contenga el 15 de julio o el 15 de
 --   diciembre pague su gratificación, sin importar en qué año caiga su cierre.
@@ -141,7 +141,7 @@ grant execute on function fn_grati_cts_periodo(uuid) to authenticated;
 revoke execute on function fn_grati_cts_periodo(uuid) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (85, 'grati_en_periodos_que_cruzan_el_ano')
+values (88, 'grati_en_periodos_que_cruzan_el_ano')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
