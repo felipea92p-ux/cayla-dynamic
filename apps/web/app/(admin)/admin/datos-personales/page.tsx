@@ -38,6 +38,9 @@ export default function DatosPersonalesPage() {
   const [fichas, setFichas] = useState<Map<string, Ficha>>(new Map());
   const [sel, setSel] = useState<string>("");
   const [form, setForm] = useState<Form>(VACIO);
+  // Si la carga falló, la pantalla no sabe qué hay de verdad: guardar desde aquí
+  // borraría datos. Se bloquea hasta que una recarga vaya bien.
+  const [cargaFallida, setCargaFallida] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -49,11 +52,25 @@ export default function DatosPersonalesPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p }, { data: s }, { data: dp }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: s, error: eS }, { data: dp, error: eD }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email").eq("estado", "activo").order("nombres"),
       supabase.from("sedes").select("id, codigo"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url"),
     ]);
+
+    // Si una consulta falla NO se pisa el estado. Antes se hacía
+    // `(dp as Ficha[]) ?? []`, y un fallo de red dejaba el mapa de fichas vacío:
+    // la pantalla mostraba a todo el mundo "sin ficha", el formulario salía en
+    // blanco, y pulsar Guardar escribía null en TODO — borrando DNI, dirección y
+    // número de cuenta de una persona real, sin que nada avisara.
+    const fallo = eP ?? eS ?? eD;
+    if (fallo) {
+      setCargaFallida(true);
+      setMsg({ tipo: "error", texto: `No se pudieron cargar las fichas: ${fallo.message}. No guardes nada hasta recargar: lo que ves puede no ser lo que hay.` });
+      setCargando(false);
+      return;
+    }
+    setCargaFallida(false);
     setPersonas((p as Persona[]) ?? []);
     setSedes(new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo])));
     setFichas(new Map(((dp as Ficha[]) ?? []).map((x) => [x.persona_id, x])));
@@ -82,6 +99,10 @@ export default function DatosPersonalesPage() {
 
   async function guardar() {
     if (!sel) return;
+    if (cargaFallida) {
+      setMsg({ tipo: "error", texto: "No se guarda: las fichas no llegaron a cargar y guardar ahora borraría los datos que ya existen. Recarga la página." });
+      return;
+    }
     setGuardando(true); setMsg(null);
     const { error } = await supabase.rpc("fn_set_datos_personales", {
       p_persona_id: sel,
@@ -258,7 +279,7 @@ export default function DatosPersonalesPage() {
                     </div>
                   </section>
                 </div>
-                <button onClick={guardar} disabled={guardando}
+                <button onClick={guardar} disabled={guardando || cargaFallida}
                   className="mt-4 rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
                   {guardando ? "Guardando…" : "Guardar ficha"}
                 </button>
