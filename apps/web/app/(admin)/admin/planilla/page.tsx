@@ -119,10 +119,14 @@ export interface Fila {
   // la fila. basica_legal_prop + complemento_variable === pago_base, siempre.
   basica_legal_prop: number | null;
   complemento_variable: number | null;
-  // 0105 — puntuación de productividad del mes (0–100) y la etiqueta que se
-  // eligió para el concepto ESE mes. La etiqueta es un dato, no código: puede
-  // cambiar de un periodo a otro y cada pago guarda con qué nombre se emitió.
+  // 0105 — puntuación de rendimiento del mes (0–100) y la etiqueta que se eligió
+  // para el concepto ESE mes. La etiqueta es un dato, no código: puede cambiar de
+  // un periodo a otro y cada pago guarda con qué nombre se emitió.
+  // El defecto es 100, y al 100% la fórmula devuelve el salario del rango: por eso
+  // activar esto no le mueve el sueldo a nadie. rendimiento_por_defecto distingue
+  // «nadie lo ha puntuado» de «alguien escribió 100».
   rendimiento_pct: number | null;
+  rendimiento_por_defecto: boolean | null;
   complemento_etiqueta: string | null;
   fecha_ingreso: string;
   feriados_detalle: FeriadoDetalle[];
