@@ -114,6 +114,11 @@ export interface Fila {
   dias_vacaciones: number;   // 0100 — por qué está en cero
   dias_laborables: number;   // 0100 — 0 = no tiene horario asignado
   pago_base: number;
+  // Desglose legal del pago base (0104). NULL cuando la persona no tiene
+  // sueldo_base_legal fijado: entonces la boleta no parte la fila.
+  // basica_legal_prop + complemento_variable === pago_base, siempre.
+  basica_legal_prop: number | null;
+  complemento_variable: number | null;
   fecha_ingreso: string;
   feriados_detalle: FeriadoDetalle[];
   monto_feriados: number;

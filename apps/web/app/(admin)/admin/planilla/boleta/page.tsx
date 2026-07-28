@@ -211,6 +211,19 @@ function BoletaContenido() {
 
   const contexto = contextoPagoBase(f);
 
+  // El desglose legal solo se muestra si los tres datos están: la básica de la
+  // persona y las dos partes que calculó la 0104. Si falta cualquiera, una sola
+  // fila — antes que partir el pago con una cifra a medias.
+  const hayDesglose =
+    baseLegal !== null && f.basica_legal_prop !== null && f.complemento_variable !== null;
+
+  const avisoPendientes =
+    f.dias_pendientes > 0
+      ? f.dias_pendientes === 1
+        ? "Queda 1 día por confirmar: este monto todavía puede cambiar."
+        : `Quedan ${f.dias_pendientes} días por confirmar: este monto todavía puede cambiar.`
+      : null;
+
   return (
     <main className="mx-auto max-w-2xl p-6 print:p-0">
       {/* Barra de acciones — no se imprime */}
@@ -267,13 +280,20 @@ function BoletaContenido() {
             <dl className="mt-3 space-y-1 text-sm">
               {baseLegal !== null && (
                 <div className="flex justify-between gap-4">
-                  <dt className="font-medium">Base Legal Contractual</dt>
+                  <dt className="font-medium">Remuneración Básica Legal</dt>
                   <dd className="font-medium">{formatSoles(baseLegal)}</dd>
                 </div>
               )}
               {f.salario_ref !== null && (
                 <div className="flex justify-between gap-4 text-taupe">
-                  <dt>Potencial Máximo de Rendimiento Operativo</dt>
+                  <dt>
+                    Potencial Máximo de Rendimiento Operativo
+                    {/* El plus por metas es 21% ENCIMA del salario del rango, así
+                        que este número se puede superar. Sin este aclarador, una
+                        boleta donde alguien cobre más que su «máximo» declarado
+                        es el hueco más fácil de explotar del documento. */}
+                    <span className="block text-xs">antes del plus por metas y de feriados</span>
+                  </dt>
                   <dd>{formatSoles(f.salario_ref)}</dd>
                 </div>
               )}
@@ -284,22 +304,53 @@ function BoletaContenido() {
         {/* Detalle del pago */}
         <table className="mb-6 w-full text-sm">
           <tbody>
-            <tr className="border-t border-sand">
-              <td className="py-2">
-                Pago base ({fmtHorasHumano(f.horas_mes)})
-                {contexto.length > 0 && (
-                  <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
-                )}
-                {f.dias_pendientes > 0 && (
-                  <span className="block text-xs text-rojo">
-                    {f.dias_pendientes === 1
-                      ? "Queda 1 día por confirmar: este monto todavía puede cambiar."
-                      : `Quedan ${f.dias_pendientes} días por confirmar: este monto todavía puede cambiar.`}
-                  </span>
-                )}
-              </td>
-              <td className="py-2 text-right align-top">{formatSoles(f.pago_base)}</td>
-            </tr>
+            {/* El pago base se parte en dos cuando la persona tiene básica legal
+                fijada (0103/0104). Las dos filas suman exactamente el pago base:
+                la básica se redondea y el complemento es la diferencia. Si no hay
+                básica fijada, cae a una sola fila y no se inventa la separación. */}
+            {hayDesglose ? (
+              <>
+                <tr className="border-t border-sand">
+                  <td className="py-2">
+                    Remuneración Básica Legal ({fmtHorasHumano(f.horas_mes)})
+                    <span className="block text-xs text-taupe">
+                      proporcional a {formatSoles(baseLegal!)} por mes completo
+                    </span>
+                    {contexto.length > 0 && (
+                      <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
+                    )}
+                    {avisoPendientes && (
+                      <span className="block text-xs text-rojo">{avisoPendientes}</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-right align-top">{formatSoles(f.basica_legal_prop!)}</td>
+                </tr>
+                <tr className="border-t border-sand">
+                  <td className="py-2">
+                    Complemento Variable por Rendimiento
+                    <span className="block text-xs text-taupe">
+                      no permanente, sujeto a resultados del mes
+                    </span>
+                  </td>
+                  <td className="py-2 text-right align-top">
+                    {formatSoles(f.complemento_variable!)}
+                  </td>
+                </tr>
+              </>
+            ) : (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Remuneración Básica Ordinaria ({fmtHorasHumano(f.horas_mes)})
+                  {contexto.length > 0 && (
+                    <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
+                  )}
+                  {avisoPendientes && (
+                    <span className="block text-xs text-rojo">{avisoPendientes}</span>
+                  )}
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(f.pago_base)}</td>
+              </tr>
+            )}
             {f.monto_feriados > 0 && (
               <tr className="border-t border-sand">
                 <td className="py-2">Feriados</td>
@@ -314,7 +365,7 @@ function BoletaContenido() {
             )}
             <tr className="border-t border-sand">
               <td className="py-2">
-                Plus de objetivos
+                Incentivo Variable por Metas (No Permanente)
                 {/* Un guion pelado no distingue «no llegué» de «no me evaluaron», y
                     es plata. Misma idea que la 0100 con los ceros de Planilla. */}
                 <span className="block text-xs text-taupe">
@@ -352,9 +403,44 @@ function BoletaContenido() {
           </tbody>
         </table>
 
-        {/* Bloque de valor — decidido con Felipe 2026-07-14, opción C (lista, sin montos) */}
+        {/* ── Aclaración y Deslinde Legal ──────────────────────────────────────
+            Reemplaza la nota simple anterior. Decidido con Felipe 2026-07-28.
+            Los dos puntos de VALOR (lo que cubre CAYLA, y que grati/CTS/vacaciones
+            siguen acumulándose) se conservan: eran una decisión del 2026-07-14 y
+            son lo único de este bloque que juega a favor de quien lo lee.
+            Las cifras se toman de los datos de la persona, NUNCA se escriben a
+            mano: un deslinde que cita un monto que no coincide con el desglose de
+            arriba se vuelve prueba en contra. Si un dato falta, el punto se omite. */}
         <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm">
-          <p className="mb-2 font-medium">Boleta interna de CAYLA — no es tu boleta oficial (PLAME).</p>
+          <p className="mb-3 font-medium">Aclaración y Deslinde Legal de Remuneración</p>
+          <ul className="mb-3 list-disc space-y-2 pl-5">
+            {baseLegal !== null && (
+              <li>
+                <span className="font-medium">Remuneración básica contractual:</span> el único
+                sueldo ordinario fijo, garantizado y de libre disponibilidad pactado asciende a{" "}
+                {formatSoles(baseLegal)}.
+              </li>
+            )}
+            <li>
+              <span className="font-medium">Carácter de incentivos y bonificaciones:</span> los
+              montos adicionales de este conteo interno son incentivos variables por productividad
+              y cumplimiento de objetivos. Están condicionados al logro de metas evaluadas mes a
+              mes, no tienen carácter permanente y no forman parte de la remuneración computable
+              (Art. 19 del D.S. 001-97-TR).
+            </li>
+            {f.salario_ref !== null && (
+              <li>
+                <span className="font-medium">Potencial máximo de rendimiento operativo:</span> el
+                monto referencial de {formatSoles(f.salario_ref)} es la meta del rango antes del
+                plus por metas y de feriados. No es una promesa ni un sueldo fijo.
+              </li>
+            )}
+            <li>
+              <span className="font-medium">Efecto fiscal y laboral:</span> la boleta oficial para
+              efectos de SUNAT, SUNAFIL, aportes de ley y beneficios sociales es exclusivamente la
+              emitida en el sistema PLAME. Esta es una boleta interna de CAYLA.
+            </li>
+          </ul>
           <p className="mb-1">
             <span className="text-verde">✓</span>{" "}
             <span className="font-medium">EsSalud, AFP y asignación familiar:</span> los cubre CAYLA,
