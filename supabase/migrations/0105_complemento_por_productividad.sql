@@ -172,7 +172,9 @@ begin
   where f.fecha between p_ini and p_fin;
 
   with pers as (
-    select p.id, p.nombres, p.apellidos, p.estado, p.con_hijos, p.fecha_ingreso, p.sueldo_fijo, s.codigo as sede
+    select p.id, p.nombres, p.apellidos, p.estado, p.con_hijos, p.fecha_ingreso, p.sueldo_fijo,
+           p.sueldo_base_legal,   -- CAMBIO 0105
+           s.codigo as sede
     from personas p
     join sedes s on s.id = p.sede_base_id
     where p.estado = 'activo'
