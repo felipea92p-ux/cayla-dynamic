@@ -4,9 +4,10 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: 2026-07-27. Migraciones 0081–0089 aplicadas, dos
-revisiones adversarias corridas sobre el trabajo del día, y 60 pruebas nuevas
-donde por la mañana no había ninguna sobre el cálculo que produce el sueldo.*
+*Última consolidación: 2026-07-27, noche. Migraciones aplicadas hasta la 0102.
+253 aserciones en 28 suites. **Para retomar después de un parón, empieza por
+[`continuar-en-lima.md`](continuar-en-lima.md)**: dice dónde se quedó cada cosa
+y qué decisiones están abiertas.*
 
 ---
 
@@ -15,8 +16,21 @@ donde por la mañana no había ninguna sobre el cálculo que produce el sueldo.*
 Producción: **cayla-dynamic.vercel.app** · repo `~/Developer/cayla-dynamic`
 (GitHub `felipea92p-ux/cayla-dynamic`, al día). Equipo real usándola a diario.
 
-Migraciones **hasta la 0089**, sin huecos ni números repetidos. La secuencia
+Migraciones **hasta la 0102**, aplicadas todas en producción. La secuencia
 completa aplica desde cero sobre una base limpia (que es lo que hace el CI).
+
+> 🔴 **Y una advertencia que ordena todo lo demás:** el repositorio no describía
+> fielmente la producción. `migraciones_aplicadas` decía que la 0089 estaba
+> aplicada y su contenido no estaba en la base. Se midió, se arregló lo urgente
+> (0102) y se rescató lo que solo existía en producción
+> ([`rescatado-de-produccion.sql`](rescatado-de-produccion.sql)). Quedan 19
+> diferencias conocidas y ninguna es un fallo — el detalle está en
+> [`continuar-en-lima.md`](continuar-en-lima.md).
+>
+> Mientras el comparador de estructura no exista, «verificado» significa
+> **verificado contra el repositorio**, que ya sabemos que no es lo mismo que
+> contra producción. Las herramientas para medirlo están en
+> `scripts/sql-manual/comparar_funciones.sql`.
 
 ---
 
@@ -41,17 +55,19 @@ completa aplica desde cero sobre una base limpia (que es lo que hace el CI).
 | 0095 | Ni horas negativas (el auto-cierre podía poner la salida antes de la entrada) ni reabrir un pago sin motivo |
 | 0096 | **La foto del pago.** Al marcar un periodo como pagado se congela el desglose de cada persona. No se edita ni se borra; si un recálculo posterior ya no coincide, el sistema lo dice en vez de cambiar la cifra |
 | 0097 | **Costos.** Pantalla nueva en Nómina que suma lo que costó el equipo leyendo solo lo congelado. Separa lo que se transfirió de lo que le cuesta a CAYLA (con provisiones) |
+| 0098 | Volver a pagar un periodo sin que pase por «abierto»: los candados de sus marcajes no se levantan ni un instante |
+| 0099 | Tipo de sede (central · taller · tienda) y costos comparables por persona y por hora — un total no compara dos sedes de distinto tamaño |
+| 0100 | **Un cero no explica nada.** «De vacaciones», «no marcó» y «sin horario» ya no se ven idénticas en la planilla |
+| 0101 | **Ausencias: un solo lugar para «por qué no vino».** Absorbe `vacaciones` y `justificaciones_asistencia` convirtiéndolas en vistas. Un permiso concedido deja de contar como falta injustificada — antes el sistema abría expediente disciplinario por los días que la empresa concedía |
+| 0102 | **Poner al día lo que el registro decía que ya estaba.** Cinco funciones donde producción tenía una versión anterior, incluido el trigger que dejaba horas fantasma al mover una marca de día |
 
-**Escritas hasta la 0097; aplicadas en producción hasta la 0095.** Faltan pegar
-la **0096** (la foto del pago) y la **0097** (costos) — sin ellas la pantalla de
-Costos existe pero no tiene de dónde leer. La 0085, 0086 y 0087 (tipo de vínculo, fecha de cese,
-beneficios truncos) siguen sin aplicar, sin urgencia: ninguna pantalla las usa
-todavía. Son los cimientos de la liquidación por cese.
+**Todas aplicadas en producción**, incluidas la 0085, 0086 y 0087 (tipo de
+vínculo, fecha de cese y beneficios truncos), que llevaban días escritas sin
+pegarse. Con eso el laboratorio y producción tienen por fin el mismo esquema.
 
-**Pendiente de correr una vez:** [`scripts/sql-manual/registrar_0088_0089.sql`](../scripts/sql-manual/registrar_0088_0089.sql).
-Las 0088 y 0089 se aplicaron cuando aún se llamaban 0085 y 0086, y el registro
-usa `on conflict (numero) do nothing`: como esos números ya estaban ocupados, la
-base tiene los cambios pero el registro no lo dice. El script solo arregla eso.
+**Ojo con lo que ese registro decía.** Se dio por hecho que las 0088 y 0089 se
+habían aplicado bajo sus números viejos. La 0089 **no** se había aplicado: se
+registró y su contenido nunca llegó. Un registro no es una comprobación.
 
 ### Lo que costó aprender hoy
 
@@ -97,7 +113,8 @@ base tiene los cambios pero el registro no lo dice. El script solo arregla eso.
      [`quitar_0087_truncas.sql`](../scripts/sql-manual/quitar_0087_truncas.sql)
      porque se aplicó sin pruebas y fallaba dos de seis casos.
      `fn_grati_trunca` ya está corregida y pasa **6/6**;
-     **`fn_cts_trunca` y `fn_vacaciones_truncas` siguen SIN probar.**
+     **Ya probadas: 19 casos en la prueba 103**, escritos desde la norma antes
+     de correr nada. Falta la pantalla.
    - La trampa que falta cazar en CTS: el sexto de la gratificación es
      `sueldo/12` en MYPE, no `sueldo/6` — usar el del régimen general paga de
      más en cada liquidación.
