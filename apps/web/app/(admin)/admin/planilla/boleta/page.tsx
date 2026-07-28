@@ -348,12 +348,13 @@ function BoletaContenido() {
                 </tr>
                 <tr className="border-t border-sand">
                   <td className="py-2">
-                    {/* La etiqueta viene de la fila del mes (0105), elegida del
-                        catálogo etiquetas_complemento. Puede cambiar de un periodo
-                        a otro sin tocar el programa, y cada pago queda emitido con
-                        el nombre que llevaba entonces. El literal es solo el
-                        respaldo si el catálogo no resolviera. */}
-                    {f.complemento_etiqueta ?? "Complemento por Productividad"}
+                    {/* Con la 0104 sola —el estado que Felipe eligió el 2026-07-28
+                        para salir del paso— este literal es la etiqueta: el pago no
+                        cambia, solo se presenta partido. Cuando entre la 0105 la
+                        etiqueta pasará a venir de la fila del mes, elegida de un
+                        catálogo, y podrá cambiar de un periodo a otro sin tocar
+                        código. Hasta entonces, cambiarla es cambiar esta línea. */}
+                    {f.complemento_etiqueta ?? "Rendimiento Extraordinario"}
                     <span className="block text-xs text-taupe">
                       variable, no permanente
                       {rendimientoPct !== null && ` · rendimiento ${rendimientoPct}%`}
