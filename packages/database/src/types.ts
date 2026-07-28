@@ -523,6 +523,7 @@ export type Database = {
           email: string | null
           en_planilla: boolean
           estado: string
+          sueldo_base_legal: number | null
           sueldo_fijo: boolean
           fecha_estado_cambio: string | null
           fecha_ingreso: string
@@ -543,6 +544,7 @@ export type Database = {
           email?: string | null
           en_planilla?: boolean
           estado?: string
+          sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
@@ -563,6 +565,7 @@ export type Database = {
           email?: string | null
           en_planilla?: boolean
           estado?: string
+          sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string

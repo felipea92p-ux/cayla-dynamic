@@ -73,6 +73,7 @@ function BoletaContenido() {
   const personaId = params.get("persona");
 
   const [proy, setProy] = useState<Proyeccion | null>(null);
+  const [baseLegal, setBaseLegal] = useState<number | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,6 +94,19 @@ function BoletaContenido() {
       return;
     }
     setProy(data as unknown as Proyeccion);
+
+    // La base legal contractual (0103) es un atributo de la PERSONA, no un
+    // resultado del cálculo, así que se lee de personas y no de
+    // fn_proyeccion_periodo — que son 320 líneas muy testeadas y no hacía falta
+    // tocar. La política personas_select_admin_lider (0003) ya permite leerla.
+    // Si falla, la boleta sigue funcionando sin esa línea: es información
+    // añadida, no un requisito para mostrar el pago.
+    const { data: persona } = await supabase
+      .from("personas")
+      .select("sueldo_base_legal")
+      .eq("id", personaId)
+      .maybeSingle();
+    setBaseLegal(persona?.sueldo_base_legal ?? null);
   }, [periodoId, personaId, router]);
 
   useEffect(() => {
@@ -240,8 +254,31 @@ function BoletaContenido() {
           <p className="font-serif text-2xl">{f.nombre}</p>
           <p className="text-sm text-taupe">
             {f.sede} · {f.rango ? (RANGO_LABEL[f.rango] ?? f.rango) : "sin rango"}
-            {f.salario_ref !== null ? ` · ${formatSoles(f.salario_ref)}/mes` : ""}
           </p>
+
+          {/* Dos cifras, diferenciadas a propósito: antes iban fundidas en un
+              solo «S/ X/mes» que mezclaba lo garantizado con lo potencial.
+              · Base legal: en tinta y en negrita — es lo fijo y lo que se
+                declara en PLAME. Se omite si está en NULL (ver 0103): no
+                afirmamos una base que nadie confirmó.
+              · Potencial del rango: en taupe — es referencial.
+              Decidido con Felipe el 2026-07-28. */}
+          {(baseLegal !== null || f.salario_ref !== null) && (
+            <dl className="mt-3 space-y-1 text-sm">
+              {baseLegal !== null && (
+                <div className="flex justify-between gap-4">
+                  <dt className="font-medium">Base Legal Contractual</dt>
+                  <dd className="font-medium">{formatSoles(baseLegal)}</dd>
+                </div>
+              )}
+              {f.salario_ref !== null && (
+                <div className="flex justify-between gap-4 text-taupe">
+                  <dt>Potencial Máximo de Rendimiento Operativo</dt>
+                  <dd>{formatSoles(f.salario_ref)}</dd>
+                </div>
+              )}
+            </dl>
+          )}
         </div>
 
         {/* Detalle del pago */}
