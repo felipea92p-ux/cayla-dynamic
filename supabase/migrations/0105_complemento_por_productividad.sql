@@ -255,6 +255,9 @@ begin
         -- 100 y el pago es el mismo de siempre. Sin básica legal sigue saliendo
         -- NULL y la boleta muestra el pago sin partir, antes que inventar una
         -- separación. Los de sueldo fijo (socios, dirección) quedan fuera.
+        -- La básica tal cual, sin prorratear: la pantalla de Planilla la necesita
+        -- para poder editarla en su celda.
+        'sueldo_base_legal', pe.sueldo_base_legal,
         'basica_legal_prop',
           case when pe.sueldo_base_legal is null or pe.sueldo_fijo
                then null else round(pb.basica, 2) end,

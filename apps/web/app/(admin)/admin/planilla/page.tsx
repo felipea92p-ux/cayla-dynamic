@@ -125,6 +125,7 @@ export interface Fila {
   // El defecto es 100, y al 100% la fórmula devuelve el salario del rango: por eso
   // activar esto no le mueve el sueldo a nadie. rendimiento_por_defecto distingue
   // «nadie lo ha puntuado» de «alguien escribió 100».
+  sueldo_base_legal: number | null;
   rendimiento_pct: number | null;
   rendimiento_por_defecto: boolean | null;
   complemento_etiqueta: string | null;
@@ -214,7 +215,7 @@ function etiquetaPeriodo(p: PeriodoInfo): string {
   return `${MESES_LARGO[p.mes_etiqueta - 1]} ${p.anio_etiqueta} · ${fechaCorta(p.fecha_ini)} → ${fechaCorta(p.fecha_fin)}`;
 }
 
-const COLS = 12; // columnas de la tabla principal
+const COLS = 14; // columnas de la tabla principal (+2 en la 0106: básica legal y rendimiento)
 
 // ── Tabla de planilla (compartida entre periodo oficial y simulador) ─────────
 // Componente a nivel de módulo: si viviera dentro de PlanillaPage se
@@ -250,6 +251,14 @@ function TablaPlanilla(props: {
   onObjChange?: (personaId: string, valor: string) => void;
   onObjBlur?: (f: Fila) => void;
   guardandoObj?: string | null;
+  baseEdit?: Record<string, string>;
+  onBaseChange?: (personaId: string, valor: string) => void;
+  onBaseBlur?: (f: Fila) => void;
+  guardandoBase?: string | null;
+  rendEdit?: Record<string, string>;
+  onRendChange?: (personaId: string, valor: string) => void;
+  onRendBlur?: (f: Fila) => void;
+  guardandoRend?: string | null;
   movAbierto?: string | null;
   onToggleMov?: (personaId: string) => void;
   movForm?: MovForm;
@@ -263,6 +272,8 @@ function TablaPlanilla(props: {
   const {
     filas, simulacion, pagado, sedeFiltro, periodoId, ocupado = false,
     objEdit = {}, onObjChange, onObjBlur, guardandoObj = null,
+    baseEdit = {}, onBaseChange, onBaseBlur, guardandoBase = null,
+    rendEdit = {}, onRendChange, onRendBlur, guardandoRend = null,
     movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov, onYaPagado,
     guardandoMov = false, gc = null,
   } = props;
@@ -311,6 +322,12 @@ function TablaPlanilla(props: {
             <th className="px-4 py-2 text-right font-normal">Feriados</th>
             <th className="px-4 py-2 text-right font-normal">Asig. familiar</th>
             <th className="px-4 py-2 font-normal">Objetivos</th>
+            <th className="px-4 py-2 text-right font-normal" title="Remuneración básica legal mensual: la que se declara en PLAME. Vacía = la boleta no imprime esa línea.">
+              Básica legal
+            </th>
+            <th className="px-4 py-2 text-right font-normal" title="Rendimiento del mes, 0 a 100. Vacío = 100% (paga el rango completo, igual que siempre).">
+              Rendim.
+            </th>
             <th className="px-4 py-2 text-right font-normal">Plus</th>
             <th className="px-4 py-2 text-right font-normal">Bonos</th>
             <th className="px-4 py-2 text-right font-normal">Descuentos</th>
@@ -463,6 +480,59 @@ function TablaPlanilla(props: {
                       </span>
                     )}
                   </td>
+                  {/* Básica legal — es de la PERSONA, no del periodo, así que se
+                      puede editar incluso con el periodo pagado. Ojo: cambiarla
+                      cambia el desglose de sus boletas pasadas (ver 0106). */}
+                  <td className="px-4 py-2 text-right">
+                    {editable ? (
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                        <input
+                          type="number"
+                          min={0}
+                          step={10}
+                          placeholder="—"
+                          value={baseEdit[f.persona_id] ?? (f.sueldo_base_legal ?? "")}
+                          onChange={(e) => onBaseChange?.(f.persona_id, e.target.value)}
+                          onBlur={() => onBaseBlur?.(f)}
+                          disabled={ocupado}
+                          className="w-20 rounded-lg border px-2 py-1 text-right disabled:opacity-50"
+                        />
+                        {guardandoBase === f.persona_id && <span className="text-xs text-taupe">…</span>}
+                      </div>
+                    ) : f.sueldo_base_legal !== null && f.sueldo_base_legal !== undefined ? (
+                      formatSoles(f.sueldo_base_legal)
+                    ) : (
+                      <span className="text-taupe/50">—</span>
+                    )}
+                  </td>
+                  {/* Rendimiento — vacío significa 100%, y 100% paga el rango
+                      completo. El sistema nunca recorta por omisión. */}
+                  <td className="px-4 py-2 text-right">
+                    {editable ? (
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={5}
+                          placeholder="100"
+                          value={rendEdit[f.persona_id] ?? (f.rendimiento_por_defecto ? "" : (f.rendimiento_pct ?? ""))}
+                          onChange={(e) => onRendChange?.(f.persona_id, e.target.value)}
+                          onBlur={() => onRendBlur?.(f)}
+                          disabled={ocupado || pagado}
+                          title={pagado ? hintPagado : undefined}
+                          className="w-16 rounded-lg border px-2 py-1 text-right disabled:opacity-50"
+                        />
+                        <span className="text-taupe">%</span>
+                        {guardandoRend === f.persona_id && <span className="text-xs text-taupe">…</span>}
+                      </div>
+                    ) : (
+                      <span className="whitespace-nowrap">
+                        {f.rendimiento_pct ?? 100}%
+                        {f.rendimiento_por_defecto && <span className="text-taupe/50"> def.</span>}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-right">
                     {f.monto_plus > 0 ? formatSoles(f.monto_plus) : <span className="text-taupe/50">—</span>}
                   </td>
@@ -599,6 +669,8 @@ function TablaPlanilla(props: {
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.feriados)}</td>
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.asignacion)}</td>
               <td className="px-4 py-2" />
+              <td className="px-4 py-2" />
+              <td className="px-4 py-2" />
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.plus)}</td>
               <td className="px-4 py-2 text-right font-medium">
                 {totales.bonos > 0 ? <span className="text-verde">+{formatSoles(totales.bonos)}</span> : <span className="text-taupe/50">—</span>}
@@ -652,6 +724,10 @@ export default function PlanillaPage() {
 
   // Objetivos: valor en edición por persona (solo las filas tocadas)
   const [objEdit, setObjEdit] = useState<Record<string, string>>({});
+  const [baseEdit, setBaseEdit] = useState<Record<string, string>>({});
+  const [guardandoBase, setGuardandoBase] = useState<string | null>(null);
+  const [rendEdit, setRendEdit] = useState<Record<string, string>>({});
+  const [guardandoRend, setGuardandoRend] = useState<string | null>(null);
   const [guardandoObj, setGuardandoObj] = useState<string | null>(null);
 
   // Bonos / descuentos: panel abierto + mini-form
@@ -1002,6 +1078,101 @@ export default function PlanillaPage() {
     }
     avisar("ok", "Feriado quitado.");
     await Promise.all([cargarFeriadosAnio(), cargarProyeccion()]);
+  }
+
+  // ── Básica legal (0103/0106) ────────────────────────────────────────────────
+  // Es un dato de la PERSONA, no del periodo. Vaciar el input NO borra el valor
+  // guardado —eso sería un borrado silencioso de un dato contractual—; vuelve a
+  // mostrar lo que había. Para quitarlo hace falta hacerlo a conciencia por SQL.
+  async function guardarBaseLegal(f: Fila) {
+    const bruto = baseEdit[f.persona_id];
+    if (bruto === undefined) return;
+    const limpiar = () =>
+      setBaseEdit((prev) => {
+        const { [f.persona_id]: _, ...resto } = prev;
+        return resto;
+      });
+    const texto = bruto.trim();
+    if (texto === "") {
+      limpiar();
+      return;
+    }
+    const n = Number(texto);
+    if (!Number.isFinite(n) || n <= 0) {
+      avisar("error", `La básica legal de ${f.nombre} debe ser un monto mayor que cero.`);
+      return;
+    }
+    if (n === f.sueldo_base_legal) {
+      limpiar();
+      return;
+    }
+    setGuardandoBase(f.persona_id);
+    const { error } = await supabase.rpc("fn_set_sueldo_base_legal", {
+      p_persona_id: f.persona_id,
+      p_monto: n,
+    });
+    setGuardandoBase(null);
+    if (error) {
+      avisar("error", `No se pudo guardar la básica legal: ` + mensajeDeError(error));
+      return;
+    }
+    limpiar();
+    avisar("ok", `Básica legal de ${f.nombre}: ${formatSoles(n)}.`);
+    await cargarProyeccion();
+  }
+
+  // ── Rendimiento del mes (0105/0106) ─────────────────────────────────────────
+  // Vaciar el input SÍ tiene significado aquí: vuelve al defecto (100%), que paga
+  // el rango completo. Por eso borra la fila en vez de escribir un 100 a mano —
+  // así el registro distingue «nadie lo puntuó» de «lo puntuaron 100».
+  async function guardarRendimiento(f: Fila) {
+    if (!proy || proy.simulacion) return;
+    const bruto = rendEdit[f.persona_id];
+    if (bruto === undefined) return;
+    const limpiar = () =>
+      setRendEdit((prev) => {
+        const { [f.persona_id]: _, ...resto } = prev;
+        return resto;
+      });
+    const texto = bruto.trim();
+    setGuardandoRend(f.persona_id);
+    let error;
+    if (texto === "") {
+      ({ error } = await supabase.rpc("fn_quitar_rendimiento", {
+        p_persona_id: f.persona_id,
+        p_anio: proy.anio_etiqueta,
+        p_mes: proy.mes_etiqueta,
+      }));
+    } else {
+      const n = Number(texto);
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        setGuardandoRend(null);
+        avisar("error", `El rendimiento de ${f.nombre} debe estar entre 0 y 100.`);
+        return;
+      }
+      if (!f.rendimiento_por_defecto && n === f.rendimiento_pct) {
+        setGuardandoRend(null);
+        limpiar();
+        return;
+      }
+      ({ error } = await supabase.rpc("fn_set_rendimiento", {
+        p_persona_id: f.persona_id,
+        p_anio: proy.anio_etiqueta,
+        p_mes: proy.mes_etiqueta,
+        p_porcentaje: n,
+        p_etiqueta_codigo: null,
+      }));
+    }
+    setGuardandoRend(null);
+    if (error) {
+      avisar("error", `No se pudo guardar el rendimiento: ` + mensajeDeError(error));
+      return;
+    }
+    limpiar();
+    avisar("ok", texto === ""
+      ? `${f.nombre} vuelve al 100% por defecto.`
+      : `Rendimiento de ${f.nombre}: ${texto}%.`);
+    await cargarProyeccion();
   }
 
   // ── Objetivos (etiqueta del periodo = mes de la fecha de cierre) ───────────
@@ -1722,6 +1893,14 @@ export default function PlanillaPage() {
                 onObjChange={(personaId, valor) => setObjEdit((prev) => ({ ...prev, [personaId]: valor }))}
                 onObjBlur={(f) => void guardarObjetivos(f)}
                 guardandoObj={guardandoObj}
+                baseEdit={baseEdit}
+                onBaseChange={(personaId, valor) => setBaseEdit((prev) => ({ ...prev, [personaId]: valor }))}
+                onBaseBlur={(f) => void guardarBaseLegal(f)}
+                guardandoBase={guardandoBase}
+                rendEdit={rendEdit}
+                onRendChange={(personaId, valor) => setRendEdit((prev) => ({ ...prev, [personaId]: valor }))}
+                onRendBlur={(f) => void guardarRendimiento(f)}
+                guardandoRend={guardandoRend}
                 movAbierto={movAbierto}
                 onToggleMov={toggleMov}
                 movForm={movForm}
