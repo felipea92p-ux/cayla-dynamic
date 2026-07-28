@@ -28,6 +28,41 @@ function fechaHoyLima(): string {
   }).format(new Date());
 }
 
+// «168.94 h» no se lee: son 168 h y 56 min. Vive solo aquí a propósito —
+// fmtHoras (compartido con Planilla) sigue dando centésimas porque ahí son una
+// tabla de trabajo y sirven para cuadrar. Esto es un documento para la persona.
+function fmtHorasHumano(n: number): string {
+  const h = Math.floor(n);
+  const min = Math.round((n - h) * 60);
+  if (min === 0) return `${h} h`;
+  if (min === 60) return `${h + 1} h`;
+  return `${h} h ${min} min`;
+}
+
+// Por qué el pago base no es el sueldo completo. Los datos ya existían —la 0100
+// los expone justamente para que un cero no quede sin explicar—, lo que faltaba
+// era decírselo a la persona en su propia boleta. Decidido con Felipe 2026-07-28.
+//
+// La redacción es deliberadamente distinta a la de Planilla: ahí dice «sin
+// salario asignado — asígnale rango en Equipo» porque es una pantalla para
+// administrar. Aquí lo mismo se cuenta sin pedirle a la persona que arregle
+// nada, que no es su trabajo.
+function contextoPagoBase(f: Fila): string[] {
+  const partes: string[] = [];
+  if (f.dias_laborables === 0) {
+    partes.push("no hay horario asignado, así que el sistema no sabe qué días te tocaba venir");
+  } else {
+    partes.push(`${f.dias_trabajados} de ${f.dias_laborables} días que te tocaba trabajar`);
+  }
+  if (f.dias_vacaciones > 0) {
+    partes.push(`${f.dias_vacaciones} de vacaciones`);
+  }
+  if (f.horas_sin_salario > 0) {
+    partes.push(`${fmtHoras(f.horas_sin_salario)} sin tarifa asignada, que no se pudieron pagar`);
+  }
+  return partes;
+}
+
 function BoletaContenido() {
   const router = useRouter();
   const params = useSearchParams();
@@ -144,6 +179,24 @@ function BoletaContenido() {
     f.monto_plus +
     bonos.reduce((suma, m) => suma + m.monto, 0);
 
+  // ¿Esta boleta es definitiva o todavía se mueve? Antes no se decía en ningún
+  // lado, así que alguien podía imprimirla, guardarla, y después recibir otro
+  // monto. Para un periodo ya pagado NO decimos «definitiva»: decimos la fecha
+  // en que se pagó, que es un hecho. (fn_proyeccion_periodo recalcula en vivo y
+  // no lee la foto congelada de la 0096, así que afirmar «definitiva» sería
+  // prometer algo que esta pantalla no puede garantizar.)
+  // 'estado' es opcional en Proyeccion: si no viene, no inventamos sello.
+  const sello =
+    proy.simulacion
+      ? { texto: "Simulación — no es un pago real", alerta: true }
+      : proy.estado === "pagado"
+        ? { texto: `Pagada${proy.pagado_at ? ` el ${fechaCorta(proy.pagado_at)}` : ""}`, alerta: false }
+        : proy.estado === "abierto"
+          ? { texto: "Provisional — el mes aún no cierra", alerta: true }
+          : null;
+
+  const contexto = contextoPagoBase(f);
+
   return (
     <main className="mx-auto max-w-2xl p-6 print:p-0">
       {/* Barra de acciones — no se imprime */}
@@ -168,6 +221,15 @@ function BoletaContenido() {
             <p className="font-serif text-lg">
               {MESES_LARGO[proy.mes_etiqueta - 1]} {proy.anio_etiqueta}
             </p>
+            {sello && (
+              <p
+                className={`mt-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${
+                  sello.alerta ? "bg-rojo/10 text-rojo" : "bg-verde/10 text-verde"
+                }`}
+              >
+                {sello.texto}
+              </p>
+            )}
             <p className="text-xs text-taupe">
               {fechaCorta(proy.fecha_ini)} → {fechaCorta(proy.fecha_fin)}
             </p>
@@ -186,8 +248,20 @@ function BoletaContenido() {
         <table className="mb-6 w-full text-sm">
           <tbody>
             <tr className="border-t border-sand">
-              <td className="py-2">Pago base ({fmtHoras(f.horas_mes)})</td>
-              <td className="py-2 text-right">{formatSoles(f.pago_base)}</td>
+              <td className="py-2">
+                Pago base ({fmtHorasHumano(f.horas_mes)})
+                {contexto.length > 0 && (
+                  <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
+                )}
+                {f.dias_pendientes > 0 && (
+                  <span className="block text-xs text-rojo">
+                    {f.dias_pendientes === 1
+                      ? "Queda 1 día por confirmar: este monto todavía puede cambiar."
+                      : `Quedan ${f.dias_pendientes} días por confirmar: este monto todavía puede cambiar.`}
+                  </span>
+                )}
+              </td>
+              <td className="py-2 text-right align-top">{formatSoles(f.pago_base)}</td>
             </tr>
             {f.monto_feriados > 0 && (
               <tr className="border-t border-sand">
@@ -204,11 +278,15 @@ function BoletaContenido() {
             <tr className="border-t border-sand">
               <td className="py-2">
                 Plus de objetivos
-                {f.objetivos_cumplidos !== null && (
-                  <span className="text-taupe"> ({f.objetivos_cumplidos}/{totalObj} — {nivelPlus})</span>
-                )}
+                {/* Un guion pelado no distingue «no llegué» de «no me evaluaron», y
+                    es plata. Misma idea que la 0100 con los ceros de Planilla. */}
+                <span className="block text-xs text-taupe">
+                  {f.objetivos_cumplidos !== null
+                    ? `${f.objetivos_cumplidos}/${totalObj} cumplidos — ${nivelPlus}`
+                    : "este mes no se registraron objetivos, así que no hubo plus que calcular"}
+                </span>
               </td>
-              <td className="py-2 text-right">
+              <td className="py-2 text-right align-top">
                 {f.monto_plus > 0 ? formatSoles(f.monto_plus) : <span className="text-taupe/50">—</span>}
               </td>
             </tr>
@@ -247,8 +325,8 @@ function BoletaContenido() {
           </p>
           <p>
             <span className="text-verde">✓</span>{" "}
-            <span className="font-medium">Gratificación, CTS y vacaciones:</span> se siguen acumulando,
-            se pagan en sus fechas.
+            <span className="font-medium">Gratificación, CTS y vacaciones:</span> se siguen acumulando
+            y se pagan en sus fechas. Si este mes ya te tocó alguna, la verás arriba como bono.
           </p>
         </div>
 
