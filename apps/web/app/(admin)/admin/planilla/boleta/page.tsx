@@ -131,6 +131,19 @@ function BoletaContenido() {
   const bonos = f.movimientos?.filter((m) => m.tipo === "bono") ?? [];
   const descuentos = f.movimientos?.filter((m) => m.tipo === "descuento") ?? [];
 
+  // Subtotal ganado: todo lo que suma, antes de restar. Solo se muestra si hay
+  // descuentos — sin ellos sería idéntico al total y solo agregaría ruido.
+  // Decidido con Felipe el 2026-07-28: cuando el descuento es grande (un adelanto,
+  // por ejemplo), sin esta línea la persona ve solo el neto y no reconoce que sí
+  // ganó su sueldo completo. Suma los mismos campos ya redondeados que usa el
+  // 'total' de fn_proyeccion_periodo, así el desglose cuadra al céntimo.
+  const subtotalGanado =
+    f.pago_base +
+    f.monto_feriados +
+    f.asignacion_familiar +
+    f.monto_plus +
+    bonos.reduce((suma, m) => suma + m.monto, 0);
+
   return (
     <main className="mx-auto max-w-2xl p-6 print:p-0">
       {/* Barra de acciones — no se imprime */}
@@ -205,6 +218,12 @@ function BoletaContenido() {
                 <td className="py-2 text-right text-verde">+{formatSoles(m.monto)}</td>
               </tr>
             ))}
+            {descuentos.length > 0 && (
+              <tr className="border-t border-tinta/30">
+                <td className="py-2 font-medium">Subtotal ganado</td>
+                <td className="py-2 text-right font-medium">{formatSoles(subtotalGanado)}</td>
+              </tr>
+            )}
             {descuentos.map((m) => (
               <tr key={m.id} className="border-t border-sand">
                 <td className="py-2 text-rojo">Descuento — {m.concepto}</td>
@@ -212,7 +231,7 @@ function BoletaContenido() {
               </tr>
             ))}
             <tr className="border-t-2 border-tinta">
-              <td className="py-3 font-serif text-lg">Total</td>
+              <td className="py-3 font-serif text-lg">Total a recibir este mes</td>
               <td className="py-3 text-right font-serif text-lg font-bold">{formatSoles(f.total)}</td>
             </tr>
           </tbody>
