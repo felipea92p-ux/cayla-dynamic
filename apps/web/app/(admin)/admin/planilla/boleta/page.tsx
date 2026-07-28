@@ -47,18 +47,34 @@ function fmtHorasHumano(n: number): string {
 // salario asignado — asígnale rango en Equipo» porque es una pantalla para
 // administrar. Aquí lo mismo se cuenta sin pedirle a la persona que arregle
 // nada, que no es su trabajo.
+// Nada se imprime si el dato no vino. Suena obvio, pero aquí hay una trampa que
+// costó un susto: las migraciones de este proyecto se pegan a mano en producción,
+// así que el frontend puede desplegarse ANTES de que existan los campos. Un campo
+// ausente llega como undefined, y en JavaScript `undefined > 0` es false (bien)
+// pero `undefined === 0` también es false (mal): sin la guarda de typeof, la rama
+// else escribía «undefined de undefined días» en un documento de pago.
+// Por eso aquí se comprueba typeof number, no !== null.
+function num(v: number | null | undefined): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
 function contextoPagoBase(f: Fila): string[] {
   const partes: string[] = [];
-  if (f.dias_laborables === 0) {
+  const laborables = num(f.dias_laborables);
+  const trabajados = num(f.dias_trabajados);
+  const vacaciones = num(f.dias_vacaciones);
+  const sinSalario = num(f.horas_sin_salario);
+
+  if (laborables === 0) {
     partes.push("no hay horario asignado, así que el sistema no sabe qué días te tocaba venir");
-  } else {
-    partes.push(`${f.dias_trabajados} de ${f.dias_laborables} días que te tocaba trabajar`);
+  } else if (laborables !== null && trabajados !== null) {
+    partes.push(`${trabajados} de ${laborables} días que te tocaba trabajar`);
   }
-  if (f.dias_vacaciones > 0) {
-    partes.push(`${f.dias_vacaciones} de vacaciones`);
+  if (vacaciones !== null && vacaciones > 0) {
+    partes.push(`${vacaciones} de vacaciones`);
   }
-  if (f.horas_sin_salario > 0) {
-    partes.push(`${fmtHoras(f.horas_sin_salario)} sin tarifa asignada, que no se pudieron pagar`);
+  if (sinSalario !== null && sinSalario > 0) {
+    partes.push(`${fmtHoras(sinSalario)} sin tarifa asignada, que no se pudieron pagar`);
   }
   return partes;
 }
@@ -211,17 +227,22 @@ function BoletaContenido() {
 
   const contexto = contextoPagoBase(f);
 
-  // El desglose legal solo se muestra si los tres datos están: la básica de la
-  // persona y las dos partes que calculó la 0104. Si falta cualquiera, una sola
-  // fila — antes que partir el pago con una cifra a medias.
-  const hayDesglose =
-    baseLegal !== null && f.basica_legal_prop !== null && f.complemento_variable !== null;
+  // El desglose solo se muestra si las TRES cifras son números de verdad.
+  // Se comprueba con typeof y no con !== null a propósito: si la 0104/0105 no
+  // están pegadas en la base, estos campos llegan undefined, y `undefined !== null`
+  // es true. Con la comprobación floja, la boleta habría partido el pago y escrito
+  // «S/ NaN» donde va el sueldo de alguien. Aquí no se asume nada.
+  const basicaProp = num(f.basica_legal_prop);
+  const complemento = num(f.complemento_variable);
+  const rendimientoPct = num(f.rendimiento_pct);
+  const hayDesglose = baseLegal !== null && basicaProp !== null && complemento !== null;
 
+  const pendientes = num(f.dias_pendientes) ?? 0;
   const avisoPendientes =
-    f.dias_pendientes > 0
-      ? f.dias_pendientes === 1
+    pendientes > 0
+      ? pendientes === 1
         ? "Queda 1 día por confirmar: este monto todavía puede cambiar."
-        : `Quedan ${f.dias_pendientes} días por confirmar: este monto todavía puede cambiar.`
+        : `Quedan ${pendientes} días por confirmar: este monto todavía puede cambiar.`
       : null;
 
   return (
@@ -323,7 +344,7 @@ function BoletaContenido() {
                       <span className="block text-xs text-rojo">{avisoPendientes}</span>
                     )}
                   </td>
-                  <td className="py-2 text-right align-top">{formatSoles(f.basica_legal_prop!)}</td>
+                  <td className="py-2 text-right align-top">{formatSoles(basicaProp!)}</td>
                 </tr>
                 <tr className="border-t border-sand">
                   <td className="py-2">
@@ -335,12 +356,10 @@ function BoletaContenido() {
                     {f.complemento_etiqueta ?? "Complemento por Productividad"}
                     <span className="block text-xs text-taupe">
                       variable, no permanente
-                      {f.rendimiento_pct !== null && ` · rendimiento ${f.rendimiento_pct}%`}
+                      {rendimientoPct !== null && ` · rendimiento ${rendimientoPct}%`}
                     </span>
                   </td>
-                  <td className="py-2 text-right align-top">
-                    {formatSoles(f.complemento_variable!)}
-                  </td>
+                  <td className="py-2 text-right align-top">{formatSoles(complemento!)}</td>
                 </tr>
               </>
             ) : (
