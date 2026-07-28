@@ -114,11 +114,16 @@ export interface Fila {
   dias_vacaciones: number;   // 0100 — por qué está en cero
   dias_laborables: number;   // 0100 — 0 = no tiene horario asignado
   pago_base: number;
-  // Desglose legal del pago base (0104). NULL cuando la persona no tiene
-  // sueldo_base_legal fijado: entonces la boleta no parte la fila.
-  // basica_legal_prop + complemento_variable === pago_base, siempre.
+  // Desglose legal del pago base (0104, recalculado por la 0105). NULL cuando
+  // falta la básica legal o la puntuación del mes: entonces la boleta no parte
+  // la fila. basica_legal_prop + complemento_variable === pago_base, siempre.
   basica_legal_prop: number | null;
   complemento_variable: number | null;
+  // 0105 — puntuación de productividad del mes (0–100) y la etiqueta que se
+  // eligió para el concepto ESE mes. La etiqueta es un dato, no código: puede
+  // cambiar de un periodo a otro y cada pago guarda con qué nombre se emitió.
+  rendimiento_pct: number | null;
+  complemento_etiqueta: string | null;
   fecha_ingreso: string;
   feriados_detalle: FeriadoDetalle[];
   monto_feriados: number;

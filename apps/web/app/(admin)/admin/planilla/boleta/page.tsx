@@ -327,9 +327,15 @@ function BoletaContenido() {
                 </tr>
                 <tr className="border-t border-sand">
                   <td className="py-2">
-                    Complemento Variable por Rendimiento
+                    {/* La etiqueta viene de la fila del mes (0105), elegida del
+                        catálogo etiquetas_complemento. Puede cambiar de un periodo
+                        a otro sin tocar el programa, y cada pago queda emitido con
+                        el nombre que llevaba entonces. El literal es solo el
+                        respaldo si el catálogo no resolviera. */}
+                    {f.complemento_etiqueta ?? "Complemento por Productividad"}
                     <span className="block text-xs text-taupe">
-                      no permanente, sujeto a resultados del mes
+                      variable, no permanente
+                      {f.rendimiento_pct !== null && ` · rendimiento ${f.rendimiento_pct}%`}
                     </span>
                   </td>
                   <td className="py-2 text-right align-top">
