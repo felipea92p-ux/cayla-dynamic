@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
@@ -137,28 +138,15 @@ function BoletaContenido() {
     void cargar();
   }, [cargar]);
 
-  // El nombre del PDF lo decide el título del documento: Chrome lo usa como
-  // nombre sugerido en «Guardar como PDF». Sin esto, TODAS las boletas se
-  // guardaban como «Dynamic — CAYLA» y había que renombrarlas a mano una por
-  // una — con treinta personas al mes, eso es media hora de trabajo tonto.
-  //
-  // Va aquí arriba, junto al resto de los hooks, y no más abajo con `f`: los
-  // hooks no pueden ir después de los `return` condicionales que vienen a
-  // continuación, así que la fila se busca dentro del propio efecto.
-  //
-  // Restaura el título al salir para que «Volver a Planilla» no se quede con el
-  // nombre de una persona en la pestaña.
-  useEffect(() => {
-    if (!proy) return;
-    const fila = proy.filas.find((x) => x.persona_id === personaId);
-    if (!fila) return;
-    const anterior = document.title;
-    const mes = MESES_LARGO[proy.mes_etiqueta - 1];
-    document.title = `${fila.nombre} — Boleta interna ${mes} ${proy.anio_etiqueta}`;
-    return () => {
-      document.title = anterior;
-    };
-  }, [proy, personaId]);
+  // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts para el
+  // por qué; aquí solo se arma el texto. Acepta null mientras cargan los datos,
+  // que es lo que permite llamarlo arriba sin romper el orden de los hooks.
+  const filaTitulo = proy?.filas.find((x) => x.persona_id === personaId);
+  useTituloDocumento(
+    proy && filaTitulo
+      ? `${filaTitulo.nombre} — Boleta interna ${MESES_LARGO[proy.mes_etiqueta - 1]} ${proy.anio_etiqueta}`
+      : null,
+  );
 
   if (!periodoId || !personaId) {
     return (

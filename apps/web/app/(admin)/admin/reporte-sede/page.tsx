@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 
 const TZ = "America/Lima";
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
@@ -152,6 +153,12 @@ function ReporteSedeContenido() {
   const encPiso = filas.filter((f) => f.esEncargada && f.estadoHoy === "abierta").length;
   const metaOp = tramoTarde ? meta.tar : meta.man;
   const mesLabel = `${MESES[Number(mes.slice(5, 7)) - 1]} ${mes.slice(0, 4)}`;
+
+  // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts.
+  // Aquí el mes va DELANTE, al contrario que en la boleta: estos reportes se
+  // archivan por periodo y se comparan entre sedes, así que ordenados por mes
+  // quedan agrupados solos en la carpeta.
+  useTituloDocumento(sede ? `Reporte ${mesLabel} — ${sede.nombre}` : null);
 
   const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
     const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
