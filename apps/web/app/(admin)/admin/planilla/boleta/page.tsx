@@ -137,6 +137,29 @@ function BoletaContenido() {
     void cargar();
   }, [cargar]);
 
+  // El nombre del PDF lo decide el título del documento: Chrome lo usa como
+  // nombre sugerido en «Guardar como PDF». Sin esto, TODAS las boletas se
+  // guardaban como «Dynamic — CAYLA» y había que renombrarlas a mano una por
+  // una — con treinta personas al mes, eso es media hora de trabajo tonto.
+  //
+  // Va aquí arriba, junto al resto de los hooks, y no más abajo con `f`: los
+  // hooks no pueden ir después de los `return` condicionales que vienen a
+  // continuación, así que la fila se busca dentro del propio efecto.
+  //
+  // Restaura el título al salir para que «Volver a Planilla» no se quede con el
+  // nombre de una persona en la pestaña.
+  useEffect(() => {
+    if (!proy) return;
+    const fila = proy.filas.find((x) => x.persona_id === personaId);
+    if (!fila) return;
+    const anterior = document.title;
+    const mes = MESES_LARGO[proy.mes_etiqueta - 1];
+    document.title = `${fila.nombre} — Boleta interna ${mes} ${proy.anio_etiqueta}`;
+    return () => {
+      document.title = anterior;
+    };
+  }, [proy, personaId]);
+
   if (!periodoId || !personaId) {
     return (
       <main className="p-6">
