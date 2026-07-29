@@ -301,34 +301,23 @@ function BoletaContenido() {
             {f.sede} · {f.rango ? (RANGO_LABEL[f.rango] ?? f.rango) : "sin rango"}
           </p>
 
-          {/* Dos cifras, diferenciadas a propósito: antes iban fundidas en un
-              solo «S/ X/mes» que mezclaba lo garantizado con lo potencial.
-              · Base legal: en tinta y en negrita — es lo fijo y lo que se
-                declara en PLAME. Se omite si está en NULL (ver 0103): no
-                afirmamos una base que nadie confirmó.
-              · Potencial del rango: en taupe — es referencial.
-              Decidido con Felipe el 2026-07-28. */}
-          {(baseLegal !== null || f.salario_ref !== null) && (
+          {/* EL POTENCIAL MÁXIMO DEL RANGO YA NO SE IMPRIME AQUÍ.
+              Decidido con Felipe el 2026-07-28, y la razón no es el número: es
+              el consentimiento. La boleta es unilateral —nadie la firma—, así
+              que un «potencial máximo» impreso cada mes crea una expectativa que
+              el integrante nunca aceptó, y eso es lo que se presentaría como
+              promesa incumplida. El mismo número, en el convenio firmado, es un
+              entendimiento mutuo documentado, que es lo que el Art. 19 necesita.
+              De paso desaparecen dos problemas: que la cifra se podía superar
+              (el plus por metas es 21% ENCIMA del rango) y el desmentido que
+              había que poner en el pie para explicarla.
+              El potencial sigue existiendo en Planilla, para gestión interna. */}
+          {baseLegal !== null && (
             <dl className="mt-3 space-y-1 text-sm">
-              {baseLegal !== null && (
-                <div className="flex justify-between gap-4">
-                  <dt className="font-medium">Remuneración Básica Legal</dt>
-                  <dd className="font-medium">{formatSoles(baseLegal)}</dd>
-                </div>
-              )}
-              {f.salario_ref !== null && (
-                <div className="flex justify-between gap-4 text-taupe">
-                  <dt>
-                    Potencial Máximo de Rendimiento Operativo
-                    {/* El plus por metas es 21% ENCIMA del salario del rango, así
-                        que este número se puede superar. Sin este aclarador, una
-                        boleta donde alguien cobre más que su «máximo» declarado
-                        es el hueco más fácil de explotar del documento. */}
-                    <span className="block text-xs">antes del plus por metas y de feriados</span>
-                  </dt>
-                  <dd>{formatSoles(f.salario_ref)}</dd>
-                </div>
-              )}
+              <div className="flex justify-between gap-4">
+                <dt className="font-medium">Remuneración Básica Legal</dt>
+                <dd className="font-medium">{formatSoles(baseLegal)}</dd>
+              </div>
             </dl>
           )}
         </div>
@@ -366,9 +355,21 @@ function BoletaContenido() {
                         catálogo, y podrá cambiar de un periodo a otro sin tocar
                         código. Hasta entonces, cambiarla es cambiar esta línea. */}
                     {f.complemento_etiqueta ?? "Rendimiento Extraordinario"}
+                    {/* El porcentaje solo se imprime si ALGUIEN lo puntuó de
+                        verdad. El 100% por defecto no es una evaluación, y
+                        escribirlo creaba una contradicción vista en producción:
+                        la misma hoja decía «rendimiento 100%» y, tres líneas más
+                        abajo, «3/10 objetivos cumplidos». Para quien la lee son
+                        incompatibles; y para un inspector es peor — muestra a
+                        alguien cobrando el 100% de lo «variable» mientras falla
+                        el 70% de sus metas, que es la prueba de que ese
+                        complemento no depende del rendimiento.
+                        Decidido con Felipe el 2026-07-28. */}
                     <span className="block text-xs text-taupe">
                       variable, no permanente
-                      {rendimientoPct !== null && ` · rendimiento ${rendimientoPct}%`}
+                      {rendimientoPct !== null && f.rendimiento_por_defecto !== true
+                        ? ` · rendimiento ${rendimientoPct}%`
+                        : ""}
                     </span>
                   </td>
                   <td className="py-2 text-right align-top">{formatSoles(complemento!)}</td>
@@ -459,27 +460,38 @@ function BoletaContenido() {
         <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
           <p className="mb-3 font-medium">Aclaración y Deslinde Legal de Remuneración</p>
           <ul className="mb-3 list-disc space-y-2 pl-5">
-            {baseLegal !== null && (
-              <li>
-                <span className="font-medium">Remuneración básica contractual:</span> el único
-                sueldo ordinario fijo, garantizado y de libre disponibilidad pactado asciende a{" "}
-                {formatSoles(baseLegal)}.
-              </li>
-            )}
+            {/* SIN CIFRA, y remitiendo al PLAME. Decidido con Felipe el 2026-07-28.
+                Antes afirmaba «el único sueldo ordinario fijo asciende a S/ X».
+                Se quitó el monto porque esta hoja no puede garantizar que coincida
+                con el documento oficial de cada persona, y una cifra que se
+                contradiga con el PLAME convierte esta boleta en prueba en contra.
+                El PLAME es la autoridad y aquí se dice así. */}
             <li>
-              <span className="font-medium">Carácter de incentivos y bonificaciones:</span> los
-              montos adicionales de este conteo interno son incentivos variables por productividad
-              y cumplimiento de objetivos. Están condicionados al logro de metas evaluadas mes a
-              mes, no tienen carácter permanente y no forman parte de la remuneración computable
-              (Art. 19 del D.S. 001-97-TR).
+              <span className="font-medium">Remuneración básica:</span> el sueldo ordinario fijo y
+              garantizado es el que figura como remuneración básica en tu boleta oficial PLAME. Los
+              importes de esta hoja son un desglose interno de cómo se compone tu pago del mes.
             </li>
-            {f.salario_ref !== null && (
-              <li>
-                <span className="font-medium">Potencial máximo de rendimiento operativo:</span> el
-                monto referencial de {formatSoles(f.salario_ref)} es la meta del rango antes del
-                plus por metas y de feriados. No es una promesa ni un sueldo fijo.
-              </li>
-            )}
+            {/* ANTES ESTE PUNTO ERA FALSO, y por eso se reescribió: decía que
+                «los montos adicionales» eran incentivos variables no computables,
+                y entre esos adicionales están la asignación familiar, los feriados
+                y la gratificación — que son DERECHOS DE LEY, no incentivos, y sí
+                son computables. Un documento firmado por la empresa que
+                mischaracteriza lo obligatorio es exactamente lo que se usa en
+                contra. Ahora se nombra qué es variable y se dice que el resto no.
+                Que la empresa demuestre saber distinguir es lo que hace creíble
+                el amparo del Art. 19; meterlo todo en el mismo saco lo destruye. */}
+            <li>
+              <span className="font-medium">Carácter variable de algunos conceptos:</span> el{" "}
+              <span className="font-medium">Rendimiento Extraordinario</span> y el{" "}
+              <span className="font-medium">Incentivo Variable por Metas</span> son variables, se
+              evalúan mes a mes, no tienen carácter permanente y no forman parte de la remuneración
+              computable (Art. 19 del D.S. 001-97-TR).
+            </li>
+            <li>
+              <span className="font-medium">Lo demás son derechos de ley:</span> los feriados, la
+              asignación familiar, la gratificación, la CTS y las vacaciones te corresponden por
+              ley y se pagan como tales. No son incentivos ni dependen de tu rendimiento.
+            </li>
             <li>
               <span className="font-medium">Efecto fiscal y laboral:</span> la boleta oficial para
               efectos de SUNAT, SUNAFIL, aportes de ley y beneficios sociales es exclusivamente la
