@@ -183,10 +183,16 @@ const CLASE_A_TIPO: Record<ClaseMov, "bono" | "descuento"> = {
 const CLASE_A_CATEGORIA: Record<ClaseMov, string | null> = {
   bono: null, descuento: null, vacaciones: "vacaciones", gratificacion: "gratificacion", cts: "cts", otros: "otros",
 };
-// Nombres discretos del sistema interno (decisión de Felipe): por dentro siguen
-// siendo grati/CTS (categoría, cálculo, candado), solo cambia lo que se lee.
+// Nombres LEGALES, revertido el 2026-07-28 por decisión de Felipe. Antes decían
+// «Bono Gratitud» y «Bono Comprometidos» para ser discretos, y eso era un riesgo:
+// la gratificación y la CTS son derechos de ley, no liberalidades. Llamarlas bono
+// disfraza una obligación como un regalo, y ante SUNAFIL se lee como intento de
+// ocultar un pago obligatorio — exactamente lo contrario del blindaje que se
+// buscaba con el resto del trabajo de hoy.
+// Por dentro nada cambia: la categoría, el cálculo (fn_grati_cts_periodo) y el
+// candado siguen igual. Solo cambia el nombre que se escribe y se lee.
 const CLASE_LABEL: Record<ClaseMov, string> = {
-  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", gratificacion: "Bono Gratitud", cts: "Bono Comprometidos", otros: "Otros",
+  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", gratificacion: "Gratificación", cts: "CTS", otros: "Otros",
 };
 const CLASE_PLACEHOLDER: Record<ClaseMov, string> = {
   bono: "ej. reconocimiento del mes",

@@ -414,7 +414,15 @@ function BoletaContenido() {
             </tr>
             {bonos.map((m) => (
               <tr key={m.id} className="border-t border-sand">
-                <td className="py-2 text-verde">Bono — {m.concepto}</td>
+                {/* Sin el prefijo «Bono — », a propósito (2026-07-28). La
+                    gratificación y la CTS se guardan como tipo='bono' —la tabla
+                    movimientos_planilla solo tiene 'bono' y 'descuento', sin
+                    categoría—, así que el prefijo escribía «Bono — Gratificación»
+                    y seguía llamando bono a un derecho de ley. El concepto ya
+                    lleva su nombre, y que suma se ve en el signo + y en el verde.
+                    Para los descuentos el prefijo se queda: ahí no hay riesgo
+                    legal y ayuda a leer por qué se resta. */}
+                <td className="py-2 text-verde">{m.concepto}</td>
                 <td className="py-2 text-right text-verde">+{formatSoles(m.monto)}</td>
               </tr>
             ))}
