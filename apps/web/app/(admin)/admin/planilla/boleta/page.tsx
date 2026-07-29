@@ -269,8 +269,11 @@ function BoletaContenido() {
       </div>
 
       {/* ── Boleta ── */}
-      <div className="rounded-lg border border-sand p-8 print:rounded-none print:border-0 print:p-0">
-        <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
+      {/* La clase `hoja` no pinta nada en pantalla: existe solo para que las
+          reglas de @media print de globals.css puedan apretar el interlineado y
+          los rellenos de las celdas sin repetir quince variantes print: aquí. */}
+      <div className="hoja rounded-lg border border-sand p-8 print:rounded-none print:border-0 print:p-0">
+        <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3">
           <Marca tono="tinta" isotipo="rojo" />
           <div className="text-right">
             <p className="etiqueta text-taupe">Boleta interna de pago</p>
@@ -292,7 +295,7 @@ function BoletaContenido() {
           </div>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-6 print:mb-4">
           <p className="font-serif text-2xl">{f.nombre}</p>
           <p className="text-sm text-taupe">
             {f.sede} · {f.rango ? (RANGO_LABEL[f.rango] ?? f.rango) : "sin rango"}
@@ -331,7 +334,7 @@ function BoletaContenido() {
         </div>
 
         {/* Detalle del pago */}
-        <table className="mb-6 w-full text-sm">
+        <table className="mb-6 w-full text-sm print:mb-4">
           <tbody>
             {/* El pago base se parte en dos cuando la persona tiene básica legal
                 fijada (0103/0104). Las dos filas suman exactamente el pago base:
@@ -453,7 +456,7 @@ function BoletaContenido() {
             Las cifras se toman de los datos de la persona, NUNCA se escriben a
             mano: un deslinde que cita un monto que no coincide con el desglose de
             arriba se vuelve prueba en contra. Si un dato falta, el punto se omite. */}
-        <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm">
+        <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
           <p className="mb-3 font-medium">Aclaración y Deslinde Legal de Remuneración</p>
           <ul className="mb-3 list-disc space-y-2 pl-5">
             {baseLegal !== null && (
