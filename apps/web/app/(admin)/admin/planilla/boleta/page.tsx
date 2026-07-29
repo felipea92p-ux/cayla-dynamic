@@ -314,8 +314,13 @@ function BoletaContenido() {
               El potencial sigue existiendo en Planilla, para gestión interna. */}
           {baseLegal !== null && (
             <dl className="mt-3 space-y-1 text-sm">
+              {/* «(mes completo)» no es decoración: sin eso, esta cifra y la fila
+                  del desglose se llamaban IGUAL y mostraban montos distintos
+                  (1,130.00 aquí y 947.41 abajo). Quien lo leyera rápido pensaba
+                  que había un error. Ahora una dice «mes completo» y la otra
+                  «proporcional», y se entienden sin explicación. */}
               <div className="flex justify-between gap-4">
-                <dt className="font-medium">Remuneración Básica Legal</dt>
+                <dt className="font-medium">Remuneración Básica Legal (mes completo)</dt>
                 <dd className="font-medium">{formatSoles(baseLegal)}</dd>
               </div>
             </dl>
@@ -333,9 +338,10 @@ function BoletaContenido() {
               <>
                 <tr className="border-t border-sand">
                   <td className="py-2">
-                    Remuneración Básica Legal ({fmtHorasHumano(f.horas_mes)})
+                    Básica legal proporcional ({fmtHorasHumano(f.horas_mes)})
                     <span className="block text-xs text-taupe">
-                      proporcional a {formatSoles(baseLegal!)} por mes completo
+                      por tus horas del periodo · el mes completo son{" "}
+                      {formatSoles(baseLegal!)}
                     </span>
                     {contexto.length > 0 && (
                       <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
@@ -498,15 +504,25 @@ function BoletaContenido() {
               emitida en el sistema PLAME. Esta es una boleta interna de CAYLA.
             </li>
           </ul>
+          {/* La asignación familiar SALE de esta lista. Aquí van los APORTES que
+              CAYLA asume para que no se le descuenten a la persona; la asignación
+              familiar es lo contrario — es plata que se le SUMA, y aparece como
+              tal en el desglose de arriba. Decir «no se descuenta de tu sueldo»
+              insinuaba que podría descontarse, que no tiene sentido. Ya figura
+              donde le toca: en el punto de los derechos de ley. */}
           <p className="mb-1">
             <span className="text-verde">✓</span>{" "}
-            <span className="font-medium">EsSalud, AFP y asignación familiar:</span> los cubre CAYLA,
-            no se descuentan de tu sueldo.
+            <span className="font-medium">EsSalud y AFP:</span> los cubre CAYLA, no se descuentan de
+            tu sueldo.
           </p>
           <p>
             <span className="text-verde">✓</span>{" "}
             <span className="font-medium">Gratificación, CTS y vacaciones:</span> se siguen acumulando
-            y se pagan en sus fechas. Si este mes ya te tocó alguna, la verás arriba como bono.
+            y se pagan en sus fechas. Si este mes ya te tocó alguna, la verás arriba en el desglose.
+            {/* Antes decía «la verás arriba como bono». Dejó de ser cierto el
+                2026-07-28, cuando la gratificación pasó a llamarse por su nombre
+                y se le quitó el prefijo «Bono —»: ya no aparece como bono en
+                ninguna parte, así que el pie contradecía a la tabla. */}
           </p>
         </div>
 
