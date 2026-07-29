@@ -73,3 +73,36 @@ a.bg-tinta:hover {
   -webkit-mask: url(/colibri.png) center / contain no-repeat;
   mask: url(/colibri.png) center / contain no-repeat;
 }
+
+/* ── El papel ────────────────────────────────────────────────────
+   No había ni una regla de impresión en el proyecto, así que la boleta salía
+   siendo la pantalla apretada en una hoja: se partía en dos páginas y el total
+   quedaba huérfano, separado de la tabla que lo explica.
+   La boleta se imprime y se ENTREGA, así que el papel es un destino de primera
+   clase, no un descarte del diseño de pantalla. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  body {
+    /* La crema en pantalla eleva; en papel es medio cartucho de tinta por hoja.
+       El fondo se va, los acentos se quedan. */
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Una fila de dinero no se parte nunca por la mitad. */
+  tr {
+    break-inside: avoid;
+  }
+
+  /* Y el total no se queda solo en la página siguiente, lejos de las filas que
+     lo explican: un total sin su desglose al lado no se puede comprobar. */
+  tfoot,
+  tr:last-child {
+    break-before: avoid;
+  }
+}
