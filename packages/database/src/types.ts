@@ -523,6 +523,7 @@ export type Database = {
           email: string | null
           en_planilla: boolean
           estado: string
+          sueldo_base_legal: number | null
           sueldo_fijo: boolean
           fecha_estado_cambio: string | null
           fecha_ingreso: string
@@ -543,6 +544,7 @@ export type Database = {
           email?: string | null
           en_planilla?: boolean
           estado?: string
+          sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
@@ -563,6 +565,7 @@ export type Database = {
           email?: string | null
           en_planilla?: boolean
           estado?: string
+          sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
           fecha_ingreso?: string
@@ -1512,6 +1515,24 @@ export type Database = {
           p_persona_id: string
           p_total?: number
         }
+        Returns: undefined
+      }
+      fn_set_sueldo_base_legal: {
+        Args: { p_monto: number; p_persona_id: string }
+        Returns: undefined
+      }
+      fn_set_rendimiento: {
+        Args: {
+          p_anio: number
+          p_etiqueta_codigo?: string | null
+          p_mes: number
+          p_persona_id: string
+          p_porcentaje: number
+        }
+        Returns: undefined
+      }
+      fn_quitar_rendimiento: {
+        Args: { p_anio: number; p_mes: number; p_persona_id: string }
         Returns: undefined
       }
       fn_objetivos_checklist: {
