@@ -67,8 +67,16 @@ function contextoPagoBase(f: Fila): string[] {
 
   if (laborables === 0) {
     partes.push("no hay horario asignado, así que el sistema no sabe qué días te tocaba venir");
-  } else if (laborables !== null && trabajados !== null) {
+  } else if (laborables !== null && trabajados !== null && trabajados <= laborables) {
     partes.push(`${trabajados} de ${laborables} días que te tocaba trabajar`);
+  } else if (trabajados !== null) {
+    // «21 de 10 días» es lo que salía antes, y no significa nada. Pasa cuando el
+    // horario asignado cubre menos días de los que la persona vino de verdad —
+    // normalmente porque su horario está mal configurado. La boleta no es el
+    // sitio para destapar eso: dice los días que trabajó, que es un hecho, y el
+    // desajuste se revisa en Horarios. Visto en producción el 2026-07-28 con una
+    // persona a la que el sistema le contaba 10 laborables y trabajó 21.
+    partes.push(`${trabajados} días trabajados`);
   }
   if (vacaciones !== null && vacaciones > 0) {
     partes.push(`${vacaciones} de vacaciones`);
