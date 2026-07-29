@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../../../nav";
 import { Cargando } from "@/components/cargando";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 
 const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550", firmante: "Alvarez Pereyra Felipe Miguel", cargo: "Gerencia General" };
 const TZ = "America/Lima";
@@ -101,6 +102,23 @@ export default function MemoPage() {
   }, [supabase, router, id]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // El nombre con el que se guarda el PDF. En un memo de disciplina importa más
+  // que en cualquier otro documento del sistema: son papeles legales sobre una
+  // persona concreta, y guardarlos todos como «Dynamic — CAYLA» en la misma
+  // carpeta es cómo se acaba entregando el memo de alguien a otra persona.
+  // Lleva el correlativo delante cuando existe, para que ordenen solos.
+  useTituloDocumento(
+    doc && persona
+      ? [
+          doc.correlativo,
+          TITULO[doc.nivel] ?? "Documento disciplinario",
+          `${persona.nombres} ${persona.apellidos}`,
+        ]
+          .filter(Boolean)
+          .join(" — ")
+      : null,
+  );
 
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "—";
   const n = doc?.hechos?.length ?? 0;

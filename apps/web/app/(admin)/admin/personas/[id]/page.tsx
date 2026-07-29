@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
 
@@ -107,6 +108,17 @@ export default function PerfilPersonaPage() {
   }, [supabase, router, id]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // El nombre con el que se guarda el PDF de la ficha. Ver
+  // use-titulo-documento.ts. Lleva el DNI cuando está cargado, porque una ficha
+  // personal se archiva por documento de identidad, no por nombre.
+  useTituloDocumento(
+    persona
+      ? [`${persona.nombres} ${persona.apellidos}`, persona.documento, "Ficha personal"]
+          .filter(Boolean)
+          .join(" — ")
+      : null,
+  );
 
   // ── Desempeño (se carga solo al abrir su pestaña) ────────────────────────
   const [desde, setDesde] = useState(inicioMes());
