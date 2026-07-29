@@ -191,3 +191,87 @@ from esperado e
 full outer join real r on r.firma = e.firma
 where e.huella is distinct from r.huella
 order by 2, 1;
+
+-- ============================================================================
+-- SEGUNDA PARTE — ¿y los CANDADOS?
+-- ----------------------------------------------------------------------------
+-- Todo lo de arriba mira pg_proc y solo pg_proc. Una base puede tener las 178
+-- funciones al día y haber perdido un constraint: nada se rompe, nada avisa, y
+-- el daño aparece en la planilla del mes siguiente.
+--
+-- El caso concreto: `periodos_sin_solape` sobre periodos_planilla. Sin él, dos
+-- periodos pueden compartir días y esos días se pagan DOS VECES — las dos
+-- planillas salen cuadradas por separado, así que no hay descuadre que mirar.
+-- Ese constraint se creó en la 0025 y `periodos_etiqueta_unica` en la 0026; si
+-- alguna de las dos se saltó en producción, hasta ahora no había forma de verlo.
+--
+-- Se comparan los mismos candados que lista huellas_produccion.sql: constraints
+-- de exclusión y de unicidad, más los índices únicos que no respaldan a ningún
+-- constraint (periodos_etiqueta_unica es de estos: se creó con `create unique
+-- index`, así que en pg_constraint no aparece).
+--
+-- QUÉ SIGNIFICA EL RESULTADO
+--   · Sin filas        → producción tiene todos los candados, iguales.
+--   · FALTA EL CANDADO → el más grave: la tabla acepta lo que debería rechazar.
+--   · distinto         → existe pero protege otra cosa (revisar la definición).
+--   · sobra            → hay un candado que el repositorio no conoce.
+--
+-- Las huellas son del texto canónico que deparsa Postgres, no del texto de la
+-- migración; comparar solo tiene sentido entre bases de la misma versión mayor.
+-- ============================================================================
+with esperado(objeto, huella) as (values
+  ('actas_descanso_sustitutorio.actas_descanso_sustitutorio_referencia_key','044478bb6901285bef4e66b3c0c25c60'),
+  ('asignaciones_salario.asignacion_salario_sin_solape','01202aa5d7d000cc835ea04f8de609f0'),
+  ('asignaciones_salario.idx_salario_vigente_unico','8b70caf46890126e3593dd1d961cdd40'),
+  ('ausencias.ausencias_sin_solape','5a2f3c6a844b37825a04c8ed2f81db41'),
+  ('expediente_adjuntos.expediente_adjuntos_storage_path_key','0927748ee0c0c1848334f147e44534a4'),
+  ('expediente_disciplinario.expediente_disciplinario_correlativo_key','1def318f1d860621157b45d6e0d8b54e'),
+  ('feriados_descanso_sustitutorio.uq_dcs_descanso','ea140328fbb9a1dae94dd1cbcd2051e7'),
+  ('feriados_descanso_sustitutorio.uq_dcs_feriado','c1ea7beb8c0c8298ae3da580e72d4929'),
+  ('horarios_asignados.idx_horario_vigente_unico','de131467769a743585135f8e69910aac'),
+  ('incidencias_aceptadas.incidencias_aceptadas_persona_id_fecha_tipo_key','c869d481864b7c8fcc7292413e259b2b'),
+  ('jornadas.jornadas_persona_id_fecha_key','e110093313b5d08a5585d221aecb5eab'),
+  ('marcajes.marcajes_client_uuid_key','017ac692e85e239dac1a7d1ac88c1619'),
+  ('periodos_planilla.periodos_etiqueta_unica','4e033d2e992995e2638c0336f5f776d9'),
+  ('periodos_planilla.periodos_sin_solape','82bccaebfa1caf9b6701e4f166a3c65a'),
+  ('personas.personas_auth_user_id_key','3939596b6b0eb0c3a60cbfda6e98ad0c'),
+  ('personas.personas_email_key','cb128631a72269d9e93b234b2814eb06'),
+  ('push_tokens.push_tokens_persona_id_expo_push_token_key','e86710c5b5569a4a25c9c2b356ba4430'),
+  ('sedes.sedes_codigo_key','71cd40930c291836ca3b6a0bcdcbee56'),
+  ('tardanzas_justificadas.tardanzas_justificadas_persona_id_fecha_key','e110093313b5d08a5585d221aecb5eab'),
+  ('tarifas_hora.idx_tarifa_vigente_unica','6a799bece17d1f1998764991b4891531'),
+  ('terminales.terminales_auth_user_id_key','3939596b6b0eb0c3a60cbfda6e98ad0c'),
+  ('turnos.turnos_persona_id_fecha_key','e110093313b5d08a5585d221aecb5eab')
+),
+real as (
+  select objeto, md5(definicion) as huella
+  from (
+    select c.relname || '.' || con.conname as objeto,
+           pg_get_constraintdef(con.oid) as definicion
+    from pg_constraint con
+    join pg_class c on c.oid = con.conrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and con.contype in ('x', 'u')
+
+    union all
+
+    select c.relname || '.' || ix.relname,
+           pg_get_indexdef(i.indexrelid)
+    from pg_index i
+    join pg_class c on c.oid = i.indrelid
+    join pg_class ix on ix.oid = i.indexrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and i.indisunique
+      and not exists (select 1 from pg_constraint k where k.conindid = i.indexrelid)
+  ) t
+)
+select coalesce(e.objeto, r.objeto) as candado,
+       case when r.objeto is null then 'FALTA EL CANDADO en produccion'
+            when e.objeto is null then 'sobra en produccion (no esta en el repo)'
+            else 'distinto (protege otra cosa)' end as estado
+from esperado e
+full outer join real r on r.objeto = e.objeto
+where e.huella is distinct from r.huella
+order by 2, 1;
