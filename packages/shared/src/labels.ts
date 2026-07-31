@@ -1,4 +1,4 @@
-import type { TipoMarca } from "./enums";
+import type { EstadoCivil, GradoInstruccion, TipoMarca } from "./enums";
 
 export const TIPO_MARCA_LABELS: Record<TipoMarca, string> = {
   entrada: "Entrada",
@@ -14,3 +14,42 @@ export const TIPO_MARCA_LABELS: Record<TipoMarca, string> = {
   salida_otro: "Otra salida",
   retorno_otro: "Regreso",
 };
+
+/** Femenino primero, como el resto del sistema (integrante, colaboradora, encargada). */
+export const ESTADO_CIVIL_LABELS: Record<EstadoCivil, string> = {
+  soltera: "Soltera/o",
+  casada: "Casada/o",
+  conviviente: "Conviviente",
+  divorciada: "Divorciada/o",
+  viuda: "Viuda/o",
+};
+
+export const GRADO_INSTRUCCION_LABELS: Record<GradoInstruccion, string> = {
+  sin_instruccion: "Sin instrucción",
+  primaria_incompleta: "Primaria incompleta",
+  primaria_completa: "Primaria completa",
+  secundaria_incompleta: "Secundaria incompleta",
+  secundaria_completa: "Secundaria completa",
+  superior_tecnica_incompleta: "Superior técnica incompleta",
+  superior_tecnica_completa: "Superior técnica completa",
+  superior_universitaria_incompleta: "Superior universitaria incompleta",
+  superior_universitaria_completa: "Superior universitaria completa",
+  postgrado: "Postgrado",
+};
+
+/**
+ * Etiqueta de un valor guardado, sea del catálogo o no.
+ *
+ * Las fichas anteriores a las listas cerradas tienen texto escrito a mano
+ * ("Soltero", "sup. completa"…). Ese valor NO se descarta ni se reescribe solo:
+ * se muestra tal cual hasta que alguien edite esa ficha y elija de la lista.
+ * Perder el dato de alguien por no reconocer cómo se escribió es peor que
+ * convivir un tiempo con dos formas de decir lo mismo.
+ */
+export function etiquetaDeCatalogo(
+  valor: string | null | undefined,
+  labels: Record<string, string>,
+): string | null {
+  if (!valor) return null;
+  return labels[valor] ?? valor;
+}
