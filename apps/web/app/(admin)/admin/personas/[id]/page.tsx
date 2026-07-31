@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { ESTADO_CIVIL_LABELS, GRADO_INSTRUCCION_LABELS, etiquetaDeCatalogo } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
@@ -384,8 +385,8 @@ export default function PerfilPersonaPage() {
                         <Dato label="Correo" valor={persona.email} />
                         <Dato label="Dirección" valor={ficha.direccion} />
                         <Dato label="Nacimiento" valor={ficha.fecha_nacimiento ? fechaCorta(ficha.fecha_nacimiento) : "—"} />
-                        <Dato label="Estado civil" valor={ficha.estado_civil} />
-                        <Dato label="Grado de instrucción" valor={ficha.grado_instruccion} />
+                        <Dato label="Estado civil" valor={etiquetaDeCatalogo(ficha.estado_civil, ESTADO_CIVIL_LABELS)} />
+                        <Dato label="Grado de instrucción" valor={etiquetaDeCatalogo(ficha.grado_instruccion, GRADO_INSTRUCCION_LABELS)} />
                         <Dato label="Hijos menores" valor={ficha.hijos_menores == null ? "—" : ficha.hijos_menores ? "Sí" : "No"} />
                         <Dato label="Banco" valor={ficha.entidad_bancaria} />
                         <Dato label="N.° de cuenta" valor={ficha.numero_cuenta} />
