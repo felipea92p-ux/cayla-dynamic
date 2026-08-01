@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import {
+  ESTADOS_CIVILES, ESTADO_CIVIL_LABELS,
+  GRADOS_INSTRUCCION, GRADO_INSTRUCCION_LABELS,
+} from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -153,6 +157,34 @@ export default function DatosPersonalesPage() {
       </label>
     );
   }
+  /**
+   * Campo de lista cerrada que NO descarta lo que ya estaba escrito.
+   *
+   * Las fichas anteriores tienen estado civil y grado de instrucción a mano. Si
+   * el valor guardado no está en el catálogo, se añade al desplegable como
+   * opción propia y marcada, en vez de aparecer vacío: un campo que se ve vacío
+   * invita a guardarlo vacío, y ahí se pierde el dato de una persona real.
+   */
+  function campoLista(label: string, key: keyof Form, opciones: readonly string[], etiquetas: Record<string, string>) {
+    const actual = form[key] as string;
+    const esAntiguo = actual !== "" && !opciones.includes(actual);
+    return (
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-taupe">
+          {label}
+          {esAntiguo && <span className="ml-1 text-[11px] text-amber-700">· valor antiguo, elige uno de la lista</span>}
+        </span>
+        <select value={actual} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+          className={`rounded-lg border bg-crema px-3 py-2 ${esAntiguo ? "border-amber-400" : ""}`}>
+          <option value="">—</option>
+          {esAntiguo && <option value={actual}>{actual} (como estaba)</option>}
+          {opciones.map((o) => (
+            <option key={o} value={o}>{etiquetas[o] ?? o}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
   function campoFoto(label: string, key: keyof Form) {
     return (
       <label className="flex flex-col gap-1 text-sm">
@@ -242,8 +274,8 @@ export default function DatosPersonalesPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}
                       {campo("Fecha de nacimiento", "fecha_nacimiento", "date")}
-                      {campo("Estado civil", "estado_civil")}
-                      {campo("Grado de instrucción", "grado_instruccion")}
+                      {campoLista("Estado civil", "estado_civil", ESTADOS_CIVILES, ESTADO_CIVIL_LABELS)}
+                      {campoLista("Grado de instrucción", "grado_instruccion", GRADOS_INSTRUCCION, GRADO_INSTRUCCION_LABELS)}
                       <label className="flex flex-col gap-1 text-sm">
                         <span className="text-taupe">¿Hijos menores a cargo?</span>
                         <select value={form.hijos_menores} onChange={(e) => setForm((f) => ({ ...f, hijos_menores: e.target.value as Form["hijos_menores"] }))}
