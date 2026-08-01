@@ -5,7 +5,7 @@ copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 *Última consolidación: **2026-08-01, madrugada**. Migraciones escritas hasta la
-**0119**; en producción hasta la **0114**. 29 archivos pgTAP, 270 pruebas.*
+**0120**; en producción hasta la **0114**. 29 archivos pgTAP, 270 pruebas.*
 
 ---
 
@@ -16,9 +16,9 @@ copias con fecha. La historia vive en git. Cómo se trabaja: ver
 **https://github.com/felipea92p-ux/cayla-dynamic/pull/19**
 
 Verde **«Merge pull request»** → **«Confirm merge»** → gris **«Delete branch»**.
-Trae las migraciones **0115 a 0119** y los cambios de pantalla.
+Trae las migraciones **0115 a 0120** y los cambios de pantalla.
 
-### 2 · Cinco migraciones en el SQL Editor, en este orden
+### 2 · Seis migraciones en el SQL Editor, en este orden
 
 | # | Archivo | ¿Mueve plata al pegarla? |
 |---|---|---|
@@ -27,6 +27,7 @@ Trae las migraciones **0115 a 0119** y los cambios de pantalla.
 | 3 | `0117_un_locador_no_cobra_conceptos_laborales.sql` | No (hoy nadie es `rxh`) |
 | 4 | `0118_la_tarifa_de_movilidad_con_vigencia_y_sustento.sql` | No (tarifa en 0) |
 | 5 | `0119_el_tipo_de_vinculo_se_puede_elegir.sql` | No |
+| 6 | `0120_la_asignacion_por_educacion_por_persona.sql` | No (tabla vacía) |
 
 Cada una imprime avisos al terminar diciendo qué hizo y a quiénes.
 
@@ -131,7 +132,7 @@ Cada concepto se fija por su propio mérito y el total aterriza cerca del rango.
 
 ---
 
-## 📋 Migraciones 0115 a 0119 — lo que se construyó
+## 📋 Migraciones 0115 a 0120 — lo que se construyó
 
 | # | Qué hace | Verificación empírica |
 |---|---|---|
@@ -140,6 +141,7 @@ Cada concepto se fija por su propio mérito y el total aterriza cerca del rango.
 | **0117** | Movilidad y EsSalud dejan de calcularse para quien no está en planilla | siendo `rxh` → movilidad 0.00, essalud 0.00 |
 | **0118** | La tarifa de movilidad deja `configuracion` y pasa a `parametros_laborales`, con su memoria de cálculo archivada en la fila | al encender desde el 29/07: julio pagado **0.00**, agosto **270.00** |
 | **0119** | RPC para elegir el vínculo, con guard, validación y rastro en auditoría, más el selector en pantalla | 6 de 6 comportamientos |
+| **0120** | Asignación por educación **por persona**, versionada, con un CHECK que impide pagar más de lo que sostiene el comprobante | 6 de 6: el candado rechaza 151 sobre un curso de 200 al 75%; no se prorratea por asistencia; un `rxh` recibe 0; la vigencia cierra bien |
 
 **En la boleta:** fuera el «Rendimiento Extraordinario»; entran las líneas de
 movilidad y de descuento de pensión; y un bloque aparte —fuera de la tabla del
@@ -175,9 +177,9 @@ pago sea *ocasional*, y hacía el gasto **no deducible** (art. 44 d) LIR).
 
 | Qué | Bloqueado por |
 |---|---|
-| **0120** educación por persona, versionada | la lista de quién estudia |
 | **0121** bases declaradas (los **dos** campos) | la lista nominal real |
 | **0122** bono automático con alerta | conectar `datos_personales.fecha_nacimiento` |
+| Cargar las asignaciones de educación en la 0120 | la lista de quién estudia y su comprobante |
 | Pantalla de comprobantes con candado en el pago | nada |
 | Documentación con las cláusulas (PR #13, 413 líneas escritas) | nada |
 | El 9% de la Ley 30334 sobre cada gratificación | confirmar si el contador ya lo paga |
