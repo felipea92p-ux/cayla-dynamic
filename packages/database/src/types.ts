@@ -861,6 +861,39 @@ export type Database = {
         }
         Relationships: []
       }
+      // Agregada a mano el 2026-08-01 junto con las migraciones 0116 y 0118, por el
+      // mismo motivo que fn_set_tipo_vinculo: `supabase gen types` no corre en esta
+      // máquina. Al regenerar se produce sola y este comentario se puede borrar.
+      parametros_laborales: {
+        Row: {
+          id: string
+          clave: string
+          valor: number
+          vigente_desde: string
+          vigente_hasta: string | null
+          sustento: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clave: string
+          valor: number
+          vigente_desde: string
+          vigente_hasta?: string | null
+          sustento?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clave?: string
+          valor?: number
+          vigente_desde?: string
+          vigente_hasta?: string | null
+          sustento?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       feriados: {
         Row: {
           fecha: string
