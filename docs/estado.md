@@ -4,37 +4,166 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-01, madrugada**. Migraciones escritas hasta la
-**0120**; en producción hasta la **0114**. 29 archivos pgTAP, 270 pruebas.*
+*Última consolidación: **2026-08-01**. Migraciones **0115 a 0122 aplicadas en
+producción**. 29 archivos pgTAP, 270 pruebas.*
 
 ---
 
-## 🌅 Para ejecutar por la mañana — en este orden
+## ✅ Cerrado el 2026-08-01 — migraciones 0115 a 0122
 
-### 1 · Un clic en GitHub
+Todas **aplicadas en producción** y verificadas con la consulta de revisión
+(`revision_completa.sql`, 15 comprobaciones, todas en verde).
 
-**https://github.com/felipea92p-ux/cayla-dynamic/pull/19**
+| # | Qué cerró |
+|---|---|
+| **0115** | La pensión se descuenta desde el primer periodo abierto — **los periodos pagados quedaron intactos, comprobado** · y `tasas_pension` pasó a tener RLS (era la única de 39 sin protección) |
+| **0116** | EsSalud `9% × MAX(remuneración, RMV)` con su piso, en tabla versionada con sustento |
+| **0117** | Un locador deja de generar movilidad y EsSalud |
+| **0118** | La tarifa de movilidad, versionada y con su memoria de cálculo archivada en la fila |
+| **0119** | El tipo de vínculo se puede elegir desde Equipo, con rastro en auditoría |
+| **0120** | Asignación por educación por persona, con un CHECK que impide pagar más de lo que sostiene el comprobante |
+| **0121** | El bono de puntualidad se apagó |
+| **0122** | La asignación familiar, versionada **antes** de que suba la RMV |
 
-Verde **«Merge pull request»** → **«Confirm merge»** → gris **«Delete branch»**.
-Trae las migraciones **0115 a 0120** y los cambios de pantalla.
+**Y en la boleta:** fuera el «Rendimiento Extraordinario» y el «Incentivo Variable
+por Metas»; entraron las líneas de movilidad y de descuento de pensión, y el
+bloque de lo que CAYLA paga además. **La boleta cuadra al céntimo** — el
+descuadre de 76.67 contra 71.84 que Felipe encontró está cerrado.
 
-### 2 · Seis migraciones en el SQL Editor, en este orden
+### Lo que quedó comprobado sobre el equipo
 
-| # | Archivo | ¿Mueve plata al pegarla? |
+- **22 personas activas**, no 26. Eso mueve el piso de EsSalud a ~S/2,237/mes y el
+  bono de cumpleaños a S/3,960/año.
+- **La asignación familiar está correcta**: Angie Chávez es la única con hijos y la
+  única que la cobra. Cero desajustes en las 22.
+- **Catherine, Claudia Pereyra y Claudia Solórzano están inactivas.** No hay nada
+  que marcar como `rxh`, y la 0119 se negaría igual: no permite cambiar el vínculo
+  de alguien ya cesado.
+- **Carlos Espejo** sigue marcado `planilla` y sin régimen de pensión. No se le
+  descuenta nada indebido, así que marcarlo como `rxh` puede esperar.
+- **Nadie ingresó antes del 2025-01-02**, así que si la acreditación en el REMYPE
+  es anterior, el frente de la asignación familiar bajo régimen general es cero.
+
+---
+
+# 📌 QUÉ FALTA — repartido por quién lo hace
+
+## A · Lo que depende de Felipe
+
+### A.1 · Con fecha límite
+
+| Qué | Cuándo | Si no |
 |---|---|---|
-| 1 | `0115_la_pension_desde_ahora_y_con_candado.sql` | **Sí — arregla un error vivo** |
-| 2 | `0116_el_essalud_visible_y_con_su_piso.sql` | No |
-| 3 | `0117_un_locador_no_cobra_conceptos_laborales.sql` | No (hoy nadie es `rxh`) |
-| 4 | `0118_la_tarifa_de_movilidad_con_vigencia_y_sustento.sql` | No (tarifa en 0) |
-| 5 | `0119_el_tipo_de_vinculo_se_puede_elegir.sql` | No |
-| 6 | `0120_la_asignacion_por_educacion_por_persona.sql` | No (tabla vacía) |
+| **Los 26 convenios individuales de movilidad, firmados** | **antes del 28/08/2026** — es cuando se paga el periodo | Se habrá pagado movilidad sin el papel que la sostiene. La **RTF 05449-4-2007** desconoció la de 14 de 21 trabajadores por eso exacto |
+| **Contratar el Seguro Vida Ley** | cuanto antes | ~S/1,560/año. Sin póliza, CAYLA responde con su patrimonio: 16 remuneraciones por muerte natural, 32 por accidente. Obligatorio desde el primer día (D.Leg. 688) |
+| **Registrar la póliza en el MTPE** | 30 días desde que se firma | No registrarla es la misma infracción que no tenerla |
 
-Cada una imprime avisos al terminar diciendo qué hizo y a quiénes.
+### A.2 · Un clic en GitHub
 
-**La 0115 es la urgente:** el descuento de pensión se encendió solo por un error
-mío en la 0114 y alcanza periodos ya pagados.
+| PR | Qué trae |
+|---|---|
+| **#21** | Este documento al día **+ la migración 0122**, que está aplicada en producción pero se quedó fuera del repo |
+| **#22** | *No es de esta sesión* — dos líneas en la pantalla de Equipo sobre la etiqueta de «prueba». Revisalo antes de fusionar |
+| **#13** | **Se puede cerrar**: su pantalla de documentación entró actualizada por el #20 |
 
-### 3 · Tres datos que hacen falta
+### A.3 · Datos que hacen falta para seguir
+
+**a) Quiénes estudian y cuánto cuesta su curso.** Con el nombre y el monto alcanza.
+Se cargan de a uno con `cargar_educacion_v2.sql`, que pide el nombre y no un UUID.
+
+**b) La fecha de acreditación de CAYLA en el REMYPE.** Decide si queda algún frente
+abierto de asignación familiar: quien haya ingresado antes de esa fecha se rige por
+el régimen general, donde sí es exigible. La persona más antigua ingresó el
+**2025-01-02**, así que si la acreditación es anterior, el frente es **cero**.
+
+### A.4 · Cuatro cosas para revisar en los datos
+
+| Quién | Qué se vio | Por qué importa |
+|---|---|---|
+| **Catherine Pereyra** | inactiva, 0 días marcados, **total S/2,250.00** en el periodo abierto | Si es su liquidación, correcto. Si no, es plata que se paga a alguien que ya no trabaja |
+| **Sandra Ramirez** | 27 días programados, **0 marcados**, total 0.00 | Puede ser vacaciones, permiso, o que no esté marcando |
+| **Rufina Salvatierra** | aparece en el cálculo y **no estaba** en la lista de 22 activos | Tiene jornadas sin estar activa, o se agregó después |
+| **Carlos Espejo** | sigue marcado `planilla` | Hoy no cobra movilidad porque no marca. **El día que marque, le va a salir.** Se cambia en Equipo → Tipo de vínculo |
+
+### A.5 · Preguntas para el contador
+
+1. **La casilla de renta neta imponible 2025** del Formulario 710. Es el único dato
+   que falta para saber si hay algo que repartir de utilidades — y si es cero, el
+   reparto es cero.
+2. **¿Ya paga la bonificación extraordinaria del 9%** de la Ley 30334 sobre cada
+   gratificación? Puede estar metida dentro del monto de la gratificación sin
+   desagregar, lo que cambia el diagnóstico de «no se paga» a «se paga mal
+   declarado».
+3. **¿Con qué códigos declara en el PLAME** la movilidad, la educación y el bono?
+   La movilidad supeditada a asistencia es el **0909**.
+4. **¿CAYLA está en el SIRE** (registros de compras y ventas electrónicos)? La ficha
+   RUC dice contabilidad MANUAL y el periodo de gracia habría cerrado el 30/06/2026.
+
+---
+
+## B · Lo que falta construir
+
+| Qué | Bloqueado por |
+|---|---|
+| **Las bases declaradas** de los cuatro rangos altos — y hay que bajar **los dos campos**, `sueldo_base_legal` **y** `salario_mensual_soles` | confirmar los montos finales |
+| **Pantalla para subir comprobantes** de educación, con candado: no dejar registrar el pago sin su papel | nada |
+| **Bono de cumpleaños** automático con alerta en el mes del onomástico | conectar `datos_personales.fecha_nacimiento` |
+| **La bonificación del 9%** de la Ley 30334 en el sistema | la respuesta del contador |
+| **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
+
+**Sobre la RMV:** el alza se anunció el 28/07/2026 y **el decreto no está
+publicado**. Cuando salga, son dos sentencias por cada clave —`rmv` y
+`asignacion_familiar`— y están escritas en las cabeceras de la 0116 y la 0122. Los
+periodos ya pagados quedan intactos, que es todo el punto de haberlas versionado.
+
+---
+
+## C · Lo que se descartó y no vuelve
+
+Cinco cosas que sonaron graves y se cayeron al verificarlas. Quedan acá para que no
+vuelvan a costar tiempo.
+
+| Se dijo | La verdad |
+|---|---|
+| El límite del RER de 10 trabajadores por turno | **CAYLA está en Régimen MYPE Tributario** desde 2023 (ficha RUC). El RER no aplica. **No hay que mover ningún horario** |
+| «Sobre 25% de conceptos no remunerativos se activa la presunción de salariedad» | **No existe ese umbral en la ley.** Era una regla de dedo mía |
+| La asignación familiar se debe a todos los que tengan hijos | El régimen de **pequeña empresa NO la incluye** — las palabras aparecen cero veces en el TUO de la Ley MYPE y en la Ley 32353, leído en texto primario. **Pero a quien ya la cobra no se le puede quitar**: sería reducción unilateral de remuneración (art. 30.b) |
+| Un pacto colectivo blinda la movilidad | Solo es requisito del inciso g) para festividades. Art. 9 TUO CTS: la denominación es irrelevante. **La firma no blinda, incrimina** |
+| El SCTR es obligatorio por el taller | **No.** Se revisaron las 270 actividades del Anexo 5: la confección de prendas (CIIU 141x) no está. Evita S/1,600–2,500/año de un seguro que nadie exige |
+
+**Y el techo que ordena todas las multas:** todas las de una misma inspección de
+SUNAFIL topan en el **1% de los ingresos netos del año anterior** (art. 48.1-A del
+Reglamento de Inspección). Con ~S/900,000 de facturación el techo es **~S/8,000**,
+no las seis cifras que suman los hallazgos por separado. **Pero no se aplica solo**:
+exige presentar la constancia de REMYPE y sustentar los ingresos netos. Sin esos dos
+papeles se cobra el nominal.
+
+---
+
+## D · Consultas útiles que ya existen
+
+| Archivo | Para qué |
+|---|---|
+| `revision_completa.sql` | 15 comprobaciones de las migraciones 0115–0122 |
+| `encender_movilidad.sql` | Encender la tarifa, en transacción y con verificación |
+| `cargar_educacion_v2.sql` | Cargar una asignación por nombre, sin copiar UUID |
+
+**Y el prólogo que hace falta seguido:** `fn_planilla_calcular`, `fn_provisiones` y
+`fn_set_tipo_vinculo` exigen sesión de admin, y el SQL Editor no la tiene. Dos líneas
+al inicio lo resuelven:
+
+```sql
+select set_config('request.jwt.claim.sub',
+  (select auth_user_id::text from personas
+    where rol = 'admin' and nombres ilike '%Felipe%' and auth_user_id is not null limit 1),
+  true);
+```
+
+---
+
+## Lo que sigue, sin urgencia
+
+### Tres datos que hacen falta
 
 **a) Quiénes estudian y cuánto cuesta su curso** (`aurora 1 → universidad S/520`).
 
