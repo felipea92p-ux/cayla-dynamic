@@ -4,37 +4,51 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-01, madrugada**. Migraciones escritas hasta la
-**0120**; en producción hasta la **0114**. 29 archivos pgTAP, 270 pruebas.*
+*Última consolidación: **2026-08-01**. Migraciones **0115 a 0122 aplicadas en
+producción**. 29 archivos pgTAP, 270 pruebas.*
 
 ---
 
-## 🌅 Para ejecutar por la mañana — en este orden
+## ✅ Cerrado el 2026-08-01 — migraciones 0115 a 0122
 
-### 1 · Un clic en GitHub
+Todas **aplicadas en producción** y verificadas con la consulta de revisión
+(`revision_completa.sql`, 15 comprobaciones, todas en verde).
 
-**https://github.com/felipea92p-ux/cayla-dynamic/pull/19**
+| # | Qué cerró |
+|---|---|
+| **0115** | La pensión se descuenta desde el primer periodo abierto — **los periodos pagados quedaron intactos, comprobado** · y `tasas_pension` pasó a tener RLS (era la única de 39 sin protección) |
+| **0116** | EsSalud `9% × MAX(remuneración, RMV)` con su piso, en tabla versionada con sustento |
+| **0117** | Un locador deja de generar movilidad y EsSalud |
+| **0118** | La tarifa de movilidad, versionada y con su memoria de cálculo archivada en la fila |
+| **0119** | El tipo de vínculo se puede elegir desde Equipo, con rastro en auditoría |
+| **0120** | Asignación por educación por persona, con un CHECK que impide pagar más de lo que sostiene el comprobante |
+| **0121** | El bono de puntualidad se apagó |
+| **0122** | La asignación familiar, versionada **antes** de que suba la RMV |
 
-Verde **«Merge pull request»** → **«Confirm merge»** → gris **«Delete branch»**.
-Trae las migraciones **0115 a 0120** y los cambios de pantalla.
+**Y en la boleta:** fuera el «Rendimiento Extraordinario» y el «Incentivo Variable
+por Metas»; entraron las líneas de movilidad y de descuento de pensión, y el
+bloque de lo que CAYLA paga además. **La boleta cuadra al céntimo** — el
+descuadre de 76.67 contra 71.84 que Felipe encontró está cerrado.
 
-### 2 · Seis migraciones en el SQL Editor, en este orden
+### Lo que quedó comprobado sobre el equipo
 
-| # | Archivo | ¿Mueve plata al pegarla? |
-|---|---|---|
-| 1 | `0115_la_pension_desde_ahora_y_con_candado.sql` | **Sí — arregla un error vivo** |
-| 2 | `0116_el_essalud_visible_y_con_su_piso.sql` | No |
-| 3 | `0117_un_locador_no_cobra_conceptos_laborales.sql` | No (hoy nadie es `rxh`) |
-| 4 | `0118_la_tarifa_de_movilidad_con_vigencia_y_sustento.sql` | No (tarifa en 0) |
-| 5 | `0119_el_tipo_de_vinculo_se_puede_elegir.sql` | No |
-| 6 | `0120_la_asignacion_por_educacion_por_persona.sql` | No (tabla vacía) |
+- **22 personas activas**, no 26. Eso mueve el piso de EsSalud a ~S/2,237/mes y el
+  bono de cumpleaños a S/3,960/año.
+- **La asignación familiar está correcta**: Angie Chávez es la única con hijos y la
+  única que la cobra. Cero desajustes en las 22.
+- **Catherine, Claudia Pereyra y Claudia Solórzano están inactivas.** No hay nada
+  que marcar como `rxh`, y la 0119 se negaría igual: no permite cambiar el vínculo
+  de alguien ya cesado.
+- **Carlos Espejo** sigue marcado `planilla` y sin régimen de pensión. No se le
+  descuenta nada indebido, así que marcarlo como `rxh` puede esperar.
+- **Nadie ingresó antes del 2025-01-02**, así que si la acreditación en el REMYPE
+  es anterior, el frente de la asignación familiar bajo régimen general es cero.
 
-Cada una imprime avisos al terminar diciendo qué hizo y a quiénes.
+---
 
-**La 0115 es la urgente:** el descuento de pensión se encendió solo por un error
-mío en la 0114 y alcanza periodos ya pagados.
+## ⏳ Lo que sigue, sin urgencia
 
-### 3 · Tres datos que hacen falta
+### Tres datos que hacen falta
 
 **a) Quiénes estudian y cuánto cuesta su curso** (`aurora 1 → universidad S/520`).
 
