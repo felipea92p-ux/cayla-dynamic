@@ -4,32 +4,248 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: 2026-07-27, noche. Migraciones aplicadas hasta la 0102.
-253 aserciones en 28 suites. **Para retomar después de un parón, empieza por
-[`continuar-en-lima.md`](continuar-en-lima.md)**: dice dónde se quedó cada cosa
-y qué decisiones están abiertas.*
+*Última consolidación: **2026-08-01, madrugada**. Migraciones escritas hasta la
+**0119**; en producción hasta la **0114**. 29 archivos pgTAP, 270 pruebas.*
 
 ---
 
-## Dónde estamos
+## 🌅 Para ejecutar por la mañana — en este orden
 
-Producción: **cayla-dynamic.vercel.app** · repo `~/Developer/cayla-dynamic`
-(GitHub `felipea92p-ux/cayla-dynamic`, al día). Equipo real usándola a diario.
+### 1 · Un clic en GitHub
 
-Migraciones **hasta la 0102**, aplicadas todas en producción. La secuencia
-completa aplica desde cero sobre una base limpia (que es lo que hace el CI).
+**https://github.com/felipea92p-ux/cayla-dynamic/pull/19**
 
-> 🔴 **Y una advertencia que ordena todo lo demás:** el repositorio no describía
-> fielmente la producción. `migraciones_aplicadas` decía que la 0089 estaba
-> aplicada y su contenido no estaba en la base. Se midió, se arregló lo urgente
-> (0102) y se rescató lo que solo existía en producción
-> ([`rescatado-de-produccion.sql`](rescatado-de-produccion.sql)). Quedan 19
-> diferencias conocidas y ninguna es un fallo — el detalle está en
-> [`continuar-en-lima.md`](continuar-en-lima.md).
->
-> Mientras el comparador de estructura no exista, «verificado» significa
-> **verificado contra el repositorio**, que ya sabemos que no es lo mismo que
-> contra producción. Las herramientas para medirlo están en
+Verde **«Merge pull request»** → **«Confirm merge»** → gris **«Delete branch»**.
+Trae las migraciones **0115 a 0119** y los cambios de pantalla.
+
+### 2 · Cinco migraciones en el SQL Editor, en este orden
+
+| # | Archivo | ¿Mueve plata al pegarla? |
+|---|---|---|
+| 1 | `0115_la_pension_desde_ahora_y_con_candado.sql` | **Sí — arregla un error vivo** |
+| 2 | `0116_el_essalud_visible_y_con_su_piso.sql` | No |
+| 3 | `0117_un_locador_no_cobra_conceptos_laborales.sql` | No (hoy nadie es `rxh`) |
+| 4 | `0118_la_tarifa_de_movilidad_con_vigencia_y_sustento.sql` | No (tarifa en 0) |
+| 5 | `0119_el_tipo_de_vinculo_se_puede_elegir.sql` | No |
+
+Cada una imprime avisos al terminar diciendo qué hizo y a quiénes.
+
+**La 0115 es la urgente:** el descuento de pensión se encendió solo por un error
+mío en la 0114 y alcanza periodos ya pagados.
+
+### 3 · Tres datos que hacen falta
+
+**a) Quiénes estudian y cuánto cuesta su curso** (`aurora 1 → universidad S/520`).
+
+**b) La lista nominal real:**
+
+```sql
+select a.rango::text, p.nombres || ' ' || p.apellidos as persona, p.estado,
+       p.tipo_vinculo, a.salario_mensual_soles as salario,
+       p.sueldo_base_legal as declarado, p.regimen_pension, p.fecha_ingreso
+from personas p
+left join asignaciones_salario a on a.persona_id = p.id and a.vigente_hasta is null
+order by a.salario_mensual_soles desc nulls last, p.apellidos;
+```
+
+**c) El refrigerio real**, que deja el sustento de la movilidad atado a tus datos:
+
+```sql
+with dia as (
+  select m.persona_id, (m.timestamp_marca at time zone 'America/Lima')::date as f,
+         min(case when m.tipo = 'salida_almuerzo'  then m.timestamp_marca end) as sale,
+         min(case when m.tipo = 'retorno_almuerzo' then m.timestamp_marca end) as vuelve
+  from marcajes m
+  where m.anulada_at is null and m.timestamp_marca >= now() - interval '90 days'
+  group by 1, 2
+)
+select count(*) as dias_con_marcas,
+       count(*) filter (where sale is not null and vuelve is not null) as dias_con_4_traslados,
+       round(avg(extract(epoch from (vuelve - sale)) / 60) filter (where vuelve > sale)) as refrigerio_min,
+       count(*) filter (where extract(epoch from (vuelve - sale)) / 60 >= 60) as dias_1h_o_mas
+from dia;
+```
+
+### 4 · Una llamada que no depende de código
+
+**El Seguro Vida Ley no está contratado.** Obligatorio desde el primer día
+(D.Leg. 688, mod. Ley 31408). Cuesta **~S/1,560 al año** por los 26. Si falta y
+alguien fallece, CAYLA paga de su bolsillo 16 remuneraciones (~S/18,000) por causa
+natural o 32 (~S/36,000) por accidente. **Lo mejor del expediente por relación
+costo-beneficio.**
+
+---
+
+## 🔴 Lo que la auditoría empírica encontró, y cambia el diseño
+
+Contra Postgres local con datos reales, en `BEGIN … ROLLBACK` como manda el
+`CLAUDE.md`. Es el hallazgo más importante de la madrugada.
+
+**`pago_base` se calcula sobre `asignaciones_salario.salario_mensual_soles` —el
+rango completo— y NO sobre `personas.sueldo_base_legal`:**
+
+```
+pago_base = horas × salario_mensual_soles / v_base
+basica    = horas × least(sueldo_base_legal, salario) / v_base
+```
+
+**Declarar menos NO reduce lo que se paga.** Sumar movilidad, educación y bono
+encima del rango completo sobrepagaría por el monto entero de esos conceptos —
+del orden de **S/4,900 al mes** entre las 26 personas.
+
+**La corrección:** al fijar las bases declaradas hay que bajar **los dos campos**
+—`sueldo_base_legal` **y** `salario_mensual_soles`— al mismo monto. Es exactamente
+lo que Felipe eligió al decir «base = lo declarado»; lo que faltaba era saber que
+toca dos campos y no uno.
+
+Con esa corrección, en un mes **sin feriados**:
+
+| Rango | declarado → base | + movilidad | − pensión | = total | objetivo | necesita educ. + bono |
+|---|---|---|---|---|---|---|
+| colibrí | 1,129.55 | +270.00 | −147.52 | 1,252.03 | 1,320 | **67.97** |
+| cayla | 1,129.55 | +270.00 | −160.54 | 1,352.01\* | 1,450 | **97.99** |
+| support | 1,289.49 | +270.00 | −167.25 | 1,392.24 | 1,650 | **257.76** |
+| aurora | 1,499.40 | +270.00 | −194.92 | 1,574.48 | 1,890 | **315.52** |
+| oráculo | 1,809.28 | +270.00 | −232.31 | 1,846.97 | 2,250 | **403.03** |
+| archicaylo | 2,668.94 | +270.00 | −348.56 | 2,590.38 | 3,000 | **409.62** |
+
+*\*La fila de cayla del fixture tiene hijos, así que incluye S/113 de asignación
+familiar; sin hijos necesitaría ~S/198.*
+
+**Los cuatro rangos altos cuadran casi exacto con el diseño acordado** — aurora
++0.52, oráculo −1.97, archicaylo +4.62, support −7.24.
+
+### Dos cosas más que aparecieron
+
+**Los días son 27, no 26.** En un periodo de 31 días con domingos libres hay 27
+laborables, así que la movilidad a S/10 da **270**, no 260.
+
+**Los feriados oscilan el total entre S/90 y S/196 por mes.** Por feriado se paga
+el día prorrateado por la asistencia del mes **más** las horas efectivamente
+trabajadas ese día, salvo compensación con día libre (lógica de la 0069). Agosto
+2026 tiene dos: 29 de julio y 6 de agosto.
+
+**Por eso el diseño no puede cerrar exacto todos los meses**, y forzarlo con
+educación o bono sería el reverse-engineering que hunde los conceptos (caso Albis).
+Cada concepto se fija por su propio mérito y el total aterriza cerca del rango.
+
+---
+
+## 📋 Migraciones 0115 a 0119 — lo que se construyó
+
+| # | Qué hace | Verificación empírica |
+|---|---|---|
+| **0115** | Mueve la vigencia de `tasas_pension` al primer periodo abierto · RLS a la tabla (era la única de 39 sin protección) | el periodo pagado NO encuentra tasa, el abierto sí |
+| **0116** | EsSalud `9% × MAX(remuneración, RMV)`, en tabla versionada con sustento | 1 día trabajado (S/36.96) → **S/101.70**, no S/3.33 |
+| **0117** | Movilidad y EsSalud dejan de calcularse para quien no está en planilla | siendo `rxh` → movilidad 0.00, essalud 0.00 |
+| **0118** | La tarifa de movilidad deja `configuracion` y pasa a `parametros_laborales`, con su memoria de cálculo archivada en la fila | al encender desde el 29/07: julio pagado **0.00**, agosto **270.00** |
+| **0119** | RPC para elegir el vínculo, con guard, validación y rastro en auditoría, más el selector en pantalla | 6 de 6 comportamientos |
+
+**En la boleta:** fuera el «Rendimiento Extraordinario»; entran las líneas de
+movilidad y de descuento de pensión; y un bloque aparte —fuera de la tabla del
+pago, con la leyenda «no se descuenta de tu sueldo»— con el EsSalud y las tres
+provisiones. Sin total y sin porcentaje, por decisión tomada.
+
+---
+
+## Decisiones del diseño remunerativo (2026-07-31)
+
+| Concepto | Decisión | Amparo |
+|---|---|---|
+| **Movilidad** | S/10.00 por día marcado · 4 traslados × S/2.50 (colectivo) · refrigerio de 1h15 habilita almorzar en casa | Art. 19 e) · PLAME 0909 |
+| **Educación** | 75% del comprobante, tope por rango · vale para el trabajador **y/o sus hijos**, sin tope de edad | Art. 19 f) |
+| **Bono cumpleaños** | **S/180**, igual para los 26, en el mes del onomástico, sin condición de antigüedad | Art. 19 g) |
+| **Pensión** | Tasa real por persona (12.84%–13.06% u ONP 13%), desde el periodo abierto | — |
+| **EsSalud** | 9% con piso de la RMV, visible como aporte de la empresa | Ley 26790 art. 6 |
+| **Base de beneficios** | Igual al monto declarado de cada persona | decisión de Felipe |
+| **Fuera de la estructura** | Felipe y Catherine | decisión de Felipe |
+| **Por honorarios** | Carlos Espejo y Claudia Pereyra — falta marcarlos con la 0119 | — |
+
+**La cláusula del bono, textual.** No usar la que decía «gratificación
+extraordinaria a título de liberalidad»: invocaba el inciso a), que exige que el
+pago sea *ocasional*, y hacía el gasto **no deducible** (art. 44 d) LIR).
+
+> *Asignación por cumpleaños, otorgada con ocasión del onomástico del trabajador,
+> conforme al literal g) del artículo 19 del D.S. 001-97-TR. No constituye
+> remuneración computable para ningún efecto legal.*
+
+---
+
+## ⏳ Pendiente de la estructura remunerativa
+
+| Qué | Bloqueado por |
+|---|---|
+| **0120** educación por persona, versionada | la lista de quién estudia |
+| **0121** bases declaradas (los **dos** campos) | la lista nominal real |
+| **0122** bono automático con alerta | conectar `datos_personales.fecha_nacimiento` |
+| Pantalla de comprobantes con candado en el pago | nada |
+| Documentación con las cláusulas (PR #13, 413 líneas escritas) | nada |
+| El 9% de la Ley 30334 sobre cada gratificación | confirmar si el contador ya lo paga |
+| Los 26 convenios individuales de movilidad firmados | **antes de encender la tarifa** |
+
+**Sobre los convenios:** la **RTF 05449-4-2007** desconoció la movilidad de 14 de
+21 trabajadores por falta de convenio exhibido. El inciso e) nombra el «pacto
+individual» como la vía del monto fijo. La sentencia para encender la tarifa, con
+su memoria de cálculo completa, está en la cabecera de la 0118.
+
+---
+
+## Correcciones a información que yo di mal
+
+Quedan anotadas porque se tomaron decisiones sobre ellas.
+
+| Lo que dije | Lo correcto |
+|---|---|
+| «El límite del RER de 10 trabajadores por turno es tu problema más caro» | **CAYLA está en Régimen MYPE Tributario desde 2023** (ficha RUC). El RER no aplica. No hay que mover ningún horario |
+| «Sobre 25% de conceptos no remunerativos se activa la presunción de salariedad» | **Era mi regla de dedo, no una norma.** No existe porcentaje en la ley peruana |
+| La cláusula del bono con «liberalidad» y «a discreción» | Invocaba el inciso a), que exige ocasionalidad, y hacía el gasto no deducible |
+| «Ninguna función respeta `en_planilla`» | **Las de liquidación sí:** `fn_cts_trunca`, `fn_grati_trunca` y `fn_vacaciones_truncas` vía `fn_devenga_beneficios` |
+| «Un pacto colectivo blinda la movilidad» | Solo es requisito del inciso g) para festividades. Art. 9 TUO CTS: la denominación es irrelevante. **La firma no blinda, incrimina** |
+| «CAYLA es un instituto de idiomas» *(en un prompt de verificación)* | Es **CIIU 4641 — venta al por mayor de textiles**. Se descartó todo el análisis de IGV educativo que salió de ahí |
+
+---
+
+## Notas del entorno (MacBook, 2026-08-01)
+
+**`supabase start` no reconstruye la base acá.** Falla aplicando la 0001 con «type
+rol_usuario already exists», sin volúmenes ni contenedores previos, con el CLI
+2.109.1. Docker sí funciona.
+
+**La alternativa que sí funciona**, y con la que se hizo la auditoría empírica:
+levantar la imagen a mano y aplicar las migraciones sobre la base `postgres` (para
+que `pg_cron` de la 0007 funcione), con dos andamios previos —`storage.buckets` y
+`storage.objects` creados como `supabase_admin`, y una fila en `auth.users`—.
+
+```bash
+docker run -d --name cayla_audit -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_HOST_AUTH_METHOD=trust public.ecr.aws/supabase/postgres:17.6.1.141
+```
+
+Con eso las **114 migraciones aplican limpio**.
+
+**`packages/database/src/types.ts` está desfasado**: 8 errores de tipos
+preexistentes por RPC que no figuran. `supabase gen types` no corre en esta máquina
+(«Failed to end the connection on error»). La entrada de `fn_set_tipo_vinculo` se
+agregó a mano, marcada con comentario. **CI no corre typecheck**, así que no
+bloquea nada.
+
+**Un bug que vale recordar:** `jsonb_build_object` admite **máximo 100
+argumentos**. El objeto de la boleta estaba cerca del techo y cuatro campos nuevos
+lo pasaron — compilaba y fallaba al ejecutarse. Ahora está partido en dos unidos
+con `||`, y el generador cuenta los argumentos y falla si alguno se acerca al tope.
+
+---
+
+## Nota histórica — consolidación del 2026-07-27
+
+Lo que sigue es el estado tal como quedó esa noche, con las migraciones hasta la
+0102. Se conserva porque contiene decisiones que no se reabren y aprendizajes que
+no conviene volver a pagar. Lo de arriba es lo vigente.
+
+> 🔴 **Advertencia de entonces, todavía válida como criterio:** el repositorio no
+> describía fielmente la producción. `migraciones_aplicadas` decía que la 0089
+> estaba aplicada y su contenido no estaba en la base. Un registro no es una
+> comprobación. Las herramientas para medirlo están en
 > `scripts/sql-manual/comparar_funciones.sql`.
 
 ---
