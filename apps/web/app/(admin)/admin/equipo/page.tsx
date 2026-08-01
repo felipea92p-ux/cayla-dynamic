@@ -76,6 +76,9 @@ interface Persona {
   funcion: string;
   con_hijos: boolean;
   visible_todas_sedes: boolean;
+  // Qué es esta persona para el sistema (0085). Decide si acumula gratificación,
+  // CTS y vacaciones, si recibe movilidad y si genera EsSalud (0117 y 0119).
+  tipo_vinculo: string;
 }
 
 type Rol = "integrante" | "supervisor_sede" | "lider_do" | "admin";
@@ -88,11 +91,12 @@ interface FormPersona {
   funcion: string; // código de área (ver lib/areas)
   email: string;
   conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
+  tipoVinculo: string; // planilla | prueba | rxh | no_trabajador — se escribe por RPC fn_set_tipo_vinculo
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla" };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -165,15 +169,15 @@ export default function EquipoPage() {
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
-      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean }[] | null) ?? []))
-        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false }] as const),
+      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string }[] | null) ?? []))
+        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla" }] as const),
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo">[]) ?? []).map((p) => {
         const extra = funciones.get(p.id);
-        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false };
+        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla" };
       }),
     );
     setCargando(false);
@@ -354,6 +358,23 @@ export default function EquipoPage() {
         return;
       }
     }
+    // Tipo de vínculo: mismo patrón dirty-check. Es el campo con más consecuencias
+    // de todo el formulario —decide si la persona acumula gratificación, CTS y
+    // vacaciones, si recibe movilidad y si genera EsSalud— así que la RPC deja
+    // rastro en correcciones_auditoria por su cuenta (0119). Acá solo se evita
+    // escribir cuando no cambió, para no ensuciar esa auditoría.
+    const vinculoOriginal = personas.find((p) => p.id === editandoId)?.tipo_vinculo ?? "planilla";
+    if (puedeSalarios && funcionesOk && form.tipoVinculo !== vinculoOriginal) {
+      const { error: errorVinculo } = await supabase.rpc("fn_set_tipo_vinculo", {
+        p_persona_id: editandoId,
+        p_tipo: form.tipoVinculo,
+      });
+      if (errorVinculo) {
+        setGuardando(false);
+        avisar("error", "Datos guardados, pero el tipo de vínculo no se pudo cambiar: " + errorVinculo.message);
+        return;
+      }
+    }
     setGuardando(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
@@ -403,6 +424,7 @@ export default function EquipoPage() {
       funcion: p.funcion || AREA_DEFAULT,
       email: p.email ?? "",
       conHijos: p.con_hijos,
+      tipoVinculo: p.tipo_vinculo ?? "planilla",
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
       visibleTodasSedes: p.visible_todas_sedes,
     });
@@ -576,6 +598,37 @@ export default function EquipoPage() {
             className="h-4 w-4 accent-tinta disabled:opacity-50"
           />
           Asignación familiar (tiene hijos) — S/ 113 fijos por periodo
+        </label>
+      )}
+      {puedeSalarios && (
+        // EL CAMPO CON MÁS CONSECUENCIAS DEL FORMULARIO. Existe en la base desde la
+        // 0085 y hasta la 0119 no se podía elegir desde ninguna pantalla, así que
+        // todos quedaban en 'planilla' por defecto. Se muestra la consecuencia
+        // debajo del selector, y no en un tooltip, porque quien cambia esto tiene
+        // que leerla: pasar a alguien a 'rxh' le apaga la acumulación de sus
+        // beneficios y eso no se nota en ninguna otra parte de la pantalla.
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          <span>Tipo de vínculo</span>
+          <select
+            value={form.tipoVinculo}
+            onChange={(e) => setForm({ ...form, tipoVinculo: e.target.value })}
+            disabled={modo === "edicion" && !funcionesOk}
+            className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+          >
+            <option value="planilla">Planilla — contrato de trabajo</option>
+            <option value="prueba">Prueba — vino a probar</option>
+            <option value="rxh">Recibo por honorarios</option>
+            <option value="no_trabajador">No trabajador — accionista sin servicios</option>
+          </select>
+          <span className="text-xs text-taupe">
+            {form.tipoVinculo === "planilla"
+              ? "Acumula gratificación, CTS y vacaciones. Recibe movilidad y genera EsSalud. Se le mide asistencia y disciplina."
+              : form.tipoVinculo === "prueba"
+                ? "Se le mide asistencia y se le pagan sus horas, pero NO acumula beneficios (decisión registrada en la 0085)."
+                : form.tipoVinculo === "rxh"
+                  ? "Locación de servicios: cobra sus horas, pero NO acumula beneficios, NO recibe movilidad y NO genera EsSalud. Tampoco se le mide disciplina — es lo que sostiene que no sea una relación laboral."
+                  : "Ni asistencia ni beneficios."}
+          </span>
         </label>
       )}
       {modo === "edicion" && puedeSalarios && (
