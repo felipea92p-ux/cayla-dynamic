@@ -28,6 +28,35 @@ function fechaDiaMes(iso: string | null | undefined): string {
 function fmtDias(n: number): string {
   return `${(n ?? 0).toLocaleString("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} días`;
 }
+
+/**
+ * Una ventana ya desembolsada se muestra como «pagado el 15/07», no como S/ 0.00.
+ *
+ * POR QUÉ NO UN CERO. Hasta la 0123 esta pantalla mostraba la gratificación de
+ * enero–junio acumulando en agosto, cuando ya se había pagado el 15 de julio: la
+ * misma plata contada dos veces. La 0123 la manda en cero para que deje de
+ * inflar el total, pero un cero solo se lee como «a esta persona no le tocaba
+ * nada», que es una mentira distinta. Por eso viaja también el monto real.
+ *
+ * `pagada` es opcional a propósito: sin la 0123 aplicada llega `undefined`, la
+ * función cae al monto de siempre y la pantalla se ve exactamente como antes.
+ */
+function celdaVentana(
+  monto: number,
+  pagada: boolean | undefined,
+  montoPagado: number | null | undefined,
+  fechaPago: string,
+) {
+  if (!pagada) return <>{formatSoles(monto)}</>;
+  return (
+    <span className="text-taupe">
+      pagado {fechaDiaMes(fechaPago)}
+      {typeof montoPagado === "number" && (
+        <span className="block text-xs">{formatSoles(montoPagado)}</span>
+      )}
+    </span>
+  );
+}
 // "2026-07-15" → "Julio" (mes de pago, capitalizado; por string, sin new Date())
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -58,6 +87,19 @@ interface ProvPersona {
   cts_may: number;
   cts_nov: number;
   cts_total: number;
+  // ⇩ 0123 ⇩ Una ventana ya desembolsada llega en 0 —para que no infle el
+  // total— y su monto real viaja aparte, para poder decir «pagado» en vez de
+  // mostrar un cero que se lee como «no le tocaba nada».
+  // Opcionales a propósito: si la 0123 aún no está pegada, llegan `undefined`
+  // y la pantalla se comporta exactamente como antes.
+  grati_s1_pagada?: boolean;
+  grati_s2_pagada?: boolean;
+  cts_may_pagada?: boolean;
+  cts_nov_pagada?: boolean;
+  grati_s1_monto_pagado?: number | null;
+  grati_s2_monto_pagado?: number | null;
+  cts_may_monto_pagado?: number | null;
+  cts_nov_monto_pagado?: number | null;
   vac: number;
   vac_dias: number;
   proximo_aniversario: string;
@@ -368,12 +410,20 @@ export default function ProvisionesPage() {
                         <td className="px-4 py-2">{p.nombre}</td>
                         <td className="px-4 py-2">{p.sede}</td>
                         {/* Gratificación */}
-                        <td className="border-l px-4 py-2 text-right">{formatSoles(p.grati_s1)}</td>
-                        <td className="px-4 py-2 text-right">{formatSoles(p.grati_s2)}</td>
+                        <td className="border-l px-4 py-2 text-right">
+                          {celdaVentana(p.grati_s1, p.grati_s1_pagada, p.grati_s1_monto_pagado, data.grati_s1_pago)}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {celdaVentana(p.grati_s2, p.grati_s2_pagada, p.grati_s2_monto_pagado, data.grati_s2_pago)}
+                        </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.grati_total)}</td>
                         {/* CTS */}
-                        <td className="border-l px-4 py-2 text-right">{formatSoles(p.cts_may)}</td>
-                        <td className="px-4 py-2 text-right">{formatSoles(p.cts_nov)}</td>
+                        <td className="border-l px-4 py-2 text-right">
+                          {celdaVentana(p.cts_may, p.cts_may_pagada, p.cts_may_monto_pagado, data.cts_may_pago)}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {celdaVentana(p.cts_nov, p.cts_nov_pagada, p.cts_nov_monto_pagado, data.cts_nov_pago)}
+                        </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.cts_total)}</td>
                         {/* Vacaciones */}
                         <td className="border-l px-4 py-2 text-right">{formatSoles(p.vac)}</td>

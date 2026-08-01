@@ -572,9 +572,9 @@ function BoletaContenido() {
                 {f.provision_gratificacion > 0 && (
                   <tr className="border-t border-sand">
                     <td className="py-2">
-                      Gratificación acumulada
+                      Gratificación — la parte de este mes
                       <span className="block text-xs text-taupe">
-                        se paga en julio y diciembre, según ley
+                        se guarda cada mes y se paga completa en julio y diciembre, según ley
                       </span>
                     </td>
                     <td className="py-2 text-right align-top">
@@ -585,9 +585,9 @@ function BoletaContenido() {
                 {f.provision_cts > 0 && (
                   <tr className="border-t border-sand">
                     <td className="py-2">
-                      CTS acumulada
+                      CTS — la parte de este mes
                       <span className="block text-xs text-taupe">
-                        se deposita en mayo y noviembre, según ley
+                        se guarda cada mes y se deposita completa en mayo y noviembre, según ley
                       </span>
                     </td>
                     <td className="py-2 text-right align-top">{formatSoles(f.provision_cts)}</td>
@@ -596,8 +596,10 @@ function BoletaContenido() {
                 {f.provision_vacaciones > 0 && (
                   <tr className="border-t border-sand">
                     <td className="py-2">
-                      Vacaciones acumuladas
-                      <span className="block text-xs text-taupe">15 días al año, según ley</span>
+                      Vacaciones — la parte de este mes
+                      <span className="block text-xs text-taupe">
+                        se guardan cada mes y son 15 días al año, según ley
+                      </span>
                     </td>
                     <td className="py-2 text-right align-top">
                       {formatSoles(f.provision_vacaciones)}
@@ -606,8 +608,14 @@ function BoletaContenido() {
                 )}
               </tbody>
             </table>
+            {/* Antes decía «los montos acumulados son a la fecha», y no era cierto: estas
+                tres cifras son la PARTE DE ESTE MES —(pago base + feriados) × su factor—,
+                no el acumulado. Quien comparaba su boleta contra la pantalla de Provisiones
+                veía dos números distintos para lo que parecía lo mismo. Corregido el
+                2026-08-01, después de que Felipe lo notara en la boleta de Danitza. */}
             <p className="mt-3 text-xs text-taupe">
-              Los montos acumulados son <strong>a la fecha</strong> y se pagan según ley.
+              Son <strong>las partes de este mes</strong>. Se van sumando mes a mes y se
+              pagan completas en las fechas de ley.
             </p>
           </div>
         )}
