@@ -614,7 +614,6 @@ notify pgrst, 'reload schema';
 do $mig$
 begin
   raise notice '0117 · personas por tipo de vinculo:';
-  for i in 1..1 loop end loop;
   raise notice '  %', (
     select coalesce(string_agg(t.tipo_vinculo || ': ' || t.n, '  ·  ' order by t.tipo_vinculo), '(sin personas)')
     from (select tipo_vinculo, count(*) as n from personas where estado = 'activo' group by tipo_vinculo) t

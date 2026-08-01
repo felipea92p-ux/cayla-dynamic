@@ -120,8 +120,24 @@ begin
     v_periodo := '(no hay periodo abierto; se usa el día siguiente al último pagado)';
   end if;
 
+  -- BASE SIN NINGÚN PERIODO: no es un error, es una base nueva.
+  --
+  -- La primera versión de esta migración lanzaba una excepción acá, con el
+  -- razonamiento de «mejor fallar que adivinar una fecha». Estaba bien para
+  -- producción y MAL como migración: CI la aplicó sobre una base recién creada,
+  -- donde periodos_planilla está vacía, y el replay completo se cayó. Una
+  -- migración tiene que poder correr sobre una base vacía.
+  --
+  -- Y no hay nada que proteger: sin periodos, nunca se calculó una planilla, así
+  -- que no existe un pago pasado al que este descuento pudiera alcanzar. Se deja
+  -- la vigencia como vino y se avisa. Cuando esa base tenga su primer periodo, la
+  -- vigencia se ajusta corriendo el update de la sección 2 a mano.
   if v_desde is null then
-    raise exception '0115 · no hay ningún periodo en periodos_planilla, no puedo determinar el «desde ahora»';
+    raise notice '0115 · periodos_planilla está vacía: base nueva, no hay pago pasado que proteger.';
+    raise notice '0115 · la vigencia de tasas_pension queda como está (%).',
+      (select coalesce(min(vigente_desde)::text, 'sin filas') from tasas_pension);
+    raise notice '0115 · el candado de RLS de la sección 1 SÍ quedó aplicado.';
+    return;
   end if;
 
   update tasas_pension set vigente_desde = v_desde where vigente_desde < v_desde;
