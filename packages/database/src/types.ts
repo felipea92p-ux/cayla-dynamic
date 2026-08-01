@@ -1611,6 +1611,16 @@ export type Database = {
         Args: { p_persona_id: string; p_valor: boolean }
         Returns: undefined
       }
+      // Agregada a mano el 2026-08-01 junto con la migración 0119, porque
+      // `supabase gen types` no pudo regenerar el archivo en esta máquina (falla
+      // con «Failed to end the connection on error», sin detalle). Se declara acá
+      // para no dejar la llamada de equipo/page.tsx sin tipo y sumar un error más
+      // a los que ya arrastra este archivo. Al regenerar, esta entrada se produce
+      // sola y el comentario se puede borrar.
+      fn_set_tipo_vinculo: {
+        Args: { p_persona_id: string; p_tipo: string }
+        Returns: undefined
+      }
       fn_set_visible_todas_sedes: {
         Args: { p_persona_id: string; p_valor: boolean }
         Returns: undefined

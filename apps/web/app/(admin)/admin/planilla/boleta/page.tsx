@@ -215,8 +215,16 @@ function BoletaContenido() {
   const bonos = f.movimientos?.filter((m) => m.tipo === "bono") ?? [];
   const descuentos = f.movimientos?.filter((m) => m.tipo === "descuento") ?? [];
 
+  // Los dos términos que la 0110 metió en el 'total' del SQL. Hasta el
+  // 2026-07-31 la boleta los ignoraba, y por eso el total no cuadraba con sus
+  // propias líneas. Se leen con ?? 0 para que una base sin la 0110 pegada siga
+  // dando el mismo resultado que antes.
+  const movilidad = f.monto_movilidad ?? 0;
+  const pension = f.descuento_afp ?? 0;
+  const aporteEssalud = f.aporte_essalud ?? 0;
+
   // Subtotal ganado: todo lo que suma, antes de restar. Solo se muestra si hay
-  // descuentos — sin ellos sería idéntico al total y solo agregaría ruido.
+  // algo que restar — sin eso sería idéntico al total y solo agregaría ruido.
   // Decidido con Felipe el 2026-07-28: cuando el descuento es grande (un adelanto,
   // por ejemplo), sin esta línea la persona ve solo el neto y no reconoce que sí
   // ganó su sueldo completo. Suma los mismos campos ya redondeados que usa el
@@ -226,7 +234,11 @@ function BoletaContenido() {
     f.monto_feriados +
     f.asignacion_familiar +
     f.monto_plus +
+    movilidad +
     bonos.reduce((suma, m) => suma + m.monto, 0);
+
+  // La pensión también es una resta, así que también justifica el subtotal.
+  const hayRestas = descuentos.length > 0 || pension > 0;
 
   // ¿Esta boleta es definitiva o todavía se mueve? Antes no se decía en ningún
   // lado, así que alguien podía imprimirla, guardarla, y después recibir otro
@@ -246,15 +258,18 @@ function BoletaContenido() {
 
   const contexto = contextoPagoBase(f);
 
-  // El desglose solo se muestra si las TRES cifras son números de verdad.
-  // Se comprueba con typeof y no con !== null a propósito: si la 0104/0105 no
-  // están pegadas en la base, estos campos llegan undefined, y `undefined !== null`
-  // es true. Con la comprobación floja, la boleta habría partido el pago y escrito
-  // «S/ NaN» donde va el sueldo de alguien. Aquí no se asume nada.
-  const basicaProp = num(f.basica_legal_prop);
-  const complemento = num(f.complemento_variable);
-  const rendimientoPct = num(f.rendimiento_pct);
-  const hayDesglose = baseLegal !== null && basicaProp !== null && complemento !== null;
+  // EL DESGLOSE «BÁSICA + RENDIMIENTO EXTRAORDINARIO» YA NO SE CALCULA AQUÍ.
+  // Quitado a pedido de Felipe el 2026-07-31. El «Rendimiento Extraordinario»
+  // fue una etiqueta de emergencia para poder pagar un mes, no un concepto real
+  // de la estructura salarial, y dejarlo impreso describía como «variable, no
+  // permanente» algo que en la práctica se paga todos los meses — que es
+  // exactamente el argumento que un inspector usa para reclasificarlo como
+  // remuneración permanente. Los campos siguen existiendo en la base y en la
+  // pantalla de Planilla; lo que se retira es imprimirlos en la boleta.
+  //
+  // La cifra del pago NO cambia: basica_legal_prop + complemento_variable era
+  // igual a pago_base por construcción, así que mostrar pago_base en una sola
+  // fila da el mismo monto y el total sigue cuadrando al céntimo.
 
   const pendientes = num(f.dias_pendientes) ?? 0;
   const avisoPendientes =
@@ -341,71 +356,34 @@ function BoletaContenido() {
         {/* Detalle del pago */}
         <table className="mb-6 w-full text-sm print:mb-4">
           <tbody>
-            {/* El pago base se parte en dos cuando la persona tiene básica legal
-                fijada (0103/0104). Las dos filas suman exactamente el pago base:
-                la básica se redondea y el complemento es la diferencia. Si no hay
-                básica fijada, cae a una sola fila y no se inventa la separación. */}
-            {hayDesglose ? (
-              <>
-                <tr className="border-t border-sand">
-                  <td className="py-2">
-                    Básica legal proporcional ({fmtHorasHumano(f.horas_mes)})
-                    <span className="block text-xs text-taupe">
-                      por tus horas del periodo · el mes completo son{" "}
-                      {formatSoles(baseLegal!)}
-                    </span>
-                    {contexto.length > 0 && (
-                      <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
-                    )}
-                    {avisoPendientes && (
-                      <span className="block text-xs text-rojo">{avisoPendientes}</span>
-                    )}
-                  </td>
-                  <td className="py-2 text-right align-top">{formatSoles(basicaProp!)}</td>
-                </tr>
-                <tr className="border-t border-sand">
-                  <td className="py-2">
-                    {/* Con la 0104 sola —el estado que Felipe eligió el 2026-07-28
-                        para salir del paso— este literal es la etiqueta: el pago no
-                        cambia, solo se presenta partido. Cuando entre la 0105 la
-                        etiqueta pasará a venir de la fila del mes, elegida de un
-                        catálogo, y podrá cambiar de un periodo a otro sin tocar
-                        código. Hasta entonces, cambiarla es cambiar esta línea. */}
-                    {f.complemento_etiqueta ?? "Rendimiento Extraordinario"}
-                    {/* El porcentaje solo se imprime si ALGUIEN lo puntuó de
-                        verdad. El 100% por defecto no es una evaluación, y
-                        escribirlo creaba una contradicción vista en producción:
-                        la misma hoja decía «rendimiento 100%» y, tres líneas más
-                        abajo, «3/10 objetivos cumplidos». Para quien la lee son
-                        incompatibles; y para un inspector es peor — muestra a
-                        alguien cobrando el 100% de lo «variable» mientras falla
-                        el 70% de sus metas, que es la prueba de que ese
-                        complemento no depende del rendimiento.
-                        Decidido con Felipe el 2026-07-28. */}
-                    <span className="block text-xs text-taupe">
-                      variable, no permanente
-                      {rendimientoPct !== null && f.rendimiento_por_defecto !== true
-                        ? ` · rendimiento ${rendimientoPct}%`
-                        : ""}
-                    </span>
-                  </td>
-                  <td className="py-2 text-right align-top">{formatSoles(complemento!)}</td>
-                </tr>
-              </>
-            ) : (
-              <tr className="border-t border-sand">
-                <td className="py-2">
-                  Remuneración Básica Ordinaria ({fmtHorasHumano(f.horas_mes)})
-                  {contexto.length > 0 && (
-                    <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
-                  )}
-                  {avisoPendientes && (
-                    <span className="block text-xs text-rojo">{avisoPendientes}</span>
-                  )}
-                </td>
-                <td className="py-2 text-right align-top">{formatSoles(f.pago_base)}</td>
-              </tr>
-            )}
+            {/* UNA SOLA FILA PARA EL PAGO DEL PERIODO.
+                Antes esto se partía en «Básica legal proporcional» +
+                «Rendimiento Extraordinario». Se unificó el 2026-07-31 a pedido
+                de Felipe: el Rendimiento fue una salida de emergencia para poder
+                pagar un mes, y una etiqueta de emergencia no debería quedar
+                impresa como si fuera parte de la estructura salarial.
+                El monto es idéntico — las dos filas de antes sumaban pago_base
+                por construcción, así que el total no se movió ni un céntimo.
+                El «(mes completo)» de la cifra de arriba sigue siendo lo que
+                distingue esa referencia de esta fila proporcional. */}
+            <tr className="border-t border-sand">
+              <td className="py-2">
+                Remuneración Básica proporcional ({fmtHorasHumano(f.horas_mes)})
+                {baseLegal !== null && (
+                  <span className="block text-xs text-taupe">
+                    por tus horas del periodo · el mes completo son{" "}
+                    {formatSoles(baseLegal)}
+                  </span>
+                )}
+                {contexto.length > 0 && (
+                  <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
+                )}
+                {avisoPendientes && (
+                  <span className="block text-xs text-rojo">{avisoPendientes}</span>
+                )}
+              </td>
+              <td className="py-2 text-right align-top">{formatSoles(f.pago_base)}</td>
+            </tr>
             {f.monto_feriados > 0 && (
               <tr className="border-t border-sand">
                 <td className="py-2">Feriados</td>
@@ -416,6 +394,25 @@ function BoletaContenido() {
               <tr className="border-t border-sand">
                 <td className="py-2">Asignación familiar 👶</td>
                 <td className="py-2 text-right">{formatSoles(f.asignacion_familiar)}</td>
+              </tr>
+            )}
+            {/* La 0110 metió la movilidad en el 'total' del SQL y nadie la imprimía:
+                el total no cuadraba con sus propias líneas. Se dice cuántos días y a
+                qué tarifa porque es lo que sostiene el concepto — la movilidad es no
+                remunerativa SOLO si está supeditada a la asistencia (Art. 19 e),
+                D.S. 001-97-TR), y la multiplicación impresa es la prueba de que lo
+                está. Un monto pelado, sin días, se lee como sueldo con otro nombre. */}
+            {movilidad > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Movilidad por asistencia
+                  <span className="block text-xs text-taupe">
+                    {f.dias_laborables != null && f.movilidad_diaria
+                      ? `${Math.round(movilidad / f.movilidad_diaria)} días marcados × ${formatSoles(f.movilidad_diaria)}`
+                      : "por tus días efectivamente asistidos"}
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(movilidad)}</td>
               </tr>
             )}
             <tr className="border-t border-sand">
@@ -447,10 +444,34 @@ function BoletaContenido() {
                 <td className="py-2 text-right text-verde">+{formatSoles(m.monto)}</td>
               </tr>
             ))}
-            {descuentos.length > 0 && (
+            {hayRestas && (
               <tr className="border-t border-tinta/30">
                 <td className="py-2 font-medium">Subtotal ganado</td>
                 <td className="py-2 text-right font-medium">{formatSoles(subtotalGanado)}</td>
+              </tr>
+            )}
+            {/* EL DESCUENTO DE PENSIÓN, que el 'total' venía restando sin imprimirlo.
+                Es el que produjo el descuadre que Felipe vio el 2026-08-01: la boleta
+                sumaba 76.67 en lo visible y remataba en 71.84, con 4.83 de pensión
+                aplicados y sin una línea que los nombrara.
+                Se dice el régimen y la tasa porque el descuento varía por persona
+                (12.84% a 13.06% según la AFP), y sin eso el monto no se puede verificar.
+                Y se aclara que no se queda en CAYLA: va al fondo de la persona. */}
+            {pension > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2 text-rojo">
+                  Descuento —{" "}
+                  {f.regimen_pension === "onp"
+                    ? "ONP"
+                    : f.regimen_pension
+                      ? `AFP ${f.regimen_pension.charAt(0).toUpperCase()}${f.regimen_pension.slice(1)}`
+                      : "Pensión"}
+                  {f.tasa_afp ? ` (${(f.tasa_afp * 100).toFixed(2)}%)` : ""}
+                  <span className="block text-xs text-rojo/70">
+                    va a tu fondo de pensión — no se queda en CAYLA
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top text-rojo">−{formatSoles(pension)}</td>
               </tr>
             )}
             {descuentos.map((m) => (
@@ -465,6 +486,113 @@ function BoletaContenido() {
             </tr>
           </tbody>
         </table>
+
+        {/* ── LO QUE CAYLA PAGA ADEMÁS ─────────────────────────────────────────
+            Pedido de Felipe el 2026-07-31: «quiero que todo integrante de CAYLA vea
+            todo lo que pagamos». Estas cifras existían en la base y no se imprimían
+            en ninguna parte.
+
+            TRES DECISIONES DE DISEÑO, y ninguna es estética:
+
+            1. VA FUERA DE LA TABLA DEL PAGO, en su propio bloque y con su propio
+               encabezado. El D.S. 001-98-TR pide que los descuentos se distingan; acá
+               el riesgo es el inverso —que alguien lea el EsSalud como algo que se le
+               resta— así que la separación física y la leyenda «no se descuenta de tu
+               sueldo» son el resguardo. Nada de esto entra en el total.
+
+            2. LOS MONTOS VAN COMO NÚMEROS, no como prosa. Si el objetivo es que
+               valoren lo que la empresa hace, un párrafo no lo logra. Y las tres
+               provisiones son honestas: la gratificación trunca, la CTS trunca y las
+               vacaciones truncas se pagan proporcionalmente al cesar, así que el
+               acumulado ES lo que le corresponde a la persona.
+
+            3. NO SE IMPRIME EL TOTAL NI EL «X% MÁS». Decidido con Felipe: las cuatro
+               líneas transmiten el mensaje, y una cifra única de «lo que nos cuestas»
+               se vuelve punto de referencia en la próxima conversación de sueldo y no
+               se puede desmostrar. Es el mismo criterio por el que el 2026-07-28 salió
+               de la boleta el «potencial máximo del rango».
+
+            La leyenda dice «acumulado a la fecha · se paga según ley» y no un monto
+            futuro prometido, por la misma razón que el potencial máximo salió de acá:
+            una cifra impresa cada mes en un documento que nadie firma crea una
+            expectativa que después se reclama. */}
+        {(aporteEssalud > 0 || f.provision_total > 0) && (
+          <div className="mb-6 rounded-lg bg-arena/60 p-4 print:mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-tinta">
+              Además, CAYLA paga por ti
+            </p>
+            <p className="mb-3 text-xs text-taupe">
+              Aporte de la empresa — <strong>no se descuenta de tu sueldo.</strong>
+            </p>
+            <table className="w-full text-sm">
+              <tbody>
+                {aporteEssalud > 0 && (
+                  <tr className="border-t border-sand">
+                    <td className="py-2">
+                      EsSalud {f.essalud_tasa ? `${(f.essalud_tasa * 100).toFixed(0)}%` : ""}
+                      <span className="block text-xs text-taupe">
+                        tu seguro de salud · lo paga CAYLA completo
+                        {/* Sin esta aclaración el número es inexplicable en un mes de
+                            pocas horas: la ley fija un piso —la base no puede ser menor
+                            a la RMV, y no se prorratea por días (D.S. 009-97-SA, mod.
+                            D.S. 020-2006-TR)—, así que quien devengó S/36.96 genera
+                            S/101.70 igual. Quien lea su boleta va a hacer la división
+                            y no le va a cuadrar; mejor decirlo. */}
+                        {f.essalud_es_piso && (
+                          <>
+                            {" "}
+                            · calculado sobre el mínimo legal de{" "}
+                            {f.base_essalud ? formatSoles(f.base_essalud) : "la RMV"}, que no
+                            baja aunque el mes tenga menos horas
+                          </>
+                        )}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right align-top">{formatSoles(aporteEssalud)}</td>
+                  </tr>
+                )}
+                {f.provision_gratificacion > 0 && (
+                  <tr className="border-t border-sand">
+                    <td className="py-2">
+                      Gratificación acumulada
+                      <span className="block text-xs text-taupe">
+                        se paga en julio y diciembre, según ley
+                      </span>
+                    </td>
+                    <td className="py-2 text-right align-top">
+                      {formatSoles(f.provision_gratificacion)}
+                    </td>
+                  </tr>
+                )}
+                {f.provision_cts > 0 && (
+                  <tr className="border-t border-sand">
+                    <td className="py-2">
+                      CTS acumulada
+                      <span className="block text-xs text-taupe">
+                        se deposita en mayo y noviembre, según ley
+                      </span>
+                    </td>
+                    <td className="py-2 text-right align-top">{formatSoles(f.provision_cts)}</td>
+                  </tr>
+                )}
+                {f.provision_vacaciones > 0 && (
+                  <tr className="border-t border-sand">
+                    <td className="py-2">
+                      Vacaciones acumuladas
+                      <span className="block text-xs text-taupe">15 días al año, según ley</span>
+                    </td>
+                    <td className="py-2 text-right align-top">
+                      {formatSoles(f.provision_vacaciones)}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <p className="mt-3 text-xs text-taupe">
+              Los montos acumulados son <strong>a la fecha</strong> y se pagan según ley.
+            </p>
+          </div>
+        )}
 
         {/* ── Aclaración y Deslinde Legal ──────────────────────────────────────
             Reemplaza la nota simple anterior. Decidido con Felipe 2026-07-28.
