@@ -616,7 +616,7 @@ export default function EquipoPage() {
             className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
           >
             <option value="planilla">Planilla — contrato de trabajo</option>
-            <option value="prueba">Prueba — vino a probar</option>
+            <option value="prueba">Prueba — días de prueba, aún sin contrato</option>
             <option value="rxh">Recibo por honorarios</option>
             <option value="no_trabajador">No trabajador — accionista sin servicios</option>
           </select>
@@ -624,7 +624,7 @@ export default function EquipoPage() {
             {form.tipoVinculo === "planilla"
               ? "Acumula gratificación, CTS y vacaciones. Recibe movilidad y genera EsSalud. Se le mide asistencia y disciplina."
               : form.tipoVinculo === "prueba"
-                ? "Se le mide asistencia y se le pagan sus horas, pero NO acumula beneficios (decisión registrada en la 0085)."
+                ? "Días de prueba antes de contratar: se le pagan sus horas y se le mide asistencia, pero NO acumula beneficios (decisión registrada en la 0085). Si se queda, pásala a Planilla — quien trabaja sin estar registrado es infracción muy grave (num. 25.20 del RLGIT)."
                 : form.tipoVinculo === "rxh"
                   ? "Locación de servicios: cobra sus horas, pero NO acumula beneficios, NO recibe movilidad y NO genera EsSalud. Tampoco se le mide disciplina — es lo que sostiene que no sea una relación laboral."
                   : "Ni asistencia ni beneficios."}
