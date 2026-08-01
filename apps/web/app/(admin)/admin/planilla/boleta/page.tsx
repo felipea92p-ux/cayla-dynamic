@@ -209,9 +209,10 @@ function BoletaContenido() {
   }
 
   const totalObj = f.objetivos_total ?? 10;
-  const pctObj = totalObj > 0 && f.objetivos_cumplidos !== null ? f.objetivos_cumplidos / totalObj : null;
-  const nivelPlus =
-    pctObj === null ? "—" : pctObj >= 1 ? "100% (21%)" : pctObj >= 0.6 ? "60% o más (12.6%)" : "menos de 60% (sin plus)";
+  // pctObj y nivelPlus se fueron con la fila del «Incentivo Variable por Metas»
+  // (2026-08-01). Traducían el porcentaje de objetivos a la escala del plus
+  // —«100% (21%)»— y eso solo tenía sentido dentro de esa fila. Si el plus vuelve
+  // a mostrarse con su detalle, se recuperan de git.
   const bonos = f.movimientos?.filter((m) => m.tipo === "bono") ?? [];
   const descuentos = f.movimientos?.filter((m) => m.tipo === "descuento") ?? [];
 
@@ -415,21 +416,38 @@ function BoletaContenido() {
                 <td className="py-2 text-right align-top">{formatSoles(movilidad)}</td>
               </tr>
             )}
-            <tr className="border-t border-sand">
-              <td className="py-2">
-                Incentivo Variable por Metas (No Permanente)
-                {/* Un guion pelado no distingue «no llegué» de «no me evaluaron», y
-                    es plata. Misma idea que la 0100 con los ceros de Planilla. */}
-                <span className="block text-xs text-taupe">
-                  {f.objetivos_cumplidos !== null
-                    ? `${f.objetivos_cumplidos}/${totalObj} cumplidos — ${nivelPlus}`
-                    : "este mes no se registraron objetivos, así que no hubo plus que calcular"}
-                </span>
-              </td>
-              <td className="py-2 text-right align-top">
-                {f.monto_plus > 0 ? formatSoles(f.monto_plus) : <span className="text-taupe/50">—</span>}
-              </td>
-            </tr>
+            {/* EL «INCENTIVO VARIABLE POR METAS (NO PERMANENTE)» SALE DE LA BOLETA.
+                Pedido de Felipe el 2026-08-01, y por la misma razón que salió el
+                «Rendimiento Extraordinario» el día anterior: un concepto que se
+                describe a sí mismo como «no permanente» impreso todos los meses es
+                el argumento que un inspector usa para sostener lo contrario. Y
+                cuando el plus era cero —el caso de todos los meses en que no se
+                registran objetivos— la fila solo imprimía un guion y una
+                explicación de por qué no había nada.
+
+                PERO EL MONTO NO SE OCULTA. Si el plus llegara a ser mayor que cero,
+                la fila SÍ aparece: `monto_plus` está dentro del 'total' que calcula
+                el SQL, y una boleta cuyo total incluye algo que no se imprime es
+                exactamente el descuadre que Felipe encontró el 2026-08-01 con el
+                descuento de pensión (S/76.67 en las líneas, S/71.84 en el total).
+                No se repite ese error para ahorrar una fila.
+
+                Lo que cambia cuando aparece es el NOMBRE: se llama por lo que es
+                —un incentivo por metas— sin la autodescripción de «no permanente»,
+                que era la parte que hacía daño. */}
+            {f.monto_plus > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Incentivo por metas
+                  {f.objetivos_cumplidos !== null && (
+                    <span className="block text-xs text-taupe">
+                      {f.objetivos_cumplidos}/{totalObj} cumplidos
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(f.monto_plus)}</td>
+              </tr>
+            )}
             {bonos.map((m) => (
               <tr key={m.id} className="border-t border-sand">
                 {/* Sin el prefijo «Bono — », a propósito (2026-07-28). La
