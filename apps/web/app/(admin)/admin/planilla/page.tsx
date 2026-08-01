@@ -140,6 +140,28 @@ export interface Fila {
   feriados_sin_salario: number;
   con_hijos: boolean;
   asignacion_familiar: number;
+  // Los dos términos que la 0110 metió en el 'total' y que hasta el 2026-07-31
+  // NO estaban declarados aquí ni impresos en la boleta. Eso hacía que el total
+  // no cuadrara con sus propias líneas: la boleta de Danixa sumaba S/76.67 en lo
+  // visible y remataba en S/71.84, con S/4.83 de descuento de pensión aplicados
+  // y sin una línea que los nombrara. Son opcionales porque una base sin la 0110
+  // pegada no los devuelve, y `undefined > 0` es false, así que la boleta
+  // simplemente no dibuja la fila en vez de escribir «S/ NaN».
+  monto_movilidad?: number;
+  movilidad_diaria?: number;
+  descuento_afp?: number;
+  tasa_afp?: number;
+  regimen_pension?: string | null;
+  tasa_es_del_regimen?: boolean;
+  // El aporte de EsSalud que paga CAYLA (0116). NO se descuenta al trabajador y no
+  // entra en 'total': el 9% es íntegramente de cargo del empleador (Ley 26790 art. 6).
+  // 'essalud_es_piso' es true cuando la persona devengó MENOS que la RMV y el aporte
+  // salió del piso legal, no de su sueldo — sin ese dato la cifra no se puede explicar
+  // (alguien que ganó S/36.96 genera S/101.70 de EsSalud).
+  base_essalud?: number;
+  aporte_essalud?: number;
+  essalud_tasa?: number;
+  essalud_es_piso?: boolean;
   bonos: number;
   descuentos: number;
   movimientos: Movimiento[];
@@ -147,7 +169,7 @@ export interface Fila {
   provision_cts: number;
   provision_vacaciones: number;
   provision_total: number;
-  total: number; // ya incluye + asignación + bonos − descuentos
+  total: number; // ya incluye + asignación + movilidad − pensión + bonos − descuentos
 }
 export interface FactoresProvision {
   gratificacion: number;
