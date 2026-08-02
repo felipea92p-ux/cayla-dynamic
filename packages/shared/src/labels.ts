@@ -1,4 +1,6 @@
-import type { EstadoCivil, GradoInstruccion, TipoMarca } from "./enums";
+import type {
+  EstadoCivil, GradoInstruccion, RegimenPension, TipoMarca, VinculoDerechohabiente,
+} from "./enums";
 
 export const TIPO_MARCA_LABELS: Record<TipoMarca, string> = {
   entrada: "Entrada",
@@ -35,6 +37,29 @@ export const GRADO_INSTRUCCION_LABELS: Record<GradoInstruccion, string> = {
   superior_universitaria_incompleta: "Superior universitaria incompleta",
   superior_universitaria_completa: "Superior universitaria completa",
   postgrado: "Postgrado",
+};
+
+export const VINCULO_DERECHOHABIENTE_LABELS: Record<VinculoDerechohabiente, string> = {
+  conyuge: "Cónyuge",
+  conviviente: "Conviviente",
+  hijo: "Hija/o",
+  madre: "Madre",
+  padre: "Padre",
+  hermano: "Hermana/o",
+  otro: "Otro",
+};
+
+/**
+ * Nombre de cada régimen y la tasa que descuenta hoy, para que el desplegable
+ * diga cuánta plata mueve elegir uno y no solo su nombre. Las tasas son las de
+ * la migración 0114 (aporte + comisión sobre flujo + prima).
+ */
+export const REGIMEN_PENSION_LABELS: Record<RegimenPension, string> = {
+  onp: "ONP — Sistema Nacional (13.00 %)",
+  profuturo: "AFP Profuturo (13.06 %)",
+  prima: "AFP Prima (12.97 %)",
+  integra: "AFP Integra (12.92 %)",
+  habitat: "AFP Habitat (12.84 %)",
 };
 
 /**
