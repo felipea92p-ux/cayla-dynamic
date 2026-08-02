@@ -78,6 +78,25 @@ interface Persona {
   fecha_ingreso: string;
 }
 
+// Una tarifa de movilidad vigente. `sede_codigo` en null es la general — la que
+// aplica a una sede que no tiene fila propia. Los campos son opcionales porque
+// si la 0130 no está pegada la consulta devuelve filas sin `sede_codigo` y el
+// documento tiene que seguir saliendo igual que antes.
+// El documento lo lee gente de fuera de CAYLA — un inspector, un abogado. «AQP»
+// no le dice nada; «Arequipa» sí.
+const SEDE_CIUDAD: Record<string, string> = {
+  AQP: "Arequipa",
+  TRU: "Trujillo",
+  LIM: "Lima",
+  CCO: "Central",
+};
+
+interface TarifaSede {
+  valor: number;
+  sustento: string | null;
+  sede_codigo?: string | null;
+}
+
 function fechaLarga(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", {
@@ -108,6 +127,12 @@ export default function DocumentacionPage() {
   const [tarifa, setTarifa] = useState<number>(TARIFA_POR_DEFECTO);
   const [sustento, setSustento] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
+  // Quién NO recibe el documento. Se guarda la exclusión y no la inclusión a
+  // propósito: el caso normal es que lo reciba todo el equipo, así que una
+  // persona nueva entra sola en la lista sin que nadie tenga que acordarse.
+  const [excluidos, setExcluidos] = useState<Set<string>>(new Set());
+  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
+  const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
 
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
@@ -121,24 +146,40 @@ export default function DocumentacionPage() {
       // queda el valor por defecto: el documento sigue saliendo, nunca se rompe
       // por no poder leer un parámetro.
       supabase.from("parametros_laborales")
-        .select("valor, vigente_desde, sustento")
+        .select("valor, vigente_desde, sustento, sede_codigo")
         .eq("clave", "movilidad_diaria")
         .lte("vigente_desde", new Date().toISOString().slice(0, 10))
         .is("vigente_hasta", null)
-        .order("vigente_desde", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .order("vigente_desde", { ascending: false }),
     ]);
-    setPersonas((ps as Persona[]) ?? []);
+    const lista = (ps as Persona[]) ?? [];
+    setPersonas(lista);
     setSedes(new Map(((ss as { id: string; nombre: string; codigo: string }[]) ?? [])
       .map((s) => [s.id, s.nombre || s.codigo])));
-    const fila = cfg as { valor?: number; sustento?: string | null } | null;
-    const monto = Number(fila?.valor);
+
+    // Quien imprime el documento es quien lo firma, así que no puede estar en la
+    // lista de los que declaran haberlo recibido. Se excluye solo.
+    const { data: yo } = await supabase.rpc("fn_persona_actual_id");
+    if (typeof yo === "string") setExcluidos(new Set([yo]));
+
+    // La firma escaneada de quien está imprimiendo. Si no tiene, el documento
+    // sale con la línea en blanco para firmar a mano, como hasta ahora.
+    const { data: fu } = await supabase.rpc("fn_mi_firma");
+    setFirmaUrl(typeof fu === "string" && fu.startsWith("data:image") ? fu : null);
+
+    // ⇩ Desde la 0130 la tarifa es POR SEDE, porque el pasaje no cuesta lo mismo
+    // en las tres ciudades. La política tiene que decir las tres: un documento
+    // que afirma un monto único mientras el sistema paga otro es peor que no
+    // tener documento.
+    const filas = (cfg as TarifaSede[] | null) ?? [];
+    setTarifas(filas);
+    const general = filas.find((f) => !f.sede_codigo) ?? filas[0];
+    const monto = Number(general?.valor);
     if (Number.isFinite(monto) && monto > 0) setTarifa(monto);
     // El sustento viaja pegado a la tarifa en la base (0118). Se muestra en el
     // documento en lugar de repetirlo en el código: así el papel dice
     // exactamente lo que la fila que se está aplicando dice.
-    if (fila?.sustento) setSustento(fila.sustento);
+    if (general?.sustento) setSustento(general.sustento);
     setCargando(false);
   }, [supabase, router]);
 
@@ -169,11 +210,29 @@ export default function DocumentacionPage() {
     );
   }
 
-  // 26 días y no 24. En un periodo de 31 días con domingos libres hay 26 o 27
-  // días laborables — se midió contra datos reales el 2026-08-01 y salieron 27.
-  // Se usa 26 como referencia conservadora, y el texto dice «referencial» porque
-  // el monto real sale de los días efectivamente marcados, no de este número.
-  const mensual = tarifa * 26;
+  // Los días laborables TEÓRICOS de un mes son 26 o 27. Los ASISTIDOS no: se
+  // midieron 78 meses-persona de 2026 el 2026-08-01 y el promedio real fue 23.6
+  // — 22.2 en Arequipa, 23.9 en Trujillo, 24.6 en Lima. Ninguna sede llega a 26.
+  //
+  // Se usa 24 porque el documento tiene que decir una cifra que la gente vaya a
+  // reconocer en su boleta. Prometer el equivalente de 26 días en un papel que
+  // firman, cuando casi nadie los alcanza, es crear una expectativa que el
+  // sistema no va a cumplir ningún mes.
+  //
+  // La constante existe para que el número y el texto no puedan desalinearse:
+  // antes el cálculo usaba 26 y la frase decía «24 días», así que el documento
+  // afirmaba que 10 × 24 = 260. Felipe lo detectó el 2026-08-02.
+  const DIAS_REFERENCIA = 24;
+  const mensual = tarifa * DIAS_REFERENCIA;
+
+  // Las tarifas que tienen sede propia, ordenadas. Si está vacío es que la 0130
+  // no está pegada y el documento cae al monto único de siempre.
+  const porSede = tarifas
+    .filter((t) => Boolean(t.sede_codigo))
+    .sort((a, b) => (a.sede_codigo ?? "").localeCompare(b.sede_codigo ?? ""));
+
+  // Quiénes reciben el documento y firman el cargo.
+  const reciben = personas.filter((p) => !excluidos.has(p.id));
 
   return (
     <>
@@ -215,6 +274,46 @@ export default function DocumentacionPage() {
               </label>
             )}
           </div>
+
+          {/* Quién firma el cargo. Se muestra solo en la política, que es el
+              documento que recibe todo el equipo a la vez.
+
+              POR QUÉ UNA LISTA Y NO UN FILTRO AUTOMÁTICO. Quién debe recibirla no
+              se puede deducir del sistema: un locador no la recibe, pero alguien
+              que se va a fin de mes tampoco, y eso no está en ninguna columna.
+              Filtrar por tipo_vinculo habría cubierto el primer caso y dejado
+              fuera el segundo, que fue justo el que Felipe pidió el 2026-08-02. */}
+          {!doc.necesitaPersona && personas.length > 0 && (
+            <details className="mb-4 rounded-lg border border-sand p-3">
+              <summary className="cursor-pointer text-sm">
+                Quiénes reciben el documento —{" "}
+                <strong>{reciben.length} de {personas.length}</strong>
+              </summary>
+              <p className="mt-2 text-xs text-taupe">
+                Tú sales de la lista automáticamente: quien firma no declara haber recibido.
+                Desmarca a quien no corresponda — locadores, socios, o quien deja el equipo.
+              </p>
+              <div className="mt-3 grid gap-1 sm:grid-cols-2">
+                {personas.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!excluidos.has(p.id)}
+                      onChange={() =>
+                        setExcluidos((prev) => {
+                          const s = new Set(prev);
+                          if (s.has(p.id)) s.delete(p.id);
+                          else s.add(p.id);
+                          return s;
+                        })
+                      }
+                    />
+                    <span>{p.apellidos}, {p.nombres}</span>
+                  </label>
+                ))}
+              </div>
+            </details>
+          )}
 
           <p className="mb-4 rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">{doc.para}</p>
 
@@ -382,13 +481,43 @@ export default function DocumentacionPage() {
                 </p>
 
                 <p className="mb-2 font-medium">Primera — Objeto y monto</p>
-                <p className="mb-4">
-                  CAYLA otorga a su personal una asignación por movilidad de{" "}
-                  <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong> —
-                  equivalente a S/ {mensual.toFixed(2)} en un mes de 24 días laborados — destinada
-                  exclusivamente a cubrir el traslado desde su domicilio hasta su centro de labores
-                  y su retorno.
-                </p>
+                {porSede.length > 0 ? (
+                  <>
+                    <p className="mb-3">
+                      CAYLA otorga a su personal una asignación por movilidad{" "}
+                      <strong>por cada día efectivamente asistido</strong>, destinada
+                      exclusivamente a cubrir el traslado desde su domicilio hasta su centro de
+                      labores y su retorno. El monto se fija por sede, porque el costo del
+                      pasaje difiere entre las ciudades donde CAYLA opera:
+                    </p>
+                    <table className="mb-4 w-full max-w-sm text-xs">
+                      <tbody>
+                        {porSede.map((t) => (
+                          <tr key={t.sede_codigo}>
+                            <td className="border-b border-sand py-1.5">
+                              {SEDE_CIUDAD[t.sede_codigo ?? ""] ?? t.sede_codigo}
+                            </td>
+                            <td className="border-b border-sand py-1.5 text-right font-medium">
+                              S/ {Number(t.valor).toFixed(2)} por día
+                            </td>
+                            <td className="border-b border-sand py-1.5 text-right text-taupe">
+                              S/ {(Number(t.valor) * DIAS_REFERENCIA).toFixed(2)} en{" "}
+                              {DIAS_REFERENCIA} días
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                ) : (
+                  <p className="mb-4">
+                    CAYLA otorga a su personal una asignación por movilidad de{" "}
+                    <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong> —
+                    equivalente a S/ {mensual.toFixed(2)} en un mes de {DIAS_REFERENCIA} días
+                    asistidos — destinada exclusivamente a cubrir el traslado desde su domicilio
+                    hasta su centro de labores y su retorno.
+                  </p>
+                )}
 
                 <p className="mb-2 font-medium">Segunda — Supeditación a la asistencia</p>
                 <p className="mb-4">
@@ -455,6 +584,15 @@ export default function DocumentacionPage() {
                 </p>
 
                 <div className="mb-10 w-1/2 text-center">
+                  {/* La firma escaneada de quien imprime, si la tiene cargada. El
+                      alto fijo mantiene la línea en su sitio aunque no haya firma:
+                      así el documento se ve igual con y sin ella, y quien no la
+                      tenga simplemente firma a mano sobre la raya. */}
+                  <div className="flex h-24 items-end justify-center">
+                    {firmaUrl && (
+                      <img src={firmaUrl} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
+                    )}
+                  </div>
                   <div className="mb-1 border-t border-tinta pt-2 text-xs">{EMPRESA.firmante}</div>
                   <p className="text-xs text-taupe">{EMPRESA.cargo} · {EMPRESA.nombre}</p>
                 </div>
@@ -474,9 +612,13 @@ export default function DocumentacionPage() {
                         <th className="border-b border-sand py-1 font-normal">Firma</th>
                       </tr>
                     </thead>
+                    {/* Sin recorte: van todos. Antes se cortaba en 12 y había que
+                        imprimir dos veces; ahora la tabla se parte sola entre hojas
+                        porque las filas llevan break-inside-avoid y el encabezado se
+                        repite con thead. Un cargo incompleto no sirve de nada. */}
                     <tbody>
-                      {personas.slice(0, 12).map((p) => (
-                        <tr key={p.id}>
+                      {reciben.map((p) => (
+                        <tr key={p.id} className="break-inside-avoid">
                           <td className="border-b border-sand py-3">{p.apellidos}, {p.nombres}</td>
                           <td className="border-b border-sand py-3">{p.documento ?? ""}</td>
                           <td className="border-b border-sand py-3" />
@@ -485,12 +627,9 @@ export default function DocumentacionPage() {
                       ))}
                     </tbody>
                   </table>
-                  {personas.length > 12 && (
-                    <p className="mt-2 text-xs text-taupe print:hidden">
-                      Se listan las primeras 12 de {personas.length}. Para el resto, imprime una
-                      segunda copia — el cargo se firma en hojas sucesivas.
-                    </p>
-                  )}
+                  <p className="mt-3 text-xs text-taupe">
+                    {reciben.length} {reciben.length === 1 ? "persona" : "personas"}.
+                  </p>
                 </div>
               </>
             )}
