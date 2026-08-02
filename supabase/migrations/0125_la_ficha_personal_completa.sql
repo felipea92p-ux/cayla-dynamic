@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0124 — La ficha personal guarda lo que hace falta, y el DNI se puede corregir
+-- 0125 — La ficha personal guarda lo que hace falta, y el DNI se puede corregir
 --
 -- QUÉ PROMETE. Cierra cuatro huecos de la pantalla de Datos Personales, elegidos
 -- con el criterio de que un campo solo vale si algo lo lee:
@@ -136,10 +136,10 @@ begin
   if v_dups is null then
     create unique index if not exists idx_personas_documento_unico
       on personas (documento) where documento is not null;
-    raise notice '0124 · índice único de documento creado: no hay DNI repetidos.';
+    raise notice '0125 · índice único de documento creado: no hay DNI repetidos.';
   else
-    raise notice '0124 · ⚠ NO se creó el índice único de documento porque hay repetidos: %', v_dups;
-    raise notice '0124 · limpiá esos casos y volvé a correr esta migración (es idempotente).';
+    raise notice '0125 · ⚠ NO se creó el índice único de documento porque hay repetidos: %', v_dups;
+    raise notice '0125 · limpiá esos casos y volvé a correr esta migración (es idempotente).';
   end if;
 end
 $mig$;
@@ -436,7 +436,7 @@ create or replace function fn_set_datos_personales(
   p_entidad_bancaria text default null, p_numero_cuenta text default null,
   p_grado_instruccion text default null, p_hijos_menores boolean default null,
   p_foto_dni_url text default null, p_foto_personal_url text default null, p_foto_profesional_url text default null,
-  -- CAMBIO 0124
+  -- CAMBIO 0125
   p_emergencia_nombre text default null, p_emergencia_vinculo text default null,
   p_emergencia_telefono text default null,
   p_discapacidad boolean default null, p_discapacidad_conadis text default null)
@@ -493,7 +493,7 @@ drop function if exists fn_set_datos_personales(
 
 
 insert into migraciones_aplicadas (numero, nombre)
-values (124, 'la_ficha_personal_completa')
+values (125, 'la_ficha_personal_completa')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';

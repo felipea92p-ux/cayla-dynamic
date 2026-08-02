@@ -529,7 +529,7 @@ export type Database = {
           },
         ]
       }
-      // Agregada a mano junto con la migración 0124, por el mismo motivo que
+      // Agregada a mano junto con la migración 0125, por el mismo motivo que
       // parametros_laborales: `supabase gen types` no corre en esta Mac.
       derechohabientes: {
         Row: {

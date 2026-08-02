@@ -17,14 +17,14 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
   sede_base_id: string; email: string | null;
-  regimen_pension: string | null;   // CAMBIO 0124
+  regimen_pension: string | null;   // CAMBIO 0125
 }
 interface Ficha {
   persona_id: string; nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
   direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null;
   grado_instruccion: string | null; hijos_menores: boolean | null;
   foto_dni_url: string | null; foto_personal_url: string | null; foto_profesional_url: string | null;
-  // CAMBIO 0124
+  // CAMBIO 0125
   emergencia_nombre: string | null; emergencia_vinculo: string | null; emergencia_telefono: string | null;
   discapacidad: boolean | null; discapacidad_conadis: string | null;
 }
@@ -439,7 +439,7 @@ export default function DatosPersonalesPage() {
                     </div>
                   </section>
 
-                  {/* CAMBIO 0124 — El régimen decide la tasa que se le descuenta. */}
+                  {/* CAMBIO 0125 — El régimen decide la tasa que se le descuenta. */}
                   <section>
                     <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Pensión</p>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -477,7 +477,7 @@ export default function DatosPersonalesPage() {
                     </div>
                   </section>
 
-                  {/* CAMBIO 0124 — A quién llamar si pasa algo. */}
+                  {/* CAMBIO 0125 — A quién llamar si pasa algo. */}
                   <section>
                     <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto de emergencia</p>
                     <div className="grid gap-3 sm:grid-cols-3">
@@ -487,7 +487,7 @@ export default function DatosPersonalesPage() {
                     </div>
                   </section>
 
-                  {/* CAMBIO 0124 — Familiares: EsSalud y Seguro de Vida Ley. */}
+                  {/* CAMBIO 0125 — Familiares: EsSalud y Seguro de Vida Ley. */}
                   <section>
                     <div className="mb-2 flex items-baseline justify-between">
                       <p className="text-[11px] uppercase tracking-wider text-taupe">
@@ -587,7 +587,7 @@ export default function DatosPersonalesPage() {
                     </div>
                   </section>
 
-                  {/* CAMBIO 0124 — El T-Registro lo pregunta, y la deducción de la
+                  {/* CAMBIO 0125 — El T-Registro lo pregunta, y la deducción de la
                       Ley 29973 exige el certificado del CONADIS, no la declaración. */}
                   <section>
                     <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Discapacidad</p>
