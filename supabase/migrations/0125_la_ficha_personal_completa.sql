@@ -395,8 +395,12 @@ begin
     raise exception 'Sin permiso para editar los familiares de esta persona.';
   end if;
 
+  -- fn_hoy_lima() y NO current_date: el servidor de Supabase corre en UTC, así
+  -- que entre las 19:00 y la medianoche de Lima `current_date` ya devuelve
+  -- mañana. Cerrar a un familiar de noche le pondría una fecha que todavía no
+  -- llegó. La prueba 92 vigila esto porque el mismo error entró cuatro veces.
   update derechohabientes
-     set vigente_hasta = coalesce(p_hasta, current_date)
+     set vigente_hasta = coalesce(p_hasta, fn_hoy_lima())
    where id = p_id;
 end;
 $$;
