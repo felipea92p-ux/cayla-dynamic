@@ -49,6 +49,11 @@ export type Database = {
           foto_dni_url: string | null
           foto_personal_url: string | null
           foto_profesional_url: string | null
+          emergencia_nombre: string | null
+          emergencia_vinculo: string | null
+          emergencia_telefono: string | null
+          discapacidad: boolean | null
+          discapacidad_conadis: string | null
           actualizado_por: string | null
           actualizado_at: string
         }
@@ -66,6 +71,11 @@ export type Database = {
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
+          emergencia_nombre?: string | null
+          emergencia_vinculo?: string | null
+          emergencia_telefono?: string | null
+          discapacidad?: boolean | null
+          discapacidad_conadis?: string | null
           actualizado_por?: string | null
           actualizado_at?: string
         }
@@ -83,6 +93,11 @@ export type Database = {
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
+          emergencia_nombre?: string | null
+          emergencia_vinculo?: string | null
+          emergencia_telefono?: string | null
+          discapacidad?: boolean | null
+          discapacidad_conadis?: string | null
           actualizado_por?: string | null
           actualizado_at?: string
         }
@@ -514,6 +529,64 @@ export type Database = {
           },
         ]
       }
+      // Agregada a mano junto con la migración 0125, por el mismo motivo que
+      // parametros_laborales: `supabase gen types` no corre en esta Mac.
+      derechohabientes: {
+        Row: {
+          id: string
+          persona_id: string
+          nombres: string
+          apellidos: string
+          documento: string | null
+          fecha_nacimiento: string | null
+          vinculo: string
+          essalud: boolean
+          vida_ley: boolean
+          vigente_hasta: string | null
+          nota: string | null
+          registrado_por: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          persona_id: string
+          nombres: string
+          apellidos: string
+          documento?: string | null
+          fecha_nacimiento?: string | null
+          vinculo: string
+          essalud?: boolean
+          vida_ley?: boolean
+          vigente_hasta?: string | null
+          nota?: string | null
+          registrado_por?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          persona_id?: string
+          nombres?: string
+          apellidos?: string
+          documento?: string | null
+          fecha_nacimiento?: string | null
+          vinculo?: string
+          essalud?: boolean
+          vida_ley?: boolean
+          vigente_hasta?: string | null
+          nota?: string | null
+          registrado_por?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "derechohabientes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       personas: {
         Row: {
           apellidos: string
@@ -531,6 +604,7 @@ export type Database = {
           id: string
           nombres: string
           pin_hash: string
+          regimen_pension: string | null
           rol: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
           updated_at: string
@@ -552,6 +626,7 @@ export type Database = {
           id?: string
           nombres: string
           pin_hash: string
+          regimen_pension?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
           updated_at?: string
@@ -573,6 +648,7 @@ export type Database = {
           id?: string
           nombres?: string
           pin_hash?: string
+          regimen_pension?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id?: string
           updated_at?: string
@@ -1441,7 +1517,39 @@ export type Database = {
           p_foto_dni_url?: string | null
           p_foto_personal_url?: string | null
           p_foto_profesional_url?: string | null
+          p_emergencia_nombre?: string | null
+          p_emergencia_vinculo?: string | null
+          p_emergencia_telefono?: string | null
+          p_discapacidad?: boolean | null
+          p_discapacidad_conadis?: string | null
         }
+        Returns: undefined
+      }
+      fn_set_documento: {
+        Args: { p_persona_id: string; p_documento: string; p_motivo: string }
+        Returns: undefined
+      }
+      fn_set_regimen_pension: {
+        Args: { p_persona_id: string; p_regimen: string | null }
+        Returns: undefined
+      }
+      fn_set_derechohabiente: {
+        Args: {
+          p_id: string | null
+          p_persona_id: string
+          p_nombres: string
+          p_apellidos: string
+          p_vinculo: string
+          p_documento?: string | null
+          p_fecha_nacimiento?: string | null
+          p_essalud?: boolean
+          p_vida_ley?: boolean
+          p_nota?: string | null
+        }
+        Returns: string
+      }
+      fn_cerrar_derechohabiente: {
+        Args: { p_id: string; p_hasta?: string | null }
         Returns: undefined
       }
       fn_vacaciones_resumen: {

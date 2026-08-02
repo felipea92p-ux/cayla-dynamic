@@ -72,6 +72,42 @@ export const GRADOS_INSTRUCCION = [
 ] as const;
 export type GradoInstruccion = (typeof GRADOS_INSTRUCCION)[number];
 
+/**
+ * Vínculo familiar de un derechohabiente.
+ *
+ * Los cinco primeros son los que acepta el T-Registro para inscribir a alguien
+ * ante EsSalud; los tres últimos existen porque el Seguro de Vida Ley
+ * (D.Leg. 688) alcanza a ascendientes y hermanos menores cuando no hay cónyuge
+ * ni descendientes. La misma tabla sirve para los dos propósitos, así que la
+ * lista tiene que cubrir ambos.
+ */
+export const VINCULOS_DERECHOHABIENTE = [
+  "conyuge",
+  "conviviente",
+  "hijo",
+  "madre",
+  "padre",
+  "hermano",
+  "otro",
+] as const;
+export type VinculoDerechohabiente = (typeof VINCULOS_DERECHOHABIENTE)[number];
+
+/**
+ * Regímenes pensionarios cargados en `tasas_pension` (migración 0114).
+ *
+ * Esta lista es solo para PINTAR el desplegable. La verdad vive en la tabla, y
+ * `fn_set_regimen_pension` valida contra ella — así que si mañana entra una AFP
+ * nueva, la función la acepta aunque esta constante todavía no la nombre.
+ */
+export const REGIMENES_PENSION = [
+  "onp",
+  "profuturo",
+  "prima",
+  "integra",
+  "habitat",
+] as const;
+export type RegimenPension = (typeof REGIMENES_PENSION)[number];
+
 /** Cada salida_X (excepto salida_otro que también exige motivo) debe cerrarse con su retorno_X correspondiente. */
 export const PARES_SALIDA_RETORNO: Record<string, TipoMarca> = {
   salida_almuerzo: "retorno_almuerzo",
