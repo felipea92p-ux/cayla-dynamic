@@ -6,7 +6,7 @@ copias con fecha. La historia vive en git. Cómo se trabaja: ver
 
 *Última consolidación: **2026-08-03**. Migraciones **0115 a 0122 aplicadas en
 producción**; la **0128 está en el repo** y su aplicación en producción queda
-por confirmar. 29 archivos pgTAP, 270 pruebas.*
+por confirmar. **33 archivos pgTAP, 296 pruebas**, verdes en local el 2026-08-03.*
 
 ---
 
@@ -377,11 +377,26 @@ Quedan anotadas porque se tomaron decisiones sobre ellas.
 
 ---
 
-## Notas del entorno (MacBook, 2026-08-01)
+## Notas del entorno (MacBook, 2026-08-03)
 
-**`supabase start` no reconstruye la base acá.** Falla aplicando la 0001 con «type
-rol_usuario already exists», sin volúmenes ni contenedores previos, con el CLI
-2.109.1. Docker sí funciona.
+**✅ RESUELTO: las pgTAP sí corren en esta Mac.** La clave es `db start`, no
+`start`:
+
+```bash
+npx supabase db start    # levanta solo Postgres y aplica TODAS las migraciones
+npx supabase test db     # 33 archivos, 296 pruebas, ~1 segundo · PASS
+```
+
+Comprobado el 2026-08-03 con Docker Desktop 29.6.2 y CLI 2.109.1: aplicó el
+esquema entero hasta la 0130 sin un solo error y las 296 pruebas pasaron. Es la
+mejor verificación de una migración nueva —construye desde cero— y ahorra el
+viaje de ida y vuelta a GitHub Actions.
+
+**Lo que sí falla es `supabase start`** (el stack completo: Auth, Storage,
+Realtime). Revienta aplicando la 0001 con «type rol_usuario already exists», sin
+volúmenes ni contenedores previos. Esa era la nota del 2026-08-01, y de ahí salió
+la creencia —que llegó al `CLAUDE.md` y ya está corregida— de que las pruebas de
+base de datos no corrían acá. Corrían: el comando estaba mal.
 
 **La alternativa que sí funciona**, y con la que se hizo la auditoría empírica:
 levantar la imagen a mano y aplicar las migraciones sobre la base `postgres` (para

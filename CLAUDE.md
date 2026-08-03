@@ -189,9 +189,20 @@ git config core.hooksPath scripts/hooks
 ./scripts/desplegar.sh prod     # producción, pregunta antes
 ```
 Verifica que no haya cambios sin guardar, que GitHub esté al día, que las
-pruebas de GitHub de ese commit hayan pasado — **incluidas las de base de datos
-(pgTAP), que no corren en esta Mac porque necesitan Docker** — y recién ahí
-publica. Para producción pide escribir `publicar` como confirmación.
+pruebas de GitHub de ese commit hayan pasado —**incluidas las de base de datos
+(pgTAP)**— y recién ahí publica. Para producción pide escribir `publicar` como
+confirmación.
+
+**Las pgTAP también corren en esta Mac**, y conviene correrlas antes de subir:
+```bash
+npx supabase db start    # levanta Postgres y aplica todas las migraciones
+npx supabase test db     # 33 archivos, 296 pruebas, ~1 segundo
+```
+Comprobado el 2026-08-03 con Docker Desktop 29.6.2 y Supabase CLI 2.109.1. El
+`db start` es además la mejor verificación de una migración nueva: aplica el
+esquema entero desde cero, así que un error de sintaxis o una dependencia rota
+salta ahí y no en producción. (Este archivo decía lo contrario —«no corren en
+esta Mac porque necesitan Docker»— y era falso.)
 
 En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.
