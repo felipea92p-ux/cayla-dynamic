@@ -4,8 +4,49 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-01**. Migraciones **0115 a 0122 aplicadas en
-producción**. 29 archivos pgTAP, 270 pruebas.*
+*Última consolidación: **2026-08-03**. Migraciones **0115 a 0122 aplicadas en
+producción**; la **0128 está en el repo** y su aplicación en producción queda
+por confirmar. 29 archivos pgTAP, 270 pruebas.*
+
+---
+
+## 0128 — la base declarada por rango, escrita y sin aplicar
+
+`fn_fijar_base_declarada(rango, monto, vigencia, omitir[])` baja **los dos**
+campos que intervienen en el pago —`asignaciones_salario.salario_mensual_soles`
+y `personas.sueldo_base_legal`— al mismo monto, versionando el salario vía
+`fn_set_salario`. La migración **crea la función y no la llama**: crearla no
+mueve ningún pago, llamarla sí.
+
+**Las bases acordadas:** colibrí y cayla/caylo 1,130 · support 1,290 · aurora
+1,500 · oráculo 1,810 · archicaylo 2,670. Dos excepciones nominales, que por PII
+viven en `scripts/sql-manual/aplicar_0128.sql` (ignorado en git).
+
+**Por qué NO se ha llamado todavía.** La baja de salario la compensan movilidad
++ educación + bono, y van **1 de 3**:
+
+| Concepto | Estado al 2026-08-03 |
+|---|---|
+| movilidad | ✅ encendida, S/10/día desde el 29/07 |
+| educación | ❌ `asignaciones_educacion` vacía |
+| bono de cumpleaños | ❌ decidido en S/180, sin implementar |
+
+Medido contra Postgres local: bajar cayla de 1,450 a 1,130 le quita **S/367.37**
+en el periodo 29/07–28/08. Y como la educación es **por persona y contra
+comprobante**, a quien no estudia bajarle la base le recorta el sueldo sin nada
+que lo reponga — para esa persona se usa `p_omitir`, o una base propia más alta.
+
+**Lo que desbloquea esto** es el dato (c) de más abajo: quiénes estudian, dónde
+y cuánto cuesta.
+
+**Comprobado en producción el 2026-08-03:** Carlos Espejo es `rxh` —lo excluyen
+el filtro `en_planilla` y la excepción por nombre, doble candado— y Felipe
+Álvarez ya está en 1,500 en los dos campos, así que su bloque no tiene nada que
+hacer (es idempotente y devuelve cero filas).
+
+**Hueco de numeración:** no existe la migración **0126** (va 0125 → 0127). Queda
+anotado acá porque el `CLAUDE.md` pide que un hueco se documente; falta saber si
+fue un número que se saltó o algo aplicado en producción que nunca llegó al repo.
 
 ---
 
