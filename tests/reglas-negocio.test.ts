@@ -11,7 +11,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import { nivelPlus } from "@/lib/objetivos";
-import { formatSoles, salarioSugerido } from "@/lib/rangos";
+import { formatSoles, baseDeclaradaDe, RANGOS } from "@/lib/rangos";
 
 describe("nivelPlus — tramos del bono por objetivos", () => {
   it("cumplir el 100% da Plus 21%", () => {
@@ -62,14 +62,41 @@ describe("formatSoles — cómo se escribe el dinero", () => {
   });
 });
 
-describe("salarioSugerido — el sueldo que se prellena por rango", () => {
+// La función se llamaba `salarioSugerido` y devolvía el monto que cada rango
+// *debería terminar recibiendo* (1,320 · 1,450 · 1,650 · 1,890 · 2,250 · 3,000).
+// Pasó a ser `baseDeclaradaDe`: el monto que se DECLARA en el PLAME y que el
+// sistema paga. No es un renombre cosmético — cambió lo que el número significa,
+// y por eso estas pruebas cambiaron con él.
+describe("baseDeclaradaDe — el monto que declara cada rango", () => {
   it("un rango real trae un monto positivo", () => {
-    const monto = salarioSugerido("cayla");
+    const monto = baseDeclaradaDe("cayla");
     expect(typeof monto).toBe("number");
     expect(monto as number).toBeGreaterThan(0);
   });
 
   it("un rango inexistente no inventa un monto (devuelve indefinido)", () => {
-    expect(salarioSugerido("rango-que-no-existe")).toBeUndefined();
+    expect(baseDeclaradaDe("rango-que-no-existe")).toBeUndefined();
+  });
+
+  // Ninguna base puede quedar por debajo de la RMV: sería declarar menos que el
+  // mínimo legal. Colibrí y cayla están clavados en ella a propósito, así que este
+  // es el guardián de que nadie las baje por descuido — y el recordatorio de que
+  // hay que subirlas cuando la RMV suba.
+  it("ninguna base declarada cae por debajo de la RMV vigente", () => {
+    const RMV = 1130; // D.S. 006-2024-TR, vigente al 2026-08-03
+    for (const r of RANGOS) {
+      expect(r.baseDeclarada, `${r.label} declara menos que la RMV`).toBeGreaterThanOrEqual(RMV);
+    }
+  });
+
+  // Las bandas tienen que subir con el rango, o el rango no ordena nada.
+  it("las bases no bajan al subir de rango", () => {
+    const porOrden = [...RANGOS].sort((a, b) => a.orden - b.orden);
+    for (let i = 1; i < porOrden.length; i++) {
+      expect(
+        porOrden[i].baseDeclarada,
+        `${porOrden[i].label} declara menos que ${porOrden[i - 1].label}`,
+      ).toBeGreaterThanOrEqual(porOrden[i - 1].baseDeclarada);
+    }
   });
 });
