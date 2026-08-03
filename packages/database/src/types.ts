@@ -529,6 +529,39 @@ export type Database = {
           },
         ]
       }
+      // Agregada a mano el 2026-08-03: la pantalla de Equipo lee el arranque del
+      // periodo abierto para proponerlo como vigencia del salario. `supabase gen
+      // types` no corre en esta Mac, así que los tipos se mantienen a mano.
+      periodos_planilla: {
+        Row: {
+          id: string
+          fecha_ini: string
+          fecha_fin: string
+          estado: string
+          pagado_at: string | null
+          creado_por: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          fecha_ini: string
+          fecha_fin: string
+          estado?: string
+          pagado_at?: string | null
+          creado_por?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          fecha_ini?: string
+          fecha_fin?: string
+          estado?: string
+          pagado_at?: string | null
+          creado_por?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       // Agregada a mano junto con la migración 0125, por el mismo motivo que
       // parametros_laborales: `supabase gen types` no corre en esta Mac.
       derechohabientes: {

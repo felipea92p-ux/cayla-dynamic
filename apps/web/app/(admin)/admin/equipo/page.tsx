@@ -7,7 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
-import { RANGOS, RANGO_LABEL, salarioSugerido, formatSoles } from "@/lib/rangos";
+import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
@@ -125,13 +125,33 @@ export default function EquipoPage() {
 
   // Salarios (dato sensible: solo admin/lider_do). Se leen/escriben por RPC.
   // OJO: mientras no estén CARGADOS ("ok") no se permite asignar/editar — si se
-  // permitiera, el editor pre-llenaría Colibrí/1320 y podría pisar un salario real.
+  // permitiera, el editor abriría sin saber el salario real y podría pisarlo.
+  // El pre-llenado con el monto del rango ya se quitó (ver el diálogo de salario):
+  // era la misma trampa que este comentario advertía, viva en otro lugar.
   const rol = useRolActual();
   const puedeSalarios = rol === "admin" || rol === "lider_do";
   const [salariosEstado, setSalariosEstado] = useState<"cargando" | "ok" | "error">("cargando");
   const [salarios, setSalarios] = useState<Record<string, SalarioVigente>>({});
   const [salEditId, setSalEditId] = useState<string | null>(null);
-  const [salForm, setSalForm] = useState({ rango: "colibri", salario: "1320", vigenteDesde: primeroDeMesLima(), nota: "" });
+  // El salario arranca VACÍO a propósito: un número por defecto es un número que
+  // alguien guarda sin leer. Si la persona ya tiene salario, se carga el suyo.
+  const [salForm, setSalForm] = useState({ rango: "colibri", salario: "", vigenteDesde: primeroDeMesLima(), nota: "" });
+  // Lo que la persona tenía al abrir el diálogo, para poder mostrar «tenía X → queda Y».
+  const [salAnterior, setSalAnterior] = useState<number | null>(null);
+  // Primer día del periodo ABIERTO. Es la vigencia correcta: nunca cae dentro de
+  // un mes ya pagado, así que no puede alterar una boleta entregada. Se lee de la
+  // base y no se calcula, porque los periodos de CAYLA van del 29 al 28 y el
+  // primero del mes cae en la mitad de uno.
+  const [inicioPeriodo, setInicioPeriodo] = useState<string | null>(null);
+
+  // ¿El monto escrito difiere de la base que declara su rango? Solo para avisar:
+  // pisarlo es legítimo cuando se acordó otra cosa (el caso de Felipe), y el aviso
+  // es lo que después distingue una excepción pactada de un dato mal puesto.
+  const baseDelRango = baseDeclaradaDe(salForm.rango);
+  const fueraDeLaBase =
+    baseDelRango != null &&
+    salForm.salario.trim() !== "" &&
+    Number(salForm.salario) !== baseDelRango;
   const [guardandoSal, setGuardandoSal] = useState(false);
   const [histId, setHistId] = useState<string | null>(null);
   const [hist, setHist] = useState<TramoSalario[]>([]);
@@ -438,13 +458,33 @@ export default function EquipoPage() {
     setHistId(null);
     setMostrandoAlta(false);
     setEditandoId(null);
+    setSalAnterior(actual?.salario ?? null);
     setSalForm({
       rango: rangoInicial,
-      salario: String(actual?.salario ?? salarioSugerido(rangoInicial) ?? 1320),
-      vigenteDesde: primeroDeMesLima(),
+      // El suyo si ya lo tiene; si no, la base que declara su rango.
+      salario: String(actual?.salario ?? baseDeclaradaDe(rangoInicial) ?? ""),
+      // El arranque del periodo abierto. Si todavía no llegó de la base, se cae al
+      // primero del mes antes que dejar la fecha vacía.
+      vigenteDesde: inicioPeriodo ?? primeroDeMesLima(),
       nota: "",
     });
   }
+
+  // El primer día del periodo ABIERTO, para proponerlo como vigencia. Es de solo
+  // lectura y no bloquea nada: si falla, la vigencia cae al primero del mes.
+  useEffect(() => {
+    if (!puedeSalarios) return;
+    void (async () => {
+      const supabase = createAdminSupabaseClient();
+      const { data, error } = await supabase
+        .from("periodos_planilla")
+        .select("fecha_ini")
+        .neq("estado", "pagado")
+        .order("fecha_ini", { ascending: false })
+        .limit(1);
+      if (!error && data && data.length > 0) setInicioPeriodo(data[0].fecha_ini);
+    })();
+  }, [puedeSalarios]);
 
   async function guardarSalario() {
     if (!salEditId) return;
@@ -459,6 +499,10 @@ export default function EquipoPage() {
     }
     setGuardandoSal(true);
     const supabase = createAdminSupabaseClient();
+    // LOS DOS CAMPOS, y en este orden. `salario_mensual_soles` es lo que paga y
+    // `sueldo_base_legal` lo que declara: si quedan distintos, la boleta muestra un
+    // desglose que no corresponde a nada. Antes esta pantalla solo escribía el
+    // primero, así que la base declarada se quedaba donde estaba.
     const { error } = await supabase.rpc("fn_set_salario", {
       p_persona_id: salEditId,
       p_rango: salForm.rango,
@@ -466,9 +510,21 @@ export default function EquipoPage() {
       p_vigente_desde: salForm.vigenteDesde,
       p_nota: salForm.nota.trim() || undefined,
     });
-    setGuardandoSal(false);
     if (error) {
+      setGuardandoSal(false);
       avisar("error", mensajeDeError(error, "guardar el salario"));
+      return;
+    }
+
+    const { error: eBase } = await supabase.rpc("fn_set_sueldo_base_legal", {
+      p_persona_id: salEditId,
+      p_monto: monto,
+    });
+    setGuardandoSal(false);
+    if (eBase) {
+      // El salario sí quedó. Se dice explícitamente para que nadie crea que no
+      // pasó nada y lo vuelva a guardar.
+      avisar("error", `El salario se guardó, pero la base declarada no: ${mensajeDeError(eBase, "guardar la base declarada")}`);
       return;
     }
     setSalEditId(null);
@@ -676,17 +732,44 @@ export default function EquipoPage() {
           Rango
           <select
             value={salForm.rango}
-            onChange={(e) => setSalForm({ ...salForm, rango: e.target.value, salario: String(salarioSugerido(e.target.value) ?? salForm.salario) })}
+            // Elegir el rango propone SU base declarada. Se puede pisar, y si el
+            // monto queda distinto la nota de abajo lo dice — así una excepción
+            // pactada se distingue de un dato mal puesto.
+            onChange={(e) => setSalForm({
+              ...salForm,
+              rango: e.target.value,
+              salario: String(baseDeclaradaDe(e.target.value) ?? salForm.salario),
+            })}
             className="rounded-lg border bg-crema px-3 py-2"
           >
             {RANGOS.map((r) => (
-              <option key={r.codigo} value={r.codigo}>{r.label} · {formatSoles(r.salarioSugerido)}</option>
+              <option key={r.codigo} value={r.codigo}>{r.label} · {formatSoles(r.baseDeclarada)}</option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Salario mensual (S/)
-          <input type="number" min="0" step="10" value={salForm.salario} onChange={(e) => setSalForm({ ...salForm, salario: e.target.value })} className="rounded-lg border px-3 py-2" />
+          Base declarada (S/)
+          <input type="number" min="0" step="10" value={salForm.salario}
+            onChange={(e) => setSalForm({ ...salForm, salario: e.target.value })}
+            className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-amber-400" : ""}`} />
+          {/* Lo que va al PLAME y lo que el sistema paga. Se puede pisar cuando se
+              acordó otra cosa; el aviso deja constancia de que fue deliberado. */}
+          {fueraDeLaBase && (
+            <span className="text-[11px] text-amber-800">
+              Fuera de la base del rango: {RANGO_LABEL[salForm.rango] ?? salForm.rango} declara{" "}
+              {formatSoles(baseDeclaradaDe(salForm.rango) ?? 0)}. Convendría escribir el motivo abajo.
+            </span>
+          )}
+          {salAnterior != null && Number(salForm.salario) !== salAnterior && (
+            <span className="text-[11px] text-taupe">
+              Tenía {formatSoles(salAnterior)} → queda {formatSoles(Number(salForm.salario) || 0)}
+              {Number(salForm.salario) < salAnterior && " · le baja"}
+            </span>
+          )}
+          <span className="text-[11px] text-taupe">
+            Es lo que se declara y lo que se paga. Lo que recibe de más va por movilidad,
+            educación y bono.
+          </span>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Vigente desde
