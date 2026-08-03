@@ -1535,6 +1535,10 @@ export type Database = {
         Args: { p_id: string; p_motivo: string }
         Returns: undefined
       }
+      fn_expediente_reabrir: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       fn_set_datos_personales: {
         Args: {
           p_persona_id: string

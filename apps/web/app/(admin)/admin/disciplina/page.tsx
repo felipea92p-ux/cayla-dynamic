@@ -180,6 +180,22 @@ export default function DisciplinaPage() {
     await cargar();
   }
 
+  // Volver un memo firmado a borrador para cambiar quién lo suscribe (mig. 0131).
+  // Solo mientras no se haya entregado: una vez entregado se anula, no se reabre.
+  async function reabrirParaCambiarFirmante(id: string) {
+    if (!window.confirm(
+      "¿Volver este memo a borrador para cambiar quién lo firma?\n\n" +
+      "Pierde su número oficial actual; al volver a firmarlo se le asigna uno nuevo. " +
+      "Solo se puede mientras no se haya entregado.",
+    )) return;
+    setOcupado(id); setMsg(null);
+    const { error } = await supabase.rpc("fn_expediente_reabrir", { p_id: id });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: "Vuelto a borrador. Arriba, en Borradores, elige el firmante correcto y fírmalo de nuevo." });
+  }
+
   async function anular(id: string) {
     const motivo = window.prompt("Motivo de la anulación (queda registrado en el documento):");
     if (!motivo || motivo.trim().length < 3) return;
@@ -363,6 +379,8 @@ export default function DisciplinaPage() {
                       </select>
                       <button onClick={() => entregar(d.id)} disabled={ocupado === d.id}
                         className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">Marcar entregado</button>
+                      <button onClick={() => reabrirParaCambiarFirmante(d.id)} disabled={ocupado === d.id}
+                        className="rounded-lg border border-taupe/30 px-3 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-40">Cambiar firmante</button>
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-taupe">Firmado {selloLima(d.creado_at)}</p>
