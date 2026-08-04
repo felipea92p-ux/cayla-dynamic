@@ -1,12 +1,15 @@
 # Qué NO se sube a Vercel.
 #
-# Sin este archivo el despliegue subía la carpeta entera, incluidas las cachés de
+# Sin este archivo el despliegue sube la carpeta entera, incluidas las cachés de
 # compilación: .turbo/cache llegó a 1.1 GB y una worktree de .claude tenía un
 # archivo de 236 MB. Vercel rechaza cualquier archivo de más de 100 MB, así que el
-# deploy fallaba con "File size limit exceeded" — por basura, no por código.
+# deploy falla con "File size limit exceeded" — por basura, no por código.
 #
 # Vercel compila desde el código fuente: no necesita ninguna caché local ni el
 # build previo. Tampoco necesita la base de datos, los scripts ni la documentación.
+#
+# OJO: este archivo tiene que vivir en TODAS las ramas desde las que se despliegue.
+# Estuvo solo en una rama y el deploy desde main volvió a fallar por lo mismo.
 
 # Cachés y salidas de compilación
 .turbo
