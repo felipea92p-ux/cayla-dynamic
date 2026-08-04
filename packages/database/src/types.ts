@@ -640,6 +640,12 @@ export type Database = {
           regimen_pension: string | null
           rol: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
+          // Agregada a mano el 2026-08-04 (la creó la 0085), por el mismo motivo
+          // que parametros_laborales más abajo: `supabase gen types` no corre en
+          // esta máquina. Al regenerar se produce sola y este comentario sobra.
+          // `en_planilla` de arriba es su columna DERIVADA: false para 'rxh' y
+          // 'no_trabajador'.
+          tipo_vinculo: string
           updated_at: string
           visible_todas_sedes: boolean
         }
@@ -662,6 +668,7 @@ export type Database = {
           regimen_pension?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
+          tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
         }
@@ -684,6 +691,7 @@ export type Database = {
           regimen_pension?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id?: string
+          tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
         }

@@ -76,7 +76,18 @@ interface Persona {
   funcion: string;
   sede_base_id: string;
   fecha_ingreso: string;
+  // DERIVADA de tipo_vinculo (0085), no se escribe: es false para 'rxh' y
+  // 'no_trabajador'. Decide quién viene desmarcado — ver `cargar()`.
+  en_planilla: boolean;
+  tipo_vinculo: string;
 }
+
+// Cómo se llama en pantalla cada vínculo, para que quien mira la lista entienda
+// POR QUÉ alguien viene desmarcado en vez de tener que acordarse.
+const ETIQUETA_VINCULO: Record<string, string> = {
+  rxh: "recibo por honorarios",
+  no_trabajador: "no trabajador",
+};
 
 // Una tarifa de movilidad vigente. `sede_codigo` en null es la general — la que
 // aplica a una sede que no tiene fila propia. Los campos son opcionales porque
@@ -133,13 +144,15 @@ export default function DocumentacionPage() {
   const [excluidos, setExcluidos] = useState<Set<string>>(new Set());
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
   const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
+  // persona_id → fecha de término del contrato, para quien ya la tiene fijada.
+  const [finContrato, setFinContrato] = useState<Map<string, string>>(new Map());
 
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: ps }, { data: ss }, { data: cfg }] = await Promise.all([
       supabase.from("personas")
-        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso")
+        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
         .eq("estado", "activo").order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo"),
       // La tarifa vigente hoy. Si la 0118 no está pegada esto devuelve vacío y se
@@ -154,13 +167,55 @@ export default function DocumentacionPage() {
     ]);
     const lista = (ps as Persona[]) ?? [];
     setPersonas(lista);
+
+    // Quién tiene ya fecha de término de contrato. Va en consulta APARTE y no
+    // en el select de arriba a propósito: si la 0138 todavía no está pegada en
+    // producción, pedir una columna inexistente haría fallar la consulta entera
+    // y la pantalla se quedaría sin nadie. Así, si falla, simplemente no hay
+    // nadie con fin de contrato y el documento sigue saliendo — mismo criterio
+    // que la tarifa de movilidad de acá arriba.
+    const { data: fin } = await supabase
+      .from("personas")
+      .select("id, fecha_fin_contrato")
+      .eq("estado", "activo")
+      .not("fecha_fin_contrato", "is", null);
+    const porVencer = new Map(
+      ((fin as { id: string; fecha_fin_contrato: string }[] | null) ?? [])
+        .map((f) => [f.id, f.fecha_fin_contrato]),
+    );
+    setFinContrato(porVencer);
     setSedes(new Map(((ss as { id: string; nombre: string; codigo: string }[]) ?? [])
       .map((s) => [s.id, s.nombre || s.codigo])));
 
-    // Quien imprime el documento es quien lo firma, así que no puede estar en la
-    // lista de los que declaran haberlo recibido. Se excluye solo.
+    // Quiénes salen desmarcados de entrada. Son dos motivos distintos:
+    //
+    //  · Quien imprime el documento es quien lo FIRMA, así que no puede además
+    //    declarar haberlo recibido.
+    //  · Quien no está en planilla —recibo por honorarios y accionistas— no
+    //    recibe movilidad ni bono de cumpleaños, que es de lo único que tratan
+    //    los tres documentos de esta pantalla. Un locador firmando el cargo de
+    //    una política de movilidad es peor que un papel de más: es un indicio
+    //    de subordinación en un vínculo que por definición no la tiene, y esa
+    //    es exactamente la prueba que se usa para desnaturalizar un contrato
+    //    civil. La 0085 ya dejó la respuesta lista en `en_planilla`, que es
+    //    derivada de tipo_vinculo — así un quinto tipo de vínculo entra bien
+    //    solo, sin tocar esta línea.
+    //
+    // DESMARCADOS, NO AUSENTES: la decisión de quién recibe sigue siendo humana
+    // (esa fue la decisión del 2026-08-02, y el caso que la motivó —alguien que
+    // se va a fin de mes— no está en ninguna columna). Lo que cambia es que el
+    // sistema ya no propone lo incorrecto. Quien mira la lista puede volver a
+    // marcarlos, y el papel impreso solo lleva a los que quedaron marcados.
+    const fuera = new Set(lista.filter((p) => !p.en_planilla).map((p) => p.id));
+    // Y quien tiene fecha de término de contrato ya fijada: se va, así que no
+    // firma un documento que regirá cuando ya no esté. Este era justamente el
+    // caso que el comentario de más abajo daba por indeducible («alguien que se
+    // va a fin de mes, y eso no está en ninguna columna») — desde la 0138 SÍ
+    // está en una columna, así que ya no hace falta acordarse.
+    for (const id of porVencer.keys()) fuera.add(id);
     const { data: yo } = await supabase.rpc("fn_persona_actual_id");
-    if (typeof yo === "string") setExcluidos(new Set([yo]));
+    if (typeof yo === "string") fuera.add(yo);
+    setExcluidos(fuera);
 
     // La firma escaneada de quien está imprimiendo. Si no tiene, el documento
     // sale con la línea en blanco para firmar a mano, como hasta ahora.
@@ -278,11 +333,14 @@ export default function DocumentacionPage() {
           {/* Quién firma el cargo. Se muestra solo en la política, que es el
               documento que recibe todo el equipo a la vez.
 
-              POR QUÉ UNA LISTA Y NO UN FILTRO AUTOMÁTICO. Quién debe recibirla no
-              se puede deducir del sistema: un locador no la recibe, pero alguien
-              que se va a fin de mes tampoco, y eso no está en ninguna columna.
-              Filtrar por tipo_vinculo habría cubierto el primer caso y dejado
-              fuera el segundo, que fue justo el que Felipe pidió el 2026-08-02. */}
+              POR QUÉ SIGUE HABIENDO LISTA. El 2026-08-02 se decidió no filtrar
+              automáticamente porque los dos casos a excluir —un locador, y
+              alguien que se va a fin de mes— no se podían deducir del sistema.
+              Hoy sí se pueden: `en_planilla` (0085) cubre al locador y
+              `fecha_fin_contrato` (0138) cubre a quien se va. Así que el sistema
+              ya PROPONE bien y vienen desmarcados. La lista se queda porque la
+              decisión final sigue siendo humana y porque un desmarcado que no se
+              puede volver a marcar es una decisión escondida, no una ayuda. */}
           {!doc.necesitaPersona && personas.length > 0 && (
             <details className="mb-4 rounded-lg border border-sand p-3">
               <summary className="cursor-pointer text-sm">
@@ -290,8 +348,10 @@ export default function DocumentacionPage() {
                 <strong>{reciben.length} de {personas.length}</strong>
               </summary>
               <p className="mt-2 text-xs text-taupe">
-                Tú sales de la lista automáticamente: quien firma no declara haber recibido.
-                Desmarca a quien no corresponda — locadores, socios, o quien deja el equipo.
+                Vienen desmarcados quien firma —no declara haber recibido lo que emite—,
+                quien no está en planilla, porque no cobra movilidad ni bono de cumpleaños,
+                y quien ya tiene fecha de término de contrato. Revisa la lista igual: la
+                decisión final es tuya.
               </p>
               <div className="mt-3 grid gap-1 sm:grid-cols-2">
                 {personas.map((p) => (
@@ -308,7 +368,20 @@ export default function DocumentacionPage() {
                         })
                       }
                     />
-                    <span>{p.apellidos}, {p.nombres}</span>
+                    <span>
+                      {p.apellidos}, {p.nombres}
+                      {ETIQUETA_VINCULO[p.tipo_vinculo] && (
+                        <em className="ml-1 not-italic text-taupe">
+                          — {ETIQUETA_VINCULO[p.tipo_vinculo]}
+                        </em>
+                      )}
+                      {finContrato.has(p.id) && (
+                        <em className="ml-1 not-italic text-taupe">
+                          — su contrato termina el{" "}
+                          {finContrato.get(p.id)!.split("-").reverse().join("/")}
+                        </em>
+                      )}
+                    </span>
                   </label>
                 ))}
               </div>

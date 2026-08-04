@@ -15,6 +15,12 @@ scripts/datos-privados/
 scripts/sql-manual/aplicar_0031_historico_2025.sql
 scripts/sql-manual/aplicar_0033_ingresos_2025.sql
 scripts/sql-manual/aplicar_0128.sql
+# Fichas personales cargadas a mano: llevan DNI, cuenta bancaria y dirección.
+# El patrón, y no un archivo por persona, para que el próximo no se olvide.
+scripts/sql-manual/ficha_*.sql
+# Ceses: nombran a una persona real y el fin de su vínculo. Patrón por el mismo
+# motivo que las fichas — el próximo cese no depende de que alguien se acuerde.
+scripts/sql-manual/cese_*.sql
 .vercel
 .env*
 
