@@ -1,0 +1,33 @@
+# Qué NO se sube a Vercel.
+#
+# Sin este archivo el despliegue subía la carpeta entera, incluidas las cachés de
+# compilación: .turbo/cache llegó a 1.1 GB y una worktree de .claude tenía un
+# archivo de 236 MB. Vercel rechaza cualquier archivo de más de 100 MB, así que el
+# deploy fallaba con "File size limit exceeded" — por basura, no por código.
+#
+# Vercel compila desde el código fuente: no necesita ninguna caché local ni el
+# build previo. Tampoco necesita la base de datos, los scripts ni la documentación.
+
+# Cachés y salidas de compilación
+.turbo
+.next
+**/.next
+**/.turbo
+*.tsbuildinfo
+
+# Herramientas locales
+.claude
+.vscode
+.DS_Store
+
+# Backend y utilidades: no forman parte de la app web
+supabase
+scripts
+docs
+tests
+**/*.test.ts
+**/*.test.sql
+
+# Control de versiones
+.git
+.github
