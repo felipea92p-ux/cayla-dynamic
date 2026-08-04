@@ -11,7 +11,7 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import { nivelPlus } from "@/lib/objetivos";
-import { formatSoles, baseDeclaradaDe, RANGOS } from "@/lib/rangos";
+import { formatSoles, baseDeclaradaDe, topeEducacionDe, RANGOS } from "@/lib/rangos";
 
 describe("nivelPlus — tramos del bono por objetivos", () => {
   it("cumplir el 100% da Plus 21%", () => {
@@ -97,6 +97,43 @@ describe("baseDeclaradaDe — el monto que declara cada rango", () => {
         porOrden[i].baseDeclarada,
         `${porOrden[i].label} declara menos que ${porOrden[i - 1].label}`,
       ).toBeGreaterThanOrEqual(porOrden[i - 1].baseDeclarada);
+    }
+  });
+});
+
+// El techo de la asignación por educación (mig. 0132). Es un MÁXIMO, no un monto
+// a pagar: cada persona cobra el 75% de lo que sostiene su comprobante, hasta
+// este número. Que fuera un monto fijo por rango es justo lo que hundió el
+// concepto en la RTF 07222-3-2018 (Albis) — ver la cabecera de la 0132.
+describe("topeEducacionDe — el techo de educación de cada rango", () => {
+  it("un rango real trae un techo positivo", () => {
+    expect(topeEducacionDe("cayla")).toBe(180);
+  });
+
+  it("un rango inexistente no inventa un techo", () => {
+    expect(topeEducacionDe("rango-que-no-existe")).toBeUndefined();
+  });
+
+  // Espejo de la tabla topes_educacion_rango en la base. Si alguien cambia la
+  // escala en un lado y no en el otro, la pantalla ofrecería un techo que el
+  // servidor rechaza. Si tocas esto, toca también la migración 0132.
+  it("la escala coincide con la que blinda la migración 0132", () => {
+    const esperado: Record<string, number> = {
+      colibri: 90, cayla: 180, caylo: 180, support: 270,
+      aurora: 360, oraculo: 420, archicaylo: 480,
+    };
+    for (const r of RANGOS) {
+      expect(r.topeEducacion, `el techo de ${r.label} no coincide con la 0132`).toBe(esperado[r.codigo]);
+    }
+  });
+
+  it("los techos no bajan al subir de rango", () => {
+    const porOrden = [...RANGOS].sort((a, b) => a.orden - b.orden);
+    for (let i = 1; i < porOrden.length; i++) {
+      expect(
+        porOrden[i].topeEducacion,
+        `${porOrden[i].label} tiene menos techo que ${porOrden[i - 1].label}`,
+      ).toBeGreaterThanOrEqual(porOrden[i - 1].topeEducacion);
     }
   });
 });

@@ -26,18 +26,25 @@
 // 1,130 y tocar el desplegable le saltaba el salario a 1,320 — un aumento de
 // S/190 a un clic de distancia, sin que nadie lo pidiera.
 //
-// ── COLIBRÍ Y CAYLA DECLARAN LO MISMO, Y ES A PROPÓSITO ─────────────────────
+// ── LA ESTRUCTURA DEL 2026-08-04 ────────────────────────────────────────────
 //
-// Los dos en 1,130, que es la RMV (D.S. 006-2024-TR). En la planilla cobran
-// igual; la diferencia entre los dos rangos vive en los conceptos. Decisión de
-// Felipe del 2026-08-03. Consecuencia asumida: alguien de cayla que no estudia
-// cobra lo mismo que alguien de colibrí.
+// Felipe rehízo la escala completa. Solo colibrí se queda en la RMV (1,130); a
+// partir de cayla cada rango declara algo más, y los rangos altos BAJAN respecto
+// de la escala anterior (archicaylo de 2,670 a 1,500; oráculo de 1,810 a 1,440).
+//
+// Esa bajada es deliberada y está asumida: reduce la CTS, la gratificación, las
+// vacaciones y la pensión futura de quien ya estaba en esos rangos, porque las
+// cuatro se calculan sobre lo declarado. Se compensa con los conceptos no
+// remunerativos (movilidad, educación, bono). Caylo va igualado a cayla.
 //
 // ── SI CAMBIA LA RMV ────────────────────────────────────────────────────────
 //
-// Colibrí y cayla están clavados en el piso legal. Cuando se publique el decreto
-// que sube la RMV a S/1,300 (anunciado el 28/07/2026, sin norma al 2026-08-03),
-// estos dos montos tienen que subir con ella o quedan por debajo del mínimo.
+// Colibrí está clavado en el piso legal (1,130). Se anunció el 28/07/2026 una
+// subida a S/1,300, pero Felipe estima que la norma demora un año o más; cuando
+// salga, TODO lo que esté por debajo de la RMV nueva —hoy colibrí, cayla, caylo
+// y support— tiene que subir o queda bajo el mínimo. La prueba
+// «ninguna base declarada cae por debajo de la RMV vigente» es el recordatorio:
+// se pone roja en cuanto se actualice la constante RMV del test.
 // La RMV del sistema vive versionada en `parametros_laborales` desde la 0116;
 // este archivo hay que actualizarlo a mano.
 //
@@ -50,18 +57,29 @@ export interface Rango {
   label: string;
   /** Monto que se declara en el PLAME y que el sistema paga. Editable por persona. */
   baseDeclarada: number;
+  /**
+   * TECHO mensual de la asignación por educación de ese rango — no un monto a pagar.
+   * Cada persona cobra el 75% de la pensión que sostiene SU comprobante, y este
+   * número es lo máximo que ese 75% puede llegar a ser. Ver la migración 0132.
+   */
+  topeEducacion: number;
   orden: number;
 }
 
 export const RANGOS: Rango[] = [
-  { codigo: "colibri", label: "Colibrí", baseDeclarada: 1130, orden: 1 },
-  { codigo: "cayla", label: "Cayla", baseDeclarada: 1130, orden: 2 },
-  { codigo: "caylo", label: "Caylo", baseDeclarada: 1130, orden: 3 },
-  { codigo: "support", label: "Support", baseDeclarada: 1290, orden: 4 },
-  { codigo: "aurora", label: "Aurora", baseDeclarada: 1500, orden: 5 },
-  { codigo: "oraculo", label: "Oráculo", baseDeclarada: 1810, orden: 6 },
-  { codigo: "archicaylo", label: "ArchiCaylo", baseDeclarada: 2670, orden: 7 },
+  { codigo: "colibri", label: "Colibrí", baseDeclarada: 1130, topeEducacion: 90, orden: 1 },
+  { codigo: "cayla", label: "Cayla", baseDeclarada: 1185, topeEducacion: 180, orden: 2 },
+  { codigo: "caylo", label: "Caylo", baseDeclarada: 1185, topeEducacion: 180, orden: 3 },
+  { codigo: "support", label: "Support", baseDeclarada: 1260, topeEducacion: 270, orden: 4 },
+  { codigo: "aurora", label: "Aurora", baseDeclarada: 1360, topeEducacion: 360, orden: 5 },
+  { codigo: "oraculo", label: "Oráculo", baseDeclarada: 1440, topeEducacion: 420, orden: 6 },
+  { codigo: "archicaylo", label: "ArchiCaylo", baseDeclarada: 1500, topeEducacion: 480, orden: 7 },
 ];
+
+/** El techo de educación de ese rango. */
+export function topeEducacionDe(codigo: string): number | undefined {
+  return RANGOS.find((r) => r.codigo === codigo)?.topeEducacion;
+}
 
 export const RANGO_LABEL: Record<string, string> = Object.fromEntries(
   RANGOS.map((r) => [r.codigo, r.label]),
