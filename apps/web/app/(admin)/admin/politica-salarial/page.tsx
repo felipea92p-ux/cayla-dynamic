@@ -1,0 +1,446 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { usePersonaActual } from "@/lib/admin/use-rol";
+import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
+import { AdminNav } from "../nav";
+import { Cargando } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import {
+  construirDocumento,
+  documentoATexto,
+  type Bloque,
+  type Cuadro,
+  type Documento,
+} from "@/lib/politica-salarial";
+
+// El cuadro de categorías y la política salarial: una sola pantalla que sirve a
+// dos personas distintas.
+//
+//   · Cualquier integrante entra, lee el documento y deja constancia. Eso es lo
+//     que cierra el numeral 25.23 del RLGIT — no basta tener la política, hay
+//     que probar que se informó.
+//   · La Gerencia ve además el botón de publicar y quién falta por acusar.
+//
+// POR QUÉ UNA SOLA PANTALLA Y NO DOS. Si el documento que lee el equipo se
+// armara aparte del que publica la Gerencia, tarde o temprano dirían cosas
+// distintas — y el que vale como prueba es el publicado. Acá los dos salen de
+// `construirDocumento`, así que no pueden divergir.
+//
+// POR QUÉ EL ACUSE POR SESIÓN VALE. No se está firmando un contrato: se deja
+// constancia de haber sido informado. La Ley 27269 reconoce la firma
+// electrónica, y desde el D.S. 009-2011-TR las boletas se entregan sin firma
+// física. Lo que se guarda —quién, cuándo y QUÉ VERSIÓN— prueba más que una
+// firma a mano, que no dice qué versión se firmó.
+
+const DO = ["admin", "lider_do"];
+
+interface Vigente {
+  publicada: boolean;
+  version?: number;
+  documento?: string;
+  publicada_at?: string;
+  desactualizada: boolean;
+  mi_acuse: { acusado_at: string; nombre: string } | null;
+  total_personas?: number;
+  total_acuses?: number;
+  aviso?: string;
+}
+
+interface FilaAcuse {
+  persona_id: string;
+  nombre: string;
+  rango: string | null;
+  acusado_at: string | null;
+  nombre_declarado: string | null;
+}
+
+function fechaLarga(iso: string): string {
+  return new Intl.DateTimeFormat("es-PE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Lima",
+  }).format(new Date(iso));
+}
+
+function fechaHora(iso: string): string {
+  return new Intl.DateTimeFormat("es-PE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Lima",
+  }).format(new Date(iso));
+}
+
+function BloqueVista({ b }: { b: Bloque }) {
+  if (b.tipo === "parrafo") {
+    return <p className="mb-3 text-sm leading-relaxed text-slate-700">{b.texto}</p>;
+  }
+  if (b.tipo === "destacado") {
+    return (
+      <p className="mb-4 border-l-4 border-slate-800 bg-slate-50 px-4 py-3 text-sm font-medium leading-relaxed text-slate-900">
+        {b.texto}
+      </p>
+    );
+  }
+  if (b.tipo === "lista") {
+    return (
+      <ul className="mb-4 list-disc space-y-1 pl-6 text-sm leading-relaxed text-slate-700">
+        {b.items.map((it, i) => (
+          <li key={i}>{it}</li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <div className="mb-4 overflow-x-auto">
+      <table className="w-full border-collapse text-left text-sm">
+        <thead>
+          <tr>
+            {b.cabeceras.map((c, i) => (
+              <th
+                key={i}
+                className="border border-slate-300 bg-slate-100 px-3 py-2 font-semibold text-slate-900"
+              >
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {b.filas.map((fila, i) => (
+            <tr key={i}>
+              {fila.map((celda, j) => (
+                <td
+                  key={j}
+                  className="border border-slate-300 px-3 py-2 align-top text-slate-700"
+                >
+                  {celda}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function PoliticaSalarialPage() {
+  useTituloDocumento("Política salarial");
+  const persona = usePersonaActual();
+  const esDO = persona !== null && DO.includes(persona.rol);
+
+  const [cuadro, setCuadro] = useState<Cuadro | null>(null);
+  const [vigente, setVigente] = useState<Vigente | null>(null);
+  const [acuses, setAcuses] = useState<FilaAcuse[]>([]);
+  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [nombreAcuse, setNombreAcuse] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  const cargar = useCallback(async () => {
+    const supabase = createAdminSupabaseClient();
+    setError(null);
+    const [c, v, f] = await Promise.all([
+      supabase.rpc("fn_cuadro_categorias"),
+      supabase.rpc("fn_politica_salarial_vigente"),
+      supabase.rpc("fn_mi_firma"),
+    ]);
+    if (c.error !== null || v.error !== null) {
+      setError(mensajeDeError(c.error ?? v.error, "cargar la política salarial"));
+      setCargando(false);
+      return;
+    }
+    setCuadro(c.data as unknown as Cuadro);
+    setVigente(v.data as unknown as Vigente);
+    setFirmaUrl(typeof f.data === "string" && f.data.startsWith("data:image") ? f.data : null);
+
+    if (persona !== null && DO.includes(persona.rol)) {
+      const { data: a } = await supabase.rpc("fn_acuses_politica_salarial");
+      setAcuses((a as { personas?: FilaAcuse[] } | null)?.personas ?? []);
+    }
+    setCargando(false);
+  }, [persona]);
+
+  useEffect(() => {
+    if (persona === null) return;
+    void cargar();
+  }, [persona, cargar]);
+
+  useEffect(() => {
+    if (persona !== null && nombreAcuse === "") setNombreAcuse(persona.nombreCompleto);
+  }, [persona, nombreAcuse]);
+
+  const hoy = useMemo(
+    () =>
+      new Intl.DateTimeFormat("es-PE", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "America/Lima",
+      }).format(new Date()),
+    [],
+  );
+
+  // Lo que se ve en pantalla. Si ya hay una versión publicada y NO está
+  // desactualizada, lo que se muestra es exactamente lo que se publicó; el
+  // documento en vivo solo se usa para publicar o cuando aún no hay versión.
+  const docVivo: Documento | null = useMemo(
+    () => (cuadro ? construirDocumento(cuadro, hoy) : null),
+    [cuadro, hoy],
+  );
+
+  const publicar = async () => {
+    if (docVivo === null) return;
+    setGuardando(true);
+    setError(null);
+    setAviso(null);
+    const supabase = createAdminSupabaseClient();
+    const { data, error: e } = await supabase.rpc("fn_publicar_politica_salarial", {
+      p_documento: documentoATexto(docVivo),
+      p_notas: null,
+    });
+    if (e !== null) {
+      setError(mensajeDeError(e, "publicar la política salarial"));
+    } else {
+      setAviso(`Publicada la versión ${String(data)}. Ahora cada integrante deja su constancia.`);
+      await cargar();
+    }
+    setGuardando(false);
+  };
+
+  const acusar = async () => {
+    setGuardando(true);
+    setError(null);
+    setAviso(null);
+    const supabase = createAdminSupabaseClient();
+    const { error: e } = await supabase.rpc("fn_acusar_politica_salarial", {
+      p_nombre: nombreAcuse,
+    });
+    if (e !== null) {
+      setError(mensajeDeError(e, "registrar tu constancia"));
+    } else {
+      setAviso("Gracias. Tu constancia quedó registrada.");
+      await cargar();
+    }
+    setGuardando(false);
+  };
+
+  if (cargando) {
+    return (
+      <>
+        <AdminNav />
+        <Cargando />
+      </>
+    );
+  }
+
+  const pendientes = acuses.filter((a) => a.acusado_at === null);
+  const yaAcusaron = acuses.filter((a) => a.acusado_at !== null);
+
+  return (
+    <>
+      <AdminNav />
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        <h1 className="mb-1 text-2xl font-semibold text-slate-900">
+          Cuadro de categorías y política salarial
+        </h1>
+        <p className="mb-6 text-sm text-slate-600">
+          Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona.
+        </p>
+
+        {error !== null && (
+          <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </p>
+        )}
+        {aviso !== null && (
+          <p className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {aviso}
+          </p>
+        )}
+
+        {/* ── Barra de estado, solo para quien puede publicar ── */}
+        {esDO && vigente !== null && (
+          <section className="mb-8 rounded border border-slate-300 bg-white p-4 print:hidden">
+            {!vigente.publicada ? (
+              <>
+                <p className="mb-3 text-sm text-slate-800">
+                  Todavía no se ha publicado ninguna versión. Hasta publicarla y recoger las
+                  constancias, CAYLA sigue incursa en el numeral 25.23 del RLGIT.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void publicar()}
+                  disabled={guardando}
+                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  Publicar esta versión
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="mb-2 text-sm text-slate-800">
+                  Versión <strong>{vigente.version}</strong>, publicada el{" "}
+                  {vigente.publicada_at !== undefined ? fechaLarga(vigente.publicada_at) : "—"}.{" "}
+                  Constancias: <strong>{vigente.total_acuses ?? 0}</strong> de{" "}
+                  {vigente.total_personas ?? 0}.
+                </p>
+                {vigente.desactualizada && (
+                  <p className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    El cuadro cambió después de publicar: alguna categoría, remuneración o tarifa
+                    ya no coincide con el documento que el equipo recibió. Publica una versión
+                    nueva — las constancias volverán a pedirse.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void publicar()}
+                  disabled={guardando}
+                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {vigente.desactualizada ? "Publicar versión nueva" : "Volver a publicar"}
+                </button>
+              </>
+            )}
+          </section>
+        )}
+
+        {/* ── El documento ── */}
+        {vigente !== null && vigente.publicada && !vigente.desactualizada ? (
+          // Lo publicado, tal cual se comunicó. No se regenera: si se regenerara,
+          // cambiar una banda haría que las constancias apuntaran a un texto que
+          // nadie leyó.
+          <article className="rounded border border-slate-300 bg-white p-6">
+            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
+              {vigente.documento}
+            </pre>
+          </article>
+        ) : (
+          docVivo !== null && (
+            <article className="rounded border border-slate-300 bg-white p-6">
+              <header className="mb-6 border-b border-slate-300 pb-4">
+                <h2 className="text-lg font-semibold text-slate-900">{docVivo.titulo}</h2>
+                <p className="text-sm text-slate-600">
+                  {docVivo.empresa.nombre} — RUC {docVivo.empresa.ruc}
+                </p>
+                <p className="text-sm text-slate-600">{docVivo.fecha}</p>
+              </header>
+              {docVivo.secciones.map((sec, i) => (
+                <section key={i} className="mb-6">
+                  <h3 className="mb-3 text-base font-semibold text-slate-900">{sec.titulo}</h3>
+                  {sec.bloques.map((b, j) => (
+                    <BloqueVista key={j} b={b} />
+                  ))}
+                </section>
+              ))}
+              <footer className="mt-10 border-t border-slate-300 pt-6">
+                {firmaUrl !== null && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
+                )}
+                <p className="text-sm font-medium text-slate-900">{docVivo.empresa.firmante}</p>
+                <p className="text-sm text-slate-600">
+                  {docVivo.empresa.cargo} — {docVivo.empresa.nombre}
+                </p>
+              </footer>
+            </article>
+          )
+        )}
+
+        {/* ── La constancia ── */}
+        {vigente !== null && vigente.publicada && (
+          <section className="mt-8 rounded border border-slate-300 bg-white p-5 print:hidden">
+            <h2 className="mb-2 text-base font-semibold text-slate-900">
+              Constancia de haber recibido este documento
+            </h2>
+            {vigente.mi_acuse !== null ? (
+              <p className="text-sm text-slate-700">
+                Dejaste constancia el {fechaHora(vigente.mi_acuse.acusado_at)} como{" "}
+                <strong>{vigente.mi_acuse.nombre}</strong>. No hace falta hacer nada más hasta que
+                se publique una versión nueva.
+              </p>
+            ) : (
+              <>
+                <p className="mb-3 text-sm text-slate-700">
+                  Escribe tu nombre para dejar constancia de que recibiste y leíste este documento.
+                  Dejar constancia no significa estar de acuerdo con su contenido: si tienes una
+                  discrepancia, puedes plantearla a la Gerencia y recibirás respuesta por escrito.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="text"
+                    value={nombreAcuse}
+                    onChange={(e) => setNombreAcuse(e.target.value)}
+                    placeholder="Tu nombre completo"
+                    className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void acusar()}
+                    disabled={guardando || nombreAcuse.trim() === ""}
+                    className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    Dejar constancia
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
+        {/* ── Quién falta ── */}
+        {esDO && acuses.length > 0 && (
+          <section className="mt-8 rounded border border-slate-300 bg-white p-5 print:hidden">
+            <h2 className="mb-3 text-base font-semibold text-slate-900">
+              Quién dejó constancia
+            </h2>
+            {pendientes.length > 0 && (
+              <>
+                <p className="mb-2 text-sm font-medium text-amber-900">
+                  Falta {pendientes.length === 1 ? "1 persona" : `${pendientes.length} personas`}:
+                </p>
+                <ul className="mb-4 list-disc space-y-1 pl-6 text-sm text-slate-700">
+                  {pendientes.map((a) => (
+                    <li key={a.persona_id}>{a.nombre}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {yaAcusaron.length > 0 && (
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className="border-b border-slate-300 py-2 font-semibold text-slate-900">
+                      Persona
+                    </th>
+                    <th className="border-b border-slate-300 py-2 font-semibold text-slate-900">
+                      Dejó constancia
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yaAcusaron.map((a) => (
+                    <tr key={a.persona_id}>
+                      <td className="border-b border-slate-200 py-2 text-slate-700">{a.nombre}</td>
+                      <td className="border-b border-slate-200 py-2 text-slate-700">
+                        {a.acusado_at !== null ? fechaHora(a.acusado_at) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
+      </main>
+    </>
+  );
+}

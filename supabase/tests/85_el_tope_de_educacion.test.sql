@@ -12,7 +12,7 @@
 --     propósito: es política, no integridad).
 -- ============================================================================
 begin;
-select plan(5);
+select plan(6);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000000ff', 'ZZTEST', 'Sede de laboratorio', true);
@@ -65,10 +65,17 @@ select lives_ok(
      values ('00000000-0000-0000-0000-0000000ed003', 500.00, 'Universidad', 1000.00, '2026-08-01') $$,
   'Quien no tiene rango vigente no queda bloqueado por el techo');
 
--- ── Los siete rangos tienen techo cargado ───────────────────────────────────
+-- ── Los seis rangos tienen techo cargado ────────────────────────────────────
+-- Eran siete hasta la 0140, que retiró 'caylo': dos categorías con la misma
+-- banda separadas solo por género es exactamente lo que la Ley 30709 vino a
+-- corregir, y Cayla pasó a ser categoría única y neutra.
 select is(
   (select count(*)::int from topes_educacion_rango),
-  7, 'Los siete rangos tienen su techo de educación cargado');
+  6, 'Los seis rangos tienen su techo de educación cargado');
+
+select is(
+  (select count(*)::int from topes_educacion_rango where rango = 'caylo'),
+  0, 'Caylo ya no está en el catálogo de topes');
 
 select * from finish();
 rollback;

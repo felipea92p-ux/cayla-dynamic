@@ -1823,6 +1823,40 @@ export type Database = {
         Args: Record<string, never>
         Returns: string | null
       }
+      // Agregadas a mano el 2026-08-04 junto con las migraciones 0140 y 0141, por
+      // el mismo motivo que fn_set_tipo_vinculo: `supabase gen types` reescribe el
+      // archivo entero y borra estas mismas entradas escritas a mano. Al regenerar
+      // de verdad se producen solas y el comentario se puede borrar.
+      fn_cuadro_categorias: {
+        Args: Record<string, never>
+        Returns: unknown
+      }
+      fn_set_categoria: {
+        Args: {
+          p_rango: string
+          p_proposito: string | null
+          p_funciones: string | null
+          p_requisitos: string | null
+          p_criterio: string | null
+        }
+        Returns: undefined
+      }
+      fn_publicar_politica_salarial: {
+        Args: { p_documento: string; p_notas: string | null }
+        Returns: number
+      }
+      fn_politica_salarial_vigente: {
+        Args: Record<string, never>
+        Returns: unknown
+      }
+      fn_acusar_politica_salarial: {
+        Args: { p_nombre: string }
+        Returns: unknown
+      }
+      fn_acuses_politica_salarial: {
+        Args: Record<string, never>
+        Returns: unknown
+      }
       fn_anular_marcaje: {
         Args: { p_marcaje_id: string; p_motivo: string }
         Returns: unknown
