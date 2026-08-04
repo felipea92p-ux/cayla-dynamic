@@ -9,7 +9,7 @@ import { Marca } from "@/components/marca";
 import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
-  Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, LogOut, Menu, X, type LucideIcon,
+  Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, GraduationCap, LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
 
@@ -39,6 +39,7 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
     { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
     { href: "/admin/costos", label: "Costos", Icon: Coins, roles: DO },
+    { href: "/admin/educacion", label: "Educación", Icon: GraduationCap, roles: DO },
     { href: "/admin/ausencias", label: "Ausencias", Icon: TreePalm, roles: SEDE },
     { href: "/admin/feriados", label: "Feriados", Icon: CalendarCheck, roles: DO },
   ] },
