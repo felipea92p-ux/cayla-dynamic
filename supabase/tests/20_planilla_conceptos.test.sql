@@ -17,7 +17,7 @@
 -- toca datos reales). fn_planilla_calcular no exige permiso, se invoca directo.
 -- ============================================================================
 begin;
-select plan(11);
+select plan(12);
 
 -- ── Semilla ────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
@@ -85,9 +85,15 @@ select is(
 select is(
   (select (fila->>'provision_vacaciones')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a1'),
   100.00::numeric, 'Provisión de vacaciones = 5% del pago base (2000 → 100)');
+-- ⇩ CAMBIO 0134 ⇩ La bonificación extraordinaria de la Ley 30334 es el cuarto
+-- concepto provisionado, y sale del 9% de la gratificación — no de una base
+-- propia. Con la grati en 200, son 18.
+select is(
+  (select (fila->>'provision_bonif_extraordinaria')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a1'),
+  18.00::numeric, 'Provisión de bonificación = 9% de la gratificación (200 → 18)');
 select is(
   (select (fila->>'provision_total')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a1'),
-  400.00::numeric, 'Provisión total = suma de las tres (200+100+100 = 400)');
+  418.00::numeric, 'Provisión total = suma de las cuatro (200+18+100+100 = 418)');
 
 -- ── BONO POR OBJETIVOS ──────────────────────────────────────────────────────
 select is(
