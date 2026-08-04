@@ -196,9 +196,13 @@ confirmación.
 **Las pgTAP también corren en esta Mac**, y conviene correrlas antes de subir:
 ```bash
 npx supabase db start    # levanta Postgres y aplica todas las migraciones
-npx supabase test db     # 33 archivos, 296 pruebas, ~1 segundo
+npx supabase test db     # 34 archivos, 302 pruebas, ~3 segundos
 ```
-Comprobado el 2026-08-03 con Docker Desktop 29.6.2 y Supabase CLI 2.109.1. El
+Ojo con el resumen: `Bad plan. You planned N tests but ran M` **no** es un error de
+conteo, es un archivo que abortó a media ejecución — las pruebas que faltaron nunca
+verificaron nada. Se lee igual de discreto que un descuido y no lo es.
+
+Comprobado el 2026-08-04 con Docker Desktop 29.6.2 y Supabase CLI 2.109.1. El
 `db start` es además la mejor verificación de una migración nueva: aplica el
 esquema entero desde cero, así que un error de sintaxis o una dependencia rota
 salta ahí y no en producción. (Este archivo decía lo contrario —«no corren en

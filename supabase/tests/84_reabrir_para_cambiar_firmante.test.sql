@@ -66,7 +66,8 @@ select is(
   (select correlativo from expediente_disciplinario where id = '00000000-0000-0000-0000-00000000da01'),
   null::text, 'Tras reabrir, pierde el número oficial (un borrador no tiene número)');
 
-select like(
+-- alike(), no like(): `like` es palabra reservada de SQL y no resuelve como función.
+select alike(
   (select observacion from expediente_disciplinario where id = '00000000-0000-0000-0000-00000000da01'),
   '%REABIERTO%', 'Queda constancia de que el documento se reabrió');
 
