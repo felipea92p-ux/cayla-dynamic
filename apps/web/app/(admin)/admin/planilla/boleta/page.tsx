@@ -582,6 +582,25 @@ function BoletaContenido() {
                     </td>
                   </tr>
                 )}
+                {/* Ley 30334. Va pegada a la gratificación porque sale de ella:
+                    es el 9 % que el empleador ya no aporta a EsSalud sobre la
+                    gratificación y que, por mandato del art. 3, se le entrega a la
+                    persona. En el PLAME es el código 0312, separado del 0406 — y
+                    la boleta tiene que decir lo mismo que el PLAME. */}
+                {(f.provision_bonif_extraordinaria ?? 0) > 0 && (
+                  <tr className="border-t border-sand">
+                    <td className="py-2">
+                      Bonificación extraordinaria — la parte de este mes
+                      <span className="block text-xs text-taupe">
+                        9 % de la gratificación, que la Ley 30334 manda entregarte junto con
+                        ella
+                      </span>
+                    </td>
+                    <td className="py-2 text-right align-top">
+                      {formatSoles(f.provision_bonif_extraordinaria ?? 0)}
+                    </td>
+                  </tr>
+                )}
                 {f.provision_cts > 0 && (
                   <tr className="border-t border-sand">
                     <td className="py-2">

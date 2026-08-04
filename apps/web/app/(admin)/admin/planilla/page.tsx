@@ -166,6 +166,10 @@ export interface Fila {
   descuentos: number;
   movimientos: Movimiento[];
   provision_gratificacion: number;
+  // Ley 30334: el 9 % que ya no va a EsSalud y se le entrega a la persona. Llega
+  // opcional porque una base sin la 0134 aplicada no manda la clave, y la boleta
+  // tiene que seguir saliendo igual que antes en vez de imprimir «NaN».
+  provision_bonif_extraordinaria?: number;
   provision_cts: number;
   provision_vacaciones: number;
   provision_total: number;
