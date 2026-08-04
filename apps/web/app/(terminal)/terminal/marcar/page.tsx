@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  TIPO_MARCA_LABELS,
-  sugerirSalidaPrincipal,
-  type MarcajeDelDia,
-  type TipoMarca,
-} from "@cayla-dynamic/shared";
+import { TIPO_MARCA_LABELS, TZ_LIMA, sugerirSalidaPrincipal, type MarcajeDelDia, type TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { type RosterEntry, encolarMarcaje, obtenerPendientes } from "@/lib/terminal/offline-db";
 import { cargarRoster } from "@/lib/terminal/roster";
@@ -53,7 +48,7 @@ const SEGUNDOS_MENSAJE = 2.5;
 
 function horaCorta(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima",
+    timeZone: TZ_LIMA,
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,

@@ -7,11 +7,11 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { TZ_LIMA, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
-const TZ = "America/Lima";
 
 function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
 }
 // Fechas planas: se formatean en UTC para que no se corran un día por zona horaria.
 function fechaCorta(iso: string): string {
@@ -26,7 +26,7 @@ function addDias(iso: string, n: number): string {
 function selloLima(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
 const NIVEL_LABEL: Record<string, string> = {
@@ -54,7 +54,7 @@ export default function DisciplinaPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const puede = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
+  const puede = puedeOperarEquipo(rol);
 
   const [tardanzas, setTardanzas] = useState<TardanzaRow[]>([]);
   const [faltas, setFaltas] = useState<FaltaRow[]>([]);
@@ -245,7 +245,7 @@ export default function DisciplinaPage() {
         {/* Semáforo de tardanzas */}
         <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
-            <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ }).format(new Date())}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
+            <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ_LIMA }).format(new Date())}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
             <p className="mt-0.5 text-xs text-taupe">Umbral RIT art. 7: 3 en el mes corresponde amonestación.</p>
           </div>
           {cargando ? (

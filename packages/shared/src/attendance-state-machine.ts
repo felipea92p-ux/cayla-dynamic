@@ -1,4 +1,5 @@
 import { PARES_SALIDA_RETORNO, type TipoMarca } from "./enums";
+import { horaDecimalLima } from "./fecha-lima";
 
 export interface MarcajeDelDia {
   tipo: TipoMarca;
@@ -76,10 +77,7 @@ export function sugerirSalidaPrincipal(
   if (marcajesHoy.some((m) => m.tipo === "salida_almuerzo")) return "salida_final";
   const entrada = marcajesHoy.find((m) => m.tipo === "entrada");
   const horasDentro = entrada ? (ahora.getTime() - new Date(entrada.timestamp).getTime()) / 3_600_000 : 0;
-  const horaLima = parseInt(
-    new Intl.DateTimeFormat("en-GB", { timeZone: "America/Lima", hour: "2-digit", hour12: false }).format(ahora),
-    10,
-  );
-  if (horaLima >= 11 && horaLima < 16 && horasDentro >= 2) return "salida_almuerzo";
+  const hora = Math.floor(horaDecimalLima(ahora));
+  if (hora >= 11 && hora < 16 && horasDentro >= 2) return "salida_almuerzo";
   return "salida_final";
 }

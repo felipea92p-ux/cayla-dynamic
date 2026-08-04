@@ -7,14 +7,12 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 const REFRESCO_MS = 30_000;
 // Corte mañana/tarde de la meta de cobertura — mismo valor fijo que Turnos (14:15).
 const CORTE_TARDE = 14.25;
 
-function fechaLimaHoy(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
-}
 
 // Día de la semana (0=domingo … 6=sábado) de un ISO — misma convención que
 // metas_cobertura.dia_semana en Turnos.
@@ -25,7 +23,7 @@ function diaSemanaDe(iso: string): number {
 
 // Hora actual de Lima en decimal (13:30 → 13.5), para saber el tramo vigente.
 function horaDecimalLimaAhora(): number {
-  const p = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
   const h = Number(p.find((x) => x.type === "hour")?.value ?? 0) % 24;
   const m = Number(p.find((x) => x.type === "minute")?.value ?? 0);
   return h + m / 60;
@@ -58,7 +56,7 @@ function LineaCobertura({ label, n, meta, tramo }: { label: string; n: number; m
 function horaLima(ts: string | null): string {
   if (!ts) return "—";
   return new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima",
+    timeZone: TZ_LIMA,
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -141,7 +139,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const hoy = fechaLimaHoy();
+    const hoy = hoyLima();
     const diaHoy = diaSemanaDe(hoy);
     // minutos_salida_temprana va por RPC (fn_jornadas_extra) porque el schema cache
     // de PostgREST no expone la columna; el select directo fallaría entero.
@@ -219,7 +217,7 @@ export default function DashboardPage() {
     });
 
     setFilas(resultado);
-    setActualizado(new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date()));
+    setActualizado(new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date()));
     setCargando(false);
   }, [router]);
 
@@ -244,7 +242,7 @@ export default function DashboardPage() {
     .sort((a, b) => a.codigo.localeCompare(b.codigo));
   const tramoTarde = horaDecimalLimaAhora() >= CORTE_TARDE;
   const tramoLabel = tramoTarde ? "tarde" : "mañana";
-  const hoy = fechaLimaHoy();
+  const hoy = hoyLima();
   // Un incidente (tardanza, auto-cierre) enlaza directo a Corregir de esa persona/fecha.
   const linkCorregir = (personaId: string) => `/admin/correcciones?persona=${personaId}&fecha=${hoy}`;
 

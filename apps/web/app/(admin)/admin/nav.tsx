@@ -11,11 +11,14 @@ import {
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
+import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
 
-const DO = ["admin", "lider_do"];
-const SEDE = ["admin", "lider_do", "supervisor_sede"];
+// Qué renglones del menú ve cada quien. Las listas vienen de `permisos.ts` — el
+// menú no vuelve a decidir quién es DO, solo lo consulta.
+const DO = ROLES_DO;
+const SEDE = ROLES_CON_PANEL;
 
-type Item = { href: string; label: string; Icon: LucideIcon; roles?: string[] };
+type Item = { href: string; label: string; Icon: LucideIcon; roles?: readonly string[] };
 const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   { items: [{ href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard }] },
   { label: "Asistencia", items: [

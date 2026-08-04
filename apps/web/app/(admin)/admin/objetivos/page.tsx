@@ -8,11 +8,11 @@ import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
-const TZ = "America/Lima";
 
 function hoyLima(): { anio: number; mes: number } {
-  const f = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  const f = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
   return { anio: Number(f.slice(0, 4)), mes: Number(f.slice(5, 7)) };
 }
 
@@ -80,7 +80,7 @@ export default function ObjetivosPage() {
   // servidor re-valida esto mismo en cada RPC.
   const puedeGestionar = useMemo(() => {
     if (!persona || rol === null) return false;
-    if (rol === "admin" || rol === "lider_do") return true;
+    if (puedeVerTodasLasSedes(rol)) return true;
     if (rol === "supervisor_sede" && yo)
       return persona.rol === "integrante" && persona.sede_base_id === yo.sedeBaseId;
     return false;

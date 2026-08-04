@@ -7,6 +7,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { CargandoFila, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 interface Cuenta {
   id: string;
@@ -33,7 +34,7 @@ export default function CuentasPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const esAdmin = rol === "admin" || rol === "lider_do";
+  const esAdmin = puedeGestionarCatalogos(rol);
 
   // cambiar mi contraseña
   const [nueva, setNueva] = useState("");

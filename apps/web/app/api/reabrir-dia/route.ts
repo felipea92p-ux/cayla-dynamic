@@ -1,19 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
+import { TZ_LIMA } from "@cayla-dynamic/shared";
 
 // Reabre el día de una persona que ya marcó salida final: convierte esa salida
 // final en una salida temporal (con el motivo del regreso) y registra el retorno,
 // de modo que las horas cuenten correcto (el rato afuera NO suma). Corre en el
 // servidor con la llave de servicio (nunca expuesta al cliente).
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 export async function POST(req: Request) {
-  if (!URL || !SERVICE) {
-    return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
-  }
-  const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
+  const admin = createServiceRoleClient();
+  if (!admin) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
 
   // 1) La petición debe venir de una sesión de TERMINAL válida.
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -36,7 +32,7 @@ export async function POST(req: Request) {
   }
 
   // 3) Buscar la última salida final de HOY (hora Lima).
-  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
   const ini = `${hoy}T00:00:00-05:00`, fin = `${hoy}T23:59:59-05:00`;
   const { data: finals } = await admin
     .from("marcajes")

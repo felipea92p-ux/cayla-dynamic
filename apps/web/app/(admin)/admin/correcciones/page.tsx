@@ -2,15 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { TIPO_MARCA_LABELS, TIPOS_MARCA, type TipoMarca } from "@cayla-dynamic/shared";
+import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 
-const TZ = "America/Lima";
 
 function fechaHoyLima() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
 }
 // Día de la semana (0=domingo … 6=sábado) de un ISO — misma clave que horario_por_dia.
 function dowDe(iso: string): number {
@@ -19,7 +18,7 @@ function dowDe(iso: string): number {
 }
 // "HH:MM" en hora Lima para el input de tipo time
 function horaInput(tsISO: string) {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(tsISO));
+  return new Intl.DateTimeFormat("en-GB", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(tsISO));
 }
 // fecha (YYYY-MM-DD) + "HH:MM" -> ISO con offset fijo de Perú (-05:00)
 function construirTs(fecha: string, horaHHMM: string) {
@@ -33,13 +32,13 @@ function horaTextoLima(s: string | null): string {
   const t = s.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
   const d = new Date(t);
   if (isNaN(d.getTime())) return s;
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 // Sello de auditoría: cuándo se hizo el cambio (fecha corta + hora Lima).
 function selloLima(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
 interface TurnoDia { hora_entrada: string | null; es_descanso: boolean; }
@@ -65,7 +64,6 @@ function calcularEsperado(fecha: string, turno: TurnoDia | null, horario: Horari
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
-const ROLES_ADMIN = ["admin", "lider_do"];
 interface Marcaje {
   id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string;
   origen: string; estado_revision: string;
@@ -364,13 +362,13 @@ export default function CorreccionesPage() {
   // Nombre de quién hizo cada corrección, resuelto desde la lista ya cargada
   // (evita depender de un embed de PostgREST que el schema cache puede no exponer).
   const nombrePorId = useMemo(() => new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`])), [personas]);
-  const puedeCorregir = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
+  const puedeCorregir = puedeOperarEquipo(rol);
   const esSupervisor = rol === "supervisor_sede";
 
   // Una encargada no puede corregir su propia asistencia ni la de un admin.
   const personasCorregibles = useMemo(() => {
     if (!esSupervisor || !yo) return personas;
-    return personas.filter((p) => p.id !== yo.id && !ROLES_ADMIN.includes(p.rol));
+    return personas.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
   }, [personas, esSupervisor, yo]);
 
   if (rol !== null && !puedeCorregir) {

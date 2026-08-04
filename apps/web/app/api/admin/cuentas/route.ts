@@ -1,13 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
-import { puedeActuarSobre } from "@/lib/admin/escalafon";
+import { puedeActuarSobre, puedeGestionarCatalogos, ROLES_CON_PANEL } from "@cayla-dynamic/shared";
 
 // Gestión de cuentas del panel — SOLO admin/lider_do. Corre en el servidor con la
 // llave de servicio; verifica que quien llama sea admin (por su sesión).
 // Acciones: listar | resetear (contraseña de otro) | crear (cuenta de una persona).
-
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Estas claves son la única credencial de una cuenta del panel hasta que su dueña
 // la cambia. `Math.random()` NO sirve para eso: no es criptográfico y su estado
@@ -48,15 +45,15 @@ async function emailsPorUsuario(admin: any): Promise<Record<string, string>> {
 }
 
 export async function POST(req: Request) {
-  if (!URL || !SERVICE) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
-  const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
+  const admin = createServiceRoleClient();
+  if (!admin) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
 
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return NextResponse.json({ error: "sin sesión" }, { status: 401 });
   const { data: userData, error: ue } = await admin.auth.getUser(token);
   if (ue || !userData.user) return NextResponse.json({ error: "sesión inválida" }, { status: 401 });
   const { data: yo } = await admin.from("personas").select("rol").eq("auth_user_id", userData.user.id).maybeSingle();
-  if (!yo || !["admin", "lider_do"].includes(yo.rol)) {
+  if (!yo || !puedeGestionarCatalogos(yo.rol)) {
     return NextResponse.json({ error: "solo un administrador puede gestionar cuentas" }, { status: 403 });
   }
 
@@ -68,7 +65,7 @@ export async function POST(req: Request) {
       const { data: personas } = await admin
         .from("personas")
         .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
-        .in("rol", ["admin", "lider_do", "supervisor_sede"])
+        .in("rol", [...ROLES_CON_PANEL])
         .eq("estado", "activo")
         .order("nombres");
       const emails = await emailsPorUsuario(admin);
