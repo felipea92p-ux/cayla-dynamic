@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0138 · Un contrato que vence no es un despido
+-- 0143 · Un contrato que vence no es un despido
 -- ============================================================================
 --
 -- QUÉ PROMETE. Que se pueda registrar el motivo de cese más frecuente de un
@@ -70,12 +70,12 @@ alter table personas add constraint personas_motivo_cese_valido
 comment on column personas.motivo_cese is
   'Por que termino el vinculo. fin_contrato = vencio el plazo pactado y no se renovo (extincion por vencimiento, D.Leg. 728 art.16.c): NO requiere procedimiento previo. despido = la empresa termino con causa, y ese si exige carta de preaviso y descargo (D.S. 003-97-TR). No son intercambiables.';
 
-insert into migraciones_aplicadas (numero, nombre) values (138, 'un_contrato_que_vence_no_es_un_despido')
+insert into migraciones_aplicadas (numero, nombre) values (143, 'un_contrato_que_vence_no_es_un_despido')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
 
 do $$
 begin
-  raise notice '0138 · motivo_cese acepta ahora fin_contrato. Motivos validos: renuncia, despido, fin_contrato, fin_periodo_prueba, fin_servicio_rxh, mutuo_acuerdo, por_revisar.';
+  raise notice '0143 · motivo_cese acepta ahora fin_contrato. Motivos validos: renuncia, despido, fin_contrato, fin_periodo_prueba, fin_servicio_rxh, mutuo_acuerdo, por_revisar.';
 end $$;

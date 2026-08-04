@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0139 · Un contrato a plazo fijo sabe cuándo vence
+-- 0144 · Un contrato a plazo fijo sabe cuándo vence
 -- ============================================================================
 --
 -- QUÉ PROMETE. Que el sistema pueda saber que un contrato termina el día X
@@ -153,12 +153,12 @@ comment on function fn_contratos_por_vencer(int) is
 revoke execute on function fn_contratos_por_vencer(int) from public, anon;
 grant  execute on function fn_contratos_por_vencer(int) to authenticated;
 
-insert into migraciones_aplicadas (numero, nombre) values (139, 'un_contrato_a_plazo_fijo_sabe_cuando_vence')
+insert into migraciones_aplicadas (numero, nombre) values (144, 'un_contrato_a_plazo_fijo_sabe_cuando_vence')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
 
 do $$
 begin
-  raise notice '0139 · personas.fecha_fin_contrato lista. Escribir con fn_set_fin_contrato(persona, fecha, motivo). Ver pendientes con: select * from fn_contratos_por_vencer(30);';
+  raise notice '0144 · personas.fecha_fin_contrato lista. Escribir con fn_set_fin_contrato(persona, fecha, motivo). Ver pendientes con: select * from fn_contratos_por_vencer(30);';
 end $$;
