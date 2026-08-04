@@ -4,9 +4,17 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-03**. Migraciones **0115 a 0122 aplicadas en
-producción**; la **0128 está en el repo** y su aplicación en producción queda
-por confirmar. **33 archivos pgTAP, 296 pruebas**, verdes en local el 2026-08-03.*
+*Última consolidación: **2026-08-04**. Migraciones **0115 a 0122 aplicadas en
+producción**; en el repo hay hasta la **0135**, y de la 0128 en adelante queda
+por confirmar cuáles se aplicaron. **36 archivos pgTAP, 319 pruebas**, verdes en
+local el 2026-08-04 · `pnpm typecheck` y las 43 pruebas de interfaz, también.*
+
+> **Cómo se verificó esto** (para que la próxima consolidación no vuelva a
+> quedarse vieja sin que nadie lo note):
+> ```bash
+> npx supabase db start && npx supabase test db   # 36 archivos · 319 pruebas
+> npx pnpm typecheck && npx pnpm test             # 43 pruebas de interfaz
+> ```
 
 ---
 
@@ -44,10 +52,26 @@ el filtro `en_planilla` y la excepción por nombre, doble candado— y Felipe
 Álvarez ya está en 1,500 en los dos campos, así que su bloque no tiene nada que
 hacer (es idempotente y devuelve cero filas).
 
-**Hueco de numeración:** ~~no existe la migración 0126~~ — **corregido el
-2026-08-04: la 0126 sí existe** (`0126_guard_null_safe_en_la_ficha_personal.sql`).
-El hueco real es la **0108**: va 0107 → 0109. Falta saber si fue un número que se
-saltó o algo aplicado en producción que nunca llegó al repo.
+**Ya tiene prueba (2026-08-04).** `fn_fijar_base_declarada` estaba escrita,
+revisada a ojo y **sin una sola prueba pgTAP** — justo lo que el `CLAUDE.md`
+prohíbe para cualquier cosa que toque plata. Ahora la cubre
+[`109_la_base_declarada_baja_los_dos_campos.test.sql`](../supabase/tests/109_la_base_declarada_baja_los_dos_campos.test.sql):
+11 aserciones sobre los dos campos, las tres exclusiones (cesada · locadora ·
+otro rango), `p_omitir`, el versionado del tramo anterior, la idempotencia y el
+guard de admin. **Comprobada rompiendo la función a propósito**: quitándole la
+llamada a `fn_set_sueldo_base_legal` fallan las aserciones 2 y 10, así que la
+prueba no pasa por casualidad.
+
+**Huecos de numeración (revisados el 2026-08-04).** Son cuatro:
+
+| Hueco | Qué se sabe |
+|---|---|
+| **0031** y **0033** | Conocidos: existen solo como `scripts/sql-manual/aplicar_*.sql`, fuera de git por PII. **Falta la versión parametrizada**, que sigue pendiente abajo |
+| **0108** | **Explicado el 2026-08-04:** no es un número saltado ni algo aplicado a escondidas. Vive en la rama `origin/movilidad-supeditada-a-asistencia` (`0108_movilidad_supeditada_a_asistencia.sql`), **sin fusionar**. Falta decidir si entra o si su contenido ya lo cubre la 0118 |
+| **0133** | Va 0132 → 0134. **Sigue sin explicar** — no aparece en ninguna rama |
+
+~~no existe la migración 0126~~ — **la 0126 sí existe**
+(`0126_guard_null_safe_en_la_ficha_personal.sql`).
 
 ---
 
@@ -102,11 +126,58 @@ descuadre de 76.67 contra 71.84 que Felipe encontró está cerrado.
 
 ### A.2 · Un clic en GitHub
 
+*Revisado el 2026-08-04: los #21 y #22 ya no están abiertos. **Queda uno solo.***
+
 | PR | Qué trae |
 |---|---|
-| **#21** | Este documento al día **+ la migración 0122**, que está aplicada en producción pero se quedó fuera del repo |
-| **#22** | *No es de esta sesión* — dos líneas en la pantalla de Equipo sobre la etiqueta de «prueba». Revisalo antes de fusionar |
-| **#13** | **Se puede cerrar**: su pantalla de documentación entró actualizada por el #20 |
+| **#13** | «Documentación: los papeles que sostienen la movilidad», abierto desde el 29/07. **Se puede cerrar**: su pantalla de documentación entró actualizada por el #20 |
+
+**Y 40 ramas en GitHub para un solo PR abierto.** Cada rama fusionada que se
+queda es una copia vieja del sistema que alguien puede clonar por error. Limpiar
+las fusionadas es un `git push origin --delete` por rama, sin riesgo: lo que
+entró a `main` ya está en `main`.
+
+### 🔴 Números de migración en colisión (2026-08-04)
+
+**El mismo número, apuntando a cosas distintas según dónde mires.** Fusionar dos
+de estas ramas hace que la segunda pise a la primera, o que Postgres aplique una
+sola de las dos: el número es la clave, no el nombre.
+
+| Nº | En `main` | En una rama sin fusionar |
+|---|---|---|
+| **0131** | `reabrir_para_cambiar_firmante` | `el_cuadro_de_categorias` — rama `cuadro-de-categorias` |
+| **0132** | `el_tope_de_educacion_por_rango` | `la_politica_salarial_y_su_acuse` — rama `cuadro-de-categorias` |
+
+**Cómo está la cola alta a las 16:51 del 2026-08-04** (se movió dos veces durante
+la misma sesión, con dos personas trabajando en paralelo — por eso lleva hora):
+
+| Nº | Dónde está |
+|---|---|
+| **0133** | **Vacío, sin explicar.** No aparece en ninguna rama ni en el historial |
+| **0136** | Solo en la rama `educacion-con-comprobante`, sin fusionar: `la_pantalla_de_educacion_con_su_comprobante` |
+| **0137** | **Vacío.** Hueco nuevo: se saltó al numerar la siguiente |
+| **0138** | En el directorio de trabajo, **sin commitear**: `un_periodo_pagado_no_cambia_de_horas` |
+
+**Y la prueba 109 también estuvo en colisión**, resuelta el mismo día: la rama
+`educacion-con-comprobante` trae `109_la_educacion_se_carga_con_su_papel`, así
+que la prueba de la base declarada se numeró **111** para dejarle su número.
+La `110` es de la 0138.
+
+**Por qué se repite:** la convención dice mirar `ls` antes de numerar, y `ls` solo
+ve la rama en la que estás. Con varias sesiones trabajando en paralelo eso ya no
+alcanza. Este comando sí ve todas las ramas — **comprobado el 2026-08-04**,
+devuelve `0069 0070 0071 0072 0131 0132` (los cuatro primeros vienen de las ramas
+viejas de rescate `rescate-31jul` y `feriados-descanso-sustitutorio`):
+
+```bash
+for r in origin/main $(git branch -r | grep -v HEAD); do
+  git ls-tree -r --name-only "$r" -- supabase/migrations
+done | xargs -n1 basename | sort -u | cut -d_ -f1 | sort -n | uniq -d
+```
+
+**No detecta lo que aún no está commiteado.** La 0136 local no aparece ahí, y es
+precisamente la que colisiona hoy. Para eso, `ls supabase/migrations` sobre el
+directorio de trabajo, antes de elegir el número.
 
 ### A.3 · Datos que hacen falta para seguir
 
@@ -385,13 +456,18 @@ Quedan anotadas porque se tomaron decisiones sobre ellas.
 
 ```bash
 npx supabase db start    # levanta solo Postgres y aplica TODAS las migraciones
-npx supabase test db     # 33 archivos, 296 pruebas, ~1 segundo · PASS
+npx supabase test db     # 36 archivos, 319 pruebas, ~1 segundo · PASS
 ```
 
-Comprobado el 2026-08-03 con Docker Desktop 29.6.2 y CLI 2.109.1: aplicó el
-esquema entero hasta la 0130 sin un solo error y las 296 pruebas pasaron. Es la
-mejor verificación de una migración nueva —construye desde cero— y ahorra el
-viaje de ida y vuelta a GitHub Actions.
+Comprobado otra vez el 2026-08-04: aplicó el esquema entero hasta la 0135 sin un
+solo error y las 319 pruebas pasaron. Es la mejor verificación de una migración
+nueva —construye desde cero— y ahorra el viaje de ida y vuelta a GitHub Actions.
+
+**Si las pruebas fallan todas a la vez con «relation "sedes" does not exist»**,
+no es el código: el contenedor de Postgres se reinició vacío. Pasó el 2026-08-04.
+Se arregla con `npx supabase db reset`, que vuelve a aplicar las 131 migraciones
+sobre una base limpia. La base local es un laboratorio: no guarda nada que no se
+pueda reconstruir.
 
 **Lo que sí falla es `supabase start`** (el stack completo: Auth, Storage,
 Realtime). Revienta aplicando la 0001 con «type rol_usuario already exists», sin
@@ -411,11 +487,17 @@ docker run -d --name cayla_audit -e POSTGRES_PASSWORD=postgres \
 
 Con eso las **114 migraciones aplican limpio**.
 
-**`packages/database/src/types.ts` está desfasado**: 8 errores de tipos
-preexistentes por RPC que no figuran. `supabase gen types` no corre en esta máquina
-(«Failed to end the connection on error»). La entrada de `fn_set_tipo_vinculo` se
-agregó a mano, marcada con comentario. **CI no corre typecheck**, así que no
-bloquea nada.
+**Los 8 errores de tipos ya no están** (revisado el 2026-08-04): `npx pnpm
+typecheck` pasa limpio en los tres paquetes. Las entradas de RPC que faltaban en
+`packages/database/src/types.ts` se agregaron a mano, marcadas con comentario,
+porque `supabase gen types` no corre en esta máquina («Failed to end the
+connection on error»).
+
+**Pero CI sigue sin correr typecheck.** `.github/workflows/tests.yml` tiene dos
+trabajos —pgTAP y Vitest— y ninguno lo llama. Hoy el único freno es el hook local
+`pre-push`, que sí lo corre: si alguien empuja con `--no-verify`, o desde otra
+máquina sin `git config core.hooksPath scripts/hooks`, un error de tipos llega a
+`main` sin que nada avise. Agregarlo al workflow son cuatro líneas.
 
 **Un bug que vale recordar:** `jsonb_build_object` admite **máximo 100
 argumentos**. El objeto de la boleta estaba cerca del techo y cuatro campos nuevos
@@ -534,16 +616,21 @@ registró y su contenido nunca llegó. Un registro no es una comprobación.
    reloj de la Mac sin verificación de desfase · persona que marca en dos sedes
    el mismo día y pierde una marca.
 
-5. **Seguridad pendiente** (de `revision-2026-07-15/`, verificado el 26-07):
-   - `generarClave()` usa `Math.random()` (`api/admin/cuentas/route.ts:13`) →
-     `crypto.randomInt`.
+5. **Seguridad pendiente** (de `revision-2026-07-15/`, revisado el 2026-08-04):
+   - ~~`generarClave()` usa `Math.random()`~~ → **cerrado.** Hoy usa
+     `crypto.getRandomValues` con descarte de la cola incompleta, y el porqué
+     está escrito en el archivo (`api/admin/cuentas/route.ts:13`).
    - Contraseña mínima 6 sin complejidad, sin cambio forzado en primer login
-     (cuentas que ven salarios).
+     (cuentas que ven salarios). **Sigue abierto.**
    - Las rutas de API devuelven el mensaje crudo de Postgres → envolver.
+     **Sigue abierto:** `api/admin/cuentas/route.ts` lo devuelve tal cual en las
+     líneas 113, 126 y 143, y `api/espejo/route.ts:32` lo relanza.
 
-6. **Partir `planilla/page.tsx` (1 587 líneas).** Maneja dinero. Los tests SQL que
-   fijan la matemática ya existen (`supabase/tests/10` y `20`); falta el refactor
-   antes de seguir tocándolo.
+6. **Partir `planilla/page.tsx`.** Maneja dinero. Los tests SQL que fijan la
+   matemática ya existen (`supabase/tests/10` y `20`); falta el refactor antes de
+   seguir tocándolo. **Y el pendiente empeoró: eran 1 587 líneas el 27-07 y hoy
+   son 2 082** — creció un 31 % mientras el refactor esperaba. Es la pantalla más
+   grande del sistema por lejos; la segunda (`turnos`) tiene 1 288.
 
 **El catálogo completo de lo que queda está en
 [`hallazgos-abiertos.md`](hallazgos-abiertos.md)**: 24 hallazgos vivos de una
