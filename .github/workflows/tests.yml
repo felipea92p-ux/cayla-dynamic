@@ -38,5 +38,12 @@ jobs:
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
+      # El hook local `pre-push` ya corre typecheck, pero se puede saltar con
+      # --no-verify y no existe en un clon donde nadie configuró core.hooksPath.
+      # Acá no se salta: es el único freno que no depende de la máquina de quien
+      # empuja.
+      - name: Verificar tipos
+        run: pnpm typecheck
+
       - name: Correr pruebas de interfaz (Vitest)
         run: pnpm test
