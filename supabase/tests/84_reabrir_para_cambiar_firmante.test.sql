@@ -66,13 +66,9 @@ select is(
   (select correlativo from expediente_disciplinario where id = '00000000-0000-0000-0000-00000000da01'),
   null::text, 'Tras reabrir, pierde el número oficial (un borrador no tiene número)');
 
-<<<<<<< Updated upstream
--- alike(), no like(): `like` es palabra reservada de SQL y no resuelve como función.
-=======
 -- `alike` y no `like`: pgTAP no define una función `like` — ese nombre es el
 -- operador SQL, así que `select like(...)` reventaba la sesión y las DOS pruebas
 -- siguientes no llegaban a correr. La comparación con patrón se llama `alike`.
->>>>>>> Stashed changes
 select alike(
   (select observacion from expediente_disciplinario where id = '00000000-0000-0000-0000-00000000da01'),
   '%REABIERTO%', 'Queda constancia de que el documento se reabrió');
