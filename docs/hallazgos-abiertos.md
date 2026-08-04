@@ -12,6 +12,34 @@ cuyo único trabajo era demostrar que era falso. De 42 candidatos sobrevivieron
 Cada uno lleva su evidencia. Antes de arreglar, **reproduce**: si el caso no se
 reproduce hoy, táchalo y anota por qué.
 
+---
+
+## Dónde está esto hoy (curado el 2026-08-04)
+
+**Quedan 23 abiertos de los 34.** Los otros 11 ya están tachados con la
+migración o el archivo que los cerró.
+
+El catálogo había quedado congelado: entre medias entraron las migraciones 0089
+a 0131 y los pgTAP 92 a 99, que cerraron **siete hallazgos sin tacharlos** (C2,
+C6, C9, C10, A2, A8, A20) y uno que dejó de ser cierto solo (A17, la red de
+seguridad, que hoy sí existe). Un catálogo con entradas mentirosas es peor que
+no tenerlo: hace desconfiar de las que sí siguen vivas. Si arreglas algo de acá,
+táchalo en el mismo commit.
+
+**Lo verificado como VIVO al 2026-08-04**, por orden de consecuencia:
+
+| # | Hallazgo | Evidencia de que sigue |
+|---|---|---|
+| C12 · A16 | `fn_registrar_marcaje` sin candado de periodo pagado | su última definición (0082) no menciona `pagado` ni una vez |
+| C3 | Tardanza de más de 180 min se guarda como NULL y paga el bono | `0081:174` sigue con `if v_minutos_tarde > 180 then v_minutos_tarde := null` |
+| A11 | El memo en borrador se imprime firmado por Gerencia General | el estado inicial sigue siendo `EMPRESA.firmante`, y el aviso de borrador sigue con `no-print` |
+
+Los 20 restantes están sin re-verificar contra el esquema de hoy: antes de
+tocarlos, reproduce.
+
+**Dos huecos de numeración en las migraciones:** no existe la **0108**. (La 0126
+sí existe, aunque `estado.md` la dé por hueco — corregir allá.)
+
 
 ---
 
@@ -33,7 +61,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Prorratear la rama de sueldo fijo por los días del periodo en que la persona estuvo efectivamente vinculada: `sf.salario * (días vinculados dentro del periodo) / v_dias`, tomando el inicio como `greatest(p_ini, pe.fecha_ingreso)` y el fin como `least(p_fin, fecha_cese)` (la 0086 ya trae `fecha_cese`; mientras no esté en producción, usar `fecha_estado_cambio` cuando el estado sea inactivo). Y ampliar el CTE `pers` para incluir a las personas con sueldo fijo y salario vigente que se solapen con el periodo aunque no tengan jornadas, para que el mes de cese aparezca. Alinear el criterio con el que fn_provisiones ya usa: si las dos funciones no comparten la misma definición de «días vinculados», vuelven a divergir.
 
-### 2. Otorgar un descanso sustitutorio cambia el total de un periodo YA PAGADO, sin lanzar error
+### 2. ~~Otorgar un descanso sustitutorio cambia el total de un periodo YA PAGADO, sin lanzar error~~
+
+> ✅ **CERRADO** por la migración 0093, con prueba en `supabase/tests/94_descanso_sustitutorio_no_toca_lo_pagado.test.sql`. Es el mismo hallazgo que el Crítico 10 y el Alto 8 vistos desde tres áreas distintas.
 
 `planilla-dinero` · 💰 dinero · arreglo de **minutos**
 
@@ -73,7 +103,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Borrar fn_falta_contadores y hacer que fn_expediente_generar_falta consuma la MISMA definición de falta que el semáforo (fn_faltas_resumen / fn_faltas), parametrizada por persona y fecha desde. Mientras eso se hace: copiar a fn_falta_contadores las dos ramas que le faltan — fn_dia_suspendido(p_persona_id, ev.fecha) y feriados_descanso_sustitutorio en estado PENDIENTE/OTORGADO — dentro del CASE de `sched`. Dos definiciones de 'falta' en el mismo sistema es la causa raíz: mientras existan, la próxima corrección volverá a aplicarse solo a la mitad. Revisar además los documentos ya firmados cuyos hechos incluyan días cubiertos por una suspensión o un descanso sustitutorio.
 
-### 6. La rama del art. 25-h emite imputaciones ilimitadas sobre exactamente los mismos hechos
+### 6. ~~La rama del art. 25-h emite imputaciones ilimitadas sobre exactamente los mismos hechos~~
+
+> ✅ **CERRADO** por la migración 0092: el candado de «ya hay una imputación vigente» subió a gobernar las dos ramas. Prueba en `93_una_falta_no_se_sanciona_dos_veces.test.sql`.
 
 `disciplina-legal` · ⚖️ decisión injusta · arreglo de **minutos**
 
@@ -105,7 +137,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Dos pasos, en este orden. (1) Inmediato, minutos: corregir el texto de la pantalla para que diga la verdad — registrar vacaciones evita la falta, y el pago de esos días se agrega como movimiento categoría 'vacaciones'. Mentirle a quien opera es peor que no decir nada. (2) De fondo: que fn_planilla_calcular acredite los días de vacaciones dentro del periodo con la remuneración vacacional (un treintavo del sueldo por día, como ya hace fn_vacaciones_truncas en la 0087, no la base de 6.5 h), y que devuelva `dias_vacaciones` y `monto_vacaciones` como componentes separados y auditables. Mientras eso no exista, agregar en la pantalla de Planilla un aviso por persona con días de vacaciones en el periodo y monto sugerido, para que el paso manual no dependa de la memoria.
 
-### 9. La ficha personal se borra entera si su consulta falló y alguien pulsa Guardar
+### 9. ~~La ficha personal se borra entera si su consulta falló y alguien pulsa Guardar~~
+
+> ✅ **CERRADO** por las migraciones 0125/0126 y el guard en pantalla: `datos-personales/page.tsx` ahora destructura el error de las tres consultas, avisa («No se guarda: las fichas no llegaron a cargar y guardar ahora borraría los datos que ya existen») y bloquea el guardado.
 
 `frontend-admin` · 💰 dinero · arreglo de **horas**
 
@@ -115,7 +149,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Dos cambios en `cargar()`: (a) destructurar `error` de las tres consultas y, si la de `datos_personales` falló, poner un estado `fichasOk = false`, mostrar el aviso rojo y NO pintar el sello «sin ficha» (que hoy es una afirmación que no se puede sostener); (b) deshabilitar el botón «Guardar ficha» mientras `fichasOk` sea false, con el mismo texto que usa Equipo («no se pudo cargar la ficha actual — deshabilitado para no pisarla»). Aparte, y con más valor a largo plazo: que el guardado envíe solo los campos que cambiaron, o que el RPC distinga «vacío» de «no enviado» — hoy un formulario en blanco es indistinguible de un borrado intencional.
 
-### 10. Otorgar un descanso sustitutorio cambia el monto de un periodo YA PAGADO
+### 10. ~~Otorgar un descanso sustitutorio cambia el monto de un periodo YA PAGADO~~
+
+> ✅ **CERRADO** por la migración 0093. Mismo hallazgo que el Crítico 2 y el Alto 8.
 
 `esquema-integridad` · 💰 dinero · arreglo de **horas**
 
@@ -182,7 +218,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Separar las dos cosas que hoy están enredadas: el vistazo y el pago. Que fn_calcular_bono_puntualidad reciba un parámetro `p_solo_simular boolean default true` y con `true` devuelva el JSON sin tocar movimientos_planilla; que el INSERT solo ocurra con `false` y únicamente cuando `v_fin <= hoy` (periodo terminado), usando entonces el denominador completo `v_fin - v_ini + 1`. Mientras eso llega, el arreglo de minutos es que fn_periodo_pagado recalcule el bono antes de congelar. Y corregir el texto del diálogo: hoy promete «todo el periodo» y entrega «lo que va del periodo».
 
-### 2. El auto-cierre produce horas NEGATIVAS y le descuentan sueldo a quien sí trabajó
+### 2. ~~El auto-cierre produce horas NEGATIVAS y le descuentan sueldo a quien sí trabajó~~
+
+> ✅ **CERRADO** por la migración 0095: entró el `greatest(...)` en fn_auto_cierre y el `check (horas_trabajadas is null or horas_trabajadas >= 0)` en `jornadas` — el estado imposible ahora lo impide el esquema, no el código. Prueba en `96_ni_horas_negativas_ni_reabrir_sin_motivo.test.sql`.
 
 `asistencia-jornadas` · 💰 dinero · arreglo de **minutos**
 
@@ -242,7 +280,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Borrar antes que parchear: como ninguna pantalla las usa, lo más limpio es 'drop function fn_set_horario(...)' y 'drop function fn_quitar_horario(...)' — código que no existe no se puede llamar por RPC. Si se prefiere conservarlas, copiarles literalmente el bloque de candado de fn_set_horario_semanal ('if exists (select 1 from periodos_planilla where estado = ''pagado'' and fecha_fin >= p_vigente_desde) then raise …') y hacer que registren en correcciones_auditoria como el resto de las correcciones.
 
-### 8. El descanso sustitutorio cambia el monto de un periodo de planilla YA PAGADO, sin candado y sin rastro
+### 8. ~~El descanso sustitutorio cambia el monto de un periodo de planilla YA PAGADO, sin candado y sin rastro~~
+
+> ✅ **CERRADO** por la migración 0093. Mismo hallazgo que el Crítico 2 y el Crítico 10.
 
 `vacaciones-feriados` · 💰 dinero · arreglo de **minutos**
 
@@ -262,7 +302,11 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Extender fn_dcs_validar_dia_laborable con las tres verificaciones que faltan, con el mismo mensaje en lenguaje de negocio que ya usa: (a) rechazar si `new.fecha_descanso_sustitutorio` cae dentro de un periodo de `vacaciones` de esa persona; (b) rechazar si esa fecha existe en `feriados`; (c) rechazar si es anterior o igual a `new.fecha_feriado`. Vale la pena además avisar (no bloquear) cuando pasa de una semana del feriado, que es el plazo del D.S. 012-92-TR. Al ser un trigger, protege por igual a la pantalla y a cualquier carga por lotes.
 
-### 10. El CSV de asistencia y el resumen de horas se cortan en 1000 filas sin avisar
+### 10. ~~El CSV de asistencia y el resumen de horas se cortan en 1000 filas sin avisar~~
+
+> ✅ **CERRADO el 2026-08-04.** Nuevo helper `apps/web/lib/admin/traer-todo.ts`: trae por lotes de 1000 hasta agotar, y si algo falla devuelve error en vez de una lista corta. Aplicado a las cuatro consultas del hallazgo — Exportar, Horas, Reporte-sede e Incidencias (las dos). A Horas y a Reporte-sede hubo que **añadirles orden** (`fecha` + `persona_id`): paginar sin un orden estable repite filas y pierde otras, que es peor que no paginar. Seis pruebas en `tests/traer-todo.test.ts`, incluida la del múltiplo exacto de 1000.
+>
+> Las otras consultas a `jornadas` (Dashboard, Correcciones, Perfil) se revisaron y **no** necesitan lotes: están acotadas a un solo día o a una sola persona.
 
 `frontend-admin` · 💰 dinero · arreglo de **horas**
 
@@ -332,7 +376,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Un trigger BEFORE INSERT OR UPDATE OR DELETE en marcajes que rechace cualquier fila cuya fecha (en hora de Lima) caiga en un periodo 'pagado'. Es el mismo trigger del hallazgo 1 y resuelve los dos de una vez: el candado deja de ser una línea que hay que acordarse de copiar en cada función nueva y pasa a ser una propiedad de la tabla. Para el caso legítimo de la cola offline que llega tarde, el trigger debe dar un mensaje que le diga a la encargada qué hacer ('esa marca es del 15/06, un mes ya pagado — avisa a DO para reabrir el periodo'), no un error de Postgres crudo.
 
-### 17. La red de seguridad que describe CLAUDE.md no existe: ni el hook de pre-push ni desplegar.sh, y core.hooksPath apunta a un directorio inexistente
+### 17. ~~La red de seguridad que describe CLAUDE.md no existe: ni el hook de pre-push ni desplegar.sh, y core.hooksPath apunta a un directorio inexistente~~
+
+> ✅ **CERRADO.** Comprobado el 2026-08-04: `scripts/hooks/pre-push` y `scripts/desplegar.sh` existen, y `git config core.hooksPath` devuelve `scripts/hooks`. Además las pgTAP ya corren en esta Mac (`npx supabase test db`), que era el supuesto sobre el que se escribió el hallazgo.
 
 `pruebas-y-ci` · 🧱 deuda · arreglo de **horas**
 
@@ -362,7 +408,9 @@ reproduce hoy, táchalo y anota por qué.
 
 **Arreglo:** Que las tres superficies dejen de contar por su cuenta. Lo más barato y consistente: exponer una vista o RPC única —`fn_tardanzas_por_persona(desde, hasta)`— que ya aplique el descuento de tardanzas_justificadas, y que Horas, Reporte por sede y /api/espejo la consuman. Alternativa mínima si urge: cargar tardanzas_justificadas del rango y filtrar en las tres, como ya hace incidencias/page.tsx:216-221 — pero eso deja cuatro copias de la regla en vez de una.
 
-### 20. Un periodo de planilla ya pagado se puede reabrir sin motivo y sin dejar rastro
+### 20. ~~Un periodo de planilla ya pagado se puede reabrir sin motivo y sin dejar rastro~~
+
+> ✅ **CERRADO** por la migración 0095: fn_periodo_pagado con `p_pagado = false` ahora lanza «Para reabrir un pago usa Revertir pago…». La firma no cambió, para no romper la llamada de la pantalla. Prueba en `96_ni_horas_negativas_ni_reabrir_sin_motivo.test.sql`.
 
 `consistencia-deuda` · 💰 dinero · arreglo de **minutos**
 

@@ -44,9 +44,10 @@ el filtro `en_planilla` y la excepción por nombre, doble candado— y Felipe
 Álvarez ya está en 1,500 en los dos campos, así que su bloque no tiene nada que
 hacer (es idempotente y devuelve cero filas).
 
-**Hueco de numeración:** no existe la migración **0126** (va 0125 → 0127). Queda
-anotado acá porque el `CLAUDE.md` pide que un hueco se documente; falta saber si
-fue un número que se saltó o algo aplicado en producción que nunca llegó al repo.
+**Hueco de numeración:** ~~no existe la migración 0126~~ — **corregido el
+2026-08-04: la 0126 sí existe** (`0126_guard_null_safe_en_la_ficha_personal.sql`).
+El hueco real es la **0108**: va 0107 → 0109. Falta saber si fue un número que se
+saltó o algo aplicado en producción que nunca llegó al repo.
 
 ---
 

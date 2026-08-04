@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { traerTodo } from "@/lib/admin/traer-todo";
 
 const TZ = "America/Lima";
 function hoyLima(): string { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); }
@@ -128,18 +129,30 @@ function IncidenciasContenido() {
       { data: faltasData },
       { data: levTardData },
     ] = await Promise.all([
-      supabase
-        .from("jornadas")
-        .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
-        .gte("fecha", desde).lte("fecha", hasta)
-        .order("fecha", { ascending: false }),
+      // Las dos consultas a jornadas van por lotes: PostgREST cortaba en 1000
+      // filas sin avisar, así que incidencias reales dejaban de listarse — y la
+      // del patrón de tardanzas barre desde `desdePatron` hasta hoy, que es el
+      // rango más ancho de esta pantalla.
+      traerTodo<any>((ini, fin) =>
+        supabase
+          .from("jornadas")
+          .select("persona_id, fecha, estado, entrada_ts, salida_final_ts, tiene_salida_no_retornada, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          .gte("fecha", desde).lte("fecha", hasta)
+          .order("fecha", { ascending: false })
+          .order("persona_id")
+          .range(ini, fin),
+      ),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
-      supabase
-        .from("jornadas")
-        .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
-        .gte("fecha", desdePatron).lte("fecha", HOY)
-        .gt("minutos_tarde", 0)
-        .order("fecha", { ascending: false }),
+      traerTodo<any>((ini, fin) =>
+        supabase
+          .from("jornadas")
+          .select("persona_id, fecha, entrada_ts, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          .gte("fecha", desdePatron).lte("fecha", HOY)
+          .gt("minutos_tarde", 0)
+          .order("fecha", { ascending: false })
+          .order("persona_id")
+          .range(ini, fin),
+      ),
       // Déficit de encargadas: mira la semana actual (lunes–domingo), no el filtro
       // Desde/Hasta — es sobre la cobertura planeada de AHORA, no un rango histórico.
       supabase.from("sedes").select("id, codigo"),

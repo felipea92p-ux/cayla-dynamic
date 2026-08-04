@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { traerTodo } from "@/lib/admin/traer-todo";
 import { AdminNav } from "../nav";
 
 function fechaHoyISO() {
@@ -20,13 +21,20 @@ export default function ExportarPage() {
     setError(null);
 
     const supabase = createAdminSupabaseClient();
+    // Por lotes: sin esto PostgREST cortaba en 1000 filas y, como el orden es
+    // ascendente por fecha, lo que se perdía eran los días MÁS RECIENTES — y el
+    // archivo se descargaba sin ninguna marca de estar incompleto.
     const [{ data, error }, extraRes] = await Promise.all([
-      supabase
-        .from("jornadas")
-        .select("fecha, persona_id, entrada_ts, salida_final_ts, minutos_tarde, horas_trabajadas, horas_extra_detectadas, estado, personas(nombres, apellidos), sedes(codigo)")
-        .gte("fecha", desde)
-        .lte("fecha", hasta)
-        .order("fecha"),
+      traerTodo<any>((ini, fin) =>
+        supabase
+          .from("jornadas")
+          .select("fecha, persona_id, entrada_ts, salida_final_ts, minutos_tarde, horas_trabajadas, horas_extra_detectadas, estado, personas(nombres, apellidos), sedes(codigo)")
+          .gte("fecha", desde)
+          .lte("fecha", hasta)
+          .order("fecha")
+          .order("persona_id")
+          .range(ini, fin),
+      ),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
     ]);
 

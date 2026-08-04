@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { traerTodo } from "@/lib/admin/traer-todo";
 
 function fechaLimaHoy(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
@@ -60,7 +61,22 @@ function HorasContenido() {
       { data: salidasData },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, sedes:sede_base_id(codigo)").order("nombres"),
-      supabase.from("jornadas").select("persona_id, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado").gte("fecha", desde).lte("fecha", hasta),
+      // Por lotes: esta consulta no tenía tope ni orden, así que PostgREST
+      // devolvía 1000 filas arbitrarias y el total de horas de gente al azar
+      // salía corto. El botón «Todo el año» era el camino directo al problema.
+      // El order por fecha+persona no es cosmético: sin un orden estable, dos
+      // lotes pueden repetir una fila y perder otra.
+      traerTodo<{ persona_id: string; horas_trabajadas: number | null; minutos_tarde: number | null; horas_extra_detectadas: number | null; estado: string }>(
+        (ini, fin) =>
+          supabase
+            .from("jornadas")
+            .select("persona_id, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado")
+            .gte("fecha", desde)
+            .lte("fecha", hasta)
+            .order("fecha")
+            .order("persona_id")
+            .range(ini, fin),
+      ),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
     ]);
 

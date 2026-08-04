@@ -7,6 +7,7 @@ import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas"
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
+import { traerTodo } from "@/lib/admin/traer-todo";
 
 const TZ = "America/Lima";
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
@@ -91,7 +92,19 @@ function ReporteSedeContenido() {
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id")
         .eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
-      supabase.from("jornadas").select("persona_id, fecha, estado, minutos_tarde, horas_trabajadas").gte("fecha", desde).lte("fecha", hasta),
+      // Por lotes: sin esto PostgREST cortaba en 1000 filas en silencio y la
+      // hoja de sede salía con horas y tardanzas de menos.
+      traerTodo<{ persona_id: string; fecha: string; estado: string; minutos_tarde: number | null; horas_trabajadas: number | null }>(
+        (ini, fin) =>
+          supabase
+            .from("jornadas")
+            .select("persona_id, fecha, estado, minutos_tarde, horas_trabajadas")
+            .gte("fecha", desde)
+            .lte("fecha", hasta)
+            .order("fecha")
+            .order("persona_id")
+            .range(ini, fin),
+      ),
       supabase.rpc("fn_jornadas_extra", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_personas_funciones"),
       supabase.rpc("fn_areas"),

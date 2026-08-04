@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { puedeActuarSobre } from "@/lib/admin/escalafon";
 
 // Gestión de cuentas del panel — SOLO admin/lider_do. Corre en el servidor con la
 // llave de servicio; verifica que quien llama sea admin (por su sesión).
@@ -8,11 +9,31 @@ import { NextResponse } from "next/server";
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Estas claves son la única credencial de una cuenta del panel hasta que su dueña
+// la cambia. `Math.random()` NO sirve para eso: no es criptográfico y su estado
+// interno se puede reconstruir observando unas pocas salidas, así que quien viera
+// una clave generada podría predecir las siguientes. `crypto.getRandomValues` sí
+// es del sistema operativo.
+//
+// El bucle de descarte existe porque 256 no es múltiplo de 24 ni de 8: tomar el
+// resto a secas haría que las primeras letras del alfabeto salieran más seguido.
+// Se descartan los bytes de la cola incompleta y se pide otro.
+function pick(set: string, n: number) {
+  const limite = Math.floor(256 / set.length) * set.length;
+  let out = "";
+  while (out.length < n) {
+    const bytes = new Uint8Array(n - out.length);
+    globalThis.crypto.getRandomValues(bytes);
+    for (const b of bytes) if (b < limite) out += set[b % set.length];
+  }
+  return out;
+}
+
 function generarClave() {
   const abc = "abcdefghijkmnpqrstuvwxyz", ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ", num = "23456789";
-  const pick = (set: string, n: number) => Array.from({ length: n }, () => set[Math.floor(Math.random() * set.length)]).join("");
   return `${pick(ABC, 1)}${pick(abc, 5)}-${pick(num, 4)}`;
 }
+
 
 async function emailsPorUsuario(admin: any): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
@@ -78,14 +99,28 @@ export async function POST(req: Request) {
       // Convierte a un integrante en encargada (supervisor_sede) de su sede.
       const { data: p } = await admin.from("personas").select("id, rol").eq("id", personaId).maybeSingle();
       if (!p) return NextResponse.json({ error: "persona no encontrada" }, { status: 404 });
+      if (!puedeActuarSobre(yo.rol, p.rol)) {
+        return NextResponse.json({ error: "no puedes cambiar el rol de esa persona" }, { status: 403 });
+      }
+      // El rol del objetivo se leía y no se usaba, así que "promover" servía
+      // igual para DEGRADAR: con el id de un admin lo dejaba como encargada.
+      // Esta acción solo sube a un integrante; cualquier otro cambio de rol es
+      // otra operación y necesita su propia puerta.
+      if (p.rol !== "integrante") {
+        return NextResponse.json({ error: "solo se promueve a un integrante" }, { status: 409 });
+      }
       const { error } = await admin.from("personas").update({ rol: "supervisor_sede" }).eq("id", personaId);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ ok: true });
     }
 
     if (accion === "resetear") {
-      const { data: p } = await admin.from("personas").select("auth_user_id").eq("id", personaId).maybeSingle();
-      if (!p?.auth_user_id) return NextResponse.json({ error: "esa persona no tiene cuenta" }, { status: 409 });
+      const { data: p } = await admin.from("personas").select("auth_user_id, rol").eq("id", personaId).maybeSingle();
+      if (!p) return NextResponse.json({ error: "persona no encontrada" }, { status: 404 });
+      if (!puedeActuarSobre(yo.rol, p.rol)) {
+        return NextResponse.json({ error: "no puedes resetear la contraseña de esa persona" }, { status: 403 });
+      }
+      if (!p.auth_user_id) return NextResponse.json({ error: "esa persona no tiene cuenta" }, { status: 409 });
       const nueva = generarClave();
       const { error } = await admin.auth.admin.updateUserById(p.auth_user_id, { password: nueva });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -94,8 +129,14 @@ export async function POST(req: Request) {
 
     if (accion === "crear") {
       if (!email || !String(email).includes("@")) return NextResponse.json({ error: "correo inválido" }, { status: 400 });
-      const { data: p } = await admin.from("personas").select("id, auth_user_id").eq("id", personaId).maybeSingle();
+      const { data: p } = await admin.from("personas").select("id, auth_user_id, rol").eq("id", personaId).maybeSingle();
       if (!p) return NextResponse.json({ error: "persona no encontrada" }, { status: 404 });
+      // Crear la cuenta de alguien es elegir con qué correo entra: sin esta
+      // comprobación, un líder DO podía darle al admin que aún no tiene cuenta
+      // un correo suyo y entrar como admin.
+      if (!puedeActuarSobre(yo.rol, p.rol)) {
+        return NextResponse.json({ error: "no puedes crear la cuenta de esa persona" }, { status: 403 });
+      }
       if (p.auth_user_id) return NextResponse.json({ error: "esa persona ya tiene cuenta" }, { status: 409 });
       const nueva = generarClave();
       const { data: authData, error } = await admin.auth.admin.createUser({ email, password: nueva, email_confirm: true });
