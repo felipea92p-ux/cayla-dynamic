@@ -1,101 +1,59 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-// Reabre el día de una persona que ya marcó salida final: convierte esa salida
-// final en una salida temporal (con el motivo del regreso) y registra el retorno,
-// de modo que las horas cuenten correcto (el rato afuera NO suma). Corre en el
-// servidor con la llave de servicio (nunca expuesta al cliente).
+// Reabre el día de una persona que ya marcó salida final: esa salida se anula y
+// se reemite como salida TEMPORAL con el mismo instante (así el rato afuera no
+// suma), y entra el retorno. La persona queda adentro otra vez.
+//
+// ── POR QUÉ ESTA RUTA CASI NO HACE NADA ─────────────────────────────────────
+//
+// Antes hacía las tres escrituras acá, con la llave de servicio, en tres viajes
+// sueltos. Si el segundo fallaba, la salida final ya se había convertido en
+// temporal y el retorno nunca entraba: el día quedaba ABIERTO para siempre y las
+// horas de esa persona salían mal, sin que nadie se enterara hasta cuadrar la
+// planilla. Ahora todo eso vive en fn_reabrir_dia (mig. 0137), que es una
+// transacción: o queda todo, o no queda nada.
+//
+// Y ya no se usa la llave de servicio. La petición viaja con el token de la
+// TERMINAL, así que la función identifica el kiosco por `auth.uid()` y de ahí
+// saca la sede. Antes el terminal se resolvía acá y se le pasaba a la base como
+// dato; ahora no hay ningún dato que falsificar.
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export async function POST(req: Request) {
-  if (!URL || !SERVICE) {
+  if (!URL || !ANON) {
     return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
   }
-  const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
-  // 1) La petición debe venir de una sesión de TERMINAL válida.
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return NextResponse.json({ error: "sin sesión" }, { status: 401 });
-  const { data: userData, error: ue } = await admin.auth.getUser(token);
-  if (ue || !userData.user) return NextResponse.json({ error: "sesión inválida" }, { status: 401 });
-  const { data: term } = await admin
-    .from("terminales")
-    .select("id, activo, sede_id")
-    .eq("auth_user_id", userData.user.id)
-    .maybeSingle();
-  if (!term || !term.activo) {
-    return NextResponse.json({ error: "no es un terminal válido" }, { status: 403 });
-  }
 
-  // 2) Datos.
   const { personaId, motivo } = await req.json().catch(() => ({}));
-  if (!personaId || !motivo || String(motivo).trim().length < 3) {
+  if (!personaId || !motivo) {
     return NextResponse.json({ error: "faltan datos (personaId, motivo)" }, { status: 400 });
   }
 
-  // 3) Buscar la última salida final de HOY (hora Lima).
-  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
-  const ini = `${hoy}T00:00:00-05:00`, fin = `${hoy}T23:59:59-05:00`;
-  const { data: finals } = await admin
-    .from("marcajes")
-    .select("id, sede_id")
-    .eq("persona_id", personaId)
-    .eq("tipo", "salida_final")
-    // Una marca anulada (mig. 0081) ya no cuenta para nada: si se agarrara esta,
-    // se reabriría un día que en realidad sigue cerrado, y encima se reclasificaría
-    // una marca que alguien retiró a propósito.
-    .is("anulada_at", null)
-    .gte("timestamp_marca", ini)
-    .lte("timestamp_marca", fin)
-    .order("timestamp_marca", { ascending: false })
-    .limit(1);
-  const cierre = finals?.[0];
-  if (!cierre) {
-    return NextResponse.json({ error: "no hay salida final de hoy para reabrir" }, { status: 409 });
-  }
-
-  // 3b) Cada tienda reabre lo suyo (decisión de Felipe, jul-2026).
-  //
-  // Esta ruta corre con la llave de servicio, que salta RLS por completo: sin
-  // este chequeo, la terminal de TRU podía reabrir y alterar el día de una
-  // colaboradora de LIM o AQP con solo mandar su id.
-  //
-  // Se compara contra la sede DEL MARCAJE, no contra la sede base de la
-  // persona. Es lo que hace que el caso de quien viaja entre sedes funcione
-  // sin un `if` aparte: si Felipe marcó su salida en TRU, es la terminal de
-  // TRU la que puede corregirla — que es exactamente donde está el problema
-  // que se quiere arreglar. La sede sale del kiosco tocado, igual que en el
-  // resto del sistema.
-  if (cierre.sede_id !== term.sede_id) {
-    return NextResponse.json(
-      { error: "esa marca es de otra sede: se reabre desde la terminal donde se marcó" },
-      { status: 403 },
-    );
-  }
-
-  // 4) Reclasificar esa salida final como salida temporal (con motivo)…
-  const { error: e1 } = await admin
-    .from("marcajes")
-    .update({ tipo: "salida_otro", motivo_otro: String(motivo).trim() })
-    .eq("id", cierre.id);
-  if (e1) return NextResponse.json({ error: e1.message }, { status: 500 });
-
-  // 5) …y registrar el retorno ahora (queda "adentro", día abierto de nuevo).
-  const { error: e2 } = await admin.from("marcajes").insert({
-    client_uuid: globalThis.crypto.randomUUID(),
-    persona_id: personaId,
-    sede_id: cierre.sede_id,
-    tipo: "retorno_otro",
-    timestamp_marca: new Date().toISOString(),
-    origen: "terminal",
+  // El cliente lleva la sesión de la terminal, no la llave de servicio: es lo que
+  // hace que auth.uid() dentro de la función devuelva el kiosco que llamó.
+  const sb = createClient(URL, ANON, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
   });
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
 
-  // 6) Recalcular la jornada del día.
-  const { error: e3 } = await admin.rpc("fn_recalcular_jornada", { p_persona_id: personaId, p_fecha: hoy });
-  if (e3) return NextResponse.json({ error: e3.message }, { status: 500 });
+  const { data, error } = await sb.rpc("fn_reabrir_dia", {
+    p_persona_id: personaId,
+    p_motivo: String(motivo),
+  });
 
-  return NextResponse.json({ ok: true });
+  if (error) {
+    // Los mensajes de la función están escritos para que los lea quien está
+    // parada frente al kiosco ("esa marca es de otra sede", "no hay salida final
+    // de hoy"), así que se devuelven tal cual en vez de un "no se pudo" que
+    // obliga a llamar a la encargada para averiguar qué pasó.
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json(data ?? { ok: true });
 }

@@ -31,7 +31,7 @@
 -- Una fecha literal haría que la prueba pasara hoy y fallara mañana.
 -- ============================================================================
 begin;
-select plan(15);
+select plan(17);
 
 -- ── Semilla: dos sedes, dos terminales, tres personas ───────────────────────
 insert into sedes (id, codigo, nombre, activa) values
@@ -106,18 +106,21 @@ select ok(
 -- viaja en el cuerpo de la petición lo elige quien llama.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000aeff', true);
 
-select throws_ok(
+-- `throws_like` y no `throws_ok(null, null)`: importa CUÁL error saltó. Con el
+-- comodín, un fallo por otra causa —una FK, un permiso— pasaría por bueno y la
+-- prueba diría que el guard funciona cuando ni siquiera se llegó a evaluar.
+select throws_like(
   $$ select fn_reabrir_dia('00000000-0000-0000-0000-00000000ae02', 'me falto cerrar caja') $$,
-  null, null,
+  '%terminal activa%',
   'SIN TERMINAL · una sesión que no es de una terminal activa no reabre nada');
 
 
 -- ── 2 · El motivo es obligatorio ────────────────────────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000ae09', true);
 
-select throws_ok(
+select throws_like(
   $$ select fn_reabrir_dia('00000000-0000-0000-0000-00000000ae02', '  x ') $$,
-  null, null,
+  '%motivo%',
   'MOTIVO · un motivo en blanco o de menos de 3 letras se rechaza');
 
 
@@ -126,9 +129,9 @@ select throws_ok(
 -- quien viaja entre sedes marcó donde estaba, y ahí se corrige.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000ae19', true);
 
-select throws_ok(
+select throws_like(
   $$ select fn_reabrir_dia('00000000-0000-0000-0000-00000000ae03', 'vine a devolver la llave') $$,
-  null, null,
+  '%otra sede%',
   'OTRA SEDE · la terminal de la sede B no reabre una marca hecha en la sede A');
 
 
@@ -183,6 +186,22 @@ select is(
   1,
   'FELIZ · quedó el rastro en correcciones_auditoria, con el motivo textual');
 
+-- Que la vieja quede anulada no basta: si el día siguiera teniendo una salida
+-- final vigente, seguiría cerrado y la persona no podría volver a marcar.
+select is(
+  (select count(*)::int from marcajes
+    where persona_id = '00000000-0000-0000-0000-00000000ae02'
+      and tipo = 'salida_final' and anulada_at is null),
+  0,
+  'FELIZ · ya no queda ninguna salida final vigente: el día está abierto de nuevo');
+
+-- Y por eso mismo, insistir no hace nada: no queda qué reabrir. El botón del
+-- kiosco no fabrica pares de marcas por cada pulsación.
+select throws_like(
+  $$ select fn_reabrir_dia('00000000-0000-0000-0000-00000000ae02', 'le doy otra vez al boton') $$,
+  '%salida final de hoy%',
+  'DOS VECES · reabrir de nuevo no encuentra salida final vigente y se detiene');
+
 
 -- ── 5 · El candado de periodo pagado, y el todo-o-nada ──────────────────────
 -- Va al final porque el candado mira la fecha, no la persona: en cuanto existe
@@ -193,9 +212,9 @@ insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
 values ('00000000-0000-0000-0000-00000000aeaa',
         fn_hoy_lima() - 10, fn_hoy_lima() + 15, 'pagado');
 
-select throws_ok(
+select throws_like(
   $$ select fn_reabrir_dia('00000000-0000-0000-0000-00000000ae04', 'quiero volver a entrar') $$,
-  null, null,
+  '%periodo ya PAGADO%',
   'PAGADO · reabrir un día que cae en un periodo ya pagado se rechaza');
 
 -- Estas dos son el corazón del archivo. Con la ruta vieja, un fallo después de
