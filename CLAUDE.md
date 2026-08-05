@@ -113,6 +113,27 @@ npx pnpm test         # vitest
 
 ---
 
+## Antes de reescribir una función SQL
+
+**Nunca copies el cuerpo de una función sin preguntar cuál es la versión vigente:**
+
+```bash
+./scripts/donde-vive.sh fn_planilla_calcular
+```
+
+Dice en qué migraciones está definida, cuál es la última —la única de la que se
+puede copiar— y si el Postgres local coincide con ella.
+
+Hace falta porque un `grep` normal miente. La 0081 escribe
+`CREATE OR REPLACE FUNCTION public.fn_…` en mayúsculas y con prefijo, mientras
+otras la escriben en minúsculas y sin él: buscar a mano encuentra unas
+definiciones y se salta otras. `fn_planilla_calcular` tiene **22 versiones**
+repartidas y pesa 37.000 caracteres.
+
+El 2026-08-05 esto casi mete a producción una migración copiada de la 0017
+creyéndola la última —era la 0081, 64 migraciones después— que habría revertido
+en silencio toda la lógica de marcas anuladas. Lo cazaron dos pruebas por azar.
+
 ## Convención de migraciones
 
 - Un archivo por cambio, numerado correlativo: `00NN_descripcion_en_espanol.sql`.
