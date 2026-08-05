@@ -40,7 +40,22 @@ const EMPRESA = {
 // Si mañana sube el pasaje y se abre una fila nueva, este documento saldrá con la
 // tarifa nueva y el anterior seguirá describiendo correctamente el periodo que
 // cubrió — que es justamente por lo que se versionó.
-const TARIFA_POR_DEFECTO = 10;
+//
+// ⇩ 2026-08-05 · AQUÍ HABÍA UN `TARIFA_POR_DEFECTO = 10` Y ESE ERA EL BUG.
+//
+// La declaración de Taller LIM salía impresa con S/ 10.00 mientras la planilla
+// le pagaba S/ 12.00, que es lo que la 0142 fijó para Lima. Dos causas encadenadas:
+//
+//   1. La pantalla leía SIEMPRE la fila general (`sede_codigo` nulo) y nunca la
+//      de la sede de la persona. La general vale 0.00 desde la 0118 —nace
+//      apagada a propósito—, así que la lectura fallaba el «> 0»…
+//   2. …y caía a este 10 escrito a mano, que se veía perfectamente creíble.
+//
+// Un valor por defecto convirtió «no tengo el dato» en «el dato es 10». Por eso
+// ya no hay ninguno: sin fila aplicable, la tarifa es `null` y el documento lo
+// dice en vez de imprimir una cifra. Es la misma regla que el resto del repo
+// —nada de listas ni montos escritos a mano cuando el dato vive en una tabla—,
+// y acá pesa más que en ninguna pantalla, porque este papel se firma.
 
 type TipoDoc = "ruta" | "politica" | "bono";
 
@@ -265,8 +280,16 @@ export default function DocumentacionPage() {
   const [tipo, setTipo] = useState<TipoDoc>("ruta");
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [sedes, setSedes] = useState<Map<string, string>>(new Map());
+  // sede_base_id → CÓDIGO de la sede. Va aparte de `sedes`, que guarda el nombre
+  // para imprimir («Taller LIM»), porque las tarifas se buscan por código («LIM»).
+  // Tenerlas en un solo mapa fue justamente el bug: se comparaba `sede_codigo`
+  // contra el nombre, no coincidía nunca y todo el mundo cobraba la tarifa
+  // general. Dos preguntas distintas, dos mapas distintos.
+  const [sedeCodigo, setSedeCodigo] = useState<Map<string, string>>(new Map());
   const [personaId, setPersonaId] = useState<string>("");
-  const [tarifa, setTarifa] = useState<number>(TARIFA_POR_DEFECTO);
+  // La tarifa GENERAL (la fila sin sede). `null` cuando no hay ninguna aplicable
+  // — que es el estado real hoy, porque la general vale 0.00 desde la 0118.
+  const [tarifa, setTarifa] = useState<number | null>(null);
   const [sustento, setSustento] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   // Quién NO recibe el documento. Se guarda la exclusión y no la inclusión a
@@ -305,9 +328,40 @@ export default function DocumentacionPage() {
   const [avisoDoc, setAvisoDoc] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // LA TARIFA QUE LE TOCA A UNA PERSONA. Primero la fila de SU sede; si su sede
+  // no tiene fila propia, la general. Es el MISMO orden de preferencia que usan
+  // `fn_planilla_calcular` (0142) y `fn_documentos_tablero` (0157), y por eso se
+  // escribe una sola vez acá: el monto que se firma en el papel y el que se paga
+  // en la boleta no pueden salir de dos lecturas distintas del mismo parámetro.
+  //
+  // Devuelve `null` cuando no hay ninguna fila aplicable, o cuando la que hay
+  // vale cero — que es como nace la general en la 0118. `null` significa «esta
+  // sede no tiene tarifa», y quien lo recibe tiene que DECIRLO, nunca rellenarlo
+  // con un número: una declaración firmada con una cifra inventada no sostiene
+  // la movilidad, la desmiente.
+  function tarifaDeSede(sedeBaseId: string | null | undefined): number | null {
+    const codigo = sedeBaseId ? sedeCodigo.get(sedeBaseId) : undefined;
+    const suya = codigo ? tarifas.find((t) => t.sede_codigo === codigo) : undefined;
+    const fila = suya ?? tarifas.find((t) => !t.sede_codigo);
+    const valor = Number(fila?.valor);
+    return Number.isFinite(valor) && valor > 0 ? valor : null;
+  }
+
   // Imprimir el documento de una persona es poner la pantalla en él y llamar a
   // imprimir: la maquinaria que ya existía no se toca.
   function imprimirFila(personaId: string, que: TipoDoc) {
+    // Salvo cuando el papel saldría con el monto equivocado. La declaración de
+    // ruta es lo que hace que la movilidad no sea remuneración; si la sede de
+    // esta persona no tiene tarifa, no hay monto que declarar y el documento no
+    // se imprime. Se frena ACÁ y no solo en el render porque desde el tablero se
+    // imprime a ciegas: el botón dispara `window.print()` sin que nadie mire.
+    const ficha = personas.find((p) => p.id === personaId);
+    if (que === "ruta" && ficha && tarifaDeSede(ficha.sede_base_id) === null) {
+      setAvisoDoc({ tipo: "error", texto:
+        `La sede ${sedes.get(ficha.sede_base_id) ?? "de esta persona"} no tiene tarifa de movilidad vigente, ` +
+        "así que su declaración saldría sin monto. Créala en parámetros laborales y vuelve a imprimir." });
+      return;
+    }
     setTipo(que);
     setPersonaId(personaId);
     // El render tiene que haber corrido con la persona puesta antes de imprimir.
@@ -364,9 +418,11 @@ export default function DocumentacionPage() {
     // nadie en particular, describe la regla.
     const fila = tablero.find((f) => f.persona_id === subiendo.personaId);
     const persona = personas.find((p) => p.id === subiendo.personaId);
-    const tarifaSede = persona
-      ? (tarifas.find((t) => t.sede_codigo === sedes.get(persona.sede_base_id ?? ""))?.valor ?? tarifa)
-      : tarifa;
+    // Antes acá se buscaba `t.sede_codigo === sedes.get(...)`, o sea el código
+    // «LIM» contra el nombre «Taller LIM»: no coincidía nunca y el monto que se
+    // archivaba era el general, no el de la sede. El mismo defecto que en el
+    // documento impreso, y por eso ahora los dos llaman a la misma función.
+    const tarifaSede = tarifaDeSede(persona?.sede_base_id);
     const monto = subiendo.negativa || subiendo.que === "politica"
       ? null
       : subiendo.que === "bono" ? BONO_CUMPLEANOS : tarifaSede;
@@ -470,8 +526,10 @@ export default function DocumentacionPage() {
         .map((f) => [f.id, f.fecha_fin_contrato]),
     );
     setFinContrato(porVencer);
-    setSedes(new Map(((ss as { id: string; nombre: string; codigo: string }[]) ?? [])
-      .map((s) => [s.id, s.nombre || s.codigo])));
+    const listaSedes = (ss as { id: string; nombre: string; codigo: string }[]) ?? [];
+    // El NOMBRE para imprimir y el CÓDIGO para buscar su tarifa. Ver `tarifaDeSede`.
+    setSedes(new Map(listaSedes.map((s) => [s.id, s.nombre || s.codigo])));
+    setSedeCodigo(new Map(listaSedes.map((s) => [s.id, s.codigo])));
 
     // Quiénes salen desmarcados de entrada. Son dos motivos distintos:
     //
@@ -537,7 +595,10 @@ export default function DocumentacionPage() {
     setTarifas(filas);
     const general = filas.find((f) => !f.sede_codigo) ?? filas[0];
     const monto = Number(general?.valor);
-    if (Number.isFinite(monto) && monto > 0) setTarifa(monto);
+    // Se GUARDA lo que hay, incluido «no hay». Antes, cuando la general valía 0,
+    // este `if` no entraba y quedaba en pie el 10 escrito a mano: el papel decía
+    // una cifra que la base nunca había dicho.
+    setTarifa(Number.isFinite(monto) && monto > 0 ? monto : null);
     // El sustento viaja pegado a la tarifa en la base (0118). Se muestra en el
     // documento en lugar de repetirlo en el código: así el papel dice
     // exactamente lo que la fila que se está aplicando dice.
@@ -591,7 +652,12 @@ export default function DocumentacionPage() {
   // antes el cálculo usaba 26 y la frase decía «24 días», así que el documento
   // afirmaba que 10 × 24 = 260. Felipe lo detectó el 2026-08-02.
   const DIAS_REFERENCIA = 24;
-  const mensual = tarifa * DIAS_REFERENCIA;
+  const mensual = tarifa === null ? null : tarifa * DIAS_REFERENCIA;
+
+  // La tarifa de quien está seleccionado. Es la que se imprime en SU declaración
+  // y la que se archiva cuando sube el escaneo — el mismo número por el mismo
+  // camino, para que el papel y el registro no puedan discrepar.
+  const tarifaPersona = persona ? tarifaDeSede(persona.sede_base_id) : null;
 
   // Las tarifas que tienen sede propia, ordenadas. Si está vacío es que la 0130
   // no está pegada y el documento cae al monto único de siempre.
@@ -1038,7 +1104,37 @@ export default function DocumentacionPage() {
               </div>
             </div>
 
-            {tipo === "ruta" && persona && (
+            {/* SIN TARIFA NO HAY DECLARACIÓN. Este documento existe para dejar
+                por escrito un monto pactado; si la sede de la persona no tiene
+                tarifa vigente, no hay monto que pactar y lo único honesto es
+                decirlo. Antes salía con un valor por defecto de S/ 10.00 y se
+                firmaba así: un pacto individual por una cifra que la base nunca
+                fijó es peor que no tener papel, porque deja constancia escrita
+                de que el monto lo decidió alguien y no un criterio —que es
+                exactamente lo que el Exp. 1038-2019 usó para reclasificar una
+                movilidad entera. */}
+            {tipo === "ruta" && persona && tarifaPersona === null && (
+              <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+                <p className="mb-2">
+                  <strong className="text-rojo">
+                    La sede {sedes.get(persona.sede_base_id) ?? "de esta persona"} no tiene
+                    tarifa de movilidad vigente.
+                  </strong>
+                </p>
+                <p className="mb-2">
+                  Por eso no se puede emitir su declaración de ruta: el documento tiene que
+                  decir cuánto se le paga por día, y ese número sale de{" "}
+                  <code>parametros_laborales</code>, no de esta pantalla.
+                </p>
+                <p className="text-taupe">
+                  Crea la tarifa de esa sede —con su sustento, como las de Arequipa, Trujillo
+                  y Lima— y vuelve a entrar. Mientras no exista, la planilla tampoco le está
+                  pagando movilidad a esta persona.
+                </p>
+              </div>
+            )}
+
+            {tipo === "ruta" && persona && tarifaPersona !== null && (
               <>
                 <h2 className="mb-6 text-center font-serif text-xl">
                   Declaración de ruta y gasto de transporte
@@ -1083,7 +1179,10 @@ export default function DocumentacionPage() {
 
                 <p className="mb-6">
                   Tomo conocimiento de que CAYLA S.A.C. me otorga una asignación por movilidad de{" "}
-                  <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong>, destinada
+                  {/* LA TARIFA DE SU SEDE, no la general. Acá decía `tarifa` a
+                      secas y por eso Taller LIM firmaba S/ 10.00 mientras la
+                      planilla le pagaba los S/ 12.00 de la 0142. */}
+                  <strong>S/ {tarifaPersona.toFixed(2)} por día efectivamente asistido</strong>, destinada
                   a cubrir dicho traslado; que se abona únicamente por los días en que asisto a
                   laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y que
                   este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
@@ -1203,13 +1302,23 @@ export default function DocumentacionPage() {
                       </tbody>
                     </table>
                   </>
-                ) : (
+                ) : tarifa !== null ? (
                   <p className="mb-4">
                     CAYLA otorga a su personal una asignación por movilidad de{" "}
                     <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong> —
-                    equivalente a S/ {mensual.toFixed(2)} en un mes de {DIAS_REFERENCIA} días
+                    equivalente a S/ {mensual!.toFixed(2)} en un mes de {DIAS_REFERENCIA} días
                     asistidos — destinada exclusivamente a cubrir el traslado desde su domicilio
                     hasta su centro de labores y su retorno.
+                  </p>
+                ) : (
+                  /* Ni tarifas por sede ni tarifa general: no hay política que
+                     emitir. Mismo criterio que la declaración de ruta — un
+                     documento de empresa que afirma un monto inventado obliga a
+                     las 22 personas a la vez. */
+                  <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-rojo print:hidden">
+                    No hay ninguna tarifa de movilidad vigente en el sistema, así que esta
+                    política no puede afirmar un monto. Créala en parámetros laborales antes de
+                    emitirla.
                   </p>
                 )}
 

@@ -4,13 +4,13 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-05, noche**. En el repo hay **154 migraciones,
-hasta la 0159**. Aplicadas en producción y confirmadas por Felipe ese día: la
+*Última consolidación: **2026-08-05, noche**. En el repo hay **158 migraciones,
+hasta la 0162**. Aplicadas en producción y confirmadas por Felipe ese día: la
 **0136 + 0149 + 0150** (educación), la **0154** (comprobantes de 50 MB), la
 **0157** (documentos firmados) y la **0159** (candado de movilidad, apagado).
-De la 0128 en adelante, el resto queda por confirmar. **52 archivos pgTAP, 477
-pruebas**, verdes sobre una base reseteada desde cero · `pnpm typecheck` y las
-**103 pruebas de interfaz** (8 archivos), también.*
+De la 0128 en adelante, el resto queda por confirmar. **Pendientes de pegar: la
+0160, la 0161 y la 0162.** **56 archivos pgTAP, 511 pruebas**, verdes ·
+`pnpm typecheck` y las **103 pruebas de interfaz** (8 archivos), también.*
 
 > **Cómo se verificó esto** (para que la próxima consolidación no vuelva a
 > quedarse vieja sin que nadie lo note):
@@ -52,10 +52,35 @@ chocaban. Encontrado ejecutando la prueba, no leyendo.
 |---|---|
 | **0157** | Tabla `documentos_firmados` + bucket `documentos`. El **alcance se declara** (`individual`/`empresa`) en vez de deducirse de un hueco, y cinco constraints hacen imposibles los estados que dejarían el expediente sin valor. Cierra de paso el bucket `expedientes`, que **no tenía límite de tamaño ni de formato** |
 | **0159** | La planilla consulta si se exige la declaración de ruta. **Nace apagado**: encenderlo es un `insert` en `parametros_laborales` con su fecha |
+| **0161** | El tablero informa también el **cargo del onomástico**, y el aviso es por **calendario**: solo se pone en rojo a quien ya cumplió años. Quien cumple más adelante, quien no tiene su fecha de nacimiento cargada y quien entró después de su onomástico salen en gris — el falso positivo cuesta más que la falta que se escapa. De paso, el bono deja de poder registrarse a nombre de un locador: esa regla solo cubría la declaración de ruta |
+| **0162** | El tablero deja de pedirle la declaración a **quien firma por CAYLA** —no puede ser las dos partes del mismo pacto individual; sale de `configuracion.firmante_empresa`, no de un nombre escrito— y a **quien termina contrato este mes o antes**. El corte es «este mes» y no «tiene fecha de fin» a propósito: un contrato a plazo fijo hasta diciembre desaparecería en agosto y esa persona cobraría cinco meses de movilidad sin el pacto que la sostiene. No mueve ningún pago mientras el candado de la 0159 siga apagado |
 
 **Pantallas:** Documentación pasó de imprimir a ciegas a ser un **tablero** de
 quién está en planilla, con imprimir/subir/«se negó» en cada fila y la política
 de empresa en franja roja si falta o si su fecha es posterior al primer pago.
+Desde la 0161 se pueden subir **los tres** documentos firmados y no solo la
+declaración de ruta: el guardado mandaba el tipo fijo en `"ruta"`, así que el
+aviso rojo de la política se podía leer pero no cerrar, y el cargo del bono no
+tenía dónde subirse aunque la base lo aceptaba desde la 0157.
+
+**El 2026-08-05 se cazó ahí un error de monto.** La declaración de Taller LIM
+salía impresa con **S/ 10.00** mientras la planilla le pagaba los **S/ 12.00**
+que la 0142 fijó para Lima. La pantalla nunca leía la tarifa de la sede: buscaba
+`sede_codigo` («LIM») comparándolo contra el *nombre* de la sede («Taller LIM»),
+no coincidía jamás, caía a la fila general —que vale 0.00 desde la 0118, nace
+apagada— y de ahí a un `TARIFA_POR_DEFECTO = 10` escrito a mano. Un valor por
+defecto había convertido «no tengo el dato» en «el dato es 10», en el único
+papel del sistema que alguien firma. Ese defecto ya no existe: sin tarifa
+aplicable la pantalla **no imprime** y dice por qué. El mismo error archivaba el
+`monto_declarado` equivocado al subir el escaneo; ahora los dos caminos llaman a
+la misma función.
+
+**Descubierto de paso, sin resolver: Central (CCO) no tiene tarifa de
+movilidad.** Solo existen las filas de AQP, TRU y LIM (0142). Quien está en
+Central cae a la general de 0.00, o sea **cobra S/ 0.00 de movilidad**, y hasta
+hoy su declaración salía afirmando S/ 10.00. Decidir si Central lleva tarifa —y
+de cuánto— es de Felipe; el sistema ya no imprime un número inventado mientras
+tanto.
 Disciplina ganó **«Subir cargo firmado»** como acción principal — su backend
 existía desde la 0074 y nadie lo usaba, entre otras cosas porque
 `expediente_adjuntos` no estaba en los tipos generados.
@@ -338,7 +363,7 @@ de su patrimonio. La consulta que arma la lista real está en
 | ~~**Pantalla para subir comprobantes** de educación, con candado~~ | ✅ **hecha y en producción** el 2026-08-05: [`0136`](../supabase/migrations/0136_la_pantalla_de_educacion_con_su_comprobante.sql) + [`0149`](../supabase/migrations/0149_la_educacion_con_todas_sus_reglas.sql) + [`0150`](../supabase/migrations/0150_la_planilla_suma_la_educacion_y_exige_el_papel.sql). Sin comprobante se guarda pero **no paga** |
 | ~~**Pantalla para subir los convenios de movilidad firmados**~~ | ✅ **hecha y en producción** el 2026-08-05: [`0157`](../supabase/migrations/0157_los_documentos_firmados_entran_al_sistema.sql). El tablero de `/admin/documentacion` dice a quién le falta |
 | **Cargar las 22 declaraciones de ruta firmadas** | **de Felipe. Plazo: 28/08/2026.** El sitio donde subirlas ya existe |
-| **Bono de cumpleaños** automático con alerta en el mes del onomástico | conectar `datos_personales.fecha_nacimiento`. Su constancia ya se puede guardar (0157), pero el tablero todavía solo maneja la declaración de ruta |
+| ~~**Bono de cumpleaños** con alerta en el mes del onomástico~~ | ✅ **hecho** en la [`0161`](../supabase/migrations/0161_el_tablero_tambien_ve_el_cargo_del_cumpleanos.sql) — falta pegarla. El tablero lee `datos_personales.fecha_nacimiento` y avisa por mes. **No condiciona el pago a propósito**: el cargo se firma AL recibir el dinero, así que exigirlo antes invertiría el orden real del acto. Queda pendiente cargar las fechas de nacimiento que falten: quien no la tenga sale como «falta su fecha», no como pendiente |
 | **Tarifa de movilidad para CCO** | decisión de Felipe: las tres tiendas la tienen (AQP/TRU S/10, LIM S/12) y Central no. O falta cargarla, o Central no cobra movilidad y entonces su gente no debería salir en el tablero |
 | ~~**La bonificación del 9%** de la Ley 30334~~ | ✅ **hecha** en la [`0134`](../supabase/migrations/0134_la_bonificacion_extraordinaria_ley_30334.sql), y el contador confirmó el 2026-08-05 que la premisa era correcta |
 | **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. Definido abajo |
