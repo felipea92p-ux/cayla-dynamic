@@ -15,6 +15,12 @@
 
 set -e
 
+# Va PRIMERO porque tarda menos de un segundo y porque un número duplicado no se
+# arregla corriendo pruebas: se arregla renombrando un archivo. Enterarse antes
+# de esperar los diez segundos del typecheck ahorra el viaje entero.
+echo "→ numeración de migraciones y pruebas…"
+"$(dirname "$0")/numeracion.sh" || exit 1
+
 echo "→ typecheck…"
 npx pnpm typecheck >/dev/null 2>&1 || {
   echo ""

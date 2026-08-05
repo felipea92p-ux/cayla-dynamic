@@ -194,8 +194,17 @@ archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
 ## La red de seguridad (jul-2026)
 
 **Antes de subir a GitHub** corre solo un hook (`scripts/hooks/pre-push`) que
-verifica `typecheck` y las pruebas de interfaz. Si algo está en rojo, el push no
-se hace. Toma unos 10 segundos.
+verifica la **numeración**, el `typecheck` y las pruebas de interfaz. Si algo está
+en rojo, el push no se hace. Toma unos 10 segundos.
+
+La verificación de numeración (`scripts/hooks/numeracion.sh`) frena el push si dos
+archivos de `supabase/migrations` o `supabase/tests` comparten número, o si un
+número **nuevo** ya lo reclamó otra rama sin fusionar. Los huecos solo avisan: la
+0031 y la 0033 faltan a propósito, viven fuera de git por datos personales.
+
+Solo mira lo que el push agrega, y esa es la razón de que sirva: comparar el árbol
+entero contra todas las ramas encuentra choques históricos de ramas abandonadas y
+falla en cualquier push. Un freno que chilla siempre se desactiva a la semana.
 
 Se eligió un hook local y **no** la protección de rama de GitHub porque esa
 habría exigido abrir un pull request por cada cambio — fricción constante para

@@ -1,5 +1,7 @@
 import { createServiceRoleClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeActuarSobre, puedeGestionarCatalogos, ROLES_CON_PANEL } from "@cayla-dynamic/shared";
 
 // Gestión de cuentas del panel — SOLO admin/lider_do. Corre en el servidor con la
@@ -42,6 +44,25 @@ async function emailsPorUsuario(admin: any): Promise<Record<string, string>> {
     page++;
   }
   return out;
+}
+
+// Los errores de Supabase Auth no son de Postgres: no traen código SQL y llegan
+// en inglés. Quien los lee acá es una admin de CAYLA, no una ingeniera, así que
+// el más frecuente —el correo repetido, que sale cada vez que alguien intenta
+// crear dos veces la misma cuenta— se dice en español. El resto se registra y
+// se responde con algo honesto en vez de pegar el texto en inglés.
+function mensajeDeAuth(error: { message?: string } | null | undefined): string {
+  const t = (error?.message ?? "").toLowerCase();
+  if (t.includes("already been registered") || t.includes("already registered")) {
+    return "Ese correo ya está registrado en otra cuenta. Usa otro, o revisa si esa persona ya tiene acceso.";
+  }
+  if (t.includes("password")) {
+    return "La contraseña generada no cumple los requisitos del sistema de acceso. Vuelve a intentarlo.";
+  }
+  if (t.includes("invalid") && t.includes("email")) {
+    return "Ese correo no tiene un formato válido.";
+  }
+  return "El sistema de acceso no pudo completar la operación. Vuelve a intentarlo; si sigue igual, avisa a Felipe.";
 }
 
 export async function POST(req: Request) {
@@ -107,7 +128,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "solo se promueve a un integrante" }, { status: 409 });
       }
       const { error } = await admin.from("personas").update({ rol: "supervisor_sede" }).eq("id", personaId);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        Sentry.captureException(error);
+        return NextResponse.json({ error: mensajeDeError(error, "promover a esa persona") }, { status: 500 });
+      }
       return NextResponse.json({ ok: true });
     }
 
@@ -120,7 +144,10 @@ export async function POST(req: Request) {
       if (!p.auth_user_id) return NextResponse.json({ error: "esa persona no tiene cuenta" }, { status: 409 });
       const nueva = generarClave();
       const { error } = await admin.auth.admin.updateUserById(p.auth_user_id, { password: nueva });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        Sentry.captureException(error);
+        return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
+      }
       return NextResponse.json({ password: nueva });
     }
 
@@ -137,14 +164,26 @@ export async function POST(req: Request) {
       if (p.auth_user_id) return NextResponse.json({ error: "esa persona ya tiene cuenta" }, { status: 409 });
       const nueva = generarClave();
       const { data: authData, error } = await admin.auth.admin.createUser({ email, password: nueva, email_confirm: true });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        Sentry.captureException(error);
+        return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
+      }
       const { error: e2 } = await admin.from("personas").update({ auth_user_id: authData.user.id }).eq("id", personaId);
-      if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
+      if (e2) {
+        Sentry.captureException(e2);
+        return NextResponse.json({ error: mensajeDeError(e2, "enlazar la cuenta con su ficha") }, { status: 500 });
+      }
       return NextResponse.json({ password: nueva, email });
     }
 
     return NextResponse.json({ error: "acción no válida" }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? "error" }, { status: 500 });
+  } catch (e) {
+    // Lo que llegue acá es inesperado por definición: no pasó por ninguna de las
+    // ramas de arriba. El detalle va al registro; a la pantalla, algo legible.
+    Sentry.captureException(e);
+    return NextResponse.json(
+      { error: "El sistema no pudo completar la operación. Vuelve a intentarlo; si sigue igual, avisa a Felipe." },
+      { status: 500 },
+    );
   }
 }

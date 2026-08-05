@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 // Reabre el día de una persona que ya marcó salida final: esa salida se anula y
 // se reemite como salida TEMPORAL con el mismo instante (así el rato afuera no
@@ -52,7 +54,14 @@ export async function POST(req: Request) {
     // parada frente al kiosco ("esa marca es de otra sede", "no hay salida final
     // de hoy"), así que se devuelven tal cual en vez de un "no se pudo" que
     // obliga a llamar a la encargada para averiguar qué pasó.
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    //
+    // `mensajeDeError` conserva eso exactamente: los cinco mensajes de
+    // fn_reabrir_dia salen con código P0001 —los escribimos nosotros— y pasan
+    // intactos. Lo que ya NO sale es lo otro: si un día falla un constraint o
+    // un permiso, el kiosco mostraba «violates foreign key constraint …», que
+    // no le dice nada a nadie y de paso publica cómo se llaman las tablas.
+    if (error.code !== "P0001") Sentry.captureException(error);
+    return NextResponse.json({ error: mensajeDeError(error) }, { status: 400 });
   }
 
   return NextResponse.json(data ?? { ok: true });
