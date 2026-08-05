@@ -8,12 +8,11 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
-const TZ = "America/Lima";
-function hoyLima(): string { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); }
 function haceDias(n: number): string {
   const d = new Date(); d.setDate(d.getDate() - n);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(d);
 }
 // ── Semana actual (lunes–domingo), mismo criterio que admin/turnos ──────────
 function parseISO(iso: string): Date {
@@ -31,11 +30,11 @@ function lunesDeLaSemana(iso: string): string {
 }
 function fechaLarga(f: string): string {
   const [y, m, d] = f.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, weekday: "short", day: "2-digit", month: "short" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, weekday: "short", day: "2-digit", month: "short" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
 function horaLima(ts: string | null): string {
   if (!ts) return "—";
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(ts));
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(ts));
 }
 
 interface Fila {

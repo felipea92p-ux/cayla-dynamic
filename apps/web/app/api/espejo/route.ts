@@ -1,25 +1,22 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
+import { TZ_LIMA } from "@cayla-dynamic/shared";
 
 // "Puente" para el espejo a Google Sheets. El Apps Script llama aquí (con la llave
 // como token); el servidor lee de Supabase (donde la llave sí funciona) y devuelve
 // las filas ya listas (Resumen + Marcajes del mes) para volcarlas en la hoja.
 
-const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ESPEJO_TOKEN = process.env.ESPEJO_TOKEN;
-const TZ = "America/Lima";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  if (!URL || !SERVICE || !ESPEJO_TOKEN) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
+  const sb = createServiceRoleClient();
+  if (!sb || !ESPEJO_TOKEN) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token || token !== ESPEJO_TOKEN) return NextResponse.json({ error: "no autorizado" }, { status: 401 });
 
-  const sb = createClient(URL, SERVICE, { auth: { persistSession: false } });
-
-  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
   const Y = Number(hoy.slice(0, 4)), M = Number(hoy.slice(5, 7));
   const diasMes = new Date(Y, M, 0).getDate();
   const p2 = (n: number) => String(n).padStart(2, "0");
@@ -73,8 +70,8 @@ export async function GET(req: Request) {
       });
 
     // Marcajes crudos
-    const fecha = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(iso));
-    const hora = (iso: string) => new Intl.DateTimeFormat("es-PE", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+    const fecha = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date(iso));
+    const hora = (iso: string) => new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
     const marc: any[][] = [["Fecha", "Hora", "Persona", "Sede", "Tipo"]];
     marcajes.forEach((mk: any) => {
       marc.push([fecha(mk.timestamp_marca), hora(mk.timestamp_marca), info[mk.persona_id]?.nombre ?? mk.persona_id, sedeCod[mk.sede_id] ?? "?", String(mk.tipo).replace(/_/g, " ")]);

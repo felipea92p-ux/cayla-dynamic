@@ -17,6 +17,7 @@ import {
   type Fila,
   type Proyeccion,
 } from "../page";
+import { TZ_LIMA, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // Boleta INTERNA de CAYLA: resumen para que la persona vea cómo se calculó su
 // sueldo del mes, e imprimirlo/entregarlo (Ctrl+P → Guardar como PDF). NO es
@@ -25,7 +26,7 @@ import {
 
 function fechaHoyLima(): string {
   return new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima", day: "numeric", month: "long", year: "numeric",
+    timeZone: TZ_LIMA, day: "numeric", month: "long", year: "numeric",
   }).format(new Date());
 }
 
@@ -92,7 +93,7 @@ function BoletaContenido() {
   const router = useRouter();
   const params = useSearchParams();
   const rol = useRolActual();
-  const puedeVer = rol === "admin" || rol === "lider_do";
+  const puedeVer = puedeVerPlanilla(rol);
 
   const periodoId = params.get("periodo");
   const personaId = params.get("persona");
@@ -221,6 +222,7 @@ function BoletaContenido() {
   // propias líneas. Se leen con ?? 0 para que una base sin la 0110 pegada siga
   // dando el mismo resultado que antes.
   const movilidad = f.monto_movilidad ?? 0;
+  const educacion = f.monto_educacion ?? 0;
   const pension = f.descuento_afp ?? 0;
   const aporteEssalud = f.aporte_essalud ?? 0;
 
@@ -236,6 +238,7 @@ function BoletaContenido() {
     f.asignacion_familiar +
     f.monto_plus +
     movilidad +
+    educacion +
     bonos.reduce((suma, m) => suma + m.monto, 0);
 
   // La pensión también es una resta, así que también justifica el subtotal.
@@ -414,6 +417,26 @@ function BoletaContenido() {
                   </span>
                 </td>
                 <td className="py-2 text-right align-top">{formatSoles(movilidad)}</td>
+              </tr>
+            )}
+            {/* Mismo caso que la movilidad, descubierto el 2026-08-04: la 0120 la
+                metía en el 'total' y ninguna línea la nombraba. Se imprime la
+                institución porque es lo que sostiene el concepto — la asignación
+                por educación es no remunerativa por el inciso f) del Art. 19, y
+                un monto pelado sin decir de qué estudio sale se lee como sueldo
+                con otro nombre. El nombre del hijo NO se imprime: identifica al
+                estudio, no al menor. */}
+            {educacion > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Asignación por educación
+                  <span className="block text-xs text-taupe">
+                    {f.instituciones_educacion
+                      ? `${f.instituciones_educacion} · contra comprobante`
+                      : "contra el comprobante archivado"}
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(educacion)}</td>
               </tr>
             )}
             {/* EL «INCENTIVO VARIABLE POR METAS (NO PERMANENTE)» SALE DE LA BOLETA.

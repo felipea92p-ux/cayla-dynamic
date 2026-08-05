@@ -7,12 +7,10 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { ROLES_DO, hoyLima, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 
-function fechaHoyLima() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
-}
 function toMin(hhmm: string): number {
   const [h, m] = (hhmm || "0:0").split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
@@ -33,7 +31,6 @@ interface Horario {
   almuerzo_min_minutos: number; almuerzo_max_minutos: number; dias_laborables: number[];
   horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null;
 }
-const ROLES_ADMIN = ["admin", "lider_do"];
 const DIAS = [{ v: 1, l: "L" }, { v: 2, l: "M" }, { v: 3, l: "X" }, { v: 4, l: "J" }, { v: 5, l: "V" }, { v: 6, l: "S" }, { v: 0, l: "D" }];
 const NOMBRE_DIA: Record<number, string> = { 0: "domingo", 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábado" };
 
@@ -82,7 +79,7 @@ export default function HorariosPage() {
   const [refri, setRefri] = useState(60);            // modo rápido (min)
   const [dias, setDias] = useState<number[]>([1, 2, 3, 4, 5, 6]);
   const [porDia, setPorDia] = useState<PorDia>({});  // modo por día
-  const [desde, setDesde] = useState(fechaHoyLima());
+  const [desde, setDesde] = useState(hoyLima());
   const [guardando, setGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -112,11 +109,11 @@ export default function HorariosPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  const puedeEditar = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
+  const puedeEditar = puedeOperarEquipo(rol);
   const esSupervisor = rol === "supervisor_sede";
   const editables = useMemo(() => {
     if (!esSupervisor || !yo) return personas;
-    return personas.filter((p) => p.id !== yo.id && !ROLES_ADMIN.includes(p.rol));
+    return personas.filter((p) => p.id !== yo.id && !ROLES_DO.includes(p.rol));
   }, [personas, esSupervisor, yo]);
 
   function abrirEdicion(p: Persona) {
@@ -128,7 +125,7 @@ export default function HorariosPage() {
     setSalida(a.s);
     setRefri(a.r);
     setModoPorDia(!a.uniforme);
-    setDesde(fechaHoyLima());
+    setDesde(hoyLima());
     setMensaje(null);
   }
 

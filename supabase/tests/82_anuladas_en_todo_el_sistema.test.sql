@@ -1,3 +1,8 @@
+-- ⛔ NO PEGAR ESTE ARCHIVO EN EL SQL EDITOR DE SUPABASE. No es una migración.
+-- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local. En producción
+-- falla con "function plan(integer) does not exist" — y falla a propósito.
+-- Se corre así, en esta Mac:   npx supabase test db
+-- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
 -- 82_anuladas_en_todo_el_sistema.test.sql — Que nadie cuente una marca anulada
 -- ============================================================================

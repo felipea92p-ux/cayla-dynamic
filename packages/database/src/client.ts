@@ -35,13 +35,23 @@ export function createAdminSupabaseClient(): SupabaseClient<Database> {
 }
 
 /**
- * Cliente con service role — SOLO para Edge Functions/servidor de confianza
- * (auto-cierre cron, sheets-sync). Nunca importar este módulo desde código
- * que se ejecuta en el navegador.
+ * Cliente con llave de servicio — SOLO para las rutas de servidor
+ * (`app/api/*`). Nunca importar desde código que corre en el navegador: la
+ * llave de servicio se salta RLS por completo.
+ *
+ * Lee `NEXT_PUBLIC_SUPABASE_URL` y no `SUPABASE_URL`: en Vercel solo existe la
+ * primera. Hasta agosto de 2026 esta función leía la segunda y era, por eso,
+ * una trampa — nadie la llamaba (las tres rutas armaban su propio cliente a
+ * mano), y la primera que lo hubiera hecho habría reventado en producción con
+ * un error de URL indefinida.
+ *
+ * Devuelve `null` en vez de lanzar cuando falta configuración, para que la ruta
+ * responda "servidor sin configurar" con su propio código de estado en lugar de
+ * caerse con un 500 sin explicación.
  */
-export function createServiceRoleClient(): SupabaseClient<Database> {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+export function createServiceRoleClient(): SupabaseClient<Database> | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const llave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !llave) return null;
+  return createClient<Database>(url, llave, { auth: { persistSession: false } });
 }

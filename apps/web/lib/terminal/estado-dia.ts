@@ -1,10 +1,10 @@
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
-import { determinarSiguienteAccion, type MarcajeDelDia, type SiguienteAccion } from "@cayla-dynamic/shared";
+import { TZ_LIMA, determinarSiguienteAccion, type MarcajeDelDia, type SiguienteAccion } from "@cayla-dynamic/shared";
 import { obtenerPendientes } from "./offline-db";
 
 /** Perú (America/Lima) no tiene horario de verano — offset fijo -05:00 todo el año. */
 export function fechaLimaHoy(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
 }
 
 export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, MarcajeDelDia[]>> {
@@ -37,7 +37,7 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
   const hoy = fechaLimaHoy();
   const pendientes = await obtenerPendientes();
   for (const p of pendientes) {
-    const fechaMarca = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(
+    const fechaMarca = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(
       new Date(p.timestampCliente),
     );
     if (fechaMarca !== hoy) continue;

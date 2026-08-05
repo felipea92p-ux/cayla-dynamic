@@ -23,6 +23,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
 function fmt(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -33,7 +34,7 @@ function fmt(iso: string | null | undefined): string {
 // Hoy en Lima. Con new Date().toISOString() (UTC) a partir de las 19:00 daría mañana.
 function hoyLima(): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: TZ_LIMA, year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date());
 }
 function haceMeses(n: number): string {
@@ -63,8 +64,8 @@ interface Alerta {
 export default function AusenciasPage() {
   const router = useRouter();
   const rol = useRolActual();
-  const puedeGestionar = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
-  const esDO = rol === "admin" || rol === "lider_do";
+  const puedeGestionar = puedeOperarEquipo(rol);
+  const esDO = puedeVerTodasLasSedes(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [personas, setPersonas] = useState<Persona[]>([]);

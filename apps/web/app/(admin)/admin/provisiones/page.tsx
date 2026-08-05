@@ -8,6 +8,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // ── Fechas (por string: NUNCA new Date(), para no correr un día por zona) ────
 // "2027-03-12" → "12/03/2027"
@@ -125,7 +126,7 @@ const COLS = 13; // 2 + 3 grati + 3 cts + 3 vac + gran total + próximo pago
 export default function ProvisionesPage() {
   const router = useRouter();
   const rol = useRolActual();
-  const puedeVer = rol === "admin" || rol === "lider_do";
+  const puedeVer = puedeVerPlanilla(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [data, setData] = useState<ProvData | null>(null);

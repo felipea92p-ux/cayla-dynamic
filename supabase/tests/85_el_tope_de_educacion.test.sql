@@ -1,3 +1,8 @@
+-- ⛔ NO PEGAR ESTE ARCHIVO EN EL SQL EDITOR DE SUPABASE. No es una migración.
+-- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local. En producción
+-- falla con "function plan(integer) does not exist" — y falla a propósito.
+-- Se corre así, en esta Mac:   npx supabase test db
+-- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
 -- 85_el_tope_de_educacion.test.sql — El techo de educación por rango (mig 0132)
 -- ============================================================================
@@ -31,8 +36,8 @@ insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vige
 -- 180 es exactamente el techo de cayla, y 240 × 75% = 180 lo sostiene.
 select lives_ok(
   $$ insert into asignaciones_educacion
-       (persona_id, monto, institucion, costo_declarado, vigente_desde)
-     values ('00000000-0000-0000-0000-0000000ed001', 180.00, 'Instituto de laboratorio', 240.00, '2026-08-01') $$,
+       (persona_id, monto, institucion, costo_declarado, vigente_desde, vigente_hasta)
+     values ('00000000-0000-0000-0000-0000000ed001', 180.00, 'Instituto de laboratorio', 240.00, '2026-08-01', '2026-12-31') $$,
   'Un monto igual al techo del rango, con comprobante que lo sostiene, entra');
 
 -- ── Por encima del techo: se rechaza aunque el comprobante alcance ───────────
@@ -40,8 +45,8 @@ select lives_ok(
 -- el techo del rango (180).
 select throws_like(
   $$ insert into asignaciones_educacion
-       (persona_id, monto, institucion, costo_declarado, vigente_desde)
-     values ('00000000-0000-0000-0000-0000000ed002', 300.00, 'Instituto caro', 400.00, '2026-08-01') $$,
+       (persona_id, monto, institucion, costo_declarado, vigente_desde, vigente_hasta)
+     values ('00000000-0000-0000-0000-0000000ed002', 300.00, 'Instituto caro', 400.00, '2026-08-01', '2026-12-31') $$,
   '%tope del rango%',
   'Un monto sobre el techo del rango se rechaza aunque el comprobante lo sostenga');
 
@@ -52,8 +57,8 @@ select throws_like(
 -- no como descripción — la prueba pasaría por la razón equivocada.
 select throws_ok(
   $$ insert into asignaciones_educacion
-       (persona_id, monto, institucion, costo_declarado, vigente_desde)
-     values ('00000000-0000-0000-0000-0000000ed002', 100.00, 'Instituto barato', 100.00, '2026-08-01') $$,
+       (persona_id, monto, institucion, costo_declarado, vigente_desde, vigente_hasta)
+     values ('00000000-0000-0000-0000-0000000ed002', 100.00, 'Instituto barato', 100.00, '2026-08-01', '2026-12-31') $$,
   '23514',
   null,
   'Sin comprobante que lo sostenga no entra, aunque esté bajo el techo');
@@ -61,8 +66,8 @@ select throws_ok(
 -- ── Sin rango vigente, el techo no bloquea (falla abierto) ──────────────────
 select lives_ok(
   $$ insert into asignaciones_educacion
-       (persona_id, monto, institucion, costo_declarado, vigente_desde)
-     values ('00000000-0000-0000-0000-0000000ed003', 500.00, 'Universidad', 1000.00, '2026-08-01') $$,
+       (persona_id, monto, institucion, costo_declarado, vigente_desde, vigente_hasta)
+     values ('00000000-0000-0000-0000-0000000ed003', 500.00, 'Universidad', 1000.00, '2026-08-01', '2026-12-31') $$,
   'Quien no tiene rango vigente no queda bloqueado por el techo');
 
 -- ── Los seis rangos tienen techo cargado ────────────────────────────────────

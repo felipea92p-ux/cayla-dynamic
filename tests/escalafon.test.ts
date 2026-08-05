@@ -10,7 +10,7 @@
 // Estas pruebas existen para que ese caso concreto no pueda volver.
 // ============================================================================
 import { describe, it, expect } from "vitest";
-import { puedeActuarSobre } from "@/lib/admin/escalafon";
+import { puedeActuarSobre } from "@cayla-dynamic/shared";
 
 describe("puedeActuarSobre — el caso que abrió el agujero", () => {
   it("un líder DO NO puede tocar la cuenta del admin", () => {

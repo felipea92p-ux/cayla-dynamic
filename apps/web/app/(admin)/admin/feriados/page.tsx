@@ -7,11 +7,11 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { TZ_LIMA, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
-const TZ = "America/Lima";
 
 function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
 }
 // Fechas planas (sin hora): se formatean en UTC para que no se corran un día.
 function fechaCorta(iso: string): string {
@@ -83,7 +83,7 @@ export default function FeriadosPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const puedeGestionar = rol === "admin" || rol === "lider_do";
+  const puedeGestionar = puedeGestionarCatalogos(rol);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);

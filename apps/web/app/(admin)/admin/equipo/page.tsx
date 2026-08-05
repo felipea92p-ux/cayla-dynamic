@@ -10,6 +10,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { TZ_LIMA, puedeVerPlanilla, type Rol } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
@@ -26,7 +27,7 @@ function fmtFechaDMA(iso: string): string {
 
 // YYYY-MM-01 del mes actual en horario de Lima (default de "vigente desde" al asignar salario).
 function primeroDeMesLima(): string {
-  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima", year: "numeric", month: "2-digit" }).formatToParts(new Date());
+  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA, year: "numeric", month: "2-digit" }).formatToParts(new Date());
   const y = partes.find((p) => p.type === "year")!.value;
   const m = partes.find((p) => p.type === "month")!.value;
   return `${y}-${m}-01`;
@@ -81,7 +82,6 @@ interface Persona {
   tipo_vinculo: string;
 }
 
-type Rol = "integrante" | "supervisor_sede" | "lider_do" | "admin";
 
 interface FormPersona {
   nombres: string;
@@ -129,7 +129,7 @@ export default function EquipoPage() {
   // El pre-llenado con el monto del rango ya se quitó (ver el diálogo de salario):
   // era la misma trampa que este comentario advertía, viva en otro lugar.
   const rol = useRolActual();
-  const puedeSalarios = rol === "admin" || rol === "lider_do";
+  const puedeSalarios = puedeVerPlanilla(rol);
   const [salariosEstado, setSalariosEstado] = useState<"cargando" | "ok" | "error">("cargando");
   const [salarios, setSalarios] = useState<Record<string, SalarioVigente>>({});
   const [salEditId, setSalEditId] = useState<string | null>(null);

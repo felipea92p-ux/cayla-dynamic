@@ -10,6 +10,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { TZ_LIMA, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // ── Fechas ───────────────────────────────────────────────────────────────────
 // Exportadas: las reutiliza /admin/planilla/boleta (misma fuente de verdad de formato).
@@ -22,7 +23,7 @@ const MESES_ABR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep"
 // Año actual en horario de Lima (para la gestión de feriados sin periodo cargado)
 function anioActualLima(): number {
   return Number(
-    new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima", year: "numeric" }).format(new Date()),
+    new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA, year: "numeric" }).format(new Date()),
   );
 }
 
@@ -36,7 +37,7 @@ export function fechaCorta(iso: string): string {
 // que resuelve en UTC: a partir de las 19:00 de Lima daría el día siguiente.
 function hoyLimaDMA(): string {
   const p = new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: TZ_LIMA, year: "numeric", month: "2-digit", day: "2-digit",
   }).formatToParts(new Date());
   const v = (t: string) => p.find((x) => x.type === t)!.value;
   return `${v("day")}/${v("month")}/${v("year")}`;
@@ -57,7 +58,7 @@ function sumarDias(iso: string, n: number): string {
 // timestamptz → "13 jul 2026" en Lima
 export function fechaLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima", day: "numeric", month: "short", year: "numeric",
+    timeZone: TZ_LIMA, day: "numeric", month: "short", year: "numeric",
   }).format(new Date(iso));
 }
 
@@ -149,6 +150,13 @@ export interface Fila {
   // simplemente no dibuja la fila en vez de escribir «S/ NaN».
   monto_movilidad?: number;
   movilidad_diaria?: number;
+  // La 0120 metió la educación en el 'total' del SQL y la boleta no la imprimía:
+  // el mismo agujero que la 0110 abrió con la movilidad, y con la misma
+  // consecuencia — un dinero que se paga y que la persona no puede explicar.
+  // `instituciones_educacion` viene de la 0150 y trae los nombres separados por
+  // ' · ' cuando hay más de un comprobante vigente.
+  monto_educacion?: number;
+  instituciones_educacion?: string | null;
   descuento_afp?: number;
   tasa_afp?: number;
   regimen_pension?: string | null;
@@ -722,7 +730,7 @@ function TablaPlanilla(props: {
 export default function PlanillaPage() {
   const router = useRouter();
   const rol = useRolActual();
-  const puedeVer = rol === "admin" || rol === "lider_do";
+  const puedeVer = puedeVerPlanilla(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   // Periodos

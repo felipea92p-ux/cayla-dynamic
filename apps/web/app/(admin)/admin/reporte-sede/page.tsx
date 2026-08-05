@@ -8,12 +8,11 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
-const TZ = "America/Lima";
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
-function hoyLima(): string { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); }
 function mesActual(): string { return hoyLima().slice(0, 7); } // yyyy-mm
 function finDeMes(mes: string): string {
   const [y, m] = mes.split("-").map(Number);
@@ -24,7 +23,7 @@ function diaSemanaDe(iso: string): number {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 function horaDecimalLimaAhora(): number {
-  const p = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
   const h = Number(p.find((x) => x.type === "hour")?.value ?? 0) % 24;
   const m = Number(p.find((x) => x.type === "minute")?.value ?? 0);
   return h + m / 60;

@@ -72,7 +72,7 @@ apps/web/            Next.js — un solo despliegue, dos superficies:
   app/(terminal)/      terminal de marcaje de cada sede (Mac mini a pantalla completa)
   app/(admin)/         panel de administración (24 pantallas)
   app/api/             4 rutas de servidor (espejo, admin, reabrir-día, sentry)
-packages/shared/     esquemas zod, máquina de estados de asistencia, enums, etiquetas
+packages/shared/     las reglas que NO son de una pantalla (ver abajo)
 packages/database/   tipos generados de Supabase + cliente tipado
 supabase/migrations/ el esquema, una migración por cambio
 scripts/sql-manual/  la versión lista para pegar en el SQL Editor
@@ -81,6 +81,28 @@ docs/                referencia (ver abajo)
 
 Backend: **Supabase** (Postgres + Auth + RLS + pg_cron). Hosting: **Vercel**.
 Monorepo con pnpm + Turborepo.
+
+**Qué va en `packages/shared` y qué no.** Va lo que dos pantallas podrían
+necesitar responder igual: quién puede qué (`permisos.ts`, `escalafon.ts`),
+cuándo es hoy en Perú (`fecha-lima.ts`), los catálogos y sus etiquetas
+(`enums.ts`, `labels.ts`), la máquina de estados del marcaje. No va nada que
+toque el navegador, Supabase ni React — por eso se puede probar con `vitest` sin
+levantar nada.
+
+Tres reglas que se ganaron a golpes (agosto 2026, tras juntar 35 copias de la
+misma condición de permiso y 32 del huso horario de Lima):
+
+1. **Nunca comparar `rol` contra un string literal fuera de `permisos.ts`.** Si
+   hace falta un permiso nuevo, se agrega una función ahí y se usa. Un
+   `rol === "admin"` suelto en una pantalla es un permiso que nadie va a
+   encontrar el día que haya que cambiarlo.
+2. **Nunca escribir `"America/Lima"` fuera de `fecha-lima.ts`.** El corte del día
+   decide a qué fecha se le paga un marcaje; no puede tener dos versiones.
+3. **Nunca una lista escrita a mano de algo que vive en una tabla.** Aquí hubo un
+   `SEDES = ["TRU","LIM","AQP"]` que se volvió falso cuando abrió Central. Si el
+   dato se gestiona desde una pantalla, se lee de la base — y si de verdad hace
+   falta una constante para pintar un desplegable, se dice en un comentario que
+   la verdad está en la tabla (ver `REGIMENES_PENSION`).
 
 ```bash
 npx pnpm install

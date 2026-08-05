@@ -8,6 +8,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
+import { hoyLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
 // imprimir y firmar con sus datos ya puestos.
@@ -114,9 +115,6 @@ function fechaLarga(iso: string): string {
     day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
   }).format(new Date(Date.UTC(y, m - 1, d)));
 }
-function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
-}
 
 // Una línea para llenar a mano. Los documentos que se firman tienen que poder
 // completarse con lapicero: la persona declara su ruta en el momento, delante de
@@ -154,7 +152,7 @@ function BloqueFirma({ imagen, nombre, pie }: {
 export default function DocumentacionPage() {
   const router = useRouter();
   const rol = useRolActual();
-  const puede = rol === "admin" || rol === "lider_do";
+  const puede = puedeGestionarCatalogos(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [tipo, setTipo] = useState<TipoDoc>("ruta");

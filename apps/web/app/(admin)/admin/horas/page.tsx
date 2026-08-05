@@ -6,15 +6,13 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { hoyLima } from "@cayla-dynamic/shared";
 
-function fechaLimaHoy(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
-}
-function primerDiaDelMes(iso = fechaLimaHoy()): string {
+function primerDiaDelMes(iso = hoyLima()): string {
   return iso.slice(0, 8) + "01";
 }
 function rango(preset: "mes" | "mesPasado" | "anio"): { desde: string; hasta: string } {
-  const hoy = fechaLimaHoy();
+  const hoy = hoyLima();
   const [y, m] = hoy.split("-").map(Number);
   if (preset === "mes") return { desde: primerDiaDelMes(hoy), hasta: hoy };
   if (preset === "anio") return { desde: `${y}-01-01`, hasta: hoy };
@@ -44,7 +42,7 @@ function HorasContenido() {
   const searchParams = useSearchParams();
   const personaFiltro = searchParams.get("persona");
   const [desde, setDesde] = useState(primerDiaDelMes());
-  const [hasta, setHasta] = useState(fechaLimaHoy());
+  const [hasta, setHasta] = useState(hoyLima());
   const [filas, setFilas] = useState<ResumenPersona[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);

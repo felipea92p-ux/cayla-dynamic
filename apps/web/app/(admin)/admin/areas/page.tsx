@@ -8,6 +8,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { type Area, AREA_DEFAULT, parseAreas, slugDeNombre } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 interface FormArea {
   nombre: string;
@@ -20,7 +21,7 @@ const FORM_VACIO: FormArea = { nombre: "", operativa: false, orden: "" };
 export default function AreasPage() {
   const router = useRouter();
   const rol = useRolActual();
-  const puedeGestionar = rol === "admin" || rol === "lider_do";
+  const puedeGestionar = puedeGestionarCatalogos(rol);
 
   const [areas, setAreas] = useState<Area[]>([]);
   const [cargando, setCargando] = useState(true);

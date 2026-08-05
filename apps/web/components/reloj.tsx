@@ -1,25 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TZ_LIMA } from "@cayla-dynamic/shared";
 
 // Reloj central "estilo CAYLA": un anillo de línea fina (mismo lenguaje que el
 // colibrí de una sola línea) con un indicador rojo que recorre los segundos.
 // Hora en serif, fecha como etiqueta. Zona horaria fija America/Lima.
 
 const fHora = new Intl.DateTimeFormat("es-PE", {
-  timeZone: "America/Lima",
+  timeZone: TZ_LIMA,
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
 });
 const fFecha = new Intl.DateTimeFormat("es-PE", {
-  timeZone: "America/Lima",
+  timeZone: TZ_LIMA,
   weekday: "long",
   day: "numeric",
   month: "short",
 });
 const fSeg = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/Lima",
+  timeZone: TZ_LIMA,
   second: "2-digit",
   hour12: false,
 });
