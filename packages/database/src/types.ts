@@ -103,6 +103,33 @@ export type Database = {
         }
         Relationships: []
       }
+      // La tabla de la 0074, que no estaba en los tipos: por eso la pantalla de
+      // disciplina no podía leer los cargos archivados. Escrita a mano como el
+      // resto — `supabase gen types` no corre en esta máquina.
+      expediente_adjuntos: {
+        Row: {
+          id: string
+          documento_id: string
+          storage_path: string
+          tipo: string
+          nota: string | null
+          subido_por: string | null
+          subido_at: string
+        }
+        Insert: {
+          id?: string
+          documento_id: string
+          storage_path: string
+          tipo: string
+          nota?: string | null
+          subido_por?: string | null
+          subido_at?: string
+        }
+        Update: {
+          nota?: string | null
+        }
+        Relationships: []
+      }
       expediente_disciplinario: {
         Row: {
           id: string

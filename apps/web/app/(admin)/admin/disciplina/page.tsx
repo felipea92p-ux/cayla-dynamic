@@ -43,11 +43,46 @@ interface FaltaRow { persona_id: string; nombre: string; sede: string; consecuti
 interface Hecho { fecha: string; minutos?: number; }
 /** Quién puede suscribir un documento concreto (fn_expediente_firmantes, mig. 0074). */
 interface Firmante { persona_id: string; nombre: string; cargo: string; tiene_firma: boolean; }
+interface Adjunto {
+  id: string;
+  documento_id: string;
+  storage_path: string;
+  tipo: "cargo_firmado" | "acta_negativa";
+  nota: string | null;
+  subido_at: string;
+}
+
+const MAX_BYTES_CARGO = 50 * 1024 * 1024;
+const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
+
+// Sube por PUT a una URL ya firmada, con progreso real: `upload()` del cliente
+// no informa avance, y una espera muda se lee como que la pantalla se colgó.
+function subirConProgreso(
+  urlFirmada: string, archivo: File, alAvanzar: (pct: number) => void,
+): Promise<string | null> {
+  return new Promise((resolver) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", urlFirmada);
+    xhr.setRequestHeader("x-upsert", "true");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) alAvanzar(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      resolver(xhr.status >= 200 && xhr.status < 300 ? null : `el servidor respondió ${xhr.status}`);
+    xhr.onerror = () => resolver("se cortó la conexión durante la subida");
+    const cuerpo = new FormData();
+    cuerpo.append("cacheControl", "3600");
+    cuerpo.append("", archivo);
+    xhr.send(cuerpo);
+  });
+}
+
 interface Doc {
   id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
   periodo_desde: string | null; periodo_hasta: string | null; hechos: Hecho[];
   suspension_dias: number | null; suspension_desde: string | null; suspension_hasta: string | null;
   correlativo: string | null; creado_at: string;
+  entregado_at: string | null; medio_entrega: string | null;
 }
 
 export default function DisciplinaPage() {
@@ -65,6 +100,15 @@ export default function DisciplinaPage() {
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [medio, setMedio] = useState<Record<string, string>>({});
+
+  // ── El cargo firmado ────────────────────────────────────────────────────
+  const [adjuntos, setAdjuntos] = useState<Map<string, Adjunto[]>>(new Map());
+  const [subiendoCargo, setSubiendoCargo] = useState<{ id: string; negativa: boolean } | null>(null);
+  const [archivoCargo, setArchivoCargo] = useState<File | null>(null);
+  const [fechaEntrega, setFechaEntrega] = useState("");
+  const [notaCargo, setNotaCargo] = useState("");
+  const [progresoCargo, setProgresoCargo] = useState<number | null>(null);
+  const [verCerrados, setVerCerrados] = useState(false);
   // Quién puede suscribir CADA documento. Se pregunta por documento y no una
   // vez para todos porque la respuesta depende del nivel y de la sede: una
   // encargada puede firmar una amonestación verbal o escrita de SU tienda,
@@ -85,8 +129,11 @@ export default function DisciplinaPage() {
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, correlativo, creado_at")
-        .in("estado", ["borrador", "firmado"])
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, correlativo, creado_at, entregado_at, medio_entrega")
+        // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
+        //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
+        //   papel de una entrega de hace dos meses.
+        .in("estado", ["borrador", "firmado", "entregado"])
         .order("creado_at", { ascending: false }),
       supabase.from("personas").select("id, nombres, apellidos"),
     ]);
@@ -101,6 +148,19 @@ export default function DisciplinaPage() {
     // documento ya firmado no cambia de firmante. Si alguna consulta falla, esa
     // fila se queda sin desplegable y se firma con la sesión actual — el mismo
     // comportamiento de antes, nunca un error en pantalla.
+    // Los cargos ya archivados, para poder consultarlos sin salir del sistema.
+    // Consulta aparte y tolerante: si la tabla no fuera legible, la pantalla
+    // sigue funcionando sin los adjuntos en vez de quedarse en blanco.
+    const { data: adj } = await supabase
+      .from("expediente_adjuntos")
+      .select("id, documento_id, storage_path, tipo, nota, subido_at")
+      .order("subido_at", { ascending: false });
+    const porDoc = new Map<string, Adjunto[]>();
+    for (const a of (adj as Adjunto[]) ?? []) {
+      porDoc.set(a.documento_id, [...(porDoc.get(a.documento_id) ?? []), a]);
+    }
+    setAdjuntos(porDoc);
+
     const borradores = lista.filter((x) => x.estado === "borrador");
     const pares = await Promise.all(
       borradores.map(async (x) => {
@@ -158,6 +218,76 @@ export default function DisciplinaPage() {
     setMsg({ tipo: "ok", texto: `Firmado — documento ${data ?? ""}. Ya puedes entregarlo.` });
   }
 
+  async function abrirCargo(id: string, negativa: boolean) {
+    setSubiendoCargo({ id, negativa });
+    setArchivoCargo(null);
+    setFechaEntrega(hoyLima());
+    setNotaCargo("");
+    setMsg(null);
+  }
+
+  async function guardarCargo() {
+    if (!subiendoCargo) return;
+    if (!archivoCargo) {
+      setMsg({ tipo: "error", texto: subiendoCargo.negativa
+        ? "Falta el acta de la negativa. Sin el papel con el testigo no queda constancia de que se ofreció."
+        : "Falta el cargo firmado." });
+      return;
+    }
+    if (archivoCargo.size > MAX_BYTES_CARGO) {
+      setMsg({ tipo: "error", texto: `“${archivoCargo.name}” pesa ${(archivoCargo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
+      return;
+    }
+    if (!fechaEntrega) {
+      setMsg({ tipo: "error", texto: "Indica la fecha de entrega: desde ahí corren los plazos de descargo." });
+      return;
+    }
+
+    setOcupado(subiendoCargo.id); setMsg(null);
+    // El archivo va a "<id del documento>/…": es lo que valida
+    // fn_expediente_puede_adjuntar, así que no hay forma de colgarlo del memo
+    // equivocado.
+    const ext = archivoCargo.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const ruta = `${subiendoCargo.id}/${subiendoCargo.negativa ? "acta" : "cargo"}-${Date.now()}.${ext}`;
+
+    setProgresoCargo(0);
+    const firma = await supabase.storage.from("expedientes").createSignedUploadUrl(ruta, { upsert: true });
+    const fallo = firma.error ? firma.error.message : await subirConProgreso(firma.data.signedUrl, archivoCargo, setProgresoCargo);
+    setProgresoCargo(null);
+    if (fallo) {
+      setOcupado(null);
+      setMsg({ tipo: "error", texto: `El archivo no subió (${fallo}). Vuelve a intentarlo.` });
+      return;
+    }
+
+    // La fecha de entrega solo se aplica si el memo sigue "firmado": si ya se
+    // entregó por otra vía, esa fecha es la buena y no se pisa (lo hace la
+    // función, no la pantalla).
+    const { error } = await supabase.rpc("fn_expediente_adjuntar", {
+      p_documento_id: subiendoCargo.id,
+      p_path: ruta,
+      p_tipo: subiendoCargo.negativa ? "acta_negativa" : "cargo_firmado",
+      p_fecha_entrega: subiendoCargo.negativa ? null : `${fechaEntrega}T12:00:00-05:00`,
+      p_nota: notaCargo.trim() || null,
+    });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+
+    setSubiendoCargo(null);
+    await cargar();
+    setMsg({ tipo: "ok", texto: subiendoCargo.negativa
+      ? "Acta de negativa archivada contra el documento."
+      : "Cargo archivado y documento marcado como entregado. Ya no hace falta guardarlo en ninguna carpeta." });
+  }
+
+  async function verAdjunto(path: string) {
+    // URL firmada de vida corta: el bucket es privado y estos papeles son los
+    // más delicados del sistema.
+    const { data, error } = await supabase.storage.from("expedientes").createSignedUrl(path, 60);
+    if (error || !data) { setMsg({ tipo: "error", texto: `No se pudo abrir: ${error?.message ?? "sin URL"}` }); return; }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
   async function entregar(id: string) {
     const m = medio[id] ?? "fisico";
     setOcupado(id); setMsg(null);
@@ -208,6 +338,7 @@ export default function DisciplinaPage() {
   }
 
   const borradores = docs.filter((d) => d.estado === "borrador");
+  const entregados = docs.filter((d) => d.estado === "entregado");
   const firmados = docs.filter((d) => d.estado === "firmado");
 
   if (rol !== null && !puede) {
@@ -371,22 +502,156 @@ export default function DisciplinaPage() {
                     <div className="flex items-center gap-2">
                       <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
                         className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
-                      <select value={medio[d.id] ?? "fisico"} onChange={(e) => setMedio((m) => ({ ...m, [d.id]: e.target.value }))}
-                        className="rounded border bg-crema px-2 py-1 text-xs">
-                        <option value="fisico">Físico</option>
-                        <option value="correo">Correo</option>
-                        <option value="notarial">Notarial</option>
-                      </select>
-                      <button onClick={() => entregar(d.id)} disabled={ocupado === d.id}
-                        className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">Marcar entregado</button>
+                      {/* El camino que deja evidencia es el fácil. Marcar
+                          entregado sin papel sigue siendo posible —una entrega
+                          por correo certificado es válida y su cargo llega
+                          días después— pero deja de ser el atajo. */}
+                      <button onClick={() => void abrirCargo(d.id, false)} disabled={ocupado === d.id}
+                        className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                        Subir cargo firmado
+                      </button>
+                      <button onClick={() => void abrirCargo(d.id, true)} disabled={ocupado === d.id}
+                        className="text-xs text-taupe underline disabled:opacity-40">se negó a firmar</button>
+                      <details className="text-xs text-taupe">
+                        <summary className="cursor-pointer">entregar sin papel</summary>
+                        <div className="mt-2 flex items-center gap-2">
+                          <select value={medio[d.id] ?? "fisico"} onChange={(e) => setMedio((m) => ({ ...m, [d.id]: e.target.value }))}
+                            className="rounded border bg-crema px-2 py-1 text-xs">
+                            <option value="fisico">Físico</option>
+                            <option value="correo">Correo</option>
+                            <option value="notarial">Notarial</option>
+                          </select>
+                          <button onClick={() => entregar(d.id)} disabled={ocupado === d.id}
+                            className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">Marcar entregado</button>
+                        </div>
+                        <p className="mt-1 max-w-xs">
+                          El cargo se puede subir después: no pisa la fecha de entrega que quede acá.
+                        </p>
+                      </details>
                       <button onClick={() => reabrirParaCambiarFirmante(d.id)} disabled={ocupado === d.id}
                         className="rounded-lg border border-taupe/30 px-3 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-40">Cambiar firmante</button>
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-taupe">Firmado {selloLima(d.creado_at)}</p>
+
+                  {subiendoCargo?.id === d.id && (
+                    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+                      <p className="mb-2 text-xs text-taupe">
+                        {subiendoCargo.negativa
+                          ? "Sube el acta con testigo. Queda constancia de que se ofreció entregar; el documento NO se marca entregado."
+                          : "Al subir el cargo, el documento queda entregado con esta fecha. Desde ahí corren los plazos de descargo (art. 31)."}
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1 text-xs">
+                          {subiendoCargo.negativa ? "Acta de la negativa" : "Cargo firmado"}
+                          <input type="file" accept={TIPOS_CARGO}
+                            onChange={(e) => setArchivoCargo(e.target.files?.[0] ?? null)}
+                            className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+                        </label>
+                        {!subiendoCargo.negativa && (
+                          <label className="flex flex-col gap-1 text-xs">
+                            Fecha de entrega
+                            <input type="date" value={fechaEntrega} max={hoyLima()}
+                              onChange={(e) => setFechaEntrega(e.target.value)}
+                              className="rounded border px-2 py-1 text-xs" />
+                          </label>
+                        )}
+                        <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+                          Nota (opcional)
+                          <input value={notaCargo} onChange={(e) => setNotaCargo(e.target.value)}
+                            placeholder={subiendoCargo.negativa ? "ej. presente la encargada de TRU como testigo" : "ej. recibido en la tienda"}
+                            className="rounded border px-2 py-1 text-xs" />
+                        </label>
+                      </div>
+                      {progresoCargo !== null && (
+                        <div className="mt-2">
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
+                            <div className="h-full bg-tinta transition-[width] duration-200"
+                              style={{ width: `${progresoCargo}%` }}
+                              role="progressbar" aria-valuenow={progresoCargo} aria-valuemin={0} aria-valuemax={100}
+                              aria-label="Subiendo el cargo" />
+                          </div>
+                          <span className="text-xs text-taupe">Subiendo — {progresoCargo}%</span>
+                        </div>
+                      )}
+                      <div className="mt-2 flex items-center gap-2">
+                        <button onClick={() => void guardarCargo()} disabled={ocupado === d.id}
+                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                          {progresoCargo !== null ? `Subiendo… ${progresoCargo}%` : "Guardar"}
+                        </button>
+                        <button onClick={() => setSubiendoCargo(null)}
+                          className="rounded-lg border px-3 py-1 text-xs">Cancelar</button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* ── Entregados ──────────────────────────────────────────────────
+            Antes desaparecían al entregarse: subías el cargo y no veías que
+            hubiera quedado, y para consultar el papel de una entrega de hace
+            dos meses no había ningún sitio. Plegado por defecto para que la
+            pantalla siga enfocada en lo que falta hacer. */}
+        {entregados.length > 0 && (
+          <div className="mt-4 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+            <button onClick={() => setVerCerrados((v) => !v)}
+              className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
+              <span>Entregados · {entregados.length}</span>
+              <span className="text-xs font-normal text-taupe">
+                {entregados.filter((d) => (adjuntos.get(d.id) ?? []).length === 0).length > 0 && (
+                  <span className="text-rojo">
+                    {entregados.filter((d) => (adjuntos.get(d.id) ?? []).length === 0).length} sin cargo archivado ·{" "}
+                  </span>
+                )}
+                {verCerrados ? "ocultar" : "ver"}
+              </span>
+            </button>
+            {verCerrados && (
+              <ul className="divide-y">
+                {entregados.map((d) => {
+                  const papeles = adjuntos.get(d.id) ?? [];
+                  return (
+                    <li key={d.id} className="px-4 py-3 text-sm">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <span>
+                          <strong>{nombres.get(d.persona_id) ?? "—"}</strong>{" "}
+                          <span className="text-taupe">· {CAUSAL_LABEL[d.tipo_causal]} · {NIVEL_LABEL[d.nivel]} · {d.correlativo}</span>
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
+                            className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
+                          {papeles.map((a) => (
+                            <button key={a.id} onClick={() => void verAdjunto(a.storage_path)}
+                              className="text-xs font-medium underline">
+                              {a.tipo === "acta_negativa" ? "Ver acta de negativa" : "Ver cargo"}
+                            </button>
+                          ))}
+                          {papeles.length === 0 && (
+                            <button onClick={() => void abrirCargo(d.id, false)}
+                              className="rounded-lg border border-rojo/40 px-3 py-1 text-xs text-rojo">Subir cargo</button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-taupe">
+                        Entregado {d.entregado_at ? selloLima(d.entregado_at) : "—"}
+                        {d.medio_entrega && ` · ${d.medio_entrega}`}
+                        {papeles.length === 0 && (
+                          <span className="text-rojo"> · sin el papel archivado</span>
+                        )}
+                      </p>
+                      {subiendoCargo?.id === d.id && (
+                        <p className="mt-2 text-xs text-taupe">
+                          Sube el cargo desde acá: no cambia la fecha de entrega ya registrada.
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
       </main>
