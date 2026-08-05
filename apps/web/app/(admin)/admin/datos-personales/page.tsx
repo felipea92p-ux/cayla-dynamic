@@ -3,12 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import {
-  ESTADOS_CIVILES, ESTADO_CIVIL_LABELS,
-  GRADOS_INSTRUCCION, GRADO_INSTRUCCION_LABELS,
-  REGIMENES_PENSION, REGIMEN_PENSION_LABELS,
-  VINCULOS_DERECHOHABIENTE, VINCULO_DERECHOHABIENTE_LABELS,
-} from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -60,13 +55,13 @@ export default function DatosPersonalesPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const puede = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
+  const puede = puedeOperarEquipo(rol);
   // El DNI y el régimen de pensión los edita SOLO Desarrollo Organizacional: el
   // primero se imprime en memos y contratos, el segundo decide cuánto se le
   // descuenta a la persona. Las funciones de la base los rechazan para la
   // encargada, así que aquí se muestran de solo lectura en vez de dejar que el
   // guardado falle con un error que nadie entiende.
-  const puedeIdentidad = rol === "admin" || rol === "lider_do";
+  const puedeIdentidad = puedeVerIdentidad(rol);
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [personas, setPersonas] = useState<Persona[]>([]);

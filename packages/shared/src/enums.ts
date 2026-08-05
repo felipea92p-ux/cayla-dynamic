@@ -1,5 +1,12 @@
-export const SEDES = ["TRU", "LIM", "AQP"] as const;
-export type SedeCodigo = (typeof SEDES)[number];
+/**
+ * NO hay lista de sedes acá, y es a propósito.
+ *
+ * Hasta agosto de 2026 vivía aquí un `SEDES = ["TRU","LIM","AQP"]` que ya era
+ * falso: faltaba Central (CCO). Desde la migración 0063 las sedes se crean y se
+ * apagan desde /admin/sedes, así que cualquier lista escrita a mano queda
+ * desactualizada la próxima vez que se abra una tienda. Las sedes se leen de la
+ * tabla `sedes`, siempre.
+ */
 
 export const ROLES = ["integrante", "supervisor_sede", "lider_do", "admin"] as const;
 export type Rol = (typeof ROLES)[number];

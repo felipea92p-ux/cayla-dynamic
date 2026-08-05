@@ -23,6 +23,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -122,7 +123,7 @@ const THN = "px-3 py-2 text-right text-xs font-medium uppercase tracking-wide te
 export default function CostosPage() {
   const router = useRouter();
   const rol = useRolActual();
-  const puedeVer = rol === "admin" || rol === "lider_do";
+  const puedeVer = puedeVerPlanilla(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [anios, setAnios] = useState<number[]>([]);

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, GRADO_INSTRUCCION_LABELS, etiquetaDeCatalogo } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
@@ -12,7 +12,6 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
 
-const TZ = "America/Lima";
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
 function fechaCorta(iso: string | null): string {
@@ -22,17 +21,16 @@ function fechaCorta(iso: string | null): string {
 }
 function selloLima(iso: string): string {
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : new Intl.DateTimeFormat("es-PE", { timeZone: TZ, day: "2-digit", month: "short", year: "numeric" }).format(d);
+  return isNaN(d.getTime()) ? iso : new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", year: "numeric" }).format(d);
 }
-function hoyLima(): string { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()); }
 function inicioMes(): string { return hoyLima().slice(0, 8) + "01"; }
 function horaLima(ts: string | null): string {
   if (!ts) return "—";
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(ts));
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(ts));
 }
 function fechaLarga(f: string): string {
   const [y, m, d] = f.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ, weekday: "short", day: "2-digit", month: "short" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, weekday: "short", day: "2-digit", month: "short" }).format(new Date(Date.UTC(y, m - 1, d, 12)));
 }
 function fmtHoras(h: number): string {
   const hh = Math.floor(h);
@@ -59,10 +57,10 @@ export default function PerfilPersonaPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const puede = rol === "admin" || rol === "lider_do" || rol === "supervisor_sede";
+  const puede = puedeOperarEquipo(rol);
   // El sueldo solo lo ve DO (la fn_historial_salario ya lo bloquea en BD; aquí ocultamos
   // la sección para que a la encargada no le aparezca "sin salario" — que sería mentira).
-  const puedeSalario = rol === "admin" || rol === "lider_do";
+  const puedeSalario = puedeVerPlanilla(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [tab, setTab] = useState<Tab>("ficha");

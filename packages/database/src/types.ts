@@ -1547,6 +1547,60 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      fn_educacion_registrar: {
+        Args: {
+          p_persona_id: string
+          p_monto: number
+          p_institucion: string
+          p_costo_declarado: number
+          p_cobertura_pct: number
+          p_beneficiario: string
+          p_vigente_desde: string
+          p_comprobante_url?: string | null
+          p_nota?: string | null
+          p_id?: string | null
+        }
+        Returns: string
+      }
+      fn_educacion_cerrar: {
+        Args: { p_id: string; p_hasta: string }
+        Returns: undefined
+      }
+      fn_educacion_puede_ver: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      fn_educacion_listar: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          persona_id: string
+          persona: string
+          sede: string
+          rango: string
+          monto: number
+          institucion: string
+          costo_declarado: number
+          cobertura_pct: number
+          beneficiario: string
+          comprobante_url: string | null
+          vigente_desde: string
+          vigente_hasta: string | null
+          nota: string | null
+          registrada_por: string | null
+        }[]
+      }
+      fn_educacion_candidatos: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          persona_id: string
+          persona: string
+          sede: string
+          rango: string
+          tope: number | null
+          ya_tiene: boolean
+        }[]
+      }
       fn_set_datos_personales: {
         Args: {
           p_persona_id: string

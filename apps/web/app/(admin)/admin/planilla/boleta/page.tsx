@@ -17,6 +17,7 @@ import {
   type Fila,
   type Proyeccion,
 } from "../page";
+import { TZ_LIMA, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // Boleta INTERNA de CAYLA: resumen para que la persona vea cómo se calculó su
 // sueldo del mes, e imprimirlo/entregarlo (Ctrl+P → Guardar como PDF). NO es
@@ -25,7 +26,7 @@ import {
 
 function fechaHoyLima(): string {
   return new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima", day: "numeric", month: "long", year: "numeric",
+    timeZone: TZ_LIMA, day: "numeric", month: "long", year: "numeric",
   }).format(new Date());
 }
 
@@ -92,7 +93,7 @@ function BoletaContenido() {
   const router = useRouter();
   const params = useSearchParams();
   const rol = useRolActual();
-  const puedeVer = rol === "admin" || rol === "lider_do";
+  const puedeVer = puedeVerPlanilla(rol);
 
   const periodoId = params.get("periodo");
   const personaId = params.get("persona");

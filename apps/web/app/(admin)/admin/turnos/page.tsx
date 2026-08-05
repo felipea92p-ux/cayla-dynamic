@@ -8,11 +8,9 @@ import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, typ
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
-function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
-}
 function parseISO(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d));
@@ -59,7 +57,6 @@ type Celda =
   | { tipo: "descanso" }
   | { tipo: "libre" };
 
-const ROLES_ADMIN = ["admin", "lider_do"];
 const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : "");
 
 // ── Línea de tiempo / mapa de calor de cobertura (7h–21h) ───────────────────
@@ -451,8 +448,8 @@ export default function TurnosPage() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const esAdmin = rol === "admin" || rol === "lider_do";
-  const puedeVer = esAdmin || rol === "supervisor_sede";
+  const esAdmin = puedeVerTodasLasSedes(rol);
+  const puedeVer = puedeOperarEquipo(rol);
 
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [sedeSel, setSedeSel] = useState<string>("");

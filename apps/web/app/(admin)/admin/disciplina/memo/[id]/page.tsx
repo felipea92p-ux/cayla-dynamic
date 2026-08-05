@@ -6,9 +6,9 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
+import { TZ_LIMA } from "@cayla-dynamic/shared";
 
 const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550", firmante: "Alvarez Pereyra Felipe Miguel", cargo: "Gerencia General" };
-const TZ = "America/Lima";
 
 function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);

@@ -7,6 +7,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 type TipoSede = "central" | "taller" | "tienda";
 interface Sede { id: string; codigo: string; nombre: string; activa: boolean; tipo: TipoSede }
@@ -27,7 +28,7 @@ const CODIGO_OK = /^[A-Z0-9]{2,8}$/;
 export default function SedesPage() {
   const router = useRouter();
   const rol = useRolActual();
-  const puedeGestionar = rol === "admin" || rol === "lider_do";
+  const puedeGestionar = puedeGestionarCatalogos(rol);
 
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [cargando, setCargando] = useState(true);
