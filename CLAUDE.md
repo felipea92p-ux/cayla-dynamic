@@ -220,10 +220,29 @@ archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
 verifica la **numeración**, el `typecheck` y las pruebas de interfaz. Si algo está
 en rojo, el push no se hace. Toma unos 10 segundos.
 
+**Antes de crear una migración o una prueba, pregunta qué número toca:**
+
+```bash
+./scripts/siguiente-numero.sh
+```
+
+Mira las tres fuentes que hacen falta: todas las ramas, el directorio de trabajo
+(lo que otra sesión escribió y aún no commiteó — el caso que más veces se coló) y
+`migraciones_aplicadas` en la base local, que es donde aparece lo que alguien
+aplicó a mano sin dejar archivo. El 2026-08-05 hubo tres colisiones en un día
+porque la convención decía «mira `ls`», y `ls` solo ve la rama en la que estás.
+
 La verificación de numeración (`scripts/hooks/numeracion.sh`) frena el push si dos
 archivos de `supabase/migrations` o `supabase/tests` comparten número, o si un
 número **nuevo** ya lo reclamó otra rama sin fusionar. Los huecos solo avisan: la
 0031 y la 0033 faltan a propósito, viven fuera de git por datos personales.
+
+El hook y el script son las dos mitades: el script te dice qué número tomar
+**antes** de escribir; el hook te frena **después**, cuando el nombre ya está en
+la cabecera, en los mensajes y en la prueba. Renumerar en ese punto es caro, y una
+colisión que llega hasta ahí deja `supabase db reset` abortando con `duplicate key
+value violates unique constraint "schema_migrations_pkey"` — no es desorden, es no
+poder reconstruir el esquema.
 
 Solo mira lo que el push agrega, y esa es la razón de que sirva: comparar el árbol
 entero contra todas las ramas encuentra choques históricos de ramas abandonadas y

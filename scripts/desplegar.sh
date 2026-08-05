@@ -56,10 +56,17 @@ fi
 verde "✓ GitHub está al día."
 
 # ── 3 · Las pruebas de ESTE commit ──────────────────────────────────────────
+# OJO CON EL jq. La versión anterior era `.[0] | if .status != "completed" …`, y
+# sobre un arreglo VACÍO `.[0]` da null: `null.status` es null, `null != "completed"`
+# es cierto, y devolvía "corriendo". O sea que «no hay ninguna corrida» se
+# reportaba como «todavía están corriendo», y la rama `""` de abajo —escrita justo
+# para ese caso— era inalcanzable. El workflow solo se dispara en `main`, así que
+# desplegar desde cualquier otra rama se bloqueaba para siempre.
+# Encontrado el 2026-08-05 intentando desplegar desde una rama de trabajo.
 COMMIT=$(git rev-parse HEAD)
 if command -v gh >/dev/null 2>&1; then
   ESTADO=$(gh run list --commit "$COMMIT" --limit 1 --json conclusion,status \
-             --jq '.[0] | if .status != "completed" then "corriendo" else .conclusion end' 2>/dev/null || echo "")
+             --jq 'if length == 0 then "" else (.[0] | if .status != "completed" then "corriendo" else .conclusion end) end' 2>/dev/null || echo "")
   case "$ESTADO" in
     success)   verde "✓ Las pruebas de GitHub pasaron (incluidas las de base de datos)." ;;
     corriendo) rojo "✗ Las pruebas de GitHub todavía están corriendo."
