@@ -26,8 +26,10 @@
 #   2. Un número NUEVO que otra rama sin fusionar ya usa para otra cosa.
 #
 # QUÉ SOLO AVISA
-#   Los huecos. Hay casos legítimos documentados —la 0031 y la 0033 viven fuera
-#   de git por datos personales— así que un hueco se mira, no se bloquea.
+#   Los huecos, y solo los que nadie explicó todavía. Los ya investigados viven
+#   en `huecos-conocidos.txt` con su razón al lado; se sacan del aviso para que
+#   lo que quede signifique algo. Un hueco se mira, no se bloquea: durante una
+#   renumeración legítima existe por unos segundos.
 #
 # Se salta con `git push --no-verify`.
 
@@ -100,13 +102,52 @@ if [ -n "$NUEVOS" ]; then
   fi
 fi
 
-# ── 3 · Huecos: se avisan, no se bloquean ──────────────────────────────────
+# ── 3 · Huecos: solo los que NADIE explicó todavía ─────────────────────────
+# Avisa, no bloquea: en medio de una renumeración legítima un hueco existe por
+# unos segundos, y frenar el push por eso sería fricción sin motivo.
+#
+# Los ya investigados viven en `huecos-conocidos.txt`, con su razón escrita al
+# lado. Se sacan de la lista para que lo que quede signifique algo: hasta hoy
+# esto imprimía los cinco huecos en cada push, cuatro de ellos explicados y
+# ninguno accionable. Un aviso que dice siempre lo mismo se deja de leer, y el
+# día que aparezca uno de verdad va a estar en esa misma línea que nadie mira.
+CONOCIDOS="$(dirname "$0")/huecos-conocidos.txt"
+
 HUECOS=$(ls supabase/migrations | sed -E 's/^([0-9]+)_.*/\1/' | grep -E '^[0-9]+$' | sort -n \
-  | awk 'NR>1 && $1+0 != prev+1 { for (i=prev+1; i<$1+0; i++) printf "%04d ", i } { prev=$1+0 }')
-if [ -n "$HUECOS" ]; then
-  ambar "⚠ Huecos en las migraciones: $HUECOS"
-  gris "  Un hueco puede ser algo aplicado en producción que nunca llegó al repo."
-  gris "  No bloquea: la 0031 y la 0033 faltan a propósito (viven fuera de git por PII)."
+  | awk 'NR>1 && $1+0 != prev+1 { for (i=prev+1; i<$1+0; i++) printf "%04d\n", i } { prev=$1+0 }')
+
+# Un hueco conocido que YA NO ES HUECO —porque alguien creó ese archivo— deja
+# una línea muerta en el .txt. Se avisa, porque una lista de excepciones que
+# nadie limpia termina silenciando un número que volvió a estar en uso.
+SOBRAN=""
+NUEVOS_HUECOS=""
+if [ -f "$CONOCIDOS" ]; then
+  LISTA=$(grep -vE '^\s*(#|$)' "$CONOCIDOS" | awk '{print $1}' || true)
+  for n in $HUECOS; do
+    echo "$LISTA" | grep -qx "$n" || NUEVOS_HUECOS="${NUEVOS_HUECOS}${n} "
+  done
+  for n in $LISTA; do
+    echo "$HUECOS" | grep -qx "$n" || SOBRAN="${SOBRAN}${n} "
+  done
+else
+  NUEVOS_HUECOS=$(echo "$HUECOS" | tr '\n' ' ')
+  gris "  (no se encontró $CONOCIDOS: se avisan todos los huecos)"
+fi
+
+if [ -n "$NUEVOS_HUECOS" ]; then
+  ambar "⚠ Hueco sin explicar en las migraciones: $NUEVOS_HUECOS"
+  gris "  Puede ser algo aplicado en producción que nunca llegó al repo."
+  gris "  Compruébalo con scripts/sql-manual/consultar_registro_de_migraciones.sql;"
+  gris "  si resulta explicado, anótalo en scripts/hooks/huecos-conocidos.txt."
+fi
+
+if [ -n "$SOBRAN" ]; then
+  ambar "⚠ Estos números ya no son huecos y siguen en huecos-conocidos.txt: $SOBRAN"
+  gris "  Borra esas líneas: si no, el día que ese número se duplique nadie se entera."
+fi
+
+if [ -z "$NUEVOS_HUECOS" ] && [ -z "$SOBRAN" ] && [ "$FALLO" = "0" ]; then
+  gris "  numeración sin novedad."
 fi
 
 if [ "$FALLO" = "1" ]; then
