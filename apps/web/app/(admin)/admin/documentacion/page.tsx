@@ -125,6 +125,32 @@ function Linea({ ancho = "12rem" }: { ancho?: string }) {
   return <span className="inline-block border-b border-tinta align-bottom" style={{ width: ancho }} />;
 }
 
+// El bloque de firma de los tres documentos: el espacio de la rúbrica, la raya,
+// el nombre y el cargo. Vive en un solo sitio a propósito — antes estaba escrito
+// tres veces y solo una de las tres estampaba la firma escaneada, así que la
+// política salía firmada y la declaración de ruta con la raya en blanco.
+//
+// El alto del espacio es FIJO y el mismo con imagen y sin ella. Sin eso, en un
+// documento de dos columnas la que lleva firma empujaría su raya hacia abajo y
+// el papel saldría con las dos firmas descuadradas.
+function BloqueFirma({ imagen, nombre, pie }: {
+  imagen?: string | null;
+  nombre: string;
+  pie: string;
+}) {
+  return (
+    <div className="text-center">
+      <div className="flex h-24 items-end justify-center">
+        {imagen && (
+          <img src={imagen} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
+        )}
+      </div>
+      <div className="mb-1 border-t border-tinta pt-2 text-xs">{nombre}</div>
+      <p className="text-xs text-taupe">{pie}</p>
+    </div>
+  );
+}
+
 export default function DocumentacionPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -143,6 +169,15 @@ export default function DocumentacionPage() {
   // persona nueva entra sola en la lista sin que nadie tenga que acordarse.
   const [excluidos, setExcluidos] = useState<Set<string>>(new Set());
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
+  // ¿Quien tiene la sesión abierta es quien firma por CAYLA? Hoy hay cuatro
+  // cuentas admin y una sola persona firma los documentos de la empresa.
+  const [esFirmante, setEsFirmante] = useState(false);
+  // El nombre y el cargo que se imprimen. Salen de la ficha de esa persona
+  // (0147) y no de un texto escrito acá: así el nombre impreso y la firma
+  // estampada no pueden ser de dos personas distintas. Arrancan con la
+  // constante de siempre por si la 0147 aún no está pegada en producción.
+  const [firmanteNombre, setFirmanteNombre] = useState(EMPRESA.firmante);
+  const [firmanteCargo, setFirmanteCargo] = useState(EMPRESA.cargo);
   const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
   // persona_id → fecha de término del contrato, para quien ya la tiene fijada.
   const [finContrato, setFinContrato] = useState<Map<string, string>>(new Map());
@@ -217,6 +252,27 @@ export default function DocumentacionPage() {
     if (typeof yo === "string") fuera.add(yo);
     setExcluidos(fuera);
 
+    // QUIÉN FIRMA POR CAYLA. Sale de `configuracion` desde la 0147, guardado
+    // como la PERSONA y no como su nombre. De ahí salen las dos cosas: el
+    // nombre que se imprime bajo la raya y la respuesta a «¿soy yo?». Como las
+    // dos vienen de la misma fila, no pueden contradecirse — antes eran un
+    // texto fijo y una sesión abierta, y bastaba que otra admin imprimiera para
+    // que saliera su rúbrica bajo el nombre de Felipe.
+    //
+    // Si la fila no está —la 0147 sin pegar todavía— se queda la constante de
+    // siempre y la raya sale en blanco. El documento nunca deja de imprimirse
+    // por no poder leer un parámetro; mismo criterio que la tarifa de movilidad.
+    const { data: cfgFirmante } = await supabase
+      .from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle();
+    const vf = (cfgFirmante?.valor ?? null) as { persona_id?: string; cargo?: string } | null;
+    const firmanteId = vf?.persona_id ?? null;
+    // El trigger de la 0147 garantiza que esa persona está activa, así que tiene
+    // que estar en `lista` — que son las activas.
+    const fichaFirmante = firmanteId ? lista.find((p) => p.id === firmanteId) : undefined;
+    if (fichaFirmante) setFirmanteNombre(`${fichaFirmante.apellidos} ${fichaFirmante.nombres}`);
+    if (vf?.cargo) setFirmanteCargo(vf.cargo);
+    setEsFirmante(Boolean(firmanteId) && firmanteId === yo);
+
     // La firma escaneada de quien está imprimiendo. Si no tiene, el documento
     // sale con la línea en blanco para firmar a mano, como hasta ahora.
     const { data: fu } = await supabase.rpc("fn_mi_firma");
@@ -242,6 +298,12 @@ export default function DocumentacionPage() {
 
   const persona = personas.find((p) => p.id === personaId);
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
+
+  // La rúbrica que de verdad se imprime. Hacen falta las dos cosas: tener firma
+  // cargada Y ser quien la línea nombra. Si falta cualquiera de las dos el
+  // documento sale con la raya en blanco, que es como salía antes — nunca se
+  // rompe, solo deja de estamparse.
+  const firmaEstampada = esFirmante ? firmaUrl : null;
   const doc = DOCS.find((d) => d.id === tipo)!;
 
   useTituloDocumento(
@@ -390,6 +452,21 @@ export default function DocumentacionPage() {
 
           <p className="mb-4 rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">{doc.para}</p>
 
+          {/* QUÉ VA A SALIR EN LA LÍNEA DE FIRMA, antes de gastar papel.
+              Sin este aviso el estampado falla en silencio: quien imprime ve la
+              raya en blanco y no tiene forma de saber si es porque no cargó su
+              firma, porque no es la persona que el documento nombra, o porque la
+              pantalla está rota. Las tres se ven idénticas en el papel. */}
+          {!cargando && (
+            <p className="mb-4 text-xs text-taupe">
+              {firmaEstampada
+                ? `Tu firma escaneada saldrá impresa en la línea de ${firmanteCargo}.`
+                : esFirmante
+                  ? "No tienes una firma escaneada cargada: el documento sale con la línea en blanco para firmar a mano."
+                  : `La línea de firma dice ${firmanteNombre}, y esa no es tu cuenta: el documento sale con la raya en blanco. La firma de una persona no se estampa bajo el nombre de otra.`}
+            </p>
+          )}
+
           <button
             onClick={() => window.print()}
             disabled={doc.necesitaPersona && !persona}
@@ -470,20 +547,17 @@ export default function DocumentacionPage() {
                 </p>
 
                 <div className="grid grid-cols-2 gap-10 pt-6">
-                  <div className="text-center">
-                    <div className="mb-1 border-t border-tinta pt-2 text-xs">
-                      {nombre}
-                    </div>
-                    <p className="text-xs text-taupe">
-                      DNI {persona.documento ?? "—————"} · el/la declarante
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <div className="mb-1 border-t border-tinta pt-2 text-xs">
-                      {EMPRESA.firmante}
-                    </div>
-                    <p className="text-xs text-taupe">{EMPRESA.cargo} · {EMPRESA.nombre}</p>
-                  </div>
+                  {/* La declarante firma a mano, delante de quien le entrega el
+                      papel: es su declaración, no puede venir prefirmada. */}
+                  <BloqueFirma
+                    nombre={nombre}
+                    pie={`DNI ${persona.documento ?? "—————"} · el/la declarante`}
+                  />
+                  <BloqueFirma
+                    imagen={firmaEstampada}
+                    nombre={firmanteNombre}
+                    pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                  />
                 </div>
               </>
             )}
@@ -525,18 +599,17 @@ export default function DocumentacionPage() {
                 </p>
 
                 <div className="mt-16 grid grid-cols-2 gap-12">
-                  <div className="text-center">
-                    <div className="mb-1 border-t border-tinta pt-2 text-xs">
-                      {persona ? `${persona.nombres} ${persona.apellidos}` : "\u00a0"}
-                    </div>
-                    <p className="text-xs text-taupe">Recibí conforme</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="mb-1 border-t border-tinta pt-2 text-xs">
-                      {EMPRESA.firmante}
-                    </div>
-                    <p className="text-xs text-taupe">{EMPRESA.cargo} · {EMPRESA.nombre}</p>
-                  </div>
+                  {/* Quien recibe el bono firma al recibirlo: esa firma es la
+                      prueba de la entrega, así que no puede ir impresa. */}
+                  <BloqueFirma
+                    nombre={persona ? `${persona.nombres} ${persona.apellidos}` : "\u00a0"}
+                    pie="Recibí conforme"
+                  />
+                  <BloqueFirma
+                    imagen={firmaEstampada}
+                    nombre={firmanteNombre}
+                    pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                  />
                 </div>
               </>
             )}
@@ -656,18 +729,12 @@ export default function DocumentacionPage() {
                   Emitida el {fechaLarga(hoyLima())}.
                 </p>
 
-                <div className="mb-10 w-1/2 text-center">
-                  {/* La firma escaneada de quien imprime, si la tiene cargada. El
-                      alto fijo mantiene la línea en su sitio aunque no haya firma:
-                      así el documento se ve igual con y sin ella, y quien no la
-                      tenga simplemente firma a mano sobre la raya. */}
-                  <div className="flex h-24 items-end justify-center">
-                    {firmaUrl && (
-                      <img src={firmaUrl} alt="" aria-hidden className="block h-24 w-auto max-w-full" />
-                    )}
-                  </div>
-                  <div className="mb-1 border-t border-tinta pt-2 text-xs">{EMPRESA.firmante}</div>
-                  <p className="text-xs text-taupe">{EMPRESA.cargo} · {EMPRESA.nombre}</p>
+                <div className="mb-10 w-1/2">
+                  <BloqueFirma
+                    imagen={firmaEstampada}
+                    nombre={firmanteNombre}
+                    pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+                  />
                 </div>
 
                 <div className="break-inside-avoid border-t border-sand pt-4">
