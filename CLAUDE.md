@@ -206,6 +206,8 @@ base de 6.5 h, pago = salario × horas / (6.5 × días). Los factores de provisi
 | `revision-2026-07-15/` | Auditoría de seguridad. Vive hasta cerrar sus pendientes. |
 | `integracion-retail/` | Plan del puente con retail. Aún no arranca. |
 | `plan.md` | **Documento histórico** (jul 2026, antes de construir). Buen contexto del porqué; su estructura de carpetas y su roadmap ya no describen el sistema actual. |
+| `analisis-estructura-remunerativa-2026-07-30.md` | **Informe fechado.** El sustento del diseño remunerativo, escrito para revisar con el contador. Rescatado de una rama antes de borrarla. |
+| `plan-2026-07-25.md` | **Documento histórico.** Cuatro auditorías de código de julio. Se conserva por el registro, no por su lista de tareas. |
 
 **No crear documentos de estado con fecha en el nombre.** Ese hábito produjo cinco
 archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
