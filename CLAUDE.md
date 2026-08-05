@@ -158,6 +158,7 @@ base de 6.5 h, pago = salario × horas / (6.5 × días). Los factores de provisi
 |---|---|
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
 | `terminales-mac-mini.md` | Manual para dejar la Mac mini de una sede como terminal. |
+| `trabajar-en-dos-maquinas.md` | Ir y venir entre MacBook y Mac mini sin perder trabajo. |
 | `disciplina-tardanzas-faltas/` | Marco legal peruano, plantillas de cartas, RIT. |
 | `revision-2026-07-15/` | Auditoría de seguridad. Vive hasta cerrar sus pendientes. |
 | `integracion-retail/` | Plan del puente con retail. Aún no arranca. |
