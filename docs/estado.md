@@ -678,6 +678,19 @@ se deja constancia y ya. Es una decisión de negocio, no técnica.
   para arrancar — `docs/integracion-retail/`.
 - **Objetivos: botón "copiar del mes anterior"** — urge al arrancar agosto.
 - **Espejo a Google Sheets legible** (encabezados fijos, una fila por persona).
+- **Un solo lugar para "quién puede qué" y para "cuándo es hoy en Perú".** Hoy la
+  regla que más importa —*una encargada de sede no ve sueldos*— está escrita a
+  mano en **16 pantallas**, y la zona horaria de Lima se repite en **23
+  archivos**. Nada está roto ahora, pero la protección depende de que nadie se
+  olvide al agregar la pantalla 17: un descuido ahí filtra sueldos en silencio, y
+  uno en la fecha carga un día de pago al día equivocado. **El trabajo ya está
+  hecho y no hay que rediseñarlo**: vive en la rama `rescate-1442-04ago`
+  (`packages/shared/src/permisos.ts` y `fecha-lima.ts`, más `tests/permisos.test.ts`
+  y `tests/fecha-lima.test.ts`, 76 líneas cada uno, que cubren el borde de
+  medianoche y que un rol `null` no pase como autorizado). **Esa rama no se
+  fusiona** — es una línea paralela a la que le faltan 4.873 líneas que `main` sí
+  tiene; se usa como especificación y se reaplica sobre `main`. Rescatada el
+  2026-08-04 de una copia suelta del repo que estaba a punto de borrarse.
 
 ## 🟢 Dependen de Felipe / redondeo
 
