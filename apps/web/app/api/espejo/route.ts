@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { TZ_LIMA } from "@cayla-dynamic/shared";
 
 // "Puente" para el espejo a Google Sheets. El Apps Script llama aquí (con la llave
@@ -81,7 +82,13 @@ export async function GET(req: Request) {
       { resumen, marcajes: marc, actualizado: hoy },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? "error" }, { status: 500 });
+  } catch (e) {
+    // Esta respuesta la lee el Apps Script de Google, no una persona: un mensaje
+    // detallado no lo ayuda a hacer nada distinto, y este endpoint es el único
+    // que corre con la llave de servicio —la que lo puede leer todo—, así que es
+    // el peor sitio del sistema para publicar cómo se llaman las tablas.
+    // El detalle completo va a Sentry, donde sí sirve para diagnosticar.
+    Sentry.captureException(e);
+    return NextResponse.json({ error: "no se pudo generar el espejo" }, { status: 500 });
   }
 }
