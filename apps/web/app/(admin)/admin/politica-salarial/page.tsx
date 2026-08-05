@@ -140,6 +140,11 @@ export default function PoliticaSalarialPage() {
   const [vigente, setVigente] = useState<Vigente | null>(null);
   const [acuses, setAcuses] = useState<FilaAcuse[]>([]);
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
+  // ¿Quien tiene la sesión abierta es quien firma por CAYLA? La rúbrica solo se
+  // estampa entonces. El NOMBRE de la línea no se toca acá: en una política ya
+  // publicada viene congelado dentro del texto emitido, y reescribirlo sería
+  // cambiar un documento que ya circuló.
+  const [esFirmante, setEsFirmante] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -149,10 +154,12 @@ export default function PoliticaSalarialPage() {
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
     setError(null);
-    const [c, v, f] = await Promise.all([
+    const [c, v, f, yo, cfg] = await Promise.all([
       supabase.rpc("fn_cuadro_categorias"),
       supabase.rpc("fn_politica_salarial_vigente"),
       supabase.rpc("fn_mi_firma"),
+      supabase.rpc("fn_persona_actual_id"),
+      supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
     ]);
     if (c.error !== null || v.error !== null) {
       setError(mensajeDeError(c.error ?? v.error, "cargar la política salarial"));
@@ -162,6 +169,11 @@ export default function PoliticaSalarialPage() {
     setCuadro(c.data as unknown as Cuadro);
     setVigente(v.data as unknown as Vigente);
     setFirmaUrl(typeof f.data === "string" && f.data.startsWith("data:image") ? f.data : null);
+    // Quién firma por CAYLA vive en `configuracion` desde la 0147. Si la fila
+    // no está —migración sin pegar— nadie estampa y el documento sale con el
+    // espacio en blanco para firmar a mano, como antes de todo esto.
+    const vf = (cfg.data?.valor ?? null) as { persona_id?: string } | null;
+    setEsFirmante(Boolean(vf?.persona_id) && vf?.persona_id === yo.data);
 
     if (persona !== null && DO.includes(persona.rol)) {
       const { data: a } = await supabase.rpc("fn_acuses_politica_salarial");
@@ -370,7 +382,7 @@ export default function PoliticaSalarialPage() {
                 </section>
               ))}
               <footer className="mt-10 border-t border-slate-300 pt-6">
-                {firmaUrl !== null && (
+                {firmaUrl !== null && esFirmante && (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
                 )}
