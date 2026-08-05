@@ -1547,24 +1547,36 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      // Firma de la 0149, escrita a mano: `supabase gen types` no corre en esta
+      // máquina («Failed to end the connection on error»). Ya no viajan ni
+      // `p_monto` (lo calcula la base) ni `p_cobertura_pct` (es 75 fijo).
       fn_educacion_registrar: {
         Args: {
           p_persona_id: string
-          p_monto: number
           p_institucion: string
           p_costo_declarado: number
-          p_cobertura_pct: number
           p_beneficiario: string
           p_vigente_desde: string
+          p_vigente_hasta: string
+          p_beneficiario_nombre?: string | null
           p_comprobante_url?: string | null
           p_nota?: string | null
           p_id?: string | null
+          p_motivo?: string | null
         }
         Returns: string
       }
       fn_educacion_cerrar: {
-        Args: { p_id: string; p_hasta: string }
+        Args: { p_id: string; p_hasta: string; p_motivo?: string | null }
         Returns: undefined
+      }
+      fn_educacion_monto: {
+        Args: { p_persona_id: string; p_costo: number }
+        Returns: number
+      }
+      fn_educacion_por_atender: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       fn_educacion_puede_ver: {
         Args: { p_path: string }
@@ -1583,11 +1595,15 @@ export type Database = {
           costo_declarado: number
           cobertura_pct: number
           beneficiario: string
+          beneficiario_nombre: string | null
           comprobante_url: string | null
           vigente_desde: string
-          vigente_hasta: string | null
+          vigente_hasta: string
           nota: string | null
           registrada_por: string | null
+          dias_para_vencer: number
+          semaforo: string
+          paga: boolean
         }[]
       }
       fn_educacion_candidatos: {

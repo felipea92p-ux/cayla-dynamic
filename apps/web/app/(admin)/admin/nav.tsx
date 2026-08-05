@@ -20,6 +20,7 @@ const DO = ROLES_DO;
 const SEDE = ROLES_CON_PANEL;
 
 type Item = { href: string; label: string; Icon: LucideIcon; roles?: readonly string[] };
+
 const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   { items: [{ href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard }] },
   { label: "Asistencia", items: [
@@ -72,8 +73,23 @@ export function AdminNav() {
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
+  // El único contador del menú, y a propósito: un aviso que aparece en todos
+  // lados deja de ser un aviso. Cuenta las asignaciones por educación a las que
+  // les falta el comprobante o les quedan menos de 30 días — las dos cosas que,
+  // si nadie mira, terminan en un pago sin sustento o en alguien que deja de
+  // cobrar. La cuenta la hace la base (fn_educacion_por_atender), no el navegador.
+  const [educacionPorAtender, setEducacionPorAtender] = useState(0);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!ROLES_DO.includes(rol ?? "")) { setEducacionPorAtender(0); return; }
+    let vivo = true;
+    void createAdminSupabaseClient()
+      .rpc("fn_educacion_por_atender")
+      .then(({ data }) => { if (vivo) setEducacionPorAtender(Number(data) || 0); });
+    return () => { vivo = false; };
+  }, [rol, pathname]);
 
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
@@ -102,6 +118,14 @@ export function AdminNav() {
                       esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/30 hover:text-tinta"}`}>
                     <it.Icon size={15} strokeWidth={1.8} aria-hidden />
                     {it.label}
+                    {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
+                      <span
+                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                        title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
+                      >
+                        {educacionPorAtender}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -144,6 +168,11 @@ export function AdminNav() {
                         : "text-taupe hover:bg-sand/40 hover:text-tinta"}`}>
                     <it.Icon size={17} strokeWidth={1.8} aria-hidden />
                     {it.label}
+                    {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
+                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
+                        {educacionPorAtender}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>

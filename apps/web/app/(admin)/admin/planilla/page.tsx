@@ -150,6 +150,13 @@ export interface Fila {
   // simplemente no dibuja la fila en vez de escribir «S/ NaN».
   monto_movilidad?: number;
   movilidad_diaria?: number;
+  // La 0120 metió la educación en el 'total' del SQL y la boleta no la imprimía:
+  // el mismo agujero que la 0110 abrió con la movilidad, y con la misma
+  // consecuencia — un dinero que se paga y que la persona no puede explicar.
+  // `instituciones_educacion` viene de la 0150 y trae los nombres separados por
+  // ' · ' cuando hay más de un comprobante vigente.
+  monto_educacion?: number;
+  instituciones_educacion?: string | null;
   descuento_afp?: number;
   tasa_afp?: number;
   regimen_pension?: string | null;

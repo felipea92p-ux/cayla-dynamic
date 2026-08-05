@@ -25,11 +25,19 @@ interface Fila {
   costo_declarado: number;
   cobertura_pct: number;
   beneficiario: "trabajador" | "hijo";
+  beneficiario_nombre: string | null;
   comprobante_url: string | null;
   vigente_desde: string;
-  vigente_hasta: string | null;
+  // Desde la 0149 nunca es null: toda asignación dice hasta cuándo vale.
+  vigente_hasta: string;
   nota: string | null;
   registrada_por: string | null;
+  dias_para_vencer: number;
+  // Lo calcula la base y no la pantalla: la misma pregunta la hace el contador
+  // del menú, y tres copias de "cuándo vence" es como empiezan a discrepar.
+  semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
+  // Lo que de verdad decide si esta fila entra en la planilla.
+  paga: boolean;
 }
 
 interface Candidato {
@@ -41,20 +49,27 @@ interface Candidato {
   ya_tiene: boolean;
 }
 
+// Ni `monto` ni `coberturaPct`: el primero lo calcula la base y el segundo es
+// 75 % fijo desde la 0149. Pedirlos era pedirle a DO que hiciera una cuenta que
+// el sistema ya sabe hacer — y el primer error de cuenta llegaba el primer mes.
 interface Form {
   personaId: string;
-  monto: string;
   institucion: string;
   costoDeclarado: string;
-  coberturaPct: string;
   beneficiario: "trabajador" | "hijo";
+  beneficiarioNombre: string;
   vigenteDesde: string;
+  vigenteHasta: string;
   nota: string;
+  motivo: string;
 }
 
+const COBERTURA = 75;
+
 const FORM_VACIO: Form = {
-  personaId: "", monto: "", institucion: "", costoDeclarado: "",
-  coberturaPct: "75", beneficiario: "trabajador", vigenteDesde: "", nota: "",
+  personaId: "", institucion: "", costoDeclarado: "",
+  beneficiario: "trabajador", beneficiarioNombre: "",
+  vigenteDesde: "", vigenteHasta: "", nota: "", motivo: "",
 };
 
 const TIPOS_ACEPTADOS = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
@@ -109,16 +124,18 @@ export default function EducacionPage() {
     [candidatos, form.personaId],
   );
 
-  // Los dos techos, calculados MIENTRAS se escribe. El de abajo es el que manda.
+  // El monto sale de la misma cuenta que hace `fn_educacion_monto` en la base:
+  // min(75 % del comprobante, techo del rango). Se muestra MIENTRAS se escribe
+  // para que la cifra no aparezca por sorpresa al guardar. Si mañana cambia la
+  // regla, cambia en la base y esta pantalla queda mostrando otra cosa — por eso
+  // el guardado no confía en este número: lo recalcula la función.
   const costo = Number(form.costoDeclarado) || 0;
-  const cobertura = Number(form.coberturaPct) || 0;
-  const monto = Number(form.monto) || 0;
-  const topeComprobante = costo > 0 && cobertura > 0 ? Math.round(costo * cobertura) / 100 : null;
+  const topeComprobante = costo > 0 ? Math.round(costo * COBERTURA) / 100 : null;
   const topeRango = candidato?.tope ?? null;
-  const topeReal = topeComprobante === null ? topeRango
+  const monto = topeComprobante === null ? 0
     : topeRango === null ? topeComprobante
     : Math.min(topeComprobante, topeRango);
-  const excede = topeReal !== null && monto > topeReal;
+  const mandaElTecho = topeComprobante !== null && topeRango !== null && topeRango < topeComprobante;
 
   function empezarAlta() {
     setMostrandoAlta(true); setEditandoId(null); setArchivo(null); setMensaje(null);
@@ -127,9 +144,11 @@ export default function EducacionPage() {
   function empezarEdicion(f: Fila) {
     setEditandoId(f.id); setMostrandoAlta(false); setArchivo(null); setMensaje(null);
     setForm({
-      personaId: f.persona_id, monto: String(f.monto), institucion: f.institucion,
-      costoDeclarado: String(f.costo_declarado), coberturaPct: String(f.cobertura_pct),
-      beneficiario: f.beneficiario, vigenteDesde: f.vigente_desde, nota: f.nota ?? "",
+      personaId: f.persona_id, institucion: f.institucion,
+      costoDeclarado: String(f.costo_declarado),
+      beneficiario: f.beneficiario, beneficiarioNombre: f.beneficiario_nombre ?? "",
+      vigenteDesde: f.vigente_desde, vigenteHasta: f.vigente_hasta,
+      nota: f.nota ?? "", motivo: "",
     });
   }
   function cancelar() { setMostrandoAlta(false); setEditandoId(null); setForm(FORM_VACIO); setArchivo(null); }
@@ -147,17 +166,15 @@ export default function EducacionPage() {
     if (!form.personaId) { avisar("error", "Elige de quién es la asignación."); return; }
     if (institucion.length < 3) { avisar("error", "Escribe qué institución emite el comprobante."); return; }
     if (costo <= 0) { avisar("error", "El costo que dice el comprobante tiene que ser mayor que cero."); return; }
-    if (monto <= 0) { avisar("error", "El monto mensual tiene que ser mayor que cero."); return; }
-    if (!form.vigenteDesde) { avisar("error", "Indica desde cuándo se paga."); return; }
-    if (excede) {
-      avisar("error", `El monto no puede pasar de ${soles(topeReal!)}. Ajusta el monto, o el costo declarado si el comprobante dice otra cifra.`);
+    if (form.beneficiario === "hijo" && form.beneficiarioNombre.trim().length < 3) {
+      avisar("error", "Si el comprobante es de un hijo o hija, escribe a nombre de quién está. Sin eso, el papel no se puede atar a quien cobra.");
       return;
     }
-    // El comprobante es la razón por la que esto no es remuneración. En un alta
-    // se exige; en una edición se conserva el que ya estaba si no se sube otro.
-    const yaTeniaComprobante = editandoId !== null && filas.find((f) => f.id === editandoId)?.comprobante_url;
-    if (!archivo && !yaTeniaComprobante) {
-      avisar("error", "Falta el comprobante. Sin el papel que sostiene el monto, esto sería remuneración y pagaría impuestos.");
+    if (!form.vigenteDesde) { avisar("error", "Indica desde cuándo se paga."); return; }
+    if (!form.vigenteHasta) { avisar("error", "Indica hasta cuándo vale el comprobante. Una matrícula cubre un ciclo, no la eternidad."); return; }
+    if (form.vigenteHasta < form.vigenteDesde) { avisar("error", "La fecha de fin es anterior a la de inicio."); return; }
+    if (editandoId && form.motivo.trim().length < 3) {
+      avisar("error", "Escribe por qué se corrige. Esto mueve lo que cobra una persona, y queda registrado.");
       return;
     }
 
@@ -166,16 +183,19 @@ export default function EducacionPage() {
 
     // 1) La fila primero: da el id con el que se nombra el archivo, y si algo
     //    falla aquí no queda un archivo huérfano en el bucket.
+    // El monto NO viaja: lo calcula la función. Mandarlo desde acá abriría la
+    // puerta a que dos versiones de la misma cuenta discrepen.
     const { data: id, error } = await supabase.rpc("fn_educacion_registrar", {
       p_persona_id: form.personaId,
-      p_monto: monto,
       p_institucion: institucion,
       p_costo_declarado: costo,
-      p_cobertura_pct: cobertura,
       p_beneficiario: form.beneficiario,
       p_vigente_desde: form.vigenteDesde,
+      p_vigente_hasta: form.vigenteHasta,
+      p_beneficiario_nombre: form.beneficiarioNombre.trim() || null,
       p_nota: form.nota.trim() || null,
       p_id: editandoId,
+      p_motivo: form.motivo.trim() || null,
     });
     if (error) { setGuardando(false); avisar("error", mensajeDeError(error, "guardar")); return; }
 
@@ -192,10 +212,13 @@ export default function EducacionPage() {
       }
       // 3) Enlazar el archivo a la fila.
       const { error: e3 } = await supabase.rpc("fn_educacion_registrar", {
-        p_persona_id: form.personaId, p_monto: monto, p_institucion: institucion,
-        p_costo_declarado: costo, p_cobertura_pct: cobertura, p_beneficiario: form.beneficiario,
-        p_vigente_desde: form.vigenteDesde, p_nota: form.nota.trim() || null,
+        p_persona_id: form.personaId, p_institucion: institucion,
+        p_costo_declarado: costo, p_beneficiario: form.beneficiario,
+        p_vigente_desde: form.vigenteDesde, p_vigente_hasta: form.vigenteHasta,
+        p_beneficiario_nombre: form.beneficiarioNombre.trim() || null,
+        p_nota: form.nota.trim() || null,
         p_comprobante_url: ruta, p_id: id,
+        p_motivo: "Se enlaza el comprobante recién subido",
       });
       if (e3) {
         setGuardando(false);
@@ -208,7 +231,14 @@ export default function EducacionPage() {
     setGuardando(false);
     cancelar();
     await cargar();
-    avisar("ok", editandoId ? "Cambios guardados." : "Asignación registrada. Entra en el próximo cálculo de planilla.");
+    avisar(
+      "ok",
+      !archivo && !(editandoId && filas.find((f) => f.id === editandoId)?.comprobante_url)
+        ? "Guardada, pero SIN comprobante: no se paga hasta que subas el papel. Queda en amarillo en la lista."
+        : editandoId
+          ? "Cambios guardados."
+          : "Asignación registrada. Entra en el próximo cálculo de planilla.",
+    );
   }
 
   async function verComprobante(f: Fila) {
@@ -232,14 +262,22 @@ export default function EducacionPage() {
     if (!hasta) return;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) { avisar("error", "La fecha va como AAAA-MM-DD (por ejemplo 2026-12-31)."); return; }
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.rpc("fn_educacion_cerrar", { p_id: f.id, p_hasta: hasta });
+    const { error } = await supabase.rpc("fn_educacion_cerrar", {
+      p_id: f.id, p_hasta: hasta,
+      p_motivo: `Cierre manual desde la pantalla de educación (${f.institucion})`,
+    });
     if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
     avisar("ok", `Cerrada al ${fmtFecha(hasta)}. Deja de pagarse en los periodos posteriores.`);
   }
 
-  const visibles = verSoloVigentes ? filas.filter((f) => f.vigente_hasta === null) : filas;
-  const totalMensual = filas.filter((f) => f.vigente_hasta === null).reduce((s, f) => s + Number(f.monto), 0);
+  // Antes "vigente" era `vigente_hasta === null`. Desde la 0149 toda asignación
+  // tiene fecha de fin, así que quien decide es el semáforo que calcula la base.
+  const visibles = verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
+  // El total suma sólo lo que DE VERDAD se paga: una fila sin comprobante existe
+  // pero no devenga, y sumarla daría un número que la planilla no va a pagar.
+  const totalMensual = filas.filter((f) => f.paga).reduce((s, f) => s + Number(f.monto), 0);
+  const porAtender = filas.filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer").length;
 
   const formulario = (
     <div className="mb-6 grid max-w-3xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
@@ -299,6 +337,23 @@ export default function EducacionPage() {
         </span>
       </label>
 
+      {form.beneficiario === "hijo" && (
+        <label className="flex flex-col gap-1 text-sm">
+          ¿A nombre de quién está el comprobante?
+          <input
+            value={form.beneficiarioNombre}
+            onChange={(e) => setForm({ ...form, beneficiarioNombre: e.target.value })}
+            placeholder="nombre completo del hijo o hija"
+            className="rounded-lg border px-3 py-2"
+          />
+          <span className="text-xs text-taupe">
+            Sin esto, un papel a nombre de un tercero no tiene cómo atarse a quien cobra —
+            que es el hueco por el que estos conceptos se desconocen en una fiscalización.
+            No sale en la boleta.
+          </span>
+        </label>
+      )}
+
       <label className="flex flex-col gap-1 text-sm">
         Costo que dice el comprobante
         <input
@@ -311,40 +366,33 @@ export default function EducacionPage() {
         <span className="text-xs text-taupe">El importe real del papel, no una estimación.</span>
       </label>
 
-      <label className="flex flex-col gap-1 text-sm">
+      <div className="flex flex-col gap-1 text-sm">
         ¿Qué parte cubre CAYLA?
-        <div className="flex items-center gap-2">
-          <input
-            type="number" min="1" max="100" step="1" inputMode="numeric"
-            value={form.coberturaPct}
-            onChange={(e) => setForm({ ...form, coberturaPct: e.target.value })}
-            className="w-24 rounded-lg border px-3 py-2"
-          />
-          <span className="text-sm text-taupe">%</span>
+        <div className="rounded-lg border border-dashed bg-sand/40 px-3 py-2 text-tinta">
+          {COBERTURA}% del comprobante
         </div>
-      </label>
+        <span className="text-xs text-taupe">
+          Igual para todo el equipo. Cambiarlo caso por caso haría que dos personas con el
+          mismo curso cobraran distinto, y eso es lo que un inspector llama trato desigual.
+        </span>
+      </div>
 
-      <label className="flex flex-col gap-1 text-sm">
+      {/* El monto no se teclea: es una consecuencia del papel y del rango. Se
+          muestra mientras se escribe para que la cifra no aparezca por sorpresa,
+          y se explica de dónde sale — si no, parece magia. */}
+      <div className="flex flex-col gap-1 text-sm">
         Monto mensual a pagar
-        <input
-          type="number" min="0" step="0.01" inputMode="decimal"
-          value={form.monto}
-          onChange={(e) => setForm({ ...form, monto: e.target.value })}
-          placeholder="ej. 150.00"
-          className={`rounded-lg border px-3 py-2 ${excede ? "border-rojo text-rojo" : ""}`}
-        />
-        {/* El techo se dice ANTES de guardar, no como error después. */}
-        {topeReal !== null && (
-          <span className={`text-xs ${excede ? "text-rojo" : "text-taupe"}`}>
-            {excede ? "Se pasa. " : ""}Máximo {soles(topeReal)}
-            {topeComprobante !== null && topeRango !== null && (
-              <> — {topeComprobante <= topeRango
-                ? `es lo que sostiene el comprobante (${cobertura}% de ${soles(costo)})`
-                : `es el tope del rango ${candidato?.rango}`}</>
-            )}
-          </span>
-        )}
-      </label>
+        <div className="rounded-lg border border-dashed bg-sand/40 px-3 py-2 font-medium text-tinta">
+          {costo > 0 ? soles(monto) : "—"}
+        </div>
+        <span className="text-xs text-taupe">
+          {costo <= 0
+            ? "Se calcula solo en cuanto escribas el costo del comprobante."
+            : mandaElTecho
+              ? `Es el tope del rango ${candidato?.rango}: el ${COBERTURA}% del comprobante daría ${soles(topeComprobante!)}.`
+              : `Es el ${COBERTURA}% de ${soles(costo)}${topeRango !== null ? `, por debajo del tope del rango (${soles(topeRango)})` : ""}.`}
+        </span>
+      </div>
 
       <label className="flex flex-col gap-1 text-sm">
         Se paga desde
@@ -354,7 +402,24 @@ export default function EducacionPage() {
           onChange={(e) => setForm({ ...form, vigenteDesde: e.target.value })}
           className="rounded-lg border px-3 py-2"
         />
-        <span className="text-xs text-taupe">Entra en los periodos que terminen en esta fecha o después.</span>
+        <span className="text-xs text-taupe">
+          Se paga completo en cada periodo que la encuentre vigente al empezar. Si la
+          matrícula ya está corriendo, pon el primer día del periodo.
+        </span>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Hasta cuándo vale el comprobante
+        <input
+          type="date"
+          value={form.vigenteHasta}
+          onChange={(e) => setForm({ ...form, vigenteHasta: e.target.value })}
+          className="rounded-lg border px-3 py-2"
+        />
+        <span className="text-xs text-taupe">
+          El fin del ciclo que cubre este papel. Un mes antes la fila se pone ámbar para
+          que puedas pedir el comprobante nuevo; al vencer deja de pagarse sola.
+        </span>
       </label>
 
       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
@@ -366,11 +431,29 @@ export default function EducacionPage() {
           className="rounded-lg border bg-crema px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
         />
         <span className="text-xs text-taupe">
-          Foto o PDF de la constancia o boleta, hasta 10 MB. Es lo que hace que este monto no sea remuneración:
-          sin él, el día de una fiscalización el pago se recategoriza y genera aportes.
+          Foto o PDF de la constancia o boleta, hasta 10 MB. Puedes guardar sin él si el papel
+          todavía no llegó —la fila queda en ámbar— pero <strong>no se paga nada hasta subirlo</strong>:
+          es lo que hace que este monto no sea remuneración.
         </span>
         {archivo && <span className="text-xs text-tinta">Elegido: {archivo.name} ({(archivo.size / 1048576).toFixed(1)} MB)</span>}
       </label>
+
+      {editandoId && (
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          ¿Por qué se corrige?
+          <input
+            value={form.motivo}
+            onChange={(e) => setForm({ ...form, motivo: e.target.value })}
+            placeholder="ej. el comprobante decía 180 y se registró 200"
+            className="rounded-lg border px-3 py-2"
+          />
+          <span className="text-xs text-taupe">
+            Obligatorio: esto mueve lo que cobra una persona. Queda en la auditoría con tu
+            nombre. Si cambias el costo o las fechas, se abre una vigencia nueva desde el
+            periodo abierto — lo que ya se pagó no se toca.
+          </span>
+        </label>
+      )}
 
       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
         Nota (opcional)
@@ -383,7 +466,7 @@ export default function EducacionPage() {
       </label>
 
       <div className="flex items-end gap-3 sm:col-span-2">
-        <button onClick={guardar} disabled={guardando || excede} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+        <button onClick={guardar} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
           {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Registrar asignación"}
         </button>
         <button onClick={cancelar} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
@@ -445,7 +528,10 @@ export default function EducacionPage() {
                     Solo las vigentes
                   </label>
                   <span className="text-taupe">
-                    Vigentes: <strong className="text-tinta">{filas.filter((f) => f.vigente_hasta === null).length}</strong>
+                    Pagando: <strong className="text-tinta">{filas.filter((f) => f.paga).length}</strong>
+                    {porAtender > 0 && (
+                      <> · <strong className="text-rojo">{porAtender} por atender</strong></>
+                    )}
                     {" · "}suman <strong className="text-tinta">{soles(totalMensual)}</strong> al mes
                   </span>
                 </div>
@@ -466,22 +552,34 @@ export default function EducacionPage() {
                     </thead>
                     <tbody>
                       {visibles.map((f) => (
-                        <tr key={f.id} className={`border-t ${f.vigente_hasta ? "text-taupe" : ""}`}>
+                        <tr key={f.id} className={`border-t ${f.semaforo === "vencida" ? "text-taupe" : ""}`}>
                           <td className="px-4 py-2">
                             {f.persona}
                             <span className="ml-1 text-xs text-taupe">{f.sede} · {f.rango}</span>
                           </td>
                           <td className="px-4 py-2">{f.institucion}</td>
-                          <td className="px-4 py-2 text-xs">{f.beneficiario === "hijo" ? "su hijo/a" : "ella misma"}</td>
+                          <td className="px-4 py-2 text-xs">
+                            {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "ella misma"}
+                          </td>
                           <td className="px-4 py-2 tabular-nums">{soles(Number(f.monto))}</td>
                           <td className="px-4 py-2 text-xs text-taupe">
                             {f.cobertura_pct}% de {soles(Number(f.costo_declarado))}
                           </td>
                           <td className="px-4 py-2 text-xs">
                             desde {fmtFecha(f.vigente_desde)}
-                            {f.vigente_hasta
-                              ? <span className="block text-taupe">cerrada al {fmtFecha(f.vigente_hasta)}</span>
-                              : <span className="block text-tinta">vigente</span>}
+                            {f.semaforo === "vencida" ? (
+                              <span className="block text-taupe">venció el {fmtFecha(f.vigente_hasta)}</span>
+                            ) : f.semaforo === "sin_comprobante" ? (
+                              <span className="block font-medium text-rojo">
+                                falta el comprobante · no se paga
+                              </span>
+                            ) : f.semaforo === "por_vencer" ? (
+                              <span className="block font-medium text-rojo">
+                                vence en {f.dias_para_vencer} día{f.dias_para_vencer === 1 ? "" : "s"} · pide el papel nuevo
+                              </span>
+                            ) : (
+                              <span className="block text-tinta">vigente hasta {fmtFecha(f.vigente_hasta)}</span>
+                            )}
                           </td>
                           <td className="px-4 py-2">
                             {f.comprobante_url ? (
