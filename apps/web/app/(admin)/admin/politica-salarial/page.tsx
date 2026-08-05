@@ -8,6 +8,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
+  categoriasFueraDeOrden,
   construirDocumento,
   documentoATexto,
   type Bloque,
@@ -197,6 +198,14 @@ export default function PoliticaSalarialPage() {
     [cuadro, hoy],
   );
 
+  // Las categorías que valen igual o menos que la anterior. Una escala que no
+  // sube con la categoría contradice el único criterio que la sostiene ante una
+  // inspección, así que se avisa ANTES de publicar y no después.
+  const fueraDeOrden = useMemo(
+    () => (cuadro ? categoriasFueraDeOrden(cuadro.categorias) : []),
+    [cuadro],
+  );
+
   const publicar = async () => {
     if (docVivo === null) return;
     setGuardando(true);
@@ -265,6 +274,25 @@ export default function PoliticaSalarialPage() {
           <p className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
             {aviso}
           </p>
+        )}
+
+        {/* ── La escala se desordenó ──
+            Solo lo ve quien puede publicar, y NO entra al documento: un papel
+            que se contradice a sí mismo es peor prueba que uno sin publicar. */}
+        {esDO && fueraDeOrden.length > 0 && (
+          <section className="mb-6 rounded border border-amber-400 bg-amber-50 px-4 py-3 print:hidden">
+            <p className="text-sm font-medium text-amber-900">
+              La escala no sube con la categoría.
+            </p>
+            <p className="mt-1 text-sm text-amber-900">
+              {fueraDeOrden.length === 1
+                ? `${fueraDeOrden[0]} tiene una remuneración declarada igual o menor que la de la categoría anterior.`
+                : `Estas categorías tienen una remuneración declarada igual o menor que la de la categoría anterior: ${fueraDeOrden.join(", ")}.`}{" "}
+              Ese orden es la única razón por la que una categoría puede pagarse más que otra
+              (Ley 30709). Corrige los montos en{" "}
+              <strong>categorias_laborales.salario_declarado</strong> antes de publicar.
+            </p>
+          </section>
         )}
 
         {/* ── Barra de estado, solo para quien puede publicar ── */}

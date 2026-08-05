@@ -40,6 +40,13 @@ export interface CategoriaCuadro {
   requisitos: string | null;
   criterio: string | null;
   personas: number;
+  /** Lo que la empresa DECLARA que vale la categoría. Es lo que se publica. */
+  salario_declarado: number | string | null;
+  /**
+   * El mínimo y el máximo que hoy cobra quien está en la categoría, ya filtrado
+   * a planilla (0145). NO se publica: sirve para que la pantalla de
+   * administración avise si alguien quedó por debajo del monto declarado.
+   */
   salario_min: number | string | null;
   salario_max: number | string | null;
   tope_educacion: number | string | null;
@@ -131,11 +138,60 @@ const num = (n: number | string | null | undefined): number | null => {
   return Number.isFinite(v) ? v : null;
 };
 
-function banda(c: CategoriaCuadro): string {
+/**
+ * Lo que el documento publica como remuneración de una categoría.
+ *
+ * Es el monto DECLARADO, no lo que cobra quien hoy está en ella. Hasta la 0145
+ * esto devolvía el mínimo y el máximo de los sueldos vigentes, y como el filtro
+ * no excluía a los locadores, un honorario alto empujaba el máximo de una
+ * categoría por encima de la siguiente: el documento publicado llegó a decir
+ * que ArchiCayla (la más alta) valía S/1500 y Oráculo S/1800.
+ *
+ * Una categoría sin monto declarado dice «—» en vez de inventarlo con los
+ * sueldos reales, que es de donde venía el error.
+ */
+function remuneracion(c: CategoriaCuadro): string {
+  const declarado = num(c.salario_declarado);
+  if (declarado !== null) return soles(declarado);
+
+  // Sin monto declarado se vuelve al comportamiento anterior, y es a propósito.
+  //
+  // La pantalla y la base se publican por caminos distintos: el despliegue de
+  // Vercel y el SQL pegado a mano. Uno de los dos llega siempre primero. Si esta
+  // pantalla exigiera la columna `salario_declarado`, desplegar antes de aplicar
+  // la 0145 dejaría el documento —que es una obligación legal viva— mostrando
+  // «—» en las seis filas hasta que alguien corriera el SQL.
+  //
+  // Degradarse a lo de antes no pierde ningún dato y no rompe nada: el documento
+  // sigue diciendo algo cierto, solo que menos bueno, durante los minutos que
+  // separan un paso del otro. El orden deja de importar.
   if (c.personas === 0) return "Sin personas asignadas hoy";
   const min = soles(c.salario_min);
   const max = soles(c.salario_max);
   return min === max ? min : `${min} a ${max}`;
+}
+
+/**
+ * Las categorías cuyo monto declarado NO supera al de la categoría anterior.
+ *
+ * La escala tiene que subir con la categoría: es la única razón por la que una
+ * remuneración puede ser mayor que otra ante una inspección (Ley 30709). Si se
+ * desordena, la pantalla lo avisa —decisión de Felipe: avisar, no bloquear— y
+ * el aviso NO entra al documento: un papel que se declara incoherente a sí
+ * mismo es peor prueba que uno sin publicar.
+ */
+export function categoriasFueraDeOrden(cats: CategoriaCuadro[]): string[] {
+  const ordenadas = [...cats].sort((a, b) => a.orden - b.orden);
+  const fuera: string[] = [];
+  for (let i = 1; i < ordenadas.length; i++) {
+    const previa = num(ordenadas[i - 1].salario_declarado);
+    const actual = num(ordenadas[i].salario_declarado);
+    if (previa === null || actual === null) continue;
+    if (actual <= previa) {
+      fuera.push(NOMBRE_RANGO[ordenadas[i].rango] ?? ordenadas[i].rango);
+    }
+  }
+  return fuera;
 }
 
 /** Las líneas de un campo de texto multilínea, sin vacías. */
@@ -246,7 +302,7 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
         cabeceras: ["Categoría", "Remuneración", "Apoyo a estudios, hasta", "Personas hoy"],
         filas: cats.map((c) => [
           NOMBRE_RANGO[c.rango] ?? c.rango,
-          banda(c),
+          remuneracion(c),
           c.tope_educacion !== null && c.tope_educacion !== undefined
             ? `${soles(c.tope_educacion)} al mes`
             : "—",
@@ -544,9 +600,11 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
             "Referencia mensual",
           ],
           filas: cats
-            .filter((c) => num(c.salario_min) !== null)
+            // El monto declarado, igual que en la tabla de la escala: las dos
+            // hablan de la misma categoría y no pueden dar cifras distintas.
+            .filter((c) => num(c.salario_declarado) !== null)
             .map((c) => {
-              const sueldo = num(c.salario_min) ?? 0;
+              const sueldo = num(c.salario_declarado) ?? 0;
               const educ = num(c.tope_educacion) ?? 0;
               const movMax = movil.max * DIAS_REFERENCIA;
               const movMin = movil.min * DIAS_REFERENCIA;
