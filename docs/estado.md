@@ -4,17 +4,44 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-04**. Migraciones **0115 a 0122 aplicadas en
-producción**; en el repo hay hasta la **0135**, y de la 0128 en adelante queda
-por confirmar cuáles se aplicaron. **36 archivos pgTAP, 319 pruebas**, verdes en
-local el 2026-08-04 · `pnpm typecheck` y las 43 pruebas de interfaz, también.*
+*Última consolidación: **2026-08-05**. Migraciones **0115 a 0122 aplicadas en
+producción**; en el repo hay hasta la **0151**, y de la 0128 en adelante queda
+por confirmar cuáles se aplicaron. **45 archivos pgTAP, 415 pruebas**, verdes en
+local el 2026-08-05 · `pnpm typecheck` y las **88 pruebas de interfaz** (7 archivos), también.*
 
 > **Cómo se verificó esto** (para que la próxima consolidación no vuelva a
 > quedarse vieja sin que nadie lo note):
 > ```bash
-> npx supabase db start && npx supabase test db   # 36 archivos · 319 pruebas
-> npx pnpm typecheck && npx pnpm test             # 43 pruebas de interfaz
+> npx supabase db start && npx supabase test db   # 45 archivos · 415 pruebas
+> npx pnpm typecheck && npx pnpm test             # 7 archivos · 88 pruebas de interfaz
 > ```
+
+---
+
+## 2026-08-05 — llegaron las respuestas del contador
+
+Dante respondió por escrito las cuatro preguntas abiertas. **Tres cierran**
+(utilidades, SIRE, el 9% de la Ley 30334), una quedó a medias (los códigos PLAME),
+y **una de sus respuestas no aplica a nuestro caso** (el tope del 4% en movilidad).
+El detalle está en [A.5](#a5--las-cuatro-preguntas-al-contador-respondidas-2026-08-05).
+
+Lo que salió de ahí:
+
+| Qué | Dónde |
+|---|---|
+| **La repregunta**, redactada y lista para enviarle — la marca de afectación en el PDT es lo que ahora bloquea | [`movilidad-y-codigos-plame-para-el-contador.md`](movilidad-y-codigos-plame-para-el-contador.md) |
+| **La lista real de quién va a la póliza** del Seguro de Vida Ley, para cruzar contra las 19 de la cotización antes de firmar | [`quienes_van_al_seguro_de_vida_ley.sql`](../scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql) |
+| **0151 · el techo de la movilidad** — ninguna tarifa diaria puede pasar del 4% de la RMV vigente (hoy S/45.20). No mueve ningún pago: las tarifas vivas son S/10 y S/12 | [`0151_la_movilidad_tiene_techo.sql`](../supabase/migrations/0151_la_movilidad_tiene_techo.sql) · prueba [`116`](../supabase/tests/116_la_movilidad_tiene_techo.test.sql), 10 aserciones |
+| **El indicador del umbral de 20 trabajadores** — definido, se construye después del seguro | sección [B](#b--lo-que-falta-construir) |
+
+**La 0151 se pega tal cual en el SQL Editor**: es idempotente y auto-contenida, no
+necesita una versión aparte en `scripts/sql-manual/`. Al aplicarla imprime
+`0151 · Ninguna tarifa de movilidad supera su techo` si todo está en orden, o un
+`warning` por cada tarifa que haya que mirar a mano.
+
+**La prueba 116 se comprobó rompiendo el candado a propósito:** quitando el trigger
+fallan exactamente las 4 aserciones que dependen de él (el borde de S/45.21, la
+medición contra la RMV de la fecha, y las dos del UPDATE). No pasa por casualidad.
 
 ---
 
@@ -198,19 +225,46 @@ el régimen general, donde sí es exigible. La persona más antigua ingresó el
 | **Rufina Salvatierra** | aparece en el cálculo y **no estaba** en la lista de 22 activos | Tiene jornadas sin estar activa, o se agregó después |
 | **Carlos Espejo** | sigue marcado `planilla` | Hoy no cobra movilidad porque no marca. **El día que marque, le va a salir.** Se cambia en Equipo → Tipo de vínculo |
 
-### A.5 · Preguntas para el contador
+### A.5 · ✅ Las cuatro preguntas al contador, respondidas (2026-08-05)
 
-1. **La casilla de renta neta imponible 2025** del Formulario 710. Es el único dato
-   que falta para saber si hay algo que repartir de utilidades — y si es cero, el
-   reparto es cero.
-2. **¿Ya paga la bonificación extraordinaria del 9%** de la Ley 30334 sobre cada
-   gratificación? Puede estar metida dentro del monto de la gratificación sin
-   desagregar, lo que cambia el diagnóstico de «no se paga» a «se paga mal
-   declarado».
-3. **¿Con qué códigos declara en el PLAME** la movilidad, la educación y el bono?
-   La movilidad supeditada a asistencia es el **0909**.
-4. **¿CAYLA está en el SIRE** (registros de compras y ventas electrónicos)? La ficha
-   RUC dice contabilidad MANUAL y el periodo de gracia habría cerrado el 30/06/2026.
+Dante respondió las cuatro por escrito. Tres cierran, una abrió otra pregunta.
+
+| Se preguntó | Respondió | Qué sigue |
+|---|---|---|
+| **Renta imponible 2025** para saber si hay utilidades que repartir | Utilidad 2025 de S/63,655, **pero el umbral no se mide por eso**: se mide por promedio anual de trabajadores y son >20. CAYLA tuvo **5 de promedio en 2025** y proyecta **13 para 2026** | **Cerrado.** No hay nada que repartir. Ver el indicador de vigilancia en la sección B |
+| **¿Se paga el 9% de la Ley 30334?** | **Sí**, y va en línea separada de la boleta con el código **0312** | **Cerrado.** Confirma lo que la [`0134`](../supabase/migrations/0134_la_bonificacion_extraordinaria_ley_30334.sql) ya asumía y verificó contra una boleta real |
+| **Códigos PLAME** de los tres conceptos | Movilidad **0909** confirmado · educación «202» · cumpleaños «203» | **Casi.** Escribe los códigos sin el cero inicial (dijo «909» por 0909), así que son **0202** y **0203**. Falta su confirmación de una línea |
+| **¿CAYLA está en el SIRE?** | **Sí**, ventas y compras al día. La gracia se amplió al **31/08/2026** | **Cerrado.** Fuera del alcance de Dynamic |
+
+**Lo que quedó abierto, y es lo que ahora bloquea.** El código no es el problema:
+el problema es **con qué marca de afectación** quedan el 0909, el 0202 y el 0203 en
+el PDT — EsSalud, ONP/AFP y quinta categoría. Si alguno queda declarado afecto, no
+solo se pagan aportes que la ley no exige: CAYLA declara por escrito y mes a mes que
+el concepto es remunerativo, y eso destruye el sustento del artículo 19 con nuestra
+propia firma. Es lo único que tiene que responderse **antes de declarar el primer
+periodo** con los tres conceptos.
+
+**Y una respuesta suya que no aplica a nuestro caso.** Sobre la movilidad, Dante
+citó el tope del 4% de la RMV y la exigencia de comprobantes de pago. Eso es el
+**art. 37 inciso a1) de la LIR**, que regula la movilidad como *condición de
+trabajo* y se autoexcluye en su propio texto al aplicar solo a gastos «que no
+constituyan beneficio o ventaja patrimonial directa» del trabajador. Lo de CAYLA es
+el **art. 19 inciso e) del D.S. 001-97-TR**: le entra al bolsillo de la persona.
+Seguir su consejo literal significaría juntar ~500 boletos de colectivo al mes y,
+peor, convertiría el concepto en un reembolso de gastos — justo la figura que no
+queremos.
+
+Todo esto, redactado y listo para enviarle, está en
+[`movilidad-y-codigos-plame-para-el-contador.md`](movilidad-y-codigos-plame-para-el-contador.md).
+
+**Del Seguro de Vida Ley (D.Leg. 688 + D.U. 044-2019):** cotizado en **La Positiva,
+S/170/mes por 19 personas**, sin comisión de corredor —Dante confirmó que el
+reglamento no la contempla— y con factura. Cobertura de 16 sueldos por muerte
+natural y 32 por accidente o invalidez total y permanente. **El 19 hay que
+cruzarlo antes de firmar**: el diseño remunerativo asume 26 personas. Quien esté
+en planilla y fuera de la póliza queda sin cobertura, y ese capital lo paga CAYLA
+de su patrimonio. La consulta que arma la lista real está en
+[`quienes_van_al_seguro_de_vida_ley.sql`](../scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql).
 
 ---
 
@@ -221,13 +275,42 @@ el régimen general, donde sí es exigible. La persona más antigua ingresó el
 | **Las bases declaradas** de los cuatro rangos altos — y hay que bajar **los dos campos**, `sueldo_base_legal` **y** `salario_mensual_soles` | confirmar los montos finales |
 | **Pantalla para subir comprobantes** de educación, con candado: no dejar registrar el pago sin su papel | nada |
 | **Bono de cumpleaños** automático con alerta en el mes del onomástico | conectar `datos_personales.fecha_nacimiento` |
-| **La bonificación del 9%** de la Ley 30334 en el sistema | la respuesta del contador |
+| ~~**La bonificación del 9%** de la Ley 30334~~ | ✅ **hecha** en la [`0134`](../supabase/migrations/0134_la_bonificacion_extraordinaria_ley_30334.sql), y el contador confirmó el 2026-08-05 que la premisa era correcta |
+| **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. Definido abajo |
 | **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
+
+**El indicador del umbral de 20, y por qué vale construirlo.** Dante zanjó las
+utilidades para 2025 y 2026, pero lo hizo con una foto: 5 y 13 de promedio. Ese 13
+es un accidente del año de crecimiento —de enero a junio hubo entre 5 y 8 personas,
+y recién desde julio hay 19—. **Si CAYLA mantiene 19 los doce meses de 2027, el
+promedio de 2027 es 19.** A una contratación del umbral.
+
+Y la persona número 21 no cuesta su sueldo: cuesta su sueldo **más el 8% de la renta
+imponible de todo el ejercicio** repartida entre todos (D.L. 892, comercio). Sobre
+los S/63,655 de 2025 serían ~S/5,092 al año que hoy no se ven en el momento de
+decidir la contratación.
+
+El sistema tiene todos los datos para calcularlo solo —quién está activo, en
+planilla, en qué mes— y puede mostrar el promedio corrido **antes** de que se firme
+el contrato, en vez de que lo diga el contador en marzo del año siguiente cuando ya
+no hay nada que decidir. Es convertir un dato contable retrospectivo en una decisión
+de negocio informada. **Acordado con Felipe el 2026-08-05: se construye después de
+cerrar el Seguro de Vida Ley.**
 
 **Sobre la RMV:** el alza se anunció el 28/07/2026 y **el decreto no está
 publicado**. Cuando salga, son dos sentencias por cada clave —`rmv` y
 `asignacion_familiar`— y están escritas en las cabeceras de la 0116 y la 0122. Los
 periodos ya pagados quedan intactos, que es todo el punto de haberlas versionado.
+
+⚠️ **Ojo con el plazo, porque Dante lo describió mal.** Dijo que hay que esperar al
+Congreso, al Senado y a la promulgación. La RMV **no se fija por ley**: se fija por
+**Decreto Supremo del Ejecutivo**, previa consulta al Consejo Nacional de Trabajo,
+conforme al art. 24 de la Constitución (la subida a S/1,130 fue el D.S. 006-2024-TR).
+Puede publicarse de un día para otro y regir desde el 1° del mes siguiente. **La
+vigilancia se mide en semanas, no en meses.** Donde Dante sí puede tener razón es en
+el **bono compensatorio para MYPE**: eso es gasto público y probablemente sí necesita
+norma con rango de ley o decreto de urgencia. Son dos normas con dos plazos, y está
+repreguntado.
 
 ---
 
@@ -396,9 +479,9 @@ provisiones. Sin total y sin porcentaje, por decisión tomada.
 
 | Concepto | Decisión | Amparo |
 |---|---|---|
-| **Movilidad** | S/10.00 por día marcado · 4 traslados × S/2.50 (colectivo) · refrigerio de 1h15 habilita almorzar en casa | Art. 19 e) · PLAME 0909 |
-| **Educación** | 75% del comprobante, tope por rango · vale para el trabajador **y/o sus hijos**, sin tope de edad | Art. 19 f) |
-| **Bono cumpleaños** | **S/180**, igual para los 26, en el mes del onomástico, sin condición de antigüedad | Art. 19 g) |
+| **Movilidad** | S/10.00 por día marcado en AQP y TRU, **S/12.00 en LIM** (0142) · 4 traslados · refrigerio de 1h15 habilita almorzar en casa | Art. 19 e) · PLAME **0909** ✅ confirmado por el contador |
+| **Educación** | 75% del comprobante, tope por rango · vale para el trabajador **y/o sus hijos**, sin tope de edad | Art. 19 f) · PLAME **0202** ⚠️ el contador dijo «202», falta confirmar el cero |
+| **Bono cumpleaños** | **S/180**, igual para los 26, en el mes del onomástico, sin condición de antigüedad | Art. 19 g) · PLAME **0203** ⚠️ mismo caso |
 | **Pensión** | Tasa real por persona (12.84%–13.06% u ONP 13%), desde el periodo abierto | — |
 | **EsSalud** | 9% con piso de la RMV, visible como aporte de la empresa | Ley 26790 art. 6 |
 | **Base de beneficios** | Igual al monto declarado de cada persona | decisión de Felipe |
@@ -424,8 +507,17 @@ pago sea *ocasional*, y hacía el gasto **no deducible** (art. 44 d) LIR).
 | Cargar las asignaciones de educación en la 0120 | la lista de quién estudia y su comprobante |
 | Pantalla de comprobantes con candado en el pago | nada |
 | Documentación con las cláusulas (PR #13, 413 líneas escritas) | nada |
-| El 9% de la Ley 30334 sobre cada gratificación | confirmar si el contador ya lo paga |
+| ~~El 9% de la Ley 30334 sobre cada gratificación~~ | ✅ **cerrado** el 2026-08-05: el contador confirmó que ya lo paga y lo separa con el código 0312, que es lo que la 0134 asumía |
 | Los 26 convenios individuales de movilidad firmados | **antes de encender la tarifa** |
+| **Los tres conceptos, en el contrato de trabajo** | nada — pero **no existe generador de contratos** en el sistema |
+
+**Lo del contrato es un hueco nuevo (2026-08-05).** Dante lo dijo sin que se le
+preguntara: *«estos conceptos no remunerativos tienes que incluirlos en el contrato
+de trabajo»*. Hoy el sistema tiene fecha de fin de contrato (0144) y sabe cuándo
+vence (0143), pero **no genera ni guarda el texto del contrato**. Los tres conceptos
+viven en la boleta y en los convenios de movilidad; en el contrato, en ninguna
+parte. Es el mismo tipo de riesgo que la RTF 05449-4-2007 ya nos enseñó con los
+convenios: el concepto sin su papel no se sostiene el día de la fiscalización.
 
 **Sobre los convenios:** la **RTF 05449-4-2007** desconoció la movilidad de 14 de
 21 trabajadores por falta de convenio exhibido. El inciso e) nombra el «pacto
