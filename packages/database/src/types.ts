@@ -1578,6 +1578,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      // 0154, escrita a mano como el resto: `supabase gen types` no corre acá.
+      fn_educacion_limite_comprobante: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          limite_bytes: number
+          tipos: string[]
+        }[]
+      }
       fn_educacion_puede_ver: {
         Args: { p_path: string }
         Returns: boolean

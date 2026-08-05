@@ -72,8 +72,14 @@ const FORM_VACIO: Form = {
   vigenteDesde: "", vigenteHasta: "", nota: "", motivo: "",
 };
 
-const TIPOS_ACEPTADOS = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
-const MAX_BYTES = 10 * 1024 * 1024;
+// Ni el tamaño máximo ni los formatos se escriben acá: los aplica el bucket, así
+// que se le preguntan (fn_educacion_limite_comprobante, 0154). Tener la copia
+// hacía posible que la pantalla dijera «máximo 50 MB» mientras la base rechazaba
+// a los 10, y el error que devuelve storage no habla de tamaño — nadie sabría
+// por dónde mirar. Estos valores son solo el respaldo por si la consulta falla.
+const LIMITE_RESPALDO = { bytes: 10 * 1024 * 1024, tipos: "image/jpeg,image/png,image/heic,image/webp,application/pdf" };
+
+const mb = (bytes: number) => `${Math.round(bytes / 1048576)} MB`;
 
 const soles = (n: number) =>
   `S/ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -81,6 +87,36 @@ const soles = (n: number) =>
 // "2026-08-04" → "04/08/2026". Aritmética de string: la fecha ya viene como día
 // de Lima desde la base, así que construir un Date solo podría estropearla.
 const fmtFecha = (iso: string) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+
+// Sube por PUT a una URL ya firmada, replicando lo que hace `uploadToSignedUrl`
+// del cliente de Supabase (FormData con `cacheControl` y el archivo bajo la clave
+// vacía) pero con XMLHttpRequest, que es lo único que informa progreso. Devuelve
+// null si salió bien, o el mensaje del fallo.
+function subirConProgreso(
+  urlFirmada: string,
+  archivo: File,
+  alAvanzar: (pct: number) => void,
+): Promise<string | null> {
+  return new Promise((resolver) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", urlFirmada);
+    xhr.setRequestHeader("x-upsert", "true");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) alAvanzar(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      resolver(xhr.status >= 200 && xhr.status < 300
+        ? null
+        : `el servidor respondió ${xhr.status}${xhr.status === 413 ? " — el archivo pasa el tope global del proyecto" : ""}`);
+    // Un corte de red a mitad de subida es el caso normal en una tienda, no el raro.
+    xhr.onerror = () => resolver("se cortó la conexión durante la subida");
+    xhr.onabort = () => resolver("la subida se canceló");
+    const cuerpo = new FormData();
+    cuerpo.append("cacheControl", "3600");
+    cuerpo.append("", archivo);
+    xhr.send(cuerpo);
+  });
+}
 
 export default function EducacionPage() {
   const router = useRouter();
@@ -98,6 +134,11 @@ export default function EducacionPage() {
   const [form, setForm] = useState<Form>(FORM_VACIO);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [limite, setLimite] = useState(LIMITE_RESPALDO);
+  // null = no hay subida en curso. 0–100 = porcentaje real, no una animación:
+  // un PDF de 40 MB desde la conexión de una tienda tarda minutos, y sin esto la
+  // pantalla se ve colgada y alguien la recarga a mitad de camino.
+  const [progreso, setProgreso] = useState<number | null>(null);
   const [verSoloVigentes, setVerSoloVigentes] = useState(true);
 
   const cargar = useCallback(async () => {
@@ -105,12 +146,17 @@ export default function EducacionPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
 
-    const [lista, cands] = await Promise.all([
+    const [lista, cands, lim] = await Promise.all([
       supabase.rpc("fn_educacion_listar"),
       supabase.rpc("fn_educacion_candidatos"),
+      supabase.rpc("fn_educacion_limite_comprobante"),
     ]);
     setFilas((lista.data as Fila[]) ?? []);
     setCandidatos((cands.data as Candidato[]) ?? []);
+    // Si la consulta del límite falla se sigue con el respaldo: no poder leer
+    // cuánto cabe no es razón para dejar a DO sin la pantalla entera.
+    const l = (lim.data as { limite_bytes: number; tipos: string[] }[] | null)?.[0];
+    if (l) setLimite({ bytes: Number(l.limite_bytes), tipos: l.tipos.join(",") });
     setCargaError(lista.error?.message ?? cands.error?.message ?? null);
     setCargando(false);
   }, [router]);
@@ -154,8 +200,8 @@ export default function EducacionPage() {
   function cancelar() { setMostrandoAlta(false); setEditandoId(null); setForm(FORM_VACIO); setArchivo(null); }
 
   function elegirArchivo(f: File | null) {
-    if (f && f.size > MAX_BYTES) {
-      avisar("error", `“${f.name}” pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es 10 MB. Si es una foto, vuelve a tomarla en menor calidad.`);
+    if (f && f.size > limite.bytes) {
+      avisar("error", `“${f.name}” pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es ${mb(limite.bytes)}. Si es una foto, vuelve a tomarla en menor calidad.`);
       return;
     }
     setArchivo(f); setMensaje(null);
@@ -203,10 +249,19 @@ export default function EducacionPage() {
     if (archivo) {
       const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
       const ruta = `educacion/${form.personaId}/${id}.${ext}`;
-      const subida = await supabase.storage.from("comprobantes").upload(ruta, archivo, { upsert: true });
-      if (subida.error) {
+      // `upload()` del cliente no informa progreso, y una espera muda de varios
+      // minutos se lee como que la pantalla se colgó. Con una URL firmada se puede
+      // subir por XHR, que sí lo informa. La URL lleva el permiso adentro y vale
+      // dos horas: no viaja ninguna llave.
+      setProgreso(0);
+      const firma = await supabase.storage.from("comprobantes").createSignedUploadUrl(ruta, { upsert: true });
+      const errorSubida = firma.error
+        ? firma.error.message
+        : await subirConProgreso(firma.data.signedUrl, archivo, setProgreso);
+      setProgreso(null);
+      if (errorSubida) {
         setGuardando(false);
-        avisar("error", `La asignación se guardó, pero el comprobante no subió (${subida.error.message}). Ábrela con “Editar” y vuelve a intentarlo — sin el papel, el monto no está sustentado.`);
+        avisar("error", `La asignación se guardó, pero el comprobante no subió (${errorSubida}). Ábrela con “Editar” y vuelve a intentarlo — sin el papel, el monto no está sustentado.`);
         await cargar();
         return;
       }
@@ -426,16 +481,40 @@ export default function EducacionPage() {
         Comprobante {editandoId && "(subir uno nuevo reemplaza el anterior)"}
         <input
           type="file"
-          accept={TIPOS_ACEPTADOS}
+          accept={limite.tipos}
           onChange={(e) => elegirArchivo(e.target.files?.[0] ?? null)}
           className="rounded-lg border bg-crema px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
         />
         <span className="text-xs text-taupe">
-          Foto o PDF de la constancia o boleta, hasta 10 MB. Puedes guardar sin él si el papel
+          Foto o PDF de la constancia o boleta, hasta {mb(limite.bytes)}. Puedes guardar sin él si el papel
           todavía no llegó —la fila queda en ámbar— pero <strong>no se paga nada hasta subirlo</strong>:
           es lo que hace que este monto no sea remuneración.
         </span>
-        {archivo && <span className="text-xs text-tinta">Elegido: {archivo.name} ({(archivo.size / 1048576).toFixed(1)} MB)</span>}
+        {archivo && progreso === null && (
+          <span className="text-xs text-tinta">Elegido: {archivo.name} ({(archivo.size / 1048576).toFixed(1)} MB)</span>
+        )}
+        {/* Porcentaje real, no una animación: si la subida se detiene, la barra se
+            detiene, y eso es información. Una barra que avanza sola mentiría justo
+            cuando más importa saber la verdad. */}
+        {progreso !== null && (
+          <div className="flex flex-col gap-1">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-sand">
+              <div
+                className="h-full bg-tinta transition-[width] duration-200"
+                style={{ width: `${progreso}%` }}
+                role="progressbar"
+                aria-valuenow={progreso}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Subiendo el comprobante"
+              />
+            </div>
+            <span className="text-xs text-taupe">
+              Subiendo {archivo?.name} — {progreso}%
+              {progreso === 100 && " · guardando…"}
+            </span>
+          </div>
+        )}
       </label>
 
       {editandoId && (
@@ -467,7 +546,13 @@ export default function EducacionPage() {
 
       <div className="flex items-end gap-3 sm:col-span-2">
         <button onClick={guardar} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-          {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Registrar asignación"}
+          {progreso !== null
+            ? `Subiendo… ${progreso}%`
+            : guardando
+              ? "Guardando…"
+              : editandoId
+                ? "Guardar cambios"
+                : "Registrar asignación"}
         </button>
         <button onClick={cancelar} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
       </div>
