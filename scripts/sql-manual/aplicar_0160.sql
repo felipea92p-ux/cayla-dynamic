@@ -7,19 +7,26 @@
 -- QUÉ HACE, en dos partes
 --   1. La migración: Provisiones deja de acumular CTS, gratificación,
 --      vacaciones y el 9% para quien no los devenga.
---   2. Marca a Catherine y a Carlos como `rxh` (recibos por honorarios), que es
---      su vínculo real. Va por `fn_set_tipo_vinculo`, la función que ya existe
---      para esto: valida, exige sesión de admin y deja rastro en auditoría. Un
---      `update` a pelo se saltaría las tres cosas.
+--   2. Marca a CATHERINE como `rxh` (recibos por honorarios), que es su vínculo
+--      real. Va por `fn_set_tipo_vinculo`, la función que ya existe para esto:
+--      valida, exige sesión de admin y deja rastro en auditoría. Un `update` a
+--      pelo se saltaría las tres cosas.
+--
+--      CARLOS QUEDA FUERA A PROPÓSITO. Felipe quiere seguir considerándole
+--      gratificación y CTS, y eso no se puede expresar con el tipo de vínculo:
+--      es un sí/no para los tres conceptos a la vez. Mientras no exista la
+--      excepción por persona, no se le toca el vínculo — así sigue acumulando
+--      exactamente como hoy. Cambiárselo ahora le pondría los tres en cero, que
+--      es lo contrario de lo que se decidió.
 --
 -- QUÉ **NO** HACE
 --   No toca boletas, ni periodos pagados, ni salarios. `fn_provisiones` solo
 --   lee y calcula.
 --
 -- OJO CON LO QUE VAS A VER DESPUÉS
---   La provisión de Catherine pasa de S/2.841,70 a CERO, y la de Carlos de
---   S/1.029,76 a cero. No se les quita nada: nunca les correspondió. Lo que
---   cambia es que el número que va al contador deja de incluirlo.
+--   La provisión de Catherine pasa de S/2.841,70 a CERO. No se le quita nada:
+--   nunca le correspondió. Lo que cambia es que el número que va al contador
+--   deja de incluirlo. Carlos no cambia.
 --
 -- SE PUEDE CORRER DOS VECES SIN PROBLEMA.
 --
@@ -491,7 +498,7 @@ begin
   for r in
     select p.id, p.apellidos || ', ' || p.nombres as quien, p.tipo_vinculo
     from personas p
-    where (p.nombres ilike '%catherine%' or p.nombres ilike '%carlos%')
+    where p.nombres ilike '%catherine%'
       and p.estado = 'activo'
   loop
     if r.tipo_vinculo = 'rxh' then
@@ -514,11 +521,19 @@ select 'Quedó anotada como aplicada',
        case when exists (select 1 from migraciones_aplicadas where numero = 160)
             then 'OK' else 'REVISAR' end
 union all
-select 'Catherine y Carlos figuran como rxh',
+select 'Catherine figura como rxh',
        case when (select count(*) from personas
-                   where (nombres ilike '%catherine%' or nombres ilike '%carlos%')
+                   where nombres ilike '%catherine%'
                      and estado = 'activo' and tipo_vinculo <> 'rxh') = 0
-            then 'OK' else 'REVISAR — mira el detalle de abajo' end;
+            then 'OK' else 'REVISAR — mira el detalle de abajo' end
+union all
+-- Informativo, no una afirmación: el objetivo es NO haberlo tocado, y afirmar
+-- «debe ser planilla» convertiría cualquier otro valor legítimo en una falsa
+-- alarma. Se muestra lo que hay para que se pueda mirar.
+select 'Carlos quedó como (no se tocó)',
+       coalesce((select tipo_vinculo from personas
+                  where nombres ilike '%carlos%' and estado = 'activo' limit 1),
+                'no encontrado en esta base');
 
 commit;
 
