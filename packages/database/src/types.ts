@@ -1579,6 +1579,75 @@ export type Database = {
         Returns: number
       }
       // 0154, escrita a mano como el resto: `supabase gen types` no corre acá.
+      // 0157, escritas a mano: `supabase gen types` no corre en esta máquina.
+      fn_documento_registrar: {
+        Args: {
+          p_tipo: string
+          p_fecha_firma: string
+          p_persona_id?: string | null
+          p_ruta_declarada?: string | null
+          p_monto_declarado?: number | null
+          p_anio?: number | null
+          p_es_negativa?: boolean | null
+          p_nota?: string | null
+          p_storage_path?: string | null
+          p_id?: string | null
+        }
+        Returns: string
+      }
+      fn_documento_anular: {
+        Args: { p_id: string; p_motivo: string }
+        Returns: undefined
+      }
+      fn_documentos_tablero: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          persona_id: string
+          persona: string
+          sede: string
+          fecha_ingreso: string | null
+          ruta_id: string | null
+          ruta_firmada_el: string | null
+          ruta_monto: number | null
+          ruta_negativa: boolean
+          ruta_desfasada: boolean
+          bono_id: string | null
+          bono_anio: number | null
+          estado: string
+        }[]
+      }
+      fn_documentos_estado_politica: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string | null
+          cargada: boolean
+          fecha_firma: string | null
+          primer_pago: string | null
+          llego_tarde: boolean
+          storage_path: string | null
+        }[]
+      }
+      fn_documentos_listar: {
+        Args: { p_persona_id?: string | null }
+        Returns: {
+          id: string
+          alcance: string
+          persona_id: string | null
+          persona: string
+          tipo: string
+          fecha_firma: string
+          ruta_declarada: string | null
+          monto_declarado: number | null
+          anio: number | null
+          es_negativa: boolean
+          storage_path: string | null
+          nota: string | null
+          registrado_por: string
+          anulado_at: string | null
+          anulado_motivo: string | null
+          vigente: boolean
+        }[]
+      }
       fn_educacion_limite_comprobante: {
         Args: Record<PropertyKey, never>
         Returns: {

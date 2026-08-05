@@ -8,6 +8,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { hoyLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
@@ -149,6 +150,58 @@ function BloqueFirma({ imagen, nombre, pie }: {
   );
 }
 
+interface FilaTablero {
+  persona_id: string;
+  persona: string;
+  sede: string;
+  fecha_ingreso: string | null;
+  ruta_id: string | null;
+  ruta_firmada_el: string | null;
+  ruta_monto: number | null;
+  ruta_negativa: boolean;
+  ruta_desfasada: boolean;
+  bono_id: string | null;
+  bono_anio: number | null;
+  estado: "sin_ruta" | "se_nego" | "ok";
+}
+
+interface EstadoPolitica {
+  id: string | null;
+  cargada: boolean;
+  fecha_firma: string | null;
+  primer_pago: string | null;
+  llego_tarde: boolean;
+  storage_path: string | null;
+}
+
+const MAX_BYTES_DOC = 50 * 1024 * 1024;
+const TIPOS_DOC = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
+
+// Sube por PUT a una URL ya firmada, con progreso real. Mismo camino que en
+// Educación: `upload()` del cliente no informa avance, y una espera muda de
+// varios minutos se lee como que la pantalla se colgó.
+function subirConProgreso(
+  urlFirmada: string,
+  archivo: File,
+  alAvanzar: (pct: number) => void,
+): Promise<string | null> {
+  return new Promise((resolver) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", urlFirmada);
+    xhr.setRequestHeader("x-upsert", "true");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) alAvanzar(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      resolver(xhr.status >= 200 && xhr.status < 300 ? null : `el servidor respondió ${xhr.status}`);
+    xhr.onerror = () => resolver("se cortó la conexión durante la subida");
+    const cuerpo = new FormData();
+    cuerpo.append("cacheControl", "3600");
+    cuerpo.append("", archivo);
+    xhr.send(cuerpo);
+  });
+}
+
 export default function DocumentacionPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -180,6 +233,100 @@ export default function DocumentacionPage() {
   // persona_id → fecha de término del contrato, para quien ya la tiene fijada.
   const [finContrato, setFinContrato] = useState<Map<string, string>>(new Map());
 
+  // ── El tablero de firmas ────────────────────────────────────────────────
+  const [tablero, setTablero] = useState<FilaTablero[]>([]);
+  const [politica, setPolitica] = useState<EstadoPolitica | null>(null);
+  // Qué fila tiene el panel de subida abierto, y si es una negativa.
+  const [subiendo, setSubiendo] = useState<{ personaId: string; negativa: boolean } | null>(null);
+  const [archivoDoc, setArchivoDoc] = useState<File | null>(null);
+  const [fechaFirma, setFechaFirma] = useState("");
+  const [notaDoc, setNotaDoc] = useState("");
+  const [progresoDoc, setProgresoDoc] = useState<number | null>(null);
+  const [guardandoDoc, setGuardandoDoc] = useState(false);
+  const [avisoDoc, setAvisoDoc] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+
+  // Imprimir la declaración de una persona es poner la pantalla en su documento
+  // y llamar a imprimir: la maquinaria que ya existía no se toca.
+  function imprimirFila(personaId: string) {
+    setTipo("ruta");
+    setPersonaId(personaId);
+    // El render tiene que haber corrido con la persona puesta antes de imprimir.
+    setTimeout(() => window.print(), 60);
+  }
+
+  function abrirSubida(personaId: string, negativa: boolean) {
+    setSubiendo({ personaId, negativa });
+    setArchivoDoc(null);
+    setNotaDoc("");
+    setFechaFirma(hoyLima());
+    setAvisoDoc(null);
+  }
+
+  async function guardarDocumento() {
+    if (!subiendo) return;
+    if (!archivoDoc) {
+      setAvisoDoc({ tipo: "error", texto: subiendo.negativa
+        ? "Falta el acta de la negativa. Sin el papel con el testigo, no queda constancia de que se ofreció."
+        : "Falta el archivo de la declaración firmada." });
+      return;
+    }
+    if (archivoDoc.size > MAX_BYTES_DOC) {
+      setAvisoDoc({ tipo: "error", texto: `“${archivoDoc.name}” pesa ${(archivoDoc.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
+      return;
+    }
+    if (!fechaFirma) {
+      setAvisoDoc({ tipo: "error", texto: "Indica en qué fecha se firmó (o en qué fecha se dejó constancia de la negativa)." });
+      return;
+    }
+
+    setGuardandoDoc(true);
+    // El monto viene puesto con la tarifa de SU sede: es lo que el documento
+    // imprimió. En una negativa no viaja monto — no se firmó nada.
+    const fila = tablero.find((f) => f.persona_id === subiendo.personaId);
+    const persona = personas.find((p) => p.id === subiendo.personaId);
+    const tarifaSede = persona
+      ? (tarifas.find((t) => t.sede_codigo === sedes.get(persona.sede_base_id ?? ""))?.valor ?? tarifa)
+      : tarifa;
+
+    const { data: id, error } = await supabase.rpc("fn_documento_registrar", {
+      p_tipo: "ruta",
+      p_fecha_firma: fechaFirma,
+      p_persona_id: subiendo.personaId,
+      p_monto_declarado: subiendo.negativa ? null : tarifaSede,
+      p_es_negativa: subiendo.negativa,
+      p_nota: notaDoc.trim() || null,
+    });
+    if (error || !id) {
+      setGuardandoDoc(false);
+      setAvisoDoc({ tipo: "error", texto: mensajeDeError(error, "guardar") });
+      return;
+    }
+
+    const ext = archivoDoc.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const ruta = `documentos/${id}.${ext}`;
+    setProgresoDoc(0);
+    const firma = await supabase.storage.from("documentos").createSignedUploadUrl(ruta, { upsert: true });
+    const fallo = firma.error ? firma.error.message : await subirConProgreso(firma.data.signedUrl, archivoDoc, setProgresoDoc);
+    setProgresoDoc(null);
+    if (fallo) {
+      setGuardandoDoc(false);
+      setAvisoDoc({ tipo: "error", texto: `El registro se guardó pero el archivo no subió (${fallo}). Vuelve a intentarlo desde su fila.` });
+      await cargar();
+      return;
+    }
+    await supabase.rpc("fn_documento_registrar", {
+      p_tipo: "ruta", p_fecha_firma: fechaFirma, p_persona_id: subiendo.personaId,
+      p_storage_path: ruta, p_id: id,
+    });
+
+    setGuardandoDoc(false);
+    setSubiendo(null);
+    await cargar();
+    setAvisoDoc({ tipo: "ok", texto: subiendo.negativa
+      ? `Negativa registrada para ${fila?.persona ?? "la persona"}. Queda constancia de que se ofreció; no habilita el pago de movilidad.`
+      : `Declaración de ${fila?.persona ?? "la persona"} archivada.` });
+  }
+
   const cargar = useCallback(async () => {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
@@ -200,6 +347,17 @@ export default function DocumentacionPage() {
     ]);
     const lista = (ps as Persona[]) ?? [];
     setPersonas(lista);
+
+    // El tablero y el estado de la política, en consultas aparte y tolerantes:
+    // si la 0157 todavía no está pegada en producción, la pantalla sigue
+    // imprimiendo — que es lo que hacía antes de que existiera el tablero.
+    // Mismo criterio que la tarifa y el fin de contrato de acá arriba.
+    const [tab, pol] = await Promise.all([
+      supabase.rpc("fn_documentos_tablero"),
+      supabase.rpc("fn_documentos_estado_politica"),
+    ]);
+    setTablero((tab.data as FilaTablero[]) ?? []);
+    setPolitica(((pol.data as EstadoPolitica[]) ?? [])[0] ?? null);
 
     // Quién tiene ya fecha de término de contrato. Va en consulta APARTE y no
     // en el select de arriba a propósito: si la 0138 todavía no está pegada en
@@ -358,8 +516,175 @@ export default function DocumentacionPage() {
         <div className="mb-6 print:hidden">
           <h1 className="mb-1 font-serif text-2xl">Documentación</h1>
           <p className="mb-4 text-sm text-taupe">
-            Elige el documento, la persona, e imprime. Sale con sus datos y con la fecha de hoy.
+            Imprime la declaración de cada integrante, recoge la firma y súbela acá. El papel
+            firmado es lo que sostiene que la movilidad no sea remuneración.
           </p>
+
+          {/* ── La política de empresa ──────────────────────────────────────
+              Va arriba y en rojo porque su ausencia afecta a las 22 personas a
+              la vez, no a una. Y porque el error caro —firmarla DESPUÉS de haber
+              empezado a pagar— es invisible a ojo y el sistema sí puede verlo:
+              un documento fechado en septiembre no justifica los pagos de agosto,
+              y encima lo deja por escrito. */}
+          {politica && (!politica.cargada || politica.llego_tarde) && (
+            <div className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-sm">
+              {!politica.cargada ? (
+                <>
+                  <strong className="text-rojo">Falta la política de movilidad de CAYLA.</strong>{" "}
+                  Es un solo documento, lo firmas tú, y sostiene a todo el equipo.{" "}
+                  {politica.primer_pago && (
+                    <>Tiene que llevar fecha <strong>anterior al {fechaLarga(politica.primer_pago)}</strong>,
+                    que es cuando empezó a pagarse movilidad.</>
+                  )}
+                </>
+              ) : (
+                <>
+                  <strong className="text-rojo">La política está firmada después del primer pago.</strong>{" "}
+                  Se firmó el {fechaLarga(politica.fecha_firma!)} y la movilidad se paga desde el{" "}
+                  {fechaLarga(politica.primer_pago!)}. Un documento posterior a los pagos que
+                  justifica no los justifica — y queda por escrito.
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── El tablero ─────────────────────────────────────────────────
+              Se arma de quién está en planilla, así que quien entra aparece
+              pendiente sin que nadie lo agregue y un locador no aparece nunca. */}
+          {tablero.length > 0 && (
+            <div className="mb-6 rounded-lg border border-sand">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-sand px-4 py-3">
+                <h2 className="font-medium">Declaraciones de ruta</h2>
+                <span className="text-sm text-taupe">
+                  <strong className="text-tinta">{tablero.filter((f) => f.estado === "ok").length}</strong>
+                  {" de "}{tablero.length} firmadas
+                  {tablero.some((f) => f.estado === "se_nego") && (
+                    <> · <strong className="text-rojo">{tablero.filter((f) => f.estado === "se_nego").length} se negaron</strong></>
+                  )}
+                </span>
+              </div>
+
+              {avisoDoc && (
+                <div className={`border-b border-sand px-4 py-2 text-sm ${avisoDoc.tipo === "ok" ? "text-tinta" : "text-rojo"}`}>
+                  {avisoDoc.texto}
+                </div>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs text-taupe">
+                    <tr className="border-b border-sand">
+                      <th className="px-4 py-2 font-normal">Integrante</th>
+                      <th className="px-4 py-2 font-normal">Sede</th>
+                      <th className="px-4 py-2 font-normal">Su declaración</th>
+                      <th className="px-4 py-2 font-normal"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tablero.map((f) => (
+                      <tr key={f.persona_id} className="border-t border-sand">
+                        <td className="px-4 py-2">{f.persona}</td>
+                        <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
+                        <td className="px-4 py-2">
+                          {f.estado === "sin_ruta" ? (
+                            <span className="font-medium text-rojo">falta firmar</span>
+                          ) : f.estado === "se_nego" ? (
+                            <span className="font-medium text-rojo">
+                              se negó a firmar · no cobra movilidad
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-tinta">firmada el {fechaLarga(f.ruta_firmada_el!)}</span>
+                              {f.ruta_desfasada && (
+                                <span className="block text-xs text-rojo">
+                                  declara S/ {Number(f.ruta_monto).toFixed(2)} y hoy se paga otra tarifa —
+                                  conviene volver a firmarla
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex flex-wrap items-center justify-end gap-3">
+                            <button onClick={() => imprimirFila(f.persona_id)}
+                              className="text-xs font-medium underline">Imprimir</button>
+                            <button onClick={() => abrirSubida(f.persona_id, false)}
+                              className="rounded-lg border px-3 py-1 text-xs font-medium">
+                              {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
+                            </button>
+                            {f.estado === "sin_ruta" && (
+                              // Discreto a propósito: registrar una negativa no debería
+                              // ser tan fácil como registrar una firma.
+                              <button onClick={() => abrirSubida(f.persona_id, true)}
+                                className="text-xs text-taupe underline">se negó</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ── El panel de subida ──────────────────────────────────── */}
+              {subiendo && (
+                <div className="border-t border-sand bg-sand/20 p-4">
+                  <h3 className="mb-1 text-sm font-medium">
+                    {subiendo.negativa ? "Registrar una negativa a firmar" : "Subir la declaración firmada"}
+                    {" — "}{tablero.find((f) => f.persona_id === subiendo.personaId)?.persona}
+                  </h3>
+                  <p className="mb-3 text-xs text-taupe">
+                    {subiendo.negativa
+                      ? "Sube el acta con testigo. Queda constancia de que se ofreció firmar, pero NO habilita el pago de movilidad: sin pacto individual el monto deja de ser no remunerativo."
+                      : "El monto se guarda solo, con la tarifa vigente de su sede. No hace falta transcribir la ruta: el escaneo ya la dice."}
+                  </p>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-sm">
+                      {subiendo.negativa ? "Acta de la negativa" : "Declaración firmada"}
+                      <input type="file" accept={TIPOS_DOC}
+                        onChange={(e) => setArchivoDoc(e.target.files?.[0] ?? null)}
+                        className="rounded-lg border bg-crema px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm" />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm">
+                      {subiendo.negativa ? "Fecha de la negativa" : "Fecha en que se firmó"}
+                      <input type="date" value={fechaFirma} max={hoyLima()}
+                        onChange={(e) => setFechaFirma(e.target.value)}
+                        className="rounded-lg border px-3 py-2" />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+                      Nota (opcional)
+                      <input value={notaDoc} onChange={(e) => setNotaDoc(e.target.value)}
+                        placeholder={subiendo.negativa ? "ej. presente la encargada de TRU como testigo" : "ej. firmada en la tienda"}
+                        className="rounded-lg border px-3 py-2" />
+                    </label>
+                  </div>
+
+                  {progresoDoc !== null && (
+                    <div className="mt-3">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-sand">
+                        <div className="h-full bg-tinta transition-[width] duration-200"
+                          style={{ width: `${progresoDoc}%` }}
+                          role="progressbar" aria-valuenow={progresoDoc} aria-valuemin={0} aria-valuemax={100}
+                          aria-label="Subiendo el documento" />
+                      </div>
+                      <span className="text-xs text-taupe">Subiendo — {progresoDoc}%</span>
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex items-center gap-3">
+                    <button onClick={() => void guardarDocumento()} disabled={guardandoDoc}
+                      className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                      {progresoDoc !== null ? `Subiendo… ${progresoDoc}%` : guardandoDoc ? "Guardando…" : "Guardar"}
+                    </button>
+                    <button onClick={() => setSubiendo(null)} className="rounded-lg border px-4 py-2 text-sm">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">

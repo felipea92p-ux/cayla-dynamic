@@ -402,14 +402,7 @@ stable
 security definer
 set search_path = public
 as $$
-  with tarifa as (
-    select max(valor) as vigente
-    from parametros_laborales
-    where clave = 'movilidad_diaria'
-      and vigente_desde <= fn_hoy_lima()
-      and (vigente_hasta is null or vigente_hasta >= fn_hoy_lima())
-  ),
-  ruta as (
+  with ruta as (
     select distinct on (d.persona_id)
            d.persona_id, d.id, d.fecha_firma, d.monto_declarado, d.es_negativa
     from documentos_firmados d
@@ -432,9 +425,14 @@ as $$
     r.id, r.fecha_firma, r.monto_declarado, coalesce(r.es_negativa, false),
     -- Firmada con una tarifa que ya no es la vigente: el papel declara un monto
     -- y se está pagando otro. No bloquea; avisa, que es lo acordado.
+    --
+    -- La tarifa es POR SEDE desde la 0142 (AQP y TRU a S/10, LIM a S/12), así que
+    -- se compara contra la de SU sede. Compararla contra el máximo marcaría como
+    -- desfasadas todas las de TRU y AQP el día que LIM tenga otra cifra — un aviso
+    -- que grita sin motivo se desactiva a la semana.
     (r.monto_declarado is not null
-      and (select vigente from tarifa) is not null
-      and r.monto_declarado <> (select vigente from tarifa)),
+      and tar.valor is not null
+      and r.monto_declarado <> tar.valor),
     b.id, b.anio,
     case
       when r.id is null                    then 'sin_ruta'
@@ -445,6 +443,17 @@ as $$
   left join sedes s on s.id = p.sede_base_id
   left join ruta r on r.persona_id = p.id
   left join bono b on b.persona_id = p.id
+  left join lateral (
+    -- La fila de su sede si existe; si no, la general (sede_codigo nulo).
+    select pl.valor
+    from parametros_laborales pl
+    where pl.clave = 'movilidad_diaria'
+      and pl.vigente_desde <= fn_hoy_lima()
+      and (pl.vigente_hasta is null or pl.vigente_hasta >= fn_hoy_lima())
+      and (pl.sede_codigo = s.codigo or pl.sede_codigo is null)
+    order by (pl.sede_codigo is null), pl.vigente_desde desc
+    limit 1
+  ) tar on true
   where p.estado = 'activo'
     and p.en_planilla
     and fn_es_admin_o_lider() is true
@@ -501,6 +510,53 @@ as $$
 $$;
 
 grant execute on function fn_documentos_listar(uuid) to authenticated;
+
+
+-- ── G bis · La política de empresa, y si llegó tarde ───────────────────────
+-- El error caro es invisible a ojo: firmar la política DESPUÉS de haber empezado
+-- a pagar movilidad. El documento que justifica los pagos de agosto no puede ser
+-- de septiembre — y si lo es, queda por escrito, que es peor que no tenerlo.
+-- El sistema sí puede ver eso, así que lo dice.
+create or replace function fn_documentos_estado_politica()
+returns table (
+  id            uuid,
+  cargada       boolean,
+  fecha_firma   date,
+  primer_pago   date,
+  llego_tarde   boolean,
+  storage_path  text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with pol as (
+    select d.id, d.fecha_firma, d.storage_path
+    from documentos_firmados d
+    where d.tipo = 'politica' and d.anulado_at is null
+    order by d.fecha_firma desc
+    limit 1
+  ),
+  -- Cuándo empezó a pagarse movilidad: la primera tarifa mayor que cero.
+  inicio as (
+    select min(vigente_desde) as desde
+    from parametros_laborales
+    where clave = 'movilidad_diaria' and valor > 0
+  )
+  select
+    pol.id,
+    pol.id is not null,
+    pol.fecha_firma,
+    inicio.desde,
+    (pol.fecha_firma is not null and inicio.desde is not null
+       and pol.fecha_firma > inicio.desde),
+    pol.storage_path
+  from inicio
+  left join pol on true;
+$$;
+
+grant execute on function fn_documentos_estado_politica() to authenticated;
 
 
 -- ── H · El interruptor del candado, apagado ────────────────────────────────
