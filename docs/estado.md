@@ -4,18 +4,68 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-05**. Migraciones **0115 a 0122 aplicadas en
-producción**; en el repo hay hasta la **0152**, y de la 0128 en adelante queda
-por confirmar cuáles se aplicaron. **46 archivos pgTAP, 422 pruebas**, verdes en
-local el 2026-08-05 sobre una base reseteada desde cero · `pnpm typecheck` y las
+*Última consolidación: **2026-08-05, noche**. En el repo hay **154 migraciones,
+hasta la 0159**. Aplicadas en producción y confirmadas por Felipe ese día: la
+**0136 + 0149 + 0150** (educación), la **0154** (comprobantes de 50 MB), la
+**0157** (documentos firmados) y la **0159** (candado de movilidad, apagado).
+De la 0128 en adelante, el resto queda por confirmar. **52 archivos pgTAP, 477
+pruebas**, verdes sobre una base reseteada desde cero · `pnpm typecheck` y las
 **103 pruebas de interfaz** (8 archivos), también.*
 
 > **Cómo se verificó esto** (para que la próxima consolidación no vuelva a
 > quedarse vieja sin que nadie lo note):
 > ```bash
-> npx supabase db start && npx supabase test db   # 46 archivos · 422 pruebas
+> npx supabase db reset && npx supabase test db   # 52 archivos · 477 pruebas
 > npx pnpm typecheck && npx pnpm test             # 8 archivos · 103 pruebas de interfaz
 > ```
+
+---
+
+## 2026-08-05 (noche) — el papel entra al sistema
+
+Dos frentes cerrados el mismo día, y los dos van de lo mismo: **el documento que
+sostiene un concepto no remunerativo deja de vivir en una carpeta.**
+
+### Educación, completa y en producción
+
+La pantalla `/admin/educacion` existía escrita en una rama desde el 04/08 y no
+estaba fusionada. Se fusionó y se le pusieron las reglas que le faltaban.
+
+| # | Qué |
+|---|---|
+| **0136** | La pantalla, su bucket `comprobantes` y las 5 funciones de escritura |
+| **0149** | Las 13 reglas: monto calculado (`min(costo × 75 %, techo del rango)`) y no tecleado · cobertura 75 % fija · **el techo se mide sobre la SUMA**, no fila por fila · `vigente_hasta` obligatoria · nombre del hijo obligatorio · candado de periodo pagado · corregir abre vigencia nueva · motivo y rastro en auditoría · cierre automático al cesar |
+| **0150** | La planilla **suma** todas las asignaciones vigentes (antes pagaba una y descartaba el resto en silencio), **exige comprobante** para devengar, y cuenta el mes completo si estaba vigente al **iniciar** el periodo |
+| **0154** | El comprobante pesa hasta **50 MB** (rebotó un PDF de 11.7 MB al cargar el primero), y el límite deja de estar escrito en dos sitios: la pantalla lo **pregunta** a la base |
+
+**Tres agujeros medidos, no supuestos:** dos asignaciones de S/150 pagaban S/150 ·
+una fila sin comprobante devengaba igual · un ciclo que terminaba el 15 hacía que
+ese mes pagara **cero**, habiendo estudiado y pagado la pensión.
+
+**Y el índice único de la 0120 impedía el caso que el diseño promete:** era
+`(persona_id, vigente_desde)`, así que madre e hija registradas el mismo día
+chocaban. Encontrado ejecutando la prueba, no leyendo.
+
+### Documentos firmados — la pieza con plazo
+
+| # | Qué |
+|---|---|
+| **0157** | Tabla `documentos_firmados` + bucket `documentos`. El **alcance se declara** (`individual`/`empresa`) en vez de deducirse de un hueco, y cinco constraints hacen imposibles los estados que dejarían el expediente sin valor. Cierra de paso el bucket `expedientes`, que **no tenía límite de tamaño ni de formato** |
+| **0159** | La planilla consulta si se exige la declaración de ruta. **Nace apagado**: encenderlo es un `insert` en `parametros_laborales` con su fecha |
+
+**Pantallas:** Documentación pasó de imprimir a ciegas a ser un **tablero** de
+quién está en planilla, con imprimir/subir/«se negó» en cada fila y la política
+de empresa en franja roja si falta o si su fecha es posterior al primer pago.
+Disciplina ganó **«Subir cargo firmado»** como acción principal — su backend
+existía desde la 0074 y nadie lo usaba, entre otras cosas porque
+`expediente_adjuntos` no estaba en los tipos generados.
+
+**El candado NO está encendido.** Cuando el tablero esté completo:
+
+```sql
+insert into parametros_laborales (clave, valor, vigente_desde, sustento)
+values ('movilidad_exige_declaracion', 1, '<fecha>', '<por qué>');
+```
 
 ---
 
@@ -70,11 +120,17 @@ viven en `scripts/sql-manual/aplicar_0128.sql` (ignorado en git).
 **Por qué NO se ha llamado todavía.** La baja de salario la compensan movilidad
 + educación + bono, y van **1 de 3**:
 
-| Concepto | Estado al 2026-08-03 |
+| Concepto | Estado al 2026-08-05 (noche) |
 |---|---|
-| movilidad | ✅ encendida, S/10/día desde el 29/07 |
-| educación | ❌ `asignaciones_educacion` vacía |
+| movilidad | ✅ encendida, S/10/día (S/12 en LIM) desde el 29/07 |
+| educación | 🟡 **la pantalla ya está y funciona** (0136/0149/0150). Lo que falta ya no es código: es el dato — quiénes estudian, dónde y cuánto cuesta. `asignaciones_educacion` sigue vacía |
 | bono de cumpleaños | ❌ decidido en S/180, sin implementar |
+
+**Lo que cambió el 05/08:** hasta esa fecha la educación estaba bloqueada por
+falta de pantalla. Ya no. Ahora está bloqueada por falta de **un dato que solo
+Felipe tiene**, y cargarlo son cinco minutos por persona en `/admin/educacion`.
+Es la única de las tres compensaciones que se puede destrabar hoy sin escribir
+una línea de código.
 
 Medido contra Postgres local: bajar cayla de 1,450 a 1,130 le quita **S/367.37**
 en el periodo 29/07–28/08. Y como la educación es **por persona y contra
@@ -92,7 +148,7 @@ hacer (es idempotente y devuelve cero filas).
 **Ya tiene prueba (2026-08-04).** `fn_fijar_base_declarada` estaba escrita,
 revisada a ojo y **sin una sola prueba pgTAP** — justo lo que el `CLAUDE.md`
 prohíbe para cualquier cosa que toque plata. Ahora la cubre
-[`109_la_base_declarada_baja_los_dos_campos.test.sql`](../supabase/tests/109_la_base_declarada_baja_los_dos_campos.test.sql):
+[`111_la_base_declarada_baja_los_dos_campos.test.sql`](../supabase/tests/111_la_base_declarada_baja_los_dos_campos.test.sql):
 11 aserciones sobre los dos campos, las tres exclusiones (cesada · locadora ·
 otro rango), `p_omitir`, el versionado del tramo anterior, la idempotencia y el
 guard de admin. **Comprobada rompiendo la función a propósito**: quitándole la
@@ -157,7 +213,8 @@ descuadre de 76.67 contra 71.84 que Felipe encontró está cerrado.
 
 | Qué | Cuándo | Si no |
 |---|---|---|
-| **Los 26 convenios individuales de movilidad, firmados** | **antes del 28/08/2026** — es cuando se paga el periodo | Se habrá pagado movilidad sin el papel que la sostiene. La **RTF 05449-4-2007** desconoció la de 14 de 21 trabajadores por eso exacto |
+| **Los convenios individuales de movilidad, firmados y cargados** | **antes del 28/08/2026** — es cuando se paga el periodo | Se habrá pagado movilidad sin el papel que la sostiene. La **RTF 05449-4-2007** desconoció la de 14 de 21 trabajadores por eso exacto |
+| **La política de movilidad de empresa, firmada** | con fecha **anterior al 29/07/2026** | Es cuando empezó a pagarse movilidad. Un documento posterior a los pagos que justifica **no los justifica, y encima lo deja por escrito**. El tablero lo avisa solo, en rojo, con las dos fechas |
 | **Contratar el Seguro Vida Ley** | cuanto antes | ~S/1,560/año. Sin póliza, CAYLA responde con su patrimonio: 16 remuneraciones por muerte natural, 32 por accidente. Obligatorio desde el primer día (D.Leg. 688) |
 | **Registrar la póliza en el MTPE** | 30 días desde que se firma | No registrarla es la misma infracción que no tenerla |
 
@@ -174,47 +231,42 @@ queda es una copia vieja del sistema que alguien puede clonar por error. Limpiar
 las fusionadas es un `git push origin --delete` por rama, sin riesgo: lo que
 entró a `main` ya está en `main`.
 
-### 🔴 Números de migración en colisión (2026-08-04)
+### ✅ Números de migración — cero duplicados (2026-08-05, noche)
 
-**El mismo número, apuntando a cosas distintas según dónde mires.** Fusionar dos
-de estas ramas hace que la segunda pise a la primera, o que Postgres aplique una
-sola de las dos: el número es la clave, no el nombre.
+**Comprobado esa noche: no queda ni un número repetido**, ni en migraciones ni en
+pruebas. Las colisiones del 04/08 (0131, 0132, y las pruebas 109/111/112/113) se
+resolvieron renumerando.
 
-| Nº | En `main` | En una rama sin fusionar |
-|---|---|---|
-| **0131** | `reabrir_para_cambiar_firmante` | `el_cuadro_de_categorias` — rama `cuadro-de-categorias` |
-| **0132** | `el_tope_de_educacion_por_rango` | `la_politica_salarial_y_su_acuse` — rama `cuadro-de-categorias` |
+**Huecos vivos, todos con dueño conocido:**
 
-**Cómo está la cola alta a las 16:51 del 2026-08-04** (se movió dos veces durante
-la misma sesión, con dos personas trabajando en paralelo — por eso lleva hora):
-
-| Nº | Dónde está |
+| Nº | Por qué falta |
 |---|---|
-| **0133** | **Vacío, sin explicar.** No aparece en ninguna rama ni en el historial |
-| **0136** | Solo en la rama `educacion-con-comprobante`, sin fusionar: `la_pantalla_de_educacion_con_su_comprobante` |
-| **0137** | **Vacío.** Hueco nuevo: se saltó al numerar la siguiente |
-| **0138** | En el directorio de trabajo, **sin commitear**: `un_periodo_pagado_no_cambia_de_horas` |
+| **0031** y **0033** | Viven como `scripts/sql-manual/aplicar_00NN_*.sql`, fuera de git por datos personales |
+| **0108** | Solo en la rama `movilidad-supeditada-a-asistencia`, sin fusionar. La reemplazaron la 0117 y la 0118 |
+| **0133** y **0139** | Vacíos, se saltaron al numerar. Sin dueño |
 
-**Y la prueba 109 también estuvo en colisión**, resuelta el mismo día: la rama
-`educacion-con-comprobante` trae `109_la_educacion_se_carga_con_su_papel`, así
-que la prueba de la base declarada se numeró **111** para dejarle su número.
-La `110` es de la 0138.
+**Volvió a pasar el 05/08, y esa vez sí rompió algo:** dos sesiones en paralelo
+escribieron una `0158` cada una. `supabase db reset` **aborta** con
+`duplicate key value violates unique constraint "schema_migrations_pkey"` — no es
+cosmético, impide reconstruir el esquema. Se renumeró a 0159. Esa vez hubo suerte
+además: la otra 0158 tocaba `fn_provisiones` y no `fn_planilla_calcular`. Si las
+dos hubieran reescrito la misma función, **la última aplicada habría borrado el
+trabajo de la otra sin que nada avisara.**
 
 **Por qué se repite:** la convención dice mirar `ls` antes de numerar, y `ls` solo
-ve la rama en la que estás. Con varias sesiones trabajando en paralelo eso ya no
-alcanza. Este comando sí ve todas las ramas — **comprobado el 2026-08-04**,
-devuelve `0069 0070 0071 0072 0131 0132` (los cuatro primeros vienen de las ramas
-viejas de rescate `rescate-31jul` y `feriados-descanso-sustitutorio`):
+ve la rama en la que estás. Este comando sí ve todas las ramas **y además el
+directorio de trabajo**, que es lo que le faltaba a la versión anterior:
 
 ```bash
-for r in origin/main $(git branch -r | grep -v HEAD); do
-  git ls-tree -r --name-only "$r" -- supabase/migrations
-done | xargs -n1 basename | sort -u | cut -d_ -f1 | sort -n | uniq -d
+{ for r in $(git for-each-ref --format='%(refname)' refs/heads refs/remotes); do
+    git ls-tree -r --name-only "$r" supabase/migrations/ 2>/dev/null
+  done; ls supabase/migrations; } \
+  | sed 's|.*/||' | sort -u | sed 's/^0*//;s/_.*//' | sort -n | tail -1 \
+  | awk '{printf "siguiente libre: %04d\n", $1+1}'
 ```
 
-**No detecta lo que aún no está commiteado.** La 0136 local no aparece ahí, y es
-precisamente la que colisiona hoy. Para eso, `ls supabase/migrations` sobre el
-directorio de trabajo, antes de elegir el número.
+**Sigue sin estar automatizado.** Mientras el número dependa de que alguien se
+acuerde de correr esto, va a volver a pasar — ya van tres veces en dos días.
 
 ### A.3 · Datos que hacen falta para seguir
 
@@ -283,8 +335,11 @@ de su patrimonio. La consulta que arma la lista real está en
 | Qué | Bloqueado por |
 |---|---|
 | **Las bases declaradas** de los cuatro rangos altos — y hay que bajar **los dos campos**, `sueldo_base_legal` **y** `salario_mensual_soles` | confirmar los montos finales |
-| **Pantalla para subir comprobantes** de educación, con candado: no dejar registrar el pago sin su papel | nada |
-| **Bono de cumpleaños** automático con alerta en el mes del onomástico | conectar `datos_personales.fecha_nacimiento` |
+| ~~**Pantalla para subir comprobantes** de educación, con candado~~ | ✅ **hecha y en producción** el 2026-08-05: [`0136`](../supabase/migrations/0136_la_pantalla_de_educacion_con_su_comprobante.sql) + [`0149`](../supabase/migrations/0149_la_educacion_con_todas_sus_reglas.sql) + [`0150`](../supabase/migrations/0150_la_planilla_suma_la_educacion_y_exige_el_papel.sql). Sin comprobante se guarda pero **no paga** |
+| ~~**Pantalla para subir los convenios de movilidad firmados**~~ | ✅ **hecha y en producción** el 2026-08-05: [`0157`](../supabase/migrations/0157_los_documentos_firmados_entran_al_sistema.sql). El tablero de `/admin/documentacion` dice a quién le falta |
+| **Cargar las 22 declaraciones de ruta firmadas** | **de Felipe. Plazo: 28/08/2026.** El sitio donde subirlas ya existe |
+| **Bono de cumpleaños** automático con alerta en el mes del onomástico | conectar `datos_personales.fecha_nacimiento`. Su constancia ya se puede guardar (0157), pero el tablero todavía solo maneja la declaración de ruta |
+| **Tarifa de movilidad para CCO** | decisión de Felipe: las tres tiendas la tienen (AQP/TRU S/10, LIM S/12) y Central no. O falta cargarla, o Central no cobra movilidad y entonces su gente no debería salir en el tablero |
 | ~~**La bonificación del 9%** de la Ley 30334~~ | ✅ **hecha** en la [`0134`](../supabase/migrations/0134_la_bonificacion_extraordinaria_ley_30334.sql), y el contador confirmó el 2026-08-05 que la premisa era correcta |
 | **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. Definido abajo |
 | **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
@@ -557,13 +612,20 @@ Quedan anotadas porque se tomaron decisiones sobre ellas.
 `start`:
 
 ```bash
-npx supabase db start    # levanta solo Postgres y aplica TODAS las migraciones
-npx supabase test db     # 36 archivos, 319 pruebas, ~1 segundo · PASS
+npx supabase db reset    # reconstruye desde cero y aplica TODAS las migraciones
+npx supabase test db     # 52 archivos, 477 pruebas, ~2 segundos · PASS
 ```
 
-Comprobado otra vez el 2026-08-04: aplicó el esquema entero hasta la 0135 sin un
-solo error y las 319 pruebas pasaron. Es la mejor verificación de una migración
-nueva —construye desde cero— y ahorra el viaje de ida y vuelta a GitHub Actions.
+Comprobado otra vez el 2026-08-05 (noche): aplicó el esquema entero hasta la 0159
+sin un solo error y las 477 pruebas pasaron. Es la mejor verificación de una
+migración nueva —construye desde cero— y ahorra el viaje de ida y vuelta a
+GitHub Actions.
+
+**`db reset` y no `db start`:** `db start` no reaplica nada si la base ya está
+levantada, así que una migración nueva parece aplicar y en realidad no se probó
+desde cero. `db reset` sí. Y es además la única forma de detectar una colisión de
+números: es lo que destapó las dos `0158` del 2026-08-05, abortando con
+`duplicate key value violates unique constraint "schema_migrations_pkey"`.
 
 **Si las pruebas fallan todas a la vez con «relation "sedes" does not exist»**,
 no es el código: el contenedor de Postgres se reinició vacío. Pasó el 2026-08-04.
