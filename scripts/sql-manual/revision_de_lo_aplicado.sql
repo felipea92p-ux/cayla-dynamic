@@ -3,85 +3,77 @@
 -- ############################################################################
 --
 -- revision_de_lo_aplicado.sql — ¿qué de lo del 4 y 5 de agosto está de verdad
--- en producción?
+-- en producción, y qué hay en el libro de desembolsos?
 --
--- MIRA EL ESQUEMA, NO EL REGISTRO. `migraciones_aplicadas` es una lista que se
--- escribe a mano, y este proyecto ya se quemó con eso: la 0089 figuraba como
--- aplicada y su contenido nunca había llegado. Así que cada fila de abajo
--- comprueba el EFECTO —que la función tenga el candado, que la tabla tenga
--- RLS— y al lado pone lo que dice el registro. Si las dos columnas no
--- coinciden, el registro está mintiendo.
+-- ES UNA SOLA CONSULTA A PROPÓSITO. La primera versión eran tres consultas
+-- separadas y de las cuatro veces que se corrió llegó de vuelta solo la última:
+-- el SQL Editor de Supabase abre un panel de resultados por sentencia, así que
+-- copiar «el resultado» copia uno de tres. Con una sola sentencia hay un solo
+-- panel y no hay forma de mandar media respuesta.
+--
+-- MIRA EL ESQUEMA, NO EL REGISTRO. `migraciones_aplicadas` es una lista escrita
+-- a mano, y este proyecto ya se quemó con eso: la 0089 figuraba como aplicada y
+-- su contenido nunca había llegado. Cada fila comprueba el EFECTO —que la
+-- función tenga el candado, que la tabla tenga RLS— y al lado pone lo que dice
+-- el registro. Si las dos columnas no coinciden, el registro miente.
 -- ############################################################################
 
-select '① EL EFECTO REAL, comprobado en el esquema' as revision;
+with revision(orden, seccion, detalle, esta, registro) as (
 
-select '0138 · un día pagado ya no cambia de horas' as que_deberia_estar,
-       case when (select prosrc from pg_proc where proname='fn_recalcular_jornada' limit 1)
-                 ilike '%CANDADO DE PERIODO PAGADO%' then '✔ SÍ' else '✘ NO' end as en_el_esquema,
-       case when exists (select 1 from migraciones_aplicadas where numero=138)
-            then 'anotada' else 'sin anotar' end as dice_el_registro
-union all
-select '0147 · quién firma por CAYLA está guardado',
-       case when exists (select 1 from configuracion where clave='firmante_empresa')
-            then '✔ SÍ' else '✘ NO' end,
-       case when exists (select 1 from migraciones_aplicadas where numero=147) then 'anotada' else 'sin anotar' end
-union all
-select '0147b · y no se puede apuntar a cualquiera',
-       case when exists (select 1 from pg_trigger where tgname='trg_valida_firmante_empresa')
-            then '✔ SÍ' else '✘ NO' end,
-       '—'
-union all
-select '0148 · un borrador de memo no sale firmado',
-       case when (select prosrc from pg_proc where proname='fn_firma_de_memo' limit 1)
-                 ilike '%firmado_at is not null%' then '✔ SÍ' else '✘ NO' end,
-       case when exists (select 1 from migraciones_aplicadas where numero=148) then 'anotada' else 'sin anotar' end
-union all
-select '0151 · el tope de educación, bajo llave',
-       case when (select relrowsecurity from pg_class where relname='topes_educacion_rango')
-            then '✔ SÍ' else '✘ NO' end,
-       case when exists (select 1 from migraciones_aplicadas where numero=151) then 'anotada' else 'sin anotar' end
-union all
-select '0151b · y el candado del tope sigue viéndolo',
-       case when (select prosecdef from pg_proc where proname='fn_educacion_respeta_el_tope' limit 1)
-            then '✔ SÍ' else '✘ NO' end,
-       '—'
-union all
-select '0153 · el libro de desembolsos, bajo llave',
-       case when (select relrowsecurity from pg_class where relname='desembolsos_beneficios')
-            then '✔ SÍ' else '✘ NO' end,
-       case when exists (select 1 from migraciones_aplicadas where numero=153) then 'anotada' else 'sin anotar' end
-union all
-select '0153b · y nadie con login puede escribirlo',
-       case when (select count(*) from information_schema.role_table_grants
-                   where table_name='desembolsos_beneficios' and grantee in ('authenticated','anon')
-                     and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE')) = 0
-            then '✔ SÍ' else '✘ NO' end,
-       case when exists (select 1 from migraciones_aplicadas where numero=155) then 'anotada' else 'sin anotar' end;
+  -- ① ¿Está aplicado de verdad?
+  select 1, '① APLICADO', '0138 · un día pagado ya no cambia de horas',
+         case when (select prosrc from pg_proc where proname='fn_recalcular_jornada' limit 1)
+                   ilike '%CANDADO DE PERIODO PAGADO%' then '✔ SI' else '✘ NO' end,
+         case when exists (select 1 from migraciones_aplicadas where numero=138) then 'anotada' else 'SIN ANOTAR' end
+  union all
+  select 2, '① APLICADO', '0147 · quién firma por CAYLA está guardado',
+         case when exists (select 1 from configuracion where clave='firmante_empresa') then '✔ SI' else '✘ NO' end,
+         case when exists (select 1 from migraciones_aplicadas where numero=147) then 'anotada' else 'SIN ANOTAR' end
+  union all
+  select 3, '① APLICADO', '0147b · y el firmante no puede ser cualquiera',
+         case when exists (select 1 from pg_trigger where tgname='trg_valida_firmante_empresa') then '✔ SI' else '✘ NO' end,
+         '—'
+  union all
+  select 4, '① APLICADO', '0148 · un borrador de memo no sale firmado',
+         case when (select prosrc from pg_proc where proname='fn_firma_de_memo' limit 1)
+                   ilike '%firmado_at is not null%' then '✔ SI' else '✘ NO' end,
+         case when exists (select 1 from migraciones_aplicadas where numero=148) then 'anotada' else 'SIN ANOTAR' end
+  union all
+  select 5, '① APLICADO', '0151 · el tope de educación, bajo llave',
+         case when (select relrowsecurity from pg_class where relname='topes_educacion_rango') then '✔ SI' else '✘ NO' end,
+         case when exists (select 1 from migraciones_aplicadas where numero=151) then 'anotada' else 'SIN ANOTAR' end
+  union all
+  select 6, '① APLICADO', '0151b · y el candado del tope sigue viéndolo',
+         case when (select prosecdef from pg_proc where proname='fn_educacion_respeta_el_tope' limit 1) then '✔ SI' else '✘ NO' end,
+         '—'
+  union all
+  select 7, '① APLICADO', '0153 · el libro de desembolsos, bajo llave',
+         case when (select relrowsecurity from pg_class where relname='desembolsos_beneficios') then '✔ SI' else '✘ NO' end,
+         case when exists (select 1 from migraciones_aplicadas where numero=153) then 'anotada' else 'SIN ANOTAR' end
+  union all
+  select 8, '① APLICADO', '0153b · y nadie con login puede escribirlo',
+         case when (select count(*) from information_schema.role_table_grants
+                     where table_name='desembolsos_beneficios' and grantee in ('authenticated','anon')
+                       and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE')) = 0
+              then '✔ SI' else '✘ NO' end,
+         case when exists (select 1 from migraciones_aplicadas where numero=155) then 'anotada' else 'SIN ANOTAR' end
 
+  -- ② Qué hay en el libro. Sin nombres: para decidir si las provisiones deben
+  -- descontarlo basta saber qué ventanas y de qué años están registradas.
+  union all
+  select 20, '② EL LIBRO',
+         d.ventana || ' ' || d.anio || '  ·  por ' || d.origen,
+         count(*) || ' fila(s) · S/ ' || to_char(sum(d.monto), 'FM999999.00'),
+         'pagado entre ' || min(d.fecha_pago) || ' y ' || max(d.fecha_pago)
+  from desembolsos_beneficios d
+  group by d.ventana, d.anio, d.origen
 
--- ── ② Qué hay en el libro de desembolsos ───────────────────────────────────
--- SIN NOMBRES a propósito: para decidir si las provisiones deben descontarlo
--- basta saber QUÉ ventanas y de qué años están registradas. Los nombres son
--- datos personales y no hacen falta para esta decisión.
-select '② LAS 5 FILAS DEL LIBRO, sin nombres' as revision;
-
-select ventana, anio, origen,
-       count(*)   as cuantas,
-       sum(monto) as total,
-       min(fecha_pago) as primer_pago,
-       max(fecha_pago) as ultimo_pago
-from desembolsos_beneficios
-group by ventana, anio, origen
-order by anio, ventana;
-
-
--- ── ③ ¿Coinciden con lo que el sistema cree que debe? ──────────────────────
--- La pregunta que decide si hay que conectar las dos cosas. Si acá salen
--- personas con desembolso registrado, esas son por las que hay que preguntar:
--- ¿las provisiones ya las descuentan por otro lado, o las están contando dos
--- veces?
-select '③ CUÁNTAS PERSONAS DISTINTAS TIENEN DESEMBOLSO REGISTRADO' as revision;
-
-select count(distinct persona_id) as personas_con_desembolso,
-       (select count(*) from personas where estado='activo') as personas_activas
-from desembolsos_beneficios;
+  -- ③ El tamaño del asunto.
+  union all
+  select 30, '③ ALCANCE', 'personas con algún desembolso registrado',
+         (select count(distinct persona_id)::text from desembolsos_beneficios),
+         'de ' || (select count(*)::text from personas where estado='activo') || ' activas'
+)
+select seccion, detalle, esta as valor, registro as nota
+from revision
+order by orden, detalle;
