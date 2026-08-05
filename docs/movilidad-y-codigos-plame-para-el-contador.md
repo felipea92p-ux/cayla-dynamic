@@ -165,7 +165,7 @@ cláusula que invocaba el inciso a) hacía el gasto no deducible por el artícul
 de la LIR. Misma trampa, distinto concepto.
 
 **Sobre el 4 % del punto 1.** Aunque concluyamos que no aplica, el tope quedó puesto
-como restricción en la base (migración `0151`). Cuesta nada y evita que una tarifa
+como restricción en la base (migración `0152`). Cuesta nada y evita que una tarifa
 cargada desde la pantalla se salga del rango sin que nadie lo note. Si Dante
 confirma que el a1) no nos alcanza, la restricción se puede relajar — pero relajar
 un candado es una decisión, y dejarlo puesto no cuesta.

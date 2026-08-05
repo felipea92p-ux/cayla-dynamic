@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0151 — La tarifa de movilidad no puede pasarse de su techo.
+-- 0152 — La tarifa de movilidad no puede pasarse de su techo.
 --
 -- QUÉ PROMETE
 --
@@ -123,7 +123,7 @@ comment on function fn_movilidad_no_supera_el_techo() is
   'Impide cargar una tarifa de movilidad diaria por encima del 4% de la RMV vigente '
   'en su fecha de inicio. El número sale del art. 37 a1) de la LIR; la razón para '
   'usarlo es el art. 19 e) del D.S. 001-97-TR, que exige que el monto cubra '
-  'razonablemente el traslado. Ver el encabezado de la migración 0151.';
+  'razonablemente el traslado. Ver el encabezado de la migración 0152.';
 
 
 -- ── La puerta ───────────────────────────────────────────────────────────────
@@ -158,14 +158,14 @@ begin
   loop
     if r.rmv is not null and r.valor > round(r.rmv * 0.04, 2) then
       v_encontradas := v_encontradas + 1;
-      raise warning '0151 · REVISAR: movilidad de % en S/% desde % supera el techo de S/%',
+      raise warning '0152 · REVISAR: movilidad de % en S/% desde % supera el techo de S/%',
         coalesce(r.sede_codigo, '(todas las sedes)'), r.valor, r.vigente_desde,
         round(r.rmv * 0.04, 2);
     end if;
   end loop;
 
   if v_encontradas = 0 then
-    raise notice '0151 · Ninguna tarifa de movilidad supera su techo. Candado puesto.';
+    raise notice '0152 · Ninguna tarifa de movilidad supera su techo. Candado puesto.';
   end if;
 end
 $mig$;

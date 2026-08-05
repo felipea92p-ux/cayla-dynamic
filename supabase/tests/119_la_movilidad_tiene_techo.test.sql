@@ -1,7 +1,7 @@
 -- ============================================================================
--- 116_la_movilidad_tiene_techo.test.sql
+-- 119_la_movilidad_tiene_techo.test.sql
 -- ============================================================================
--- La 0151 pone una puerta a la entrada de parametros_laborales: nadie carga una
+-- La 0152 pone una puerta a la entrada de parametros_laborales: nadie carga una
 -- tarifa de movilidad por encima del 4 % de la RMV vigente en la fecha desde la
 -- que esa tarifa rige.
 --
@@ -30,12 +30,12 @@ select plan(10);
 -- Una RMV propia en 2029 para no depender de la que tenga cargada la base real.
 -- 4 % de 1,130 = 45.20 exactos, que es el borde que interesa.
 insert into parametros_laborales (clave, valor, vigente_desde, sustento)
-values ('rmv', 1130.00, '2029-01-01', 'Laboratorio de la prueba 116');
+values ('rmv', 1130.00, '2029-01-01', 'Laboratorio de la prueba 119');
 
 -- Y una segunda RMV más alta desde mitad de año, para probar que el techo se
 -- mide contra la fecha de la tarifa y no contra la más reciente.
 insert into parametros_laborales (clave, valor, vigente_desde, sustento)
-values ('rmv', 2000.00, '2029-07-01', 'Laboratorio de la prueba 116 — RMV posterior');
+values ('rmv', 2000.00, '2029-07-01', 'Laboratorio de la prueba 119 — RMV posterior');
 
 update parametros_laborales
    set vigente_hasta = '2029-06-30'
@@ -43,7 +43,7 @@ update parametros_laborales
 
 
 -- ── 1 · Las tarifas reales de CAYLA entran sin ruido ────────────────────────
--- Si alguna de estas fallara, la 0151 estaría rompiendo un pago vivo.
+-- Si alguna de estas fallara, la 0152 estaría rompiendo un pago vivo.
 select lives_ok($$
   insert into parametros_laborales (clave, valor, sede_codigo, vigente_desde, sustento)
   values ('movilidad_diaria', 10, 'ZZTRU', '2029-02-01', 'Laboratorio: la tarifa real de TRU')

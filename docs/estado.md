@@ -5,15 +5,16 @@ copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 *Última consolidación: **2026-08-05**. Migraciones **0115 a 0122 aplicadas en
-producción**; en el repo hay hasta la **0151**, y de la 0128 en adelante queda
-por confirmar cuáles se aplicaron. **45 archivos pgTAP, 415 pruebas**, verdes en
-local el 2026-08-05 · `pnpm typecheck` y las **88 pruebas de interfaz** (7 archivos), también.*
+producción**; en el repo hay hasta la **0152**, y de la 0128 en adelante queda
+por confirmar cuáles se aplicaron. **46 archivos pgTAP, 422 pruebas**, verdes en
+local el 2026-08-05 sobre una base reseteada desde cero · `pnpm typecheck` y las
+**103 pruebas de interfaz** (8 archivos), también.*
 
 > **Cómo se verificó esto** (para que la próxima consolidación no vuelva a
 > quedarse vieja sin que nadie lo note):
 > ```bash
-> npx supabase db start && npx supabase test db   # 45 archivos · 415 pruebas
-> npx pnpm typecheck && npx pnpm test             # 7 archivos · 88 pruebas de interfaz
+> npx supabase db start && npx supabase test db   # 46 archivos · 422 pruebas
+> npx pnpm typecheck && npx pnpm test             # 8 archivos · 103 pruebas de interfaz
 > ```
 
 ---
@@ -31,15 +32,24 @@ Lo que salió de ahí:
 |---|---|
 | **La repregunta**, redactada y lista para enviarle — la marca de afectación en el PDT es lo que ahora bloquea | [`movilidad-y-codigos-plame-para-el-contador.md`](movilidad-y-codigos-plame-para-el-contador.md) |
 | **La lista real de quién va a la póliza** del Seguro de Vida Ley, para cruzar contra las 19 de la cotización antes de firmar | [`quienes_van_al_seguro_de_vida_ley.sql`](../scripts/sql-manual/quienes_van_al_seguro_de_vida_ley.sql) |
-| **0151 · el techo de la movilidad** — ninguna tarifa diaria puede pasar del 4% de la RMV vigente (hoy S/45.20). No mueve ningún pago: las tarifas vivas son S/10 y S/12 | [`0151_la_movilidad_tiene_techo.sql`](../supabase/migrations/0151_la_movilidad_tiene_techo.sql) · prueba [`116`](../supabase/tests/116_la_movilidad_tiene_techo.test.sql), 10 aserciones |
+| **0152 · el techo de la movilidad** — ninguna tarifa diaria puede pasar del 4% de la RMV vigente (hoy S/45.20). No mueve ningún pago: las tarifas vivas son S/10 y S/12 | [`0152_la_movilidad_tiene_techo.sql`](../supabase/migrations/0152_la_movilidad_tiene_techo.sql) · prueba [`119`](../supabase/tests/119_la_movilidad_tiene_techo.test.sql), 10 aserciones |
 | **El indicador del umbral de 20 trabajadores** — definido, se construye después del seguro | sección [B](#b--lo-que-falta-construir) |
 
-**La 0151 se pega tal cual en el SQL Editor**: es idempotente y auto-contenida, no
+**La 0152 se pega tal cual en el SQL Editor**: es idempotente y auto-contenida, no
 necesita una versión aparte en `scripts/sql-manual/`. Al aplicarla imprime
-`0151 · Ninguna tarifa de movilidad supera su techo` si todo está en orden, o un
+`0152 · Ninguna tarifa de movilidad supera su techo` si todo está en orden, o un
 `warning` por cada tarifa que haya que mirar a mano.
 
-**La prueba 116 se comprobó rompiendo el candado a propósito:** quitando el trigger
+⚠️ **Nació como 0151 y se renumeró el 2026-08-05.** Felipe ya la había pegado en
+producción con el número viejo, así que **el SQL que corrió en producción imprime
+`0151 ·` en sus mensajes**. No es un error: es el mismo archivo, renumerado después
+de aplicarse porque `main` ya tenía otra 0151 (el tope de educación). El objeto que
+quedó en la base —`fn_movilidad_no_supera_el_techo` y su trigger— no lleva el número
+en el nombre, así que no hay nada que corregir en producción. El hook
+`scripts/hooks/numeracion.sh` detectó la colisión antes del push, que es
+exactamente para lo que se escribió.
+
+**La prueba 119 se comprobó rompiendo el candado a propósito:** quitando el trigger
 fallan exactamente las 4 aserciones que dependen de él (el borde de S/45.21, la
 medición contra la RMV de la fecha, y las dos del UPDATE). No pasa por casualidad.
 
