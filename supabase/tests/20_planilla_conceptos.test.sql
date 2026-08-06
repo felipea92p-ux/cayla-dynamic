@@ -4,25 +4,28 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 20_planilla_conceptos.test.sql — Blindaje de provisiones y bono por objetivos
+-- 20_planilla_conceptos.test.sql — Provisiones, y que los objetivos NO paguen
 -- ============================================================================
--- Segunda tanda del blindaje del dinero. Verifica dos conceptos que se suman
--- (o se reservan) además del sueldo base:
+-- Segunda tanda del blindaje del dinero. Verifica dos conceptos que acompañan
+-- al sueldo base:
 --   · PROVISIONES (gratificación, CTS, vacaciones): lo que la empresa RESERVA
 --     cada mes = (pago base + feriados) × su factor. No se paga al colaborador
 --     ahora; se acumula. Aquí fijamos factores redondos (10% / 5% / 5%) dentro
 --     de la prueba para verificar la MULTIPLICACIÓN, sin depender de cuál sea el
 --     factor real del régimen (ese es una decisión de configuración, no de esta
 --     fórmula).
---   · BONO POR OBJETIVOS: quien cumple todos sus objetivos del mes cobra 21% de
---     su sueldo; entre 60% y 99%, cobra 12.6%; por debajo de 60%, nada; por
---     debajo de 30% además queda marcado como bajo desempeño.
+--   · OBJETIVOS: **no pagan nada** desde la 0171. Hasta entonces cobraban 21%
+--     del sueldo al 100% de metas y 12.6% desde el 60%; era remuneración
+--     tratada como si no lo fuera, y contradecía el documento que el equipo
+--     firmó bajo la Ley 30709. Lo que sí se conserva es el CONTEO de cumplidos
+--     —sirve para sostener una promoción— y la marca de bajo desempeño por
+--     debajo del 30%, que nunca fue un pago sino un aviso para conversar.
 --
 -- Como siempre: personas de laboratorio, números redondos, begin/rollback (no
 -- toca datos reales). fn_planilla_calcular no exige permiso, se invoca directo.
 -- ============================================================================
 begin;
-select plan(12);
+select plan(13);
 
 -- ── Semilla ────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
@@ -100,19 +103,36 @@ select is(
   (select (fila->>'provision_total')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a1'),
   418.00::numeric, 'Provisión total = suma de las cuatro (200+18+100+100 = 418)');
 
--- ── BONO POR OBJETIVOS ──────────────────────────────────────────────────────
+-- ── LOS OBJETIVOS NO PAGAN (0171) ───────────────────────────────────────────
+-- Hasta la 0171 estas cuatro aserciones exigían lo contrario: 21% del sueldo al
+-- 100% de metas y 12.6% desde el 60%. Se dieron vuelta a propósito.
+--
+-- El plus era remuneración y se trataba como si no lo fuera: el Art. 19 del
+-- D.S. 001-97-TR no lo lista entre los conceptos no computables, y el Art. 20
+-- solo salva las gratificaciones OCASIONALES y por liberalidad. Pagado con
+-- regularidad entraba a la base de grati, CTS, vacaciones y EsSalud — cada
+-- S/100 costaba S/125.67. Y contradecía el documento que el equipo firmó bajo
+-- la Ley 30709: «CAYLA no aplica aumentos discrecionales».
+--
+-- Los cuatro casos se conservan —100%, 60%, 50% y 20%— porque lo que hay que
+-- blindar es que NINGUNO pague, no solo los que ya pagaban cero.
 select is(
   (select (fila->>'monto_plus')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a2'),
-  210.00::numeric, 'G: cumplir el 100% de objetivos paga 21% del sueldo (1000 → 210)');
+  0::numeric, 'G: cumplir el 100% de los objetivos ya no paga plus');
 select is(
   (select (fila->>'monto_plus')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a3'),
-  126.00::numeric, 'H: cumplir 60% paga 12.6% del sueldo (1000 → 126)');
+  0::numeric, 'H: cumplir el 60% tampoco');
 select is(
   (select (fila->>'monto_plus')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a4'),
-  0::numeric, 'I: por debajo del 60% (50%) el bono es cero');
+  0::numeric, 'I: por debajo del 60% (50%), cero — como siempre');
 select is(
   (select (fila->>'monto_plus')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a5'),
-  0::numeric, 'J: con 20% de objetivos tampoco hay bono');
+  0::numeric, 'J: con 20% de objetivos, cero');
+
+-- Lo que SÍ se conserva: el conteo, que es lo que sostiene una promoción.
+select is(
+  (select (fila->>'objetivos_cumplidos')::int from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a2'),
+  10, 'G: los objetivos cumplidos se siguen contando — son el historial para promover');
 
 -- ── Bandera de bajo desempeño (por debajo del 30%) ──────────────────────────
 select is(
@@ -122,10 +142,11 @@ select is(
   (select (fila->>'bajo_desempeno')::boolean from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a2'),
   false, 'G: cumplir el 100% no es bajo desempeño');
 
--- El bono efectivamente llega al total del periodo
+-- Y el plus tampoco llega al total. Esta es la aserción que de verdad importa:
+-- las de arriba miran el concepto; esta mira lo que se transfiere.
 select is(
   (select (fila->>'total')::numeric from _junio where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-0000000000a2'),
-  210.00::numeric, 'G: sin sueldo base marcado, su total es el puro bono (210)');
+  0::numeric, 'G: sin días marcados y sin plus, no se le transfiere nada');
 
 select * from finish();
 rollback;

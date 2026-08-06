@@ -2,45 +2,54 @@
 // reglas-negocio.test.ts — Reglas de negocio que vive el navegador
 // ============================================================================
 // Blinda dos cosas que el colaborador VE en pantalla:
-//   · nivelPlus — los tramos del bono por objetivos. Es el GEMELO en frontend de
-//     la regla que ya está blindada en SQL (fn_planilla_calcular: 100%→21%,
-//     ≥60%→12.6%, <60%→nada, <30%→observación). Si alguien cambia una y no la
-//     otra, la pantalla diría una cosa y la boleta pagaría otra. Esto lo ancla.
+//   · lecturaObjetivos — que los objetivos NO nombren ningún monto. Hasta el
+//     2026-08-06 esta función era el GEMELO en el navegador de lo que pagaba
+//     fn_planilla_calcular (100%→21%, ≥60%→12.6%). La migración 0171 apagó ese
+//     plus en SQL y esto lo ancla del lado de la pantalla: si alguien lo
+//     reviviera en un solo sitio, la pantalla ofrecería un pago que la boleta
+//     no hace, o al revés.
 //   · formatSoles — cómo se escribe el dinero. Un formato roto siembra dudas
 //     sobre montos que en realidad están bien.
 // ============================================================================
 import { describe, it, expect } from "vitest";
-import { nivelPlus } from "@/lib/objetivos";
+import { lecturaObjetivos } from "@/lib/objetivos";
 import { formatSoles, baseDeclaradaDe, topeEducacionDe, RANGOS } from "@/lib/rangos";
 
-describe("nivelPlus — tramos del bono por objetivos", () => {
-  it("cumplir el 100% da Plus 21%", () => {
-    expect(nivelPlus(10, 10)).toEqual({ etiqueta: "Plus 21%", observacion: false });
+describe("lecturaObjetivos — los objetivos no pagan (0171)", () => {
+  // Estas tres aserciones decían lo contrario hasta el 2026-08-06: que cumplir
+  // el 100% daba «Plus 21%» y el 60% «Plus 12.6%». Se dieron vuelta junto con
+  // la migración 0171. El plus era remuneración tratada como si no lo fuera, y
+  // contradecía la política salarial firmada bajo la Ley 30709.
+  it("cumplir el 100% no nombra ningún monto", () => {
+    expect(lecturaObjetivos(10, 10)).toEqual({ etiqueta: "100% cumplido", observacion: false });
   });
 
-  it("cumplir exactamente el 60% da Plus 12.6% (el borde cuenta a favor)", () => {
-    expect(nivelPlus(6, 10)).toEqual({ etiqueta: "Plus 12.6%", observacion: false });
+  it("cumplir el 60% tampoco", () => {
+    expect(lecturaObjetivos(6, 10)).toEqual({ etiqueta: "60% cumplido", observacion: false });
   });
 
-  it("por debajo del 60% no hay plus", () => {
-    expect(nivelPlus(5, 10).etiqueta).toBe("Sin plus");
+  it("ninguna etiqueta menciona un plus, en ningún tramo", () => {
+    for (let c = 0; c <= 10; c++) {
+      expect(lecturaObjetivos(c, 10).etiqueta.toLowerCase()).not.toContain("plus");
+    }
   });
 
-  it("al 50% no hay plus PERO tampoco observación (el umbral es 30%)", () => {
-    expect(nivelPlus(5, 10).observacion).toBe(false);
+  it("al 50% no hay observación: el umbral sigue siendo 30%", () => {
+    expect(lecturaObjetivos(5, 10).observacion).toBe(false);
   });
 
   it("por debajo del 30% se marca observación por bajo desempeño", () => {
-    expect(nivelPlus(2, 10)).toEqual({ etiqueta: "Sin plus", observacion: true });
+    // Lo único que sobrevive del mecanismo viejo, y a propósito: nunca fue un
+    // pago sino un aviso para conversar, y la decisión es siempre de una persona.
+    expect(lecturaObjetivos(2, 10)).toEqual({ etiqueta: "20% cumplido", observacion: true });
   });
 
-  it("sin objetivos cargados no inventa nada (ni plus ni observación)", () => {
-    expect(nivelPlus(0, 0)).toEqual({ etiqueta: "—", observacion: false });
+  it("sin objetivos cargados no inventa nada", () => {
+    expect(lecturaObjetivos(0, 0)).toEqual({ etiqueta: "—", observacion: false });
   });
 
-  it("cumplir todos de una lista corta también da el 21%", () => {
-    // No depende de que el total sea 10: es proporción, no conteo.
-    expect(nivelPlus(3, 3).etiqueta).toBe("Plus 21%");
+  it("es proporción y no conteo: una lista corta se lee igual", () => {
+    expect(lecturaObjetivos(3, 3).etiqueta).toBe("100% cumplido");
   });
 });
 

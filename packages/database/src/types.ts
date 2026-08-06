@@ -1614,6 +1614,54 @@ export type Database = {
       }
       // 0154, escrita a mano como el resto: `supabase gen types` no corre acá.
       // 0157, escritas a mano: `supabase gen types` no corre en esta máquina.
+      // 0164/0167/0169, escritas a mano: `supabase gen types` no corre acá.
+      fn_liquidacion: {
+        Args: { p_persona_id: string; p_fecha_cese?: string | null }
+        Returns: Json
+      }
+      fn_liquidacion_pagar: {
+        Args: { p_persona_id: string; p_nota?: string | null }
+        Returns: Json
+      }
+      fn_liquidacion_diferencias: {
+        Args: { p_persona_id: string }
+        Returns: {
+          concepto: string
+          pagado: number
+          ahora: number
+          diferencia: number
+        }[]
+      }
+      fn_liquidaciones_pendientes: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          persona_id: string
+          persona: string
+          sede: string
+          fecha_ingreso: string | null
+          fecha_cese: string
+          vence_el: string
+          dias_restantes: number
+          vencido: boolean
+          total: number
+          pagada: boolean
+          descuadra: boolean
+        }[]
+      }
+      fn_avisos_vinculo: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          persona_id: string
+          persona: string
+          sede: string
+          tipo_vinculo: string
+          fecha_ingreso: string
+          dias: number
+          cumple_el_mes: string
+          ya_devenga: boolean
+          aviso: string
+        }[]
+      }
       fn_documento_registrar: {
         Args: {
           p_tipo: string

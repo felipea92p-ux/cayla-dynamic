@@ -121,6 +121,7 @@ export default function DashboardPage() {
   const [discTard, setDiscTard] = useState<TardRow[]>([]);
   const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
   const [contratos, setContratos] = useState<ContratoRow[]>([]);
+  const [sinCargo, setSinCargo] = useState(0);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
   useEffect(() => {
@@ -132,6 +133,24 @@ export default function DashboardPage() {
       ]);
       setDiscTard(Array.isArray(t) ? (t as TardRow[]) : []);
       setDiscFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
+
+      // Memos entregados a los que aún les falta el papel firmado.
+      //
+      // Un memo entregado sin su cargo archivado no se puede probar. Ante una
+      // inspección o un reclamo, el expediente que este sistema arma para
+      // sostener una decisión se cae justo por ahí: consta que se entregó
+      // porque alguien lo marcó, no porque haya una firma de recepción.
+      //
+      // Vive en el Dashboard y no solo en Disciplina porque el aviso allá
+      // estaba dentro de un panel plegado: había que ir a buscarlo sabiendo
+      // que existía. Falla en silencio: si la consulta no responde, la franja
+      // sigue mostrando tardanzas y faltas en vez de quedarse en blanco.
+      const [{ data: entregados }, { data: papeles }] = await Promise.all([
+        sb.from("expediente_disciplinario").select("id").eq("estado", "entregado"),
+        sb.from("expediente_adjuntos").select("documento_id"),
+      ]);
+      const conPapel = new Set(((papeles as Array<{ documento_id: string }>) ?? []).map((a) => a.documento_id));
+      setSinCargo(((entregados as Array<{ id: string }>) ?? []).filter((d) => !conPapel.has(d.id)).length);
     })();
   }, []);
 
@@ -316,7 +335,7 @@ export default function DashboardPage() {
           const avisoT = discTard.filter((t) => t.umbral === "aviso").length;
           const rojosF = discFaltas.filter((f) => f.nivel === "rojo");
           const ambarF = discFaltas.filter((f) => f.nivel === "ambar").length;
-          if (!rojosT.length && !avisoT && !rojosF.length && !ambarF) return null;
+          if (!rojosT.length && !avisoT && !rojosF.length && !ambarF && !sinCargo) return null;
           return (
             <div className="mb-10 rounded-2xl border border-sand bg-rojo/[0.04] p-5">
               <div className="mb-2 flex items-center justify-between">
@@ -339,6 +358,17 @@ export default function DashboardPage() {
                   <span className="text-xs font-medium text-rojo">acción inmediata →</span>
                 </Link>
               ))}
+              {sinCargo > 0 && (
+                <Link href="/admin/disciplina#entregados"
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-rojo/[0.06]">
+                  <span>
+                    <strong>{sinCargo} {sinCargo === 1 ? "memo entregado" : "memos entregados"}</strong>{" "}
+                    <span className="text-taupe">sin el cargo firmado archivado</span>
+                    <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">no se puede probar la entrega</span>
+                  </span>
+                  <span className="text-xs font-medium text-rojo">sube el papel →</span>
+                </Link>
+              )}
               <div className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
                 {avisoT > 0 && <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-ambar">{avisoT} en aviso (tardanzas)</span>}
                 {avisoT > 0 ? " · " : ""}Faltas: {rojosF.length + ambarF > 0 ? `${rojosF.length + ambarF} en alerta` : "sin alertas"}

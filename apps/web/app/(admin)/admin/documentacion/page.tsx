@@ -9,6 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
@@ -40,7 +41,22 @@ const EMPRESA = {
 // Si mañana sube el pasaje y se abre una fila nueva, este documento saldrá con la
 // tarifa nueva y el anterior seguirá describiendo correctamente el periodo que
 // cubrió — que es justamente por lo que se versionó.
-const TARIFA_POR_DEFECTO = 10;
+//
+// ⇩ 2026-08-05 · AQUÍ HABÍA UN `TARIFA_POR_DEFECTO = 10` Y ESE ERA EL BUG.
+//
+// La declaración de Taller LIM salía impresa con S/ 10.00 mientras la planilla
+// le pagaba S/ 12.00, que es lo que la 0142 fijó para Lima. Dos causas encadenadas:
+//
+//   1. La pantalla leía SIEMPRE la fila general (`sede_codigo` nulo) y nunca la
+//      de la sede de la persona. La general vale 0.00 desde la 0118 —nace
+//      apagada a propósito—, así que la lectura fallaba el «> 0»…
+//   2. …y caía a este 10 escrito a mano, que se veía perfectamente creíble.
+//
+// Un valor por defecto convirtió «no tengo el dato» en «el dato es 10». Por eso
+// ya no hay ninguno: sin fila aplicable, la tarifa es `null` y el documento lo
+// dice en vez de imprimir una cifra. Es la misma regla que el resto del repo
+// —nada de listas ni montos escritos a mano cuando el dato vive en una tabla—,
+// y acá pesa más que en ninguna pantalla, porque este papel se firma.
 
 type TipoDoc = "ruta" | "politica" | "bono";
 
@@ -54,7 +70,7 @@ const DOCS: { id: TipoDoc; titulo: string; para: string; necesitaPersona: boolea
   {
     id: "politica",
     titulo: "Política de movilidad supeditada a asistencia",
-    para: "La emite CAYLA, una sola vez. Debe tener fecha anterior al primer pago de movilidad.",
+    para: "La emite CAYLA, una sola vez. Va fechada el día en que empezó a pagarse movilidad: rige desde ahí en adelante.",
     necesitaPersona: false,
   },
   {
@@ -65,10 +81,34 @@ const DOCS: { id: TipoDoc; titulo: string; para: string; necesitaPersona: boolea
   },
 ];
 
-// El monto del bono, decidido con Felipe el 2026-07-31 tras comparar cinco
-// alternativas. Igual para todos y sin condición de antigüedad: escalarlo por
-// rango o atarlo al tiempo de servicio lo devuelve a ser remuneración.
-const BONO_CUMPLEANOS = 180;
+// EL MONTO DEL BONO NO ESTÁ ESCRITO ACÁ, Y ESE ES EL PUNTO.
+//
+// Se decidió con Felipe el 2026-07-31 tras comparar cinco alternativas: igual
+// para todos y sin condición de antigüedad, porque escalarlo por rango o atarlo
+// al tiempo de servicio lo devuelve a ser remuneración.
+//
+// Desde la 0165 la verdad vive en `parametros_laborales` (clave
+// `bono_onomastico`), versionada por `vigente_desde` — la misma fila dice cuánto
+// vale y desde cuándo rige la política.
+//
+// ⇩ 2026-08-06 · ACÁ HUBO UN `BONO_POR_DEFECTO = 180` Y SE BORRÓ.
+//
+// Era un respaldo por si la 0165 no estaba pegada, y hoy acertaba: el bono es
+// 180 para todo el mundo, así que el número de respaldo era el correcto. La
+// razón de sacarlo es la de mañana, no la de hoy.
+//
+// El día que el monto cambie —se cierra la fila de 180 y se abre la de 200— basta
+// que la nueva quede mal fechada, o que se cierre una sin abrir la otra, para que
+// la consulta vuelva vacía y la constancia se imprima con 180. Alguien firmaría
+// «recibí S/ 180.00» habiendo cobrado otra cosa, en un papel que se ve
+// perfectamente normal. Es exactamente lo que pasó con la movilidad: el código
+// decía 10, la base no contestaba, y Taller LIM firmaba S/ 10.00 mientras cobraba
+// S/ 12.00.
+//
+// Un valor de respaldo convierte «no tengo el dato» en «el dato es 180». En un
+// documento que se firma, eso no es tolerancia a fallos: es una afirmación falsa
+// con rúbrica. Sin fila aplicable, `bonoMonto` es null y la constancia NO SE
+// IMPRIME — dice qué falta, igual que la declaración de ruta.
 
 interface Persona {
   id: string;
@@ -206,7 +246,7 @@ const ETIQUETA_SUBIDA: Record<TipoDoc, {
     deQue: "de la política",
     archivo: "Política firmada",
     fecha: "Fecha en que se firmó",
-    ayuda: "Es un solo documento para toda la empresa, sin persona. La fecha que pongas es la que se compara contra el primer pago de movilidad: si es posterior, el sistema lo va a seguir avisando — y con razón.",
+    ayuda: "Es un solo documento para toda la empresa, sin persona. Viene con la fecha en que empezó a pagarse movilidad, que es la que sale impresa en el papel: déjala así. Si la cambias por una posterior, el sistema lo va a seguir avisando — un documento fechado después de los pagos que justifica no los justifica.",
     ejemploNota: "ej. firmada junto con el reglamento interno",
   },
   bono: {
@@ -231,31 +271,6 @@ interface EstadoPolitica {
 const MAX_BYTES_DOC = 50 * 1024 * 1024;
 const TIPOS_DOC = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 
-// Sube por PUT a una URL ya firmada, con progreso real. Mismo camino que en
-// Educación: `upload()` del cliente no informa avance, y una espera muda de
-// varios minutos se lee como que la pantalla se colgó.
-function subirConProgreso(
-  urlFirmada: string,
-  archivo: File,
-  alAvanzar: (pct: number) => void,
-): Promise<string | null> {
-  return new Promise((resolver) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", urlFirmada);
-    xhr.setRequestHeader("x-upsert", "true");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) alAvanzar(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      resolver(xhr.status >= 200 && xhr.status < 300 ? null : `el servidor respondió ${xhr.status}`);
-    xhr.onerror = () => resolver("se cortó la conexión durante la subida");
-    const cuerpo = new FormData();
-    cuerpo.append("cacheControl", "3600");
-    cuerpo.append("", archivo);
-    xhr.send(cuerpo);
-  });
-}
-
 export default function DocumentacionPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -265,8 +280,16 @@ export default function DocumentacionPage() {
   const [tipo, setTipo] = useState<TipoDoc>("ruta");
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [sedes, setSedes] = useState<Map<string, string>>(new Map());
+  // sede_base_id → CÓDIGO de la sede. Va aparte de `sedes`, que guarda el nombre
+  // para imprimir («Taller LIM»), porque las tarifas se buscan por código («LIM»).
+  // Tenerlas en un solo mapa fue justamente el bug: se comparaba `sede_codigo`
+  // contra el nombre, no coincidía nunca y todo el mundo cobraba la tarifa
+  // general. Dos preguntas distintas, dos mapas distintos.
+  const [sedeCodigo, setSedeCodigo] = useState<Map<string, string>>(new Map());
   const [personaId, setPersonaId] = useState<string>("");
-  const [tarifa, setTarifa] = useState<number>(TARIFA_POR_DEFECTO);
+  // La tarifa GENERAL (la fila sin sede). `null` cuando no hay ninguna aplicable
+  // — que es el estado real hoy, porque la general vale 0.00 desde la 0118.
+  const [tarifa, setTarifa] = useState<number | null>(null);
   const [sustento, setSustento] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   // Quién NO recibe el documento. Se guarda la exclusión y no la inclusión a
@@ -284,6 +307,10 @@ export default function DocumentacionPage() {
   const [firmanteNombre, setFirmanteNombre] = useState(EMPRESA.firmante);
   const [firmanteCargo, setFirmanteCargo] = useState(EMPRESA.cargo);
   const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
+  // El monto del bono, leído de `parametros_laborales` (0165). `null` mientras no
+  // haya fila vigente — y `null` significa «no hay monto», nunca «pon el de
+  // siempre». Mismo criterio que `tarifa` con la movilidad.
+  const [bonoMonto, setBonoMonto] = useState<number | null>(null);
   // persona_id → fecha de término del contrato, para quien ya la tiene fijada.
   const [finContrato, setFinContrato] = useState<Map<string, string>>(new Map());
 
@@ -305,9 +332,50 @@ export default function DocumentacionPage() {
   const [avisoDoc, setAvisoDoc] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // LA TARIFA QUE LE TOCA A UNA PERSONA. Primero la fila de SU sede; si su sede
+  // no tiene fila propia, la general. Es el MISMO orden de preferencia que usan
+  // `fn_planilla_calcular` (0142) y `fn_documentos_tablero` (0157), y por eso se
+  // escribe una sola vez acá: el monto que se firma en el papel y el que se paga
+  // en la boleta no pueden salir de dos lecturas distintas del mismo parámetro.
+  //
+  // Devuelve `null` cuando no hay ninguna fila aplicable, o cuando la que hay
+  // vale cero — que es como nace la general en la 0118. `null` significa «esta
+  // sede no tiene tarifa», y quien lo recibe tiene que DECIRLO, nunca rellenarlo
+  // con un número: una declaración firmada con una cifra inventada no sostiene
+  // la movilidad, la desmiente.
+  function tarifaDeSede(sedeBaseId: string | null | undefined): number | null {
+    const codigo = sedeBaseId ? sedeCodigo.get(sedeBaseId) : undefined;
+    const suya = codigo ? tarifas.find((t) => t.sede_codigo === codigo) : undefined;
+    const fila = suya ?? tarifas.find((t) => !t.sede_codigo);
+    const valor = Number(fila?.valor);
+    return Number.isFinite(valor) && valor > 0 ? valor : null;
+  }
+
   // Imprimir el documento de una persona es poner la pantalla en él y llamar a
   // imprimir: la maquinaria que ya existía no se toca.
   function imprimirFila(personaId: string, que: TipoDoc) {
+    // Salvo cuando el papel saldría con el monto equivocado. La declaración de
+    // ruta es lo que hace que la movilidad no sea remuneración; si la sede de
+    // esta persona no tiene tarifa, no hay monto que declarar y el documento no
+    // se imprime. Se frena ACÁ y no solo en el render porque desde el tablero se
+    // imprime a ciegas: el botón dispara `window.print()` sin que nadie mire.
+    const ficha = personas.find((p) => p.id === personaId);
+    // La constancia del bono, por lo mismo: acredita la entrega de una suma, y
+    // sin suma no acredita nada. Va antes que la de ruta porque no depende de la
+    // ficha de la persona — falta el parámetro para todo el mundo a la vez.
+    if (que === "bono" && bonoMonto === null) {
+      setAvisoDoc({ tipo: "error", texto:
+        "No hay monto de bono de onomástico vigente en el sistema, así que la constancia " +
+        "saldría sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico) " +
+        "y vuelve a imprimir." });
+      return;
+    }
+    if (que === "ruta" && ficha && tarifaDeSede(ficha.sede_base_id) === null) {
+      setAvisoDoc({ tipo: "error", texto:
+        `La sede ${sedes.get(ficha.sede_base_id) ?? "de esta persona"} no tiene tarifa de movilidad vigente, ` +
+        "así que su declaración saldría sin monto. Créala en parámetros laborales y vuelve a imprimir." });
+      return;
+    }
     setTipo(que);
     setPersonaId(personaId);
     // El render tiene que haber corrido con la persona puesta antes de imprimir.
@@ -318,7 +386,10 @@ export default function DocumentacionPage() {
     setSubiendo({ que, personaId, negativa });
     setArchivoDoc(null);
     setNotaDoc("");
-    setFechaFirma(hoyLima());
+    // La política llega con la fecha del papel que se imprimió, no con la de
+    // hoy. Proponer hoy era empujar al error: el formulario ofrecía de entrada
+    // el único valor que el propio sistema iba a marcar en rojo.
+    setFechaFirma(que === "politica" ? fechaDeLaPolitica : hoyLima());
     setAvisoDoc(null);
     // El formulario es uno solo y vive arriba; el botón que lo abre puede estar
     // veinte filas más abajo. Sin esto, quien hace clic en la última fila no ve
@@ -364,12 +435,14 @@ export default function DocumentacionPage() {
     // nadie en particular, describe la regla.
     const fila = tablero.find((f) => f.persona_id === subiendo.personaId);
     const persona = personas.find((p) => p.id === subiendo.personaId);
-    const tarifaSede = persona
-      ? (tarifas.find((t) => t.sede_codigo === sedes.get(persona.sede_base_id ?? ""))?.valor ?? tarifa)
-      : tarifa;
+    // Antes acá se buscaba `t.sede_codigo === sedes.get(...)`, o sea el código
+    // «LIM» contra el nombre «Taller LIM»: no coincidía nunca y el monto que se
+    // archivaba era el general, no el de la sede. El mismo defecto que en el
+    // documento impreso, y por eso ahora los dos llaman a la misma función.
+    const tarifaSede = tarifaDeSede(persona?.sede_base_id);
     const monto = subiendo.negativa || subiendo.que === "politica"
       ? null
-      : subiendo.que === "bono" ? BONO_CUMPLEANOS : tarifaSede;
+      : subiendo.que === "bono" ? bonoMonto : tarifaSede;
 
     // El año solo lo lleva el bono, y es el de la FIRMA, no el de hoy: si el
     // cargo de diciembre se sube el 3 de enero, sigue siendo el bono del año que
@@ -395,8 +468,7 @@ export default function DocumentacionPage() {
     const ext = archivoDoc.name.split(".").pop()?.toLowerCase() ?? "bin";
     const ruta = `documentos/${id}.${ext}`;
     setProgresoDoc(0);
-    const firma = await supabase.storage.from("documentos").createSignedUploadUrl(ruta, { upsert: true });
-    const fallo = firma.error ? firma.error.message : await subirConProgreso(firma.data.signedUrl, archivoDoc, setProgresoDoc);
+    const fallo = await subirArchivoConProgreso(supabase, "documentos", ruta, archivoDoc, setProgresoDoc);
     setProgresoDoc(null);
     if (fallo) {
       setGuardandoDoc(false);
@@ -430,13 +502,24 @@ export default function DocumentacionPage() {
         .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
         .eq("estado", "activo").order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo"),
-      // La tarifa vigente hoy. Si la 0118 no está pegada esto devuelve vacío y se
-      // queda el valor por defecto: el documento sigue saliendo, nunca se rompe
-      // por no poder leer un parámetro.
+      // La tarifa vigente hoy. Si la 0118 no está pegada esto devuelve vacío, y
+      // entonces la pantalla lo dice en vez de inventar un monto.
+      //
+      // ⇩ `hoyLima()` Y NO `new Date()`. Acá decía
+      // `new Date().toISOString().slice(0, 10)`, que es la fecha en UTC — cinco
+      // horas por delante de Lima. O sea que desde las 7 de la tarde hora de Perú
+      // esta consulta ya creía que era mañana, y una tarifa programada para
+      // mañana se habría impreso esa misma noche: alguien firmando un monto que
+      // ese día todavía no le correspondía.
+      //
+      // Es la regla que el CLAUDE.md se ganó juntando 32 copias del huso horario
+      // repartidas por el código: el corte del día vive en `fecha-lima.ts` y en
+      // ningún otro lado. Veinticinco líneas más abajo la consulta del bono ya lo
+      // hacía bien — dos respuestas a «¿qué día es hoy?» en la misma función.
       supabase.from("parametros_laborales")
         .select("valor, vigente_desde, sustento, sede_codigo")
         .eq("clave", "movilidad_diaria")
-        .lte("vigente_desde", new Date().toISOString().slice(0, 10))
+        .lte("vigente_desde", hoyLima())
         .is("vigente_hasta", null)
         .order("vigente_desde", { ascending: false }),
     ]);
@@ -454,6 +537,24 @@ export default function DocumentacionPage() {
     setTablero((tab.data as FilaTablero[]) ?? []);
     setPolitica(((pol.data as EstadoPolitica[]) ?? [])[0] ?? null);
 
+    // El monto del bono, en consulta aparte por lo mismo que el tablero: si la
+    // 0165 todavía no está pegada, que falle ESTA consulta y no las demás.
+    //
+    // Pero «tolerante» acá NO significa inventar el monto. Se GUARDA lo que hay,
+    // incluido «no hay»: sin fila vigente queda en null y la constancia no se
+    // imprime. La pantalla se degrada a «no puedo emitir este papel y te digo por
+    // qué», nunca a «emito el papel con la cifra que me acuerdo».
+    const { data: bono } = await supabase
+      .from("parametros_laborales")
+      .select("valor")
+      .eq("clave", "bono_onomastico")
+      .lte("vigente_desde", hoyLima())
+      .is("vigente_hasta", null)
+      .order("vigente_desde", { ascending: false })
+      .limit(1);
+    const montoBono = Number((bono as { valor: number }[] | null)?.[0]?.valor);
+    setBonoMonto(Number.isFinite(montoBono) && montoBono > 0 ? montoBono : null);
+
     // Quién tiene ya fecha de término de contrato. Va en consulta APARTE y no
     // en el select de arriba a propósito: si la 0138 todavía no está pegada en
     // producción, pedir una columna inexistente haría fallar la consulta entera
@@ -470,8 +571,10 @@ export default function DocumentacionPage() {
         .map((f) => [f.id, f.fecha_fin_contrato]),
     );
     setFinContrato(porVencer);
-    setSedes(new Map(((ss as { id: string; nombre: string; codigo: string }[]) ?? [])
-      .map((s) => [s.id, s.nombre || s.codigo])));
+    const listaSedes = (ss as { id: string; nombre: string; codigo: string }[]) ?? [];
+    // El NOMBRE para imprimir y el CÓDIGO para buscar su tarifa. Ver `tarifaDeSede`.
+    setSedes(new Map(listaSedes.map((s) => [s.id, s.nombre || s.codigo])));
+    setSedeCodigo(new Map(listaSedes.map((s) => [s.id, s.codigo])));
 
     // Quiénes salen desmarcados de entrada. Son dos motivos distintos:
     //
@@ -546,7 +649,10 @@ export default function DocumentacionPage() {
     setTarifas(filas);
     const general = filas.find((f) => !f.sede_codigo) ?? filas[0];
     const monto = Number(general?.valor);
-    if (Number.isFinite(monto) && monto > 0) setTarifa(monto);
+    // Se GUARDA lo que hay, incluido «no hay». Antes, cuando la general valía 0,
+    // este `if` no entraba y quedaba en pie el 10 escrito a mano: el papel decía
+    // una cifra que la base nunca había dicho.
+    setTarifa(Number.isFinite(monto) && monto > 0 ? monto : null);
     // El sustento viaja pegado a la tarifa en la base (0118). Se muestra en el
     // documento en lugar de repetirlo en el código: así el papel dice
     // exactamente lo que la fila que se está aplicando dice.
@@ -600,7 +706,12 @@ export default function DocumentacionPage() {
   // antes el cálculo usaba 26 y la frase decía «24 días», así que el documento
   // afirmaba que 10 × 24 = 260. Felipe lo detectó el 2026-08-02.
   const DIAS_REFERENCIA = 24;
-  const mensual = tarifa * DIAS_REFERENCIA;
+  const mensual = tarifa === null ? null : tarifa * DIAS_REFERENCIA;
+
+  // La tarifa de quien está seleccionado. Es la que se imprime en SU declaración
+  // y la que se archiva cuando sube el escaneo — el mismo número por el mismo
+  // camino, para que el papel y el registro no puedan discrepar.
+  const tarifaPersona = persona ? tarifaDeSede(persona.sede_base_id) : null;
 
   // Las tarifas que tienen sede propia, ordenadas. Si está vacío es que la 0130
   // no está pegada y el documento cae al monto único de siempre.
@@ -611,11 +722,34 @@ export default function DocumentacionPage() {
   // Quiénes reciben el documento y firman el cargo.
   const reciben = personas.filter((p) => !excluidos.has(p.id));
 
+  // ── La fecha de la política, que NO es hoy ──────────────────────────────
+  // Se imprimía con `hoyLima()`, y eso hacía que la pantalla se contradijera
+  // sola: sacabas la política, salía «Emitida el 5 de agosto», la firmabas, la
+  // subías, y el propio sistema la marcaba en rojo por ser posterior al primer
+  // pago. Te daba a imprimir el documento que iba a rechazar.
+  //
+  // Y el papel nacía inválido para lo que tiene que cubrir: una política emitida
+  // en agosto no justifica la movilidad que se viene pagando desde el 29 de
+  // julio. La fecha correcta es la del día en que empezó a pagarse — desde ahí
+  // rige, hacia adelante.
+  //
+  // Si ya hay una firmada, manda SU fecha: reimprimirla no puede cambiarle la
+  // fecha al documento que ya está archivado. Y si no se sabe cuándo empezó a
+  // pagarse (no hay tarifa vigente), cae a hoy, que es lo que hacía siempre.
+  const fechaDeLaPolitica = politica?.fecha_firma ?? politica?.primer_pago ?? hoyLima();
+
   // A quién hay que perseguirle el cargo del bono. Se cuenta una sola vez y se
   // usa en el resumen y en el aviso: dos conteos del mismo hecho es la forma
   // más barata de que la pantalla se contradiga a sí misma.
   const bonoPendientes = tablero.filter((f) => BONO_PENDIENTE.has(f.bono_estado ?? ""));
   const bonoEsteMes = bonoPendientes.filter((f) => f.bono_estado === "este_mes");
+  // Quién sale en el apartado del bono: quien tiene algo pendiente y quien ya
+  // firmó este año. Los demás —cumple en octubre, entró después, sin fecha
+  // cargada— no aparecen: son 'nada que hacer' y llenaban la tabla de filas que
+  // solo enseñaban a ignorarla.
+  const bonoRelevantes = tablero.filter(
+    (f) => BONO_PENDIENTE.has(f.bono_estado ?? "") || f.bono_estado === "ok");
+  const rutasPendientes = tablero.filter((f) => f.estado !== "ok");
 
   return (
     <>
@@ -643,8 +777,13 @@ export default function DocumentacionPage() {
                   <strong className="text-rojo">Falta la política de movilidad de CAYLA.</strong>{" "}
                   Es un solo documento, lo firmas tú, y sostiene a todo el equipo.{" "}
                   {politica.primer_pago && (
-                    <>Tiene que llevar fecha <strong>anterior al {fechaLarga(politica.primer_pago)}</strong>,
-                    que es cuando empezó a pagarse movilidad.</>
+                    // Decía «anterior al 29 de julio» y el cálculo acepta el 29:
+                    // `fecha_firma > primer_pago`. El texto pedía una fecha que
+                    // el sistema no exige, y encima la equivocada — la política
+                    // rige DESDE el día en que empezó a pagarse la movilidad.
+                    <>Va fechada el <strong>{fechaLarga(politica.primer_pago)}</strong>, que es
+                    cuando empezó a pagarse movilidad: rige desde ese día en adelante. Sale
+                    impresa con esa fecha.</>
                   )}
                 </>
               ) : (
@@ -697,8 +836,19 @@ export default function DocumentacionPage() {
                   <strong className="text-tinta">
                     {bonoEsteMes.length === 1 ? "Cumple años este mes" : `Cumplen años este mes: ${bonoEsteMes.length}`}
                   </strong>{" "}
-                  — {bonoEsteMes.map((f) => f.persona).join(" · ")}. Imprime su constancia,
-                  entrega los S/ {BONO_CUMPLEANOS.toFixed(2)} y sube el cargo firmado.
+                  — {bonoEsteMes.map((f) => f.persona).join(" · ")}.{" "}
+                  {/* Sin monto en la base, el aviso deja de decir cuánto entregar
+                      y pasa a decir qué falta. Nombrar una cifra acá y otra en el
+                      papel es la contradicción que este archivo existe para
+                      evitar. */}
+                  {bonoMonto === null ? (
+                    <>Falta fijar el monto del bono en parámetros laborales
+                    (<code>bono_onomastico</code>): hasta entonces la constancia no se
+                    puede emitir.</>
+                  ) : (
+                    <>Imprime su constancia, entrega los S/ {bonoMonto.toFixed(2)} y
+                    sube el cargo firmado.</>
+                  )}
                 </div>
               )}
               {bonoPendientes.length > bonoEsteMes.length && (
@@ -798,110 +948,134 @@ export default function DocumentacionPage() {
             </div>
           )}
 
-          {/* ── El tablero ─────────────────────────────────────────────────
-              Se arma de quién está en planilla, así que quien entra aparece
-              pendiente sin que nadie lo agregue y un locador no aparece nunca. */}
+          {/* ── Los dos apartados ──────────────────────────────────────────
+              Antes era UNA tabla con las dos cosas, y cada fila llevaba cinco
+              controles: veinte filas por cinco son cien botones en pantalla.
+              Peor, los dos «Imprimir» eran idénticos —mismo texto, mismo
+              tamaño— y solo el orden decía cuál sacaba la declaración de ruta y
+              cuál la constancia del onomástico. Si hay que adivinar cuál es
+              cuál, el diseño falló.
+
+              Ahora cada papel tiene su apartado, y se abre el que se está
+              trabajando. `<details>` nativo y no un desplegable propio: se abre
+              con teclado, lo lee un lector de pantalla y al imprimir el
+              navegador ya sabe qué hacer con él. */}
           {tablero.length > 0 && (
-            <div className="mb-6 rounded-lg border border-sand">
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-sand px-4 py-3">
-                <h2 className="font-medium">Papeles firmados por integrante</h2>
-                <span className="text-sm text-taupe">
-                  Rutas:{" "}
-                  <strong className="text-tinta">{tablero.filter((f) => f.estado === "ok").length}</strong>
-                  {" de "}{tablero.length}
-                  {tablero.some((f) => f.estado === "se_nego") && (
-                    <> · <strong className="text-rojo">{tablero.filter((f) => f.estado === "se_nego").length} se negaron</strong></>
-                  )}
-                  {bonoPendientes.length > 0 && (
-                    <> · <strong className="text-rojo">{bonoPendientes.length}</strong> sin cargo de cumpleaños</>
-                  )}
-                </span>
-              </div>
+            <div className="mb-6 space-y-3">
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-xs text-taupe">
-                    <tr className="border-b border-sand">
-                      <th className="px-4 py-2 font-normal">Integrante</th>
-                      <th className="px-4 py-2 font-normal">Sede</th>
-                      <th className="px-4 py-2 font-normal">Declaración de ruta</th>
-                      <th className="px-4 py-2 font-normal">Cargo de cumpleaños</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tablero.map((f) => (
-                      <tr key={f.persona_id} className="border-t border-sand">
-                        <td className="px-4 py-2">{f.persona}</td>
-                        <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
-                        <td className="px-4 py-2 align-top">
-                          {f.estado === "sin_ruta" ? (
-                            <span className="font-medium text-rojo">falta firmar</span>
-                          ) : f.estado === "se_nego" ? (
-                            <span className="font-medium text-rojo">
-                              se negó a firmar · no cobra movilidad
-                            </span>
-                          ) : (
-                            <>
-                              <span className="text-tinta">firmada el {fechaLarga(f.ruta_firmada_el!)}</span>
-                              {f.ruta_desfasada && (
-                                <span className="block text-xs text-rojo">
-                                  declara S/ {Number(f.ruta_monto).toFixed(2)} y hoy se paga otra tarifa —
-                                  conviene volver a firmarla
-                                </span>
-                              )}
-                            </>
-                          )}
-                          <div className="mt-1 flex flex-wrap items-center gap-3">
-                            <button onClick={() => imprimirFila(f.persona_id, "ruta")}
-                              className="text-xs font-medium underline">Imprimir</button>
-                            <button onClick={() => abrirSubida("ruta", f.persona_id)}
-                              className="rounded-lg border px-3 py-1 text-xs font-medium">
-                              {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
-                            </button>
-                            {f.estado === "sin_ruta" && (
-                              // Discreto a propósito: registrar una negativa no debería
-                              // ser tan fácil como registrar una firma.
-                              <button onClick={() => abrirSubida("ruta", f.persona_id, true)}
-                                className="text-xs text-taupe underline">se negó</button>
+              {/* ── Declaraciones de ruta ────────────────────────────────── */}
+              <details open={rutasPendientes.length > 0} className="rounded-lg border border-sand">
+                <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
+                  <span className="font-medium">Declaraciones de ruta</span>
+                  <span className="text-sm text-taupe">
+                    <strong className="text-tinta">{tablero.filter((f) => f.estado === "ok").length}</strong>
+                    {" de "}{tablero.length} firmadas
+                    {tablero.some((f) => f.estado === "se_nego") && (
+                      <> · <strong className="text-rojo">{tablero.filter((f) => f.estado === "se_nego").length} se negaron</strong></>
+                    )}
+                  </span>
+                </summary>
+
+                <div className="overflow-x-auto border-t border-sand">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-xs text-taupe">
+                      <tr className="border-b border-sand">
+                        <th className="px-4 py-2 font-normal">Integrante</th>
+                        <th className="px-4 py-2 font-normal">Sede</th>
+                        <th className="px-4 py-2 font-normal">Su declaración</th>
+                        <th className="px-4 py-2 font-normal"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tablero.map((f) => (
+                        <tr key={f.persona_id} className="border-t border-sand">
+                          <td className="px-4 py-2">{f.persona}</td>
+                          <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
+                          <td className="px-4 py-2">
+                            {f.estado === "sin_ruta" ? (
+                              <span className="font-medium text-rojo">falta firmar</span>
+                            ) : f.estado === "se_nego" ? (
+                              <span className="font-medium text-rojo">
+                                se negó a firmar · no cobra movilidad
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-tinta">firmada el {fechaLarga(f.ruta_firmada_el!)}</span>
+                                {f.ruta_desfasada && (
+                                  <span className="block text-xs text-rojo">
+                                    declara S/ {Number(f.ruta_monto).toFixed(2)} y hoy se paga otra tarifa —
+                                    conviene volver a firmarla
+                                  </span>
+                                )}
+                              </>
                             )}
-                          </div>
-                        </td>
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex flex-wrap items-center justify-end gap-3">
+                              <button onClick={() => imprimirFila(f.persona_id, "ruta")}
+                                className="text-xs font-medium underline">Imprimir</button>
+                              <button onClick={() => abrirSubida("ruta", f.persona_id)}
+                                className="rounded-lg border px-3 py-1 text-xs font-medium">
+                                {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
+                              </button>
+                              {f.estado === "sin_ruta" && (
+                                // Discreto a propósito: registrar una negativa no debería
+                                // ser tan fácil como registrar una firma.
+                                <button onClick={() => abrirSubida("ruta", f.persona_id, true)}
+                                  className="text-xs text-taupe underline">se negó</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
 
-                        {/* El cargo del onomástico. Solo se pone en rojo cuando su
-                            mes ya llegó: quien cumple en noviembre no está en falta
-                            en agosto, y marcarla lo estaría acusando de un descuido
-                            que no ocurrió. */}
-                        <td className="px-4 py-2 align-top">
-                          {f.bono_estado === "ok" ? (
-                            <span className="text-tinta">
-                              firmado el {fechaLarga(f.bono_firmada_el!)}
-                            </span>
-                          ) : f.bono_estado === "sin_fecha" ? (
-                            <span className="text-xs text-taupe">
-                              falta su fecha de nacimiento en la ficha
-                            </span>
-                          ) : f.bono_estado === "no_aplica" ? (
-                            <span className="text-xs text-taupe">
-                              entró después de su onomástico
-                            </span>
-                          ) : f.bono_estado === "proximo" ? (
-                            <span className="text-xs text-taupe">
-                              cumple en {MES_LARGO[(f.bono_mes ?? 1) - 1]}
-                            </span>
-                          ) : f.bono_estado === "este_mes" ? (
-                            <span className="font-medium text-tinta">
-                              cumple este mes — entregar y firmar
-                            </span>
-                          ) : f.bono_estado === "vencido" ? (
-                            <span className="font-medium text-rojo">
-                              cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo
-                            </span>
-                          ) : null}
+              {/* ── Cargos de cumpleaños ─────────────────────────────────────
+                  Solo lista a quien tiene algo que hacer. Las veinte filas
+                  completas con «cumple en octubre» repetido no informaban: el
+                  90% del año la respuesta es «nada que hacer», y una lista que
+                  casi siempre dice eso deja de leerse. */}
+              <details open={bonoPendientes.length > 0} className="rounded-lg border border-sand">
+                <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
+                  <span className="font-medium">Cargos de cumpleaños</span>
+                  <span className="text-sm text-taupe">
+                    {bonoPendientes.length === 0
+                      ? "nada pendiente"
+                      : <><strong className="text-rojo">{bonoPendientes.length}</strong> por entregar o firmar</>}
+                  </span>
+                </summary>
 
-                          {/* Nada que imprimir ni que subir a quien todavía no le
-                              toca: los botones aparecen cuando hay algo que hacer. */}
-                          {(f.bono_estado === "ok" || BONO_PENDIENTE.has(f.bono_estado ?? "")) && (
-                            <div className="mt-1 flex flex-wrap items-center gap-3">
+                <div className="overflow-x-auto border-t border-sand">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-xs text-taupe">
+                      <tr className="border-b border-sand">
+                        <th className="px-4 py-2 font-normal">Integrante</th>
+                        <th className="px-4 py-2 font-normal">Sede</th>
+                        <th className="px-4 py-2 font-normal">Su cargo</th>
+                        <th className="px-4 py-2 font-normal"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bonoRelevantes.map((f) => (
+                        <tr key={f.persona_id} className="border-t border-sand">
+                          <td className="px-4 py-2">{f.persona}</td>
+                          <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
+                          <td className="px-4 py-2">
+                            {f.bono_estado === "ok" ? (
+                              <span className="text-tinta">firmado el {fechaLarga(f.bono_firmada_el!)}</span>
+                            ) : f.bono_estado === "este_mes" ? (
+                              <span className="font-medium text-tinta">cumple este mes — entregar y firmar</span>
+                            ) : (
+                              <span className="font-medium text-rojo">
+                                cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex flex-wrap items-center justify-end gap-3">
                               <button onClick={() => imprimirFila(f.persona_id, "bono")}
                                 className="text-xs font-medium underline">Imprimir</button>
                               <button onClick={() => abrirSubida("bono", f.persona_id)}
@@ -909,13 +1083,21 @@ export default function DocumentacionPage() {
                                 {f.bono_estado === "ok" ? "Subir otro" : "Subir cargo"}
                               </button>
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {bonoRelevantes.length === 0 && (
+                        <tr className="border-t border-sand">
+                          <td colSpan={4} className="px-4 py-3 text-sm text-taupe">
+                            Nadie tiene el cargo pendiente. Aquí van apareciendo en el mes de su
+                            onomástico.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
 
             </div>
           )}
@@ -1048,7 +1230,37 @@ export default function DocumentacionPage() {
               </div>
             </div>
 
-            {tipo === "ruta" && persona && (
+            {/* SIN TARIFA NO HAY DECLARACIÓN. Este documento existe para dejar
+                por escrito un monto pactado; si la sede de la persona no tiene
+                tarifa vigente, no hay monto que pactar y lo único honesto es
+                decirlo. Antes salía con un valor por defecto de S/ 10.00 y se
+                firmaba así: un pacto individual por una cifra que la base nunca
+                fijó es peor que no tener papel, porque deja constancia escrita
+                de que el monto lo decidió alguien y no un criterio —que es
+                exactamente lo que el Exp. 1038-2019 usó para reclasificar una
+                movilidad entera. */}
+            {tipo === "ruta" && persona && tarifaPersona === null && (
+              <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+                <p className="mb-2">
+                  <strong className="text-rojo">
+                    La sede {sedes.get(persona.sede_base_id) ?? "de esta persona"} no tiene
+                    tarifa de movilidad vigente.
+                  </strong>
+                </p>
+                <p className="mb-2">
+                  Por eso no se puede emitir su declaración de ruta: el documento tiene que
+                  decir cuánto se le paga por día, y ese número sale de{" "}
+                  <code>parametros_laborales</code>, no de esta pantalla.
+                </p>
+                <p className="text-taupe">
+                  Crea la tarifa de esa sede —con su sustento, como las de Arequipa, Trujillo
+                  y Lima— y vuelve a entrar. Mientras no exista, la planilla tampoco le está
+                  pagando movilidad a esta persona.
+                </p>
+              </div>
+            )}
+
+            {tipo === "ruta" && persona && tarifaPersona !== null && (
               <>
                 <h2 className="mb-6 text-center font-serif text-xl">
                   Declaración de ruta y gasto de transporte
@@ -1093,7 +1305,10 @@ export default function DocumentacionPage() {
 
                 <p className="mb-6">
                   Tomo conocimiento de que CAYLA S.A.C. me otorga una asignación por movilidad de{" "}
-                  <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong>, destinada
+                  {/* LA TARIFA DE SU SEDE, no la general. Acá decía `tarifa` a
+                      secas y por eso Taller LIM firmaba S/ 10.00 mientras la
+                      planilla le pagaba los S/ 12.00 de la 0142. */}
+                  <strong>S/ {tarifaPersona.toFixed(2)} por día efectivamente asistido</strong>, destinada
                   a cubrir dicho traslado; que se abona únicamente por los días en que asisto a
                   laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y que
                   este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
@@ -1101,7 +1316,12 @@ export default function DocumentacionPage() {
                 </p>
 
                 <p className="mb-10 text-xs text-taupe">
-                  Suscrito en {sedes.get(persona.sede_base_id) ?? "—"}, el {fechaLarga(hoyLima())}.
+                  {/* La fecha va en blanco y NO con `hoyLima()`. Se imprimen veinte
+                      declaraciones de una vez y se reparten a cuatro sedes: quien firma
+                      el jueves en Arequipa lo hace sobre un papel impreso el lunes, y
+                      con la fecha impresa ese documento afirmaría un día en el que nadie
+                      firmó. La escribe de su puño quien firma, que es quien sabe cuándo. */}
+                  Suscrito en {sedes.get(persona.sede_base_id) ?? "—"}, el <Linea ancho="9rem" />.
                 </p>
 
                 <div className="grid grid-cols-2 gap-10 pt-6">
@@ -1120,7 +1340,34 @@ export default function DocumentacionPage() {
               </>
             )}
 
-            {tipo === "bono" && (
+            {/* SIN MONTO NO HAY CONSTANCIA. Este papel acredita una entrega de
+                dinero y su causa; si el sistema no sabe cuánto se entrega, no hay
+                nada que acreditar. Mismo criterio que la declaración de ruta, y
+                por el mismo motivo: la constancia se firma, y una cifra puesta
+                por el código en vez de por la base es una afirmación que nadie
+                decidió. */}
+            {tipo === "bono" && bonoMonto === null && (
+              <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+                <p className="mb-2">
+                  <strong className="text-rojo">
+                    No hay monto de bono de onomástico vigente en el sistema.
+                  </strong>
+                </p>
+                <p className="mb-2">
+                  Por eso no se puede emitir la constancia: el documento acredita la entrega
+                  de una suma, y esa suma sale de <code>parametros_laborales</code> con la
+                  clave <code>bono_onomastico</code>, no de esta pantalla.
+                </p>
+                <p className="text-taupe">
+                  Si acabas de cambiar el monto, revisa que la fila nueva tenga su{" "}
+                  <code>vigente_desde</code> puesto y que no haya quedado cerrada con{" "}
+                  <code>vigente_hasta</code>. Mientras no exista una fila vigente, el sistema
+                  no sabe cuánto se entrega.
+                </p>
+              </div>
+            )}
+
+            {tipo === "bono" && bonoMonto !== null && (
               <>
                 <h2 className="mb-6 text-center font-serif text-xl">
                   Asignación por cumpleaños
@@ -1130,7 +1377,7 @@ export default function DocumentacionPage() {
                   {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, hace entrega a{" "}
                   <strong>{persona ? `${persona.nombres} ${persona.apellidos}` : "—"}</strong>
                   {persona?.documento ? `, con documento de identidad ${persona.documento},` : ","}{" "}
-                  de la suma de <strong>S/ {BONO_CUMPLEANOS.toFixed(2)}</strong> con ocasión de su
+                  de la suma de <strong>S/ {bonoMonto.toFixed(2)}</strong> con ocasión de su
                   onomástico.
                 </p>
 
@@ -1154,6 +1401,16 @@ export default function DocumentacionPage() {
                 <p className="mb-6 text-sm text-taupe">
                   La presente constancia acredita la entrega y su causa. Se archiva firmada por
                   el trabajador.
+                </p>
+
+                {/* Este papel no llevaba NINGUNA fecha, y un cargo de entrega sin fecha
+                    acredita la mitad de lo que tiene que acreditar: prueba que se
+                    entregó, no cuándo. Y el «cuándo» es lo que decide a qué ejercicio
+                    pertenece el bono y si se entregó en el mes del onomástico, que es la
+                    causa que lo vuelve no remunerativo. Va en blanco por lo mismo que la
+                    declaración de ruta: la escribe quien recibe, el día que recibe. */}
+                <p className="mb-6">
+                  Entregada y recibida el <Linea ancho="9rem" />.
                 </p>
 
                 <div className="mt-16 grid grid-cols-2 gap-12">
@@ -1213,13 +1470,23 @@ export default function DocumentacionPage() {
                       </tbody>
                     </table>
                   </>
-                ) : (
+                ) : tarifa !== null ? (
                   <p className="mb-4">
                     CAYLA otorga a su personal una asignación por movilidad de{" "}
                     <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong> —
-                    equivalente a S/ {mensual.toFixed(2)} en un mes de {DIAS_REFERENCIA} días
+                    equivalente a S/ {mensual!.toFixed(2)} en un mes de {DIAS_REFERENCIA} días
                     asistidos — destinada exclusivamente a cubrir el traslado desde su domicilio
                     hasta su centro de labores y su retorno.
+                  </p>
+                ) : (
+                  /* Ni tarifas por sede ni tarifa general: no hay política que
+                     emitir. Mismo criterio que la declaración de ruta — un
+                     documento de empresa que afirma un monto inventado obliga a
+                     las 22 personas a la vez. */
+                  <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-rojo print:hidden">
+                    No hay ninguna tarifa de movilidad vigente en el sistema, así que esta
+                    política no puede afirmar un monto. Créala en parámetros laborales antes de
+                    emitirla.
                   </p>
                 )}
 
@@ -1284,7 +1551,7 @@ export default function DocumentacionPage() {
                 </p>
 
                 <p className="mb-10 text-xs text-taupe">
-                  Emitida el {fechaLarga(hoyLima())}.
+                  Emitida el {fechaLarga(fechaDeLaPolitica)}.
                 </p>
 
                 <div className="mb-10 w-1/2">

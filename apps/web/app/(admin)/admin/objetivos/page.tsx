@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
+import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
@@ -186,7 +186,7 @@ export default function ObjetivosPage() {
 
   const cumplidos = items.filter((i) => i.cumplido).length;
   const total = items.length;
-  const nivel = nivelPlus(cumplidos, total);
+  const nivel = lecturaObjetivos(cumplidos, total);
   const pct = total > 0 ? Math.round((cumplidos / total) * 100) : 0;
 
   // Aviso: el mes tiene un número manual (de Planilla) y todavía no hay checklist.
@@ -198,8 +198,10 @@ export default function ObjetivosPage() {
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Objetivos del mes</h1>
         <p className="mb-5 text-sm text-taupe">
-          Checklist de objetivos por persona. El plus de la planilla sale automático de aquí:
-          100% cumplidos → 21% del salario · 60% o más → 12.6% · menos de 60% → sin plus.
+          Checklist de objetivos por persona. <strong>No pagan nada</strong>: son el historial
+          que sostiene una promoción. La política salarial firmada pone «cumplió los objetivos
+          que se le asignaron» entre los requisitos para cambiar de categoría, y dice que la
+          remuneración solo se mueve por categoría o por un ajuste general de la escala.
         </p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
@@ -274,9 +276,10 @@ export default function ObjetivosPage() {
                   <span className="text-taupe"> cumplidos{total > 0 ? ` (${pct}%)` : ""}</span>
                 </span>
                 <span className="flex items-center gap-2 text-sm">
-                  <span className={`rounded-full px-3 py-0.5 ${nivel.etiqueta === "Sin plus" || nivel.etiqueta === "—" ? "bg-sand text-taupe" : "bg-verde/15 text-verde font-medium"}`}>
-                    {nivel.etiqueta}
-                  </span>
+                  {/* La etiqueta «Plus 21%» salió el 2026-08-06 (mig 0171): decía
+                      un monto que ya no se paga. La observación por bajo
+                      desempeño se queda — nunca fue un pago, es un aviso para
+                      conversar. */}
                   {total > 0 && nivel.observacion && (
                     <span
                       className="rounded-full bg-rojo/10 px-3 py-0.5 text-rojo"
@@ -410,8 +413,8 @@ export default function ObjetivosPage() {
 
             <p className="mt-4 text-xs text-taupe">
               Mes con planilla PAGADA = solo lectura (para corregir, un administrador reabre el periodo en
-              Planilla). El plus se paga completo, no proporcional a horas. Menos del 30% de objetivos
-              genera una observación por bajo desempeño — amerita conversación, nunca es automático.
+              Planilla). Menos del 30% de objetivos genera una observación por bajo desempeño — amerita
+              conversación, nunca es automático.
             </p>
           </div>
         ) : null}

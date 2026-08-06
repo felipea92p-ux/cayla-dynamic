@@ -71,6 +71,39 @@ interface Acta {
 const ESTADOS = ["PENDIENTE", "OTORGADO", "NO_OTORGADO"] as const;
 const MAX_ACTA_BYTES = 3 * 1024 * 1024;
 
+// Los formatos que `fn_subir_acta_descanso` acepta (mig. 0170). La verdad está
+// en la función: si allá cambia la lista, acá también.
+const MIME_POR_EXTENSION: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+/**
+ * Corrige la etiqueta de tipo de un archivo cuando el navegador no la supo dar.
+ *
+ * Un .HEIC del iPhone llega a veces sin tipo —Chrome no lo reconoce— y entonces
+ * `readAsDataURL` lo rotula `application/octet-stream`. La base lo rechazaría
+ * con "Formato inválido" aunque sea una foto perfectamente válida, y el mensaje
+ * no le diría a nadie qué hacer. Cuando pasa eso, la extensión del nombre es el
+ * único dato fiable que queda.
+ *
+ * Si la extensión tampoco dice nada, se deja el data URL como está: la base es
+ * la que decide, y su mensaje es mejor que uno inventado acá.
+ */
+function conTipoCorregido(dataurl: string, nombre: string): string {
+  const corte = dataurl.indexOf(";base64,");
+  if (corte < 0) return dataurl;
+  const tipo = dataurl.slice(5, corte);
+  if (Object.values(MIME_POR_EXTENSION).includes(tipo)) return dataurl;
+  const deducido = MIME_POR_EXTENSION[nombre.split(".").pop()?.toLowerCase() ?? ""];
+  return deducido ? `data:${deducido}${dataurl.slice(corte)}` : dataurl;
+}
+
 function inicioDeMes(): string {
   return `${hoyLima().slice(0, 7)}-01`;
 }
@@ -197,7 +230,7 @@ export default function FeriadosPage() {
     }
     const { error } = await supabase.rpc("fn_subir_acta_descanso", {
       p_referencia: refActa,
-      p_dataurl: dataurl,
+      p_dataurl: conTipoCorregido(dataurl, file.name),
       p_nombre: file.name,
     });
     setSubiendo(false);
@@ -464,7 +497,10 @@ export default function FeriadosPage() {
             </label>
             <label className="flex flex-col gap-1 text-sm">
               Archivo
-              <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp"
+              {/* HEIC/HEIF entran porque es lo que sale de la cámara de un
+                  iPhone: sin ellos las fotos salían en gris en el diálogo y no
+                  se podía ni elegirlas (mig. 0170). */}
+              <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif"
                 disabled={!refActa || subiendo}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirActa(f); e.target.value = ""; }}
                 className="text-sm file:mr-3 file:rounded-lg file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
