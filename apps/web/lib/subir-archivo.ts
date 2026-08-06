@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { conTipoDeclarado } from "./tipos-archivo";
 
 /**
  * SUBIR UN ARCHIVO A UN BUCKET PRIVADO, CON AVANCE Y CON IDENTIDAD.
@@ -77,7 +78,10 @@ export async function subirArchivoConProgreso(
 
     const cuerpo = new FormData();
     cuerpo.append("cacheControl", "3600");
-    cuerpo.append("", archivo);
+    // El tipo va corregido: los buckets tienen lista cerrada de formatos y un
+    // .HEIC sin tipo (Chrome) llega como binario genérico y se rechaza con 415.
+    // El nombre se pasa aparte porque `slice` devuelve un Blob, que no lo lleva.
+    cuerpo.append("", conTipoDeclarado(archivo), archivo.name);
     xhr.send(cuerpo);
   });
 }
