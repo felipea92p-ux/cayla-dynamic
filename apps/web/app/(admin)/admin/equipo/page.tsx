@@ -10,7 +10,10 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla, type Rol } from "@cayla-dynamic/shared";
+import {
+  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
+  MOTIVOS_CESE, MOTIVO_CESE_LABELS, type MotivoCese, type Rol,
+} from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
@@ -135,6 +138,11 @@ export default function EquipoPage() {
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // Registrar la salida de alguien. Es un panel y no un window.confirm porque un
+  // cese son dos datos —el último día y el porqué—, no un sí/no.
+  const [ceseId, setCeseId] = useState<string | null>(null);
+  const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
+  const [guardandoCese, setGuardandoCese] = useState(false);
 
   // Salarios (dato sensible: solo admin/lider_do). Se leen/escriben por RPC.
   // OJO: mientras no estén CARGADOS ("ok") no se permite asignar/editar — si se
@@ -478,21 +486,80 @@ export default function EquipoPage() {
     avisar("ok", "Cambios guardados.");
   }
 
-  async function cambiarEstado(p: Persona, nuevo: "activo" | "inactivo") {
-    if (nuevo === "inactivo" && !window.confirm(
-      `¿Desactivar a ${p.nombres} ${p.apellidos}? Deja de aparecer en asistencia y no podrá marcar. No se borra nada — puedes reactivarla cuando quieras.`
+  // ── Salida y reactivación ─────────────────────────────────────────────────
+  //
+  // Van por las RPC de la 0086 y no por un `update` de `estado`. El update
+  // directo que había acá VIOLABA `personas_cese_coherente` —el CHECK exige que
+  // quien está inactivo tenga fecha de cese, y quien está activo no la tenga—,
+  // así que dar de baja y reactivar fallaban las dos desde que se aplicó esa
+  // migración. Comprobado el 2026-08-06 contra el Postgres local: SQLSTATE 23514
+  // en los dos casos.
+  //
+  // Y no se trata solo de que ahora funcione. `fn_cesar_persona` hace tres cosas
+  // que un update de una columna no puede hacer: cierra sus tramos de salario y
+  // de horario ese día (si no, un salario "vigente" sigue apareciendo años
+  // después de que la persona se fue), se niega a aceptar una fecha futura o
+  // dentro de un periodo ya pagado, y guarda la fecha de la que viven
+  // `fn_grati_trunca`, `fn_cts_trunca` y `fn_vacaciones_truncas`. Sin esa fecha
+  // no hay liquidación que calcular.
+  function empezarCese(p: Persona) {
+    setCeseId(p.id);
+    setEditandoId(null);
+    setSalEditId(null);
+    setHistId(null);
+    setMostrandoAlta(false);
+    setMensaje(null);
+    // Si su contrato ya venció, se proponen ESA fecha y ESE motivo: es el caso
+    // que el panel viene avisando, y volver a escribirlo a mano invita a
+    // equivocarse. En cualquier otro caso el motivo arranca SIN elegir — un
+    // motivo por defecto es un motivo que alguien guarda sin leer, y este lo va
+    // a leer quien arme su liquidación.
+    const fin = finesContrato.get(p.id);
+    const yaVencio = fin != null && fin <= hoyLima();
+    setCeseForm({ fecha: yaVencio ? fin! : hoyLima(), motivo: yaVencio ? "fin_contrato" : "" });
+  }
+
+  async function guardarCese() {
+    if (!ceseId) return;
+    const p = personas.find((x) => x.id === ceseId);
+    if (!ceseForm.fecha) {
+      avisar("error", "Falta el último día trabajado.");
+      return;
+    }
+    if (!ceseForm.motivo) {
+      avisar("error", "Falta el motivo. Es lo que va a leer quien arme su liquidación y quien conteste una inspección dentro de dos años.");
+      return;
+    }
+    setGuardandoCese(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_cesar_persona", {
+      p_persona_id: ceseId,
+      p_fecha_cese: ceseForm.fecha,
+      p_motivo: ceseForm.motivo,
+    });
+    setGuardandoCese(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "registrar la salida"));
+      return;
+    }
+    setCeseId(null);
+    await cargar();
+    if (puedeSalarios) await cargarSalarios(); // sus tramos se cerraron: ya no tiene salario vigente
+    avisar("ok", `${p?.nombres} ${p?.apellidos} figura como inactiva desde el ${fmtFechaDMA(ceseForm.fecha)}. Su historial se conserva.`);
+  }
+
+  async function reactivar(p: Persona) {
+    if (!window.confirm(
+      `¿Reactivar a ${p.nombres} ${p.apellidos}? Se borra su fecha de salida y vuelve a aparecer en el terminal. Ojo: si ya se le pagó una liquidación, volvería a devengar desde su fecha de ingreso original.`
     )) return;
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase
-      .from("personas")
-      .update({ estado: nuevo, fecha_estado_cambio: new Date().toISOString() })
-      .eq("id", p.id);
+    const { error } = await supabase.rpc("fn_reactivar_persona", { p_persona_id: p.id });
     if (error) {
-      avisar("error", mensajeDeError(error, "cambiar el estado"));
+      avisar("error", mensajeDeError(error, "reactivar"));
       return;
     }
     await cargar();
-    avisar("ok", `${p.nombres} ${p.apellidos} ahora está ${nuevo === "activo" ? "activo(a)" : "inactivo(a)"}.`);
+    avisar("ok", `${p.nombres} ${p.apellidos} está activa otra vez. Revísale el salario y el horario: al cesar se cerraron sus tramos.`);
   }
 
   async function regenerarPin(p: Persona) {
@@ -512,6 +579,7 @@ export default function EquipoPage() {
     setMostrandoAlta(false);
     setSalEditId(null);
     setHistId(null);
+    setCeseId(null);
     setForm({
       nombres: p.nombres,
       apellidos: p.apellidos,
@@ -536,6 +604,7 @@ export default function EquipoPage() {
     setHistId(null);
     setMostrandoAlta(false);
     setEditandoId(null);
+    setCeseId(null);
     setSalAnterior(actual?.salario ?? null);
     setSalForm({
       rango: rangoInicial,
@@ -614,6 +683,7 @@ export default function EquipoPage() {
     setSalEditId(null);
     setEditandoId(null);
     setMostrandoAlta(false);
+    setCeseId(null);
     const supabase = createAdminSupabaseClient();
     const { data, error } = await supabase.rpc("fn_historial_salario", { p_persona_id: p.id });
     if (error) {
@@ -945,6 +1015,69 @@ export default function EquipoPage() {
     );
   };
 
+  const editorCese = () => {
+    const p = personas.find((x) => x.id === ceseId);
+    if (!p) return null;
+    const fin = finesContrato.get(p.id);
+    return (
+      <div className="mb-6 grid max-w-2xl gap-4 rounded-2xl border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
+        <p className="text-sm font-medium sm:col-span-2">Registrar la salida de {p.nombres} {p.apellidos}</p>
+        <label className="flex flex-col gap-1 text-sm">
+          Último día trabajado
+          <input
+            type="date"
+            value={ceseForm.fecha}
+            // La función rechaza una fecha futura: un cese es un hecho, no un
+            // plan. Lo previsto se anota en «Último día que trabaja por contrato».
+            max={hoyLima()}
+            onChange={(e) => setCeseForm({ ...ceseForm, fecha: e.target.value })}
+            className="rounded-lg border px-3 py-2"
+          />
+          {fin && fin !== ceseForm.fecha && (
+            <span className="text-xs text-taupe">
+              Su contrato terminaba el {fmtFechaDMA(fin)}{" "}
+              <button type="button" onClick={() => setCeseForm({ fecha: fin, motivo: "fin_contrato" })} className="text-rojo hover:underline">
+                usar
+              </button>
+            </span>
+          )}
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Motivo
+          <select
+            value={ceseForm.motivo}
+            onChange={(e) => setCeseForm({ ...ceseForm, motivo: e.target.value as MotivoCese })}
+            className="rounded-lg border bg-crema px-3 py-2"
+          >
+            <option value="">Elegir…</option>
+            {MOTIVOS_CESE.map((m) => (
+              <option key={m} value={m}>{MOTIVO_CESE_LABELS[m]}</option>
+            ))}
+          </select>
+          {ceseForm.motivo === "despido" && (
+            <span className="text-[11px] text-amber-800">
+              Un despido exige carta de preaviso, seis días de descargo y carta de despido (D.S. 003-97-TR).
+              Si el contrato simplemente llegó a su fecha, el motivo es «terminó su contrato»: eso no exige
+              ninguno de esos papeles.
+            </span>
+          )}
+        </label>
+        <p className="text-xs text-taupe sm:col-span-2">
+          Esto cierra sus tramos de salario y de horario ese día, y deja de aparecer en el terminal.
+          No se borra nada: su historial sostiene los reportes de los periodos que ya pasaron. De esta
+          fecha salen su gratificación, su CTS y sus vacaciones truncas, así que tiene que ser el día
+          real —ni el de hoy por comodidad, ni el de su carta.
+        </p>
+        <div className="flex gap-3 sm:col-span-2">
+          <button onClick={guardarCese} disabled={guardandoCese} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+            {guardandoCese ? "Guardando…" : "Registrar salida"}
+          </button>
+          <button onClick={() => setCeseId(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+        </div>
+      </div>
+    );
+  };
+
   const panelHistorial = () => {
     const p = personas.find((x) => x.id === histId);
     if (!p) return null;
@@ -993,7 +1126,7 @@ export default function EquipoPage() {
           {!mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); setSalEditId(null); setHistId(null); }}
+                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); setSalEditId(null); setHistId(null); setCeseId(null); }}
                 className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
               >
                 + Agregar persona
@@ -1020,6 +1153,7 @@ export default function EquipoPage() {
 
         {mostrandoAlta && formulario("alta")}
         {editandoId && formulario("edicion")}
+        {ceseId && editorCese()}
         {puedeSalarios && salEditId && editorSalario()}
         {puedeSalarios && histId && panelHistorial()}
 
@@ -1161,9 +1295,12 @@ export default function EquipoPage() {
                         <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
                         <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
                         {p.estado === "activo" ? (
-                          <button onClick={() => cambiarEstado(p, "inactivo")} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Desactivar</button>
+                          // «Registrar salida» y no «Desactivar»: lo que se hace
+                          // es anotar un hecho con su fecha y su motivo, no
+                          // apagar un interruptor.
+                          <button onClick={() => empezarCese(p)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Registrar salida</button>
                         ) : (
-                          <button onClick={() => cambiarEstado(p, "activo")} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
+                          <button onClick={() => reactivar(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
                         )}
                       </div>
                     </td>
@@ -1176,9 +1313,10 @@ export default function EquipoPage() {
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">
           Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en el aviso verde —
-          anótalo y entrégalo en privado. “Desactivar” no borra nada: la persona deja de aparecer en
-          el terminal pero su historial se conserva. Anotar el fin de contrato tampoco la da de baja:
-          es la fecha prevista de término, y está para avisar antes de que llegue.
+          anótalo y entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
+          en el terminal pero su historial se conserva, y de la fecha que anotes salen su gratificación,
+          su CTS y sus vacaciones truncas. Anotar el fin de contrato es otra cosa y no da de baja a
+          nadie: es la fecha prevista de término, y está para avisar antes de que llegue.
         </p>
       </main>
     </div>

@@ -115,6 +115,28 @@ export const REGIMENES_PENSION = [
 ] as const;
 export type RegimenPension = (typeof REGIMENES_PENSION)[number];
 
+/**
+ * Por qué terminó el vínculo. La verdad vive en el CHECK
+ * `personas_motivo_cese_valido` (0086, ampliado por la 0143); esta lista es para
+ * pintar el desplegable y para que el tipo no deje escribir un valor que la base
+ * va a rechazar.
+ *
+ * No es una etiqueta administrativa: es lo que lee quien arma la liquidación y
+ * quien contesta una inspección dos años después. Por eso `fin_contrato` existe
+ * aparte de `despido` — un plazo que vence no exige carta de preaviso ni descargo,
+ * y llamarlo despido obliga a sostener un expediente que nunca hubo (ver la 0143).
+ */
+export const MOTIVOS_CESE = [
+  "renuncia",
+  "fin_contrato",
+  "fin_periodo_prueba",
+  "fin_servicio_rxh",
+  "mutuo_acuerdo",
+  "despido",
+  "por_revisar",
+] as const;
+export type MotivoCese = (typeof MOTIVOS_CESE)[number];
+
 /** Cada salida_X (excepto salida_otro que también exige motivo) debe cerrarse con su retorno_X correspondiente. */
 export const PARES_SALIDA_RETORNO: Record<string, TipoMarca> = {
   salida_almuerzo: "retorno_almuerzo",

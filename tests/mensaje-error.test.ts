@@ -113,13 +113,25 @@ describe("un constraint con nombre dice qué regla se rompió", () => {
     expect(mensajeDeError(CRUDO, "guardar")).toMatch(/^No se pudo guardar: /);
   });
 
-  it("un 23514 de otro constraint sigue cayendo en el texto genérico", () => {
+  it("un 23514 de un constraint sin traducción sigue cayendo en el texto genérico", () => {
     const otro = {
       code: "23514",
-      message: 'new row for relation "personas" violates check constraint "personas_cese_coherente"',
+      message: 'new row for relation "personas" violates check constraint "personas_movilidad_con_motivo"',
     };
     expect(mensajeDeError(otro)).not.toMatch(/no puede terminar antes/i);
     expect(mensajeDeError(otro)).not.toMatch(/violates|constraint/i);
+  });
+
+  // El constraint del cese: es el que abre el comentario de mensaje-error.ts como
+  // ejemplo de lo que NO se puede mostrar, y el que hacía fallar «Desactivar»
+  // hasta el 2026-08-06.
+  it("el del cese dice qué falta, no cómo se llama", () => {
+    const cese = {
+      code: "23514",
+      message: 'new row for relation "personas" violates check constraint "personas_cese_coherente"',
+    };
+    expect(mensajeDeError(cese)).toMatch(/último día trabajado/i);
+    expect(mensajeDeError(cese)).not.toMatch(/violates|constraint|personas_/i);
   });
 });
 

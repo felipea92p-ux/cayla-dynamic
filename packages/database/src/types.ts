@@ -1999,6 +1999,18 @@ export type Database = {
         Args: { p_persona_id: string; p_fecha: string | null; p_motivo?: string }
         Returns: undefined
       }
+      // Las dos de la 0086 que ninguna pantalla llamaba hasta el 2026-08-06. El
+      // `update` directo de `estado` que hacía Equipo violaba
+      // `personas_cese_coherente` (comprobado contra el Postgres local): dar de
+      // baja y reactivar fallaban las dos.
+      fn_cesar_persona: {
+        Args: { p_persona_id: string; p_fecha_cese: string; p_motivo: string; p_tipo_vinculo?: string | null }
+        Returns: undefined
+      }
+      fn_reactivar_persona: {
+        Args: { p_persona_id: string }
+        Returns: undefined
+      }
       // `dias_restantes` es negativo cuando la fecha ya pasó, y ese es justamente
       // el grupo que importa: alguien que ya no viene pero sigue figurando activo.
       fn_contratos_por_vencer: {

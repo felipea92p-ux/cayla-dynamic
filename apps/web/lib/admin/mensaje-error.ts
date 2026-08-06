@@ -56,6 +56,14 @@ const POR_CODIGO: Record<string, string> = {
 const POR_CONSTRAINT: Record<string, string> = {
   personas_fin_contrato_coherente:
     "El contrato no puede terminar antes del día en que la persona ingresó. Revisa la fecha de ingreso en su ficha.",
+  // El que abre el comentario de arriba. Ya no debería salir desde ninguna
+  // pantalla —Equipo pasó a usar fn_cesar_persona el 2026-08-06— pero se traduce
+  // igual: el día que alguien vuelva a escribir `estado` a mano, el aviso tiene
+  // que decir qué falta, no publicar el nombre del constraint.
+  personas_cese_coherente:
+    "Para dar de baja a alguien hace falta su último día trabajado, y para reactivarla hay que borrarlo. Usa «Registrar salida» y «Reactivar» en Equipo.",
+  personas_motivo_cese_valido:
+    "Ese motivo de salida no es uno de los válidos. Elígelo de la lista.",
 };
 
 /**

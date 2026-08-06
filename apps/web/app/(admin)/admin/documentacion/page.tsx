@@ -9,7 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { hoyLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
 // imprimir y firmar con sus datos ya puestos.
@@ -493,12 +493,21 @@ export default function DocumentacionPage() {
     // sistema ya no propone lo incorrecto. Quien mira la lista puede volver a
     // marcarlos, y el papel impreso solo lleva a los que quedaron marcados.
     const fuera = new Set(lista.filter((p) => !p.en_planilla).map((p) => p.id));
-    // Y quien tiene fecha de término de contrato ya fijada: se va, así que no
-    // firma un documento que regirá cuando ya no esté. Este era justamente el
-    // caso que el comentario de más abajo daba por indeducible («alguien que se
-    // va a fin de mes, y eso no está en ninguna columna») — desde la 0138 SÍ
-    // está en una columna, así que ya no hace falta acordarse.
-    for (const id of porVencer.keys()) fuera.add(id);
+    // Y quien TERMINA CONTRATO ESTE MES O ANTES: se va, así que no firma un
+    // documento que regirá cuando ya no esté. Este era justamente el caso que el
+    // comentario de más abajo daba por indeducible («alguien que se va a fin de
+    // mes, y eso no está en ninguna columna») — desde la 0144 SÍ está en una
+    // columna, así que ya no hace falta acordarse.
+    //
+    // EL CORTE ES «ESTE MES», el mismo que usa el tablero desde la 0162, y no
+    // «tiene fecha de fin». Hasta el 2026-08-06 esta pantalla desmarcaba a
+    // cualquiera con fecha, y eso hacía que el sistema se contradijera sobre la
+    // misma persona el mismo día: a quien tiene contrato hasta diciembre el
+    // tablero le pedía la firma y esta lista la sacaba del reparto. En una lista
+    // de ~30 casillas, un desmarcado de más no se revisa — y esa persona cobra
+    // movilidad cinco meses más, así que necesita el papel que la sostiene.
+    const finDeMes = rangoDelMesLima().fin;
+    for (const [id, fecha] of porVencer) if (fecha <= finDeMes) fuera.add(id);
     const { data: yo } = await supabase.rpc("fn_persona_actual_id");
     if (typeof yo === "string") fuera.add(yo);
     setExcluidos(fuera);
@@ -947,7 +956,7 @@ export default function DocumentacionPage() {
               automáticamente porque los dos casos a excluir —un locador, y
               alguien que se va a fin de mes— no se podían deducir del sistema.
               Hoy sí se pueden: `en_planilla` (0085) cubre al locador y
-              `fecha_fin_contrato` (0138) cubre a quien se va. Así que el sistema
+              `fecha_fin_contrato` (0144) cubre a quien se va. Así que el sistema
               ya PROPONE bien y vienen desmarcados. La lista se queda porque la
               decisión final sigue siendo humana y porque un desmarcado que no se
               puede volver a marcar es una decisión escondida, no una ayuda. */}
@@ -960,8 +969,9 @@ export default function DocumentacionPage() {
               <p className="mt-2 text-xs text-taupe">
                 Vienen desmarcados quien firma —no declara haber recibido lo que emite—,
                 quien no está en planilla, porque no cobra movilidad ni bono de cumpleaños,
-                y quien ya tiene fecha de término de contrato. Revisa la lista igual: la
-                decisión final es tuya.
+                y quien termina contrato este mes. A quien termina más adelante SÍ se le
+                entrega: hasta ese día cobra movilidad, así que hasta ese día necesita el
+                papel. Revisa la lista igual: la decisión final es tuya.
               </p>
               <div className="mt-3 grid gap-1 sm:grid-cols-2">
                 {personas.map((p) => (
