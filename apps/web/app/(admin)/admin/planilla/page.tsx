@@ -656,10 +656,9 @@ function TablaPlanilla(props: {
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.pago_base)}</td>
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.feriados)}</td>
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.asignacion)}</td>
+              {/* Básica legal: no se suma. Es la remuneración que se declara en
+                  PLAME de cada persona, no un concepto que se pague acá. */}
               <td className="px-4 py-2" />
-              <td className="px-4 py-2" />
-              <td className="px-4 py-2" />
-              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.plus)}</td>
               <td className="px-4 py-2 text-right font-medium">
                 {totales.bonos > 0 ? <span className="text-verde">+{formatSoles(totales.bonos)}</span> : <span className="text-taupe/50">—</span>}
               </td>
