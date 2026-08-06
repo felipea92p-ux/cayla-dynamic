@@ -7,7 +7,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { conTipoCorregido } from "@/lib/tipos-archivo";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { TZ_LIMA, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 
@@ -70,7 +70,10 @@ interface Acta {
 }
 
 const ESTADOS = ["PENDIENTE", "OTORGADO", "NO_OTORGADO"] as const;
-const MAX_ACTA_BYTES = 3 * 1024 * 1024;
+// Mismo tope que el resto de papeles firmados desde que el acta vive en el
+// almacén y no en una columna de la base (mig. 0175). Antes eran 3 MB, que no
+// era una decisión sobre las actas: era el precio de guardarlas como texto.
+const MAX_ACTA_BYTES = 50 * 1024 * 1024;
 
 
 function inicioDeMes(): string {
@@ -98,6 +101,7 @@ export default function FeriadosPage() {
   const [actas, setActas] = useState<Acta[]>([]);
   const [refActa, setRefActa] = useState("");
   const [subiendo, setSubiendo] = useState(false);
+  const [progresoActa, setProgresoActa] = useState<number | null>(null);
 
   // rango de consulta
   const [desde, setDesde] = useState(inicioDeMes());
@@ -178,28 +182,45 @@ export default function FeriadosPage() {
 
   const actaPorRef = useMemo(() => new Map(actas.map((a) => [a.referencia, a])), [actas]);
 
+  /**
+   * El acta va al almacén de archivos, como el cargo de un memo o un contrato
+   * (mig. 0175). Antes se guardaba como texto dentro de la base y por eso tenía
+   * que caber en 3 MB — un escaneo de varias hojas no cabía, y no había forma
+   * razonable de cumplirlo salvo degradar el papel que hay que poder leer.
+   *
+   * El archivo sube PRIMERO y se anota DESPUÉS: si la subida falla, no queda
+   * una fila diciendo que hay un acta que no existe. Al revés —anotar y luego
+   * subir— dejaría la lista mintiendo.
+   */
   async function subirActa(file: File) {
     if (!refActa) { setMsg({ tipo: "error", texto: "Elige a qué acuerdo pertenece el acta." }); return; }
     if (file.size > MAX_ACTA_BYTES) {
-      setMsg({ tipo: "error", texto: `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB. El máximo es 3 MB — escanéalo en menor resolución o súbelo como PDF.` });
+      setMsg({ tipo: "error", texto: `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo es ${MAX_ACTA_BYTES / 1024 / 1024} MB.` });
       return;
     }
     setSubiendo(true);
     setMsg(null);
-    const dataurl = await new Promise<string>((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result));
-      fr.onerror = () => reject(new Error("No se pudo leer el archivo."));
-      fr.readAsDataURL(file);
-    }).catch(() => null);
-    if (!dataurl) {
+
+    // La referencia va en la ruta pasada por un filtro: es texto que escribe una
+    // persona ("Acta 2026-07-28 Taller LIM") y no puede decidir en qué carpeta
+    // cae el archivo. La marca de tiempo evita pisar el acta anterior mientras
+    // se comprueba que la nueva subió bien.
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const clave = refActa.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "acta";
+    const ruta = `${clave}/${Date.now()}.${ext}`;
+
+    setProgresoActa(0);
+    const fallo = await subirArchivoConProgreso(supabase, "actas", ruta, file, setProgresoActa);
+    setProgresoActa(null);
+    if (fallo) {
       setSubiendo(false);
-      setMsg({ tipo: "error", texto: "No se pudo leer el archivo." });
+      setMsg({ tipo: "error", texto: `El acta no subió (${fallo}). Vuelve a intentarlo.` });
       return;
     }
-    const { error } = await supabase.rpc("fn_subir_acta_descanso", {
+
+    const { error } = await supabase.rpc("fn_registrar_acta_descanso", {
       p_referencia: refActa,
-      p_dataurl: conTipoCorregido(dataurl, file.name),
+      p_path: ruta,
       p_nombre: file.name,
     });
     setSubiendo(false);
@@ -222,11 +243,28 @@ export default function FeriadosPage() {
    * pestaña recién abierta sin nada que mostrar.
    */
   async function abrirActa(referencia: string) {
-    const { data, error } = await supabase.rpc("fn_acta_descanso", { p_referencia: referencia });
-    if (error || !data) { setMsg({ tipo: "error", texto: error?.message ?? "Esa acta no tiene archivo." }); return; }
+    // Dos orígenes posibles: el almacén (lo nuevo) y el texto en base (lo que ya
+    // estaba subido antes de la 0175). Las actas viejas no se migraron a
+    // propósito — se siguen leyendo donde están, sin un script que pueda
+    // quedarse a medias.
+    const { data, error } = await supabase.rpc("fn_acta_descanso_ubicacion", { p_referencia: referencia });
+    const fila = Array.isArray(data) ? data[0] : null;
+    if (error || !fila) { setMsg({ tipo: "error", texto: error?.message ?? "Esa acta no tiene archivo." }); return; }
+
+    if (fila.storage_path) {
+      // URL firmada de vida corta: el bucket es privado.
+      const { data: firma, error: eF } = await supabase.storage.from("actas").createSignedUrl(fila.storage_path, 120);
+      if (eF || !firma) { setMsg({ tipo: "error", texto: `No se pudo abrir: ${eF?.message ?? "sin URL"}` }); return; }
+      if (!window.open(firma.signedUrl, "_blank", "noopener,noreferrer")) {
+        setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio." });
+      }
+      return;
+    }
+
+    if (!fila.dataurl) { setMsg({ tipo: "error", texto: "Esa acta no tiene archivo." }); return; }
     let url: string;
     try {
-      url = URL.createObjectURL(await (await fetch(String(data))).blob());
+      url = URL.createObjectURL(await (await fetch(fila.dataurl)).blob());
     } catch {
       setMsg({ tipo: "error", texto: "No se pudo preparar el archivo para abrirlo. Vuelve a intentarlo." });
       return;
@@ -469,7 +507,7 @@ export default function FeriadosPage() {
           <p className="mb-3 max-w-2xl text-xs text-taupe">
             El acuerdo se registra arriba; aquí se guarda el <strong>papel firmado</strong> que lo
             respalda. Un acta cubre a todas las personas de ese acuerdo — se sube una sola vez.
-            PDF o foto, hasta 3 MB.
+            PDF o foto, hasta 50 MB.
           </p>
 
           <div className="flex flex-wrap items-end gap-3">
@@ -495,7 +533,22 @@ export default function FeriadosPage() {
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirActa(f); e.target.value = ""; }}
                 className="text-sm file:mr-3 file:rounded-lg file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
             </label>
-            {subiendo && <span className="pb-2 text-sm text-taupe">Subiendo…</span>}
+            {/* Con 3 MB una espera muda pasaba desapercibida. Con 50 MB por la
+                conexión de una tienda son minutos, y sin avance visible se lee
+                como que la pantalla se colgó. */}
+            {subiendo && (
+              <span className="flex items-center gap-2 pb-2 text-sm text-taupe">
+                {progresoActa !== null && (
+                  <span className="h-1.5 w-24 overflow-hidden rounded-full bg-sand">
+                    <span className="block h-full bg-tinta transition-[width] duration-200"
+                      style={{ width: `${progresoActa}%` }}
+                      role="progressbar" aria-valuenow={progresoActa} aria-valuemin={0} aria-valuemax={100}
+                      aria-label="Subiendo el acta" />
+                  </span>
+                )}
+                {progresoActa !== null ? `Subiendo — ${progresoActa}%` : "Guardando…"}
+              </span>
+            )}
           </div>
 
           {referencias.length === 0 && (

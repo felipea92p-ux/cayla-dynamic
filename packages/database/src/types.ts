@@ -1434,6 +1434,22 @@ export type Database = {
         Args: { p_referencia: string }
         Returns: string | null
       }
+      // ── mig. 0175 · el acta pasó a guardarse en el almacén ──────────────
+      // Añadidas a mano y no regenerando el archivo entero: `supabase gen
+      // types` con el CLI de hoy reescribe 3.000 líneas por cambios de
+      // formato, y eso es otro cambio — uno que merece su propio commit y su
+      // propia revisión, no colarse dentro de un arreglo de subida de papeles.
+      fn_registrar_acta_descanso: {
+        Args: { p_referencia: string; p_path: string; p_nombre?: string | null }
+        Returns: string
+      }
+      fn_acta_descanso_ubicacion: {
+        Args: { p_referencia: string }
+        Returns: {
+          storage_path: string | null
+          dataurl: string | null
+        }[]
+      }
       fn_aceptar_incidencia: {
         Args: { p_persona_id: string; p_fecha: string; p_tipo: string; p_nota?: string | null }
         Returns: undefined
