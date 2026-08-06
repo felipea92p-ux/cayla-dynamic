@@ -69,7 +69,7 @@ const DOCS: { id: TipoDoc; titulo: string; para: string; necesitaPersona: boolea
   {
     id: "politica",
     titulo: "Política de movilidad supeditada a asistencia",
-    para: "La emite CAYLA, una sola vez. Debe tener fecha anterior al primer pago de movilidad.",
+    para: "La emite CAYLA, una sola vez. Va fechada el día en que empezó a pagarse movilidad: rige desde ahí en adelante.",
     necesitaPersona: false,
   },
   {
@@ -221,7 +221,7 @@ const ETIQUETA_SUBIDA: Record<TipoDoc, {
     deQue: "de la política",
     archivo: "Política firmada",
     fecha: "Fecha en que se firmó",
-    ayuda: "Es un solo documento para toda la empresa, sin persona. La fecha que pongas es la que se compara contra el primer pago de movilidad: si es posterior, el sistema lo va a seguir avisando — y con razón.",
+    ayuda: "Es un solo documento para toda la empresa, sin persona. Viene con la fecha en que empezó a pagarse movilidad, que es la que sale impresa en el papel: déjala así. Si la cambias por una posterior, el sistema lo va a seguir avisando — un documento fechado después de los pagos que justifica no los justifica.",
     ejemploNota: "ej. firmada junto con el reglamento interno",
   },
   bono: {
@@ -372,7 +372,10 @@ export default function DocumentacionPage() {
     setSubiendo({ que, personaId, negativa });
     setArchivoDoc(null);
     setNotaDoc("");
-    setFechaFirma(hoyLima());
+    // La política llega con la fecha del papel que se imprimió, no con la de
+    // hoy. Proponer hoy era empujar al error: el formulario ofrecía de entrada
+    // el único valor que el propio sistema iba a marcar en rojo.
+    setFechaFirma(que === "politica" ? fechaDeLaPolitica : hoyLima());
     setAvisoDoc(null);
     // El formulario es uno solo y vive arriba; el botón que lo abre puede estar
     // veinte filas más abajo. Sin esto, quien hace clic en la última fila no ve
@@ -668,6 +671,22 @@ export default function DocumentacionPage() {
   // Quiénes reciben el documento y firman el cargo.
   const reciben = personas.filter((p) => !excluidos.has(p.id));
 
+  // ── La fecha de la política, que NO es hoy ──────────────────────────────
+  // Se imprimía con `hoyLima()`, y eso hacía que la pantalla se contradijera
+  // sola: sacabas la política, salía «Emitida el 5 de agosto», la firmabas, la
+  // subías, y el propio sistema la marcaba en rojo por ser posterior al primer
+  // pago. Te daba a imprimir el documento que iba a rechazar.
+  //
+  // Y el papel nacía inválido para lo que tiene que cubrir: una política emitida
+  // en agosto no justifica la movilidad que se viene pagando desde el 29 de
+  // julio. La fecha correcta es la del día en que empezó a pagarse — desde ahí
+  // rige, hacia adelante.
+  //
+  // Si ya hay una firmada, manda SU fecha: reimprimirla no puede cambiarle la
+  // fecha al documento que ya está archivado. Y si no se sabe cuándo empezó a
+  // pagarse (no hay tarifa vigente), cae a hoy, que es lo que hacía siempre.
+  const fechaDeLaPolitica = politica?.fecha_firma ?? politica?.primer_pago ?? hoyLima();
+
   // A quién hay que perseguirle el cargo del bono. Se cuenta una sola vez y se
   // usa en el resumen y en el aviso: dos conteos del mismo hecho es la forma
   // más barata de que la pantalla se contradiga a sí misma.
@@ -700,8 +719,13 @@ export default function DocumentacionPage() {
                   <strong className="text-rojo">Falta la política de movilidad de CAYLA.</strong>{" "}
                   Es un solo documento, lo firmas tú, y sostiene a todo el equipo.{" "}
                   {politica.primer_pago && (
-                    <>Tiene que llevar fecha <strong>anterior al {fechaLarga(politica.primer_pago)}</strong>,
-                    que es cuando empezó a pagarse movilidad.</>
+                    // Decía «anterior al 29 de julio» y el cálculo acepta el 29:
+                    // `fecha_firma > primer_pago`. El texto pedía una fecha que
+                    // el sistema no exige, y encima la equivocada — la política
+                    // rige DESDE el día en que empezó a pagarse la movilidad.
+                    <>Va fechada el <strong>{fechaLarga(politica.primer_pago)}</strong>, que es
+                    cuando empezó a pagarse movilidad: rige desde ese día en adelante. Sale
+                    impresa con esa fecha.</>
                   )}
                 </>
               ) : (
@@ -1383,7 +1407,7 @@ export default function DocumentacionPage() {
                 </p>
 
                 <p className="mb-10 text-xs text-taupe">
-                  Emitida el {fechaLarga(hoyLima())}.
+                  Emitida el {fechaLarga(fechaDeLaPolitica)}.
                 </p>
 
                 <div className="mb-10 w-1/2">
