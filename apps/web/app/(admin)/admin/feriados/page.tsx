@@ -7,6 +7,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { conTipoCorregido } from "@/lib/tipos-archivo";
 import { TZ_LIMA, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 
@@ -71,38 +72,6 @@ interface Acta {
 const ESTADOS = ["PENDIENTE", "OTORGADO", "NO_OTORGADO"] as const;
 const MAX_ACTA_BYTES = 3 * 1024 * 1024;
 
-// Los formatos que `fn_subir_acta_descanso` acepta (mig. 0170). La verdad está
-// en la función: si allá cambia la lista, acá también.
-const MIME_POR_EXTENSION: Record<string, string> = {
-  pdf: "application/pdf",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  webp: "image/webp",
-  heic: "image/heic",
-  heif: "image/heif",
-};
-
-/**
- * Corrige la etiqueta de tipo de un archivo cuando el navegador no la supo dar.
- *
- * Un .HEIC del iPhone llega a veces sin tipo —Chrome no lo reconoce— y entonces
- * `readAsDataURL` lo rotula `application/octet-stream`. La base lo rechazaría
- * con "Formato inválido" aunque sea una foto perfectamente válida, y el mensaje
- * no le diría a nadie qué hacer. Cuando pasa eso, la extensión del nombre es el
- * único dato fiable que queda.
- *
- * Si la extensión tampoco dice nada, se deja el data URL como está: la base es
- * la que decide, y su mensaje es mejor que uno inventado acá.
- */
-function conTipoCorregido(dataurl: string, nombre: string): string {
-  const corte = dataurl.indexOf(";base64,");
-  if (corte < 0) return dataurl;
-  const tipo = dataurl.slice(5, corte);
-  if (Object.values(MIME_POR_EXTENSION).includes(tipo)) return dataurl;
-  const deducido = MIME_POR_EXTENSION[nombre.split(".").pop()?.toLowerCase() ?? ""];
-  return deducido ? `data:${deducido}${dataurl.slice(corte)}` : dataurl;
-}
 
 function inicioDeMes(): string {
   return `${hoyLima().slice(0, 7)}-01`;
