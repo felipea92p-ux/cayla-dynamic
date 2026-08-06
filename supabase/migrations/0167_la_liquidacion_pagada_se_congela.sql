@@ -18,9 +18,16 @@
 --   calculó. El único control posible es que la cifra no se mueva sola.
 --
 --   Y se mueve con facilidad: basta que alguien corrija un marcaje viejo, cargue
---   una vacación con retraso o anote un depósito de CTS que faltaba, y el mismo
+--   una vacación con retraso, anote un depósito de CTS que faltaba —o CORRIJA LA
+--   FECHA DE CESE, que es el más frecuente de los cuatro— y el mismo
 --   `fn_liquidacion` devuelve otra cosa un mes después. Sin foto, no habría forma
 --   de saber cuál de las dos cifras se transfirió.
+--
+--   Ese cuarto motivo faltaba en esta lista, y por faltar acá también se escapó
+--   del código: la comparación recalculaba con la fecha CONGELADA, así que era
+--   ciega justo al caso más común. Corregido antes de aplicar esta migración —ver
+--   el comentario largo dentro de `fn_liquidacion_diferencias`— y fijado por la
+--   prueba 133.
 --
 -- POR QUÉ SE VERSIONA EN VEZ DE SOBRESCRIBIR
 --   Mismo criterio que `planilla_pagada_detalle` (0096): si hubo que rehacer un
@@ -178,8 +185,9 @@ security definer
 set search_path = public
 as $$
 declare
-  v_f liquidacion_pagada%rowtype;
-  v_l jsonb;
+  v_f       liquidacion_pagada%rowtype;
+  v_l       jsonb;
+  v_cese_hoy date;
 begin
   if fn_es_admin_o_lider() is not true then
     raise exception 'Solo un administrador o líder puede comparar una liquidación.';
@@ -190,7 +198,36 @@ begin
    order by version desc limit 1;
   if not found then return; end if;   -- sin foto no hay nada que comparar
 
-  v_l := fn_liquidacion(p_persona_id, v_f.fecha_cese);
+  -- ⇩⇩⇩ SE RECALCULA CON LA FECHA DE CESE DE HOY, NO CON LA CONGELADA.
+  --
+  -- Acá decía `fn_liquidacion(p_persona_id, v_f.fecha_cese)`, o sea que volvía a
+  -- calcular con la MISMA fecha con la que se pagó. Con eso la comparación no
+  -- podía ver el caso más frecuente de todos: que alguien corrija el último día
+  -- que la persona trabajó.
+  --
+  -- Medido contra el Postgres local el 2026-08-06, con una persona real de
+  -- laboratorio: se paga con cese el 15/06 → S/ 3,444.31. Se descubre que trabajó
+  -- hasta el 20/06 y se corrige la fecha. Le corresponden S/ 3,465.60, o sea
+  -- S/ 21.29 más. `fn_liquidacion_diferencias` devolvía CERO filas y la pantalla
+  -- mostraba `descuadra = false`: la fila quedaba diciendo «cesó el 20/06 ·
+  -- S/ 3,444.31 · cuadra», y esas tres cosas no pueden ser ciertas a la vez.
+  --
+  -- La cabecera de esta migración enumera tres motivos por los que un recálculo
+  -- puede dar distinto —un marcaje corregido, una vacación cargada tarde, un
+  -- depósito de CTS anotado después— y la fecha de cese no estaba en la lista.
+  -- Se quedó fuera por olvido, no por decisión.
+  --
+  -- LA FOTO NO SE TOCA: sigue guardando la fecha con la que se pagó, que es lo
+  -- que hay que poder reimprimir. Lo que cambia es contra qué se compara, y para
+  -- responder «¿cuánto le debemos HOY?» la fecha buena es la de hoy.
+  --
+  -- El `coalesce` es para quien fue reactivada: al volver a estado activo el
+  -- esquema le exige `fecha_cese` en null (constraint `personas_cese_coherente`),
+  -- y sin este respaldo `fn_liquidacion` abortaría con «no tiene fecha de cese».
+  -- Un error ahí dejaría la lista de pendientes sin cargar entera por una sola
+  -- persona.
+  select p.fecha_cese into v_cese_hoy from personas p where p.id = p_persona_id;
+  v_l := fn_liquidacion(p_persona_id, coalesce(v_cese_hoy, v_f.fecha_cese));
 
   -- La diferencia se calcula acá y no en la pantalla: es la cifra que alguien va
   -- a mirar para decidir si paga un ajuste, y no debería depender de una resta

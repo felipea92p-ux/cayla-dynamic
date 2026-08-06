@@ -127,33 +127,35 @@ NOTICE:  0167 · liquidaciones congeladas: 0 (la tabla nace vacia)
 NOTICE:  0167 · esta migracion no cambia ningun calculo: solo permite guardar el que se pago.
 ```
 
-**Antes de usarla en serio, lee la nota de abajo.** Hay un caso que hoy no
-detecta.
+**Después, comprueba:**
 
-### El caso que la 0167 no ve
+```sql
+select * from fn_liquidaciones_pendientes();
+```
 
-`fn_liquidacion_diferencias` compara contra la **fecha de cese congelada**, no
-contra la actual. Consecuencia: si alguien corrige la fecha de cese después de
-pagar —el motivo más frecuente de que una liquidación deje de cuadrar— la
-comparación no lo detecta.
+Debe listar a las personas cesadas con `pagada = false` y `descuadra = false`.
+Ninguna cifra cambia respecto de lo que ya veías.
 
-Comprobado contra el Postgres local, con números:
+### Un caso que se corrigió antes de aplicarla
 
-| | |
-|---|---|
-| Se le paga con cese el 15/06 | **S/ 3,444.31** |
-| Se corrige: en realidad trabajó hasta el 20/06 | |
-| Lo que de verdad le toca | **S/ 3,465.60** |
-| Diferencia real | **S/ 21.29** |
-| Lo que reporta `fn_liquidacion_diferencias` | *(nada)* |
-| Lo que muestra la pantalla | `descuadra = false` |
+`fn_liquidacion_diferencias` comparaba contra la **fecha de cese congelada**, así
+que era ciega al motivo más frecuente de que una liquidación deje de cuadrar:
+que alguien corrija el último día que la persona trabajó.
 
-La fila queda diciendo «cesó el 20/06 · S/ 3,444.31 · cuadra», y esas tres cosas
-no pueden ser ciertas a la vez.
+Medido contra el Postgres local:
 
-No bloquea pegar la migración —la tabla nace vacía y no hay ninguna liquidación
-congelada todavía—, pero **conviene arreglarlo antes de congelar la primera**.
-Es una línea: comparar contra la fecha de cese actual en vez de la de la foto.
+| | Antes | Ahora |
+|---|---|---|
+| Se paga con cese el 15/06 | S/ 3,444.31 | S/ 3,444.31 |
+| Se corrige: trabajó hasta el 20/06 | | |
+| Lo que de verdad le toca | S/ 3,465.60 | S/ 3,465.60 |
+| Lo que reporta la función | *nada* | **S/ 21.29**, desglosado |
+| Lo que muestra la pantalla | `descuadra = false` | `descuadra = true` |
+
+La foto **sigue guardando la fecha con la que se pagó** — eso no se corrige, se
+conserva, porque es lo que hay que poder reimprimir. Lo que cambió es contra qué
+se compara: para responder «¿cuánto le debemos hoy?», la fecha buena es la de
+hoy. Fijado por la prueba 133.
 
 ---
 
@@ -164,7 +166,7 @@ Es una línea: comparar contra la fecha de cese actual en vez de la de la foto.
 | 0162 | no | sí |
 | 0165 | no | sí — **necesaria para imprimir cargos de bono** |
 | 0166 | **sí** | sí, con la comparación antes y después |
-| 0167 | no | sí, pero lee la nota antes de usarla |
+| 0167 | no | sí |
 
 Ninguna depende de otra para aplicarse. El orden de arriba es el que va de menos
 riesgo a más.
