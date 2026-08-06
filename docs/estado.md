@@ -245,6 +245,7 @@ viejo. `git log --oneline supabase/migrations/` da el recorrido.*
 | **La política de movilidad de empresa, firmada** | con fecha **anterior al 29/07/2026** | Es cuando empezó a pagarse movilidad. Un documento posterior a los pagos que justifica **no los justifica, y encima lo deja por escrito**. El tablero lo avisa solo, en rojo, con las dos fechas |
 | **Contratar el Seguro Vida Ley** | cuanto antes | ~S/1,560/año. Sin póliza, CAYLA responde con su patrimonio: 16 remuneraciones por muerte natural, 32 por accidente. Obligatorio desde el primer día (D.Leg. 688) |
 | **Registrar la póliza en el MTPE** | 30 días desde que se firma | No registrarla es la misma infracción que no tenerla |
+| **Pegar la [`0176`](../supabase/migrations/0176_quien_ya_se_fue_deja_de_tener_sueldo_vigente.sql)** — las seis de julio dejan de tener sueldo vigente | cuando quieras: **no mueve plata** | Cuatro personas que se fueron en julio siguen saliendo en la pantalla de Equipo con «Colibrí · S/ 1 130.00». Su liquidación es S/ 0.00 antes y después (RxH, de 0 a 3 días), así que es coherencia de datos, no dinero. Listo en `scripts/sql-manual/aplicar_0176.sql` |
 
 ### A.2 · Un clic en GitHub
 
