@@ -52,19 +52,34 @@ filas as (
 select
   f->>'nombre'                                as persona,
   f->>'sede'                                  as sede,
-  (f->>'dias_trabajados')::numeric             as dias_asistidos,
+  -- De qué sede sale su tarifa. Distinto de la columna anterior solo para quien
+  -- tenga sede física declarada (0166): ver de un vistazo por qué cobra lo que
+  -- cobra, sin tener que abrir su ficha.
+  coalesce(sf.codigo, f->>'sede')             as tarifa_de,
+  (f->>'dias_trabajados')::numeric            as dias_asistidos,
   (f->>'movilidad_diaria')::numeric           as tarifa_por_dia,
   (f->>'monto_movilidad')::numeric            as movilidad_del_mes,
-  -- Para que un cero no quede sin explicación: dice POR QUÉ salió cero.
-  -- El orden importa: la causa que se nombra tiene que ser la que de verdad
-  -- puso el cero. Sin tarifa cargada gana sobre «no asistió», porque con tarifa
-  -- 0.00 el monto sale cero aunque haya trabajado el mes entero.
+  -- POR QUÉ SALIÓ CERO. El orden NO es cosmético: primero las causas
+  -- ESTRUCTURALES —las que valen todos los meses— y solo después las de este
+  -- mes en particular.
+  --
+  -- Salió de una lectura real (2026-08-06): Catherine aparecía como «no tiene
+  -- días asistidos», y es cierto que no los tiene, pero es RxH y no cobraría
+  -- movilidad ni asistiendo todos los días. Ese mensaje mandaba a revisar su
+  -- marcaje cuando no hay nada que revisar. Un diagnóstico que nombra la causa
+  -- equivocada es peor que no dar ninguno.
   case
-    when (f->>'monto_movilidad')::numeric > 0                 then ''
-    when coalesce((f->>'movilidad_diaria')::numeric, 0) = 0   then 'su sede no tiene tarifa cargada'
-    when (f->>'movilidad_sin_declaracion')::boolean           then 'le falta la declaración firmada'
-    when coalesce((f->>'dias_trabajados')::numeric, 0) = 0    then 'no tiene días asistidos'
-    else 'no devenga movilidad (ver su ficha)'
+    when (f->>'monto_movilidad')::numeric > 0               then ''
+    when not p.en_planilla                                  then
+      'no devenga: ' || coalesce(p.tipo_vinculo, 'sin vínculo') || ' (0117)'
+    when not coalesce(p.cobra_movilidad, true)              then
+      coalesce(nullif(trim(p.movilidad_motivo), ''), 'excluida en su ficha, sin motivo escrito')
+    when coalesce((f->>'movilidad_diaria')::numeric, 0) = 0 then 'su sede no tiene tarifa cargada'
+    when (f->>'movilidad_sin_declaracion')::boolean         then 'le falta la declaración firmada'
+    when coalesce((f->>'dias_trabajados')::numeric, 0) = 0  then 'este mes no asistió ningún día'
+    else 'revisar: ningún motivo conocido explica el cero'
   end                                         as por_que_cero
 from filas
+join personas p on p.id = (f->>'persona_id')::uuid
+left join sedes sf on sf.id = p.sede_fisica_id
 order by (f->>'monto_movilidad')::numeric desc nulls last, f->>'nombre';
