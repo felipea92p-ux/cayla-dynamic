@@ -122,13 +122,20 @@ npx pnpm test         # vitest
 ```
 
 Dice en qué migraciones está definida, cuál es la última —la única de la que se
-puede copiar— y si el Postgres local coincide con ella.
+puede copiar—, si alguien la borró después y ya no existe, y si el Postgres
+local coincide con ella.
 
 Hace falta porque un `grep` normal miente. La 0081 escribe
 `CREATE OR REPLACE FUNCTION public.fn_…` en mayúsculas y con prefijo, mientras
 otras la escriben en minúsculas y sin él: buscar a mano encuentra unas
-definiciones y se salta otras. `fn_planilla_calcular` tiene **22 versiones**
+definiciones y se salta otras. `fn_planilla_calcular` tiene **23 versiones**
 repartidas y pesa 37.000 caracteres.
+
+Y hay una segunda forma de definir, la que usan las funciones que devuelven
+`TABLE`: como Postgres no deja agregarles una columna con `create or replace`,
+la migración hace `drop function …` y a continuación `create function …`. La
+0161 lo hace con `fn_documentos_tablero`; el script lo cuenta como definición
+igual que un `create or replace`.
 
 El 2026-08-05 esto casi mete a producción una migración copiada de la 0017
 creyéndola la última —era la 0081, 64 migraciones después— que habría revertido
