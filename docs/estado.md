@@ -4,20 +4,33 @@
 copias con fecha. La historia vive en git. Cómo se trabaja: ver
 [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
-*Última consolidación: **2026-08-05, noche**. En el repo hay **158 migraciones,
-hasta la 0162**. Aplicadas en producción y confirmadas por Felipe ese día: la
-**0136 + 0149 + 0150** (educación), la **0154** (comprobantes de 50 MB), la
-**0157** (documentos firmados) y la **0159** (candado de movilidad, apagado).
-De la 0128 en adelante, el resto queda por confirmar. **Pendientes de pegar: la
-0160, la 0161 y la 0162.** **56 archivos pgTAP, 511 pruebas**, verdes ·
-`pnpm typecheck` y las **103 pruebas de interfaz** (8 archivos), también.*
+## Qué va acá y qué no
 
-> **Cómo se verificó esto** (para que la próxima consolidación no vuelva a
-> quedarse vieja sin que nadie lo note):
-> ```bash
-> npx supabase db reset && npx supabase test db   # 52 archivos · 477 pruebas
-> npx pnpm typecheck && npx pnpm test             # 8 archivos · 103 pruebas de interfaz
-> ```
+Este archivo guarda **solo lo que ninguna herramienta puede responder sola**:
+las decisiones tomadas, los pendientes con fecha, lo que depende de una persona,
+y lo que se descartó para no volver a investigarlo.
+
+**Lo que se sacó, y dónde vive ahora.** Hasta el 2026-08-05 esto llevaba también
+el inventario de migraciones, cuántas pruebas hay y qué está aplicado. Se
+desfasó tres veces en tres días, y el encabezado llegó a decir «511 pruebas»
+mientras su propio bloque de verificación —tres líneas más abajo— decía 477. Un
+archivo que se contradice a sí mismo es peor que no tenerlo: se lee igual de
+seguro y señala mal.
+
+| Pregunta | Quién la responde de verdad |
+|---|---|
+| ¿Cuántas migraciones hay, hasta cuál? | `ls supabase/migrations \| tail -1` |
+| ¿Cuántas pruebas, y pasan? | `npx supabase db reset && npx supabase test db` · `npx pnpm typecheck && npx pnpm test` |
+| ¿Qué está aplicado en producción? | `scripts/sql-manual/comparar_funciones.sql` — y `migraciones_aplicadas` para el registro |
+| ¿Falta anotar alguna migración? | la prueba `122_toda_migracion_deja_su_rastro`, en CI, en cada push |
+| ¿Hay números duplicados o huecos nuevos? | `scripts/hooks/numeracion.sh`, antes de cada push |
+| ¿Qué se hizo y cuándo? | `git log` |
+
+Ninguna de esas seis puede envejecer sin que alguien se entere. Las de abajo sí,
+y por eso están escritas.
+
+**Regla para quien edite este archivo:** si lo que vas a agregar es un número que
+un comando puede calcular, no va acá — va el comando.
 
 ---
 
@@ -193,26 +206,16 @@ prueba no pasa por casualidad.
 
 ---
 
-## ✅ Cerrado el 2026-08-01 — migraciones 0115 a 0122
+## ✅ Cerrado el 2026-08-01 — la boleta cuadra al céntimo
 
-Todas **aplicadas en producción** y verificadas con la consulta de revisión
-(`revision_completa.sql`, 15 comprobaciones, todas en verde).
+Fuera el «Rendimiento Extraordinario» y el «Incentivo Variable por Metas»;
+entraron las líneas de movilidad y de descuento de pensión, y el bloque de lo que
+CAYLA paga además. **El descuadre de 76.67 contra 71.84 que Felipe encontró está
+cerrado.**
 
-| # | Qué cerró |
-|---|---|
-| **0115** | La pensión se descuenta desde el primer periodo abierto — **los periodos pagados quedaron intactos, comprobado** · y `tasas_pension` pasó a tener RLS (era la única de 39 sin protección) |
-| **0116** | EsSalud `9% × MAX(remuneración, RMV)` con su piso, en tabla versionada con sustento |
-| **0117** | Un locador deja de generar movilidad y EsSalud |
-| **0118** | La tarifa de movilidad, versionada y con su memoria de cálculo archivada en la fila |
-| **0119** | El tipo de vínculo se puede elegir desde Equipo, con rastro en auditoría |
-| **0120** | Asignación por educación por persona, con un CHECK que impide pagar más de lo que sostiene el comprobante |
-| **0121** | El bono de puntualidad se apagó |
-| **0122** | La asignación familiar, versionada **antes** de que suba la RMV |
-
-**Y en la boleta:** fuera el «Rendimiento Extraordinario» y el «Incentivo Variable
-por Metas»; entraron las líneas de movilidad y de descuento de pensión, y el
-bloque de lo que CAYLA paga además. **La boleta cuadra al céntimo** — el
-descuadre de 76.67 contra 71.84 que Felipe encontró está cerrado.
+*El detalle de qué cerró cada migración vivía acá y salió: lo dice mejor el
+encabezado de cada archivo en `supabase/migrations/`, que además no puede quedar
+viejo. `git log --oneline supabase/migrations/` da el recorrido.*
 
 ### Lo que quedó comprobado sobre el equipo
 
@@ -256,42 +259,26 @@ queda es una copia vieja del sistema que alguien puede clonar por error. Limpiar
 las fusionadas es un `git push origin --delete` por rama, sin riesgo: lo que
 entró a `main` ya está en `main`.
 
-### ✅ Números de migración — cero duplicados (2026-08-05, noche)
+### ✅ Los números de migración ya se vigilan solos (2026-08-05)
 
-**Comprobado esa noche: no queda ni un número repetido**, ni en migraciones ni en
-pruebas. Las colisiones del 04/08 (0131, 0132, y las pruebas 109/111/112/113) se
-resolvieron renumerando.
+**Ya no hace falta acordarse de nada, y esta sección ya no lleva la cuenta.**
+`scripts/hooks/numeracion.sh` corre antes de cada push y **bloquea** si hay dos
+archivos con el mismo número, o si un número nuevo lo reclama otra rama. Los
+huecos ya investigados viven en `scripts/hooks/huecos-conocidos.txt` con su razón
+escrita al lado, así que el aviso solo habla cuando aparece uno nuevo.
 
-**Huecos vivos, todos con dueño conocido:**
-
-| Nº | Por qué falta |
-|---|---|
-| **0031** y **0033** | Viven como `scripts/sql-manual/aplicar_00NN_*.sql`, fuera de git por datos personales |
-| **0108** | Solo en la rama `movilidad-supeditada-a-asistencia`, sin fusionar. La reemplazaron la 0117 y la 0118 |
-| **0133** y **0139** | Vacíos, se saltaron al numerar. Sin dueño |
-
-**Volvió a pasar el 05/08, y esa vez sí rompió algo:** dos sesiones en paralelo
-escribieron una `0158` cada una. `supabase db reset` **aborta** con
-`duplicate key value violates unique constraint "schema_migrations_pkey"` — no es
-cosmético, impide reconstruir el esquema. Se renumeró a 0159. Esa vez hubo suerte
-además: la otra 0158 tocaba `fn_provisiones` y no `fn_planilla_calcular`. Si las
-dos hubieran reescrito la misma función, **la última aplicada habría borrado el
+**Por qué hizo falta.** En dos días hubo seis choques entre sesiones trabajando en
+paralelo. Uno de ellos —dos `0158` a la vez, el 05/08— rompió algo de verdad:
+`supabase db reset` **aborta** con `duplicate key value violates unique constraint
+"schema_migrations_pkey"`, así que no se puede ni reconstruir el esquema. Y hubo
+suerte: la otra 0158 tocaba `fn_provisiones` y no `fn_planilla_calcular`. **Si las
+dos hubieran reescrito la misma función, la última aplicada habría borrado el
 trabajo de la otra sin que nada avisara.**
 
-**Por qué se repite:** la convención dice mirar `ls` antes de numerar, y `ls` solo
-ve la rama en la que estás. Este comando sí ve todas las ramas **y además el
-directorio de trabajo**, que es lo que le faltaba a la versión anterior:
-
-```bash
-{ for r in $(git for-each-ref --format='%(refname)' refs/heads refs/remotes); do
-    git ls-tree -r --name-only "$r" supabase/migrations/ 2>/dev/null
-  done; ls supabase/migrations; } \
-  | sed 's|.*/||' | sort -u | sed 's/^0*//;s/_.*//' | sort -n | tail -1 \
-  | awk '{printf "siguiente libre: %04d\n", $1+1}'
-```
-
-**Sigue sin estar automatizado.** Mientras el número dependa de que alguien se
-acuerde de correr esto, va a volver a pasar — ya van tres veces en dos días.
+Y peor, comprobado el 06/08: con dos archivos del mismo número, `db reset` aplica
+uno, **saltea el otro en silencio y termina sin error**. El saltado nunca corre,
+así que ninguna prueba de base de datos puede verlo — por eso el freno mira
+nombres de archivo y no la base.
 
 ### A.3 · Datos que hacen falta para seguir
 
@@ -547,25 +534,11 @@ Cada concepto se fija por su propio mérito y el total aterriza cerca del rango.
 
 ---
 
-## 📋 Migraciones 0115 a 0120 — lo que se construyó
-
-| # | Qué hace | Verificación empírica |
-|---|---|---|
-| **0115** | Mueve la vigencia de `tasas_pension` al primer periodo abierto · RLS a la tabla (era la única de 39 sin protección) | el periodo pagado NO encuentra tasa, el abierto sí |
-| **0116** | EsSalud `9% × MAX(remuneración, RMV)`, en tabla versionada con sustento | 1 día trabajado (S/36.96) → **S/101.70**, no S/3.33 |
-| **0117** | Movilidad y EsSalud dejan de calcularse para quien no está en planilla | siendo `rxh` → movilidad 0.00, essalud 0.00 |
-| **0118** | La tarifa de movilidad deja `configuracion` y pasa a `parametros_laborales`, con su memoria de cálculo archivada en la fila | al encender desde el 29/07: julio pagado **0.00**, agosto **270.00** |
-| **0119** | RPC para elegir el vínculo, con guard, validación y rastro en auditoría, más el selector en pantalla | 6 de 6 comportamientos |
-| **0120** | Asignación por educación **por persona**, versionada, con un CHECK que impide pagar más de lo que sostiene el comprobante | 6 de 6: el candado rechaza 151 sobre un curso de 200 al 75%; no se prorratea por asistencia; un `rxh` recibe 0; la vigencia cierra bien |
-
-**En la boleta:** fuera el «Rendimiento Extraordinario»; entran las líneas de
-movilidad y de descuento de pensión; y un bloque aparte —fuera de la tabla del
-pago, con la leyenda «no se descuenta de tu sueldo»— con el EsSalud y las tres
-provisiones. Sin total y sin porcentaje, por decisión tomada.
-
----
-
 ## Decisiones del diseño remunerativo (2026-07-31)
+
+**En la boleta:** lo que CAYLA paga además —el EsSalud y las tres provisiones—
+va en un bloque aparte, fuera de la tabla del pago, con la leyenda «no se
+descuenta de tu sueldo». **Sin total y sin porcentaje**, por decisión tomada.
 
 | Concepto | Decisión | Amparo |
 |---|---|---|
@@ -638,13 +611,13 @@ Quedan anotadas porque se tomaron decisiones sobre ellas.
 
 ```bash
 npx supabase db reset    # reconstruye desde cero y aplica TODAS las migraciones
-npx supabase test db     # 52 archivos, 477 pruebas, ~2 segundos · PASS
+npx supabase test db     # tarda ~2 segundos
 ```
 
-Comprobado otra vez el 2026-08-05 (noche): aplicó el esquema entero hasta la 0159
-sin un solo error y las 477 pruebas pasaron. Es la mejor verificación de una
-migración nueva —construye desde cero— y ahorra el viaje de ida y vuelta a
-GitHub Actions.
+Es la mejor verificación de una migración nueva —construye el esquema entero
+desde cero— y ahorra el viaje de ida y vuelta a GitHub Actions. *Cuántos archivos
+y cuántas pruebas son lo dice el propio comando; no se anota acá porque cambia
+cada día.*
 
 **`db reset` y no `db start`:** `db start` no reaplica nada si la base ya está
 levantada, así que una migración nueva parece aplicar y en realidad no se probó
@@ -654,9 +627,9 @@ números: es lo que destapó las dos `0158` del 2026-08-05, abortando con
 
 **Si las pruebas fallan todas a la vez con «relation "sedes" does not exist»**,
 no es el código: el contenedor de Postgres se reinició vacío. Pasó el 2026-08-04.
-Se arregla con `npx supabase db reset`, que vuelve a aplicar las 131 migraciones
-sobre una base limpia. La base local es un laboratorio: no guarda nada que no se
-pueda reconstruir.
+Se arregla con `npx supabase db reset`, que vuelve a aplicar todas las
+migraciones sobre una base limpia. La base local es un laboratorio: no guarda
+nada que no se pueda reconstruir.
 
 **Lo que sí falla es `supabase start`** (el stack completo: Auth, Storage,
 Realtime). Revienta aplicando la 0001 con «type rol_usuario already exists», sin
@@ -674,7 +647,7 @@ docker run -d --name cayla_audit -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_HOST_AUTH_METHOD=trust public.ecr.aws/supabase/postgres:17.6.1.141
 ```
 
-Con eso las **114 migraciones aplican limpio**.
+Con eso el esquema entero aplica limpio.
 
 **Los 8 errores de tipos ya no están** (revisado el 2026-08-04): `npx pnpm
 typecheck` pasa limpio en los tres paquetes. Las entradas de RPC que faltaban en
@@ -709,40 +682,18 @@ no conviene volver a pagar. Lo de arriba es lo vigente.
 
 ---
 
-## ✅ Aplicado en producción el 26-07 — migraciones 0076 a 0089
+## La lección de julio: un registro no es una comprobación
 
-| # | Qué cerró |
-|---|---|
-| 0076 | Ejecución sin sesión de 54 funciones · la firma escaneada sale de `personas` a su propia tabla |
-| 0077–0080 | Registro de migraciones · guards null-safe · la suspensión deja de contar como falta · feriados hasta 2032 |
-| 0081 | Una marca se **anula**, no se borra · corregir el **tipo** de una marca · **confirmar** un auto-cierre |
-| 0082 | Las otras seis funciones que leen marcajes ya saben de las anuladas |
-| 0083 | Candado de periodo pagado al confirmar · el día que una marca abandona se recalcula |
-| 0084 | El sello de "día por revisar" **se levanta** cuando el día vuelve a cuadrar |
-| 0085–0087 | Tipo de vínculo · fecha de cese · beneficios truncos al cesar *(de la otra sesión)* |
-| 0088 | La gratificación se paga aunque el periodo **cruce el año** |
-| 0089 | Los cinco cabos sueltos de la auditoría (auto-cierre duplicado, día roto en silencio, candado con bloqueo, orden de la autorización) |
-| 0090 | **La planilla no la lee cualquiera.** El barrido de la 0076 había deshecho un `revoke` deliberado: cualquier sesión con login —el terminal de tienda incluido— podía pedir los sueldos de todo el equipo |
-| 0091 | **La hora de Lima en todo el sistema.** `current_date` resuelve en UTC: desde las 19:00 el sistema creía que era mañana. Nueve funciones afectadas, entre ellas el semáforo disciplinario. Cuarta vez que entra el mismo bug; ahora hay una prueba que lo impide |
-| 0092 | Una falta no se sanciona dos veces. La rama del art. 25-h no tenía el candado: cada pulsación fabricaba otra carta de preaviso idéntica |
-| 0093 | El descanso sustitutorio no toca una planilla pagada (medido: S/65 menos en un periodo cerrado, sin rastro) |
-| 0094 | **El memo no acusa por días ya justificados.** La pantalla decía «suspensión cumplida» y el papel entregado decía «inasistencia injustificada» |
-| 0095 | Ni horas negativas (el auto-cierre podía poner la salida antes de la entrada) ni reabrir un pago sin motivo |
-| 0096 | **La foto del pago.** Al marcar un periodo como pagado se congela el desglose de cada persona. No se edita ni se borra; si un recálculo posterior ya no coincide, el sistema lo dice en vez de cambiar la cifra |
-| 0097 | **Costos.** Pantalla nueva en Nómina que suma lo que costó el equipo leyendo solo lo congelado. Separa lo que se transfirió de lo que le cuesta a CAYLA (con provisiones) |
-| 0098 | Volver a pagar un periodo sin que pase por «abierto»: los candados de sus marcajes no se levantan ni un instante |
-| 0099 | Tipo de sede (central · taller · tienda) y costos comparables por persona y por hora — un total no compara dos sedes de distinto tamaño |
-| 0100 | **Un cero no explica nada.** «De vacaciones», «no marcó» y «sin horario» ya no se ven idénticas en la planilla |
-| 0101 | **Ausencias: un solo lugar para «por qué no vino».** Absorbe `vacaciones` y `justificaciones_asistencia` convirtiéndolas en vistas. Un permiso concedido deja de contar como falta injustificada — antes el sistema abría expediente disciplinario por los días que la empresa concedía |
-| 0102 | **Poner al día lo que el registro decía que ya estaba.** Cinco funciones donde producción tenía una versión anterior, incluido el trigger que dejaba horas fantasma al mover una marca de día |
+Se dio por hecho que las 0088 y 0089 se habían aplicado bajo sus números viejos.
+La **0089 no se había aplicado**: se registró, y su contenido nunca llegó a la
+base. Esa distinción sigue siendo la más cara de este proyecto, y hay dos
+herramientas distintas justamente porque son dos preguntas distintas:
 
-**Todas aplicadas en producción**, incluidas la 0085, 0086 y 0087 (tipo de
-vínculo, fecha de cese y beneficios truncos), que llevaban días escritas sin
-pegarse. Con eso el laboratorio y producción tienen por fin el mismo esquema.
+- **¿está anotada?** → `migraciones_aplicadas` (y la prueba `122`, en CI)
+- **¿está su contenido?** → `scripts/sql-manual/comparar_funciones.sql`
 
-**Ojo con lo que ese registro decía.** Se dio por hecho que las 0088 y 0089 se
-habían aplicado bajo sus números viejos. La 0089 **no** se había aplicado: se
-registró y su contenido nunca llegó. Un registro no es una comprobación.
+*El inventario de qué cerró cada migración de julio vivía acá y salió: lo dice el
+encabezado de cada archivo en `supabase/migrations/`, que no puede quedar viejo.*
 
 ### Lo que costó aprender hoy
 
@@ -901,6 +852,16 @@ se deja constancia y ya. Es una decisión de negocio, no técnica.
 ## Decisiones tomadas (no reabrir)
 
 - **Planilla**: régimen MYPE pequeña empresa, base 6.5 h, pago = salario × horas/(6.5 × días).
+- **La CTS incluye el sexto de la gratificación** — encendido en producción el
+  2026-08-05. La base pasa de sueldo pelado a sueldo × 13/12 (Art. 16 del
+  D.S. 001-97-TR; en pequeña empresa la grati es media remuneración, así que el
+  sexto vale sueldo/12). Sobre S/1,130 la CTS del año sube de 565.00 a 612.08.
+  **Ninguna autoridad zanjó este punto para el régimen MYPE**: es derivación del
+  TUO de la Ley de CTS y del documento del MTPE. Se eligió la lectura prudente
+  —provisionar de más no es infracción, de menos sí—. Se apaga con una línea, y
+  la prueba `126` blinda que el sexto no se cuele en la gratificación ni en las
+  vacaciones. **Falta contárselo al contador antes del depósito de mayo**: si él
+  calcula sobre el sueldo pelado, la discrepancia aparece el día del depósito.
 - **El terminal marca sin PIN**, a propósito. No se puede usar una marca como
   prueba individual en un procedimiento disciplinario sin otro respaldo.
 - **Fecha de ingreso = decisión de negocio, no cálculo.** Se edita persona por
