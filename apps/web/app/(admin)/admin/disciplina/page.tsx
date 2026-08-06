@@ -8,6 +8,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { instanteEntrega } from "@/lib/admin/instante-entrega";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { TZ_LIMA, hoyLima, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
 
@@ -52,28 +53,6 @@ interface Adjunto {
 
 const MAX_BYTES_CARGO = 50 * 1024 * 1024;
 const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
-
-// Sube por PUT a una URL ya firmada, con progreso real: `upload()` del cliente
-// no informa avance, y una espera muda se lee como que la pantalla se colgó.
-function subirConProgreso(
-  urlFirmada: string, archivo: File, alAvanzar: (pct: number) => void,
-): Promise<string | null> {
-  return new Promise((resolver) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", urlFirmada);
-    xhr.setRequestHeader("x-upsert", "true");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) alAvanzar(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      resolver(xhr.status >= 200 && xhr.status < 300 ? null : `el servidor respondió ${xhr.status}`);
-    xhr.onerror = () => resolver("se cortó la conexión durante la subida");
-    const cuerpo = new FormData();
-    cuerpo.append("cacheControl", "3600");
-    cuerpo.append("", archivo);
-    xhr.send(cuerpo);
-  });
-}
 
 interface Doc {
   id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
@@ -335,8 +314,7 @@ export default function DisciplinaPage() {
     const ruta = `${subiendoCargo.id}/${subiendoCargo.negativa ? "acta" : "cargo"}-${Date.now()}.${ext}`;
 
     setProgresoCargo(0);
-    const firma = await supabase.storage.from("expedientes").createSignedUploadUrl(ruta, { upsert: true });
-    const fallo = firma.error ? firma.error.message : await subirConProgreso(firma.data.signedUrl, archivoCargo, setProgresoCargo);
+    const fallo = await subirArchivoConProgreso(supabase, "expedientes", ruta, archivoCargo, setProgresoCargo);
     setProgresoCargo(null);
     if (fallo) {
       setOcupado(null);

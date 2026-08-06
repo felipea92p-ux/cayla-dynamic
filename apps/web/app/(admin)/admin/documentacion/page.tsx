@@ -9,6 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { hoyLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
@@ -270,31 +271,6 @@ interface EstadoPolitica {
 const MAX_BYTES_DOC = 50 * 1024 * 1024;
 const TIPOS_DOC = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 
-// Sube por PUT a una URL ya firmada, con progreso real. Mismo camino que en
-// Educación: `upload()` del cliente no informa avance, y una espera muda de
-// varios minutos se lee como que la pantalla se colgó.
-function subirConProgreso(
-  urlFirmada: string,
-  archivo: File,
-  alAvanzar: (pct: number) => void,
-): Promise<string | null> {
-  return new Promise((resolver) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", urlFirmada);
-    xhr.setRequestHeader("x-upsert", "true");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) alAvanzar(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      resolver(xhr.status >= 200 && xhr.status < 300 ? null : `el servidor respondió ${xhr.status}`);
-    xhr.onerror = () => resolver("se cortó la conexión durante la subida");
-    const cuerpo = new FormData();
-    cuerpo.append("cacheControl", "3600");
-    cuerpo.append("", archivo);
-    xhr.send(cuerpo);
-  });
-}
-
 export default function DocumentacionPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -492,8 +468,7 @@ export default function DocumentacionPage() {
     const ext = archivoDoc.name.split(".").pop()?.toLowerCase() ?? "bin";
     const ruta = `documentos/${id}.${ext}`;
     setProgresoDoc(0);
-    const firma = await supabase.storage.from("documentos").createSignedUploadUrl(ruta, { upsert: true });
-    const fallo = firma.error ? firma.error.message : await subirConProgreso(firma.data.signedUrl, archivoDoc, setProgresoDoc);
+    const fallo = await subirArchivoConProgreso(supabase, "documentos", ruta, archivoDoc, setProgresoDoc);
     setProgresoDoc(null);
     if (fallo) {
       setGuardandoDoc(false);
