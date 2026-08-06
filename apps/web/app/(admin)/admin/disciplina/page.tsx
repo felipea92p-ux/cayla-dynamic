@@ -7,12 +7,10 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { TZ_LIMA, puedeOperarEquipo } from "@cayla-dynamic/shared";
+import { instanteEntrega } from "@/lib/admin/instante-entrega";
+import { TZ_LIMA, hoyLima, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
 
-function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
-}
 // Fechas planas: se formatean en UTC para que no se corran un día por zona horaria.
 function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
@@ -81,8 +79,85 @@ interface Doc {
   id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
   periodo_desde: string | null; periodo_hasta: string | null; hechos: Hecho[];
   suspension_dias: number | null; suspension_desde: string | null; suspension_hasta: string | null;
-  correlativo: string | null; creado_at: string;
+  correlativo: string | null; creado_at: string; firmado_at: string | null;
   entregado_at: string | null; medio_entrega: string | null;
+}
+
+/**
+ * El formulario para archivar el papel de una entrega.
+ *
+ * Vive acá y no dentro de cada sección porque el mismo trámite aparece en dos
+ * momentos: cuando el memo está firmado y aún no se entrega, y cuando ya se
+ * entregó por otra vía y falta archivar el cargo. Estaba escrito solo en el
+ * primero, así que en "Entregados" el botón abría un aviso sin selector de
+ * archivo — parecía que el sistema no dejaba subirlo.
+ *
+ * `pideFecha` es la única diferencia real entre los dos casos: en un documento
+ * ya entregado la fecha buena es la registrada y la base no la pisa.
+ */
+function FormularioCargo({
+  negativa, pideFecha, entregadoEl, fecha, progreso, ocupado,
+  alElegirArchivo, alCambiarFecha, alCambiarNota, nota, alGuardar, alCancelar,
+}: {
+  negativa: boolean; pideFecha: boolean; entregadoEl: string | null;
+  fecha: string; nota: string; progreso: number | null; ocupado: boolean;
+  alElegirArchivo: (f: File | null) => void;
+  alCambiarFecha: (v: string) => void;
+  alCambiarNota: (v: string) => void;
+  alGuardar: () => void; alCancelar: () => void;
+}) {
+  return (
+    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+      <p className="mb-2 text-xs text-taupe">
+        {negativa
+          ? "Sube el acta con testigo. Queda constancia de que se ofreció entregar; el documento NO se marca entregado."
+          : pideFecha
+            ? "Al subir el cargo, el documento queda entregado con esta fecha. Desde ahí corren los plazos de descargo (art. 31)."
+            : `Sube el cargo para archivarlo en el legajo. No cambia la entrega ya registrada${entregadoEl ? ` (${entregadoEl})` : ""}.`}
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-xs">
+          {negativa ? "Acta de la negativa" : "Cargo firmado"}
+          <input type="file" accept={TIPOS_CARGO}
+            onChange={(e) => alElegirArchivo(e.target.files?.[0] ?? null)}
+            className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+        </label>
+        {pideFecha && (
+          <label className="flex flex-col gap-1 text-xs">
+            Fecha de entrega
+            <input type="date" value={fecha} max={hoyLima()}
+              onChange={(e) => alCambiarFecha(e.target.value)}
+              className="rounded border px-2 py-1 text-xs" />
+          </label>
+        )}
+        <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+          Nota (opcional)
+          <input value={nota} onChange={(e) => alCambiarNota(e.target.value)}
+            placeholder={negativa ? "ej. presente la encargada de TRU como testigo" : "ej. recibido en la tienda"}
+            className="rounded border px-2 py-1 text-xs" />
+        </label>
+      </div>
+      {progreso !== null && (
+        <div className="mt-2">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
+            <div className="h-full bg-tinta transition-[width] duration-200"
+              style={{ width: `${progreso}%` }}
+              role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}
+              aria-label="Subiendo el cargo" />
+          </div>
+          <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
+        </div>
+      )}
+      <div className="mt-2 flex items-center gap-2">
+        <button onClick={alGuardar} disabled={ocupado}
+          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+          {progreso !== null ? `Subiendo… ${progreso}%` : "Guardar"}
+        </button>
+        <button onClick={alCancelar}
+          className="rounded-lg border px-3 py-1 text-xs">Cancelar</button>
+      </div>
+    </div>
+  );
 }
 
 export default function DisciplinaPage() {
@@ -129,7 +204,7 @@ export default function DisciplinaPage() {
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, correlativo, creado_at, entregado_at, medio_entrega")
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, correlativo, creado_at, firmado_at, entregado_at, medio_entrega")
         // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
         //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
         //   papel de una entrega de hace dos meses.
@@ -180,6 +255,10 @@ export default function DisciplinaPage() {
     if (cargando) return;
     const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
     if (!hash) return;
+    // El aviso del Dashboard («N memos sin el cargo archivado») apunta acá. Los
+    // entregados están plegados por defecto: aterrizar y no ver nada es igual a
+    // no haber avisado.
+    if (hash === "entregados") setVerCerrados(true);
     const el = document.getElementById(hash);
     if (!el) return;
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -228,6 +307,11 @@ export default function DisciplinaPage() {
 
   async function guardarCargo() {
     if (!subiendoCargo) return;
+    // La fecha solo se pide cuando esta subida es la que marca la entrega: en un
+    // documento ya entregado la fecha buena es la registrada, y en un acta de
+    // negativa no hay entrega que fechar.
+    const doc = docs.find((x) => x.id === subiendoCargo.id) ?? null;
+    const pideFecha = !subiendoCargo.negativa && doc?.estado === "firmado";
     if (!archivoCargo) {
       setMsg({ tipo: "error", texto: subiendoCargo.negativa
         ? "Falta el acta de la negativa. Sin el papel con el testigo no queda constancia de que se ofreció."
@@ -238,7 +322,7 @@ export default function DisciplinaPage() {
       setMsg({ tipo: "error", texto: `“${archivoCargo.name}” pesa ${(archivoCargo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
       return;
     }
-    if (!fechaEntrega) {
+    if (pideFecha && !fechaEntrega) {
       setMsg({ tipo: "error", texto: "Indica la fecha de entrega: desde ahí corren los plazos de descargo." });
       return;
     }
@@ -260,14 +344,15 @@ export default function DisciplinaPage() {
       return;
     }
 
-    // La fecha de entrega solo se aplica si el memo sigue "firmado": si ya se
-    // entregó por otra vía, esa fecha es la buena y no se pisa (lo hace la
-    // función, no la pantalla).
+    // La fecha de entrega solo viaja si esta subida es la que marca la entrega.
+    // La función la ignoraría igual en un documento ya entregado, pero mandarla
+    // la somete a validaciones que no vienen al caso y podrían rechazar el
+    // archivado de un papel perfectamente válido.
     const { error } = await supabase.rpc("fn_expediente_adjuntar", {
       p_documento_id: subiendoCargo.id,
       p_path: ruta,
       p_tipo: subiendoCargo.negativa ? "acta_negativa" : "cargo_firmado",
-      p_fecha_entrega: subiendoCargo.negativa ? null : `${fechaEntrega}T12:00:00-05:00`,
+      p_fecha_entrega: pideFecha ? instanteEntrega(fechaEntrega, doc?.firmado_at ?? null) : null,
       p_nota: notaCargo.trim() || null,
     });
     setOcupado(null);
@@ -277,7 +362,9 @@ export default function DisciplinaPage() {
     await cargar();
     setMsg({ tipo: "ok", texto: subiendoCargo.negativa
       ? "Acta de negativa archivada contra el documento."
-      : "Cargo archivado y documento marcado como entregado. Ya no hace falta guardarlo en ninguna carpeta." });
+      : pideFecha
+        ? "Cargo archivado y documento marcado como entregado. Ya no hace falta guardarlo en ninguna carpeta."
+        : "Cargo archivado contra el documento. La fecha de entrega registrada no cambió." });
   }
 
   async function verAdjunto(path: string) {
@@ -532,57 +619,23 @@ export default function DisciplinaPage() {
                         className="rounded-lg border border-taupe/30 px-3 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-40">Cambiar firmante</button>
                     </div>
                   </div>
-                  <p className="mt-1 text-xs text-taupe">Firmado {selloLima(d.creado_at)}</p>
+                  {/* La firma, no la creación del borrador: de la firma cuelgan
+                      los plazos, y entre una y otra pueden pasar días. */}
+                  <p className="mt-1 text-xs text-taupe">Firmado {selloLima(d.firmado_at ?? d.creado_at)}</p>
 
                   {subiendoCargo?.id === d.id && (
-                    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
-                      <p className="mb-2 text-xs text-taupe">
-                        {subiendoCargo.negativa
-                          ? "Sube el acta con testigo. Queda constancia de que se ofreció entregar; el documento NO se marca entregado."
-                          : "Al subir el cargo, el documento queda entregado con esta fecha. Desde ahí corren los plazos de descargo (art. 31)."}
-                      </p>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <label className="flex flex-col gap-1 text-xs">
-                          {subiendoCargo.negativa ? "Acta de la negativa" : "Cargo firmado"}
-                          <input type="file" accept={TIPOS_CARGO}
-                            onChange={(e) => setArchivoCargo(e.target.files?.[0] ?? null)}
-                            className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
-                        </label>
-                        {!subiendoCargo.negativa && (
-                          <label className="flex flex-col gap-1 text-xs">
-                            Fecha de entrega
-                            <input type="date" value={fechaEntrega} max={hoyLima()}
-                              onChange={(e) => setFechaEntrega(e.target.value)}
-                              className="rounded border px-2 py-1 text-xs" />
-                          </label>
-                        )}
-                        <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                          Nota (opcional)
-                          <input value={notaCargo} onChange={(e) => setNotaCargo(e.target.value)}
-                            placeholder={subiendoCargo.negativa ? "ej. presente la encargada de TRU como testigo" : "ej. recibido en la tienda"}
-                            className="rounded border px-2 py-1 text-xs" />
-                        </label>
-                      </div>
-                      {progresoCargo !== null && (
-                        <div className="mt-2">
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
-                            <div className="h-full bg-tinta transition-[width] duration-200"
-                              style={{ width: `${progresoCargo}%` }}
-                              role="progressbar" aria-valuenow={progresoCargo} aria-valuemin={0} aria-valuemax={100}
-                              aria-label="Subiendo el cargo" />
-                          </div>
-                          <span className="text-xs text-taupe">Subiendo — {progresoCargo}%</span>
-                        </div>
-                      )}
-                      <div className="mt-2 flex items-center gap-2">
-                        <button onClick={() => void guardarCargo()} disabled={ocupado === d.id}
-                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
-                          {progresoCargo !== null ? `Subiendo… ${progresoCargo}%` : "Guardar"}
-                        </button>
-                        <button onClick={() => setSubiendoCargo(null)}
-                          className="rounded-lg border px-3 py-1 text-xs">Cancelar</button>
-                      </div>
-                    </div>
+                    <FormularioCargo
+                      negativa={subiendoCargo.negativa}
+                      pideFecha={!subiendoCargo.negativa}
+                      entregadoEl={null}
+                      fecha={fechaEntrega} nota={notaCargo}
+                      progreso={progresoCargo} ocupado={ocupado === d.id}
+                      alElegirArchivo={setArchivoCargo}
+                      alCambiarFecha={setFechaEntrega}
+                      alCambiarNota={setNotaCargo}
+                      alGuardar={() => void guardarCargo()}
+                      alCancelar={() => setSubiendoCargo(null)}
+                    />
                   )}
                 </li>
               ))}
@@ -596,7 +649,7 @@ export default function DisciplinaPage() {
             dos meses no había ningún sitio. Plegado por defecto para que la
             pantalla siga enfocada en lo que falta hacer. */}
         {entregados.length > 0 && (
-          <div className="mt-4 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div id="entregados" className="mt-4 max-w-3xl scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
             <button onClick={() => setVerCerrados((v) => !v)}
               className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
               <span>Entregados · {entregados.length}</span>
@@ -643,9 +696,18 @@ export default function DisciplinaPage() {
                         )}
                       </p>
                       {subiendoCargo?.id === d.id && (
-                        <p className="mt-2 text-xs text-taupe">
-                          Sube el cargo desde acá: no cambia la fecha de entrega ya registrada.
-                        </p>
+                        <FormularioCargo
+                          negativa={subiendoCargo.negativa}
+                          pideFecha={false}
+                          entregadoEl={d.entregado_at ? selloLima(d.entregado_at) : null}
+                          fecha={fechaEntrega} nota={notaCargo}
+                          progreso={progresoCargo} ocupado={ocupado === d.id}
+                          alElegirArchivo={setArchivoCargo}
+                          alCambiarFecha={setFechaEntrega}
+                          alCambiarNota={setNotaCargo}
+                          alGuardar={() => void guardarCargo()}
+                          alCancelar={() => setSubiendoCargo(null)}
+                        />
                       )}
                     </li>
                   );
