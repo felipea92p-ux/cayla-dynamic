@@ -115,6 +115,28 @@ export const REGIMENES_PENSION = [
 ] as const;
 export type RegimenPension = (typeof REGIMENES_PENSION)[number];
 
+/**
+ * Por qué una persona dejó de trabajar aquí. La verdad vive en el constraint
+ * `personas_motivo_cese_valido` (0086, ampliado por la 0144 con `fin_contrato`);
+ * esta lista existe para poder pintar un desplegable y traducir el valor a algo
+ * legible. Si se agrega uno nuevo allá, se agrega acá — y al revés no: el
+ * constraint manda.
+ *
+ * `por_revisar` no es un motivo: es el marcador que dejó el backfill de la 0086
+ * para las personas cuyo motivo no se pudo deducir de ningún dato. Se muestra
+ * como «sin registrar» para que se note que falta, no para que pase por bueno.
+ */
+export const MOTIVOS_CESE = [
+  "renuncia",
+  "despido",
+  "fin_contrato",
+  "fin_periodo_prueba",
+  "fin_servicio_rxh",
+  "mutuo_acuerdo",
+  "por_revisar",
+] as const;
+export type MotivoCese = (typeof MOTIVOS_CESE)[number];
+
 /** Cada salida_X (excepto salida_otro que también exige motivo) debe cerrarse con su retorno_X correspondiente. */
 export const PARES_SALIDA_RETORNO: Record<string, TipoMarca> = {
   salida_almuerzo: "retorno_almuerzo",

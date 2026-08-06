@@ -10,7 +10,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { TZ_LIMA, puedeVerPlanilla, type Rol } from "@cayla-dynamic/shared";
+import { MOTIVO_CESE_LABELS, TZ_LIMA, etiquetaDeCatalogo, puedeVerPlanilla, type Rol } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
@@ -80,6 +80,11 @@ interface Persona {
   // Qué es esta persona para el sistema (0085). Decide si acumula gratificación,
   // CTS y vacaciones, si recibe movilidad y si genera EsSalud (0117 y 0119).
   tipo_vinculo: string;
+  // Cuándo y por qué dejó de trabajar aquí (0086, expuestos por la 0177).
+  // `motivo_cese` llega null a quien no sea admin ni líder DO: la función solo
+  // se lo entrega a administración, y aquí no se compensa esa ausencia.
+  fecha_cese: string | null;
+  motivo_cese: string | null;
 }
 
 
@@ -189,15 +194,15 @@ export default function EquipoPage() {
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
-      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string }[] | null) ?? []))
-        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla" }] as const),
+      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
+        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
         const extra = funciones.get(p.id);
-        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla" };
+        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
       }),
     );
     setCargando(false);
@@ -953,6 +958,22 @@ export default function EquipoPage() {
                       )}
                       {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
                         <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+                      )}
+                      {/* Cuándo y por qué se fue (0177). Va acá y no en columnas
+                          propias para no ensanchar una tabla que ya tiene ocho, y
+                          porque solo aplica a quien está inactivo: al equipo activo
+                          no le agrega una celda vacía en cada fila.
+                          El motivo llega null si quien mira no es admin ni líder DO
+                          —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
+                      {p.estado === "inactivo" && p.fecha_cese && (
+                        <div className="text-xs text-taupe">
+                          Se fue: {fmtFechaDMA(p.fecha_cese)}
+                          {p.motivo_cese && (
+                            <> · {p.motivo_cese === "por_revisar"
+                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha para dejarlo escrito.">sin registrar</span>
+                              : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
