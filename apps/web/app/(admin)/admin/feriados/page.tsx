@@ -208,15 +208,36 @@ export default function FeriadosPage() {
     setMsg({ tipo: "ok", texto: `Acta guardada para “${refActa}”.` });
   }
 
-  // El archivo se pide solo al abrirlo, no al cargar la pantalla.
+  /**
+   * Abre el acta en una pestaña nueva. El archivo se pide solo al abrirlo, no
+   * al cargar la pantalla.
+   *
+   * Antes esto abría una pestaña vacía y le escribía un `<iframe src="data:…">`
+   * con el PDF entero metido en el atributo. Chrome bloquea la navegación a
+   * `data:` en el nivel superior (es una defensa contra el phishing), así que
+   * la pestaña se quedaba EN BLANCO: ni el papel ni un error, solo about:blank.
+   *
+   * Se convierte a una URL de objeto —`blob:`— que el navegador sí abre con su
+   * visor de PDF de siempre. Se libera al minuto: soltarla enseguida deja la
+   * pestaña recién abierta sin nada que mostrar.
+   */
   async function abrirActa(referencia: string) {
     const { data, error } = await supabase.rpc("fn_acta_descanso", { p_referencia: referencia });
     if (error || !data) { setMsg({ tipo: "error", texto: error?.message ?? "Esa acta no tiene archivo." }); return; }
-    const w = window.open();
-    if (!w) { setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes." }); return; }
-    w.document.write(
-      `<iframe src="${String(data)}" style="border:0;width:100%;height:100%"></iframe>`,
-    );
+    let url: string;
+    try {
+      url = URL.createObjectURL(await (await fetch(String(data))).blob());
+    } catch {
+      setMsg({ tipo: "error", texto: "No se pudo preparar el archivo para abrirlo. Vuelve a intentarlo." });
+      return;
+    }
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) {
+      URL.revokeObjectURL(url);
+      setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio." });
+      return;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   function alternar(id: string) {
