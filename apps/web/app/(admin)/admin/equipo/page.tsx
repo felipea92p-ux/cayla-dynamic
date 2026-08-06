@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -140,6 +140,16 @@ export default function EquipoPage() {
   const [guardando, setGuardando] = useState(false);
   // Registrar la salida de alguien. Es un panel y no un window.confirm porque un
   // cese son dos datos —el último día y el porqué—, no un sí/no.
+  // Los cinco paneles de esta pantalla —alta, edición, salario, historial y
+  // salida— se abren ARRIBA, encima de la tabla. Con ~30 filas, quien pulsa un
+  // botón desde media lista no ve que abrió nada: la pantalla no cambia donde
+  // está mirando, así que vuelve a pulsar creyendo que el botón no responde.
+  //
+  // No es una peculiaridad que haya que aprender: es un error de diseño, y el
+  // que lo comete es quien hizo la pantalla, no quien la usa. Se desplaza sola
+  // hasta el panel. `scroll-mt-4` deja un respiro arriba para que no quede
+  // pegado al borde.
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const [ceseId, setCeseId] = useState<string | null>(null);
   const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
   const [guardandoCese, setGuardandoCese] = useState(false);
@@ -245,6 +255,13 @@ export default function EquipoPage() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  // Cuál está abierto, no si hay alguno: así también se desplaza al pasar de un
+  // panel a otro (de «Editar» de una persona a «Registrar salida» de otra).
+  const panelAbierto = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  useEffect(() => {
+    if (panelAbierto) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [panelAbierto]);
 
   const cargarSalarios = useCallback(async () => {
     setSalariosEstado("cargando");
@@ -1151,11 +1168,13 @@ export default function EquipoPage() {
           </div>
         )}
 
-        {mostrandoAlta && formulario("alta")}
-        {editandoId && formulario("edicion")}
-        {ceseId && editorCese()}
-        {puedeSalarios && salEditId && editorSalario()}
-        {puedeSalarios && histId && panelHistorial()}
+        <div ref={panelRef} className="scroll-mt-4">
+          {mostrandoAlta && formulario("alta")}
+          {editandoId && formulario("edicion")}
+          {ceseId && editorCese()}
+          {puedeSalarios && salEditId && editorSalario()}
+          {puedeSalarios && histId && panelHistorial()}
+        </div>
 
         {/* Filtros. Todo el filtrado ocurre en el navegador sobre lo que ya está
             cargado: son ~30 personas, no hay nada que pedirle a la base. */}
