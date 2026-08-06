@@ -8,11 +8,26 @@
 --   · desde la 0162, a quién deja de pedirle su declaración de ruta el tablero
 --     —solo cuando el contrato vence este mes o antes, no cuando falta medio año.
 --
--- POR QUÉ ESTE ARCHIVO EXISTE. Porque la columna NO SE PUEDE EDITAR DESDE
--- NINGUNA PANTALLA. La 0144 la agregó, la pantalla de Documentación la lee, y
--- nadie la escribe: hoy la única forma de llenarla es esta. Está anotado como
--- pendiente — mientras siga así, el dato depende de que alguien se acuerde de
--- venir acá, y un dato que depende de la memoria de una persona termina vacío.
+-- ⚠️ YA NO ES LA VÍA NORMAL (2026-08-06). La ficha de la persona en
+-- **Equipo → Editar** tiene el campo «Último día que trabaja por contrato», y ahí
+-- se pone, se cambia y se borra. Además avisa de la consecuencia antes de
+-- guardar, valida contra la fecha de ingreso en español, y deja el motivo en
+-- `correcciones_auditoria` — nada de eso pasa cuando se escribe por acá.
+--
+-- Este archivo se queda para dos casos y ninguno más:
+--   · cargar varias fechas de una sentada, sin abrir la pantalla 20 veces;
+--   · diagnosticar en producción, que es donde no hay pantalla que valga.
+--
+-- Si escribes por acá, hazlo con `fn_set_fin_contrato(persona, fecha, motivo)` y
+-- no con un `update` a pelo: la función es la que audita quién cambió qué. El
+-- `update` de abajo se conserva porque sirve cuando la sesión del SQL Editor no
+-- tiene persona asociada y la función se niega —con razón— a escribir sin saber
+-- a quién anotarle el cambio.
+--
+-- POR QUÉ ESTE ARCHIVO EXISTIÓ. Porque la 0144 agregó la columna, la pantalla de
+-- Documentación la leía, y NADIE la escribía: durante dos días la única forma de
+-- llenarla fue esta. Un dato que depende de que alguien se acuerde de abrir el
+-- SQL Editor termina vacío, y por eso el campo se llevó a la ficha.
 --
 -- NO LLEVA NOMBRES A PROPÓSITO. Este archivo vive en git; los nombres, DNI y
 -- fechas del equipo no. Rellena los dos valores de abajo en el SQL Editor y no
@@ -62,6 +77,11 @@ order by persona;
 -- No la da de baja. Sigue activa, sigue marcando y sigue cobrando hasta que se
 -- registre su cese (`estado = 'inactivo'` + `fecha_cese`), que es otra cosa y va
 -- por la pantalla de Equipo.
+--
+-- Desde el 2026-08-06 el panel de administración avisa solo: lista a quien vence
+-- dentro de 30 días y —lo que importa— a quien YA venció y sigue figurando
+-- activa. Si alguien aparece ahí, la decisión es renovar o registrar su salida:
+-- mientras figure activa sigue acumulando gratificación, CTS y vacaciones.
 --
 -- Y no le quita la movilidad de los días que todavía va a trabajar. Si sale del
 -- tablero sin haber firmado su declaración, esos días quedan pagados sin el
