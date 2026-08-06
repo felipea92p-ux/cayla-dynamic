@@ -611,8 +611,26 @@ export default function EducacionPage() {
                             {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "ella misma"}
                           </td>
                           <td className="px-4 py-2 tabular-nums">{soles(Number(f.monto))}</td>
+                          {/* Decir 75% de S/727 cuando se pagan S/90 es decir algo falso:
+                              en cuatro de cada cinco filas reales lo que decide es el TECHO
+                              del rango, no el porcentaje. La celda dice cuál de los dos ganó
+                              — es la misma explicación que el formulario da al escribir, y
+                              que en la lista faltaba. */}
                           <td className="px-4 py-2 text-xs text-taupe">
-                            {f.cobertura_pct}% de {soles(Number(f.costo_declarado))}
+                            {(() => {
+                              const delPapel = Math.round(Number(f.costo_declarado) * Number(f.cobertura_pct)) / 100;
+                              const mandaElTecho = Number(f.monto) < delPapel - 0.005;
+                              return mandaElTecho ? (
+                                <>
+                                  tope del rango <strong className="text-tinta">{f.rango}</strong>
+                                  <span className="block">
+                                    el {f.cobertura_pct}% de {soles(Number(f.costo_declarado))} daría {soles(delPapel)}
+                                  </span>
+                                </>
+                              ) : (
+                                <>{f.cobertura_pct}% de {soles(Number(f.costo_declarado))}</>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-2 text-xs">
                             desde {fmtFecha(f.vigente_desde)}
