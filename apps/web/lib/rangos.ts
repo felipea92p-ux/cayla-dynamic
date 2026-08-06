@@ -35,14 +35,14 @@
 // Esa bajada es deliberada y está asumida: reduce la CTS, la gratificación, las
 // vacaciones y la pensión futura de quien ya estaba en esos rangos, porque las
 // cuatro se calculan sobre lo declarado. Se compensa con los conceptos no
-// remunerativos (movilidad, educación, bono). Caylo va igualado a cayla.
+// remunerativos (movilidad, educación, bono).
 //
 // ── SI CAMBIA LA RMV ────────────────────────────────────────────────────────
 //
 // Colibrí está clavado en el piso legal (1,130). Se anunció el 28/07/2026 una
 // subida a S/1,300, pero Felipe estima que la norma demora un año o más; cuando
-// salga, TODO lo que esté por debajo de la RMV nueva —hoy colibrí, cayla, caylo
-// y support— tiene que subir o queda bajo el mínimo. La prueba
+// salga, TODO lo que esté por debajo de la RMV nueva —hoy colibrí, cayla y
+// support— tiene que subir o queda bajo el mínimo. La prueba
 // «ninguna base declarada cae por debajo de la RMV vigente» es el recordatorio:
 // se pone roja en cuanto se actualice la constante RMV del test.
 // La RMV del sistema vive versionada en `parametros_laborales` desde la 0116;
@@ -51,35 +51,54 @@
 // Los códigos tienen que coincidir con el CHECK de la migración 0019
 // (`asignaciones_salario.rango`) y con la lista de `fn_fijar_base_declarada`
 // (migración 0128).
+//
+// ── LA VERDAD DE ESTA LISTA VIVE EN `categorias_laborales` ──────────────────
+//
+// Esto es una constante SOLO para pintar el desplegable de Equipo sin esperar a
+// que vuelva una consulta. El catálogo real es la tabla `categorias_laborales`
+// (migración 0140), que es de donde sale el cuadro de categorías que se publica
+// al equipo, con propósito, funciones, requisitos y criterio de cada nivel.
+//
+// Si las dos se separan, gana la tabla. La prueba 139 compara el CHECK de la
+// base contra esa tabla, así que una categoría nueva que no llegue acá se nota
+// en el desplegable, no en la planilla.
+//
+// ── POR QUÉ ACÁ NO ESTÁ EL TECHO DE EDUCACIÓN ───────────────────────────────
+//
+// Había un campo `topeEducacion` con los techos de cada rango. Se borró el
+// 2026-08-06 y no por limpieza: no lo llamaba nadie, y era una copia vieja. La
+// 0140 le quitó el techo a «caylo» en la tabla y esta copia se quedó diciendo
+// que tenía 180. La pantalla de política salarial ya lee los techos de
+// `topes_educacion_rango`, que es donde se editan.
+//
+// ── Y POR QUÉ YA NO ESTÁ «CAYLO» ────────────────────────────────────────────
+//
+// Era el mismo nivel que «cayla» —misma base, mismo techo— con otro nombre. Dos
+// nombres para un nivel es cómo se produce que uno de los dos se olvide: la 0140
+// retiró caylo del catálogo pero el desplegable lo siguió ofreciendo, y como en
+// la tabla ya no tenía techo, el candado de educación pagaba sin límite (con un
+// comprobante de S/727: S/545.25 en vez de S/180). Lo cerró la migración 0178.
+// Un rango es un nivel, no un género.
 
 export interface Rango {
   codigo: string;
   label: string;
   /** Monto que se declara en el PLAME y que el sistema paga. Editable por persona. */
   baseDeclarada: number;
-  /**
-   * TECHO mensual de la asignación por educación de ese rango — no un monto a pagar.
-   * Cada persona cobra el 75% de la pensión que sostiene SU comprobante, y este
-   * número es lo máximo que ese 75% puede llegar a ser. Ver la migración 0132.
-   */
-  topeEducacion: number;
   orden: number;
 }
 
+// El `orden` es el mismo de `categorias_laborales.orden`. Si acá dijera otro, el
+// desplegable ordenaría los niveles distinto de como los lee el equipo en su
+// política salarial.
 export const RANGOS: Rango[] = [
-  { codigo: "colibri", label: "Colibrí", baseDeclarada: 1130, topeEducacion: 90, orden: 1 },
-  { codigo: "cayla", label: "Cayla", baseDeclarada: 1185, topeEducacion: 180, orden: 2 },
-  { codigo: "caylo", label: "Caylo", baseDeclarada: 1185, topeEducacion: 180, orden: 3 },
-  { codigo: "support", label: "Support", baseDeclarada: 1260, topeEducacion: 270, orden: 4 },
-  { codigo: "aurora", label: "Aurora", baseDeclarada: 1360, topeEducacion: 360, orden: 5 },
-  { codigo: "oraculo", label: "Oráculo", baseDeclarada: 1440, topeEducacion: 420, orden: 6 },
-  { codigo: "archicaylo", label: "ArchiCaylo", baseDeclarada: 1500, topeEducacion: 480, orden: 7 },
+  { codigo: "colibri", label: "Colibrí", baseDeclarada: 1130, orden: 1 },
+  { codigo: "cayla", label: "Cayla", baseDeclarada: 1185, orden: 2 },
+  { codigo: "support", label: "Support", baseDeclarada: 1260, orden: 3 },
+  { codigo: "aurora", label: "Aurora", baseDeclarada: 1360, orden: 4 },
+  { codigo: "oraculo", label: "Oráculo", baseDeclarada: 1440, orden: 5 },
+  { codigo: "archicaylo", label: "ArchiCayla", baseDeclarada: 1500, orden: 6 },
 ];
-
-/** El techo de educación de ese rango. */
-export function topeEducacionDe(codigo: string): number | undefined {
-  return RANGOS.find((r) => r.codigo === codigo)?.topeEducacion;
-}
 
 export const RANGO_LABEL: Record<string, string> = Object.fromEntries(
   RANGOS.map((r) => [r.codigo, r.label]),

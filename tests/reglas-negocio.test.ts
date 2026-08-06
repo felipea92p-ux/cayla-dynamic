@@ -13,7 +13,8 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import { lecturaObjetivos } from "@/lib/objetivos";
-import { formatSoles, baseDeclaradaDe, topeEducacionDe, RANGOS } from "@/lib/rangos";
+import { formatSoles, baseDeclaradaDe, RANGOS } from "@/lib/rangos";
+import { NOMBRE_RANGO } from "@/lib/politica-salarial";
 
 describe("lecturaObjetivos — los objetivos no pagan (0171)", () => {
   // Estas tres aserciones decían lo contrario hasta el 2026-08-06: que cumplir
@@ -110,39 +111,50 @@ describe("baseDeclaradaDe — el monto que declara cada rango", () => {
   });
 });
 
-// El techo de la asignación por educación (mig. 0132). Es un MÁXIMO, no un monto
-// a pagar: cada persona cobra el 75% de lo que sostiene su comprobante, hasta
-// este número. Que fuera un monto fijo por rango es justo lo que hundió el
-// concepto en la RTF 07222-3-2018 (Albis) — ver la cabecera de la 0132.
-describe("topeEducacionDe — el techo de educación de cada rango", () => {
-  it("un rango real trae un techo positivo", () => {
-    expect(topeEducacionDe("cayla")).toBe(180);
-  });
-
-  it("un rango inexistente no inventa un techo", () => {
-    expect(topeEducacionDe("rango-que-no-existe")).toBeUndefined();
-  });
-
-  // Espejo de la tabla topes_educacion_rango en la base. Si alguien cambia la
-  // escala en un lado y no en el otro, la pantalla ofrecería un techo que el
-  // servidor rechaza. Si tocas esto, toca también la migración 0132.
-  it("la escala coincide con la que blinda la migración 0132", () => {
-    const esperado: Record<string, number> = {
-      colibri: 90, cayla: 180, caylo: 180, support: 270,
-      aurora: 360, oraculo: 420, archicaylo: 480,
-    };
+// ── Los rangos se llaman igual en los dos sitios donde el código los nombra ──
+//
+// Acá vivía un bloque que blindaba los techos de educación contra un campo
+// `topeEducacion` en `rangos.ts`. Se borró el 2026-08-06 con el campo, y cómo
+// falló vale más que lo que probaba:
+//
+// El bloque comparaba `rangos.ts` contra los montos de la MIGRACIÓN 0132 —un
+// mapa escrito a mano acá dentro— y no contra la tabla `topes_educacion_rango`,
+// que es donde los techos se editan. Cuando la 0140 retiró «caylo» de la tabla,
+// este mapa siguió diciendo `caylo: 180` y las cuatro aserciones siguieron
+// verdes durante toda la divergencia. Un espejo de un espejo no vigila al
+// original: da la calma de que algo lo está mirando.
+//
+// Los techos los vigila ahora la prueba pgTAP 139, que compara contra la tabla.
+// Acá queda lo único que vitest SÍ puede vigilar sin base de datos: que las dos
+// listas de rangos que existen en el código digan lo mismo.
+describe("los dos sitios que nombran los rangos no se contradicen", () => {
+  // `RANGOS` pinta el desplegable de Equipo; `NOMBRE_RANGO` pone los títulos en
+  // la política salarial que se le entrega al equipo. Hasta el 2026-08-06 el
+  // rango tope era «ArchiCaylo» en el desplegable y «ArchiCayla» en el documento
+  // firmado: la misma persona con dos nombres según qué pantalla la mirara.
+  it("cada rango tiene un solo nombre en pantalla", () => {
     for (const r of RANGOS) {
-      expect(r.topeEducacion, `el techo de ${r.label} no coincide con la 0132`).toBe(esperado[r.codigo]);
+      expect(
+        NOMBRE_RANGO[r.codigo],
+        `«${r.label}» se llama distinto en la política salarial`,
+      ).toBe(r.label);
     }
   });
 
-  it("los techos no bajan al subir de rango", () => {
-    const porOrden = [...RANGOS].sort((a, b) => a.orden - b.orden);
-    for (let i = 1; i < porOrden.length; i++) {
-      expect(
-        porOrden[i].topeEducacion,
-        `${porOrden[i].label} tiene menos techo que ${porOrden[i - 1].label}`,
-      ).toBeGreaterThanOrEqual(porOrden[i - 1].topeEducacion);
-    }
+  it("las dos listas tienen exactamente los mismos rangos", () => {
+    expect([...RANGOS].map((r) => r.codigo).sort()).toEqual(Object.keys(NOMBRE_RANGO).sort());
+  });
+
+  // Si dos rangos comparten `orden`, el desplegable los muestra en un orden que
+  // cambia entre recargas — y el orden ES la jerarquía.
+  it("ningún rango comparte el lugar de otro", () => {
+    const ordenes = RANGOS.map((r) => r.orden);
+    expect(new Set(ordenes).size, "hay dos rangos con el mismo orden").toBe(ordenes.length);
+  });
+
+  // El rango retirado no puede volver por la puerta de la pantalla: la migración
+  // 0178 lo sacó del CHECK, así que elegirlo daría un error al guardar.
+  it("«caylo» no se ofrece: la base lo rechaza desde la 0178", () => {
+    expect(RANGOS.some((r) => r.codigo === "caylo")).toBe(false);
   });
 });

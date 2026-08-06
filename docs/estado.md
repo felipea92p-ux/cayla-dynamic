@@ -298,6 +298,7 @@ el régimen general, donde sí es exigible. La persona más antigua ingresó el
 | **Sandra Ramirez** | 27 días programados, **0 marcados**, total 0.00 | Puede ser vacaciones, permiso, o que no esté marcando |
 | **Rufina Salvatierra** | aparece en el cálculo y **no estaba** en la lista de 22 activos | Tiene jornadas sin estar activa, o se agregó después |
 | **Carlos Espejo** | sigue marcado `planilla` | Hoy no cobra movilidad porque no marca. **El día que marque, le va a salir.** Se cambia en Equipo → Tipo de vínculo |
+| **Quien esté en rango `caylo`** | en local no hay nadie; **en producción no lo puedo mirar** | Ese rango quedó sin techo de educación desde la 0140, así que con un comprobante de S/727 le pagaría **S/545.25** en vez de S/180. La 0178 lo reasigna sola a `cayla` y avisa a quién — pero el SELECT está en la cabecera de `aplicar_0178.sql` para verlo antes de pegar |
 
 ### A.5 · ✅ Las cuatro preguntas al contador, respondidas (2026-08-05)
 

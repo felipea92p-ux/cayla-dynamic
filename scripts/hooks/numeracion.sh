@@ -22,8 +22,12 @@
 # archivos que antes no existían.
 #
 # QUÉ HACE FALLAR EL PUSH
-#   1. Dos archivos con el mismo número en el árbol de trabajo.
-#   2. Un número NUEVO que otra rama sin fusionar ya usa para otra cosa.
+#   1. Dos archivos con el mismo número en el árbol de trabajo. Acá SÍ se mira el
+#      directorio entero, commiteado o no: dos archivos con el mismo número
+#      revientan tu propio `db reset`, venga de donde venga el segundo.
+#   2. Un número NUEVO —que agregan TUS COMMITS— que otra rama sin fusionar ya
+#      usa para otra cosa. Esta mira los commits, no el directorio: ver la nota
+#      larga en la comprobación 2.
 #
 # QUÉ SOLO AVISA
 #   Los huecos, y solo los que nadie explicó todavía. Los ya investigados viven
@@ -59,13 +63,31 @@ for dir in "supabase/migrations" "supabase/tests"; do
 done
 
 # ── 2 · Lo NUEVO de este push, contra las ramas vivas ──────────────────────
-# Nuevo = está acá y no en origin/main. Si no hay nada nuevo numerado, no se
-# toca la red y el hook termina de inmediato.
+# Nuevo = lo que TUS COMMITS agregan sobre origin/main. Si no hay nada nuevo
+# numerado, no se toca la red y el hook termina de inmediato.
+#
+# Ojo con la diferencia entre esto y un `ls`, que es la que hacía inservible al
+# hook: hasta el 2026-08-06 esta línea listaba el DIRECTORIO DE TRABAJO, así que
+# los archivos sin commitear de otra sesión contaban como tuyos. El hook te
+# acusaba —«renumera lo tuyo»— por un choque de archivos que tu push ni siquiera
+# llevaba, y la única salida era `--no-verify`. Es el peor modo de fallar que
+# puede tener un freno: castigar por algo ajeno enseña a saltárselo.
+#
+# `--no-renames` es a propósito: renumerar un archivo tiene que contar como un
+# número nuevo, que es exactamente lo que hay que verificar.
+#
+# Lo que se pierde: un archivo numerado sin commitear ya no se compara contra las
+# otras ramas. No es un hueco real — todavía no sale de esta máquina, y para el
+# momento de escribirlo está `siguiente-numero.sh`, que sí mira el directorio de
+# trabajo. Y el caso grave (dos archivos con el mismo número acá, que revienta tu
+# propio `db reset`) lo sigue cazando la comprobación 1, commiteados o no.
 NUEVOS=""
 if git rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
   EN_MAIN=$(git ls-tree -r --name-only origin/main -- supabase/migrations supabase/tests 2>/dev/null \
             | xargs -n1 basename 2>/dev/null | sort -u || true)
-  AQUI=$(ls supabase/migrations supabase/tests 2>/dev/null | grep -E '^[0-9]+_' | sort -u || true)
+  AQUI=$(git diff --name-only --diff-filter=A --no-renames origin/main..HEAD \
+           -- supabase/migrations supabase/tests 2>/dev/null \
+         | xargs -n1 basename 2>/dev/null | grep -E '^[0-9]+_' | sort -u || true)
   NUEVOS=$(comm -23 <(echo "$AQUI") <(echo "$EN_MAIN") || true)
 fi
 
