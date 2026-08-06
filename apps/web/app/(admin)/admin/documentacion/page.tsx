@@ -80,20 +80,34 @@ const DOCS: { id: TipoDoc; titulo: string; para: string; necesitaPersona: boolea
   },
 ];
 
-// El monto del bono, decidido con Felipe el 2026-07-31 tras comparar cinco
-// alternativas. Igual para todos y sin condición de antigüedad: escalarlo por
-// rango o atarlo al tiempo de servicio lo devuelve a ser remuneración.
-// El monto del bono, decidido con Felipe el 2026-07-31 tras comparar cinco
-// alternativas. Igual para todos y sin condición de antigüedad: escalarlo por
-// rango o atarlo al tiempo de servicio lo devuelve a ser remuneración.
+// EL MONTO DEL BONO NO ESTÁ ESCRITO ACÁ, Y ESE ES EL PUNTO.
 //
-// DESDE LA 0165 LA VERDAD VIVE EN `parametros_laborales` (clave
+// Se decidió con Felipe el 2026-07-31 tras comparar cinco alternativas: igual
+// para todos y sin condición de antigüedad, porque escalarlo por rango o atarlo
+// al tiempo de servicio lo devuelve a ser remuneración.
+//
+// Desde la 0165 la verdad vive en `parametros_laborales` (clave
 // `bono_onomastico`), versionada por `vigente_desde` — la misma fila dice cuánto
-// vale y desde cuándo rige la política. Esta constante quedó SOLO como valor de
-// respaldo por si esa migración todavía no está pegada, igual que
-// `TARIFA_POR_DEFECTO` con la movilidad. Si el papel firmado y la base dicen
-// cifras distintas, el papel contradice a la boleta.
-const BONO_POR_DEFECTO = 180;
+// vale y desde cuándo rige la política.
+//
+// ⇩ 2026-08-06 · ACÁ HUBO UN `BONO_POR_DEFECTO = 180` Y SE BORRÓ.
+//
+// Era un respaldo por si la 0165 no estaba pegada, y hoy acertaba: el bono es
+// 180 para todo el mundo, así que el número de respaldo era el correcto. La
+// razón de sacarlo es la de mañana, no la de hoy.
+//
+// El día que el monto cambie —se cierra la fila de 180 y se abre la de 200— basta
+// que la nueva quede mal fechada, o que se cierre una sin abrir la otra, para que
+// la consulta vuelva vacía y la constancia se imprima con 180. Alguien firmaría
+// «recibí S/ 180.00» habiendo cobrado otra cosa, en un papel que se ve
+// perfectamente normal. Es exactamente lo que pasó con la movilidad: el código
+// decía 10, la base no contestaba, y Taller LIM firmaba S/ 10.00 mientras cobraba
+// S/ 12.00.
+//
+// Un valor de respaldo convierte «no tengo el dato» en «el dato es 180». En un
+// documento que se firma, eso no es tolerancia a fallos: es una afirmación falsa
+// con rúbrica. Sin fila aplicable, `bonoMonto` es null y la constancia NO SE
+// IMPRIME — dice qué falta, igual que la declaración de ruta.
 
 interface Persona {
   id: string;
@@ -317,9 +331,10 @@ export default function DocumentacionPage() {
   const [firmanteNombre, setFirmanteNombre] = useState(EMPRESA.firmante);
   const [firmanteCargo, setFirmanteCargo] = useState(EMPRESA.cargo);
   const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
-  // El monto del bono, leído de `parametros_laborales` (0165). Arranca en el
-  // valor de respaldo por si esa migración aún no está pegada.
-  const [bonoMonto, setBonoMonto] = useState<number>(BONO_POR_DEFECTO);
+  // El monto del bono, leído de `parametros_laborales` (0165). `null` mientras no
+  // haya fila vigente — y `null` significa «no hay monto», nunca «pon el de
+  // siempre». Mismo criterio que `tarifa` con la movilidad.
+  const [bonoMonto, setBonoMonto] = useState<number | null>(null);
   // persona_id → fecha de término del contrato, para quien ya la tiene fijada.
   const [finContrato, setFinContrato] = useState<Map<string, string>>(new Map());
 
@@ -369,6 +384,16 @@ export default function DocumentacionPage() {
     // se imprime. Se frena ACÁ y no solo en el render porque desde el tablero se
     // imprime a ciegas: el botón dispara `window.print()` sin que nadie mire.
     const ficha = personas.find((p) => p.id === personaId);
+    // La constancia del bono, por lo mismo: acredita la entrega de una suma, y
+    // sin suma no acredita nada. Va antes que la de ruta porque no depende de la
+    // ficha de la persona — falta el parámetro para todo el mundo a la vez.
+    if (que === "bono" && bonoMonto === null) {
+      setAvisoDoc({ tipo: "error", texto:
+        "No hay monto de bono de onomástico vigente en el sistema, así que la constancia " +
+        "saldría sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico) " +
+        "y vuelve a imprimir." });
+      return;
+    }
     if (que === "ruta" && ficha && tarifaDeSede(ficha.sede_base_id) === null) {
       setAvisoDoc({ tipo: "error", texto:
         `La sede ${sedes.get(ficha.sede_base_id) ?? "de esta persona"} no tiene tarifa de movilidad vigente, ` +
@@ -502,13 +527,24 @@ export default function DocumentacionPage() {
         .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, en_planilla, tipo_vinculo")
         .eq("estado", "activo").order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo"),
-      // La tarifa vigente hoy. Si la 0118 no está pegada esto devuelve vacío y se
-      // queda el valor por defecto: el documento sigue saliendo, nunca se rompe
-      // por no poder leer un parámetro.
+      // La tarifa vigente hoy. Si la 0118 no está pegada esto devuelve vacío, y
+      // entonces la pantalla lo dice en vez de inventar un monto.
+      //
+      // ⇩ `hoyLima()` Y NO `new Date()`. Acá decía
+      // `new Date().toISOString().slice(0, 10)`, que es la fecha en UTC — cinco
+      // horas por delante de Lima. O sea que desde las 7 de la tarde hora de Perú
+      // esta consulta ya creía que era mañana, y una tarifa programada para
+      // mañana se habría impreso esa misma noche: alguien firmando un monto que
+      // ese día todavía no le correspondía.
+      //
+      // Es la regla que el CLAUDE.md se ganó juntando 32 copias del huso horario
+      // repartidas por el código: el corte del día vive en `fecha-lima.ts` y en
+      // ningún otro lado. Veinticinco líneas más abajo la consulta del bono ya lo
+      // hacía bien — dos respuestas a «¿qué día es hoy?» en la misma función.
       supabase.from("parametros_laborales")
         .select("valor, vigente_desde, sustento, sede_codigo")
         .eq("clave", "movilidad_diaria")
-        .lte("vigente_desde", new Date().toISOString().slice(0, 10))
+        .lte("vigente_desde", hoyLima())
         .is("vigente_hasta", null)
         .order("vigente_desde", { ascending: false }),
     ]);
@@ -526,9 +562,13 @@ export default function DocumentacionPage() {
     setTablero((tab.data as FilaTablero[]) ?? []);
     setPolitica(((pol.data as EstadoPolitica[]) ?? [])[0] ?? null);
 
-    // El monto del bono, en consulta aparte y tolerante por lo mismo que el
-    // tablero: si la 0165 todavía no está pegada esto viene vacío y el documento
-    // sale con el valor de respaldo, en vez de imprimirse en blanco o no salir.
+    // El monto del bono, en consulta aparte por lo mismo que el tablero: si la
+    // 0165 todavía no está pegada, que falle ESTA consulta y no las demás.
+    //
+    // Pero «tolerante» acá NO significa inventar el monto. Se GUARDA lo que hay,
+    // incluido «no hay»: sin fila vigente queda en null y la constancia no se
+    // imprime. La pantalla se degrada a «no puedo emitir este papel y te digo por
+    // qué», nunca a «emito el papel con la cifra que me acuerdo».
     const { data: bono } = await supabase
       .from("parametros_laborales")
       .select("valor")
@@ -538,7 +578,7 @@ export default function DocumentacionPage() {
       .order("vigente_desde", { ascending: false })
       .limit(1);
     const montoBono = Number((bono as { valor: number }[] | null)?.[0]?.valor);
-    if (Number.isFinite(montoBono) && montoBono > 0) setBonoMonto(montoBono);
+    setBonoMonto(Number.isFinite(montoBono) && montoBono > 0 ? montoBono : null);
 
     // Quién tiene ya fecha de término de contrato. Va en consulta APARTE y no
     // en el select de arriba a propósito: si la 0138 todavía no está pegada en
@@ -812,8 +852,19 @@ export default function DocumentacionPage() {
                   <strong className="text-tinta">
                     {bonoEsteMes.length === 1 ? "Cumple años este mes" : `Cumplen años este mes: ${bonoEsteMes.length}`}
                   </strong>{" "}
-                  — {bonoEsteMes.map((f) => f.persona).join(" · ")}. Imprime su constancia,
-                  entrega los S/ {bonoMonto.toFixed(2)} y sube el cargo firmado.
+                  — {bonoEsteMes.map((f) => f.persona).join(" · ")}.{" "}
+                  {/* Sin monto en la base, el aviso deja de decir cuánto entregar
+                      y pasa a decir qué falta. Nombrar una cifra acá y otra en el
+                      papel es la contradicción que este archivo existe para
+                      evitar. */}
+                  {bonoMonto === null ? (
+                    <>Falta fijar el monto del bono en parámetros laborales
+                    (<code>bono_onomastico</code>): hasta entonces la constancia no se
+                    puede emitir.</>
+                  ) : (
+                    <>Imprime su constancia, entrega los S/ {bonoMonto.toFixed(2)} y
+                    sube el cargo firmado.</>
+                  )}
                 </div>
               )}
               {bonoPendientes.length > bonoEsteMes.length && (
@@ -1304,7 +1355,34 @@ export default function DocumentacionPage() {
               </>
             )}
 
-            {tipo === "bono" && (
+            {/* SIN MONTO NO HAY CONSTANCIA. Este papel acredita una entrega de
+                dinero y su causa; si el sistema no sabe cuánto se entrega, no hay
+                nada que acreditar. Mismo criterio que la declaración de ruta, y
+                por el mismo motivo: la constancia se firma, y una cifra puesta
+                por el código en vez de por la base es una afirmación que nadie
+                decidió. */}
+            {tipo === "bono" && bonoMonto === null && (
+              <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+                <p className="mb-2">
+                  <strong className="text-rojo">
+                    No hay monto de bono de onomástico vigente en el sistema.
+                  </strong>
+                </p>
+                <p className="mb-2">
+                  Por eso no se puede emitir la constancia: el documento acredita la entrega
+                  de una suma, y esa suma sale de <code>parametros_laborales</code> con la
+                  clave <code>bono_onomastico</code>, no de esta pantalla.
+                </p>
+                <p className="text-taupe">
+                  Si acabas de cambiar el monto, revisa que la fila nueva tenga su{" "}
+                  <code>vigente_desde</code> puesto y que no haya quedado cerrada con{" "}
+                  <code>vigente_hasta</code>. Mientras no exista una fila vigente, el sistema
+                  no sabe cuánto se entrega.
+                </p>
+              </div>
+            )}
+
+            {tipo === "bono" && bonoMonto !== null && (
               <>
                 <h2 className="mb-6 text-center font-serif text-xl">
                   Asignación por cumpleaños
