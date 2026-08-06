@@ -10,7 +10,7 @@ import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
-import { MESES, nivelPlus, type ObjetivoItem } from "@/lib/objetivos";
+import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -178,7 +178,7 @@ export default function PerfilPersonaPage() {
   }, [jornadas, levTard]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
-  const objNivel = nivelPlus(objCumplidos, objetivos.length);
+  const objNivel = lecturaObjetivos(objCumplidos, objetivos.length);
   const objPct = objetivos.length > 0 ? Math.round((objCumplidos / objetivos.length) * 100) : 0;
   const objMesLabel = `${MESES[Number(hasta.slice(5, 7)) - 1]} ${hasta.slice(0, 4)}`;
 
@@ -532,7 +532,10 @@ export default function PerfilPersonaPage() {
                           <h2 className="font-serif text-lg">Objetivos de {objMesLabel.toLowerCase()}</h2>
                           <span className="flex items-center gap-2 text-sm">
                             <span className="text-taupe">{objCumplidos}/{objetivos.length} cumplidos</span>
-                            <span className={`rounded-full px-3 py-0.5 ${objNivel.etiqueta === "Sin plus" || objNivel.etiqueta === "—" ? "bg-sand text-taupe" : "bg-verde/15 font-medium text-verde"}`}>{objNivel.etiqueta}</span>
+                            {/* Antes esto pintaba «Plus 21%» en verde. Desde la
+                                0171 los objetivos no pagan: la etiqueta dice el
+                                porcentaje cumplido y el color ya no premia. */}
+                            <span className="rounded-full bg-sand px-3 py-0.5 text-taupe">{objNivel.etiqueta}</span>
                           </span>
                         </div>
                         <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
