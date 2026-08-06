@@ -44,6 +44,20 @@ const POR_CODIGO: Record<string, string> = {
   PGRST204: "El sistema no reconoce una columna nueva. Suele arreglarse solo en unos minutos; si no, avisa a Felipe.",
 };
 
+// Los constraints con nombre propio, traducidos uno por uno.
+//
+// POR QUÉ APARTE DEL CÓDIGO. Un `23514` genérico dice "revisa las fechas y los
+// números", que es honesto pero inútil: no dice CUÁL fecha ni por qué. Cuando el
+// constraint tiene nombre —y en este esquema lo tienen— ese nombre es exactamente
+// la regla de negocio que se rompió, y se puede decir en una frase.
+//
+// Se busca el nombre dentro del mensaje de Postgres porque es donde viene:
+//   new row for relation "personas" violates check constraint "personas_fin_contrato_coherente"
+const POR_CONSTRAINT: Record<string, string> = {
+  personas_fin_contrato_coherente:
+    "El contrato no puede terminar antes del día en que la persona ingresó. Revisa la fecha de ingreso en su ficha.",
+};
+
 /**
  * Devuelve el texto que se le muestra a la persona.
  *
@@ -57,6 +71,15 @@ export function mensajeDeError(error: ErrorBase | null | undefined, accion?: str
   // P0001 = `raise exception` de nuestras funciones. Ya está en español y
   // escrito para leerse; anteponerle nada lo empeora.
   if (error.code === "P0001") return error.message;
+
+  // Un constraint con nombre gana al código genérico: dice qué regla se rompió.
+  const nombreConstraint = Object.keys(POR_CONSTRAINT).find(
+    (n) => error.message.includes(n) || (error.details ?? "").includes(n),
+  );
+  if (nombreConstraint) {
+    const texto = POR_CONSTRAINT[nombreConstraint];
+    return accion ? `No se pudo ${accion}: ${texto}` : texto;
+  }
 
   const traducido = error.code ? POR_CODIGO[error.code] : undefined;
 

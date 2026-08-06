@@ -10,7 +10,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { TZ_LIMA, puedeVerPlanilla, type Rol } from "@cayla-dynamic/shared";
+import { primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla, type Rol } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
@@ -25,13 +25,9 @@ function fmtFechaDMA(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-// YYYY-MM-01 del mes actual en horario de Lima (default de "vigente desde" al asignar salario).
-function primeroDeMesLima(): string {
-  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA, year: "numeric", month: "2-digit" }).formatToParts(new Date());
-  const y = partes.find((p) => p.type === "year")!.value;
-  const m = partes.find((p) => p.type === "month")!.value;
-  return `${y}-${m}-01`;
-}
+// `primeroDeMesLima` (default de "vigente desde" al asignar salario) vivía acá
+// copiado; es el mismo que exporta fecha-lima.ts, así que ahora se importa. Dos
+// copias del corte del día son dos versiones de cuándo es hoy en Lima.
 
 interface SalarioVigente {
   rango: string;
@@ -66,6 +62,11 @@ interface Sede {
   nombre: string;
 }
 
+// Qué se muestra en la tabla. "fin_contrato" no es un estado de la persona sino
+// una pregunta de trabajo —«¿a quién tengo que renovar o no renovar?»— y vive en
+// el mismo desplegable porque es donde se la va a buscar.
+type FiltroEstado = "activos" | "inactivos" | "fin_contrato" | "todos";
+
 interface Persona {
   id: string;
   nombres: string;
@@ -94,9 +95,13 @@ interface FormPersona {
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador — se escribe por RPC fn_set_tipo_vinculo
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
+  // Último día que trabaja por contrato (0144). Es un PLAN, no un cese: vacío es
+  // lo normal. Se escribe por RPC fn_set_fin_contrato, y vacío la BORRA (null).
+  finContrato: string;
+  motivoFinContrato: string; // por qué se fijó o se quitó — va a correcciones_auditoria
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", finContrato: "", motivoFinContrato: "" };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -107,6 +112,14 @@ export default function EquipoPage() {
   // Fecha de ingreso + primera entrada marcada por persona (RPC fn_ingresos; solo admin/lider,
   // devuelve [] para el resto). Decide qué feriados le corresponden a cada persona.
   const [ingresos, setIngresos] = useState<Map<string, { fecha_ingreso: string | null; primera_entrada: string | null }>>(new Map());
+  // Último día que trabaja por contrato, por persona (0144). Solo llegan quienes
+  // la tienen: vacío es lo normal y no significa que falte un dato.
+  const [finesContrato, setFinesContrato] = useState<Map<string, string>>(new Map());
+  // ¿Esa lectura fue confiable? Mismo criterio que `funcionesOk` de más abajo: si
+  // falló, el editor muestra vacío para todo el mundo, y vacío significa
+  // «contrato indefinido». Escribir sobre eso borraría una fecha real, así que
+  // con la lectura en duda el campo va deshabilitado.
+  const [finesOk, setFinesOk] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
@@ -116,7 +129,7 @@ export default function EquipoPage() {
   const [busca, setBusca] = useState("");
   const [fSede, setFSede] = useState("todas");
   const [fArea, setFArea] = useState("todas");
-  const [fEstado, setFEstado] = useState<"activos" | "inactivos" | "todos">("activos");
+  const [fEstado, setFEstado] = useState<FiltroEstado>("activos");
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
@@ -186,6 +199,24 @@ export default function EquipoPage() {
     if (personasError || sedesError) {
       setMensaje({ tipo: "error", texto: mensajeDeError((personasError ?? sedesError)!, "cargar el equipo") });
     }
+    // Fin de contrato: consulta APARTE y tolerante, no una columna más del select
+    // de arriba. Si la 0144 todavía no está aplicada en producción, pedir una
+    // columna inexistente haría fallar la consulta ENTERA y esta pantalla se
+    // quedaría sin nadie — la de Documentación se defiende igual y por lo mismo.
+    // Si falla, simplemente no hay fechas de fin y todo lo demás sigue.
+    // Sin filtro de estado a propósito: a quien ya cesó también se le muestra la
+    // fecha que tenía, aunque no se pueda editar.
+    const { data: finData, error: finError } = await supabase
+      .from("personas")
+      .select("id, fecha_fin_contrato")
+      .not("fecha_fin_contrato", "is", null);
+    setFinesOk(!finError);
+    setFinesContrato(
+      new Map(
+        ((finData as { id: string; fecha_fin_contrato: string }[] | null) ?? [])
+          .map((f) => [f.id, f.fecha_fin_contrato] as const),
+      ),
+    );
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
@@ -232,15 +263,30 @@ export default function EquipoPage() {
   const sinTildes = (t: string) =>
     t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+  // El último día del mes en curso en Lima. Es EL MISMO corte que usa el tablero
+  // de Documentación (0162): quien termina contrato ese día o antes deja de
+  // aparecer ahí. Se calcula acá una sola vez para que la tabla y el aviso del
+  // formulario no puedan discrepar sobre dónde cae la raya.
+  const finDeMes = rangoDelMesLima().fin;
+  const saleDelTablero = (fecha: string | undefined) => fecha != null && fecha <= finDeMes;
+
   const visibles = personas.filter((p) => {
     if (fEstado === "activos" && p.estado !== "activo") return false;
     if (fEstado === "inactivos" && p.estado === "activo") return false;
+    // Quien tiene fecha de término anotada y sigue trabajando. A quien ya cesó no
+    // se le pregunta si se renueva: su contrato ya terminó de hecho.
+    if (fEstado === "fin_contrato" && (p.estado !== "activo" || !finesContrato.has(p.id))) return false;
     if (fSede !== "todas" && p.sede_base_id !== fSede) return false;
     if (fArea !== "todas" && p.funcion !== fArea) return false;
     const q = sinTildes(busca.trim());
     if (q && !sinTildes(`${p.nombres} ${p.apellidos}`).includes(q)) return false;
     return true;
   });
+  // Con ese filtro el orden alfabético no responde nada: lo que importa es a quién
+  // se le vence primero.
+  if (fEstado === "fin_contrato") {
+    visibles.sort((a, b) => (finesContrato.get(a.id) ?? "").localeCompare(finesContrato.get(b.id) ?? ""));
+  }
   const ocultas = personas.length - visibles.length;
 
   function codigoSede(id: string) {
@@ -300,6 +346,17 @@ export default function EquipoPage() {
 
   async function guardarEdicion() {
     if (!editandoId) return;
+    // ANTES de escribir nada. La base tiene el mismo candado
+    // (`personas_fin_contrato_coherente`) y es la que manda, pero si dejáramos que
+    // lo rechace ella, el nombre y el correo ya se habrían guardado y el aviso
+    // llegaría después, sin poder decir cuál era la fecha de ingreso.
+    // Si la fecha de ingreso no llegó (la RPC fn_ingresos devuelve [] cuando algo
+    // falla), no se inventa una validación: pasa, y el rechazo de la base sale
+    // traducido por mensajeDeError.
+    if (form.finContrato && form.fechaIngreso && form.finContrato < form.fechaIngreso) {
+      avisar("error", `El contrato no puede terminar antes de su ingreso (${fmtFechaDMA(form.fechaIngreso)}). Revisa la fecha.`);
+      return;
+    }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase
@@ -395,6 +452,25 @@ export default function EquipoPage() {
         return;
       }
     }
+    // Fecha de término del contrato: mismo patrón dirty-check. Dos cosas que no
+    // son obvias leyendo la llamada:
+    //  · VACÍO NO ES "no tocar": es borrarla, que es lo que corresponde cuando el
+    //    contrato se renovó. Por eso se manda null explícito y no se omite.
+    //  · El motivo va como `undefined` cuando está en blanco para que la función
+    //    escriba el suyo por defecto en la auditoría, en vez de una cadena vacía.
+    const finOriginal = finesContrato.get(editandoId) ?? "";
+    if (puedeSalarios && finesOk && form.finContrato !== finOriginal) {
+      const { error: errorFin } = await supabase.rpc("fn_set_fin_contrato", {
+        p_persona_id: editandoId,
+        p_fecha: form.finContrato || null,
+        p_motivo: form.motivoFinContrato.trim() || undefined,
+      });
+      if (errorFin) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero la fecha de término del contrato no se pudo cambiar: ${mensajeDeError(errorFin)}`);
+        return;
+      }
+    }
     setGuardando(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
@@ -447,6 +523,8 @@ export default function EquipoPage() {
       tipoVinculo: p.tipo_vinculo ?? "planilla",
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
       visibleTodasSedes: p.visible_todas_sedes,
+      finContrato: finesContrato.get(p.id) ?? "",
+      motivoFinContrato: "",
     });
   }
 
@@ -642,6 +720,81 @@ export default function EquipoPage() {
           })()}
         </label>
       )}
+      {modo === "edicion" && puedeSalarios && (() => {
+        // UN CONTRATO A PLAZO FIJO SABE CUÁNDO VENCE (0144). Hasta ahora la única
+        // forma de llenar esta fecha era pegar SQL a mano, y un dato que depende
+        // de que alguien se acuerde de abrir el SQL Editor termina vacío.
+        //
+        // Es un PLAN, no un hecho: quien tiene fecha sigue activa, sigue marcando
+        // y sigue cobrando hasta ese día. El cese —el último día EFECTIVAMENTE
+        // trabajado— es otra cosa, se registra con «Desactivar» y no se escribe
+        // acá. Que las dos se confundan es el error natural de quien llena esto,
+        // así que el texto de abajo lo dice en vez de suponerlo.
+        const persona = personas.find((p) => p.id === editandoId);
+        const cesada = persona != null && persona.estado !== "activo";
+        const finOriginal = editandoId ? finesContrato.get(editandoId) ?? "" : "";
+        const antesDelIngreso =
+          form.finContrato !== "" && form.fechaIngreso !== "" && form.finContrato < form.fechaIngreso;
+        return (
+          <div className="flex flex-col gap-1 text-sm sm:col-span-2">
+            <label className="flex flex-col gap-1">
+              <span>
+                Último día que trabaja por contrato{" "}
+                <span className="text-taupe">(el último día que viene, no el siguiente)</span>
+              </span>
+              <input
+                type="date"
+                value={form.finContrato}
+                // El candado de la base es `personas_fin_contrato_coherente`; esto
+                // solo evita que el calendario ofrezca lo que va a ser rechazado.
+                min={form.fechaIngreso || undefined}
+                disabled={cesada || !finesOk}
+                onChange={(e) => setForm({ ...form, finContrato: e.target.value })}
+                className="rounded-lg border px-3 py-2 disabled:opacity-50"
+              />
+            </label>
+            <span className="text-xs text-taupe">
+              {!finesOk
+                ? "No se pudo leer la fecha que tiene guardada, así que el campo está deshabilitado para no pisarla. Recarga la página; si sigue igual, avisa a Felipe."
+                : cesada
+                  ? "Ya está inactiva: su contrato terminó, no hay término que prever."
+                  : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
+            </span>
+            {antesDelIngreso && (
+              <span className="text-xs text-rojo">
+                El contrato no puede terminar antes de su ingreso ({fmtFechaDMA(form.fechaIngreso)}).
+              </span>
+            )}
+            {/* La consecuencia, mientras se escribe la fecha y no después de
+                guardarla: quien la pone tiene que poder decidir sabiéndola. */}
+            {!cesada && !antesDelIngreso && saleDelTablero(form.finContrato || undefined) && (
+              <span className="rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+                Con esta fecha sale del tablero de Documentación: ya nadie le va a perseguir la firma
+                de su declaración de ruta. Sigue cobrando la movilidad de los días que le queden, así
+                que esos días quedan pagados sin el pacto individual que los sostiene — y eso se
+                revisa en su liquidación.
+              </span>
+            )}
+            {!cesada && finesOk && form.finContrato !== finOriginal && (
+              <label className="mt-1 flex flex-col gap-1">
+                <span className="text-xs text-taupe">
+                  {form.finContrato === "" ? "Por qué se quita" : "Por qué"} (opcional) — queda en la auditoría
+                </span>
+                <input
+                  value={form.motivoFinContrato}
+                  onChange={(e) => setForm({ ...form, motivoFinContrato: e.target.value })}
+                  placeholder={
+                    form.finContrato === ""
+                      ? "ej. el contrato se renovó por 6 meses"
+                      : "ej. carta de no renovación entregada el 04/08"
+                  }
+                  className="rounded-lg border px-3 py-2"
+                />
+              </label>
+            )}
+          </div>
+        );
+      })()}
       {puedeSalarios && (
         // con_hijos llega por la misma RPC que el área: si esa carga falló, en edición
         // se deshabilita para no pisar el valor real con el default (false).
@@ -899,9 +1052,12 @@ export default function EquipoPage() {
             </label>
             <label className="flex flex-col gap-1 text-xs text-taupe">
               Mostrar
-              <select value={fEstado} onChange={(e) => setFEstado(e.target.value as "activos" | "inactivos" | "todos")} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
+              <select value={fEstado} onChange={(e) => setFEstado(e.target.value as FiltroEstado)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
                 <option value="activos">Solo el equipo actual</option>
                 <option value="inactivos">Solo quienes ya no están</option>
+                {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
+                    devolvería una lista vacía sin poder explicarle por qué. */}
+                {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
                 <option value="todos">Todos</option>
               </select>
             </label>
@@ -953,6 +1109,14 @@ export default function EquipoPage() {
                       )}
                       {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
                         <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+                      )}
+                      {/* En ámbar cuando su contrato vence este mes o antes: es el
+                          momento en que sale del tablero de Documentación y, si es
+                          que no se renueva, cuando hay que registrar su cese. */}
+                      {puedeSalarios && finesContrato.has(p.id) && (
+                        <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+                          Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
@@ -1013,7 +1177,8 @@ export default function EquipoPage() {
         <p className="mt-4 max-w-2xl text-xs text-taupe">
           Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en el aviso verde —
           anótalo y entrégalo en privado. “Desactivar” no borra nada: la persona deja de aparecer en
-          el terminal pero su historial se conserva.
+          el terminal pero su historial se conserva. Anotar el fin de contrato tampoco la da de baja:
+          es la fecha prevista de término, y está para avisar antes de que llegue.
         </p>
       </main>
     </div>

@@ -659,6 +659,11 @@ export type Database = {
           sueldo_base_legal: number | null
           sueldo_fijo: boolean
           fecha_estado_cambio: string | null
+          // Agregada a mano el 2026-08-05 (la creó la 0144), por el mismo motivo
+          // que tipo_vinculo más abajo: `supabase gen types` no corre en esta
+          // máquina. Es la fecha PREVISTA de término del contrato a plazo fijo —
+          // null es lo normal (contrato indefinido) y NO es lo mismo que el cese.
+          fecha_fin_contrato: string | null
           fecha_ingreso: string
           funcion: string
           id: string
@@ -687,6 +692,7 @@ export type Database = {
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
+          fecha_fin_contrato?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
@@ -710,6 +716,7 @@ export type Database = {
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
+          fecha_fin_contrato?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
@@ -1984,6 +1991,26 @@ export type Database = {
       fn_set_visible_todas_sedes: {
         Args: { p_persona_id: string; p_valor: boolean }
         Returns: undefined
+      }
+      // Agregada a mano el 2026-08-05 junto con la columna fecha_fin_contrato, por
+      // el mismo motivo que fn_set_tipo_vinculo. `p_fecha` acepta null a propósito:
+      // así es como se BORRA la fecha cuando el contrato se renueva.
+      fn_set_fin_contrato: {
+        Args: { p_persona_id: string; p_fecha: string | null; p_motivo?: string }
+        Returns: undefined
+      }
+      // `dias_restantes` es negativo cuando la fecha ya pasó, y ese es justamente
+      // el grupo que importa: alguien que ya no viene pero sigue figurando activo.
+      fn_contratos_por_vencer: {
+        Args: { p_dias?: number }
+        Returns: {
+          persona_id: string
+          nombre: string
+          sede: string
+          fecha_fin_contrato: string
+          dias_restantes: number
+          ya_vencio: boolean
+        }[]
       }
       fn_set_mi_firma: {
         Args: { p_dataurl: string | null }
