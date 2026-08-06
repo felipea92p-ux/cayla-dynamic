@@ -1,5 +1,5 @@
 -- ============================================================================
--- 128_el_cargo_del_cumpleanos_se_persigue_por_calendario.test.sql
+-- 131_el_cargo_del_cumpleanos_se_persigue_por_calendario.test.sql
 -- ============================================================================
 -- La asignación por onomástico se entrega UNA vez al año y en el mes del
 -- cumpleaños. Eso la hace distinta de la declaración de ruta: no se olvida por
@@ -82,6 +82,13 @@ values ('00000000-0000-0000-0000-0000000d1f24', 'BonoLocador', 'Laboratorio',
         '00000000-0000-0000-0000-0000000d1f00', 'test-hash', '2020-01-01', 'rxh');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000d1f98', true);
+
+-- El arranque de la política se manda muy atrás para que NO intervenga acá. Este
+-- archivo mide una sola cosa: cómo reparte el calendario a quien sí tiene el
+-- bono. El corte por «el bono todavía no existía» lo mide el 132, y mezclarlos
+-- haría que cada uno pasara por razones del otro. Va dentro del BEGIN…ROLLBACK,
+-- así que no toca el parámetro real.
+update parametros_laborales set vigente_desde = '1900-01-01' where clave = 'bono_onomastico';
 
 select fn_documento_registrar('bono', fn_hoy_lima(), '00000000-0000-0000-0000-0000000d1f22',
        null, null, extract(year from fn_hoy_lima())::int);

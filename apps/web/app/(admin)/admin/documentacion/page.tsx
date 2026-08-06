@@ -83,7 +83,17 @@ const DOCS: { id: TipoDoc; titulo: string; para: string; necesitaPersona: boolea
 // El monto del bono, decidido con Felipe el 2026-07-31 tras comparar cinco
 // alternativas. Igual para todos y sin condición de antigüedad: escalarlo por
 // rango o atarlo al tiempo de servicio lo devuelve a ser remuneración.
-const BONO_CUMPLEANOS = 180;
+// El monto del bono, decidido con Felipe el 2026-07-31 tras comparar cinco
+// alternativas. Igual para todos y sin condición de antigüedad: escalarlo por
+// rango o atarlo al tiempo de servicio lo devuelve a ser remuneración.
+//
+// DESDE LA 0165 LA VERDAD VIVE EN `parametros_laborales` (clave
+// `bono_onomastico`), versionada por `vigente_desde` — la misma fila dice cuánto
+// vale y desde cuándo rige la política. Esta constante quedó SOLO como valor de
+// respaldo por si esa migración todavía no está pegada, igual que
+// `TARIFA_POR_DEFECTO` con la movilidad. Si el papel firmado y la base dicen
+// cifras distintas, el papel contradice a la boleta.
+const BONO_POR_DEFECTO = 180;
 
 interface Persona {
   id: string;
@@ -307,6 +317,9 @@ export default function DocumentacionPage() {
   const [firmanteNombre, setFirmanteNombre] = useState(EMPRESA.firmante);
   const [firmanteCargo, setFirmanteCargo] = useState(EMPRESA.cargo);
   const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
+  // El monto del bono, leído de `parametros_laborales` (0165). Arranca en el
+  // valor de respaldo por si esa migración aún no está pegada.
+  const [bonoMonto, setBonoMonto] = useState<number>(BONO_POR_DEFECTO);
   // persona_id → fecha de término del contrato, para quien ya la tiene fijada.
   const [finContrato, setFinContrato] = useState<Map<string, string>>(new Map());
 
@@ -428,7 +441,7 @@ export default function DocumentacionPage() {
     const tarifaSede = tarifaDeSede(persona?.sede_base_id);
     const monto = subiendo.negativa || subiendo.que === "politica"
       ? null
-      : subiendo.que === "bono" ? BONO_CUMPLEANOS : tarifaSede;
+      : subiendo.que === "bono" ? bonoMonto : tarifaSede;
 
     // El año solo lo lleva el bono, y es el de la FIRMA, no el de hoy: si el
     // cargo de diciembre se sube el 3 de enero, sigue siendo el bono del año que
@@ -512,6 +525,20 @@ export default function DocumentacionPage() {
     ]);
     setTablero((tab.data as FilaTablero[]) ?? []);
     setPolitica(((pol.data as EstadoPolitica[]) ?? [])[0] ?? null);
+
+    // El monto del bono, en consulta aparte y tolerante por lo mismo que el
+    // tablero: si la 0165 todavía no está pegada esto viene vacío y el documento
+    // sale con el valor de respaldo, en vez de imprimirse en blanco o no salir.
+    const { data: bono } = await supabase
+      .from("parametros_laborales")
+      .select("valor")
+      .eq("clave", "bono_onomastico")
+      .lte("vigente_desde", hoyLima())
+      .is("vigente_hasta", null)
+      .order("vigente_desde", { ascending: false })
+      .limit(1);
+    const montoBono = Number((bono as { valor: number }[] | null)?.[0]?.valor);
+    if (Number.isFinite(montoBono) && montoBono > 0) setBonoMonto(montoBono);
 
     // Quién tiene ya fecha de término de contrato. Va en consulta APARTE y no
     // en el select de arriba a propósito: si la 0138 todavía no está pegada en
@@ -692,6 +719,13 @@ export default function DocumentacionPage() {
   // más barata de que la pantalla se contradiga a sí misma.
   const bonoPendientes = tablero.filter((f) => BONO_PENDIENTE.has(f.bono_estado ?? ""));
   const bonoEsteMes = bonoPendientes.filter((f) => f.bono_estado === "este_mes");
+  // Quién sale en el apartado del bono: quien tiene algo pendiente y quien ya
+  // firmó este año. Los demás —cumple en octubre, entró después, sin fecha
+  // cargada— no aparecen: son 'nada que hacer' y llenaban la tabla de filas que
+  // solo enseñaban a ignorarla.
+  const bonoRelevantes = tablero.filter(
+    (f) => BONO_PENDIENTE.has(f.bono_estado ?? "") || f.bono_estado === "ok");
+  const rutasPendientes = tablero.filter((f) => f.estado !== "ok");
 
   return (
     <>
@@ -779,7 +813,7 @@ export default function DocumentacionPage() {
                     {bonoEsteMes.length === 1 ? "Cumple años este mes" : `Cumplen años este mes: ${bonoEsteMes.length}`}
                   </strong>{" "}
                   — {bonoEsteMes.map((f) => f.persona).join(" · ")}. Imprime su constancia,
-                  entrega los S/ {BONO_CUMPLEANOS.toFixed(2)} y sube el cargo firmado.
+                  entrega los S/ {bonoMonto.toFixed(2)} y sube el cargo firmado.
                 </div>
               )}
               {bonoPendientes.length > bonoEsteMes.length && (
@@ -879,110 +913,134 @@ export default function DocumentacionPage() {
             </div>
           )}
 
-          {/* ── El tablero ─────────────────────────────────────────────────
-              Se arma de quién está en planilla, así que quien entra aparece
-              pendiente sin que nadie lo agregue y un locador no aparece nunca. */}
+          {/* ── Los dos apartados ──────────────────────────────────────────
+              Antes era UNA tabla con las dos cosas, y cada fila llevaba cinco
+              controles: veinte filas por cinco son cien botones en pantalla.
+              Peor, los dos «Imprimir» eran idénticos —mismo texto, mismo
+              tamaño— y solo el orden decía cuál sacaba la declaración de ruta y
+              cuál la constancia del onomástico. Si hay que adivinar cuál es
+              cuál, el diseño falló.
+
+              Ahora cada papel tiene su apartado, y se abre el que se está
+              trabajando. `<details>` nativo y no un desplegable propio: se abre
+              con teclado, lo lee un lector de pantalla y al imprimir el
+              navegador ya sabe qué hacer con él. */}
           {tablero.length > 0 && (
-            <div className="mb-6 rounded-lg border border-sand">
-              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-sand px-4 py-3">
-                <h2 className="font-medium">Papeles firmados por integrante</h2>
-                <span className="text-sm text-taupe">
-                  Rutas:{" "}
-                  <strong className="text-tinta">{tablero.filter((f) => f.estado === "ok").length}</strong>
-                  {" de "}{tablero.length}
-                  {tablero.some((f) => f.estado === "se_nego") && (
-                    <> · <strong className="text-rojo">{tablero.filter((f) => f.estado === "se_nego").length} se negaron</strong></>
-                  )}
-                  {bonoPendientes.length > 0 && (
-                    <> · <strong className="text-rojo">{bonoPendientes.length}</strong> sin cargo de cumpleaños</>
-                  )}
-                </span>
-              </div>
+            <div className="mb-6 space-y-3">
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-xs text-taupe">
-                    <tr className="border-b border-sand">
-                      <th className="px-4 py-2 font-normal">Integrante</th>
-                      <th className="px-4 py-2 font-normal">Sede</th>
-                      <th className="px-4 py-2 font-normal">Declaración de ruta</th>
-                      <th className="px-4 py-2 font-normal">Cargo de cumpleaños</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tablero.map((f) => (
-                      <tr key={f.persona_id} className="border-t border-sand">
-                        <td className="px-4 py-2">{f.persona}</td>
-                        <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
-                        <td className="px-4 py-2 align-top">
-                          {f.estado === "sin_ruta" ? (
-                            <span className="font-medium text-rojo">falta firmar</span>
-                          ) : f.estado === "se_nego" ? (
-                            <span className="font-medium text-rojo">
-                              se negó a firmar · no cobra movilidad
-                            </span>
-                          ) : (
-                            <>
-                              <span className="text-tinta">firmada el {fechaLarga(f.ruta_firmada_el!)}</span>
-                              {f.ruta_desfasada && (
-                                <span className="block text-xs text-rojo">
-                                  declara S/ {Number(f.ruta_monto).toFixed(2)} y hoy se paga otra tarifa —
-                                  conviene volver a firmarla
-                                </span>
-                              )}
-                            </>
-                          )}
-                          <div className="mt-1 flex flex-wrap items-center gap-3">
-                            <button onClick={() => imprimirFila(f.persona_id, "ruta")}
-                              className="text-xs font-medium underline">Imprimir</button>
-                            <button onClick={() => abrirSubida("ruta", f.persona_id)}
-                              className="rounded-lg border px-3 py-1 text-xs font-medium">
-                              {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
-                            </button>
-                            {f.estado === "sin_ruta" && (
-                              // Discreto a propósito: registrar una negativa no debería
-                              // ser tan fácil como registrar una firma.
-                              <button onClick={() => abrirSubida("ruta", f.persona_id, true)}
-                                className="text-xs text-taupe underline">se negó</button>
+              {/* ── Declaraciones de ruta ────────────────────────────────── */}
+              <details open={rutasPendientes.length > 0} className="rounded-lg border border-sand">
+                <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
+                  <span className="font-medium">Declaraciones de ruta</span>
+                  <span className="text-sm text-taupe">
+                    <strong className="text-tinta">{tablero.filter((f) => f.estado === "ok").length}</strong>
+                    {" de "}{tablero.length} firmadas
+                    {tablero.some((f) => f.estado === "se_nego") && (
+                      <> · <strong className="text-rojo">{tablero.filter((f) => f.estado === "se_nego").length} se negaron</strong></>
+                    )}
+                  </span>
+                </summary>
+
+                <div className="overflow-x-auto border-t border-sand">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-xs text-taupe">
+                      <tr className="border-b border-sand">
+                        <th className="px-4 py-2 font-normal">Integrante</th>
+                        <th className="px-4 py-2 font-normal">Sede</th>
+                        <th className="px-4 py-2 font-normal">Su declaración</th>
+                        <th className="px-4 py-2 font-normal"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tablero.map((f) => (
+                        <tr key={f.persona_id} className="border-t border-sand">
+                          <td className="px-4 py-2">{f.persona}</td>
+                          <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
+                          <td className="px-4 py-2">
+                            {f.estado === "sin_ruta" ? (
+                              <span className="font-medium text-rojo">falta firmar</span>
+                            ) : f.estado === "se_nego" ? (
+                              <span className="font-medium text-rojo">
+                                se negó a firmar · no cobra movilidad
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-tinta">firmada el {fechaLarga(f.ruta_firmada_el!)}</span>
+                                {f.ruta_desfasada && (
+                                  <span className="block text-xs text-rojo">
+                                    declara S/ {Number(f.ruta_monto).toFixed(2)} y hoy se paga otra tarifa —
+                                    conviene volver a firmarla
+                                  </span>
+                                )}
+                              </>
                             )}
-                          </div>
-                        </td>
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex flex-wrap items-center justify-end gap-3">
+                              <button onClick={() => imprimirFila(f.persona_id, "ruta")}
+                                className="text-xs font-medium underline">Imprimir</button>
+                              <button onClick={() => abrirSubida("ruta", f.persona_id)}
+                                className="rounded-lg border px-3 py-1 text-xs font-medium">
+                                {f.estado === "ok" ? "Subir otra" : "Subir firmada"}
+                              </button>
+                              {f.estado === "sin_ruta" && (
+                                // Discreto a propósito: registrar una negativa no debería
+                                // ser tan fácil como registrar una firma.
+                                <button onClick={() => abrirSubida("ruta", f.persona_id, true)}
+                                  className="text-xs text-taupe underline">se negó</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
 
-                        {/* El cargo del onomástico. Solo se pone en rojo cuando su
-                            mes ya llegó: quien cumple en noviembre no está en falta
-                            en agosto, y marcarla lo estaría acusando de un descuido
-                            que no ocurrió. */}
-                        <td className="px-4 py-2 align-top">
-                          {f.bono_estado === "ok" ? (
-                            <span className="text-tinta">
-                              firmado el {fechaLarga(f.bono_firmada_el!)}
-                            </span>
-                          ) : f.bono_estado === "sin_fecha" ? (
-                            <span className="text-xs text-taupe">
-                              falta su fecha de nacimiento en la ficha
-                            </span>
-                          ) : f.bono_estado === "no_aplica" ? (
-                            <span className="text-xs text-taupe">
-                              entró después de su onomástico
-                            </span>
-                          ) : f.bono_estado === "proximo" ? (
-                            <span className="text-xs text-taupe">
-                              cumple en {MES_LARGO[(f.bono_mes ?? 1) - 1]}
-                            </span>
-                          ) : f.bono_estado === "este_mes" ? (
-                            <span className="font-medium text-tinta">
-                              cumple este mes — entregar y firmar
-                            </span>
-                          ) : f.bono_estado === "vencido" ? (
-                            <span className="font-medium text-rojo">
-                              cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo
-                            </span>
-                          ) : null}
+              {/* ── Cargos de cumpleaños ─────────────────────────────────────
+                  Solo lista a quien tiene algo que hacer. Las veinte filas
+                  completas con «cumple en octubre» repetido no informaban: el
+                  90% del año la respuesta es «nada que hacer», y una lista que
+                  casi siempre dice eso deja de leerse. */}
+              <details open={bonoPendientes.length > 0} className="rounded-lg border border-sand">
+                <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-4 py-3">
+                  <span className="font-medium">Cargos de cumpleaños</span>
+                  <span className="text-sm text-taupe">
+                    {bonoPendientes.length === 0
+                      ? "nada pendiente"
+                      : <><strong className="text-rojo">{bonoPendientes.length}</strong> por entregar o firmar</>}
+                  </span>
+                </summary>
 
-                          {/* Nada que imprimir ni que subir a quien todavía no le
-                              toca: los botones aparecen cuando hay algo que hacer. */}
-                          {(f.bono_estado === "ok" || BONO_PENDIENTE.has(f.bono_estado ?? "")) && (
-                            <div className="mt-1 flex flex-wrap items-center gap-3">
+                <div className="overflow-x-auto border-t border-sand">
+                  <table className="w-full text-sm">
+                    <thead className="text-left text-xs text-taupe">
+                      <tr className="border-b border-sand">
+                        <th className="px-4 py-2 font-normal">Integrante</th>
+                        <th className="px-4 py-2 font-normal">Sede</th>
+                        <th className="px-4 py-2 font-normal">Su cargo</th>
+                        <th className="px-4 py-2 font-normal"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bonoRelevantes.map((f) => (
+                        <tr key={f.persona_id} className="border-t border-sand">
+                          <td className="px-4 py-2">{f.persona}</td>
+                          <td className="px-4 py-2 text-xs text-taupe">{f.sede}</td>
+                          <td className="px-4 py-2">
+                            {f.bono_estado === "ok" ? (
+                              <span className="text-tinta">firmado el {fechaLarga(f.bono_firmada_el!)}</span>
+                            ) : f.bono_estado === "este_mes" ? (
+                              <span className="font-medium text-tinta">cumple este mes — entregar y firmar</span>
+                            ) : (
+                              <span className="font-medium text-rojo">
+                                cumplió en {MES_LARGO[(f.bono_mes ?? 1) - 1]} y no hay cargo
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex flex-wrap items-center justify-end gap-3">
                               <button onClick={() => imprimirFila(f.persona_id, "bono")}
                                 className="text-xs font-medium underline">Imprimir</button>
                               <button onClick={() => abrirSubida("bono", f.persona_id)}
@@ -990,13 +1048,21 @@ export default function DocumentacionPage() {
                                 {f.bono_estado === "ok" ? "Subir otro" : "Subir cargo"}
                               </button>
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {bonoRelevantes.length === 0 && (
+                        <tr className="border-t border-sand">
+                          <td colSpan={4} className="px-4 py-3 text-sm text-taupe">
+                            Nadie tiene el cargo pendiente. Aquí van apareciendo en el mes de su
+                            onomástico.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
 
             </div>
           )}
@@ -1214,7 +1280,12 @@ export default function DocumentacionPage() {
                 </p>
 
                 <p className="mb-10 text-xs text-taupe">
-                  Suscrito en {sedes.get(persona.sede_base_id) ?? "—"}, el {fechaLarga(hoyLima())}.
+                  {/* La fecha va en blanco y NO con `hoyLima()`. Se imprimen veinte
+                      declaraciones de una vez y se reparten a cuatro sedes: quien firma
+                      el jueves en Arequipa lo hace sobre un papel impreso el lunes, y
+                      con la fecha impresa ese documento afirmaría un día en el que nadie
+                      firmó. La escribe de su puño quien firma, que es quien sabe cuándo. */}
+                  Suscrito en {sedes.get(persona.sede_base_id) ?? "—"}, el <Linea ancho="9rem" />.
                 </p>
 
                 <div className="grid grid-cols-2 gap-10 pt-6">
@@ -1243,7 +1314,7 @@ export default function DocumentacionPage() {
                   {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, hace entrega a{" "}
                   <strong>{persona ? `${persona.nombres} ${persona.apellidos}` : "—"}</strong>
                   {persona?.documento ? `, con documento de identidad ${persona.documento},` : ","}{" "}
-                  de la suma de <strong>S/ {BONO_CUMPLEANOS.toFixed(2)}</strong> con ocasión de su
+                  de la suma de <strong>S/ {bonoMonto.toFixed(2)}</strong> con ocasión de su
                   onomástico.
                 </p>
 
@@ -1267,6 +1338,16 @@ export default function DocumentacionPage() {
                 <p className="mb-6 text-sm text-taupe">
                   La presente constancia acredita la entrega y su causa. Se archiva firmada por
                   el trabajador.
+                </p>
+
+                {/* Este papel no llevaba NINGUNA fecha, y un cargo de entrega sin fecha
+                    acredita la mitad de lo que tiene que acreditar: prueba que se
+                    entregó, no cuándo. Y el «cuándo» es lo que decide a qué ejercicio
+                    pertenece el bono y si se entregó en el mes del onomástico, que es la
+                    causa que lo vuelve no remunerativo. Va en blanco por lo mismo que la
+                    declaración de ruta: la escribe quien recibe, el día que recibe. */}
+                <p className="mb-6">
+                  Entregada y recibida el <Linea ancho="9rem" />.
                 </p>
 
                 <div className="mt-16 grid grid-cols-2 gap-12">
