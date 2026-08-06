@@ -21,6 +21,10 @@ scripts/sql-manual/ficha_*.sql
 # Ceses: nombran a una persona real y el fin de su vínculo. Patrón por el mismo
 # motivo que las fichas — el próximo cese no depende de que alguien se acuerde.
 scripts/sql-manual/cese_*.sql
+# Material de trabajo con datos del equipo, cargado a mano en la raíz. Mismo
+# criterio que los scripts de arriba: no entra a git y no viaja a un despliegue.
+cuadro.json
+politica-salarial.pdf
 .vercel
 .env*
 
