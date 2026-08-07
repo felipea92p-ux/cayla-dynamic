@@ -173,11 +173,31 @@ else
   gris "  (no se encontró $CONOCIDOS: se avisan todos los huecos)"
 fi
 
+# Un número disparatado —un 0900 donde iba un 0090— no deja un hueco: deja
+# ochocientos. La lista completa llena la pantalla y **sepulta el mensaje rojo**
+# de arriba, que es el que hace fallar el push. Comprobado el 2026-08-07
+# probando la comprobación 2 con un 0900: el «✗ ya está reclamado por otra rama»
+# quedó enterrado bajo 720 números.
+#
+# Por eso a partir de doce se resume. El caso normal —dos o tres huecos, que es
+# lo que hay— sigue viéndose entero, y el caso raro deja de tapar lo importante:
+# ochocientos huecos seguidos no son ochocientos problemas, son UN número mal
+# escrito, y lo que hay que decir es eso.
 if [ -n "$NUEVOS_HUECOS" ]; then
-  ambar "⚠ Hueco sin explicar en las migraciones: $NUEVOS_HUECOS"
-  gris "  Puede ser algo aplicado en producción que nunca llegó al repo."
-  gris "  Compruébalo con scripts/sql-manual/consultar_registro_de_migraciones.sql;"
-  gris "  si resulta explicado, anótalo en scripts/hooks/huecos-conocidos.txt."
+  CUANTOS=$(echo "$NUEVOS_HUECOS" | wc -w | tr -d ' ')
+  if [ "$CUANTOS" -gt 12 ]; then
+    PRIMERO=$(echo "$NUEVOS_HUECOS" | awk '{print $1}')
+    ULTIMO=$(echo "$NUEVOS_HUECOS" | awk '{print $NF}')
+    ambar "⚠ $CUANTOS huecos sin explicar, del $PRIMERO al $ULTIMO."
+    gris "  Tantos seguidos casi nunca son tantos problemas: suele ser UN archivo"
+    gris "  con un número muy por encima del resto. Míralo con:"
+    gris "      ls supabase/migrations | tail -3"
+  else
+    ambar "⚠ Hueco sin explicar en las migraciones: $NUEVOS_HUECOS"
+    gris "  Puede ser algo aplicado en producción que nunca llegó al repo."
+    gris "  Compruébalo con scripts/sql-manual/consultar_registro_de_migraciones.sql;"
+    gris "  si resulta explicado, anótalo en scripts/hooks/huecos-conocidos.txt."
+  fi
 fi
 
 if [ -n "$SOBRAN" ]; then
