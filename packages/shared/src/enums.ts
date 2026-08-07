@@ -125,6 +125,10 @@ export type RegimenPension = (typeof REGIMENES_PENSION)[number];
  * quien contesta una inspección dos años después. Por eso `fin_contrato` existe
  * aparte de `despido` — un plazo que vence no exige carta de preaviso ni descargo,
  * y llamarlo despido obliga a sostener un expediente que nunca hubo (ver la 0143).
+ *
+ * `por_revisar` no es un motivo: es el marcador que dejó el backfill de la 0086
+ * para quien no se pudo deducir. La pantalla de Equipo lo pinta en ámbar para
+ * que se note que falta, en vez de dejarlo pasar por una causa más.
  */
 export const MOTIVOS_CESE = [
   "renuncia",

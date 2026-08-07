@@ -12,7 +12,7 @@ import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOpera
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
-  MOTIVOS_CESE, MOTIVO_CESE_LABELS, type MotivoCese, type Rol,
+  MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
 } from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
@@ -84,6 +84,11 @@ interface Persona {
   // Qué es esta persona para el sistema (0085). Decide si acumula gratificación,
   // CTS y vacaciones, si recibe movilidad y si genera EsSalud (0117 y 0119).
   tipo_vinculo: string;
+  // Cuándo y por qué dejó de trabajar aquí (0086, expuestos por la 0179).
+  // `motivo_cese` llega null a quien no sea admin ni líder DO: la función solo
+  // se lo entrega a administración, y aquí no se compensa esa ausencia.
+  fecha_cese: string | null;
+  motivo_cese: string | null;
 }
 
 
@@ -238,15 +243,15 @@ export default function EquipoPage() {
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
-      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string }[] | null) ?? []))
-        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla" }] as const),
+      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
+        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
         const extra = funciones.get(p.id);
-        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla" };
+        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
       }),
     );
     setCargando(false);
@@ -1269,6 +1274,31 @@ export default function EquipoPage() {
                       {puedeSalarios && finesContrato.has(p.id) && (
                         <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
                           Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                        </div>
+                      )}
+                      {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
+                          propias para no ensanchar una tabla que ya tiene ocho, y
+                          porque solo aplica a quien está inactivo: al equipo activo
+                          no le agrega una celda vacía en cada fila. Cierra la
+                          secuencia que ya cuentan las dos líneas de arriba:
+                          entró · hasta cuándo tenía contrato · cuándo se fue.
+                          El motivo llega null si quien mira no es admin ni líder DO
+                          —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
+                      {p.estado === "inactivo" && p.fecha_cese && (
+                        <div className="text-xs text-taupe">
+                          Se fue: {fmtFechaDMA(p.fecha_cese)}
+                          {p.motivo_cese && (
+                            // El texto sale del catálogo también cuando es
+                            // `por_revisar`: el desplegable de cese ya lo nombra
+                            // así, y dos formas de decir lo mismo en la misma
+                            // pantalla se contradicen a la primera. Lo único que
+                            // cambia es el ámbar, que dice «esto falta».
+                            <> · {p.motivo_cese === "por_revisar"
+                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
+                                  {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
+                                </span>
+                              : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
+                          )}
                         </div>
                       )}
                     </td>
