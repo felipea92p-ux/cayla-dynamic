@@ -172,5 +172,35 @@ describe("la escala publica el monto aunque la categoría esté vacía", () => {
     if (tabla === undefined || tabla.tipo !== "tabla") throw new Error("no hay tabla de referencia");
     expect(tabla.filas.map((f) => f[0])).toContain("Oráculo");
   });
-});
+  it("declara jornada ordinaria de 48 h y horario programado de 45 h", () => {
+    const doc = construirDocumento(cuadro(), "2026-08-07");
+    const sec = doc.secciones.find((s) => s.titulo === "La jornada y cómo se calcula tu remuneración");
+    expect(sec).toBeDefined();
+    const texto = (sec?.bloques ?? []).map((b) => ("texto" in b ? b.texto : "")).join(" ");
+    // La distinción entre las dos cifras es lo que evita que las horas 46 a 48
+    // se vuelvan sobretiempo con recargo. Si alguien las iguala, esto salta.
+    expect(texto).toContain("cuarenta y ocho (48) horas semanales");
+    expect(texto).toContain("45 horas semanales");
+    expect(texto).toContain("no constituye condición más beneficiosa");
+  });
 
+  it("aclara que la remuneración de la categoría es por el horario completo", () => {
+    const doc = construirDocumento(cuadro(), "2026-08-07");
+    const sec = doc.secciones.find((s) => s.titulo === "La jornada y cómo se calcula tu remuneración");
+    const texto = (sec?.bloques ?? []).map((b) => ("texto" in b ? b.texto : "")).join(" ");
+    // Sin esta frase, el documento promete que ninguna categoría baja de la RMV
+    // mientras el sistema paga por horas: dos afirmaciones que se contradicen
+    // para quien trabaja menos del horario completo.
+    expect(texto).toContain("corresponde al horario completo del periodo");
+    expect(texto).toContain("parte proporcional");
+  });
+
+  it("la jornada va antes de los conceptos no remunerativos", () => {
+    const doc = construirDocumento(cuadro(), "2026-08-07");
+    const titulos = doc.secciones.map((s) => s.titulo);
+    const iJornada = titulos.indexOf("La jornada y cómo se calcula tu remuneración");
+    const iConceptos = titulos.indexOf("Lo que se recibe además de la remuneración");
+    expect(iJornada).toBeGreaterThan(-1);
+    expect(iJornada).toBeLessThan(iConceptos);
+  });
+});

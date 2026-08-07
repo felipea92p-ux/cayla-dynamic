@@ -573,6 +573,118 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
       "cosas distintas y se deciden por separado.",
   });
 
+  // ── 10 · jornada, horario y cálculo ───────────────────────────────────────
+  // Va ANTES de los conceptos no remunerativos: primero qué se pide (la
+  // jornada), después qué se gana por eso, y al final qué se recibe además.
+  //
+  // ⚠️ La distinción entre JORNADA ORDINARIA (48 h) y HORARIO PROGRAMADO (45 h)
+  // no es cosmética. El sobretiempo se mide contra la jornada ordinaria, no
+  // contra el horario (D.S. 007-2002-TR art. 9). Declarar 45 h como jornada
+  // convertiría las horas 46 a 48 en sobretiempo con recargo del 25 % / 35 %.
+  // Los contratos y el RIT dicen 48 h — confirmado por Felipe el 2026-08-07.
+  // No cambiar estas cifras sin revisar contratos, RIT y el art. de jornada del
+  // RIT v3.2 (docs/disciplina-tardanzas-faltas/08-rit-v3.2-jornada-y-sobretiempo.md).
+  secciones.push({
+    titulo: "La jornada y cómo se calcula tu remuneración",
+    bloques: [
+      {
+        tipo: "parrafo",
+        texto:
+          "La jornada ordinaria de trabajo en CAYLA es de cuarenta y ocho (48) horas semanales, que es el " +
+          "máximo que permite el artículo 25 de la Constitución. Es la jornada que figura en tu contrato de trabajo.",
+      },
+      { tipo: "destacado", texto: "El horario que CAYLA te programa es de 45 horas semanales." },
+      {
+        tipo: "parrafo",
+        texto:
+          "Esas tres horas de diferencia no son un descuido ni un saldo pendiente: son tiempo que la empresa " +
+          "decide no ocupar. Existen para que puedas estudiar, descansar, ver a tu familia y tener una vida " +
+          "fuera del trabajo.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "Este horario reducido se otorga por decisión de la empresa. Conforme al artículo 6 del Decreto " +
+          "Supremo 007-2002-TR, corresponde a CAYLA establecer y modificar el horario de trabajo dentro de la " +
+          "jornada ordinaria pactada. Su otorgamiento no constituye condición más beneficiosa, no genera " +
+          "derecho adquirido y no modifica la jornada establecida en tu contrato de trabajo.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "Tu día de descanso. Tienes como mínimo un día de descanso a la semana, siempre, conforme al " +
+          "artículo 1 del Decreto Legislativo 713. En las sedes que atienden todos los días, ese día puede " +
+          "rotar: una semana te toca uno y otra semana otro, según el rol de turnos. El artículo 2 del mismo " +
+          "decreto permite expresamente estos regímenes alternativos, y así se organiza el trabajo sin que " +
+          "nadie se quede sin su descanso.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "A la fecha de este documento la distribución es la siguiente. Es la situación vigente, no un " +
+          "compromiso permanente: puede modificarse por campaña o por necesidad de la operación, respetando " +
+          "siempre el día de descanso semanal y la jornada ordinaria pactada.",
+      },
+      {
+        tipo: "tabla",
+        cabeceras: ["Sede", "Distribución vigente"],
+        filas: [
+          ["Tienda TRU", "6 días, con descanso semanal rotativo"],
+          ["Taller LIM", "Lunes a viernes"],
+          ["Tienda AQP", "Lunes a sábado"],
+        ],
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "El horario que te aplica a ti es el que figura en tu contrato de trabajo. Esta tabla describe cómo " +
+          "se organiza cada sede, no reemplaza lo pactado individualmente.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "Cómo se calcula lo que cobras. Tu remuneración se calcula sobre las horas que efectivamente " +
+          "registras. No es una cifra que alguien decida cada mes: sale del registro de tu propia asistencia.",
+      },
+      {
+        tipo: "destacado",
+        texto:
+          "La remuneración de tu categoría corresponde al horario completo del periodo. Si en un periodo " +
+          "registras menos horas —por inasistencia, por un horario reducido acordado, o por haber ingresado o " +
+          "cesado dentro del periodo—, se paga la parte proporcional que corresponda. Es la misma regla para " +
+          "todas las personas y para todas las categorías.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "El periodo de pago va del 29 de un mes al 28 del siguiente. Por eso tu boleta no coincide " +
+          "exactamente con el mes del calendario.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "Feriados. Si trabajas un día feriado se te paga triple: el día feriado que te corresponde, las " +
+          "horas que trabajaste, y una vez más esas horas como sobretasa, conforme al artículo 8 del Decreto " +
+          "Legislativo 713. La única excepción es que se acuerde contigo, previamente y por escrito, un día de " +
+          "descanso sustitutorio. Ese día debe ser uno en el que te correspondía trabajar: un día libre " +
+          "otorgado sobre tu descanso semanal no sustituye nada, y en ese caso la sobretasa se paga igual.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "Tu asistencia queda registrada. Tu entrada y tu salida se registran digitalmente, con la hora " +
+          "exacta, en el terminal de tu sede. Cualquier corrección posterior queda guardada con el motivo y " +
+          "con el nombre de quien la hizo.",
+      },
+      {
+        tipo: "destacado",
+        texto:
+          "Esto es una garantía tuya: lo que cobras se puede verificar contra un registro que nadie puede " +
+          "modificar en silencio.",
+      },
+    ],
+  });
+
   secciones.push({ titulo: "Lo que se recibe además de la remuneración", bloques: bloquesConceptos });
 
   // ── 11 · la referencia mensual ────────────────────────────────────────────
@@ -648,6 +760,8 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
           "Que exista una vía directa a la Gerencia para plantear cualquier discrepancia, sin consecuencia por hacerlo.",
           "Que ninguna categoría quede por debajo de la remuneración mínima vital.",
           "Que las condiciones de trabajo y los horarios se acuerden con claridad y por escrito.",
+          "Que los feriados y las sobretasas se paguen conforme a ley.",
+          "Que tu asistencia quede registrada de forma verificable, y que toda corrección deje constancia de quién la hizo y por qué.",
         ],
       },
       {
