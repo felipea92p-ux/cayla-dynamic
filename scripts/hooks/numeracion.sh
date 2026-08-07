@@ -38,7 +38,22 @@
 # Se salta con `git push --no-verify`.
 
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+
+# Al repo que se está empujando, no al que guarda este archivo.
+#
+# `core.hooksPath` de un worktree resuelve al repo PRINCIPAL, así que git ejecuta
+# la copia de allá y `$0` apunta allá. Orientarse por `$0` hacía que un push desde
+# `.claude/worktrees/loquesea` revisara `main` del repo principal en vez de la rama
+# que se está empujando: acusaba por archivos ajenos sin commitear y —lo grave—
+# NUNCA revisó los números de ninguna rama de worktree, que es donde ocurre casi
+# todo el trabajo en paralelo. Un freno que mira el sitio equivocado no avisa de
+# menos: avisa de otra cosa.
+#
+# `--show-toplevel` da la raíz del worktree real se ejecute desde donde se
+# ejecute, porque git corre los hooks con el directorio actual dentro de ESE
+# árbol. Si no hubiera repo, se cae al método viejo en vez de quedarse a medias.
+RAIZ="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+cd "${RAIZ:-$(dirname "$0")/../..}"
 
 rojo()  { printf "\033[31m%s\033[0m\n" "$1"; }
 ambar() { printf "\033[33m%s\033[0m\n" "$1"; }
@@ -133,7 +148,9 @@ fi
 # esto imprimía los cinco huecos en cada push, cuatro de ellos explicados y
 # ninguno accionable. Un aviso que dice siempre lo mismo se deja de leer, y el
 # día que aparezca uno de verdad va a estar en esa misma línea que nadie mira.
-CONOCIDOS="$(dirname "$0")/huecos-conocidos.txt"
+# Del árbol que se revisa, no del que guarda el script: una rama puede explicar un
+# hueco que en `main` todavía no está anotado.
+CONOCIDOS="scripts/hooks/huecos-conocidos.txt"
 
 HUECOS=$(ls supabase/migrations | sed -E 's/^([0-9]+)_.*/\1/' | grep -E '^[0-9]+$' | sort -n \
   | awk 'NR>1 && $1+0 != prev+1 { for (i=prev+1; i<$1+0; i++) printf "%04d\n", i } { prev=$1+0 }')
@@ -156,11 +173,31 @@ else
   gris "  (no se encontró $CONOCIDOS: se avisan todos los huecos)"
 fi
 
+# Un número disparatado —un 0900 donde iba un 0090— no deja un hueco: deja
+# ochocientos. La lista completa llena la pantalla y **sepulta el mensaje rojo**
+# de arriba, que es el que hace fallar el push. Comprobado el 2026-08-07
+# probando la comprobación 2 con un 0900: el «✗ ya está reclamado por otra rama»
+# quedó enterrado bajo 720 números.
+#
+# Por eso a partir de doce se resume. El caso normal —dos o tres huecos, que es
+# lo que hay— sigue viéndose entero, y el caso raro deja de tapar lo importante:
+# ochocientos huecos seguidos no son ochocientos problemas, son UN número mal
+# escrito, y lo que hay que decir es eso.
 if [ -n "$NUEVOS_HUECOS" ]; then
-  ambar "⚠ Hueco sin explicar en las migraciones: $NUEVOS_HUECOS"
-  gris "  Puede ser algo aplicado en producción que nunca llegó al repo."
-  gris "  Compruébalo con scripts/sql-manual/consultar_registro_de_migraciones.sql;"
-  gris "  si resulta explicado, anótalo en scripts/hooks/huecos-conocidos.txt."
+  CUANTOS=$(echo "$NUEVOS_HUECOS" | wc -w | tr -d ' ')
+  if [ "$CUANTOS" -gt 12 ]; then
+    PRIMERO=$(echo "$NUEVOS_HUECOS" | awk '{print $1}')
+    ULTIMO=$(echo "$NUEVOS_HUECOS" | awk '{print $NF}')
+    ambar "⚠ $CUANTOS huecos sin explicar, del $PRIMERO al $ULTIMO."
+    gris "  Tantos seguidos casi nunca son tantos problemas: suele ser UN archivo"
+    gris "  con un número muy por encima del resto. Míralo con:"
+    gris "      ls supabase/migrations | tail -3"
+  else
+    ambar "⚠ Hueco sin explicar en las migraciones: $NUEVOS_HUECOS"
+    gris "  Puede ser algo aplicado en producción que nunca llegó al repo."
+    gris "  Compruébalo con scripts/sql-manual/consultar_registro_de_migraciones.sql;"
+    gris "  si resulta explicado, anótalo en scripts/hooks/huecos-conocidos.txt."
+  fi
 fi
 
 if [ -n "$SOBRAN" ]; then
