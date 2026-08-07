@@ -12,7 +12,7 @@
 # ANTES DE AGREGAR UNO, ASEGURATE DE QUE DE VERDAD ESTÁ EXPLICADO. Un hueco
 # también puede ser algo aplicado en producción que nunca llegó al repo, que es
 # lo peor que puede pasarle a este sistema. La forma de descartarlo es correr
-# `scripts/sql-manual/consultar_registro_de_migraciones.sql` contra producción:
+# la consulta que genera `./scripts/que-falta-pegar.sh`, corrida en producción:
 # si el número aparece como «SOBRA LA FILA», no es un hueco explicado — es una
 # migración perdida, y hay que recuperar su contenido antes de silenciarla.
 

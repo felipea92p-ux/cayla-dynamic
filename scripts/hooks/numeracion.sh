@@ -195,7 +195,7 @@ if [ -n "$NUEVOS_HUECOS" ]; then
   else
     ambar "⚠ Hueco sin explicar en las migraciones: $NUEVOS_HUECOS"
     gris "  Puede ser algo aplicado en producción que nunca llegó al repo."
-    gris "  Compruébalo con scripts/sql-manual/consultar_registro_de_migraciones.sql;"
+    gris "  Compruébalo con ./scripts/que-falta-pegar.sh (genera la consulta al día);"
     gris "  si resulta explicado, anótalo en scripts/hooks/huecos-conocidos.txt."
   fi
 fi

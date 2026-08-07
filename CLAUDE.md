@@ -26,6 +26,20 @@ la migración se escribe en `supabase/migrations/00NN_*.sql`, y Felipe la pega e
 el **SQL Editor de Supabase**. Cuando hace falta una versión lista para pegar,
 vive en `scripts/sql-manual/aplicar_00NN.sql`.
 
+**El SQL se pide con el script, no se abre el archivo:**
+
+```bash
+./scripts/que-falta-pegar.sh     # genera la consulta de qué falta en producción
+./scripts/dame-el-sql.sh 173     # entrega esa migración, si está a salvo
+```
+
+`dame-el-sql.sh` se niega a darte el archivo si no está en git, si tiene cambios
+sin commitear o si no está en GitHub byte por byte; si está a salvo, te lo deja
+en el portapapeles. Existe porque el 2026-08-07 se descubrió que la **0177 —que
+cambia cómo se pagan las vacaciones— estaba aplicada en producción y su único
+ejemplar era un archivo sin commitear en esta Mac**. Ninguno de los otros frenos
+lo veía: `desplegar.sh` cuida el camino de Vercel, y el SQL va por otro camino.
+
 **Antes de dar cualquier SQL que toque plata, se audita empíricamente.**
 Contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con casos reales. No se
 entrega un cálculo de planilla, provisiones, bonos o CTS "revisado a ojo".
