@@ -1,25 +1,29 @@
 -- ============================================================================
 -- ¿QUÉ ME FALTA PEGAR? — solo LEE, no cambia nada. Pégala en el SQL Editor.
 -- ============================================================================
--- Compara lo que hay en el repositorio contra lo que producción tiene anotado,
--- y te dice fila por fila cuál falta. No hay que cruzar nada a mano.
 --
--- POR QUÉ ESTA CONSULTA EXISTE
+-- ⚠️ ARCHIVO GENERADO. No lo edites a mano: lo reescribe
+--    ./scripts/que-falta-pegar.sh
+--    y el hook de pre-push falla si se quedó viejo.
+--
+-- QUÉ RESPONDE
+--   Compara lo que hay en el repositorio contra lo que producción tiene anotado
+--   y dice, fila por fila, cuál falta. No hay que cruzar nada a mano.
+--
+-- POR QUÉ EXISTE
 --   El 2026-08-07 una guía dio por pendiente una migración que ya estaba
 --   aplicada, y estuvo a una pegada de revertir la 0171 en producción. La
 --   diferencia entre suponer y preguntar son estas veinte líneas.
 --
--- CÓMO SE ACTUALIZA LA LISTA cuando el repo crezca — una sola línea:
---   ls supabase/migrations/ | sed -E "s/^0*([0-9]+)_(.*)\.sql$/    (\1, '\2'),/"
---   y se reemplaza el bloque `repo` de abajo.
---
--- LO QUE ESTA CONSULTA NO PUEDE VER
---   Que una migración esté anotada NO prueba que su contenido esté vivo: alguien
---   pudo aplicarla y otra pegada posterior pudo pisarla. Para `fn_planilla_calcular`
---   —la que decide lo que cobra cada persona— eso se comprueba con el md5 de
---   abajo, que mira el cuerpo real y no el registro.
+-- LO QUE NO PUEDE VER
+--   Que una migración esté anotada NO prueba que su contenido siga vivo: una
+--   pegada posterior pudo pisarlo sin dar ningún error. Para
+--   `fn_planilla_calcular` —la que decide lo que cobra cada persona— eso se
+--   comprueba con el md5 del tercer bloque, que mira el cuerpo real y no el
+--   registro.
 -- ============================================================================
 
+-- ── 1 · Migración por migración ────────────────────────────────────────────
 with repo(numero, nombre) as (values
     (150, 'la_planilla_suma_la_educacion_y_exige_el_papel'),
     (151, 'el_tope_de_educacion_bajo_llave'),
@@ -62,7 +66,7 @@ left join migraciones_aplicadas a on a.numero = r.numero
 order by r.numero;
 
 
--- ── Cuántas faltan, de un vistazo ──────────────────────────────────────────
+-- ── 2 · Cuántas faltan, de un vistazo ──────────────────────────────────────
 with repo(numero) as (values
     (150),
     (151),
@@ -95,14 +99,14 @@ with repo(numero) as (values
     (178),
     (179)
 )
-select count(*) filter (where a.numero is null) as faltan,
+select count(*) filter (where a.numero is null)     as faltan,
        count(*) filter (where a.numero is not null) as aplicadas,
-       count(*) as total_en_el_repo
+       count(*)                                     as total_en_el_repo
 from repo r left join migraciones_aplicadas a on a.numero = r.numero;
 
 
--- ── Y en qué versión está de verdad la función que calcula la planilla ─────
--- El registro dice qué se pegó; esto dice qué quedó vivo. No siempre coinciden.
+-- ── 3 · En qué versión está VIVA la función que calcula la planilla ────────
+-- El registro dice qué se pegó; esto dice qué quedó. No siempre coinciden.
 select md5(prosrc) as md5_actual,
        case md5(prosrc)
          when '30e0ecbf11ac5939457df6c2b3cccc77' then '0166 — la movilidad por sede física'

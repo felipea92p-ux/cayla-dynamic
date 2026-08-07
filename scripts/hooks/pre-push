@@ -21,6 +21,18 @@ set -e
 echo "→ numeración de migraciones y pruebas…"
 "$(dirname "$0")/numeracion.sh" || exit 1
 
+# También antes del typecheck, y por el mismo motivo: tarda un parpadeo y lo que
+# caza no se arregla corriendo pruebas, se arregla con un comando de una línea.
+#
+# La consulta «qué me falta pegar» lleva dentro la lista de migraciones del repo.
+# Esa lista es una copia de algo que ya vive en `supabase/migrations`, y una copia
+# que hay que acordarse de actualizar es una copia que va a mentir — el mismo
+# patrón que el 2026-08-07 estuvo a una pegada de revertir la 0171 en producción.
+# Acá se comprueba que siga al día, para enterarse ahora y no cuando alguien la
+# pegue creyendo que dice la verdad.
+echo "→ la consulta de qué falta pegar…"
+"$(dirname "$0")/../que-falta-pegar.sh" --check || exit 1
+
 echo "→ typecheck…"
 npx pnpm typecheck >/dev/null 2>&1 || {
   echo ""
