@@ -38,8 +38,7 @@ trap 'rm -f "$TMP"' EXIT
 # listar 150 filas de historia solo esconde las que importan.
 DESDE=150
 
-# La lista, en dos formatos: con nombre para la tabla, y solo el número para el
-# conteo. `sort -n` sobre el número y no sobre el nombre del archivo, que
+# La lista de migraciones, ordenada. `sort -n` sobre el número y no sobre el nombre del archivo, que
 # ordenaría 0100 antes que 099.
 listar() {
   ls supabase/migrations/*.sql 2>/dev/null \
@@ -57,9 +56,6 @@ fi
 con_nombre() {
   listar | sed -E "s/^0*([0-9]+)_(.*)\.sql$/    (\1, '\2'),/" | sed '$ s/,$//'
 }
-solo_numero() {
-  listar | sed -E "s/^0*([0-9]+)_.*\.sql$/    (\1),/" | sed '$ s/,$//'
-}
 
 {
 cat <<'CAB'
@@ -71,63 +67,74 @@ cat <<'CAB'
 --    ./scripts/que-falta-pegar.sh
 --    y el hook de pre-push falla si se quedó viejo.
 --
--- QUÉ RESPONDE
---   Compara lo que hay en el repositorio contra lo que producción tiene anotado
---   y dice, fila por fila, cuál falta. No hay que cruzar nada a mano.
+-- ES UNA SOLA CONSULTA, Y ESO IMPORTA. La primera versión eran tres `select`
+-- seguidos, y el SQL Editor de Supabase muestra únicamente el resultado del
+-- ÚLTIMO: los otros dos se ejecutaban y no los veía nadie. Una herramienta de
+-- diagnóstico que esconde dos tercios de su diagnóstico es peor que no tenerla,
+-- porque uno cree que ya miró.
 --
--- POR QUÉ EXISTE
---   El 2026-08-07 una guía dio por pendiente una migración que ya estaba
---   aplicada, y estuvo a una pegada de revertir la 0171 en producción. La
---   diferencia entre suponer y preguntar son estas veinte líneas.
+-- QUÉ RESPONDE, todo en la misma tabla
+--   · migración por migración, cuál falta pegar y cuál está anotada
+--   · el resumen: cuántas faltan de cuántas
+--   · en qué versión está VIVA `fn_planilla_calcular`
 --
 -- LO QUE NO PUEDE VER
 --   Que una migración esté anotada NO prueba que su contenido siga vivo: una
---   pegada posterior pudo pisarlo sin dar ningún error. Para
---   `fn_planilla_calcular` —la que decide lo que cobra cada persona— eso se
---   comprueba con el md5 del tercer bloque, que mira el cuerpo real y no el
---   registro.
+--   pegada posterior pudo pisarlo sin dar ningún error. Por eso las dos últimas
+--   filas miran el cuerpo real de la función y no el registro.
 -- ============================================================================
 
--- ── 1 · Migración por migración ────────────────────────────────────────────
 with repo(numero, nombre) as (values
 CAB
 con_nombre
 cat <<'PIE'
+),
+diff as (
+  select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
+  from repo r
+  left join migraciones_aplicadas a on a.numero = r.numero
 )
-select
-  r.numero,
-  r.nombre,
-  case when a.numero is null then '❌  FALTA PEGAR' else '✓   aplicada' end as estado,
-  a.aplicada_at
-from repo r
-left join migraciones_aplicadas a on a.numero = r.numero
-order by r.numero;
+select * from (
+  -- Una fila por migración.
+  select d.numero::text                        as num,
+         d.nombre                              as que,
+         case when d.falta then '❌  FALTA PEGAR' else '✓   aplicada' end as estado,
+         to_char(d.aplicada_at, 'DD/MM/YYYY')  as cuando,
+         d.numero                              as orden
+  from diff d
 
+  union all
 
--- ── 2 · Cuántas faltan, de un vistazo ──────────────────────────────────────
-with repo(numero) as (values
+  -- El resumen, al final y separado.
+  select '——', '', '', '', 999998
+  union all
+  select 'RESUMEN',
+         (select count(*) filter (where falta) from diff)::text || ' faltan · ' ||
+         (select count(*) filter (where not falta) from diff)::text || ' aplicadas · ' ||
+         (select count(*) from diff)::text || ' en el repo',
+         case when (select count(*) filter (where falta) from diff) = 0
+              then '✓   al día' else '❌  hay pendientes' end,
+         '', 999999
+
+  union all
+
+  -- Y la única pregunta que el registro no puede responder.
+  select 'PLANILLA',
+         'fn_planilla_calcular · versión viva',
+         coalesce((
+           select case md5(prosrc)
+             when '30e0ecbf11ac5939457df6c2b3cccc77' then '0166 — movilidad por sede física'
+             when '46c6c3de546f4da080d328a079470478' then '0171 — sin plus ni rendimiento'
+             when 'cb3c5de14dd2b5a8872965814d5e7cd9' then '0173 — sueldo fijo no duplica feriado'
+             when '93e96e37e05799121485e5721de3dc06' then '0177 — las vacaciones se pagan'
+             else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
+           end
+           from pg_proc where proname = 'fn_planilla_calcular'
+         ), '⚠ la función NO EXISTE'),
+         '', 1000000
+) t
+order by orden;
 PIE
-solo_numero
-cat <<'PIE2'
-)
-select count(*) filter (where a.numero is null)     as faltan,
-       count(*) filter (where a.numero is not null) as aplicadas,
-       count(*)                                     as total_en_el_repo
-from repo r left join migraciones_aplicadas a on a.numero = r.numero;
-
-
--- ── 3 · En qué versión está VIVA la función que calcula la planilla ────────
--- El registro dice qué se pegó; esto dice qué quedó. No siempre coinciden.
-select md5(prosrc) as md5_actual,
-       case md5(prosrc)
-         when '30e0ecbf11ac5939457df6c2b3cccc77' then '0166 — la movilidad por sede física'
-         when '46c6c3de546f4da080d328a079470478' then '0171 — sin plus ni rendimiento'
-         when 'cb3c5de14dd2b5a8872965814d5e7cd9' then '0173 — el sueldo fijo no duplica el feriado'
-         when '93e96e37e05799121485e5721de3dc06' then '0177 — las vacaciones se pagan'
-         else '⚠ md5 DESCONOCIDO: nadie lo ha catalogado. Avisar antes de pegar nada que toque la planilla.'
-       end as version_viva
-from pg_proc where proname = 'fn_planilla_calcular';
-PIE2
 } > "$TMP"
 
 if [ "$1" = "--check" ]; then
