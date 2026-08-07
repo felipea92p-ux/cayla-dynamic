@@ -108,22 +108,46 @@ echo "WORKTREES (cada una puede tener su propia sesión)"
 echo ""
 git worktree list | sed 's/^/  /'
 
+# ── Qué se tocó, sin fingir que sé de quién es ─────────────────────────────
+#
+# Esto preguntaba «¿ALGUIEN ESTÁ ESCRIBIENDO?» y Felipe respondió lo único que se
+# podía responder: «yo estoy escribiendo». Tenía razón y el defecto era grave.
+#
+# El sistema de archivos guarda CUÁNDO se tocó algo, no QUIÉN lo tocó. Así que el
+# script no puede distinguir tu propio trabajo del de otra sesión, y sin embargo
+# decía «con esto en movimiento, no hagas db reset» — un aviso que salta con tu
+# propia actividad. Ese es exactamente el aviso que se aprende a ignorar, y el día
+# que la escritura sea ajena de verdad va a estar en la misma línea que nadie mira.
+#
+# La corrección no es adivinar mejor: es dejar de fingir. El script dice el hecho
+# que puede medir —qué archivos cambiaron— y le pasa el juicio a la única que
+# puede hacerlo: la persona que sabe qué acaba de hacer.
+#
+# También se excluye la basura de compilación (`.turbo`, `.next`, los logs): se
+# reescribe sola en cada `typecheck` y llenaba la lista de ruido que no es de
+# nadie.
 echo ""
-echo "¿ALGUIEN ESTÁ ESCRIBIENDO?"
+echo "QUÉ SE TOCÓ EN LOS ÚLTIMOS 10 MINUTOS"
 echo ""
 RECIENTES=$(find . -type f -mmin -10 \
   -not -path './.git/*' -not -path '*/node_modules/*' \
   -not -path './supabase/.temp/*' -not -path './.claude/worktrees/*' \
-  -not -name '*.tsbuildinfo' -not -name '.DS_Store' 2>/dev/null | head -10)
+  -not -path './.turbo/*' -not -path '*/.turbo/*' -not -path '*/.next/*' \
+  -not -name '*.tsbuildinfo' -not -name '*.log' -not -name '.DS_Store' 2>/dev/null | head -12)
 
 if [ -n "$RECIENTES" ]; then
-  ambar "  Sí — escrito en los últimos 10 minutos:"
   printf '%s\n' "$RECIENTES" | sed 's/^/    /'
   echo ""
-  gris "  Con esto en movimiento, no hagas \`supabase db reset\` ni edites"
+  gris "  El disco guarda CUÁNDO se tocó cada archivo, no QUIÉN lo tocó — así que"
+  gris "  esto no distingue tu trabajo del de otra sesión. El juicio es tuyo:"
+  echo ""
+  gris "    · si reconoces todo como tuyo → estás sola, adelante."
+  gris "    · si aparece algo que no tocaste → hay otra sesión trabajando ahora."
+  echo ""
+  gris "  En el segundo caso, no hagas \`supabase db reset\` ni edites"
   gris "  docs/estado.md: le pisas el trabajo a quien esté a media tarea."
 else
-  verde "  No — nadie ha escrito en los últimos 10 minutos."
+  verde "  Nada. Ninguna sesión ha escrito en los últimos 10 minutos."
 fi
 
 echo ""
