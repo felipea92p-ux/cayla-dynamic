@@ -335,6 +335,11 @@ export default function DocumentacionPage() {
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
   // modo en el que la pantalla se quede.
   const [lote, setLote] = useState<Persona[] | null>(null);
+  // persona_id → sede donde TRABAJA, que es a dónde hay que llevarle el papel.
+  // Distinta de su sede base solo para quien tenga sede física declarada (0166):
+  // Estefany figura en Central y trabaja dentro de la tienda de Arequipa, así que
+  // su declaración va en el sobre de Arequipa y no en uno aparte.
+  const [sedeDeReparto, setSedeDeReparto] = useState<Map<string, string>>(new Map());
 
   // LA TARIFA QUE LE TOCA A UNA PERSONA. Primero la fila de SU sede; si su sede
   // no tiene fila propia, la general. Es el MISMO orden de preferencia que usan
@@ -390,8 +395,21 @@ export default function DocumentacionPage() {
       return;
     }
 
+    // Agrupadas por la sede a la que hay que llevarlas. Sin esto salen en el
+    // orden del tablero —TRU, AQP y CCO mezcladas— y hay que separar dieciséis
+    // hojas a mano mirando el encabezado de cada una. Una hoja en el sobre
+    // equivocado es una persona que no firma, y no se descubre hasta que
+    // alguien pregunta por ella.
+    const ordenadas = [...quienes].sort((a, b) => {
+      const sedeA = sedeCodigo.get(sedeDeReparto.get(a.id) ?? a.sede_base_id) ?? "";
+      const sedeB = sedeCodigo.get(sedeDeReparto.get(b.id) ?? b.sede_base_id) ?? "";
+      // Dentro de cada sede, por apellido: así el taco se recorre igual que la
+      // lista de la pantalla y se puede ir tachando.
+      return sedeA.localeCompare(sedeB) || a.apellidos.localeCompare(b.apellidos);
+    });
+
     setTipo(que);
-    setLote(quienes);
+    setLote(ordenadas);
     // `window.print()` congela la pestaña con lo que haya pintado en ese
     // instante: sin ceder el turno al navegador para que renderice las hojas
     // nuevas, se imprimiría lo que había antes. No es un retardo de adorno.
@@ -403,10 +421,21 @@ export default function DocumentacionPage() {
       setLote(null);
     }, 80);
 
+    // Cuántas van a cada sede, en el mismo orden en que salen impresas: así el
+    // taco se corta contando, sin mirar hoja por hoja de quién es.
+    const porSedeDelLote = new Map<string, number>();
+    for (const per of ordenadas) {
+      const cod = sedeCodigo.get(sedeDeReparto.get(per.id) ?? per.sede_base_id) ?? "?";
+      porSedeDelLote.set(cod, (porSedeDelLote.get(cod) ?? 0) + 1);
+    }
+    const desglose = [...porSedeDelLote].map(([cod, n]) => `${cod} ${n}`).join(" · ");
+
     setAvisoDoc(fuera.length === 0
-      ? { tipo: "ok", texto: `${quienes.length} ${quienes.length === 1 ? "hoja" : "hojas"} enviadas a la impresora.` }
+      ? { tipo: "ok", texto:
+          `${ordenadas.length} ${ordenadas.length === 1 ? "hoja" : "hojas"} a la impresora, `
+          + `agrupadas por sede: ${desglose}.` }
       : { tipo: "error", texto:
-          `Se imprimieron ${quienes.length}. Quedaron fuera ${fuera.length}: ` +
+          `Se imprimieron ${ordenadas.length} (${desglose}). Quedaron fuera ${fuera.length}: ` +
           fuera.map((per) => `${per.nombres} ${per.apellidos}`).join(", ") +
           " — su sede no tiene tarifa de movilidad vigente, así que su declaración saldría sin monto." });
   }
@@ -630,6 +659,20 @@ export default function DocumentacionPage() {
         .map((f) => [f.id, f.fecha_fin_contrato]),
     );
     setFinContrato(porVencer);
+
+    // Dónde trabaja cada quien. Consulta APARTE y tolerante por lo mismo que la
+    // de arriba: si la 0166 no está pegada, pedir `sede_fisica_id` en el select
+    // principal haría fallar la consulta entera y la pantalla se quedaría sin
+    // nadie. Así, si falla, simplemente todos se reparten por su sede base.
+    const { data: fisicas } = await supabase
+      .from("personas")
+      .select("id, sede_fisica_id")
+      .eq("estado", "activo")
+      .not("sede_fisica_id", "is", null);
+    setSedeDeReparto(new Map(
+      ((fisicas as { id: string; sede_fisica_id: string }[] | null) ?? [])
+        .map((f) => [f.id, f.sede_fisica_id]),
+    ));
     const listaSedes = (ss as { id: string; nombre: string; codigo: string }[]) ?? [];
     // El NOMBRE para imprimir y el CÓDIGO para buscar su tarifa. Ver `tarifaDeSede`.
     setSedes(new Map(listaSedes.map((s) => [s.id, s.nombre || s.codigo])));
