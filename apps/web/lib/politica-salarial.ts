@@ -297,16 +297,35 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
   secciones.push({
     titulo: "La escala",
     bloques: [
+      // La columna «Personas hoy» se quitó a propósito el 2026-08-07, por dos
+      // razones que se refuerzan entre sí:
+      //
+      //   1. IDENTIFICA PERSONAS. Support, Aurora y ArchiCayla tienen una sola
+      //      persona cada una. En un equipo de ~22, todos saben quién es — y la
+      //      columna de al lado dice cuánto gana. Este documento se entrega a
+      //      todo el equipo con acuse de recibo: sería comunicar formalmente el
+      //      sueldo de tres personas identificables. Contradice, además, lo que
+      //      la propia sección de igualdad dice: que los criterios son públicos
+      //      y las remuneraciones individuales viven en cada contrato.
+      //
+      //   2. ENVEJECE MAL. El documento se CONGELA al publicarse (0141). Las
+      //      otras columnas son decisiones —la escala, los topes— y siguen
+      //      siendo ciertas. Esta es una foto: al día siguiente de una
+      //      contratación el texto entregado con constancia dice un número
+      //      falso, y ya no hay forma de corregirlo sin republicar y volver a
+      //      pedir las constancias.
+      //
+      // El dato sigue disponible para la Gerencia en /admin/equipo. Lo que se
+      // quitó es su publicación, no su existencia.
       {
         tipo: "tabla",
-        cabeceras: ["Categoría", "Remuneración", "Apoyo a estudios, hasta", "Personas hoy"],
+        cabeceras: ["Categoría", "Remuneración", "Apoyo a estudios, hasta"],
         filas: cats.map((c) => [
           NOMBRE_RANGO[c.rango] ?? c.rango,
           remuneracion(c),
           c.tope_educacion !== null && c.tope_educacion !== undefined
             ? `${soles(c.tope_educacion)} al mes`
             : "—",
-          String(c.personas),
         ]),
       },
       {

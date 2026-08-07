@@ -99,7 +99,7 @@ describe("categoriasFueraDeOrden — el aviso de la escala", () => {
 // ============================================================================
 // El 2026-08-04 el documento en producción decía, en la fila de Oráculo:
 //
-//     Oráculo | Sin personas asignadas hoy | S/ 420.00 al mes | 0
+//     Oráculo | Sin personas asignadas hoy | S/ 420.00 al mes
 //
 // Una categoría sin nadie SIGUE valiendo lo que la empresa declaró: el cuadro
 // describe los puestos que existen, no quién los ocupa hoy. Y es justo la fila
@@ -134,9 +134,20 @@ describe("la escala publica el monto aunque la categoría esté vacía", () => {
     expect(oraculo?.[1]).toBe("S/ 1440.00");
   });
 
-  it("y sigue diciendo la verdad en la columna de personas: 0", () => {
-    const oraculo = filasEscala().find((f) => f[0] === "Oráculo");
-    expect(oraculo?.[3]).toBe("0");
+  // El 2026-08-07 se quitó la columna «Personas hoy» de la tabla publicada.
+  // Con Support, Aurora y ArchiCayla en una sola persona cada una, el conteo
+  // junto al monto revelaba el sueldo de tres personas identificables en un
+  // documento que se entrega a todo el equipo con acuse. Y como el texto se
+  // congela al publicarse (0141), el número quedaba falso a la primera
+  // contratación. El dato sigue en /admin/equipo; lo que se quitó es publicarlo.
+  it("la tabla NO publica cuántas personas hay en cada categoría", () => {
+    const doc = construirDocumento(cuadro(), "2026-08-07");
+    const seccion = doc.secciones.find((s) => s.titulo === "La escala");
+    const tabla = seccion?.bloques.find((b) => b.tipo === "tabla");
+    if (tabla === undefined || tabla.tipo !== "tabla") throw new Error("no hay tabla de escala");
+    expect(tabla.cabeceras).not.toContain("Personas hoy");
+    expect(tabla.cabeceras).toHaveLength(3);
+    expect(tabla.filas.every((f) => f.length === 3)).toBe(true);
   });
 
   it("las categorías con gente muestran su monto declarado, no el sueldo de nadie", () => {
