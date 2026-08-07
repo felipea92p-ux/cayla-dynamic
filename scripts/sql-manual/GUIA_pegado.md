@@ -1,10 +1,35 @@
-# Guía de pegado — de la 0162 a la 0167
+# Guía de pegado
 
-Cinco migraciones esperando. **Una sola mueve plata: la 0166.** Las otras cuatro
-cambian lo que una pantalla muestra o lo que el sistema puede guardar.
+**Sin números en el nombre a propósito.** La primera versión de este archivo se
+llamaba `GUIA_pegado_0162_a_0167.md` y quedó desfasada en dos horas, cuando
+aparecieron la 0163, la 0164 y la 0168. Es la misma lección que `docs/estado.md`:
+un nombre que promete un rango tiene que reescribirse cada vez que el rango
+crece, y el día que nadie lo reescriba el archivo miente desde su propio título.
 
-El orden importa en un solo punto, y está señalado abajo. Fuera de eso, cada una
-es independiente y puedes parar en cualquiera.
+---
+
+## Qué hay esperando
+
+**Dos mueven plata: la 0163 y la 0166.** Las demás cambian lo que una pantalla
+muestra, lo que el sistema puede guardar, o solo el registro.
+
+En el orden en que conviene pegarlas:
+
+| Paso | # | Mueve plata | Qué es |
+|---|---|---|---|
+| 1 | **0162** | no | El tablero no pide el papel a quien no lo firma |
+| 2 | **0163** | **sí — corrige un doble pago** | Las truncas descuentan lo ya depositado |
+| 3 | **0164** | no | La liquidación por cese, en una cuenta. **Va después de la 0163** |
+| 4 | **0165** | no | El bono de onomástico sale de la base |
+| 5 | **0166** | **sí** | La movilidad se paga por donde se trabaja |
+| 6 | **0167** | no | La liquidación pagada se congela |
+| 7 | **0168** | no | La precisión del monto del libro. En producción no cambia nada |
+
+**El orden solo importa en un punto: la 0163 va antes que la 0164.** Fuera de
+eso, cada una es independiente y puedes parar donde quieras.
+
+> Si además tienes pendientes la **0160** y la **0161**, van primero: sus scripts
+> también están en esta carpeta y son anteriores a todo esto.
 
 ---
 
@@ -37,12 +62,70 @@ NOTICE:  0162 · ningun pago cambia: el candado de la 0159 sigue apagado
 personas — sales tú y nadie más.
 
 > Si quieres que también salga quien se va a fin de mes, hace falta anotarle su
-> fecha de fin de contrato: eso es `poner_fin_de_contrato.sql`, que no es una
-> migración y se usa cada vez que alguien se va. Con eso el tablero baja a 20.
+> último día. Desde el 06/08 eso se hace en **Equipo → Editar**, en el campo
+> «Último día que trabaja por contrato». Con eso el tablero baja a 20.
 
 ---
 
-## Paso 2 · `aplicar_0165.sql`
+## Paso 2 · `aplicar_0163.sql` — corrige un doble pago
+
+**Mueve plata:** sí, y a favor de CAYLA — deja de pagar dos veces.
+
+**Qué cambia:** una liquidación por cese volvía a pagar la CTS y la gratificación
+que **ya habían salido del banco**, la ventana entera. `fn_cts_trunca` no miraba
+el libro de desembolsos —cero menciones— y `fn_grati_trunca` solo veía lo pagado
+por planilla, no lo depositado fuera de ella.
+
+No cambia ninguna boleta ni ningún periodo. Solo lo que responde el cálculo de
+liquidación.
+
+**Debe salir:**
+
+```
+NOTICE:  0163 · depositos anotados en el libro: N por S/X
+```
+
+**⚠️ Si además sale esto, para y anota los depósitos primero:**
+
+```
+WARNING: 0163 · el libro esta VACIO: si hubo depositos y no estan anotados,
+         las truncas siguen inflandose.
+```
+
+El candado no puede descontar un depósito que nadie anotó. Con el libro vacío la
+migración se aplica igual y no rompe nada, pero **no protege de nada**.
+
+---
+
+## Paso 3 · `aplicar_0164.sql` — después de la 0163, no antes
+
+**Mueve plata:** no. Agrega una función que responde «¿cuánto se le debe a esta
+persona que se va?» en una sola llamada. La ley da **48 horas** desde el cese
+para pagar (art. 4 D.S. 001-97-TR).
+
+**⚠️ La 0163 va primero.** Sin ella, esta función presenta muy bien un doble pago.
+
+**Debe salir:**
+
+```
+NOTICE:  0164 · personas cesadas en el sistema: N
+```
+
+**Y puede salir este aviso, que NO es un error:**
+
+```
+WARNING: 0164 · N de ellas ya pasaron las 48 horas del art. 4 D.S. 001-97-TR.
+WARNING: 0164 · Si ya se les pago, no hay nada que hacer: el aviso es sobre el
+         registro, no sobre el pago.
+```
+
+Habla de lo que el sistema tiene **anotado**, no de si la plata se transfirió.
+
+**Después, comprueba:** `select * from fn_liquidaciones_pendientes();`
+
+---
+
+## Paso 4 · `aplicar_0165.sql`
 
 **Mueve plata:** no.
 **Qué cambia:** el monto del bono de onomástico sale del código y pasa a vivir en
@@ -67,7 +150,7 @@ de cumpleaños**.
 
 ---
 
-## Paso 3 · `aplicar_0166.sql` — la única que mueve plata
+## Paso 5 · `aplicar_0166.sql` — la otra que mueve plata
 
 **Antes de pegarla, corre `comparar_movilidad_0166.sql`** y guarda el resultado.
 Es la foto del «antes». Ese archivo explica solo cómo se usa.
@@ -115,7 +198,7 @@ cálculo de agosto se mueve para esas dos personas.
 
 ---
 
-## Paso 4 · `aplicar_0167.sql` — solo si vas a liquidar a alguien
+## Paso 6 · `aplicar_0167.sql`
 
 **Mueve plata:** no. Crea la tabla donde se congela la liquidación con la que se
 pagó, para que esa cifra no cambie sola después.
@@ -159,14 +242,46 @@ hoy. Fijado por la prueba 133.
 
 ---
 
+## Paso 7 · `aplicar_0168.sql`
+
+**Mueve plata:** no. **En producción no cambia absolutamente nada:** la columna
+ya es `numeric(12,2)` allí.
+
+**Entonces ¿para qué se pega?** Para que quede anotada en `migraciones_aplicadas`
+y el registro no muestre un hueco. Su valor real es que una base reconstruida
+desde el repositorio se comporte igual que la de verdad: la 0155 declaró la
+columna como `numeric` a secas, y `numeric` sin precisión guarda todos los
+decimales que le den mientras `numeric(12,2)` redondea a céntimos. En una tabla
+que registra plata entregada a personas, esa es la diferencia entre S/ 141,254 y
+S/ 141,25.
+
+**No emite ningún `NOTICE`.** Para comprobar que quedó bien:
+
+```sql
+select numeric_precision, numeric_scale
+from information_schema.columns
+where table_name = 'desembolsos_beneficios' and column_name = 'monto';
+```
+
+Debe devolver **12** y **2**.
+
+---
+
 ## Resumen
 
-| | Mueve plata | Se puede pegar sola |
-|---|---|---|
-| 0162 | no | sí |
-| 0165 | no | sí — **necesaria para imprimir cargos de bono** |
-| 0166 | **sí** | sí, con la comparación antes y después |
-| 0167 | no | sí |
+| Paso | # | Mueve plata | Qué mirar al pegarla |
+|---|---|---|---|
+| 1 | 0162 | no | el tablero baja de 22 a 21 |
+| 2 | **0163** | **sí** | que el libro **no** esté vacío |
+| 3 | 0164 | no | va después de la 0163 |
+| 4 | 0165 | no | **necesaria para imprimir cargos de bono** |
+| 5 | **0166** | **sí** | los dos `esperado: 1`, y la comparación antes/después |
+| 6 | 0167 | no | — |
+| 7 | 0168 | no | en producción no cambia nada |
 
-Ninguna depende de otra para aplicarse. El orden de arriba es el que va de menos
-riesgo a más.
+**El único orden obligatorio es 0163 → 0164.** Todo lo demás es independiente y
+puedes parar donde quieras.
+
+**Si solo vas a pegar una hoy, que sea la 0166:** es la que está pagando mal
+ahora mismo. Y si vas a imprimir declaraciones de ruta o cargos de bono esta
+semana, la 0165 también, o la pantalla no te deja imprimir.
