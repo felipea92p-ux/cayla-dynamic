@@ -33,6 +33,45 @@ eso, cada una es independiente y puedes parar donde quieras.
 
 ---
 
+## Paso 0 · PREGUNTA QUÉ ESTÁ APLICADO. No lo supongas.
+
+**Esto no es una formalidad y esta guía casi se lo salta.** Su primera versión
+daba por pendiente la 0166 sin comprobarlo. Producción ya la tenía, y además la
+**0171**, que es posterior y reescribe la misma función. Pegar la 0166 encima
+habría revertido la 0171 en silencio — sin error, sin aviso, con la planilla
+volviendo a una fórmula vieja.
+
+Es exactamente el accidente que `donde-vive.sh` existe para evitar, y una guía
+escrita a partir de suposiciones lo reproduce igual de bien.
+
+**Pega esto primero, y decide con el resultado:**
+
+```sql
+-- 1 · Qué migraciones están anotadas
+select numero, nombre from migraciones_aplicadas
+where numero between 160 and 180 order by numero;
+
+-- 2 · En qué versión está la función que decide lo que cobra cada persona
+select md5(prosrc) from pg_proc where proname = 'fn_planilla_calcular';
+```
+
+La segunda consulta se lee así:
+
+| md5 | Qué significa |
+|---|---|
+| `30e0ecbf11ac5939457df6c2b3cccc77` | está en la **0166** |
+| `46c6c3de546f4da080d328a079470478` | está en la **0171** |
+| `cb3c5de14dd2b5a8872965814d5e7cd9` | está en la **0173** |
+| `93e96e37e05799121485e5721de3dc06` | está en la **0177** |
+
+**⛔ Si el md5 NO es `30e0ecbf…`, NO pegues la 0166.** Ya la tiene, y encima algo
+más nuevo. Pegarla revertiría ese trabajo. Salta el Paso 5 y avísame.
+
+Lo mismo con las demás: si la primera consulta ya lista un número, esa migración
+está anotada y no se vuelve a pegar.
+
+---
+
 ## Antes de empezar
 
 Ten a mano dos cosas:
@@ -151,6 +190,19 @@ de cumpleaños**.
 ---
 
 ## Paso 5 · `aplicar_0166.sql` — la otra que mueve plata
+
+> ### ⛔ ALTO. Comprueba el md5 antes de tocar esto.
+>
+> ```sql
+> select md5(prosrc) from pg_proc where proname = 'fn_planilla_calcular';
+> ```
+>
+> **Solo pega la 0166 si devuelve algo que NO esté en la tabla del Paso 0.**
+> Si devuelve `46c6c3de…`, `cb3c5de1…` o `93e96e37…`, producción ya tiene la 0166
+> **y algo más nuevo encima**: pegarla revertiría ese trabajo en silencio. Salta
+> este paso.
+>
+> Si devuelve `30e0ecbf…`, está en la 0166 y también puedes saltarlo: ya la tiene.
 
 **Antes de pegarla, corre `comparar_movilidad_0166.sql`** y guarda el resultado.
 Es la foto del «antes». Ese archivo explica solo cómo se usa.
@@ -282,6 +334,29 @@ Debe devolver **12** y **2**.
 **El único orden obligatorio es 0163 → 0164.** Todo lo demás es independiente y
 puedes parar donde quieras.
 
-**Si solo vas a pegar una hoy, que sea la 0166:** es la que está pagando mal
-ahora mismo. Y si vas a imprimir declaraciones de ruta o cargos de bono esta
-semana, la 0165 también, o la pantalla no te deja imprimir.
+**Y ninguna se pega sin haber hecho el Paso 0.** Esta guía se escribió suponiendo
+que las siete estaban pendientes, y al menos una —la 0166— ya estaba aplicada
+junto con trabajo posterior que la reescribe. Una guía que supone lo que debería
+preguntar es más peligrosa que no tener guía: se sigue con confianza.
+
+**Si vas a imprimir declaraciones de ruta o cargos de bono esta semana**, la que
+sí necesitas es la **0165**, o la pantalla no te deja imprimir.
+
+---
+
+## Migraciones más nuevas que esta guía
+
+El repo va por la **0178** y sigue moviéndose: hay sesiones trabajando en
+paralelo. Varias de esas —la 0171, la 0173, la 0177— reescriben
+`fn_planilla_calcular`, y sus scripts traen su **propia cadena de md5** en la
+cabecera, más estricta que esta guía:
+
+| | |
+|---|---|
+| `aplicar_0173.sql` | el sueldo fijo deja de cobrar el feriado dos veces |
+| `aplicar_0177.sql` | las vacaciones se pagan como días trabajados · **orden obligatorio 0173 → 0177** |
+| `aplicar_0178.sql` | el rango `caylo` deja de poder asignarse |
+
+**Para esas tres, manda su cabecera, no esta guía.** Léelas antes de pegarlas:
+dicen exactamente en qué md5 tiene que estar producción antes y en cuál después,
+y cuándo NO pegar.
