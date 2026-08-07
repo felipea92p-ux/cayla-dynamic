@@ -1,5 +1,57 @@
 -- ============================================================================
--- 0177 — La pantalla de Equipo dice cuándo y por qué se fue cada persona
+-- PARA PEGAR EN EL SQL EDITOR — la pantalla de Equipo dirá cuándo y por qué
+-- ============================================================================
+-- QUÉ MUEVE AL PEGARLO: **NADA**. No toca una fila de datos, ni un cálculo, ni
+-- un permiso de escritura. Solo agrega dos campos —`fecha_cese` y
+-- `motivo_cese`— a lo que `fn_personas_funciones` ya devolvía, para que la
+-- pantalla de Equipo muestre bajo el nombre «Se fue: 16/07/2026 · Terminó el
+-- servicio (recibo por honorarios)» en vez de solo «inactivo».
+--
+-- ⚠️  ESTA MIGRACIÓN NACIÓ COMO 0177 Y SE RENUMERÓ A 0179 el 2026-08-07: otra
+-- rama ya tenía tomada la 0177 (las vacaciones se pagan como días trabajados,
+-- que toca fn_planilla_calcular y pesa más que esta). Si por error llegaste a
+-- pegar la versión que decía 0177, en `migraciones_aplicadas` quedó una fila
+-- 177 con el nombre 'la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue' que
+-- hay que corregir ANTES de pegar la 0177 de verdad:
+--     delete from migraciones_aplicadas
+--      where numero = 177 and nombre = 'la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue';
+-- Eso solo borra el apunte del registro; la función queda como está y este
+-- archivo la vuelve a dejar bien.
+--
+-- OJO CON EL ORDEN: esto es la MITAD del cambio. La otra mitad es la pantalla,
+-- que va por despliegue. Se puede pegar antes sin romper nada —la pantalla
+-- vieja ignora los dos campos nuevos—, pero la línea no aparece hasta que se
+-- despliegue. Y al revés tampoco rompe: sin esto, la pantalla no encuentra los
+-- campos y no pinta la línea.
+--
+-- EL MOTIVO NO LO VE TODO EL MUNDO. La fecha viaja a quien ya veía la fila; el
+-- motivo solo a admin y líder de Desarrollo Organizacional. «Despido» es un dato
+-- sensible de una persona concreta, y una encargada de sede no lo necesita para
+-- operar su tienda. Comprobado contra el Postgres local: con sesión de encargada
+-- llega `fecha_cese` y `motivo_cese` en null.
+--
+-- Requiere la 0119 aplicada (es la última que definió esta función).
+-- Se puede pegar más de una vez.
+--
+-- DEBE SALIR:
+--   CREATE FUNCTION · GRANT · REVOKE · INSERT 0 1 · NOTIFY
+--   NOTICE:  0179 · fn_personas_funciones entrega sus 7 campos de siempre +
+--            fecha_cese y motivo_cese.
+--   NOTICE:  0179 · el motivo solo viaja para admin y lider DO; no cambia
+--            ningun dato ni calculo.
+--
+-- Si sale un ERROR diciendo que a la función le faltan campos, NO está aplicada
+-- y la de antes sigue en pie: avisa antes de desplegar la pantalla.
+--
+-- DESPUÉS, PARA COMPROBAR (solo lee):
+--   select j->>'fecha_cese' as se_fue, j->>'motivo_cese' as motivo
+--     from jsonb_array_elements(fn_personas_funciones()) j
+--    where (j->>'fecha_cese') is not null;
+--   Debe listar a las siete que se fueron en julio con su motivo.
+-- ============================================================================
+--
+-- ============================================================================
+-- 0179 — La pantalla de Equipo dice cuándo y por qué se fue cada persona
 -- ----------------------------------------------------------------------------
 -- PROMETE:
 --   1. Que `fn_personas_funciones` devuelva también `fecha_cese` y
@@ -33,7 +85,7 @@
 --
 -- REVERTIR: correr el bloque `create or replace function fn_personas_funciones`
 -- tal como está en `supabase/migrations/0119_el_tipo_de_vinculo_se_puede_elegir.sql`
--- y borrar la fila 177 de `migraciones_aplicadas`. La pantalla degrada sola: si
+-- y borrar la fila 179 de `migraciones_aplicadas`. La pantalla degrada sola: si
 -- los campos no llegan, no pinta la línea.
 -- ============================================================================
 
@@ -45,9 +97,9 @@ returns jsonb language sql stable security definer set search_path = public as $
            'visible_todas_sedes', p.visible_todas_sedes,
            'tipo_vinculo', p.tipo_vinculo,
            'en_planilla', p.en_planilla,
-           -- CAMBIO 0177 · cuándo se fue: lo ve quien ya veía la fila.
+           -- CAMBIO 0179 · cuándo se fue: lo ve quien ya veía la fila.
            'fecha_cese', p.fecha_cese,
-           -- CAMBIO 0177 · por qué se fue: solo administración. `is not true`
+           -- CAMBIO 0179 · por qué se fue: solo administración. `is not true`
            -- y no `not (...)`, por el estándar del repo: un null no pasa como
            -- autorizado.
            'motivo_cese', case when fn_es_admin_o_lider() is not true
@@ -66,7 +118,7 @@ grant  execute on function fn_personas_funciones() to authenticated;
 revoke execute on function fn_personas_funciones() from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (177, 'la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue')
+values (179, 'la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
@@ -82,8 +134,8 @@ begin
     'tipo_vinculo','en_planilla','fecha_cese','motivo_cese']) as c
    where position(c in pg_get_functiondef('fn_personas_funciones()'::regprocedure)) = 0;
   if v_falta is not null then
-    raise exception '0177 · a fn_personas_funciones le faltan campos: %', array_to_string(v_falta, ', ');
+    raise exception '0179 · a fn_personas_funciones le faltan campos: %', array_to_string(v_falta, ', ');
   end if;
-  raise notice '0177 · fn_personas_funciones entrega sus 7 campos de siempre + fecha_cese y motivo_cese.';
-  raise notice '0177 · el motivo solo viaja para admin y lider DO; no cambia ningun dato ni calculo.';
+  raise notice '0179 · fn_personas_funciones entrega sus 7 campos de siempre + fecha_cese y motivo_cese.';
+  raise notice '0179 · el motivo solo viaja para admin y lider DO; no cambia ningun dato ni calculo.';
 end $mig$;

@@ -84,7 +84,7 @@ interface Persona {
   // Qué es esta persona para el sistema (0085). Decide si acumula gratificación,
   // CTS y vacaciones, si recibe movilidad y si genera EsSalud (0117 y 0119).
   tipo_vinculo: string;
-  // Cuándo y por qué dejó de trabajar aquí (0086, expuestos por la 0177).
+  // Cuándo y por qué dejó de trabajar aquí (0086, expuestos por la 0179).
   // `motivo_cese` llega null a quien no sea admin ni líder DO: la función solo
   // se lo entrega a administración, y aquí no se compensa esa ausencia.
   fecha_cese: string | null;
@@ -1276,7 +1276,7 @@ export default function EquipoPage() {
                           Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
                         </div>
                       )}
-                      {/* Cuándo y por qué se fue (0177). Va acá y no en columnas
+                      {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
                           propias para no ensanchar una tabla que ya tiene ocho, y
                           porque solo aplica a quien está inactivo: al equipo activo
                           no le agrega una celda vacía en cada fila. Cierra la

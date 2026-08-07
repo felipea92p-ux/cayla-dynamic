@@ -9,8 +9,9 @@
 # que el documento prometía.
 #
 # QUÉ VERIFICA, y por qué cada una:
-#   1. No hay cambios sin guardar  → se publicaría algo que no está en git y
-#      nadie podría reconstruir después qué se subió.
+#   1. No hay cambios sin guardar DE LO QUE SE DESPLIEGA → se publicaría algo
+#      que no está en git y nadie podría reconstruir después qué se subió. Lo
+#      que se despliega lo decide el `.vercelignore`; ver la nota en el paso 1.
 #   2. GitHub está al día          → si el commit no está en el remoto, las
 #      pruebas de GitHub nunca corrieron sobre él.
 #   3. Las pruebas de ESE commit pasaron → incluidas las de base de datos
@@ -33,15 +34,69 @@ echo ""
 if $PROD; then echo "Desplegando a PRODUCCIÓN"; else echo "Desplegando una vista previa"; fi
 echo ""
 
-# ── 1 · Nada sin guardar ────────────────────────────────────────────────────
-if [ -n "$(git status --porcelain)" ]; then
-  rojo "✗ Hay cambios sin guardar."
+# ── 1 · Nada sin guardar DE LO QUE SE DESPLIEGA ─────────────────────────────
+# La pregunta no es «¿hay algo sin commitear?», es «¿hay algo sin commitear de
+# lo que Vercel sube?». No son lo mismo, y confundirlas dejó este script
+# inservible: el 2026-08-06 frenó un despliegue por seis archivos .sql de otra
+# sesión que corría en paralelo, y el `.vercelignore` excluye `supabase`,
+# `scripts` y `tests` — Vercel no los sube. El mensaje decía «subiría código que
+# no está en git» y era literalmente falso.
+#
+# Mientras haya dos sesiones abiertas sobre este repo, esa versión no dejaba
+# desplegar NUNCA. Y un freno que se salta todos los días no frena el día que
+# importa: el día que lo sin commitear sea `apps/web`.
+#
+# Qué se despliega se decide leyendo el `.vercelignore`, no una lista acá: una
+# copia a mano se desincroniza el día que alguien agregue una carpeta.
+se_despliega() {
+  local ruta="$1" pat
+  # Sin `.vercelignore` no se sabe qué se excluye, así que se asume que todo se
+  # despliega: el freno vuelve a ser el estricto de antes. Equivocarse hacia
+  # frenar de más cuesta un commit; hacia el otro lado cuesta no saber qué subió.
+  [ -f .vercelignore ] || return 0
+  while IFS= read -r pat || [ -n "$pat" ]; do
+    pat="${pat%%#*}"
+    pat="$(printf '%s' "$pat" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    [ -z "$pat" ] && continue
+    pat="${pat%/}"
+    case "$pat" in
+      '**/'*) case "$(basename "$ruta")" in ${pat#'**/'}) return 1;; esac ;;
+      *'*'*)  case "$(basename "$ruta")" in $pat)          return 1;; esac ;;
+      *)      case "$ruta"              in "$pat"|"$pat"/*) return 1;; esac ;;
+    esac
+  done < .vercelignore
+  return 0
+}
+
+SUCIOS=""
+IGNORADOS=0
+while IFS= read -r linea; do
+  [ -z "$linea" ] && continue
+  ruta="${linea:3}"
+  ruta="${ruta##* -> }"          # los renombrados llegan como «viejo -> nuevo»
+  ruta="${ruta%\"}"; ruta="${ruta#\"}"
+  if se_despliega "$ruta"; then
+    SUCIOS="${SUCIOS}${linea}
+"
+  else
+    IGNORADOS=$((IGNORADOS + 1))
+  fi
+done < <(git status --porcelain)
+
+if [ -n "$SUCIOS" ]; then
+  rojo "✗ Hay cambios sin guardar en lo que SÍ se despliega."
   gris "  Publicar ahora subiría código que no está en git y después nadie"
   gris "  podría saber qué se subió. Haz commit primero:"
-  git status --short | head -10
+  printf "%s" "$SUCIOS" | head -10
   exit 1
 fi
-verde "✓ Todo guardado en git."
+
+if [ "$IGNORADOS" -gt 0 ]; then
+  verde "✓ Todo lo que se despliega está guardado en git."
+  gris "  ($IGNORADOS archivo(s) sin commitear que el .vercelignore excluye: no se suben.)"
+else
+  verde "✓ Todo guardado en git."
+fi
 
 # ── 2 · GitHub al día ───────────────────────────────────────────────────────
 RAMA=$(git rev-parse --abbrev-ref HEAD)
