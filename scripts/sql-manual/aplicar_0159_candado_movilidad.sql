@@ -1,3 +1,45 @@
+-- ############################################################################
+-- ####  CANDADO — NO BORRAR. Va PRIMERO y por eso funciona.               ####
+-- ############################################################################
+-- Este bloque impide que pegar este archivo revierta trabajo más nuevo.
+--
+-- POR QUÉ EXISTE. El 2026-08-07 esta carpeta estuvo a una pegada de revertir la
+-- 0171 en producción: una guía dio por pendiente una migración que ya estaba
+-- aplicada, y el archivo no tenía forma de defenderse. `fn_planilla_calcular`
+-- se reescribe entera en cada migración que la toca, así que pegar una versión
+-- vieja no da error: pisa la nueva EN SILENCIO y la planilla vuelve a una
+-- fórmula anterior sin que nada falle.
+--
+-- POR QUÉ UN `raise` Y NO UN COMENTARIO DE ADVERTENCIA. Comprobado contra
+-- Postgres el 2026-08-07: el SQL Editor manda el contenido del editor como UNA
+-- sola consulta, y Postgres la corre como una transacción implícita. Una
+-- excepción acá aborta TODO lo que viene detrás y no queda nada a medias.
+-- (Ojo: pegando por `psql` sentencia a sentencia esto NO frena el resto —
+-- ahí hace falta `-v ON_ERROR_STOP=1`.)
+--
+-- PREGUNTA DOS COSAS, porque ninguna sola alcanza:
+--   · `migraciones_aplicadas` — el registro. Se puede desincronizar.
+--   · el md5 del cuerpo vivo de la función — la verdad, pero solo conoce los
+--     estados que existían el 2026-08-07. Una versión futura no la caza.
+-- ############################################################################
+do $candado$
+declare v_md5 text;
+begin
+  if exists (select 1 from migraciones_aplicadas where numero = 159) then
+    raise exception E'\n\n  ⛔ LA 159 YA ESTA APLICADA EN ESTA BASE. No la pegues otra vez.\n     Esta anotada en migraciones_aplicadas.\n     Si crees que el registro miente, avisa ANTES de forzar nada.\n';
+  end if;
+
+  select md5(prosrc) into v_md5 from pg_proc where proname = 'fn_planilla_calcular';
+
+  if v_md5 in ('30e0ecbf11ac5939457df6c2b3cccc77','46c6c3de546f4da080d328a079470478','cb3c5de14dd2b5a8872965814d5e7cd9','93e96e37e05799121485e5721de3dc06') then
+    raise exception E'\n\n  ⛔ NO PEGUES ESTO: la planilla ya esta en una version igual o mas nueva.\n     md5 actual: %\n     Pegar este archivo la haria retroceder EN SILENCIO.\n     Traduccion de md5:\n       30e0ecbf11ac5939457df6c2b3cccc77 = 0166\n       46c6c3de546f4da080d328a079470478 = 0171\n       cb3c5de14dd2b5a8872965814d5e7cd9 = 0173\n       93e96e37e05799121485e5721de3dc06 = 0177\n', v_md5;
+  end if;
+
+  raise notice 'Candado OK · md5 de partida: % · aplicando la 159 (candado_movilidad)', coalesce(v_md5, '(la funcion no existe todavia)');
+end
+$candado$;
+
+
 -- ============================================================================
 -- PARA PEGAR EN EL SQL EDITOR — el candado de la movilidad (APAGADO)
 -- ============================================================================
