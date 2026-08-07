@@ -331,6 +331,15 @@ export default function DocumentacionPage() {
   const [guardandoDoc, setGuardandoDoc] = useState(false);
   const [avisoDoc, setAvisoDoc] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
+  // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
+  // modo en el que la pantalla se quede.
+  const [lote, setLote] = useState<Persona[] | null>(null);
+  // persona_id → sede donde TRABAJA, que es a dónde hay que llevarle el papel.
+  // Distinta de su sede base solo para quien tenga sede física declarada (0166):
+  // Estefany figura en Central y trabaja dentro de la tienda de Arequipa, así que
+  // su declaración va en el sobre de Arequipa y no en uno aparte.
+  const [sedeDeReparto, setSedeDeReparto] = useState<Map<string, string>>(new Map());
 
   // LA TARIFA QUE LE TOCA A UNA PERSONA. Primero la fila de SU sede; si su sede
   // no tiene fila propia, la general. Es el MISMO orden de preferencia que usan
@@ -353,7 +362,86 @@ export default function DocumentacionPage() {
 
   // Imprimir el documento de una persona es poner la pantalla en él y llamar a
   // imprimir: la maquinaria que ya existía no se toca.
+  // Imprimir de una vez las hojas que faltan. El flujo real nunca fue de a uno:
+  // se saca el lote, se reparte por sede, y vuelve firmado en días distintos.
+  // Un botón por fila obligaba a veinte pasadas por el diálogo de impresión, y
+  // a la vigésima nadie recuerda cuáles ya sacó.
+  function imprimirLote(que: TipoDoc, filas: FilaTablero[]) {
+    const candidatas = filas
+      .map((f) => personas.find((per) => per.id === f.persona_id))
+      .filter((per): per is Persona => Boolean(per));
+
+    // El bono necesita su monto, y sin él ninguna hoja acredita nada: eso frena
+    // el lote entero porque le falta a todo el mundo a la vez.
+    if (que === "bono" && bonoMonto === null) {
+      setAvisoDoc({ tipo: "error", texto:
+        "No hay monto de bono de onomástico vigente en el sistema, así que las constancias " +
+        "saldrían sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico)." });
+      return;
+    }
+
+    // La tarifa, en cambio, falta PERSONA POR PERSONA. Se sacan las que sí se
+    // pueden y se dice quién quedó fuera: frenar las diecinueve buenas por una
+    // sin tarifa es cambiar un problema de una persona por uno de veinte.
+    const fuera = que === "ruta"
+      ? candidatas.filter((per) => tarifaDeSede(per.sede_base_id) === null)
+      : [];
+    const quienes = candidatas.filter((per) => !fuera.includes(per));
+
+    if (quienes.length === 0) {
+      setAvisoDoc({ tipo: "error", texto:
+        "Ninguna de estas personas tiene tarifa de movilidad vigente en su sede, así que no " +
+        "hay ninguna declaración que imprimir." });
+      return;
+    }
+
+    // Agrupadas por la sede a la que hay que llevarlas. Sin esto salen en el
+    // orden del tablero —TRU, AQP y CCO mezcladas— y hay que separar dieciséis
+    // hojas a mano mirando el encabezado de cada una. Una hoja en el sobre
+    // equivocado es una persona que no firma, y no se descubre hasta que
+    // alguien pregunta por ella.
+    const ordenadas = [...quienes].sort((a, b) => {
+      const sedeA = sedeCodigo.get(sedeDeReparto.get(a.id) ?? a.sede_base_id) ?? "";
+      const sedeB = sedeCodigo.get(sedeDeReparto.get(b.id) ?? b.sede_base_id) ?? "";
+      // Dentro de cada sede, por apellido: así el taco se recorre igual que la
+      // lista de la pantalla y se puede ir tachando.
+      return sedeA.localeCompare(sedeB) || a.apellidos.localeCompare(b.apellidos);
+    });
+
+    setTipo(que);
+    setLote(ordenadas);
+    // `window.print()` congela la pestaña con lo que haya pintado en ese
+    // instante: sin ceder el turno al navegador para que renderice las hojas
+    // nuevas, se imprimiría lo que había antes. No es un retardo de adorno.
+    setTimeout(() => {
+      window.print();
+      // Se vacía SIEMPRE, aunque se cancele el diálogo. Un lote que se queda
+      // puesto deja la pantalla con veinte documentos uno debajo de otro, y
+      // quien lo vea va a pensar que algo se rompió.
+      setLote(null);
+    }, 80);
+
+    // Cuántas van a cada sede, en el mismo orden en que salen impresas: así el
+    // taco se corta contando, sin mirar hoja por hoja de quién es.
+    const porSedeDelLote = new Map<string, number>();
+    for (const per of ordenadas) {
+      const cod = sedeCodigo.get(sedeDeReparto.get(per.id) ?? per.sede_base_id) ?? "?";
+      porSedeDelLote.set(cod, (porSedeDelLote.get(cod) ?? 0) + 1);
+    }
+    const desglose = [...porSedeDelLote].map(([cod, n]) => `${cod} ${n}`).join(" · ");
+
+    setAvisoDoc(fuera.length === 0
+      ? { tipo: "ok", texto:
+          `${ordenadas.length} ${ordenadas.length === 1 ? "hoja" : "hojas"} a la impresora, `
+          + `agrupadas por sede: ${desglose}.` }
+      : { tipo: "error", texto:
+          `Se imprimieron ${ordenadas.length} (${desglose}). Quedaron fuera ${fuera.length}: ` +
+          fuera.map((per) => `${per.nombres} ${per.apellidos}`).join(", ") +
+          " — su sede no tiene tarifa de movilidad vigente, así que su declaración saldría sin monto." });
+  }
+
   function imprimirFila(personaId: string, que: TipoDoc) {
+    setLote(null);
     // Salvo cuando el papel saldría con el monto equivocado. La declaración de
     // ruta es lo que hace que la movilidad no sea remuneración; si la sede de
     // esta persona no tiene tarifa, no hay monto que declarar y el documento no
@@ -571,6 +659,20 @@ export default function DocumentacionPage() {
         .map((f) => [f.id, f.fecha_fin_contrato]),
     );
     setFinContrato(porVencer);
+
+    // Dónde trabaja cada quien. Consulta APARTE y tolerante por lo mismo que la
+    // de arriba: si la 0166 no está pegada, pedir `sede_fisica_id` en el select
+    // principal haría fallar la consulta entera y la pantalla se quedaría sin
+    // nadie. Así, si falla, simplemente todos se reparten por su sede base.
+    const { data: fisicas } = await supabase
+      .from("personas")
+      .select("id, sede_fisica_id")
+      .eq("estado", "activo")
+      .not("sede_fisica_id", "is", null);
+    setSedeDeReparto(new Map(
+      ((fisicas as { id: string; sede_fisica_id: string }[] | null) ?? [])
+        .map((f) => [f.id, f.sede_fisica_id]),
+    ));
     const listaSedes = (ss as { id: string; nombre: string; codigo: string }[]) ?? [];
     // El NOMBRE para imprimir y el CÓDIGO para buscar su tarifa. Ver `tarifaDeSede`.
     setSedes(new Map(listaSedes.map((s) => [s.id, s.nombre || s.codigo])));
@@ -750,6 +852,404 @@ export default function DocumentacionPage() {
   const bonoRelevantes = tablero.filter(
     (f) => BONO_PENDIENTE.has(f.bono_estado ?? "") || f.bono_estado === "ok");
   const rutasPendientes = tablero.filter((f) => f.estado !== "ok");
+
+  // ── La hoja de un documento ─────────────────────────────────────────────
+  // Esto vivía escrito directamente en el `return`, atado a la ÚNICA persona
+  // elegida en el desplegable. Por eso no se podía imprimir un lote: no había
+  // forma de pedir la misma hoja para veinte personas sin duplicar 378 líneas.
+  //
+  // Es una función que devuelve JSX, no un componente. Un componente definido
+  // dentro de otro se vuelve a montar en cada render —React lo trata como un
+  // tipo nuevo cada vez— y aquí eso significaría que el documento parpadea
+  // mientras se escribe en el formulario de arriba.
+  //
+  // Lo único que cambia entre una hoja y otra es la persona y su tarifa. Todo lo
+  // demás —el firmante, el logo, la política, los textos legales— es igual para
+  // las veinte, y por eso sigue saliendo del closure en vez de viajar como
+  // parámetro: veinte props que nunca cambian solo esconden las dos que sí.
+  function hoja(quien: Persona | null | undefined) {
+    const tarifaSuya = quien ? tarifaDeSede(quien.sede_base_id) : null;
+    return (
+      <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
+        <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
+          <Marca tono="tinta" isotipo="rojo" />
+          <div className="text-right text-xs text-taupe">
+            <p>{EMPRESA.nombre}</p>
+            <p>RUC {EMPRESA.ruc}</p>
+          </div>
+        </div>
+
+        {/* SIN TARIFA NO HAY DECLARACIÓN. Este documento existe para dejar
+            por escrito un monto pactado; si la sede de la persona no tiene
+            tarifa vigente, no hay monto que pactar y lo único honesto es
+            decirlo. Antes salía con un valor por defecto de S/ 10.00 y se
+            firmaba así: un pacto individual por una cifra que la base nunca
+            fijó es peor que no tener papel, porque deja constancia escrita
+            de que el monto lo decidió alguien y no un criterio —que es
+            exactamente lo que el Exp. 1038-2019 usó para reclasificar una
+            movilidad entera. */}
+        {tipo === "ruta" && quien && tarifaSuya === null && (
+          <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+            <p className="mb-2">
+              <strong className="text-rojo">
+                La sede {sedes.get(quien.sede_base_id) ?? "de esta persona"} no tiene
+                tarifa de movilidad vigente.
+              </strong>
+            </p>
+            <p className="mb-2">
+              Por eso no se puede emitir su declaración de ruta: el documento tiene que
+              decir cuánto se le paga por día, y ese número sale de{" "}
+              <code>parametros_laborales</code>, no de esta pantalla.
+            </p>
+            <p className="text-taupe">
+              Crea la tarifa de esa sede —con su sustento, como las de Arequipa, Trujillo
+              y Lima— y vuelve a entrar. Mientras no exista, la planilla tampoco le está
+              pagando movilidad a esta persona.
+            </p>
+          </div>
+        )}
+
+        {tipo === "ruta" && quien && tarifaSuya !== null && (
+          <>
+            <h2 className="mb-6 text-center font-serif text-xl">
+              Declaración de ruta y gasto de transporte
+            </h2>
+
+            <p className="mb-4">
+              Yo, <strong>{nombre}</strong>, con documento de identidad N.º{" "}
+              {quien.documento ? <strong>{quien.documento}</strong> : <Linea ancho="8rem" />}, que
+              desempeño el cargo de <strong>{quien.funcion}</strong> en la sede{" "}
+              <strong>{sedes.get(quien.sede_base_id) ?? "—"}</strong> de {EMPRESA.nombre},
+              declaro lo siguiente respecto de mi traslado diario entre mi domicilio y mi
+              centro de labores:
+            </p>
+
+            {/* Se llena a mano, delante de quien entrega el documento. Es el
+                dato que convierte el monto en criterio objetivo, y tiene que
+                salir de la persona, no de una pantalla. */}
+            <ol className="mb-6 list-decimal space-y-3 pl-6">
+              <li>
+                Resido en el distrito de <Linea ancho="14rem" />, provincia de{" "}
+                <Linea ancho="10rem" />.
+              </li>
+              <li>
+                Para llegar a mi centro de labores utilizo <Linea ancho="3rem" /> medio(s) de
+                transporte por tramo, y de regreso <Linea ancho="3rem" />.
+              </li>
+              <li>
+                El costo de cada pasaje es de S/ <Linea ancho="4rem" />, de modo que mi gasto
+                diario habitual de ida y vuelta asciende a S/ <Linea ancho="4rem" />.
+              </li>
+              <li>
+                Según el horario de mi turno, en ocasiones debo utilizar taxi u otro medio
+                particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
+                <Linea ancho="4rem" />. Esto ocurre alrededor de <Linea ancho="3rem" /> veces
+                por semana.
+              </li>
+              <li>
+                Declaro que la información consignada es veraz, y me comprometo a informar a
+                CAYLA S.A.C. si cambio de domicilio o de ruta habitual.
+              </li>
+            </ol>
+
+            <p className="mb-6">
+              Tomo conocimiento de que CAYLA S.A.C. me otorga una asignación por movilidad de{" "}
+              {/* LA TARIFA DE SU SEDE, no la general. Acá decía `tarifa` a
+                  secas y por eso Taller LIM firmaba S/ 10.00 mientras la
+                  planilla le pagaba los S/ 12.00 de la 0142. */}
+              <strong>S/ {tarifaSuya.toFixed(2)} por día efectivamente asistido</strong>, destinada
+              a cubrir dicho traslado; que se abona únicamente por los días en que asisto a
+              laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y que
+              este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
+              artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
+            </p>
+
+            <p className="mb-10 text-xs text-taupe">
+              {/* La fecha va en blanco y NO con `hoyLima()`. Se imprimen veinte
+                  declaraciones de una vez y se reparten a cuatro sedes: quien firma
+                  el jueves en Arequipa lo hace sobre un papel impreso el lunes, y
+                  con la fecha impresa ese documento afirmaría un día en el que nadie
+                  firmó. La escribe de su puño quien firma, que es quien sabe cuándo. */}
+              Suscrito en {sedes.get(quien.sede_base_id) ?? "—"}, el <Linea ancho="9rem" />.
+            </p>
+
+            <div className="grid grid-cols-2 gap-10 pt-6">
+              {/* La declarante firma a mano, delante de quien le entrega el
+                  papel: es su declaración, no puede venir prefirmada. */}
+              <BloqueFirma
+                nombre={nombre}
+                pie={`DNI ${quien.documento ?? "—————"} · el/la declarante`}
+              />
+              <BloqueFirma
+                imagen={firmaEstampada}
+                nombre={firmanteNombre}
+                pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+              />
+            </div>
+          </>
+        )}
+
+        {/* SIN MONTO NO HAY CONSTANCIA. Este papel acredita una entrega de
+            dinero y su causa; si el sistema no sabe cuánto se entrega, no hay
+            nada que acreditar. Mismo criterio que la declaración de ruta, y
+            por el mismo motivo: la constancia se firma, y una cifra puesta
+            por el código en vez de por la base es una afirmación que nadie
+            decidió. */}
+        {tipo === "bono" && bonoMonto === null && (
+          <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
+            <p className="mb-2">
+              <strong className="text-rojo">
+                No hay monto de bono de onomástico vigente en el sistema.
+              </strong>
+            </p>
+            <p className="mb-2">
+              Por eso no se puede emitir la constancia: el documento acredita la entrega
+              de una suma, y esa suma sale de <code>parametros_laborales</code> con la
+              clave <code>bono_onomastico</code>, no de esta pantalla.
+            </p>
+            <p className="text-taupe">
+              Si acabas de cambiar el monto, revisa que la fila nueva tenga su{" "}
+              <code>vigente_desde</code> puesto y que no haya quedado cerrada con{" "}
+              <code>vigente_hasta</code>. Mientras no exista una fila vigente, el sistema
+              no sabe cuánto se entrega.
+            </p>
+          </div>
+        )}
+
+        {tipo === "bono" && bonoMonto !== null && (
+          <>
+            <h2 className="mb-6 text-center font-serif text-xl">
+              Asignación por cumpleaños
+            </h2>
+
+            <p className="mb-4">
+              {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, hace entrega a{" "}
+              <strong>{quien ? `${quien.nombres} ${quien.apellidos}` : "—"}</strong>
+              {quien?.documento ? `, con documento de identidad ${quien.documento},` : ","}{" "}
+              de la suma de <strong>S/ {bonoMonto.toFixed(2)}</strong> con ocasión de su
+              onomástico.
+            </p>
+
+            {/* LA CLÁUSULA. No dice «gratificación extraordinaria» ni «a título de
+                liberalidad» ni «a discreción», y eso es deliberado: esas palabras
+                invocan el inciso a) del art. 19, que exige que el pago sea OCASIONAL
+                — y la Casación 28833-2022 Lima (considerando décimo sétimo) establece
+                que un pago repetitivo, incluida la periodicidad ANUAL, ya no es
+                extraordinario. Además «liberalidad» hace el gasto NO DEDUCIBLE por el
+                art. 44 inciso d) de la Ley del Impuesto a la Renta.
+                El inciso g) no pide nada de eso: solo pide la CAUSA, que es el
+                onomástico, y está nombrada literalmente en la norma. */}
+            <p className="mb-4 border-l-2 border-sand pl-4">
+              Esta asignación se otorga con ocasión del onomástico del trabajador, conforme
+              al literal g) del artículo 19 del Texto Único Ordenado del Decreto Legislativo
+              N° 650, aprobado por Decreto Supremo N° 001-97-TR. En consecuencia,{" "}
+              <strong>no constituye remuneración computable para ningún efecto legal</strong>,
+              de acuerdo con el artículo 7 del Decreto Supremo N° 003-97-TR.
+            </p>
+
+            <p className="mb-6 text-sm text-taupe">
+              La presente constancia acredita la entrega y su causa. Se archiva firmada por
+              el trabajador.
+            </p>
+
+            {/* Este papel no llevaba NINGUNA fecha, y un cargo de entrega sin fecha
+                acredita la mitad de lo que tiene que acreditar: prueba que se
+                entregó, no cuándo. Y el «cuándo» es lo que decide a qué ejercicio
+                pertenece el bono y si se entregó en el mes del onomástico, que es la
+                causa que lo vuelve no remunerativo. Va en blanco por lo mismo que la
+                declaración de ruta: la escribe quien recibe, el día que recibe. */}
+            <p className="mb-6">
+              Entregada y recibida el <Linea ancho="9rem" />.
+            </p>
+
+            <div className="mt-16 grid grid-cols-2 gap-12">
+              {/* Quien recibe el bono firma al recibirlo: esa firma es la
+                  prueba de la entrega, así que no puede ir impresa. */}
+              <BloqueFirma
+                nombre={quien ? `${quien.nombres} ${quien.apellidos}` : "\u00a0"}
+                pie="Recibí conforme"
+              />
+              <BloqueFirma
+                imagen={firmaEstampada}
+                nombre={firmanteNombre}
+                pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+              />
+            </div>
+          </>
+        )}
+
+        {tipo === "politica" && (
+          <>
+            <h2 className="mb-6 text-center font-serif text-xl">
+              Política de movilidad supeditada a asistencia
+            </h2>
+
+            <p className="mb-4">
+              {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, establece la presente política, aplicable
+              a todo su personal sujeto al régimen laboral de la actividad privada en sus sedes
+              de Trujillo, Lima y Arequipa.
+            </p>
+
+            <p className="mb-2 font-medium">Primera — Objeto y monto</p>
+            {porSede.length > 0 ? (
+              <>
+                <p className="mb-3">
+                  CAYLA otorga a su personal una asignación por movilidad{" "}
+                  <strong>por cada día efectivamente asistido</strong>, destinada
+                  exclusivamente a cubrir el traslado desde su domicilio hasta su centro de
+                  labores y su retorno. El monto se fija por sede, porque el costo del
+                  pasaje difiere entre las ciudades donde CAYLA opera:
+                </p>
+                <table className="mb-4 w-full max-w-sm text-xs">
+                  <tbody>
+                    {porSede.map((t) => (
+                      <tr key={t.sede_codigo}>
+                        <td className="border-b border-sand py-1.5">
+                          {SEDE_CIUDAD[t.sede_codigo ?? ""] ?? t.sede_codigo}
+                        </td>
+                        <td className="border-b border-sand py-1.5 text-right font-medium">
+                          S/ {Number(t.valor).toFixed(2)} por día
+                        </td>
+                        <td className="border-b border-sand py-1.5 text-right text-taupe">
+                          S/ {(Number(t.valor) * DIAS_REFERENCIA).toFixed(2)} en{" "}
+                          {DIAS_REFERENCIA} días
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            ) : tarifa !== null ? (
+              <p className="mb-4">
+                CAYLA otorga a su personal una asignación por movilidad de{" "}
+                <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong> —
+                equivalente a S/ {mensual!.toFixed(2)} en un mes de {DIAS_REFERENCIA} días
+                asistidos — destinada exclusivamente a cubrir el traslado desde su domicilio
+                hasta su centro de labores y su retorno.
+              </p>
+            ) : (
+              /* Ni tarifas por sede ni tarifa general: no hay política que
+                 emitir. Mismo criterio que la declaración de ruta — un
+                 documento de empresa que afirma un monto inventado obliga a
+                 las 22 personas a la vez. */
+              <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-rojo print:hidden">
+                No hay ninguna tarifa de movilidad vigente en el sistema, así que esta
+                política no puede afirmar un monto. Créala en parámetros laborales antes de
+                emitirla.
+              </p>
+            )}
+
+            <p className="mb-2 font-medium">Segunda — Supeditación a la asistencia</p>
+            <p className="mb-4">
+              La asignación se devenga <strong>únicamente por los días en que el trabajador
+              asiste efectivamente a laborar</strong>. No corresponde en caso de inasistencia,
+              licencia, descanso médico, vacaciones ni descanso semanal. El cálculo se realiza
+              de forma automática sobre los días con jornada registrada, sin intervención
+              manual.
+            </p>
+
+            <p className="mb-2 font-medium">Tercera — Criterio del monto único</p>
+            {/* Este es el párrafo que sostiene el monto, y el argumento es de
+                Felipe, no mío: el costo real varía de forma impredecible. La
+                norma admite expresamente el monto fijo pactado justamente por
+                eso. Sin este párrafo, el monto es «arbitrio del empleador» —
+                la frase exacta por la que el Exp. 1038-2019 reclasificó una
+                movilidad íntegra. */}
+            <p className="mb-4">
+              El monto se establece de forma <strong>fija y uniforme</strong> porque el costo
+              real del traslado varía de manera impredecible según la ruta, el horario del
+              turno y el medio de transporte disponible: el personal utiliza en unos casos dos
+              medios de transporte por tramo, y en otros taxi o servicio particular cuando el
+              horario del turno lo exige. El artículo 19 inciso e) del Decreto Supremo N.º
+              001-97-TR admite expresamente esta modalidad al señalar que{" "}
+              <em>«se incluye en este concepto el monto fijo que el empleador otorgue por pacto
+              individual o convención colectiva»</em>. El monto se sustenta en las
+              declaraciones de ruta y gasto suscritas por el personal, que forman parte de
+              esta política y se conservan en el legajo de cada trabajador.
+            </p>
+
+            <p className="mb-2 font-medium">Cuarta — Naturaleza no remunerativa</p>
+            <p className="mb-4">
+              Conforme al artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR, la presente
+              asignación <strong>no tiene carácter remunerativo</strong> y no se considera para
+              el cálculo de la compensación por tiempo de servicios, gratificaciones legales,
+              vacaciones ni aportaciones a la seguridad social. Se deja constancia de que sí se
+              encuentra afecta a la retención del impuesto a la renta de quinta categoría
+              cuando corresponda.
+            </p>
+
+            <p className="mb-2 font-medium">Quinta — No sustituye ningún concepto</p>
+            {/* La cláusula más importante del documento. La reduccion de
+                remuneracion para sustituirla por conceptos no remunerativos
+                es lo que hace nula la maniobra (Art. 26.2 de la Constitución;
+                Art. 10 de la Ley 28051 para el caso de alimentación). Dejarlo
+                dicho por escrito, y que sea VERDAD, es lo que separa esta
+                política de un reetiquetado. */}
+            <p className="mb-4">
+              Esta asignación se otorga <strong>en adición</strong> a la remuneración y a los
+              demás conceptos que el trabajador percibe, y{" "}
+              <strong>no sustituye, reduce ni reemplaza</strong> ninguno de ellos. Su
+              otorgamiento no ha implicado la disminución de ningún concepto remunerativo
+              previamente percibido.
+            </p>
+
+            <p className="mb-2 font-medium">Sexta — Revisión</p>
+            <p className="mb-6">
+              El monto se revisará cuando varíen las tarifas del transporte público en las
+              ciudades donde CAYLA opera, o cuando cambien las condiciones de los turnos.
+            </p>
+
+            <p className="mb-10 text-xs text-taupe">
+              Emitida el {fechaLarga(fechaDeLaPolitica)}.
+            </p>
+
+            <div className="mb-10 w-1/2">
+              <BloqueFirma
+                imagen={firmaEstampada}
+                nombre={firmanteNombre}
+                pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
+              />
+            </div>
+
+            <div className="break-inside-avoid border-t border-sand pt-4">
+              <p className="mb-3 font-medium">Cargo de recepción</p>
+              <p className="mb-4 text-xs text-taupe">
+                Declaro haber recibido copia de la presente política y tomado conocimiento de
+                su contenido.
+              </p>
+              <table className="w-full text-xs">
+                <thead className="text-left text-taupe">
+                  <tr>
+                    <th className="border-b border-sand py-1 font-normal">Nombre</th>
+                    <th className="border-b border-sand py-1 font-normal">DNI</th>
+                    <th className="border-b border-sand py-1 font-normal">Fecha</th>
+                    <th className="border-b border-sand py-1 font-normal">Firma</th>
+                  </tr>
+                </thead>
+                {/* Sin recorte: van todos. Antes se cortaba en 12 y había que
+                    imprimir dos veces; ahora la tabla se parte sola entre hojas
+                    porque las filas llevan break-inside-avoid y el encabezado se
+                    repite con thead. Un cargo incompleto no sirve de nada. */}
+                <tbody>
+                  {reciben.map((p) => (
+                    <tr key={p.id} className="break-inside-avoid">
+                      <td className="border-b border-sand py-3">{p.apellidos}, {p.nombres}</td>
+                      <td className="border-b border-sand py-3">{p.documento ?? ""}</td>
+                      <td className="border-b border-sand py-3" />
+                      <td className="border-b border-sand py-3" />
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-3 text-xs text-taupe">
+                {reciben.length} {reciben.length === 1 ? "persona" : "personas"}.
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -976,6 +1476,22 @@ export default function DocumentacionPage() {
                   </span>
                 </summary>
 
+                {/* El botón del lote va DENTRO del apartado y no en la cabecera:
+                    un `<summary>` con un botón adentro traga el clic —abre y
+                    cierra el desplegable en vez de imprimir— y con teclado es
+                    peor todavía. */}
+                {rutasPendientes.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-3 border-t border-sand px-4 py-2">
+                    <button onClick={() => imprimirLote("ruta", rutasPendientes)}
+                      className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+                      Imprimir las {rutasPendientes.length} que faltan
+                    </button>
+                    <span className="text-xs text-taupe">
+                      Sale una hoja por persona, cada una en su página.
+                    </span>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto border-t border-sand">
                   <table className="w-full text-sm">
                     <thead className="text-left text-xs text-taupe">
@@ -1047,6 +1563,18 @@ export default function DocumentacionPage() {
                       : <><strong className="text-rojo">{bonoPendientes.length}</strong> por entregar o firmar</>}
                   </span>
                 </summary>
+
+                {bonoPendientes.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-3 border-t border-sand px-4 py-2">
+                    <button onClick={() => imprimirLote("bono", bonoPendientes)}
+                      className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+                      Imprimir las {bonoPendientes.length} que faltan
+                    </button>
+                    <span className="text-xs text-taupe">
+                      Solo de quien ya cumplió o cumple este mes.
+                    </span>
+                  </div>
+                )}
 
                 <div className="overflow-x-auto border-t border-sand">
                   <table className="w-full text-sm">
@@ -1219,387 +1747,16 @@ export default function DocumentacionPage() {
           </span>
         </div>
 
-        {/* ── El documento ── */}
-        {(!doc.necesitaPersona || persona) && (
-          <div className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0">
-            <div className="mb-6 flex items-start justify-between border-b border-sand pb-4">
-              <Marca tono="tinta" isotipo="rojo" />
-              <div className="text-right text-xs text-taupe">
-                <p>{EMPRESA.nombre}</p>
-                <p>RUC {EMPRESA.ruc}</p>
-              </div>
-            </div>
-
-            {/* SIN TARIFA NO HAY DECLARACIÓN. Este documento existe para dejar
-                por escrito un monto pactado; si la sede de la persona no tiene
-                tarifa vigente, no hay monto que pactar y lo único honesto es
-                decirlo. Antes salía con un valor por defecto de S/ 10.00 y se
-                firmaba así: un pacto individual por una cifra que la base nunca
-                fijó es peor que no tener papel, porque deja constancia escrita
-                de que el monto lo decidió alguien y no un criterio —que es
-                exactamente lo que el Exp. 1038-2019 usó para reclasificar una
-                movilidad entera. */}
-            {tipo === "ruta" && persona && tarifaPersona === null && (
-              <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
-                <p className="mb-2">
-                  <strong className="text-rojo">
-                    La sede {sedes.get(persona.sede_base_id) ?? "de esta persona"} no tiene
-                    tarifa de movilidad vigente.
-                  </strong>
-                </p>
-                <p className="mb-2">
-                  Por eso no se puede emitir su declaración de ruta: el documento tiene que
-                  decir cuánto se le paga por día, y ese número sale de{" "}
-                  <code>parametros_laborales</code>, no de esta pantalla.
-                </p>
-                <p className="text-taupe">
-                  Crea la tarifa de esa sede —con su sustento, como las de Arequipa, Trujillo
-                  y Lima— y vuelve a entrar. Mientras no exista, la planilla tampoco le está
-                  pagando movilidad a esta persona.
-                </p>
-              </div>
-            )}
-
-            {tipo === "ruta" && persona && tarifaPersona !== null && (
-              <>
-                <h2 className="mb-6 text-center font-serif text-xl">
-                  Declaración de ruta y gasto de transporte
-                </h2>
-
-                <p className="mb-4">
-                  Yo, <strong>{nombre}</strong>, con documento de identidad N.º{" "}
-                  {persona.documento ? <strong>{persona.documento}</strong> : <Linea ancho="8rem" />}, que
-                  desempeño el cargo de <strong>{persona.funcion}</strong> en la sede{" "}
-                  <strong>{sedes.get(persona.sede_base_id) ?? "—"}</strong> de {EMPRESA.nombre},
-                  declaro lo siguiente respecto de mi traslado diario entre mi domicilio y mi
-                  centro de labores:
-                </p>
-
-                {/* Se llena a mano, delante de quien entrega el documento. Es el
-                    dato que convierte el monto en criterio objetivo, y tiene que
-                    salir de la persona, no de una pantalla. */}
-                <ol className="mb-6 list-decimal space-y-3 pl-6">
-                  <li>
-                    Resido en el distrito de <Linea ancho="14rem" />, provincia de{" "}
-                    <Linea ancho="10rem" />.
-                  </li>
-                  <li>
-                    Para llegar a mi centro de labores utilizo <Linea ancho="3rem" /> medio(s) de
-                    transporte por tramo, y de regreso <Linea ancho="3rem" />.
-                  </li>
-                  <li>
-                    El costo de cada pasaje es de S/ <Linea ancho="4rem" />, de modo que mi gasto
-                    diario habitual de ida y vuelta asciende a S/ <Linea ancho="4rem" />.
-                  </li>
-                  <li>
-                    Según el horario de mi turno, en ocasiones debo utilizar taxi u otro medio
-                    particular, cuyo costo por viaje asciende aproximadamente a S/{" "}
-                    <Linea ancho="4rem" />. Esto ocurre alrededor de <Linea ancho="3rem" /> veces
-                    por semana.
-                  </li>
-                  <li>
-                    Declaro que la información consignada es veraz, y me comprometo a informar a
-                    CAYLA S.A.C. si cambio de domicilio o de ruta habitual.
-                  </li>
-                </ol>
-
-                <p className="mb-6">
-                  Tomo conocimiento de que CAYLA S.A.C. me otorga una asignación por movilidad de{" "}
-                  {/* LA TARIFA DE SU SEDE, no la general. Acá decía `tarifa` a
-                      secas y por eso Taller LIM firmaba S/ 10.00 mientras la
-                      planilla le pagaba los S/ 12.00 de la 0142. */}
-                  <strong>S/ {tarifaPersona.toFixed(2)} por día efectivamente asistido</strong>, destinada
-                  a cubrir dicho traslado; que se abona únicamente por los días en que asisto a
-                  laborar, no correspondiendo en caso de inasistencia, licencia o descanso; y que
-                  este concepto <strong>no tiene carácter remunerativo</strong>, conforme al
-                  artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR.
-                </p>
-
-                <p className="mb-10 text-xs text-taupe">
-                  {/* La fecha va en blanco y NO con `hoyLima()`. Se imprimen veinte
-                      declaraciones de una vez y se reparten a cuatro sedes: quien firma
-                      el jueves en Arequipa lo hace sobre un papel impreso el lunes, y
-                      con la fecha impresa ese documento afirmaría un día en el que nadie
-                      firmó. La escribe de su puño quien firma, que es quien sabe cuándo. */}
-                  Suscrito en {sedes.get(persona.sede_base_id) ?? "—"}, el <Linea ancho="9rem" />.
-                </p>
-
-                <div className="grid grid-cols-2 gap-10 pt-6">
-                  {/* La declarante firma a mano, delante de quien le entrega el
-                      papel: es su declaración, no puede venir prefirmada. */}
-                  <BloqueFirma
-                    nombre={nombre}
-                    pie={`DNI ${persona.documento ?? "—————"} · el/la declarante`}
-                  />
-                  <BloqueFirma
-                    imagen={firmaEstampada}
-                    nombre={firmanteNombre}
-                    pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* SIN MONTO NO HAY CONSTANCIA. Este papel acredita una entrega de
-                dinero y su causa; si el sistema no sabe cuánto se entrega, no hay
-                nada que acreditar. Mismo criterio que la declaración de ruta, y
-                por el mismo motivo: la constancia se firma, y una cifra puesta
-                por el código en vez de por la base es una afirmación que nadie
-                decidió. */}
-            {tipo === "bono" && bonoMonto === null && (
-              <div className="rounded-lg border border-rojo bg-rojo/5 p-4 text-sm">
-                <p className="mb-2">
-                  <strong className="text-rojo">
-                    No hay monto de bono de onomástico vigente en el sistema.
-                  </strong>
-                </p>
-                <p className="mb-2">
-                  Por eso no se puede emitir la constancia: el documento acredita la entrega
-                  de una suma, y esa suma sale de <code>parametros_laborales</code> con la
-                  clave <code>bono_onomastico</code>, no de esta pantalla.
-                </p>
-                <p className="text-taupe">
-                  Si acabas de cambiar el monto, revisa que la fila nueva tenga su{" "}
-                  <code>vigente_desde</code> puesto y que no haya quedado cerrada con{" "}
-                  <code>vigente_hasta</code>. Mientras no exista una fila vigente, el sistema
-                  no sabe cuánto se entrega.
-                </p>
-              </div>
-            )}
-
-            {tipo === "bono" && bonoMonto !== null && (
-              <>
-                <h2 className="mb-6 text-center font-serif text-xl">
-                  Asignación por cumpleaños
-                </h2>
-
-                <p className="mb-4">
-                  {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, hace entrega a{" "}
-                  <strong>{persona ? `${persona.nombres} ${persona.apellidos}` : "—"}</strong>
-                  {persona?.documento ? `, con documento de identidad ${persona.documento},` : ","}{" "}
-                  de la suma de <strong>S/ {bonoMonto.toFixed(2)}</strong> con ocasión de su
-                  onomástico.
-                </p>
-
-                {/* LA CLÁUSULA. No dice «gratificación extraordinaria» ni «a título de
-                    liberalidad» ni «a discreción», y eso es deliberado: esas palabras
-                    invocan el inciso a) del art. 19, que exige que el pago sea OCASIONAL
-                    — y la Casación 28833-2022 Lima (considerando décimo sétimo) establece
-                    que un pago repetitivo, incluida la periodicidad ANUAL, ya no es
-                    extraordinario. Además «liberalidad» hace el gasto NO DEDUCIBLE por el
-                    art. 44 inciso d) de la Ley del Impuesto a la Renta.
-                    El inciso g) no pide nada de eso: solo pide la CAUSA, que es el
-                    onomástico, y está nombrada literalmente en la norma. */}
-                <p className="mb-4 border-l-2 border-sand pl-4">
-                  Esta asignación se otorga con ocasión del onomástico del trabajador, conforme
-                  al literal g) del artículo 19 del Texto Único Ordenado del Decreto Legislativo
-                  N° 650, aprobado por Decreto Supremo N° 001-97-TR. En consecuencia,{" "}
-                  <strong>no constituye remuneración computable para ningún efecto legal</strong>,
-                  de acuerdo con el artículo 7 del Decreto Supremo N° 003-97-TR.
-                </p>
-
-                <p className="mb-6 text-sm text-taupe">
-                  La presente constancia acredita la entrega y su causa. Se archiva firmada por
-                  el trabajador.
-                </p>
-
-                {/* Este papel no llevaba NINGUNA fecha, y un cargo de entrega sin fecha
-                    acredita la mitad de lo que tiene que acreditar: prueba que se
-                    entregó, no cuándo. Y el «cuándo» es lo que decide a qué ejercicio
-                    pertenece el bono y si se entregó en el mes del onomástico, que es la
-                    causa que lo vuelve no remunerativo. Va en blanco por lo mismo que la
-                    declaración de ruta: la escribe quien recibe, el día que recibe. */}
-                <p className="mb-6">
-                  Entregada y recibida el <Linea ancho="9rem" />.
-                </p>
-
-                <div className="mt-16 grid grid-cols-2 gap-12">
-                  {/* Quien recibe el bono firma al recibirlo: esa firma es la
-                      prueba de la entrega, así que no puede ir impresa. */}
-                  <BloqueFirma
-                    nombre={persona ? `${persona.nombres} ${persona.apellidos}` : "\u00a0"}
-                    pie="Recibí conforme"
-                  />
-                  <BloqueFirma
-                    imagen={firmaEstampada}
-                    nombre={firmanteNombre}
-                    pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
-                  />
-                </div>
-              </>
-            )}
-
-            {tipo === "politica" && (
-              <>
-                <h2 className="mb-6 text-center font-serif text-xl">
-                  Política de movilidad supeditada a asistencia
-                </h2>
-
-                <p className="mb-4">
-                  {EMPRESA.nombre}, con RUC {EMPRESA.ruc}, establece la presente política, aplicable
-                  a todo su personal sujeto al régimen laboral de la actividad privada en sus sedes
-                  de Trujillo, Lima y Arequipa.
-                </p>
-
-                <p className="mb-2 font-medium">Primera — Objeto y monto</p>
-                {porSede.length > 0 ? (
-                  <>
-                    <p className="mb-3">
-                      CAYLA otorga a su personal una asignación por movilidad{" "}
-                      <strong>por cada día efectivamente asistido</strong>, destinada
-                      exclusivamente a cubrir el traslado desde su domicilio hasta su centro de
-                      labores y su retorno. El monto se fija por sede, porque el costo del
-                      pasaje difiere entre las ciudades donde CAYLA opera:
-                    </p>
-                    <table className="mb-4 w-full max-w-sm text-xs">
-                      <tbody>
-                        {porSede.map((t) => (
-                          <tr key={t.sede_codigo}>
-                            <td className="border-b border-sand py-1.5">
-                              {SEDE_CIUDAD[t.sede_codigo ?? ""] ?? t.sede_codigo}
-                            </td>
-                            <td className="border-b border-sand py-1.5 text-right font-medium">
-                              S/ {Number(t.valor).toFixed(2)} por día
-                            </td>
-                            <td className="border-b border-sand py-1.5 text-right text-taupe">
-                              S/ {(Number(t.valor) * DIAS_REFERENCIA).toFixed(2)} en{" "}
-                              {DIAS_REFERENCIA} días
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                ) : tarifa !== null ? (
-                  <p className="mb-4">
-                    CAYLA otorga a su personal una asignación por movilidad de{" "}
-                    <strong>S/ {tarifa.toFixed(2)} por día efectivamente asistido</strong> —
-                    equivalente a S/ {mensual!.toFixed(2)} en un mes de {DIAS_REFERENCIA} días
-                    asistidos — destinada exclusivamente a cubrir el traslado desde su domicilio
-                    hasta su centro de labores y su retorno.
-                  </p>
-                ) : (
-                  /* Ni tarifas por sede ni tarifa general: no hay política que
-                     emitir. Mismo criterio que la declaración de ruta — un
-                     documento de empresa que afirma un monto inventado obliga a
-                     las 22 personas a la vez. */
-                  <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-rojo print:hidden">
-                    No hay ninguna tarifa de movilidad vigente en el sistema, así que esta
-                    política no puede afirmar un monto. Créala en parámetros laborales antes de
-                    emitirla.
-                  </p>
-                )}
-
-                <p className="mb-2 font-medium">Segunda — Supeditación a la asistencia</p>
-                <p className="mb-4">
-                  La asignación se devenga <strong>únicamente por los días en que el trabajador
-                  asiste efectivamente a laborar</strong>. No corresponde en caso de inasistencia,
-                  licencia, descanso médico, vacaciones ni descanso semanal. El cálculo se realiza
-                  de forma automática sobre los días con jornada registrada, sin intervención
-                  manual.
-                </p>
-
-                <p className="mb-2 font-medium">Tercera — Criterio del monto único</p>
-                {/* Este es el párrafo que sostiene el monto, y el argumento es de
-                    Felipe, no mío: el costo real varía de forma impredecible. La
-                    norma admite expresamente el monto fijo pactado justamente por
-                    eso. Sin este párrafo, el monto es «arbitrio del empleador» —
-                    la frase exacta por la que el Exp. 1038-2019 reclasificó una
-                    movilidad íntegra. */}
-                <p className="mb-4">
-                  El monto se establece de forma <strong>fija y uniforme</strong> porque el costo
-                  real del traslado varía de manera impredecible según la ruta, el horario del
-                  turno y el medio de transporte disponible: el personal utiliza en unos casos dos
-                  medios de transporte por tramo, y en otros taxi o servicio particular cuando el
-                  horario del turno lo exige. El artículo 19 inciso e) del Decreto Supremo N.º
-                  001-97-TR admite expresamente esta modalidad al señalar que{" "}
-                  <em>«se incluye en este concepto el monto fijo que el empleador otorgue por pacto
-                  individual o convención colectiva»</em>. El monto se sustenta en las
-                  declaraciones de ruta y gasto suscritas por el personal, que forman parte de
-                  esta política y se conservan en el legajo de cada trabajador.
-                </p>
-
-                <p className="mb-2 font-medium">Cuarta — Naturaleza no remunerativa</p>
-                <p className="mb-4">
-                  Conforme al artículo 19 inciso e) del Decreto Supremo N.º 001-97-TR, la presente
-                  asignación <strong>no tiene carácter remunerativo</strong> y no se considera para
-                  el cálculo de la compensación por tiempo de servicios, gratificaciones legales,
-                  vacaciones ni aportaciones a la seguridad social. Se deja constancia de que sí se
-                  encuentra afecta a la retención del impuesto a la renta de quinta categoría
-                  cuando corresponda.
-                </p>
-
-                <p className="mb-2 font-medium">Quinta — No sustituye ningún concepto</p>
-                {/* La cláusula más importante del documento. La reduccion de
-                    remuneracion para sustituirla por conceptos no remunerativos
-                    es lo que hace nula la maniobra (Art. 26.2 de la Constitución;
-                    Art. 10 de la Ley 28051 para el caso de alimentación). Dejarlo
-                    dicho por escrito, y que sea VERDAD, es lo que separa esta
-                    política de un reetiquetado. */}
-                <p className="mb-4">
-                  Esta asignación se otorga <strong>en adición</strong> a la remuneración y a los
-                  demás conceptos que el trabajador percibe, y{" "}
-                  <strong>no sustituye, reduce ni reemplaza</strong> ninguno de ellos. Su
-                  otorgamiento no ha implicado la disminución de ningún concepto remunerativo
-                  previamente percibido.
-                </p>
-
-                <p className="mb-2 font-medium">Sexta — Revisión</p>
-                <p className="mb-6">
-                  El monto se revisará cuando varíen las tarifas del transporte público en las
-                  ciudades donde CAYLA opera, o cuando cambien las condiciones de los turnos.
-                </p>
-
-                <p className="mb-10 text-xs text-taupe">
-                  Emitida el {fechaLarga(fechaDeLaPolitica)}.
-                </p>
-
-                <div className="mb-10 w-1/2">
-                  <BloqueFirma
-                    imagen={firmaEstampada}
-                    nombre={firmanteNombre}
-                    pie={`${firmanteCargo} · ${EMPRESA.nombre}`}
-                  />
-                </div>
-
-                <div className="break-inside-avoid border-t border-sand pt-4">
-                  <p className="mb-3 font-medium">Cargo de recepción</p>
-                  <p className="mb-4 text-xs text-taupe">
-                    Declaro haber recibido copia de la presente política y tomado conocimiento de
-                    su contenido.
-                  </p>
-                  <table className="w-full text-xs">
-                    <thead className="text-left text-taupe">
-                      <tr>
-                        <th className="border-b border-sand py-1 font-normal">Nombre</th>
-                        <th className="border-b border-sand py-1 font-normal">DNI</th>
-                        <th className="border-b border-sand py-1 font-normal">Fecha</th>
-                        <th className="border-b border-sand py-1 font-normal">Firma</th>
-                      </tr>
-                    </thead>
-                    {/* Sin recorte: van todos. Antes se cortaba en 12 y había que
-                        imprimir dos veces; ahora la tabla se parte sola entre hojas
-                        porque las filas llevan break-inside-avoid y el encabezado se
-                        repite con thead. Un cargo incompleto no sirve de nada. */}
-                    <tbody>
-                      {reciben.map((p) => (
-                        <tr key={p.id} className="break-inside-avoid">
-                          <td className="border-b border-sand py-3">{p.apellidos}, {p.nombres}</td>
-                          <td className="border-b border-sand py-3">{p.documento ?? ""}</td>
-                          <td className="border-b border-sand py-3" />
-                          <td className="border-b border-sand py-3" />
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <p className="mt-3 text-xs text-taupe">
-                    {reciben.length} {reciben.length === 1 ? "persona" : "personas"}.
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {/* ── El documento ──
+            Una hoja, o el lote entero. En modo lote cada hoja arranca en su
+            propia página: sin eso, la declaración de la segunda persona
+            empezaría a media hoja de la primera y ninguna de las dos serviría
+            para firmar. */}
+        {lote
+          ? lote.map((quien) => (
+              <div key={quien.id} className="hoja-suelta">{hoja(quien)}</div>
+            ))
+          : (!doc.necesitaPersona || persona) && hoja(persona)}
       </main>
     </>
   );

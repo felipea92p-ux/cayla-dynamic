@@ -200,6 +200,27 @@ base de 6.5 h, pago = salario × horas / (6.5 × días). Los factores de provisi
 (grati 8.33 % · CTS 4.17 % · vacaciones 4.17 %) viven en
 `configuracion.planilla_provisiones`.
 
+**Antes de tocar cualquier cálculo de planilla, lee
+[`docs/planilla-anexo-tecnico.md`](docs/planilla-anexo-tecnico.md).** No es documentación
+de cortesía: tiene una tabla de **cinco defectos que parecen reales y no lo son**
+—el factor 6.5, el "efecto calendario", el riesgo de RMV, el prorrateo del
+feriado, el promedio de días trabajados— cada uno con la medición que lo
+descarta. En agosto de 2026 una sesión los persiguió durante horas y estuvo a
+punto de subir la planilla 1.11 % corrigiendo algo que funcionaba.
+
+Tres cosas de ahí que ahorran el mismo camino:
+
+- **El periodo va del 29 al 28**, no es mes calendario. Leerlo de
+  `periodos_planilla`, nunca asumirlo.
+- **En Trujillo se trabaja domingo.** Cualquier consulta que asuma «lunes a
+  sábado» da resultados falsos para esa sede.
+- **La jornada son 45 h/semana contra un máximo legal de 48.** Se cumple en tres
+  regímenes distintos (6 días en TRU, 5 en LIM y AQP) que suman lo mismo; un
+  promedio que los mezcle no significa nada.
+
+Y la regla de método que costó esas horas: **medir contra la base antes de
+proponer**, no razonar sobre el supuesto anterior.
+
 ---
 
 ## Qué hay en `docs/`
@@ -213,6 +234,7 @@ base de 6.5 h, pago = salario × horas / (6.5 × días). Los factores de provisi
 | `revision-2026-07-15/` | Auditoría de seguridad. Vive hasta cerrar sus pendientes. |
 | `integracion-retail/` | Plan del puente con retail. Aún no arranca. |
 | `plan.md` | **Documento histórico** (jul 2026, antes de construir). Buen contexto del porqué; su estructura de carpetas y su roadmap ya no describen el sistema actual. |
+| `planilla-anexo-tecnico.md` | **Anexo técnico**, no es la política. Cómo se paga, de dónde sale el factor 6.5, cómo se paga un feriado, y una tabla de cinco defectos aparentes que ya se midieron y descartaron. **Leer antes de tocar cualquier cálculo de planilla.** ⚠️ La política salarial OFICIAL no vive acá: vive publicada en el sistema (migración 0141, pantalla `/admin/politica-salarial`), versionada y con acuse de recibo del equipo. |
 | `analisis-estructura-remunerativa-2026-07-30.md` | **Informe fechado.** El sustento del diseño remunerativo, escrito para revisar con el contador. Rescatado de una rama antes de borrarla. |
 | `plan-2026-07-25.md` | **Documento histórico.** Cuatro auditorías de código de julio. Se conserva por el registro, no por su lista de tareas. |
 

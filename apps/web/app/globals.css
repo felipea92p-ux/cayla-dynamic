@@ -105,4 +105,17 @@ a.bg-tinta:hover {
   tr:last-child {
     break-before: avoid;
   }
+
+  /* Cada hoja de un lote empieza en su propia página. Documentación imprime de
+     una vez las veinte declaraciones que faltan firmar, y sin esto la segunda
+     arrancaría a media hoja de la primera: dos documentos en la misma cara, con
+     una firma que no se sabe a cuál corresponde, y ninguno de los dos sirve.
+     El `:last-child` evita la página final en blanco. */
+  .hoja-suelta {
+    break-after: page;
+  }
+
+  .hoja-suelta:last-child {
+    break-after: auto;
+  }
 }
