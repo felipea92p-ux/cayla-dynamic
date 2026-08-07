@@ -26,6 +26,13 @@
 --
 -- SE ELIGIÓ fn_set_con_hijos por ser la más corta de las 22 y no tocar dinero:
 -- su cuerpo entero cabe en la pantalla y no hay nada delicado en él.
+--
+-- Y VA UNA CUARTA COLUMNA, por una pista aparte. La huella del esquema devolvió
+-- 174 filas en `migraciones_aplicadas` de producción y 176 en la base de
+-- referencia, con el mismo máximo (179). Faltan dos anotaciones, y una
+-- migración sin anotar es exactamente el hueco por donde entra código que
+-- nadie aplicó. Se piden los números registrados para saber cuáles son; sale
+-- gratis en la misma consulta y ahorra una vuelta.
 -- ############################################################################
 
 select
@@ -55,4 +62,9 @@ select
                         'fn_set_con_hijos','fn_set_descanso','fn_set_feriado',
                         'fn_set_horario_semanal','fn_set_justificacion','fn_set_meta_cobertura',
                         'fn_set_rendimiento','fn_set_sueldo_base_legal','fn_set_turno',
-                        'fn_simular_planilla')) as medidas_de_las_22;
+                        'fn_simular_planilla')) as medidas_de_las_22,
+
+  -- Los números anotados en producción, para cruzarlos contra los del
+  -- repositorio y ver cuáles son las dos que faltan.
+  (select string_agg(numero::text, ',' order by numero) from migraciones_aplicadas)
+    as migraciones_anotadas;
