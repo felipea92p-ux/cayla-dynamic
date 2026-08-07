@@ -110,6 +110,20 @@ son **0202** y **0203**. Falta su confirmación de una línea.)*
 
 ### A.3 · Datos que hacen falta para seguir
 
+**0) Nadie tiene contacto de emergencia — las 25, sin una sola excepción.**
+Medido el 2026-08-07 con
+[`que_falta_en_las_fichas.sql`](../scripts/sql-manual/que_falta_en_las_fichas.sql).
+Si alguien se corta con una máquina en el taller de Lima o se descompensa en
+tienda, **no hay a quién llamar**, y ese es el único momento en que el dato
+sirve. Felipe los carga desde `/admin/personas`. En la misma pasada faltan **13
+celulares** (decisión suya: van después) y la **fecha de nacimiento de Janis
+Revilla**, sin la cual su bono de onomástico no se dispara nunca — la única del
+equipo a la que le falta.
+
+Las 20 de planilla están completas en lo que toca a plata: banco, cuenta,
+documento y nombre legal. Lo que falta es todo del lado de **poder contactarlas**.
+Corre la consulta para ver cómo va; ordena por quién tiene más huecos.
+
 **a) Quiénes estudian y cuánto cuesta su curso** (del tipo `aurora 1 →
 universidad S/520`). Con el nombre y el monto alcanza; se cargan de a uno en
 `/admin/educacion` o con
