@@ -17,6 +17,21 @@ export const TIPO_MARCA_LABELS: Record<TipoMarca, string> = {
   retorno_otro: "Regreso",
 };
 
+/**
+ * Cómo se lee cada motivo de cese en pantalla. El texto entre paréntesis está
+ * para que quien elige no tenga que saber derecho laboral: la diferencia entre
+ * «no se renovó» y «despido» decide qué papeles hacen falta.
+ */
+export const MOTIVO_CESE_LABELS: Record<MotivoCese, string> = {
+  renuncia: "Renunció",
+  fin_contrato: "Terminó su contrato y no se renovó",
+  fin_periodo_prueba: "No pasó el periodo de prueba",
+  fin_servicio_rxh: "Terminó el servicio (recibo por honorarios)",
+  mutuo_acuerdo: "Salida de mutuo acuerdo",
+  despido: "Despido con causa (exige preaviso, descargo y carta)",
+  por_revisar: "Todavía no está claro — por revisar",
+};
+
 /** Femenino primero, como el resto del sistema (integrante, colaboradora, encargada). */
 export const ESTADO_CIVIL_LABELS: Record<EstadoCivil, string> = {
   soltera: "Soltera/o",
@@ -60,24 +75,6 @@ export const REGIMEN_PENSION_LABELS: Record<RegimenPension, string> = {
   prima: "AFP Prima (12.97 %)",
   integra: "AFP Integra (12.92 %)",
   habitat: "AFP Habitat (12.84 %)",
-};
-
-/**
- * Cómo se lee cada motivo de cese en pantalla.
- *
- * `por_revisar` se dice «sin registrar» a propósito: no es un motivo, es el
- * marcador del backfill de la 0086 para quien no se pudo deducir. Mostrarlo
- * como si fuera una causa lo daría por resuelto, y lo que hace falta es que se
- * note que a esa persona le falta el dato.
- */
-export const MOTIVO_CESE_LABELS: Record<MotivoCese, string> = {
-  renuncia: "Renunció",
-  despido: "Despido",
-  fin_contrato: "Terminó su contrato",
-  fin_periodo_prueba: "No continuó tras el periodo de prueba",
-  fin_servicio_rxh: "Terminó su servicio por recibo por honorarios",
-  mutuo_acuerdo: "Mutuo acuerdo",
-  por_revisar: "sin registrar",
 };
 
 /**

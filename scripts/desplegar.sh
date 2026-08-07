@@ -55,6 +55,33 @@ if [ "$PENDIENTES" != "0" ]; then
 fi
 verde "✓ GitHub está al día."
 
+# ── 2b · Y al día con main ──────────────────────────────────────────────────
+# El paso 2 comprueba que TU RAMA esté al día con SU PROPIO origin. Eso no dice
+# nada de si tu rama está al día respecto de `main`, y ahí estuvo la trampa del
+# 2026-08-06: se desplegó una rama nacida de un `main` de tres horas antes. El
+# script imprimió sus tres ✓ verdes, el deploy salió limpio, y producción se
+# quedó sin 25 commits —la pantalla de liquidación por cese entre ellos— hasta
+# que alguien miró por otro motivo. Un freno que da luz verde en el caso que
+# tenía que frenar es peor que no tenerlo: se confía en él.
+#
+# Se compara contra `origin/main` y no contra el `main` local, porque el local
+# puede llevar días sin actualizar y es justo lo que no queremos suponer.
+git fetch origin main --quiet 2>/dev/null || true
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+  if ! git merge-base --is-ancestor origin/main HEAD; then
+    DETRAS=$(git rev-list --count HEAD..origin/main)
+    rojo "✗ Esta rama no contiene main: le faltan $DETRAS commit(s)."
+    gris "  Publicar ahora dejaría producción SIN ese trabajo. Tráelo primero:"
+    gris "    git merge origin/main"
+    gris "  Y si de verdad quieres publicar una rama vieja a propósito:"
+    gris "    npx vercel --prod"
+    exit 1
+  fi
+  verde "✓ La rama contiene todo lo que hay en main."
+else
+  gris "· No hay origin/main con qué comparar. Se sigue igual."
+fi
+
 # ── 3 · Las pruebas de ESTE commit ──────────────────────────────────────────
 # OJO CON EL jq. La versión anterior era `.[0] | if .status != "completed" …`, y
 # sobre un arreglo VACÍO `.[0]` da null: `null.status` es null, `null != "completed"`

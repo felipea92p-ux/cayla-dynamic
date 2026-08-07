@@ -34,3 +34,9 @@ tests
 # Control de versiones
 .git
 .github
+
+# Material de trabajo con datos del equipo que aparece suelto en la raíz. Un
+# despliegue no tiene por qué llevarlo, y aquí se enumera además de en
+# .gitignore porque Vercel decide qué sube con ESTE archivo, no con aquel.
+cuadro.json
+politica-salarial.pdf

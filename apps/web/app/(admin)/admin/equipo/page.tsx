@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -10,7 +10,10 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { MOTIVO_CESE_LABELS, TZ_LIMA, etiquetaDeCatalogo, puedeVerPlanilla, type Rol } from "@cayla-dynamic/shared";
+import {
+  hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
+  MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
+} from "@cayla-dynamic/shared";
 
 const ROLES_OPCIONES = [
   { valor: "integrante", label: "Integrante" },
@@ -25,13 +28,9 @@ function fmtFechaDMA(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-// YYYY-MM-01 del mes actual en horario de Lima (default de "vigente desde" al asignar salario).
-function primeroDeMesLima(): string {
-  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA, year: "numeric", month: "2-digit" }).formatToParts(new Date());
-  const y = partes.find((p) => p.type === "year")!.value;
-  const m = partes.find((p) => p.type === "month")!.value;
-  return `${y}-${m}-01`;
-}
+// `primeroDeMesLima` (default de "vigente desde" al asignar salario) vivía acá
+// copiado; es el mismo que exporta fecha-lima.ts, así que ahora se importa. Dos
+// copias del corte del día son dos versiones de cuándo es hoy en Lima.
 
 interface SalarioVigente {
   rango: string;
@@ -66,6 +65,11 @@ interface Sede {
   nombre: string;
 }
 
+// Qué se muestra en la tabla. "fin_contrato" no es un estado de la persona sino
+// una pregunta de trabajo —«¿a quién tengo que renovar o no renovar?»— y vive en
+// el mismo desplegable porque es donde se la va a buscar.
+type FiltroEstado = "activos" | "inactivos" | "fin_contrato" | "todos";
+
 interface Persona {
   id: string;
   nombres: string;
@@ -99,9 +103,13 @@ interface FormPersona {
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador — se escribe por RPC fn_set_tipo_vinculo
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
+  // Último día que trabaja por contrato (0144). Es un PLAN, no un cese: vacío es
+  // lo normal. Se escribe por RPC fn_set_fin_contrato, y vacío la BORRA (null).
+  finContrato: string;
+  motivoFinContrato: string; // por qué se fijó o se quitó — va a correcciones_auditoria
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", finContrato: "", motivoFinContrato: "" };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -112,6 +120,14 @@ export default function EquipoPage() {
   // Fecha de ingreso + primera entrada marcada por persona (RPC fn_ingresos; solo admin/lider,
   // devuelve [] para el resto). Decide qué feriados le corresponden a cada persona.
   const [ingresos, setIngresos] = useState<Map<string, { fecha_ingreso: string | null; primera_entrada: string | null }>>(new Map());
+  // Último día que trabaja por contrato, por persona (0144). Solo llegan quienes
+  // la tienen: vacío es lo normal y no significa que falte un dato.
+  const [finesContrato, setFinesContrato] = useState<Map<string, string>>(new Map());
+  // ¿Esa lectura fue confiable? Mismo criterio que `funcionesOk` de más abajo: si
+  // falló, el editor muestra vacío para todo el mundo, y vacío significa
+  // «contrato indefinido». Escribir sobre eso borraría una fecha real, así que
+  // con la lectura en duda el campo va deshabilitado.
+  const [finesOk, setFinesOk] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
@@ -121,12 +137,27 @@ export default function EquipoPage() {
   const [busca, setBusca] = useState("");
   const [fSede, setFSede] = useState("todas");
   const [fArea, setFArea] = useState("todas");
-  const [fEstado, setFEstado] = useState<"activos" | "inactivos" | "todos">("activos");
+  const [fEstado, setFEstado] = useState<FiltroEstado>("activos");
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  // Registrar la salida de alguien. Es un panel y no un window.confirm porque un
+  // cese son dos datos —el último día y el porqué—, no un sí/no.
+  // Los cinco paneles de esta pantalla —alta, edición, salario, historial y
+  // salida— se abren ARRIBA, encima de la tabla. Con ~30 filas, quien pulsa un
+  // botón desde media lista no ve que abrió nada: la pantalla no cambia donde
+  // está mirando, así que vuelve a pulsar creyendo que el botón no responde.
+  //
+  // No es una peculiaridad que haya que aprender: es un error de diseño, y el
+  // que lo comete es quien hizo la pantalla, no quien la usa. Se desplaza sola
+  // hasta el panel. `scroll-mt-4` deja un respiro arriba para que no quede
+  // pegado al borde.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [ceseId, setCeseId] = useState<string | null>(null);
+  const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
+  const [guardandoCese, setGuardandoCese] = useState(false);
 
   // Salarios (dato sensible: solo admin/lider_do). Se leen/escriben por RPC.
   // OJO: mientras no estén CARGADOS ("ok") no se permite asignar/editar — si se
@@ -191,6 +222,24 @@ export default function EquipoPage() {
     if (personasError || sedesError) {
       setMensaje({ tipo: "error", texto: mensajeDeError((personasError ?? sedesError)!, "cargar el equipo") });
     }
+    // Fin de contrato: consulta APARTE y tolerante, no una columna más del select
+    // de arriba. Si la 0144 todavía no está aplicada en producción, pedir una
+    // columna inexistente haría fallar la consulta ENTERA y esta pantalla se
+    // quedaría sin nadie — la de Documentación se defiende igual y por lo mismo.
+    // Si falla, simplemente no hay fechas de fin y todo lo demás sigue.
+    // Sin filtro de estado a propósito: a quien ya cesó también se le muestra la
+    // fecha que tenía, aunque no se pueda editar.
+    const { data: finData, error: finError } = await supabase
+      .from("personas")
+      .select("id, fecha_fin_contrato")
+      .not("fecha_fin_contrato", "is", null);
+    setFinesOk(!finError);
+    setFinesContrato(
+      new Map(
+        ((finData as { id: string; fecha_fin_contrato: string }[] | null) ?? [])
+          .map((f) => [f.id, f.fecha_fin_contrato] as const),
+      ),
+    );
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
@@ -211,6 +260,13 @@ export default function EquipoPage() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  // Cuál está abierto, no si hay alguno: así también se desplaza al pasar de un
+  // panel a otro (de «Editar» de una persona a «Registrar salida» de otra).
+  const panelAbierto = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  useEffect(() => {
+    if (panelAbierto) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [panelAbierto]);
 
   const cargarSalarios = useCallback(async () => {
     setSalariosEstado("cargando");
@@ -237,15 +293,30 @@ export default function EquipoPage() {
   const sinTildes = (t: string) =>
     t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+  // El último día del mes en curso en Lima. Es EL MISMO corte que usa el tablero
+  // de Documentación (0162): quien termina contrato ese día o antes deja de
+  // aparecer ahí. Se calcula acá una sola vez para que la tabla y el aviso del
+  // formulario no puedan discrepar sobre dónde cae la raya.
+  const finDeMes = rangoDelMesLima().fin;
+  const saleDelTablero = (fecha: string | undefined) => fecha != null && fecha <= finDeMes;
+
   const visibles = personas.filter((p) => {
     if (fEstado === "activos" && p.estado !== "activo") return false;
     if (fEstado === "inactivos" && p.estado === "activo") return false;
+    // Quien tiene fecha de término anotada y sigue trabajando. A quien ya cesó no
+    // se le pregunta si se renueva: su contrato ya terminó de hecho.
+    if (fEstado === "fin_contrato" && (p.estado !== "activo" || !finesContrato.has(p.id))) return false;
     if (fSede !== "todas" && p.sede_base_id !== fSede) return false;
     if (fArea !== "todas" && p.funcion !== fArea) return false;
     const q = sinTildes(busca.trim());
     if (q && !sinTildes(`${p.nombres} ${p.apellidos}`).includes(q)) return false;
     return true;
   });
+  // Con ese filtro el orden alfabético no responde nada: lo que importa es a quién
+  // se le vence primero.
+  if (fEstado === "fin_contrato") {
+    visibles.sort((a, b) => (finesContrato.get(a.id) ?? "").localeCompare(finesContrato.get(b.id) ?? ""));
+  }
   const ocultas = personas.length - visibles.length;
 
   function codigoSede(id: string) {
@@ -305,6 +376,17 @@ export default function EquipoPage() {
 
   async function guardarEdicion() {
     if (!editandoId) return;
+    // ANTES de escribir nada. La base tiene el mismo candado
+    // (`personas_fin_contrato_coherente`) y es la que manda, pero si dejáramos que
+    // lo rechace ella, el nombre y el correo ya se habrían guardado y el aviso
+    // llegaría después, sin poder decir cuál era la fecha de ingreso.
+    // Si la fecha de ingreso no llegó (la RPC fn_ingresos devuelve [] cuando algo
+    // falla), no se inventa una validación: pasa, y el rechazo de la base sale
+    // traducido por mensajeDeError.
+    if (form.finContrato && form.fechaIngreso && form.finContrato < form.fechaIngreso) {
+      avisar("error", `El contrato no puede terminar antes de su ingreso (${fmtFechaDMA(form.fechaIngreso)}). Revisa la fecha.`);
+      return;
+    }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase
@@ -400,6 +482,25 @@ export default function EquipoPage() {
         return;
       }
     }
+    // Fecha de término del contrato: mismo patrón dirty-check. Dos cosas que no
+    // son obvias leyendo la llamada:
+    //  · VACÍO NO ES "no tocar": es borrarla, que es lo que corresponde cuando el
+    //    contrato se renovó. Por eso se manda null explícito y no se omite.
+    //  · El motivo va como `undefined` cuando está en blanco para que la función
+    //    escriba el suyo por defecto en la auditoría, en vez de una cadena vacía.
+    const finOriginal = finesContrato.get(editandoId) ?? "";
+    if (puedeSalarios && finesOk && form.finContrato !== finOriginal) {
+      const { error: errorFin } = await supabase.rpc("fn_set_fin_contrato", {
+        p_persona_id: editandoId,
+        p_fecha: form.finContrato || null,
+        p_motivo: form.motivoFinContrato.trim() || undefined,
+      });
+      if (errorFin) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero la fecha de término del contrato no se pudo cambiar: ${mensajeDeError(errorFin)}`);
+        return;
+      }
+    }
     setGuardando(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
@@ -407,21 +508,80 @@ export default function EquipoPage() {
     avisar("ok", "Cambios guardados.");
   }
 
-  async function cambiarEstado(p: Persona, nuevo: "activo" | "inactivo") {
-    if (nuevo === "inactivo" && !window.confirm(
-      `¿Desactivar a ${p.nombres} ${p.apellidos}? Deja de aparecer en asistencia y no podrá marcar. No se borra nada — puedes reactivarla cuando quieras.`
+  // ── Salida y reactivación ─────────────────────────────────────────────────
+  //
+  // Van por las RPC de la 0086 y no por un `update` de `estado`. El update
+  // directo que había acá VIOLABA `personas_cese_coherente` —el CHECK exige que
+  // quien está inactivo tenga fecha de cese, y quien está activo no la tenga—,
+  // así que dar de baja y reactivar fallaban las dos desde que se aplicó esa
+  // migración. Comprobado el 2026-08-06 contra el Postgres local: SQLSTATE 23514
+  // en los dos casos.
+  //
+  // Y no se trata solo de que ahora funcione. `fn_cesar_persona` hace tres cosas
+  // que un update de una columna no puede hacer: cierra sus tramos de salario y
+  // de horario ese día (si no, un salario "vigente" sigue apareciendo años
+  // después de que la persona se fue), se niega a aceptar una fecha futura o
+  // dentro de un periodo ya pagado, y guarda la fecha de la que viven
+  // `fn_grati_trunca`, `fn_cts_trunca` y `fn_vacaciones_truncas`. Sin esa fecha
+  // no hay liquidación que calcular.
+  function empezarCese(p: Persona) {
+    setCeseId(p.id);
+    setEditandoId(null);
+    setSalEditId(null);
+    setHistId(null);
+    setMostrandoAlta(false);
+    setMensaje(null);
+    // Si su contrato ya venció, se proponen ESA fecha y ESE motivo: es el caso
+    // que el panel viene avisando, y volver a escribirlo a mano invita a
+    // equivocarse. En cualquier otro caso el motivo arranca SIN elegir — un
+    // motivo por defecto es un motivo que alguien guarda sin leer, y este lo va
+    // a leer quien arme su liquidación.
+    const fin = finesContrato.get(p.id);
+    const yaVencio = fin != null && fin <= hoyLima();
+    setCeseForm({ fecha: yaVencio ? fin! : hoyLima(), motivo: yaVencio ? "fin_contrato" : "" });
+  }
+
+  async function guardarCese() {
+    if (!ceseId) return;
+    const p = personas.find((x) => x.id === ceseId);
+    if (!ceseForm.fecha) {
+      avisar("error", "Falta el último día trabajado.");
+      return;
+    }
+    if (!ceseForm.motivo) {
+      avisar("error", "Falta el motivo. Es lo que va a leer quien arme su liquidación y quien conteste una inspección dentro de dos años.");
+      return;
+    }
+    setGuardandoCese(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_cesar_persona", {
+      p_persona_id: ceseId,
+      p_fecha_cese: ceseForm.fecha,
+      p_motivo: ceseForm.motivo,
+    });
+    setGuardandoCese(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "registrar la salida"));
+      return;
+    }
+    setCeseId(null);
+    await cargar();
+    if (puedeSalarios) await cargarSalarios(); // sus tramos se cerraron: ya no tiene salario vigente
+    avisar("ok", `${p?.nombres} ${p?.apellidos} figura como inactiva desde el ${fmtFechaDMA(ceseForm.fecha)}. Su historial se conserva.`);
+  }
+
+  async function reactivar(p: Persona) {
+    if (!window.confirm(
+      `¿Reactivar a ${p.nombres} ${p.apellidos}? Se borra su fecha de salida y vuelve a aparecer en el terminal. Ojo: si ya se le pagó una liquidación, volvería a devengar desde su fecha de ingreso original.`
     )) return;
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase
-      .from("personas")
-      .update({ estado: nuevo, fecha_estado_cambio: new Date().toISOString() })
-      .eq("id", p.id);
+    const { error } = await supabase.rpc("fn_reactivar_persona", { p_persona_id: p.id });
     if (error) {
-      avisar("error", mensajeDeError(error, "cambiar el estado"));
+      avisar("error", mensajeDeError(error, "reactivar"));
       return;
     }
     await cargar();
-    avisar("ok", `${p.nombres} ${p.apellidos} ahora está ${nuevo === "activo" ? "activo(a)" : "inactivo(a)"}.`);
+    avisar("ok", `${p.nombres} ${p.apellidos} está activa otra vez. Revísale el salario y el horario: al cesar se cerraron sus tramos.`);
   }
 
   async function regenerarPin(p: Persona) {
@@ -441,6 +601,7 @@ export default function EquipoPage() {
     setMostrandoAlta(false);
     setSalEditId(null);
     setHistId(null);
+    setCeseId(null);
     setForm({
       nombres: p.nombres,
       apellidos: p.apellidos,
@@ -452,6 +613,8 @@ export default function EquipoPage() {
       tipoVinculo: p.tipo_vinculo ?? "planilla",
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
       visibleTodasSedes: p.visible_todas_sedes,
+      finContrato: finesContrato.get(p.id) ?? "",
+      motivoFinContrato: "",
     });
   }
 
@@ -463,6 +626,7 @@ export default function EquipoPage() {
     setHistId(null);
     setMostrandoAlta(false);
     setEditandoId(null);
+    setCeseId(null);
     setSalAnterior(actual?.salario ?? null);
     setSalForm({
       rango: rangoInicial,
@@ -541,6 +705,7 @@ export default function EquipoPage() {
     setSalEditId(null);
     setEditandoId(null);
     setMostrandoAlta(false);
+    setCeseId(null);
     const supabase = createAdminSupabaseClient();
     const { data, error } = await supabase.rpc("fn_historial_salario", { p_persona_id: p.id });
     if (error) {
@@ -647,6 +812,81 @@ export default function EquipoPage() {
           })()}
         </label>
       )}
+      {modo === "edicion" && puedeSalarios && (() => {
+        // UN CONTRATO A PLAZO FIJO SABE CUÁNDO VENCE (0144). Hasta ahora la única
+        // forma de llenar esta fecha era pegar SQL a mano, y un dato que depende
+        // de que alguien se acuerde de abrir el SQL Editor termina vacío.
+        //
+        // Es un PLAN, no un hecho: quien tiene fecha sigue activa, sigue marcando
+        // y sigue cobrando hasta ese día. El cese —el último día EFECTIVAMENTE
+        // trabajado— es otra cosa, se registra con «Desactivar» y no se escribe
+        // acá. Que las dos se confundan es el error natural de quien llena esto,
+        // así que el texto de abajo lo dice en vez de suponerlo.
+        const persona = personas.find((p) => p.id === editandoId);
+        const cesada = persona != null && persona.estado !== "activo";
+        const finOriginal = editandoId ? finesContrato.get(editandoId) ?? "" : "";
+        const antesDelIngreso =
+          form.finContrato !== "" && form.fechaIngreso !== "" && form.finContrato < form.fechaIngreso;
+        return (
+          <div className="flex flex-col gap-1 text-sm sm:col-span-2">
+            <label className="flex flex-col gap-1">
+              <span>
+                Último día que trabaja por contrato{" "}
+                <span className="text-taupe">(el último día que viene, no el siguiente)</span>
+              </span>
+              <input
+                type="date"
+                value={form.finContrato}
+                // El candado de la base es `personas_fin_contrato_coherente`; esto
+                // solo evita que el calendario ofrezca lo que va a ser rechazado.
+                min={form.fechaIngreso || undefined}
+                disabled={cesada || !finesOk}
+                onChange={(e) => setForm({ ...form, finContrato: e.target.value })}
+                className="rounded-lg border px-3 py-2 disabled:opacity-50"
+              />
+            </label>
+            <span className="text-xs text-taupe">
+              {!finesOk
+                ? "No se pudo leer la fecha que tiene guardada, así que el campo está deshabilitado para no pisarla. Recarga la página; si sigue igual, avisa a Felipe."
+                : cesada
+                  ? "Ya está inactiva: su contrato terminó, no hay término que prever."
+                  : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
+            </span>
+            {antesDelIngreso && (
+              <span className="text-xs text-rojo">
+                El contrato no puede terminar antes de su ingreso ({fmtFechaDMA(form.fechaIngreso)}).
+              </span>
+            )}
+            {/* La consecuencia, mientras se escribe la fecha y no después de
+                guardarla: quien la pone tiene que poder decidir sabiéndola. */}
+            {!cesada && !antesDelIngreso && saleDelTablero(form.finContrato || undefined) && (
+              <span className="rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+                Con esta fecha sale del tablero de Documentación: ya nadie le va a perseguir la firma
+                de su declaración de ruta. Sigue cobrando la movilidad de los días que le queden, así
+                que esos días quedan pagados sin el pacto individual que los sostiene — y eso se
+                revisa en su liquidación.
+              </span>
+            )}
+            {!cesada && finesOk && form.finContrato !== finOriginal && (
+              <label className="mt-1 flex flex-col gap-1">
+                <span className="text-xs text-taupe">
+                  {form.finContrato === "" ? "Por qué se quita" : "Por qué"} (opcional) — queda en la auditoría
+                </span>
+                <input
+                  value={form.motivoFinContrato}
+                  onChange={(e) => setForm({ ...form, motivoFinContrato: e.target.value })}
+                  placeholder={
+                    form.finContrato === ""
+                      ? "ej. el contrato se renovó por 6 meses"
+                      : "ej. carta de no renovación entregada el 04/08"
+                  }
+                  className="rounded-lg border px-3 py-2"
+                />
+              </label>
+            )}
+          </div>
+        );
+      })()}
       {puedeSalarios && (
         // con_hijos llega por la misma RPC que el área: si esa carga falló, en edición
         // se deshabilita para no pisar el valor real con el default (false).
@@ -797,6 +1037,69 @@ export default function EquipoPage() {
     );
   };
 
+  const editorCese = () => {
+    const p = personas.find((x) => x.id === ceseId);
+    if (!p) return null;
+    const fin = finesContrato.get(p.id);
+    return (
+      <div className="mb-6 grid max-w-2xl gap-4 rounded-2xl border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
+        <p className="text-sm font-medium sm:col-span-2">Registrar la salida de {p.nombres} {p.apellidos}</p>
+        <label className="flex flex-col gap-1 text-sm">
+          Último día trabajado
+          <input
+            type="date"
+            value={ceseForm.fecha}
+            // La función rechaza una fecha futura: un cese es un hecho, no un
+            // plan. Lo previsto se anota en «Último día que trabaja por contrato».
+            max={hoyLima()}
+            onChange={(e) => setCeseForm({ ...ceseForm, fecha: e.target.value })}
+            className="rounded-lg border px-3 py-2"
+          />
+          {fin && fin !== ceseForm.fecha && (
+            <span className="text-xs text-taupe">
+              Su contrato terminaba el {fmtFechaDMA(fin)}{" "}
+              <button type="button" onClick={() => setCeseForm({ fecha: fin, motivo: "fin_contrato" })} className="text-rojo hover:underline">
+                usar
+              </button>
+            </span>
+          )}
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Motivo
+          <select
+            value={ceseForm.motivo}
+            onChange={(e) => setCeseForm({ ...ceseForm, motivo: e.target.value as MotivoCese })}
+            className="rounded-lg border bg-crema px-3 py-2"
+          >
+            <option value="">Elegir…</option>
+            {MOTIVOS_CESE.map((m) => (
+              <option key={m} value={m}>{MOTIVO_CESE_LABELS[m]}</option>
+            ))}
+          </select>
+          {ceseForm.motivo === "despido" && (
+            <span className="text-[11px] text-amber-800">
+              Un despido exige carta de preaviso, seis días de descargo y carta de despido (D.S. 003-97-TR).
+              Si el contrato simplemente llegó a su fecha, el motivo es «terminó su contrato»: eso no exige
+              ninguno de esos papeles.
+            </span>
+          )}
+        </label>
+        <p className="text-xs text-taupe sm:col-span-2">
+          Esto cierra sus tramos de salario y de horario ese día, y deja de aparecer en el terminal.
+          No se borra nada: su historial sostiene los reportes de los periodos que ya pasaron. De esta
+          fecha salen su gratificación, su CTS y sus vacaciones truncas, así que tiene que ser el día
+          real —ni el de hoy por comodidad, ni el de su carta.
+        </p>
+        <div className="flex gap-3 sm:col-span-2">
+          <button onClick={guardarCese} disabled={guardandoCese} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+            {guardandoCese ? "Guardando…" : "Registrar salida"}
+          </button>
+          <button onClick={() => setCeseId(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+        </div>
+      </div>
+    );
+  };
+
   const panelHistorial = () => {
     const p = personas.find((x) => x.id === histId);
     if (!p) return null;
@@ -845,7 +1148,7 @@ export default function EquipoPage() {
           {!mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); setSalEditId(null); setHistId(null); }}
+                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); setSalEditId(null); setHistId(null); setCeseId(null); }}
                 className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
               >
                 + Agregar persona
@@ -870,10 +1173,13 @@ export default function EquipoPage() {
           </div>
         )}
 
-        {mostrandoAlta && formulario("alta")}
-        {editandoId && formulario("edicion")}
-        {puedeSalarios && salEditId && editorSalario()}
-        {puedeSalarios && histId && panelHistorial()}
+        <div ref={panelRef} className="scroll-mt-4">
+          {mostrandoAlta && formulario("alta")}
+          {editandoId && formulario("edicion")}
+          {ceseId && editorCese()}
+          {puedeSalarios && salEditId && editorSalario()}
+          {puedeSalarios && histId && panelHistorial()}
+        </div>
 
         {/* Filtros. Todo el filtrado ocurre en el navegador sobre lo que ya está
             cargado: son ~30 personas, no hay nada que pedirle a la base. */}
@@ -904,9 +1210,12 @@ export default function EquipoPage() {
             </label>
             <label className="flex flex-col gap-1 text-xs text-taupe">
               Mostrar
-              <select value={fEstado} onChange={(e) => setFEstado(e.target.value as "activos" | "inactivos" | "todos")} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
+              <select value={fEstado} onChange={(e) => setFEstado(e.target.value as FiltroEstado)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
                 <option value="activos">Solo el equipo actual</option>
                 <option value="inactivos">Solo quienes ya no están</option>
+                {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
+                    devolvería una lista vacía sin poder explicarle por qué. */}
+                {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
                 <option value="todos">Todos</option>
               </select>
             </label>
@@ -959,18 +1268,35 @@ export default function EquipoPage() {
                       {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
                         <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
                       )}
+                      {/* En ámbar cuando su contrato vence este mes o antes: es el
+                          momento en que sale del tablero de Documentación y, si es
+                          que no se renueva, cuando hay que registrar su cese. */}
+                      {puedeSalarios && finesContrato.has(p.id) && (
+                        <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+                          Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                        </div>
+                      )}
                       {/* Cuándo y por qué se fue (0177). Va acá y no en columnas
                           propias para no ensanchar una tabla que ya tiene ocho, y
                           porque solo aplica a quien está inactivo: al equipo activo
-                          no le agrega una celda vacía en cada fila.
+                          no le agrega una celda vacía en cada fila. Cierra la
+                          secuencia que ya cuentan las dos líneas de arriba:
+                          entró · hasta cuándo tenía contrato · cuándo se fue.
                           El motivo llega null si quien mira no es admin ni líder DO
                           —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
                       {p.estado === "inactivo" && p.fecha_cese && (
                         <div className="text-xs text-taupe">
                           Se fue: {fmtFechaDMA(p.fecha_cese)}
                           {p.motivo_cese && (
+                            // El texto sale del catálogo también cuando es
+                            // `por_revisar`: el desplegable de cese ya lo nombra
+                            // así, y dos formas de decir lo mismo en la misma
+                            // pantalla se contradicen a la primera. Lo único que
+                            // cambia es el ámbar, que dice «esto falta».
                             <> · {p.motivo_cese === "por_revisar"
-                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha para dejarlo escrito.">sin registrar</span>
+                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
+                                  {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
+                                </span>
                               : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
                           )}
                         </div>
@@ -1018,9 +1344,12 @@ export default function EquipoPage() {
                         <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
                         <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
                         {p.estado === "activo" ? (
-                          <button onClick={() => cambiarEstado(p, "inactivo")} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Desactivar</button>
+                          // «Registrar salida» y no «Desactivar»: lo que se hace
+                          // es anotar un hecho con su fecha y su motivo, no
+                          // apagar un interruptor.
+                          <button onClick={() => empezarCese(p)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Registrar salida</button>
                         ) : (
-                          <button onClick={() => cambiarEstado(p, "activo")} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
+                          <button onClick={() => reactivar(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
                         )}
                       </div>
                     </td>
@@ -1033,8 +1362,10 @@ export default function EquipoPage() {
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">
           Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en el aviso verde —
-          anótalo y entrégalo en privado. “Desactivar” no borra nada: la persona deja de aparecer en
-          el terminal pero su historial se conserva.
+          anótalo y entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
+          en el terminal pero su historial se conserva, y de la fecha que anotes salen su gratificación,
+          su CTS y sus vacaciones truncas. Anotar el fin de contrato es otra cosa y no da de baja a
+          nadie: es la fecha prevista de término, y está para avisar antes de que llegue.
         </p>
       </main>
     </div>

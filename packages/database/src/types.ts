@@ -659,6 +659,11 @@ export type Database = {
           sueldo_base_legal: number | null
           sueldo_fijo: boolean
           fecha_estado_cambio: string | null
+          // Agregada a mano el 2026-08-05 (la creó la 0144), por el mismo motivo
+          // que tipo_vinculo más abajo: `supabase gen types` no corre en esta
+          // máquina. Es la fecha PREVISTA de término del contrato a plazo fijo —
+          // null es lo normal (contrato indefinido) y NO es lo mismo que el cese.
+          fecha_fin_contrato: string | null
           fecha_ingreso: string
           funcion: string
           id: string
@@ -687,6 +692,7 @@ export type Database = {
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
+          fecha_fin_contrato?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
@@ -710,6 +716,7 @@ export type Database = {
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
           fecha_estado_cambio?: string | null
+          fecha_fin_contrato?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
@@ -1427,6 +1434,22 @@ export type Database = {
         Args: { p_referencia: string }
         Returns: string | null
       }
+      // ── mig. 0175 · el acta pasó a guardarse en el almacén ──────────────
+      // Añadidas a mano y no regenerando el archivo entero: `supabase gen
+      // types` con el CLI de hoy reescribe 3.000 líneas por cambios de
+      // formato, y eso es otro cambio — uno que merece su propio commit y su
+      // propia revisión, no colarse dentro de un arreglo de subida de papeles.
+      fn_registrar_acta_descanso: {
+        Args: { p_referencia: string; p_path: string; p_nombre?: string | null }
+        Returns: string
+      }
+      fn_acta_descanso_ubicacion: {
+        Args: { p_referencia: string }
+        Returns: {
+          storage_path: string | null
+          dataurl: string | null
+        }[]
+      }
       fn_aceptar_incidencia: {
         Args: { p_persona_id: string; p_fecha: string; p_tipo: string; p_nota?: string | null }
         Returns: undefined
@@ -2032,6 +2055,38 @@ export type Database = {
       fn_set_visible_todas_sedes: {
         Args: { p_persona_id: string; p_valor: boolean }
         Returns: undefined
+      }
+      // Agregada a mano el 2026-08-05 junto con la columna fecha_fin_contrato, por
+      // el mismo motivo que fn_set_tipo_vinculo. `p_fecha` acepta null a propósito:
+      // así es como se BORRA la fecha cuando el contrato se renueva.
+      fn_set_fin_contrato: {
+        Args: { p_persona_id: string; p_fecha: string | null; p_motivo?: string }
+        Returns: undefined
+      }
+      // Las dos de la 0086 que ninguna pantalla llamaba hasta el 2026-08-06. El
+      // `update` directo de `estado` que hacía Equipo violaba
+      // `personas_cese_coherente` (comprobado contra el Postgres local): dar de
+      // baja y reactivar fallaban las dos.
+      fn_cesar_persona: {
+        Args: { p_persona_id: string; p_fecha_cese: string; p_motivo: string; p_tipo_vinculo?: string | null }
+        Returns: undefined
+      }
+      fn_reactivar_persona: {
+        Args: { p_persona_id: string }
+        Returns: undefined
+      }
+      // `dias_restantes` es negativo cuando la fecha ya pasó, y ese es justamente
+      // el grupo que importa: alguien que ya no viene pero sigue figurando activo.
+      fn_contratos_por_vencer: {
+        Args: { p_dias?: number }
+        Returns: {
+          persona_id: string
+          nombre: string
+          sede: string
+          fecha_fin_contrato: string
+          dias_restantes: number
+          ya_vencio: boolean
+        }[]
       }
       fn_set_mi_firma: {
         Args: { p_dataurl: string | null }

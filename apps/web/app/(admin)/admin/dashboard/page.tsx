@@ -107,6 +107,9 @@ function fechaBonita(iso: string): string {
 
 interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; ultima_fecha: string | null }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: string }
+// Contratos a plazo fijo con fecha de término anotada (0144). `dias_restantes` es
+// negativo cuando la fecha ya pasó, y ese es el grupo que duele.
+interface ContratoRow { persona_id: string; nombre: string; sede: string; fecha_fin_contrato: string; dias_restantes: number; ya_vencio: boolean }
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -117,6 +120,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [discTard, setDiscTard] = useState<TardRow[]>([]);
   const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
+  const [contratos, setContratos] = useState<ContratoRow[]>([]);
   const [sinCargo, setSinCargo] = useState(0);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
@@ -147,6 +151,23 @@ export default function DashboardPage() {
       ]);
       const conPapel = new Set(((papeles as Array<{ documento_id: string }>) ?? []).map((a) => a.documento_id));
       setSinCargo(((entregados as Array<{ id: string }>) ?? []).filter((d) => !conPapel.has(d.id)).length);
+    })();
+  }, []);
+
+  // Contratos a plazo fijo: los que vencen dentro de 30 días y —lo que de verdad
+  // importa— los que YA vencieron sin que nadie registrara la salida. La fecha se
+  // anota en Equipo; sin este aviso, anotarla solo sirve si alguien se acuerda de
+  // ir a mirarla, y el día del vencimiento no lo recuerda nadie.
+  //
+  // Aparte del refresco de asistencia porque no cambia cada 30 segundos, y con
+  // falla silenciosa a propósito: la RPC ya devuelve vacío para quien no es admin
+  // ni líder, y si la 0144 no está aplicada devuelve null. En los dos casos la
+  // franja no aparece y el dashboard sigue funcionando igual que hoy.
+  useEffect(() => {
+    const sb = createAdminSupabaseClient();
+    void (async () => {
+      const { data } = await sb.rpc("fn_contratos_por_vencer", { p_dias: 30 });
+      setContratos(Array.isArray(data) ? (data as ContratoRow[]) : []);
     })();
   }, []);
 
@@ -352,6 +373,54 @@ export default function DashboardPage() {
                 {avisoT > 0 && <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-ambar">{avisoT} en aviso (tardanzas)</span>}
                 {avisoT > 0 ? " · " : ""}Faltas: {rojosF.length + ambarF > 0 ? `${rojosF.length + ambarF} en alerta` : "sin alertas"}
               </div>
+            </div>
+          );
+        })()}
+
+        {/* CONTRATOS A PLAZO FIJO. Dos grupos, y el importante es el primero:
+            quien ya venció y sigue figurando activo. Ese caso no se nota en
+            ninguna otra pantalla —la persona aparece normal en asistencia, en
+            planilla y en provisiones— y desde la 0162 tampoco en el tablero de
+            Documentación. Sin esta franja, la fecha anotada en Equipo solo sirve
+            si alguien se acuerda de ir a buscarla. */}
+        {(() => {
+          const vencidos = contratos.filter((c) => c.ya_vencio);
+          const porVencer = contratos.filter((c) => !c.ya_vencio);
+          if (!vencidos.length && !porVencer.length) return null;
+          const enCuantos = (dias: number) =>
+            dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`;
+          return (
+            <div className="mb-10 rounded-2xl border border-sand bg-ambar/[0.05] p-5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-serif text-lg text-tinta">Contratos a plazo fijo</span>
+                <Link href="/admin/equipo" className="text-xs font-medium text-rojo hover:underline">Ver equipo →</Link>
+              </div>
+              {vencidos.map((c) => (
+                <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                  <span>
+                    <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
+                    <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">
+                      terminó el {fechaBonita(c.fecha_fin_contrato)} y sigue activa
+                    </span>
+                  </span>
+                  <span className="text-xs font-medium text-rojo">renovar o registrar su salida →</span>
+                </div>
+              ))}
+              {porVencer.map((c) => (
+                <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
+                  <span>
+                    <strong>{c.nombre}</strong> <span className="text-taupe">· {c.sede}</span>
+                    <span className="ml-2 rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">
+                      {enCuantos(c.dias_restantes)} · {fechaBonita(c.fecha_fin_contrato)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+              <p className="border-t border-sand/60 pt-2.5 text-xs text-taupe">
+                {vencidos.length > 0
+                  ? "Mientras siga figurando activa sigue marcando, sigue cobrando y sigue acumulando gratificación, CTS y vacaciones. Anotar la fecha no da de baja a nadie: eso se decide y se registra a mano."
+                  : "La fecha es lo previsto, no un hecho. Un contrato puede renovarse: esto solo avisa antes de que llegue el día."}
+              </p>
             </div>
           );
         })()}

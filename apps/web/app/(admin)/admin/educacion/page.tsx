@@ -7,6 +7,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // La asignación por educación (art. 19 f) D.S. 001-97-TR) no es remuneración
@@ -87,36 +88,6 @@ const soles = (n: number) =>
 // "2026-08-04" → "04/08/2026". Aritmética de string: la fecha ya viene como día
 // de Lima desde la base, así que construir un Date solo podría estropearla.
 const fmtFecha = (iso: string) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
-
-// Sube por PUT a una URL ya firmada, replicando lo que hace `uploadToSignedUrl`
-// del cliente de Supabase (FormData con `cacheControl` y el archivo bajo la clave
-// vacía) pero con XMLHttpRequest, que es lo único que informa progreso. Devuelve
-// null si salió bien, o el mensaje del fallo.
-function subirConProgreso(
-  urlFirmada: string,
-  archivo: File,
-  alAvanzar: (pct: number) => void,
-): Promise<string | null> {
-  return new Promise((resolver) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", urlFirmada);
-    xhr.setRequestHeader("x-upsert", "true");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) alAvanzar(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      resolver(xhr.status >= 200 && xhr.status < 300
-        ? null
-        : `el servidor respondió ${xhr.status}${xhr.status === 413 ? " — el archivo pasa el tope global del proyecto" : ""}`);
-    // Un corte de red a mitad de subida es el caso normal en una tienda, no el raro.
-    xhr.onerror = () => resolver("se cortó la conexión durante la subida");
-    xhr.onabort = () => resolver("la subida se canceló");
-    const cuerpo = new FormData();
-    cuerpo.append("cacheControl", "3600");
-    cuerpo.append("", archivo);
-    xhr.send(cuerpo);
-  });
-}
 
 export default function EducacionPage() {
   const router = useRouter();
@@ -249,15 +220,8 @@ export default function EducacionPage() {
     if (archivo) {
       const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
       const ruta = `educacion/${form.personaId}/${id}.${ext}`;
-      // `upload()` del cliente no informa progreso, y una espera muda de varios
-      // minutos se lee como que la pantalla se colgó. Con una URL firmada se puede
-      // subir por XHR, que sí lo informa. La URL lleva el permiso adentro y vale
-      // dos horas: no viaja ninguna llave.
       setProgreso(0);
-      const firma = await supabase.storage.from("comprobantes").createSignedUploadUrl(ruta, { upsert: true });
-      const errorSubida = firma.error
-        ? firma.error.message
-        : await subirConProgreso(firma.data.signedUrl, archivo, setProgreso);
+      const errorSubida = await subirArchivoConProgreso(supabase, "comprobantes", ruta, archivo, setProgreso);
       setProgreso(null);
       if (errorSubida) {
         setGuardando(false);
@@ -647,8 +611,26 @@ export default function EducacionPage() {
                             {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "ella misma"}
                           </td>
                           <td className="px-4 py-2 tabular-nums">{soles(Number(f.monto))}</td>
+                          {/* Decir 75% de S/727 cuando se pagan S/90 es decir algo falso:
+                              en cuatro de cada cinco filas reales lo que decide es el TECHO
+                              del rango, no el porcentaje. La celda dice cuál de los dos ganó
+                              — es la misma explicación que el formulario da al escribir, y
+                              que en la lista faltaba. */}
                           <td className="px-4 py-2 text-xs text-taupe">
-                            {f.cobertura_pct}% de {soles(Number(f.costo_declarado))}
+                            {(() => {
+                              const delPapel = Math.round(Number(f.costo_declarado) * Number(f.cobertura_pct)) / 100;
+                              const mandaElTecho = Number(f.monto) < delPapel - 0.005;
+                              return mandaElTecho ? (
+                                <>
+                                  tope del rango <strong className="text-tinta">{f.rango}</strong>
+                                  <span className="block">
+                                    el {f.cobertura_pct}% de {soles(Number(f.costo_declarado))} daría {soles(delPapel)}
+                                  </span>
+                                </>
+                              ) : (
+                                <>{f.cobertura_pct}% de {soles(Number(f.costo_declarado))}</>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-2 text-xs">
                             desde {fmtFecha(f.vigente_desde)}

@@ -255,7 +255,12 @@ function etiquetaPeriodo(p: PeriodoInfo): string {
   return `${MESES_LARGO[p.mes_etiqueta - 1]} ${p.anio_etiqueta} · ${fechaCorta(p.fecha_ini)} → ${fechaCorta(p.fecha_fin)}`;
 }
 
-const COLS = 14; // columnas de la tabla principal (+2 en la 0106: básica legal y rendimiento)
+// Columnas de la tabla principal. Se usa como colSpan en las filas de estado
+// vacío: si no coincide con los <th> reales, esas filas se dibujan torcidas.
+// Contadas a mano el 2026-08-06 tras sacar Objetivos, Rendim. y Plus (mig 0171):
+// Nombre · Sede · Rango y salario · Horas · Pago base · Feriados ·
+// Asig. familiar · Básica legal · Bonos · Descuentos · Total.
+const COLS = 11;
 
 // ── Tabla de planilla (compartida entre periodo oficial y simulador) ─────────
 // Componente a nivel de módulo: si viviera dentro de PlanillaPage se
@@ -361,14 +366,14 @@ function TablaPlanilla(props: {
             <th className="px-4 py-2 text-right font-normal">Pago base</th>
             <th className="px-4 py-2 text-right font-normal">Feriados</th>
             <th className="px-4 py-2 text-right font-normal">Asig. familiar</th>
-            <th className="px-4 py-2 font-normal">Objetivos</th>
+            {/* Objetivos, Rendim. y Plus salieron de acá el 2026-08-06 (mig 0171).
+                Los objetivos siguen existiendo en /admin/objetivos, pero como
+                historial para promover: dejaron de pagar. Y el rendimiento dejó
+                de escalar el sueldo — escribir un 80 ahí recortaba una
+                remuneración con dos clics, que el art. 30.b de la LPCL prohíbe. */}
             <th className="px-4 py-2 text-right font-normal" title="Remuneración básica legal mensual: la que se declara en PLAME. Vacía = la boleta no imprime esa línea.">
               Básica legal
             </th>
-            <th className="px-4 py-2 text-right font-normal" title="Rendimiento del mes, 0 a 100. Vacío = 100% (paga el rango completo, igual que siempre).">
-              Rendim.
-            </th>
-            <th className="px-4 py-2 text-right font-normal">Plus</th>
             <th className="px-4 py-2 text-right font-normal">Bonos</th>
             <th className="px-4 py-2 text-right font-normal">Descuentos</th>
             <th className="px-4 py-2 text-right font-normal">Total</th>
@@ -487,39 +492,11 @@ function TablaPlanilla(props: {
                   <td className="px-4 py-2 text-right whitespace-nowrap" title={f.con_hijos ? "Asignación familiar (con hijos)" : undefined}>
                     {f.asignacion_familiar > 0 ? <>👶 {formatSoles(f.asignacion_familiar)}</> : <span className="text-taupe/50">—</span>}
                   </td>
-                  <td className="px-4 py-2">
-                    {editable ? (
-                      <div className="flex items-center gap-1 whitespace-nowrap">
-                        <input
-                          type="number"
-                          min={0}
-                          max={totalObj}
-                          step={1}
-                          placeholder="—"
-                          value={objEdit[f.persona_id] ?? (f.objetivos_cumplidos ?? "")}
-                          onChange={(e) => onObjChange?.(f.persona_id, e.target.value)}
-                          onBlur={() => onObjBlur?.(f)}
-                          disabled={ocupado || pagado}
-                          title={pagado ? hintPagado : undefined}
-                          className="w-14 rounded-lg border px-2 py-1 text-right disabled:opacity-50"
-                        />
-                        <span className="text-taupe">/ {totalObj}</span>
-                        {guardandoObj === f.persona_id && <span className="text-xs text-taupe">…</span>}
-                      </div>
-                    ) : (
-                      <span className="whitespace-nowrap">
-                        {f.objetivos_cumplidos ?? "—"} / {totalObj}
-                      </span>
-                    )}
-                    {f.bajo_desempeno && (
-                      <span
-                        className="mt-1 inline-block whitespace-nowrap rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo"
-                        title="Menos del 30% de objetivos — amerita conversación (principios CAYLA)"
-                      >
-                        ⚠ bajo desempeño
-                      </span>
-                    )}
-                  </td>
+                  {/* La celda de Objetivos salió el 2026-08-06 (mig 0171). Los
+                      objetivos se cargan en /admin/objetivos, que es donde
+                      pertenecen ahora que son historial de promoción y no un
+                      concepto de pago. Cargarlos desde la planilla mezclaba las
+                      dos cosas y era justo lo que había que separar. */}
                   {/* Básica legal — es de la PERSONA, no del periodo, así que se
                       puede editar incluso con el periodo pagado. Ojo: cambiarla
                       cambia el desglose de sus boletas pasadas (ver 0106). */}
@@ -545,37 +522,8 @@ function TablaPlanilla(props: {
                       <span className="text-taupe/50">—</span>
                     )}
                   </td>
-                  {/* Rendimiento — vacío significa 100%, y 100% paga el rango
-                      completo. El sistema nunca recorta por omisión. */}
-                  <td className="px-4 py-2 text-right">
-                    {editable ? (
-                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={5}
-                          placeholder="100"
-                          value={rendEdit[f.persona_id] ?? (f.rendimiento_por_defecto ? "" : (f.rendimiento_pct ?? ""))}
-                          onChange={(e) => onRendChange?.(f.persona_id, e.target.value)}
-                          onBlur={() => onRendBlur?.(f)}
-                          disabled={ocupado || pagado}
-                          title={pagado ? hintPagado : undefined}
-                          className="w-16 rounded-lg border px-2 py-1 text-right disabled:opacity-50"
-                        />
-                        <span className="text-taupe">%</span>
-                        {guardandoRend === f.persona_id && <span className="text-xs text-taupe">…</span>}
-                      </div>
-                    ) : (
-                      <span className="whitespace-nowrap">
-                        {f.rendimiento_pct ?? 100}%
-                        {f.rendimiento_por_defecto && <span className="text-taupe/50"> def.</span>}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {f.monto_plus > 0 ? formatSoles(f.monto_plus) : <span className="text-taupe/50">—</span>}
-                  </td>
+                  {/* Las celdas de Rendimiento y Plus salieron el 2026-08-06
+                      junto con sus columnas (mig 0171). */}
                   <td className="px-4 py-2 text-right">
                     {f.bonos > 0 ? (
                       <span className="whitespace-nowrap text-verde">+{formatSoles(f.bonos)}</span>
@@ -708,10 +656,9 @@ function TablaPlanilla(props: {
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.pago_base)}</td>
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.feriados)}</td>
               <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.asignacion)}</td>
+              {/* Básica legal: no se suma. Es la remuneración que se declara en
+                  PLAME de cada persona, no un concepto que se pague acá. */}
               <td className="px-4 py-2" />
-              <td className="px-4 py-2" />
-              <td className="px-4 py-2" />
-              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.plus)}</td>
               <td className="px-4 py-2 text-right font-medium">
                 {totales.bonos > 0 ? <span className="text-verde">+{formatSoles(totales.bonos)}</span> : <span className="text-taupe/50">—</span>}
               </td>
@@ -1748,13 +1695,12 @@ export default function PlanillaPage() {
                   </>
                 ) : (
                   <>
-                    <button
-                      onClick={() => void calcularBonoPuntualidad()}
-                      disabled={guardandoBono || cargando}
-                      className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50 disabled:opacity-50"
-                    >
-                      {guardandoBono ? "Calculando…" : "🎯 Calcular bono de puntualidad"}
-                    </button>
+                    {/* El botón «Calcular bono de puntualidad» salió el
+                        2026-08-06. El bono está en cero desde la migración 0121,
+                        así que el botón corría, no pagaba nada y no lo decía: un
+                        botón que existe y no hace nada enseña a desconfiar de la
+                        pantalla entera. `fn_calcular_bono_puntualidad` sigue en
+                        la base con su guard, por si algún día se reactiva. */}
                     <button
                       onClick={() => void marcarPagado(true)}
                       disabled={guardandoPeriodo || cargando}

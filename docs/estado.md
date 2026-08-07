@@ -34,6 +34,59 @@ un comando puede calcular, no va acá — va el comando.
 
 ---
 
+## 2026-08-06 — ningún papel firmado se podía subir, y nunca se pudo
+
+**Lo que parecía un módulo terminado desde julio no funcionaba ni una vez.** El
+cargo firmado de un memo disciplinario no se podía archivar desde que existe el
+módulo (0074). Los tres memos entregados de producción llevaban semanas con «sin
+el papel archivado» al lado y no era descuido de nadie: la base los rechazaba.
+
+**La causa, que no se veía leyendo el código.** Supabase Storage no escribe el
+objeto con un `INSERT`. Escribe `INSERT … ON CONFLICT DO UPDATE … RETURNING *`, y
+esa forma necesita **tres** permisos, no uno: INSERT por la fila, SELECT por el
+`RETURNING`, y UPDATE por el `ON CONFLICT`. Ningún bucket tenía política de
+UPDATE. Y la de SELECT de `expedientes` exigía que el adjunto ya estuviera
+registrado en `expediente_adjuntos`… registro que se crea DESPUÉS de subir el
+archivo. Un círculo cerrado: no se podía escribir sin poder leer, ni leer sin
+haber registrado, ni registrar sin haber escrito.
+
+Lo que más costó: `fn_expediente_puede_adjuntar` devolvía **`true`** mientras la
+fila se rechazaba, así que el fallo se leía como un problema de permisos de la
+persona. El mensaje de Postgres nombra la tabla pero **no dice cuál de las
+políticas faltó**. Se resolvió leyendo el log del contenedor de storage, que sí
+imprime la sentencia entera.
+
+| # | Qué |
+|---|---|
+| **0170** | El acta de descanso acepta **HEIC/HEIF** — el formato en que un iPhone guarda sus fotos. Sin esto salían en gris en el diálogo de archivos: no se podían ni seleccionar, y la pantalla no daba ningún error |
+| **0172** | Las políticas que faltaban en los tres buckets. Abre exactamente el hueco medido y nada más: quien subió un archivo puede leer **lo suyo** mientras lo registra (`owner_id = auth.uid()`), y quien puede crearlo puede reemplazarlo |
+| **0175** | El acta de descanso **deja de guardarse como texto en una columna** y pasa al almacén, con los mismos 50 MB que los demás papeles. Los 3 MB de antes no eran una decisión sobre las actas: eran el precio de dónde vivían |
+
+**Tres fallos más de pantalla, cada uno con causa distinta:**
+
+1. El formulario para subir el cargo estaba escrito **solo** en la sección
+   «Firmados — por entregar». En «Entregados» el botón abría un aviso sin
+   selector de archivo. Los tres memos de producción están entregados.
+2. Chrome **no reconoce el `.HEIC`** y entrega la foto sin tipo; el almacén la
+   recibe como binario genérico y responde `415`. El tipo se deduce ahora de la
+   extensión (`lib/tipos-archivo.ts`), que es lo único fiable que queda.
+3. «Ver acta» abría una pestaña vacía y le escribía un `<iframe src="data:…">`.
+   Chrome **bloquea** la navegación a `data:` en el nivel superior: la pestaña se
+   quedaba en `about:blank`, ni el papel ni un error.
+
+**Por qué ninguna prueba lo cazó, y qué se hizo.** No había una sola prueba que
+tocara `storage.objects`. Un `INSERT` simple pasaba mientras el sistema no
+funcionaba, así que probar «se puede insertar» habría dado verde igual. La
+prueba **136** ejecuta la sentencia real de Storage, copiada de su log; la
+**137** cubre las dos ubicaciones posibles del acta.
+
+**Convivencia, no migración.** Las actas ya subidas se quedan en
+`archivo_base64` y se siguen leyendo de ahí. No hay script que mueva archivos y
+pueda quedarse a medias. Esa columna se podrá borrar el día que no quede
+ninguna — ver la consulta en «Lo que sigue».
+
+---
+
 ## 2026-08-05 (noche) — el papel entra al sistema
 
 Dos frentes cerrados el mismo día, y los dos van de lo mismo: **el documento que
@@ -299,6 +352,7 @@ el régimen general, donde sí es exigible. La persona más antigua ingresó el
 | **Sandra Ramirez** | 27 días programados, **0 marcados**, total 0.00 | Puede ser vacaciones, permiso, o que no esté marcando |
 | **Rufina Salvatierra** | aparece en el cálculo y **no estaba** en la lista de 22 activos | Tiene jornadas sin estar activa, o se agregó después |
 | **Carlos Espejo** | sigue marcado `planilla` | Hoy no cobra movilidad porque no marca. **El día que marque, le va a salir.** Se cambia en Equipo → Tipo de vínculo |
+| **Quien esté en rango `caylo`** | en local no hay nadie; **en producción no lo puedo mirar** | Ese rango quedó sin techo de educación desde la 0140, así que con un comprobante de S/727 le pagaría **S/545.25** en vez de S/180. La 0178 lo reasigna sola a `cayla` y avisa a quién — pero el SELECT está en la cabecera de `aplicar_0178.sql` para verlo antes de pegar |
 
 ### A.5 · ✅ Las cuatro preguntas al contador, respondidas (2026-08-05)
 
@@ -437,6 +491,26 @@ select set_config('request.jwt.claim.sub',
 ---
 
 ## Lo que sigue, sin urgencia
+
+### La columna `archivo_base64` de las actas, cuando quede vacía
+
+Desde la **0175** el acta firmada de un descanso sustitutorio va al almacén. Las
+que ya estaban subidas se quedaron donde estaban a propósito — mover archivos con
+un script es lo que puede salir a medias, y lo guardado el viernes tiene que
+abrirse el lunes. La columna vieja se puede borrar el día que ninguna acta la use:
+
+```sql
+select referencia, archivo_nombre,
+       (length(archivo_base64) / 1024)::int as kb_en_la_base
+from actas_descanso_sustitutorio
+where archivo_base64 is not null
+order by referencia;
+```
+
+Si no devuelve filas: `alter table actas_descanso_sustitutorio drop column archivo_base64;`
+y con ella se va `fn_subir_acta_descanso`, que ya nadie llama. Mientras devuelva
+alguna, esa acta solo se abre por el camino viejo — y borrar la columna la
+perdería.
 
 ### Tres datos que hacen falta
 

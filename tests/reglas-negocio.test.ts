@@ -2,45 +2,55 @@
 // reglas-negocio.test.ts — Reglas de negocio que vive el navegador
 // ============================================================================
 // Blinda dos cosas que el colaborador VE en pantalla:
-//   · nivelPlus — los tramos del bono por objetivos. Es el GEMELO en frontend de
-//     la regla que ya está blindada en SQL (fn_planilla_calcular: 100%→21%,
-//     ≥60%→12.6%, <60%→nada, <30%→observación). Si alguien cambia una y no la
-//     otra, la pantalla diría una cosa y la boleta pagaría otra. Esto lo ancla.
+//   · lecturaObjetivos — que los objetivos NO nombren ningún monto. Hasta el
+//     2026-08-06 esta función era el GEMELO en el navegador de lo que pagaba
+//     fn_planilla_calcular (100%→21%, ≥60%→12.6%). La migración 0171 apagó ese
+//     plus en SQL y esto lo ancla del lado de la pantalla: si alguien lo
+//     reviviera en un solo sitio, la pantalla ofrecería un pago que la boleta
+//     no hace, o al revés.
 //   · formatSoles — cómo se escribe el dinero. Un formato roto siembra dudas
 //     sobre montos que en realidad están bien.
 // ============================================================================
 import { describe, it, expect } from "vitest";
-import { nivelPlus } from "@/lib/objetivos";
-import { formatSoles, baseDeclaradaDe, topeEducacionDe, RANGOS } from "@/lib/rangos";
+import { lecturaObjetivos } from "@/lib/objetivos";
+import { formatSoles, baseDeclaradaDe, RANGOS } from "@/lib/rangos";
+import { NOMBRE_RANGO } from "@/lib/politica-salarial";
 
-describe("nivelPlus — tramos del bono por objetivos", () => {
-  it("cumplir el 100% da Plus 21%", () => {
-    expect(nivelPlus(10, 10)).toEqual({ etiqueta: "Plus 21%", observacion: false });
+describe("lecturaObjetivos — los objetivos no pagan (0171)", () => {
+  // Estas tres aserciones decían lo contrario hasta el 2026-08-06: que cumplir
+  // el 100% daba «Plus 21%» y el 60% «Plus 12.6%». Se dieron vuelta junto con
+  // la migración 0171. El plus era remuneración tratada como si no lo fuera, y
+  // contradecía la política salarial firmada bajo la Ley 30709.
+  it("cumplir el 100% no nombra ningún monto", () => {
+    expect(lecturaObjetivos(10, 10)).toEqual({ etiqueta: "100% cumplido", observacion: false });
   });
 
-  it("cumplir exactamente el 60% da Plus 12.6% (el borde cuenta a favor)", () => {
-    expect(nivelPlus(6, 10)).toEqual({ etiqueta: "Plus 12.6%", observacion: false });
+  it("cumplir el 60% tampoco", () => {
+    expect(lecturaObjetivos(6, 10)).toEqual({ etiqueta: "60% cumplido", observacion: false });
   });
 
-  it("por debajo del 60% no hay plus", () => {
-    expect(nivelPlus(5, 10).etiqueta).toBe("Sin plus");
+  it("ninguna etiqueta menciona un plus, en ningún tramo", () => {
+    for (let c = 0; c <= 10; c++) {
+      expect(lecturaObjetivos(c, 10).etiqueta.toLowerCase()).not.toContain("plus");
+    }
   });
 
-  it("al 50% no hay plus PERO tampoco observación (el umbral es 30%)", () => {
-    expect(nivelPlus(5, 10).observacion).toBe(false);
+  it("al 50% no hay observación: el umbral sigue siendo 30%", () => {
+    expect(lecturaObjetivos(5, 10).observacion).toBe(false);
   });
 
   it("por debajo del 30% se marca observación por bajo desempeño", () => {
-    expect(nivelPlus(2, 10)).toEqual({ etiqueta: "Sin plus", observacion: true });
+    // Lo único que sobrevive del mecanismo viejo, y a propósito: nunca fue un
+    // pago sino un aviso para conversar, y la decisión es siempre de una persona.
+    expect(lecturaObjetivos(2, 10)).toEqual({ etiqueta: "20% cumplido", observacion: true });
   });
 
-  it("sin objetivos cargados no inventa nada (ni plus ni observación)", () => {
-    expect(nivelPlus(0, 0)).toEqual({ etiqueta: "—", observacion: false });
+  it("sin objetivos cargados no inventa nada", () => {
+    expect(lecturaObjetivos(0, 0)).toEqual({ etiqueta: "—", observacion: false });
   });
 
-  it("cumplir todos de una lista corta también da el 21%", () => {
-    // No depende de que el total sea 10: es proporción, no conteo.
-    expect(nivelPlus(3, 3).etiqueta).toBe("Plus 21%");
+  it("es proporción y no conteo: una lista corta se lee igual", () => {
+    expect(lecturaObjetivos(3, 3).etiqueta).toBe("100% cumplido");
   });
 });
 
@@ -101,39 +111,50 @@ describe("baseDeclaradaDe — el monto que declara cada rango", () => {
   });
 });
 
-// El techo de la asignación por educación (mig. 0132). Es un MÁXIMO, no un monto
-// a pagar: cada persona cobra el 75% de lo que sostiene su comprobante, hasta
-// este número. Que fuera un monto fijo por rango es justo lo que hundió el
-// concepto en la RTF 07222-3-2018 (Albis) — ver la cabecera de la 0132.
-describe("topeEducacionDe — el techo de educación de cada rango", () => {
-  it("un rango real trae un techo positivo", () => {
-    expect(topeEducacionDe("cayla")).toBe(180);
-  });
-
-  it("un rango inexistente no inventa un techo", () => {
-    expect(topeEducacionDe("rango-que-no-existe")).toBeUndefined();
-  });
-
-  // Espejo de la tabla topes_educacion_rango en la base. Si alguien cambia la
-  // escala en un lado y no en el otro, la pantalla ofrecería un techo que el
-  // servidor rechaza. Si tocas esto, toca también la migración 0132.
-  it("la escala coincide con la que blinda la migración 0132", () => {
-    const esperado: Record<string, number> = {
-      colibri: 90, cayla: 180, caylo: 180, support: 270,
-      aurora: 360, oraculo: 420, archicaylo: 480,
-    };
+// ── Los rangos se llaman igual en los dos sitios donde el código los nombra ──
+//
+// Acá vivía un bloque que blindaba los techos de educación contra un campo
+// `topeEducacion` en `rangos.ts`. Se borró el 2026-08-06 con el campo, y cómo
+// falló vale más que lo que probaba:
+//
+// El bloque comparaba `rangos.ts` contra los montos de la MIGRACIÓN 0132 —un
+// mapa escrito a mano acá dentro— y no contra la tabla `topes_educacion_rango`,
+// que es donde los techos se editan. Cuando la 0140 retiró «caylo» de la tabla,
+// este mapa siguió diciendo `caylo: 180` y las cuatro aserciones siguieron
+// verdes durante toda la divergencia. Un espejo de un espejo no vigila al
+// original: da la calma de que algo lo está mirando.
+//
+// Los techos los vigila ahora la prueba pgTAP 139, que compara contra la tabla.
+// Acá queda lo único que vitest SÍ puede vigilar sin base de datos: que las dos
+// listas de rangos que existen en el código digan lo mismo.
+describe("los dos sitios que nombran los rangos no se contradicen", () => {
+  // `RANGOS` pinta el desplegable de Equipo; `NOMBRE_RANGO` pone los títulos en
+  // la política salarial que se le entrega al equipo. Hasta el 2026-08-06 el
+  // rango tope era «ArchiCaylo» en el desplegable y «ArchiCayla» en el documento
+  // firmado: la misma persona con dos nombres según qué pantalla la mirara.
+  it("cada rango tiene un solo nombre en pantalla", () => {
     for (const r of RANGOS) {
-      expect(r.topeEducacion, `el techo de ${r.label} no coincide con la 0132`).toBe(esperado[r.codigo]);
+      expect(
+        NOMBRE_RANGO[r.codigo],
+        `«${r.label}» se llama distinto en la política salarial`,
+      ).toBe(r.label);
     }
   });
 
-  it("los techos no bajan al subir de rango", () => {
-    const porOrden = [...RANGOS].sort((a, b) => a.orden - b.orden);
-    for (let i = 1; i < porOrden.length; i++) {
-      expect(
-        porOrden[i].topeEducacion,
-        `${porOrden[i].label} tiene menos techo que ${porOrden[i - 1].label}`,
-      ).toBeGreaterThanOrEqual(porOrden[i - 1].topeEducacion);
-    }
+  it("las dos listas tienen exactamente los mismos rangos", () => {
+    expect([...RANGOS].map((r) => r.codigo).sort()).toEqual(Object.keys(NOMBRE_RANGO).sort());
+  });
+
+  // Si dos rangos comparten `orden`, el desplegable los muestra en un orden que
+  // cambia entre recargas — y el orden ES la jerarquía.
+  it("ningún rango comparte el lugar de otro", () => {
+    const ordenes = RANGOS.map((r) => r.orden);
+    expect(new Set(ordenes).size, "hay dos rangos con el mismo orden").toBe(ordenes.length);
+  });
+
+  // El rango retirado no puede volver por la puerta de la pantalla: la migración
+  // 0178 lo sacó del CHECK, así que elegirlo daría un error al guardar.
+  it("«caylo» no se ofrece: la base lo rechaza desde la 0178", () => {
+    expect(RANGOS.some((r) => r.codigo === "caylo")).toBe(false);
   });
 });

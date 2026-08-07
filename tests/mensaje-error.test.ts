@@ -88,6 +88,53 @@ describe("lo que Postgres dice solo, no sale a la pantalla", () => {
   });
 });
 
+describe("un constraint con nombre dice qué regla se rompió", () => {
+  // El texto EXACTO que devuelve Postgres al rechazar una fecha de fin de contrato
+  // anterior al ingreso. Es lo que veía quien llenaba ese campo desde la pantalla
+  // de Equipo antes de traducirlo.
+  const CRUDO = {
+    code: "23514",
+    message:
+      'new row for relation "personas" violates check constraint "personas_fin_contrato_coherente"',
+  };
+
+  it("no muestra el nombre del constraint ni la jerga", () => {
+    const salida = mensajeDeError(CRUDO);
+    expect(salida).not.toMatch(/violates|constraint|relation|personas_/i);
+  });
+
+  it("dice cuál es la regla, no «revisa las fechas y los números»", () => {
+    // El 23514 genérico es honesto e inútil: no dice QUÉ fecha está mal. Si
+    // alguien quita la traducción por nombre, esta prueba se cae.
+    expect(mensajeDeError(CRUDO)).toMatch(/no puede terminar antes/i);
+  });
+
+  it("y sigue anteponiendo la acción que se intentaba", () => {
+    expect(mensajeDeError(CRUDO, "guardar")).toMatch(/^No se pudo guardar: /);
+  });
+
+  it("un 23514 de un constraint sin traducción sigue cayendo en el texto genérico", () => {
+    const otro = {
+      code: "23514",
+      message: 'new row for relation "personas" violates check constraint "personas_movilidad_con_motivo"',
+    };
+    expect(mensajeDeError(otro)).not.toMatch(/no puede terminar antes/i);
+    expect(mensajeDeError(otro)).not.toMatch(/violates|constraint/i);
+  });
+
+  // El constraint del cese: es el que abre el comentario de mensaje-error.ts como
+  // ejemplo de lo que NO se puede mostrar, y el que hacía fallar «Desactivar»
+  // hasta el 2026-08-06.
+  it("el del cese dice qué falta, no cómo se llama", () => {
+    const cese = {
+      code: "23514",
+      message: 'new row for relation "personas" violates check constraint "personas_cese_coherente"',
+    };
+    expect(mensajeDeError(cese)).toMatch(/último día trabajado/i);
+    expect(mensajeDeError(cese)).not.toMatch(/violates|constraint|personas_/i);
+  });
+});
+
 describe("quedarse sin internet no se confunde con un dato mal puesto", () => {
   it("reconoce la falla de red", () => {
     expect(esFallaDeRed({ message: "Failed to fetch" })).toBe(true);
