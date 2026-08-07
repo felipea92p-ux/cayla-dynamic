@@ -194,10 +194,29 @@ vive en la rama `origin/movilidad-supeditada-a-asistencia`
 entra o si su contenido ya lo cubre la 0118. Los otros huecos ya están explicados
 en `scripts/hooks/huecos-conocidos.txt`.
 
-**Y una que sí sigue pendiente por nombre:** quien esté en rango `caylo` quedó
-sin techo de educación desde la 0140, así que con un comprobante de S/727 le
-pagaría **S/545.25** en vez de S/180. En local no hay nadie; en producción hay
-que mirarlo. El SELECT está en la cabecera de `aplicar_0178.sql`.
+**~~El rango `caylo` pagaba educación sin techo~~ — ✅ cerrado el 2026-08-06.**
+La 0140 lo retiró del catálogo por un solo lado: le borró el techo y lo dejó
+fuera de `categorias_laborales`, pero los CHECK de dos tablas lo seguían
+aceptando y el desplegable de Equipo lo seguía ofreciendo. Como
+`fn_educacion_respeta_el_tope` «falla abierto a propósito» cuando no encuentra
+techo, en vez de bloquear **pagaba**: con el comprobante de S/727, S/545.25 en
+vez de S/180. La [`0178`](../supabase/migrations/0178_caylo_deja_de_poder_asignarse.sql)
+lo sacó de los dos CHECK y reasigna a `cayla` a quien lo tenga (mismo nivel,
+misma base, **no cambia lo que cobra**). Felipe la pegó y verificó los dos CHECK.
+La pantalla ya está en producción: el desplegable ofrece seis rangos, sin `caylo`.
+
+*Queda un SELECT por correr, y no urge:* si alguien **estaba** en `caylo`, la
+0178 lo pasó a `cayla` en silencio y conviene decírselo — cobra igual, pero su
+nivel se llama distinto en la boleta. La consulta está en la cabecera de
+`aplicar_0178.sql`; busca el rastro en `correcciones_auditoria`.
+
+**Lo que esto dejó como lección, y vale más que el arreglo:** el agujero no fue
+que `caylo` existiera, fue que existiera **sin techo cargado**. La prueba
+[`139`](../supabase/tests/139_caylo_deja_de_poder_asignarse.test.sql) no vigila
+`caylo`: compara el CHECK contra `categorias_laborales` y exige que ninguna
+categoría se quede sin techo. **Pero solo en CI.** `fn_educacion_respeta_el_tope`
+sigue fallando abierto en producción, así que una categoría nueva cargada sin su
+techo repite esto exacto. Está sin decidir si esa función debe pasar a bloquear.
 
 ---
 
@@ -441,12 +460,44 @@ no es el código: el contenedor de Postgres se reinició vacío. Se arregla con 
 reset`. La base local es un laboratorio: no guarda nada que no se pueda
 reconstruir.
 
-⚠️ **Suele haber otra sesión trabajando en paralelo** desde
-`.claude/worktrees/*`, con el **mismo** Postgres local y sus propias migraciones
-sin fusionar. Eso produce pruebas en rojo que no son tuyas (una fila en
-`migraciones_aplicadas` sin archivo detrás), pushes rechazados y
-`desplegar.sh` frenando por archivos ajenos. Antes de investigar un fallo raro,
-mirar si el número huérfano vive en un worktree.
+⚠️ **Casi siempre hay varias sesiones trabajando en paralelo** — el 2026-08-06
+había cinco además de la propia. Unas desde `.claude/worktrees/*`, y otras
+**desde este mismo árbol**: comparten Postgres local, directorio de trabajo e
+índice de git. Eso produce pruebas en rojo que no son tuyas, `estado.md`
+reescrito a media edición, y un `git status` que dice `[ahead 2, behind 5]` y un
+minuto después otra cosa.
+
+```bash
+./scripts/sesiones.sh
+```
+
+Dice cuáles están vivas, desde qué worktree, **cuál es la tuya**, si alguien
+escribió en los últimos 10 minutos y el estado de la rama. Córrelo **antes** de
+`supabase db reset`, de editar este archivo, o de fiarte de un `git status`.
+
+No uses la lista de sesiones de la app: su campo `isRunning` dice `false` aunque
+estén corriendo. El script mira los procesos del sistema, que no mienten.
+
+Dos hábitos que se ganaron el 2026-08-06:
+
+- **Commitea con `git commit -o <ruta>`.** El índice de git es compartido en este
+  árbol: un `git add` + `commit` corriente puede llevarse dentro lo que otra
+  sesión acabe de preparar.
+- **No empujes si la rama lleva commits que no son tuyos.** Viajarán cuando su
+  autor los empuje; publicarlos tú es publicar trabajo a medio hacer.
+
+**Los dos guardianes que fallaban por esto ya están arreglados** (2026-08-06), y
+los dos por la misma confusión — preguntaban por *el directorio de trabajo*
+cuando debían preguntar por *lo que sale de esta máquina*:
+
+| Guardián | Qué hacía mal |
+|---|---|
+| `scripts/hooks/numeracion.sh` | Listaba las migraciones con `ls`, así que los archivos sin commitear de otra sesión contaban como tuyos: te decía «renumera lo tuyo» por un choque que tu push ni llevaba. Ahora mira lo que agregan tus commits sobre `origin/main`. La comprobación de duplicados **sigue** mirando el árbol entero a propósito: dos archivos con el mismo número revientan tu `db reset` venga de donde venga el segundo |
+| `scripts/desplegar.sh` | Frenaba por cualquier cosa sin commitear, incluidos `.sql` que el `.vercelignore` excluye — Vercel ni los sube, y el mensaje «subiría código que no está en git» era literalmente falso. Ahora lee el `.vercelignore` para decidir qué cuenta. Sigue frenando en seco si lo sin commitear es `apps/web` |
+
+Vale la pena mirar con esa lente cualquier verificación nueva antes de
+escribirla: **¿esto pregunta por lo que hay en el disco, o por lo que va a
+salir?** Casi siempre es lo segundo.
 
 **Un bug que vale recordar:** `jsonb_build_object` admite **máximo 100
 argumentos**. El objeto de la boleta estaba cerca del techo y cuatro campos

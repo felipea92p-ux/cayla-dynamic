@@ -28,7 +28,12 @@
 # viejo sin que alguien se entere ANTES de que haga falta.
 
 set -e
-cd "$(dirname "$0")/.."
+# Al repo que se está empujando, no al que guarda este archivo: el `pre-push` de
+# un worktree ejecuta la copia del repo PRINCIPAL (así resuelve `core.hooksPath`),
+# y orientarse por `$0` haría revisar las migraciones de `main` en vez de las de
+# la rama que se empuja. Misma corrección que en `hooks/numeracion.sh`.
+RAIZ="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+cd "${RAIZ:-$(dirname "$0")/..}"
 
 SALIDA="scripts/sql-manual/que_falta_pegar.sql"
 TMP="$(mktemp)"
