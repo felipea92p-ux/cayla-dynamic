@@ -1,0 +1,65 @@
+// ============================================================================
+// jornada.test.ts — Los dos topes no pueden confundirse
+// ============================================================================
+// CAYLA pacta jornada ordinaria de 48 h (el máximo del art. 25 de la
+// Constitución) y programa un horario de 45 h. La diferencia parece cosmética y
+// no lo es: el sobretiempo se mide contra la jornada ORDINARIA, no contra el
+// horario (D.S. 007-2002-TR art. 9).
+//
+// Si alguien iguala las dos constantes —por "simplificar", o por creer que la
+// jornada de CAYLA son 45 h— las horas 46 a 48 se convierten en sobretiempo con
+// recargo del 25 % / 35 %. Al 2026-08-07 hay tres personas trabajando en ese
+// rango, así que el cambio no sería teórico: crearía un pasivo el mismo día.
+//
+// Estas pruebas están para que ese cambio no pase inadvertido.
+// ============================================================================
+import { describe, it, expect } from "vitest";
+import {
+  MAXIMO_LEGAL_SEMANAL,
+  HORARIO_PROGRAMADO_SEMANAL,
+  RECARGO_SOBRETIEMPO,
+  excesoSobreJornada,
+} from "@cayla-dynamic/shared";
+
+describe("los topes de jornada", () => {
+  it("el máximo legal es 48 h: es el techo del art. 25 de la Constitución", () => {
+    expect(MAXIMO_LEGAL_SEMANAL).toBe(48);
+  });
+
+  it("el horario programado es 45 h y va POR DEBAJO del máximo legal", () => {
+    expect(HORARIO_PROGRAMADO_SEMANAL).toBe(45);
+    expect(HORARIO_PROGRAMADO_SEMANAL).toBeLessThan(MAXIMO_LEGAL_SEMANAL);
+  });
+
+  it("las dos cifras son distintas — igualarlas convierte las horas 46 a 48 en sobretiempo", () => {
+    expect(HORARIO_PROGRAMADO_SEMANAL).not.toBe(MAXIMO_LEGAL_SEMANAL);
+  });
+
+  it("el recargo es 25 % las dos primeras horas y 35 % las siguientes", () => {
+    expect(RECARGO_SOBRETIEMPO.horasPrimerTramo).toBe(2);
+    expect(RECARGO_SOBRETIEMPO.primerTramo).toBe(0.25);
+    expect(RECARGO_SOBRETIEMPO.tramoSiguiente).toBe(0.35);
+  });
+});
+
+describe("excesoSobreJornada", () => {
+  it("no hay exceso cuando se trabaja el horario programado", () => {
+    expect(excesoSobreJornada(45)).toBe(0);
+  });
+
+  it("no hay exceso justo en el máximo legal", () => {
+    expect(excesoSobreJornada(48)).toBe(0);
+  });
+
+  it("el exceso se mide desde 48, no desde 45", () => {
+    // 47 h está por encima del horario programado pero dentro de la jornada
+    // ordinaria pactada: no es sobretiempo.
+    expect(excesoSobreJornada(47)).toBe(0);
+    expect(excesoSobreJornada(49.3)).toBeCloseTo(1.3, 5);
+  });
+
+  it("nunca devuelve un negativo, aunque se trabaje poco", () => {
+    expect(excesoSobreJornada(0)).toBe(0);
+    expect(excesoSobreJornada(12.5)).toBe(0);
+  });
+});
