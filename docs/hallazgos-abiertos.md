@@ -16,12 +16,23 @@ reproduce hoy, táchalo y anota por qué.
 
 ## Dónde está esto hoy (reverificado el 2026-08-08, uno por uno)
 
-**Quedan 16 problemas distintos.** No es una estimación: cada entrada se
+**Quedan 15 problemas distintos.** No es una estimación: cada entrada se
 comprobó contra el esquema y el código de hoy, y abajo está la línea exacta que
 lo demuestra. De las 22 que el archivo daba por abiertas, **cuatro ya estaban
-arregladas sin tacharse** (C5, C8, C13 y A18), **una se cerró el mismo día**
-(A7, con la 0184) y **una está medio cerrada** (A11). Dos pares describen el
-mismo defecto: C13≡A18 y C12≡A16.
+arregladas sin tacharse** (C5, C8, C13 y A18), **dos se cerraron el mismo día**
+(A7 con la 0184, C3 con la 0189) y **una está medio cerrada** (A11). Dos pares
+describen el mismo defecto: C13≡A18 y C12≡A16.
+
+**Y apareció uno que no estaba en la lista, más grave que varios de los que sí:**
+el sistema le medía tardanza y salida anticipada a las tres personas que cobran
+por honorarios, que por ley no están sujetas a horario. Un registro de tardanzas
+es **control de jornada** — el indicio más directo de subordinación que existe, y
+lo fabricaba CAYLA sobre sí misma. Cerrado el mismo día por la
+[`0191`](../supabase/migrations/0191_a_un_locador_no_se_le_mide_la_hora_de_entrada.sql).
+Salió de una frase de Felipe, no de ninguna auditoría: **«era RXH, ellos no están
+sujetos a horarios, solo lo puse como referencia»**. Ninguna de las diez
+revisiones independientes lo vio, porque para verlo hay que saber qué es cada
+persona — y eso no está en el código.
 
 **Y una advertencia que esta pasada dejó cara:** antes de creerse cualquiera de
 los 16, **mirar qué hay una capa más abajo**. Tres hallazgos que parecían graves
@@ -36,7 +47,7 @@ antes que las migraciones que los protegen.
 |---|---|---|
 | **C12 · A16** | `fn_registrar_marcaje` sin candado de periodo pagado — la puerta más usada del sistema | su cuerpo vigente no contiene la palabra `PAGADO` |
 | **A3** | el cron de auto-cierre reescribe periodos ya pagados | `fn_auto_cierre` no nombra `periodos_planilla` ni una vez |
-| **C3** | tardanza de más de 180 min se guarda como NULL y paga el bono | `if v_minutos_tarde > 180 then v_minutos_tarde := null;` — **y hay una segunda igual para la salida temprana que el hallazgo no vio** |
+| ~~**C3**~~ | ✅ **cerrado el 2026-08-08** por la 0189 — y eran dos líneas, no una | aplicada y confirmada en producción |
 | **C13** | reactivar a quien se cesó por error le paga S/0 | `fn_reactivar_persona` no menciona `asignaciones_salario`: no reabre el tramo que el cese cerró |
 | **C14** | corregir un auto-cierre deja DOS salidas finales | `fn_agregar_marcaje` no nombra `auto_cierre`: inserta sin reconciliar |
 | **A1** | el bono de puntualidad se paga con el denominador del día en que se pulsó | `v_dias_periodo := least(v_fin, (now() at time zone 'America/Lima')::date) - v_ini + 1` |
@@ -118,7 +129,29 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 **Arreglo:** Añadir a fn_otorgar_descanso_sustitutorio y a fn_quitar_descanso_sustitutorio el mismo guard que ya usan las otras once funciones, evaluado sobre `p_fecha_feriado`: `if exists (select 1 from periodos_planilla where estado='pagado' and p_fecha_feriado between fecha_ini and fecha_fin) then raise exception 'Ese feriado cae en un periodo ya PAGADO...' end if;`. Es la misma forma que la 0069 aplicó a fn_set_feriado — copiar textual mantiene el mensaje consistente.
 
-### 3. Llegar 3 horas tarde no cuenta como tardanza y encima paga el bono de puntualidad
+### 3. ~~Llegar 3 horas tarde no cuenta como tardanza y encima paga el bono de puntualidad~~
+
+> ✅ **CERRADO el 2026-08-08** por la
+> [`0189`](../supabase/migrations/0189_una_tardanza_de_tres_horas_deja_de_desaparecer.sql),
+> aplicada y confirmada. El número real se guarda siempre; quién puede sancionar
+> con él lo decide `fn_tardanza_es_medible`, en un solo sitio. La pantalla de
+> Disciplina muestra los días dudosos como **«sin medir»**, aparte del contador
+> legal, y el botón «Generar borrador» se deshabilita para quien solo tenga esos.
+> Prueba [`147`](../supabase/tests/147_una_tardanza_de_tres_horas_no_desaparece.test.sql).
+>
+> **Eran DOS líneas, no una.** La misma destrucción existía para la salida
+> temprana desde la 0017; el hallazgo solo nombraba la de la entrada.
+>
+> **Y la mitad del bono era falsa:** `bono_puntualidad` está en `monto: 0` desde
+> la 0121, así que no pagaba nada. Se comprobó antes de escribir la migración.
+>
+> **En producción quedaron 21 días con el número ya destruido.** No se pueden
+> distinguir retroactivamente, pero SÍ reconstruir desde `marcajes` —que es la
+> fuente de verdad y es append-only— con
+> [`los_21_dias_que_nadie_vio.sql`](../scripts/sql-manual/los_21_dias_que_nadie_vio.sql).
+> De los 21, cinco resultaron medibles: cuatro eran turnos rotativos mal
+> coordinados de julio y uno un sábado con el horario mal cargado. **Ninguno era
+> impuntualidad.**
 
 `asistencia-jornadas` · ⚖️ decisión injusta · arreglo de **horas**
 

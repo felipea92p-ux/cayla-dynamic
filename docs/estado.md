@@ -84,8 +84,21 @@ sin gastar consultas. Lo arreglan la **0181** (cuatro) y la **0183** (las dos qu
 la comprobación de la 0181 destapó, que además corrían la versión de julio de
 `fn_crear_periodo` y `fn_eliminar_periodo`). Las dos aplicadas y confirmadas.
 
-**El canal habitual no es el culpable:** si lo fuera estarían rotas las 199, no
-seis. Ese daño entró una vez, por otra vía.
+⚠️ **Y ese mismo día se demostró que el daño SIGUE ENTRANDO.** Horas después de
+limpiar las seis, la consulta «qué falta pegar» devolvió `⚠ md5 SIN CATALOGAR`
+para `fn_planilla_calcular` — la función que decide lo que cobra cada persona.
+Medido: era el cuerpo de la **0185 pasado por Mac OS Roman**, y la 0185 se había
+pegado ese mismo día.
+
+O sea que el razonamiento de arriba —«si el canal fuera el culpable estarían
+rotas las 199»— **era falso**: el daño no entra de una vez, entra **por pegada**.
+Las 0180, 0181, 0183 y 0184 salieron limpias y llegaron por `dame-el-sql.sh`
+(portapapeles); la 0185 vino por otra vía y salió rota.
+
+**Falta averiguar por dónde llegó la 0185.** Es la única pregunta que cierra
+esto, y no se puede responder desde el código. Mientras tanto,
+`que_falta_pegar.sql` trae una fila **ACENTOS** que barre el esquema entero
+buscando el signo «√»: es la que va a cazar la próxima, catalogada o no.
 
 ### El agujero que casi se anuncia y no existía
 
@@ -232,6 +245,22 @@ inicio — y multiplicado por tres.
 Ley 30709 **no los cuenta ni los incluye en las bandas** desde la 0145: filtra
 por `tipo_vinculo = 'planilla'`. El documento legal no dice que estén dentro de
 la escala. El retrato queda en las pantallas internas.
+
+**✅ Y el indicio más caro de todos quedó cerrado el 2026-08-08.** El sistema les
+medía **tardanza y salida anticipada**, y las guardaba: 524 jornadas de personas
+no sujetas a horario. Un registro de tardanzas no es un dato de más — es
+**control de jornada**, el indicio más directo de subordinación que existe, y lo
+fabricaba CAYLA sobre sí misma día a día. La
+[`0191`](../supabase/migrations/0191_a_un_locador_no_se_le_mide_la_hora_de_entrada.sql)
+lo cierra en la raíz —`fn_recalcular_jornada` deja de medir a quien no está
+`en_planilla`, y con eso los seis consumidores quedan correctos sin tocarlos— y
+limpia lo ya guardado. Confirmado en producción: `mediciones_que_sobran: 0`. Sus
+**horas sí se siguen calculando**: de ellas depende lo que cobran (prueba 149).
+
+Salió de una frase de Felipe y de ninguna auditoría: «era RXH, ellos no están
+sujetos a horarios, solo lo puse como referencia». Ninguna de las diez revisiones
+independientes lo vio, porque para verlo hay que saber **qué es cada persona**, y
+eso no está escrito en el código.
 
 **Y uno de los tres es un frente aparte: Carlos tiene rol `admin`.** Eso le da
 todas las sedes, todos los datos personales del equipo —**cuentas bancarias y
@@ -714,7 +743,14 @@ al tope.
    reloj de la Mac sin verificación de desfase · persona que marca en dos sedes
    el mismo día y pierde una marca.
 
-3. **Nueve funciones y dos columnas corren SOLO en producción.** No están rotas:
+3. ~~**Tardanza de más de 180 min invisible**~~ · ~~**el sistema mide la jornada
+   de quien no está sujeto a horario**~~ — ✅ **los dos cerrados el 2026-08-08**
+   por la [`0189`](../supabase/migrations/0189_una_tardanza_de_tres_horas_deja_de_desaparecer.sql)
+   y la [`0191`](../supabase/migrations/0191_a_un_locador_no_se_le_mide_la_hora_de_entrada.sql),
+   aplicadas y confirmadas. Ver el apartado [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado)
+   para lo que significaba el segundo.
+
+4. **Nueve funciones y dos columnas corren SOLO en producción.** No están rotas:
    están indocumentadas, que a plazo es peor. Deciden marcajes y sueldos cada
    día, ninguna prueba las toca, y si hubiera que reconstruir la base se pierden.
    Siete tienen más código que su versión del repositorio —`fn_agregar_marcaje`
@@ -731,7 +767,7 @@ al tope.
    [`rescatar_lo_que_solo_vive_en_produccion.sql`](../scripts/sql-manual/rescatar_lo_que_solo_vive_en_produccion.sql).
    **Rescatar primero, arreglar después. Nunca al revés.**
 
-4. **Seguridad pendiente** (de `revision-2026-07-15/`):
+5. **Seguridad pendiente** (de `revision-2026-07-15/`):
    - Contraseña mínima 6 sin complejidad, sin cambio forzado en primer login —
      y son cuentas que ven salarios. **Abierto.**
    - ~~Las rutas de API devuelven el mensaje crudo de Postgres~~ — ✅ **cerrado el
@@ -742,12 +778,12 @@ al tope.
      ellas con una palabra de la lista negra que **solo** la rama `P0001` puede
      dejar pasar — las otras catorce seguían en verde con la rama desactivada.
 
-5. **Partir `planilla/page.tsx`.** Maneja dinero, y es la pantalla más grande del
+6. **Partir `planilla/page.tsx`.** Maneja dinero, y es la pantalla más grande del
    sistema por lejos (`wc -l` lo dice; la segunda es `turnos`). Los tests SQL que
    fijan la matemática ya existen (`supabase/tests/10` y `20`); falta el refactor
    antes de seguir tocándolo.
 
-6. **Quedan tres `"America/Lima"` sueltos** fuera de `fecha-lima.ts`, todos en
+7. **Quedan tres `"America/Lima"` sueltos** fuera de `fecha-lima.ts`, todos en
    `politica-salarial/page.tsx` (líneas 66, 77 y 236). La regla del `CLAUDE.md`
    es que no exista ninguno: el corte del día decide a qué fecha se le paga un
    marcaje. Aquí son fechas de publicación de un documento, no de pago — pero la
