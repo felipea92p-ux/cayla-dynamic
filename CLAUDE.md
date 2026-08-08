@@ -263,6 +263,19 @@ archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
 verifica la **numeración**, el `typecheck` y las pruebas de interfaz. Si algo está
 en rojo, el push no se hace. Toma unos 10 segundos.
 
+**Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
+`scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
+repo, así que cada migración nueva la deja corta. Si la encuentra vieja, **la
+regenera, la commitea él** (solo esa ruta, con `git commit -o`, que es la forma
+que no se lleva por delante lo que otra sesión tenga preparado en el índice) y
+aborta pidiendo un segundo `git push` — git ya había decidido qué commits enviar
+antes de llamar al hook, así que ese commit nuevo no viajaría en el primero.
+
+Antes solo avisaba, y el 2026-08-08 frenó **cuatro** pushes en un día para pedir
+siempre el mismo comando de una línea. Un guardián que te para para pedirte algo
+que él mismo puede hacer enseña que sus avisos son trámite; el día que frene por
+un número duplicado, ya le habrá enseñado a quien lo lee a usar `--no-verify`.
+
 **Antes de crear una migración o una prueba, pregunta qué número toca:**
 
 ```bash

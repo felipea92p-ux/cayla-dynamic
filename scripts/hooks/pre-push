@@ -28,10 +28,18 @@ echo "→ numeración de migraciones y pruebas…"
 # Esa lista es una copia de algo que ya vive en `supabase/migrations`, y una copia
 # que hay que acordarse de actualizar es una copia que va a mentir — el mismo
 # patrón que el 2026-08-07 estuvo a una pegada de revertir la 0171 en producción.
-# Acá se comprueba que siga al día, para enterarse ahora y no cuando alguien la
-# pegue creyendo que dice la verdad.
+#
+# `--arregla` y no `--check`: si está vieja, la regenera y la commitea sola, y
+# recién entonces aborta pidiendo un segundo push (git ya había calculado qué
+# commits enviar antes de llamar a este hook, así que el nuevo no viajaría).
+#
+# El cambio es del 2026-08-08 y tiene motivo medido: `--check` frenó CUATRO
+# pushes en un solo día, siempre para pedir el mismo comando de una línea. Un
+# guardián que te para para pedirte algo que él mismo puede hacer enseña que sus
+# avisos son trámite — y el día que frene por un número duplicado o una prueba en
+# rojo, ya le habrá enseñado a quien lo lee a saltárselo con `--no-verify`.
 echo "→ la consulta de qué falta pegar…"
-"$(dirname "$0")/../que-falta-pegar.sh" --check || exit 1
+"$(dirname "$0")/../que-falta-pegar.sh" --arregla || exit 1
 
 echo "→ typecheck…"
 npx pnpm typecheck >/dev/null 2>&1 || {

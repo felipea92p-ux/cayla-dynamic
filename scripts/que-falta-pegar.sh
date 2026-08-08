@@ -21,11 +21,13 @@
 #   · no toca la base: lo que genera solo LEE
 #
 # CÓMO SE USA
-#   ./scripts/que-falta-pegar.sh          genera el archivo y dice dónde quedó
-#   ./scripts/que-falta-pegar.sh --check  no escribe; falla si está desfasado
+#   ./scripts/que-falta-pegar.sh            genera el archivo y dice dónde quedó
+#   ./scripts/que-falta-pegar.sh --check    no escribe; falla si está desfasado
+#   ./scripts/que-falta-pegar.sh --arregla  lo regenera Y lo commitea si hacía falta
 #
-# El `--check` lo corre el hook de pre-push. Así el archivo no puede quedarse
-# viejo sin que alguien se entere ANTES de que haga falta.
+# El `--arregla` lo corre el hook de pre-push. Antes corría `--check`, que solo
+# avisaba: en un solo día frenó cuatro pushes para pedir un comando que el propio
+# hook podía ejecutar. Ver la nota larga junto a `--arregla`.
 
 set -e
 # Al repo que se está empujando, no al que guarda este archivo: el `pre-push` de
@@ -142,18 +144,75 @@ order by orden;
 PIE
 } > "$TMP"
 
+al_dia() { [ -f "$SALIDA" ] && cmp -s "$TMP" "$SALIDA"; }
+N=$(listar | wc -l | tr -d ' ')
+
+# `--check` solo mira y no toca nada. Lo usa quien quiera preguntar sin efectos.
 if [ "$1" = "--check" ]; then
-  if [ ! -f "$SALIDA" ] || ! cmp -s "$TMP" "$SALIDA"; then
+  if al_dia; then exit 0; fi
+  echo ""
+  echo "  ✗ '$SALIDA' está desfasado: el repo tiene migraciones que la consulta no lista."
+  echo "    Corre  ./scripts/que-falta-pegar.sh"
+  echo ""
+  exit 1
+fi
+
+# ── `--arregla`: lo que corre el hook de pre-push ───────────────────────────
+#
+# POR QUÉ NO SE LIMITA A AVISAR. Hasta el 2026-08-08 el hook comprobaba y, si
+# estaba viejo, mandaba a correr este script a mano. En un solo día frenó CUATRO
+# pushes por lo mismo, siempre con la misma solución de una línea. Un guardián
+# que te para para pedirte algo que él mismo puede hacer enseña dos cosas malas:
+# que sus avisos son trámite, y que `--no-verify` los quita. El día que frene por
+# algo de verdad —un número duplicado, una prueba en rojo— va a estar hablándole
+# a alguien que ya aprendió a saltárselo.
+#
+# POR QUÉ IGUAL ABORTA EL PUSH. Git ya calculó qué commits va a enviar antes de
+# llamar al hook: el commit que se crea aquí no viajaría en este push. Abortar y
+# pedir un segundo `git push` es lo único honesto — la alternativa sería subir a
+# GitHub una versión de la consulta distinta de la que quedó en el disco.
+#
+# POR QUÉ `git commit -o`. En este repo varias sesiones comparten el índice de
+# git, y un `git add` + `commit` corriente puede llevarse dentro lo que otra
+# sesión acaba de preparar. La forma con `-o` commitea EXACTAMENTE esta ruta y
+# nada más, mire como mire el índice.
+if [ "$1" = "--arregla" ]; then
+  if al_dia; then exit 0; fi
+  cp "$TMP" "$SALIDA"
+
+  # No se commitea en medio de una operación de git a medias ni con la cabeza
+  # suelta: ahí un commit automático es una sorpresa, no una ayuda.
+  GITDIR="$(git rev-parse --git-dir 2>/dev/null || echo .git)"
+  if ! git symbolic-ref -q HEAD >/dev/null 2>&1 \
+     || [ -e "$GITDIR/MERGE_HEAD" ] || [ -e "$GITDIR/CHERRY_PICK_HEAD" ] \
+     || [ -d "$GITDIR/rebase-merge" ] || [ -d "$GITDIR/rebase-apply" ]; then
     echo ""
-    echo "  ✗ '$SALIDA' está desfasado: el repo tiene migraciones que la consulta no lista."
-    echo "    Corre  ./scripts/que-falta-pegar.sh  y vuelve a intentar el push."
+    echo "  ⚠ '$SALIDA' estaba desfasado y lo regeneré ($N migraciones)."
+    echo "    NO lo commiteé: hay una operación de git a medias o la cabeza está suelta."
+    echo "    Commitéalo tú y vuelve a empujar."
     echo ""
     exit 1
   fi
-  exit 0
+
+  if git commit -q -o "$SALIDA" -m "La consulta de qué falta pegar se pone al día sola
+
+Regenerada por el hook de pre-push: el repo tenía migraciones que la consulta no
+listaba, así que habría dicho «todo al día» ocultando justo las nuevas.
+
+$N migraciones desde la $DESDE." 2>/dev/null; then
+    echo ""
+    echo "  ✓ '$SALIDA' estaba desfasado. Lo regeneré y lo commiteé ($N migraciones)."
+    echo "    Vuelve a empujar:  git push"
+    echo ""
+  else
+    echo ""
+    echo "  ⚠ '$SALIDA' estaba desfasado y lo regeneré ($N migraciones)."
+    echo "    No pude commitearlo. Hazlo tú y vuelve a empujar."
+    echo ""
+  fi
+  exit 1
 fi
 
 cp "$TMP" "$SALIDA"
-N=$(listar | wc -l | tr -d ' ')
 echo "✓ $SALIDA regenerado · $N migraciones desde la $DESDE"
 echo "  Pégalo entero en el SQL Editor de producción. Solo lee."
