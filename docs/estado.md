@@ -138,10 +138,23 @@ la escala. El retrato queda en las pantallas internas.
 
 **Y uno de los tres es un frente aparte: Carlos tiene rol `admin`.** Eso le da
 todas las sedes, todos los datos personales del equipo —**cuentas bancarias y
-DNI incluidos**— y la capacidad de firmar despidos. Es un acceso total a datos
-sensibles de 23 personas en manos de alguien que no es trabajador de la empresa,
-con lo que eso implica bajo la Ley 29733 de protección de datos personales. Ese
-punto no espera al contador: es una decisión de accesos.
+DNI incluidos**— y la capacidad de firmar despidos.
+
+**Lo que hace falta NO es quitarle el acceso.** Se evaluó el 2026-08-07 y se
+descartó por dos razones: su área es Desarrollo Organizacional, que necesita esos
+datos para trabajar; y `admin` y `lider_do` están en el mismo grupo de permisos
+—los dos pasan por `puedeVerIdentidad`—, así que bajarlo de rol **no reduciría
+nada**. No existe un nivel intermedio. Felipe confirmó además que es de absoluta
+confianza, y eso no está en discusión.
+
+**Lo que falta es el papel.** La Ley 29733 no pregunta si la persona es
+confiable: pregunta si CAYLA puede demostrar quién accede a los datos personales
+y bajo qué obligación. Un trabajador en planilla está sujeto al deber de reserva
+por su contrato y por el RIT. **Un locador solo lo está si su contrato de
+locación lleva la cláusula de confidencialidad y tratamiento de datos.**
+
+Es una cláusula, no un cambio de sistema — y aplica a los tres, no solo a Carlos.
+Vale preguntársela al mismo abogado o contador que revise el vínculo.
 
 Y el agravante: **el expediente lo arma el propio sistema.** La pantalla de
 Equipo los nombra encargados, les asigna un área y les pone un rango de la
@@ -652,8 +665,10 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   todas las sedes, todos los datos personales —cuentas bancarias y DNI incluidos—
   y puede firmar despidos. Cuatro accesos totales en un equipo de 23.
   ⚠️ **Y uno de los cuatro, Carlos, no es trabajador de la empresa:** cobra por
-  honorarios. Acceso total a datos sensibles de 23 personas en manos de alguien
-  externo a la planilla — ver [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado).
+  honorarios. Su acceso está justificado —trabaja en Desarrollo Organizacional— y
+  no hay rol intermedio que lo reduzca; lo que falta es la cláusula de
+  confidencialidad en su contrato de locación. Ver
+  [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado).
 - Cuenta de Estefany (falta su correo) · revisar áreas reales de cada quien ·
   checkbox «encargada de piso» en Equipo · split mañana/tarde por sede.
 
