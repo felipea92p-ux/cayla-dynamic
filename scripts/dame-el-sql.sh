@@ -190,9 +190,34 @@ fi
 # ── A salvo: al portapapeles ────────────────────────────────────────────────
 verde "✓ Guardado en git y en GitHub. Se puede pegar."
 if command -v pbcopy >/dev/null 2>&1; then
-  pbcopy < "$ARCHIVO"
-  echo ""
-  echo "  Copiado al portapapeles. Pégalo en el SQL Editor de Supabase (⌘V)."
+  # LC_CTYPE=UTF-8 NO ES DECORACIÓN. Sin esto, pbcopy lee los bytes como
+  # MacRoman —el locale de esta Mac es LC_CTYPE="C"— y deja en el portapapeles
+  # un texto donde cada tilde se partió en dos: «función» sale «funci√≥n» y
+  # «⚠️» sale «‚ö†Ô∏è». El navegador pega ESO, y queda guardado así en la base.
+  #
+  # Engaña porque `pbpaste` con el mismo locale deshace la conversión y todo se
+  # ve bien desde el terminal. Solo se nota al mirar la función ya aplicada.
+  #
+  # Se descubrió el 2026-08-08: la 0185 se pegó en producción con TODOS sus
+  # acentos rotos, incluido el mensaje que ve la persona —«Solo un administrador
+  # o l√≠der puede calcular la planilla»—. El SQL corre igual, así que nada
+  # falla: solo se lee mal, y las migraciones de este repo se leen.
+  LC_CTYPE=UTF-8 pbcopy < "$ARCHIVO"
+
+  # Comprobación de que llegó entero. Si el portapapeles no devuelve byte por
+  # byte lo mismo que el archivo, mejor no pegar nada: un aviso vale más que
+  # una migración corrupta que nadie mira hasta dentro de tres meses.
+  if LC_CTYPE=UTF-8 pbpaste 2>/dev/null | cmp -s - "$ARCHIVO"; then
+    echo ""
+    echo "  Copiado al portapapeles. Pégalo en el SQL Editor de Supabase (⌘V)."
+  else
+    echo ""
+    rojo "✗ El portapapeles no coincide byte por byte con el archivo."
+    gris "  Algo está transformando el texto — probablemente los acentos."
+    gris "  NO pegues eso. Ábrelo y cópialo a mano:  $ARCHIVO"
+    echo ""
+    exit 1
+  fi
 else
   echo ""
   gris "  Ábrelo y cópialo entero:  $ARCHIVO"
