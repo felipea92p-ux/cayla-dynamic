@@ -35,7 +35,7 @@ Dos pares describen el mismo defecto: C13≡A18 y C12≡A16.
 | **A6** | el guard del terminal cae abierto si `auth_user_id` es null | sigue el `and … is not null` en vez de `is distinct from`, y en `terminales` solo hay FK y UNIQUE — **no** el check de activo-vinculado |
 | **A19** | una tardanza perdonada sigue contando en tres pantallas | `tardanzas_justificadas` aparece **cero** veces en Horas, Reporte-sede y `/api/espejo` |
 | **A4** | trabajar un feriado genera tardanzas | `fn_tardanzas_resumen` excluye justificadas y sueldo_fijo — **no** feriados ni vacaciones |
-| **A7** | `fn_set_horario` y `fn_quitar_horario` reescriben un mes pagado sin candado ni auditoría | las dos existen, ninguna nombra `PAGADO`, **ninguna pantalla las llama** (solo aparecen en los tipos generados) y las dos siguen con `grant` a `authenticated` |
+| **A7** | 🟠 `fn_set_horario` y `fn_quitar_horario`: puerta RPC muerta que borra horarios sin dejar rastro. **Ya NO tocan un mes pagado** — ver su entrada | las dos existen, **ninguna pantalla las llama** (solo aparecen en los tipos generados) y las dos siguen con `grant` a `authenticated` |
 | **A9** | el día compensatorio puede caer sobre vacaciones u otro feriado | `fn_dcs_validar_dia_laborable` no consulta `vacaciones` ni `feriados` |
 | **C4** | salida pasada la medianoche parte el día en dos | `fn_registrar_marcaje` no contempla la jornada abierta del día anterior, y `fn_recalcular_jornada` no tiene tope de horas |
 | **A15** | la marca se encola DESPUÉS de intentar enviarla, y el envío no tiene tope de tiempo | `if (error) await encolarMarcaje(entry)` en `:307`, y ni un `AbortSignal` en todo el archivo |
@@ -320,7 +320,26 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 **Arreglo:** Cambiar la condición a que exija identidad en vez de tolerar su ausencia: 'if v_terminal_auth is distinct from auth.uid() then raise exception …' (así el null del terminal también rebota), y cerrar el estado imposible en el esquema — 'alter table terminales add constraint terminal_activo_vinculado check (not activo or auth_user_id is not null)'. Un terminal activo sin dueño no debería poder existir. Antes de aplicar el check, correr en producción: select id, nombre_dispositivo, sede_id from terminales where activo and auth_user_id is null;
 
-### 7. Una encargada de sede puede borrar el horario de su equipo y reescribir las tardanzas de un mes YA PAGADO, sin dejar auditoría
+### 7. Una encargada puede borrar el horario de su equipo sin dejar rastro — 🟠 pero YA NO toca un mes pagado
+
+> ⚠️ **LA MITAD CARA DE ESTE HALLAZGO YA NO ES CIERTA.** Medido el 2026-08-08
+> reproduciendo el caso entero: junio pagado, una persona con 45 minutos de
+> tardanza el 16, y la llamada hecha por una **encargada de sede** (no una
+> administradora). `fn_quitar_horario` **pasa** —no tiene candado, eso sigue
+> siendo verdad— pero **la tardanza se queda en 45**. El daño lo frena un piso
+> más abajo: `fn_recalcular_jornada` lleva su propio candado desde la
+> [`0138`](../supabase/migrations/0138_un_periodo_pagado_no_cambia_de_horas.sql),
+> que entró el 04/08 a las 17:40 — el mismo día en que se curó este catálogo, así
+> que la curación no la vio.
+>
+> **Lo que SÍ se reprodujo, con junio abierto:** la misma llamada deja la
+> tardanza en **nada** (de 45 a NULL) y `correcciones_auditoria` sigue en cero.
+> Y quedarse sin horario no es cosmético: `fn_faltas` y `fn_faltas_resumen`
+> exigen horario, así que esa persona **desaparece del motor de faltas**. En el
+> periodo abierto —el que se paga el 28— eso sí pasa.
+>
+> **Sigue valiendo la pena borrarlas**, pero por lo que son: superficie RPC
+> muerta. No por lo que este título decía.
 
 `seguridad-permisos` · 💰 dinero · arreglo de **minutos**
 
