@@ -92,13 +92,22 @@ pegado ese mismo día.
 
 O sea que el razonamiento de arriba —«si el canal fuera el culpable estarían
 rotas las 199»— **era falso**: el daño no entra de una vez, entra **por pegada**.
-Las 0180, 0181, 0183 y 0184 salieron limpias y llegaron por `dame-el-sql.sh`
-(portapapeles); la 0185 vino por otra vía y salió rota.
 
-**Falta averiguar por dónde llegó la 0185.** Es la única pregunta que cierra
-esto, y no se puede responder desde el código. Mientras tanto,
-`que_falta_pegar.sql` trae una fila **ACENTOS** que barre el esquema entero
-buscando el signo «√»: es la que va a cazar la próxima, catalogada o no.
+✅ **Y la causa se encontró el mismo día: era `pbcopy` con el locale en `C`**
+dentro del propio `dame-el-sql.sh`. Con `LC_CTYPE=C` el portapapeles interpreta
+el UTF-8 como MacRoman y cada acento se parte en dos. O sea que la ruta culpable
+no era «otra vía»: era la nuestra, en las sesiones cuyo entorno tenía ese locale
+—por eso cuatro migraciones del mismo día salieron limpias y una no—. Ya está
+arreglado: el script compara el portapapeles byte por byte contra el archivo y se
+niega si no coinciden. Ver la regla en `CLAUDE.md`.
+
+**Quedan dos detectores permanentes, y ninguno depende de una lista a mano:** la
+fila **ACENTOS** de `que_falta_pegar.sql`, que barre el esquema entero buscando
+el signo «√», y la columna `tiene_acentos_rotos` de
+`en_que_version_esta_la_planilla.sql`. El catálogo de md5 de esa consulta
+**también se calcula solo** desde las migraciones, con `iconv -f MAC` para
+generar la variante rota de cada versión: llegó a mentir tres veces en un día
+mientras se escribía a mano.
 
 ### El agujero que casi se anuncia y no existía
 
@@ -750,22 +759,35 @@ al tope.
    aplicadas y confirmadas. Ver el apartado [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado)
    para lo que significaba el segundo.
 
-4. **Nueve funciones y dos columnas corren SOLO en producción.** No están rotas:
-   están indocumentadas, que a plazo es peor. Deciden marcajes y sueldos cada
-   día, ninguna prueba las toca, y si hubiera que reconstruir la base se pierden.
-   Siete tienen más código que su versión del repositorio —`fn_agregar_marcaje`
-   **+664 caracteres**, `fn_set_sueldo_base_legal` +562, `fn_quitar_rendimiento`
-   +358, `fn_corregir_marcaje` +260, `fn_set_rendimiento` +235,
-   `fn_eliminar_marcaje` +92, `fn_set_meta_cobertura/3` +11— y dos no existen
-   aquí: `fn_resellar_dia` y `fn_set_devenga_beneficios`, esta última con
-   `personas.devenga_beneficios` y `personas.devenga_hasta`.
+4. ~~**Nueve funciones y dos columnas corren SOLO en producción**~~ — ✅ **cerrado
+   el 2026-08-08.** La 0188 rescató cuatro; la
+   [`0194`](../supabase/migrations/0194_el_interruptor_de_beneficios_por_persona_entra_al_repositorio.sql)
+   y la [`0195`](../supabase/migrations/0195_las_cuatro_funciones_que_el_repositorio_no_conocia.sql)
+   las cinco restantes. Aplicadas y confirmadas. Verificado con un `db reset`
+   completo: reconstruida la base solo desde los archivos, todo sigue ahí.
 
-   **Esas dos últimas son el botón por persona que decide quién devenga CTS,
-   gratificación y vacaciones** — el trabajo que se dio por perdido en otra
-   sesión y que en realidad lleva semanas corriendo. La consulta de rescate y el
-   aviso están en
-   [`rescatar_lo_que_solo_vive_en_produccion.sql`](../scripts/sql-manual/rescatar_lo_que_solo_vive_en_produccion.sql).
-   **Rescatar primero, arreglar después. Nunca al revés.**
+   **Y lo que apareció al rescatarlas vale más que el rescate.** Lo que esas
+   cuatro funciones tenían «de más» era **el candado de planilla pagada** que el
+   repositorio no tenía: `fn_set_rendimiento` y `fn_quitar_rendimiento` se niegan
+   a puntuar o despuntuar un mes ya pagado, y `fn_set_sueldo_base_legal` a
+   cambiar la básica de quien tenga meses pagados con puntuación menor a 100.
+   Cualquier migración que hubiera copiado del repositorio los habría borrado en
+   silencio — lo mismo que la 0180 tuvo que reponer el mismo día.
+
+   ⚠️ **EL INTERRUPTOR DE BENEFICIOS POR PERSONA NO ESTÁ CONECTADO.** Medido en
+   producción, no deducido: `funciones_que_lo_leen: 0`.
+   `fn_devenga_beneficios(p_tipo)` tiene como cuerpo entero
+   `select p_tipo = 'planilla'` — mira el **tipo de vínculo**, no la columna — y
+   sus cuatro consumidores la llaman con el tipo. La pantalla de Equipo dice que
+   el interruptor funciona y **no hace nada**. Quien lo haya apagado para alguien
+   verá a esa persona seguir acumulando CTS, gratificación y vacaciones.
+   Compruébalo con
+   [`quien_uso_el_interruptor.sql`](../scripts/sql-manual/quien_uso_el_interruptor.sql).
+
+   **Conectarlo es decisión de Felipe: es dinero.** Y antes hay un problema de
+   forma: `devenga_beneficios` es **un solo booleano** para los tres beneficios a
+   la vez, y la decisión sobre Carlos Espejo —«grati y CTS sí, vacaciones no»— no
+   cabe ahí. O se parte en tres banderas, o va por otro camino.
 
 5. **Seguridad pendiente** (de `revision-2026-07-15/`):
    - Contraseña mínima 6 sin complejidad, sin cambio forzado en primer login —
