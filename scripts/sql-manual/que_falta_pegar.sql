@@ -66,7 +66,8 @@ with repo(numero, nombre) as (values
     (189, 'una_tardanza_de_tres_horas_deja_de_desaparecer'),
     (190, 'quien_ya_se_jubilo_deja_de_aportar'),
     (191, 'a_un_locador_no_se_le_mide_la_hora_de_entrada'),
-    (192, 'la_base_imponible_se_dice_una_sola_vez')
+    (192, 'la_base_imponible_se_dice_una_sola_vez'),
+    (193, 'el_feriado_y_el_sobretiempo_entran_a_la_base_de_aportes')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
