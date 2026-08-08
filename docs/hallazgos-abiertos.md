@@ -14,10 +14,45 @@ reproduce hoy, táchalo y anota por qué.
 
 ---
 
-## Dónde está esto hoy (curado el 2026-08-04)
+## Dónde está esto hoy (reverificado el 2026-08-08, uno por uno)
 
-**Quedan 23 abiertos de los 34.** Los otros 11 ya están tachados con la
-migración o el archivo que los cerró.
+**Quedan 17 problemas distintos.** No es una estimación: cada entrada se
+comprobó contra el esquema y el código de hoy, y abajo está la línea exacta que
+lo demuestra. De las 22 que el archivo daba por abiertas, **cuatro ya estaban
+arregladas sin tacharse** (C5, C8, C13 y A18) y **una está medio cerrada** (A11).
+Dos pares describen el mismo defecto: C13≡A18 y C12≡A16.
+
+### Vivos, en orden de consecuencia
+
+| # | Qué | La prueba de que sigue |
+|---|---|---|
+| **C12 · A16** | `fn_registrar_marcaje` sin candado de periodo pagado — la puerta más usada del sistema | su cuerpo vigente no contiene la palabra `PAGADO` |
+| **A3** | el cron de auto-cierre reescribe periodos ya pagados | `fn_auto_cierre` no nombra `periodos_planilla` ni una vez |
+| **C3** | tardanza de más de 180 min se guarda como NULL y paga el bono | `if v_minutos_tarde > 180 then v_minutos_tarde := null;` — **y hay una segunda igual para la salida temprana que el hallazgo no vio** |
+| **C13** | reactivar a quien se cesó por error le paga S/0 | `fn_reactivar_persona` no menciona `asignaciones_salario`: no reabre el tramo que el cese cerró |
+| **C14** | corregir un auto-cierre deja DOS salidas finales | `fn_agregar_marcaje` no nombra `auto_cierre`: inserta sin reconciliar |
+| **A1** | el bono de puntualidad se paga con el denominador del día en que se pulsó | `v_dias_periodo := least(v_fin, (now() at time zone 'America/Lima')::date) - v_ini + 1` |
+| **A6** | el guard del terminal cae abierto si `auth_user_id` es null | sigue el `and … is not null` en vez de `is distinct from`, y en `terminales` solo hay FK y UNIQUE — **no** el check de activo-vinculado |
+| **A19** | una tardanza perdonada sigue contando en tres pantallas | `tardanzas_justificadas` aparece **cero** veces en Horas, Reporte-sede y `/api/espejo` |
+| **A4** | trabajar un feriado genera tardanzas | `fn_tardanzas_resumen` excluye justificadas y sueldo_fijo — **no** feriados ni vacaciones |
+| **A7** | `fn_set_horario` y `fn_quitar_horario` reescriben un mes pagado sin candado ni auditoría | las dos existen, ninguna nombra `PAGADO`, **ninguna pantalla las llama** (solo aparecen en los tipos generados) y las dos siguen con `grant` a `authenticated` |
+| **A9** | el día compensatorio puede caer sobre vacaciones u otro feriado | `fn_dcs_validar_dia_laborable` no consulta `vacaciones` ni `feriados` |
+| **C4** | salida pasada la medianoche parte el día en dos | `fn_registrar_marcaje` no contempla la jornada abierta del día anterior, y `fn_recalcular_jornada` no tiene tope de horas |
+| **A15** | la marca se encola DESPUÉS de intentar enviarla, y el envío no tiene tope de tiempo | `if (error) await encolarMarcaje(entry)` en `:307`, y ni un `AbortSignal` en todo el archivo |
+| **A14** | sin service worker, un reinicio sin internet deja la sede sin marcar | no hay `sw.js` ni manifest en `public/`, ni dependencia de PWA |
+| **A12** | la Hoja de sede se imprime en ceros si una consulta falla | una sola aparición de `error` en las ocho consultas |
+| **A5** | «suspensión de 3 días» desde el viernes es 1 día real | `fn_dias_suspension` existe y **ninguna pantalla la llama** |
+| **A11** | 🟡 el borrador ya dice «BORRADOR», pero sigue firmado por Gerencia General | ver su entrada |
+
+**Lo que hoy cambió el terreno:** varios de estos hallazgos se apoyan en la frase
+«todas sus hermanas sí llevan el candado». El 2026-08-08 se descubrió que **en
+producción seis de esas hermanas no lo llevaban** desde julio; la 0180 lo repuso.
+La premisa vuelve a ser cierta, pero conviene recordar que era falsa mientras
+estos hallazgos se escribían.
+
+**Y el más barato de todos es A7:** son dos funciones que nadie llama y que
+PostgREST sigue exponiendo. `drop function` las dos y el hallazgo desaparece sin
+escribir lógica — código que no existe no se puede llamar por RPC.
 
 El catálogo había quedado congelado: entre medias entraron las migraciones 0089
 a 0131 y los pgTAP 92 a 99, que cerraron **siete hallazgos sin tacharlos** (C2,
@@ -34,11 +69,16 @@ táchalo en el mismo commit.
 | C3 | Tardanza de más de 180 min se guarda como NULL y paga el bono | `0081:174` sigue con `if v_minutos_tarde > 180 then v_minutos_tarde := null` |
 | A11 | El memo en borrador se imprime firmado por Gerencia General | el estado inicial sigue siendo `EMPRESA.firmante`, y el aviso de borrador sigue con `no-print` |
 
-Los 20 restantes están sin re-verificar contra el esquema de hoy: antes de
-tocarlos, reproduce.
+**Los 17 «Menores, sin verificar» del final siguen sin verificar** — nunca
+pasaron por el refutador y esta pasada no los tocó. Trátalos como candidatos, no
+como hechos: cuatro de ellos describen el mismo `fn_periodo_pagado(id, false)`
+que el Alto 20 ya dio por cerrado.
 
-**Dos huecos de numeración en las migraciones:** no existe la **0108**. (La 0126
-sí existe, aunque `estado.md` la dé por hueco — corregir allá.)
+**Los huecos de numeración ya no van aquí.** Son cinco (0031, 0033, 0108, 0133,
+0139), están investigados uno por uno en
+[`scripts/hooks/huecos-conocidos.txt`](../scripts/hooks/huecos-conocidos.txt), y el
+hook de pre-push avisa solo de los que **no** estén en esa lista. Un dato que un
+guardián vigila solo no necesita estar escrito en dos sitios.
 
 
 ---
@@ -93,7 +133,11 @@ sí existe, aunque `estado.md` la dé por hueco — corregir allá.)
 
 **Arreglo:** Que la jornada, no el calendario, sea la unidad. En fn_registrar_marcaje: si la persona tiene una jornada abierta del día anterior y la marca entrante es una salida/retorno dentro de una ventana razonable (p.ej. ≤ 8 h desde la última marca), atribuirla a la fecha de esa jornada abierta en vez de a la fecha calendario — y espejar la misma regla en `determinarSiguienteAccion` (packages/shared) y en estado-dia.ts, que hoy solo consulta desde las 00:00. Parche inmediato mientras tanto (minutos): un check en fn_recalcular_jornada que selle como "por revisar" toda jornada de más de 16 h en vez de dejarla pasar al pago.
 
-### 5. El generador del memo cuenta como falta los días de una suspensión ya cumplida y los días de descanso sustitutorio
+### 5. ~~El generador del memo cuenta como falta los días de una suspensión ya cumplida y los días de descanso sustitutorio~~
+
+> ✅ **CERRADO.** Verificado el 2026-08-08 contra el esquema vigente:
+> `fn_falta_contadores` ya nombra `fn_dia_suspendido` **y** el descanso
+> sustitutorio, que eran justo las dos ramas que le faltaban.
 
 `disciplina-legal` · ⚖️ decisión injusta · arreglo de **horas**
 
@@ -127,7 +171,13 @@ sí existe, aunque `estado.md` la dé por hueco — corregir allá.)
 
 **Arreglo:** Dos cosas, no una. (a) Meter el guard DENTRO de fn_planilla_calcular: 'if fn_es_admin_o_lider() is not true then raise exception …' — el revoke solo no basta, porque el próximo grant masivo lo vuelve a abrir; el guard adentro es el que no se puede deshacer por accidente. Ojo: fn_simular_planilla la llama y también fn_periodos/fn_proyeccion_periodo, así que hay que confirmar que todos los que la invocan pasan el guard (todos son de admin). (b) Revocar de authenticated fn_planilla_calcular y fn_objetivos_sync_mes, y añadir a la 0076 una lista negra explícita para que un futuro bucle nunca vuelva a otorgarlas. Verificación en el SQL Editor de producción: select has_function_privilege('authenticated','fn_planilla_calcular(date,date,uuid)','EXECUTE');
 
-### 8. Las vacaciones no se pagan: la planilla no sabe que existen, y la pantalla promete lo contrario
+### 8. ~~Las vacaciones no se pagan: la planilla no sabe que existen, y la pantalla promete lo contrario~~
+
+> ✅ **CERRADO** por la
+> [`0177`](../supabase/migrations/0177_las_vacaciones_se_pagan_como_dias_trabajados.sql).
+> Verificado el 2026-08-08: `fn_planilla_calcular` lee la tabla `vacaciones` y
+> devuelve `dias_vacaciones` y `monto_vacaciones` como componentes separados —
+> exactamente los dos campos auditables que el arreglo pedía.
 
 `vacaciones-feriados` · 💰 dinero · arreglo de **dias**
 
@@ -316,7 +366,19 @@ sí existe, aunque `estado.md` la dé por hueco — corregir allá.)
 
 **Arreglo:** Paginar: pedir con `.range(desde, desde+999)` en bucle hasta que un lote venga con menos de 1000 filas, o mejor, mover la agregación a un RPC (`fn_horas_resumen(p_desde, p_hasta)`) que devuelva una fila por persona en vez de una por jornada — el resumen de horas ya suma en el cliente algo que Postgres agrega mejor, y una fila por persona nunca se acerca al tope. Como red de seguridad inmediata mientras tanto: pedir `{ count: 'exact' }` y, si `count > filas.length`, bloquear la descarga con un aviso explícito en vez de entregar un archivo incompleto.
 
-### 11. El memo disciplinario en borrador se imprime firmado por Felipe Alvarez / Gerencia General
+### 11. El memo en borrador sigue imprimiéndose «De: Felipe Alvarez · Gerencia General» — 🟡 medio cerrado
+
+> 🟡 **MITAD CERRADA, mitad viva.** Verificado el 2026-08-08, línea por línea.
+> **Ya no miente sobre el número:** el papel imprime «BORRADOR — sin numerar»
+> donde iría el correlativo (`:218`), así que un borrador impreso se distingue.
+> **Sigue mintiendo sobre quién lo suscribe:** `firmante` arranca en
+> `EMPRESA.firmante` (`:51`) y solo se reemplaza dentro de `if (doc.firmante_id)`
+> (`:95`), que en un borrador es null — de modo que `:227` imprime
+> «De: Alvarez Pereyra Felipe Miguel · Gerencia General» en un documento que
+> nadie ha firmado. El botón «Imprimir» (`:190`) sigue sin `disabled`, y el
+> aviso de borrador sigue con `no-print` (`:207`).
+> **Lo que queda por hacer son dos líneas:** no caer al firmante por defecto
+> cuando `firmante_id` es null, y quitarle el `no-print` al aviso.
 
 `frontend-admin` · ⚖️ decisión injusta · arreglo de **minutos**
 
@@ -336,7 +398,12 @@ sí existe, aunque `estado.md` la dé por hueco — corregir allá.)
 
 **Arreglo:** Aplicar el mismo patrón que ya usan Horas e Incidencias: destructurar `error` de `personas` y `jornadas`, y si alguna falló, `setError(...)` + `return` sin tocar `filas` ni `setCargado(true)` — así el botón de PDF queda deshabilitado. Para las RPC de disciplina, distinguir «sin alertas» de «no se pudo consultar»: si fallan, la sección debe decirlo, no felicitar. Y usar `reales` (o `js`) de forma consistente en las cuatro métricas: hoy la misma fila cuenta para las horas y no para los días.
 
-### 13. fn_siguiente_tipo_esperado no filtra las anuladas en su última consulta — deja a la persona atrapada sin poder cerrar su día
+### 13. ~~fn_siguiente_tipo_esperado no filtra las anuladas en su última consulta — deja a la persona atrapada sin poder cerrar su día~~
+
+> ✅ **CERRADO.** Verificado el 2026-08-08 contando sobre el cuerpo vigente:
+> `anulada_at is null` aparece **tres** veces, una por cada consulta. La tercera
+> —la que busca la última marca del día— ya lo lleva. Mismo hallazgo que el
+> Alto 18.
 
 `terminal-offline` · 💰 dinero · arreglo de **minutos**
 
@@ -388,7 +455,14 @@ sí existe, aunque `estado.md` la dé por hueco — corregir allá.)
 
 **Arreglo:** Crear scripts/hooks/pre-push (typecheck + pnpm test, y un chequeo de numeración duplicada en supabase/migrations — `ls supabase/migrations | cut -c1-4 | sort | uniq -d` habría atajado esto en un segundo) y scripts/desplegar.sh tal como los describe CLAUDE.md, commitearlos, y documentar `git config core.hooksPath scripts/hooks`. Añadir un job de typecheck al workflow. Mientras no existan, corregir CLAUDE.md: hoy describe protecciones que nadie tiene.
 
-### 18. Anular una salida temporal deja a la persona sin poder marcar su salida final
+### 18. ~~Anular una salida temporal deja a la persona sin poder marcar su salida final~~
+
+> ✅ **CERRADO.** Mismo hallazgo que el Crítico 13, y misma comprobación del
+> 2026-08-08: las tres consultas de `fn_siguiente_tipo_esperado` filtran las
+> anuladas. **Queda viva la mitad estructural**, que es de otro orden: la regla
+> «qué toca marcar ahora» sigue escrita en dos idiomas —SQL y navegador— sin
+> nada que compare las dos respuestas. Eso vive en `estado.md` como el punto 1
+> de «Atender primero», no aquí.
 
 `consistencia-deuda` · 🚫 operación bloqueada · arreglo de **minutos**
 
