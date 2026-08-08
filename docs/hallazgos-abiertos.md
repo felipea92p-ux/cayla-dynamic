@@ -16,11 +16,19 @@ reproduce hoy, táchalo y anota por qué.
 
 ## Dónde está esto hoy (reverificado el 2026-08-08, uno por uno)
 
-**Quedan 17 problemas distintos.** No es una estimación: cada entrada se
+**Quedan 16 problemas distintos.** No es una estimación: cada entrada se
 comprobó contra el esquema y el código de hoy, y abajo está la línea exacta que
 lo demuestra. De las 22 que el archivo daba por abiertas, **cuatro ya estaban
-arregladas sin tacharse** (C5, C8, C13 y A18) y **una está medio cerrada** (A11).
-Dos pares describen el mismo defecto: C13≡A18 y C12≡A16.
+arregladas sin tacharse** (C5, C8, C13 y A18), **una se cerró el mismo día**
+(A7, con la 0184) y **una está medio cerrada** (A11). Dos pares describen el
+mismo defecto: C13≡A18 y C12≡A16.
+
+**Y una advertencia que esta pasada dejó cara:** antes de creerse cualquiera de
+los 16, **mirar qué hay una capa más abajo**. Tres hallazgos que parecían graves
+se cayeron el 2026-08-08 porque un candado posterior ya los tapaba —el índice
+`periodos_etiqueta_unica`, el constraint `periodos_sin_solape` y el candado que
+la 0138 le puso a `fn_recalcular_jornada`—. Varios de estos 16 se escribieron
+antes que las migraciones que los protegen.
 
 ### Vivos, en orden de consecuencia
 
@@ -35,7 +43,7 @@ Dos pares describen el mismo defecto: C13≡A18 y C12≡A16.
 | **A6** | el guard del terminal cae abierto si `auth_user_id` es null | sigue el `and … is not null` en vez de `is distinct from`, y en `terminales` solo hay FK y UNIQUE — **no** el check de activo-vinculado |
 | **A19** | una tardanza perdonada sigue contando en tres pantallas | `tardanzas_justificadas` aparece **cero** veces en Horas, Reporte-sede y `/api/espejo` |
 | **A4** | trabajar un feriado genera tardanzas | `fn_tardanzas_resumen` excluye justificadas y sueldo_fijo — **no** feriados ni vacaciones |
-| **A7** | 🟠 `fn_set_horario` y `fn_quitar_horario`: puerta RPC muerta que borra horarios sin dejar rastro. **Ya NO tocan un mes pagado** — ver su entrada | las dos existen, **ninguna pantalla las llama** (solo aparecen en los tipos generados) y las dos siguen con `grant` a `authenticated` |
+| ~~**A7**~~ | ✅ **cerrado el 2026-08-08** por la 0184: `fn_set_horario` y `fn_quitar_horario` ya no existen | confirmado en producción: `puertas_que_quedan: 0` |
 | **A9** | el día compensatorio puede caer sobre vacaciones u otro feriado | `fn_dcs_validar_dia_laborable` no consulta `vacaciones` ni `feriados` |
 | **C4** | salida pasada la medianoche parte el día en dos | `fn_registrar_marcaje` no contempla la jornada abierta del día anterior, y `fn_recalcular_jornada` no tiene tope de horas |
 | **A15** | la marca se encola DESPUÉS de intentar enviarla, y el envío no tiene tope de tiempo | `if (error) await encolarMarcaje(entry)` en `:307`, y ni un `AbortSignal` en todo el archivo |
@@ -50,9 +58,6 @@ producción seis de esas hermanas no lo llevaban** desde julio; la 0180 lo repus
 La premisa vuelve a ser cierta, pero conviene recordar que era falsa mientras
 estos hallazgos se escribían.
 
-**Y el más barato de todos es A7:** son dos funciones que nadie llama y que
-PostgREST sigue exponiendo. `drop function` las dos y el hallazgo desaparece sin
-escribir lógica — código que no existe no se puede llamar por RPC.
 
 El catálogo había quedado congelado: entre medias entraron las migraciones 0089
 a 0131 y los pgTAP 92 a 99, que cerraron **siete hallazgos sin tacharlos** (C2,
@@ -320,9 +325,31 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 **Arreglo:** Cambiar la condición a que exija identidad en vez de tolerar su ausencia: 'if v_terminal_auth is distinct from auth.uid() then raise exception …' (así el null del terminal también rebota), y cerrar el estado imposible en el esquema — 'alter table terminales add constraint terminal_activo_vinculado check (not activo or auth_user_id is not null)'. Un terminal activo sin dueño no debería poder existir. Antes de aplicar el check, correr en producción: select id, nombre_dispositivo, sede_id from terminales where activo and auth_user_id is null;
 
-### 7. Una encargada puede borrar el horario de su equipo sin dejar rastro — 🟠 pero YA NO toca un mes pagado
+### 7. ~~Una encargada puede borrar el horario de su equipo sin dejar rastro~~
 
-> ⚠️ **LA MITAD CARA DE ESTE HALLAZGO YA NO ES CIERTA.** Medido el 2026-08-08
+> ✅ **CERRADO el 2026-08-08** por la
+> [`0184`](../supabase/migrations/0184_las_dos_puertas_de_horario_que_nadie_usa_se_cierran.sql):
+> `fn_set_horario` y `fn_quitar_horario` dejaron de existir. Aplicada y
+> confirmada en producción — `puertas_que_quedan: 0`.
+>
+> Se borraron en vez de parchearlas: copiarles el candado habría dejado dos
+> copias de una regla que ya vive en `fn_set_horario_semanal`, y la próxima
+> corrección se habría aplicado a una sola. Se comprobó por tres caminos que
+> nadie las usaba —pantallas, cuerpos de otras funciones, triggers— y la
+> auditoría en `BEGIN … ROLLBACK` verificó que `fn_set_horario_semanal`
+> sobrevive: su nombre empieza igual, y un `drop` mal escrito se la llevaba.
+>
+> **Nota de método, que vale más que el arreglo.** El título original decía
+> «…y reescribe las tardanzas de un mes YA PAGADO». Medido antes de creerlo, esa
+> mitad era falsa: `fn_recalcular_jornada` lleva su propio candado desde la 0138,
+> que entró unas horas después de escribirse este hallazgo. Lo que sí se
+> reprodujo —y fue el motivo real del borrado— es que en el periodo ABIERTO la
+> llamada deja la tardanza en NULL sin auditoría, y que sin horario la persona
+> desaparece de `fn_faltas` y `fn_faltas_resumen`, que lo exigen.
+
+<details><summary>El diagnóstico original, para el registro</summary>
+
+> ⚠️ **LA MITAD CARA DE ESTE HALLAZGO NO ERA CIERTA.** Medido el 2026-08-08
 > reproduciendo el caso entero: junio pagado, una persona con 45 minutos de
 > tardanza el 16, y la llamada hecha por una **encargada de sede** (no una
 > administradora). `fn_quitar_horario` **pasa** —no tiene candado, eso sigue
@@ -348,6 +375,8 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 **Qué pasa:** Las dos recalculan todas las jornadas desde la fecha de vigencia hacia adelante, y ninguna comprueba si esas fechas caen en un periodo pagado. Su gemela fn_set_horario_semanal sí lo comprueba y lanza 'Ese horario tocaría un periodo ya PAGADO'. Es el caso 2 de Brooks: dos funciones que hacen lo mismo, una con candado y otra sin. Además el permiso lo da fn_verificar_corrector, que autoriza a supervisor_sede sobre cualquier persona de su sede — así que no hace falta ser admin. Y ninguna escribe en correcciones_auditoria. Lo que se altera no es cosmético: minutos_tarde alimenta el bono de puntualidad (dinero de un mes ya cerrado) y el expediente disciplinario (D.S. 003-97-TR). Detalle que decide el arreglo: ninguna pantalla las llama — el panel solo usa fn_set_horario_semanal (turnos/page.tsx:336 y :684, horarios/page.tsx:186). Son superficie RPC muerta que sigue con grant a authenticated.
 
 **Arreglo:** Borrar antes que parchear: como ninguna pantalla las usa, lo más limpio es 'drop function fn_set_horario(...)' y 'drop function fn_quitar_horario(...)' — código que no existe no se puede llamar por RPC. Si se prefiere conservarlas, copiarles literalmente el bloque de candado de fn_set_horario_semanal ('if exists (select 1 from periodos_planilla where estado = ''pagado'' and fecha_fin >= p_vigente_desde) then raise …') y hacer que registren en correcciones_auditoria como el resto de las correcciones.
+
+</details>
 
 ### 8. ~~El descanso sustitutorio cambia el monto de un periodo de planilla YA PAGADO, sin candado y sin rastro~~
 
