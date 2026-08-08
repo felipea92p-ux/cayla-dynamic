@@ -134,11 +134,45 @@ select * from (
              when '46c6c3de546f4da080d328a079470478' then '0171 — sin plus ni rendimiento'
              when 'cb3c5de14dd2b5a8872965814d5e7cd9' then '0173 — sueldo fijo no duplica feriado'
              when '93e96e37e05799121485e5721de3dc06' then '0177 — las vacaciones se pagan'
+             when '187cb5c3b5389f507fc77a18f8af846c' then '0185 — el sobretiempo se paga'
+             when 'f81bcf49a3a20337365b06f5a850d53e' then '0186 — un locador no cobra vacaciones'
+             when 'ba9dfd2726ea59b86b43fc057c210ece' then '0187 — dirección no genera sobretiempo'
+             -- Las mismas, pero con los acentos rotos. No es una curiosidad: el
+             -- 2026-08-08 producción corría EXACTAMENTE esta variante de la 0185.
+             -- Sin estas cuatro líneas, la fila de arriba decía «md5 SIN
+             -- CATALOGAR» y no distinguía «versión desconocida» —que asusta— de
+             -- «versión conocida, mal pegada», que es lo que era.
+             when '17e05875aa7d862e6e9310b124e81f7e' then '0177 ⚠ CON LOS ACENTOS ROTOS'
+             when '244e9cf3de7412d7603c036040669a1b' then '0185 ⚠ CON LOS ACENTOS ROTOS'
+             when '1654991224bc19095b32468683c5a8e4' then '0186 ⚠ CON LOS ACENTOS ROTOS'
+             when '9ea5860ccb48d497209051de551e8ab3' then '0187 ⚠ CON LOS ACENTOS ROTOS'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
          ), '⚠ la función NO EXISTE'),
          '', 1000000
+
+  union all
+
+  -- El barrido, que no depende de ninguna lista escrita a mano y por eso vale
+  -- más que la fila de arriba: cuenta CUALQUIER función cuyo cuerpo lleve el
+  -- signo «√», que en castellano no aparece nunca dentro de un mensaje. Su
+  -- presencia siempre significa lo mismo: el texto entró leído como Mac OS
+  -- Roman y cada acento quedó partido en dos.
+  --
+  -- La lógica no cambia —solo se rompen los mensajes que lee una persona— pero
+  -- es la señal de que algo en el camino de pegado corrompe el texto, y eso hay
+  -- que saberlo el mismo día, no dentro de un mes.
+  select 'ACENTOS',
+         'funciones con el texto roto',
+         coalesce((
+           select case when count(*) = 0 then '✓   ninguna'
+                       else '❌  ' || count(*)::text || ': ' || string_agg(proname, ' ' order by proname) end
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname like 'fn\_%'
+             and p.prosrc like '%' || chr(8730) || '%'
+         ), '—'),
+         '', 1000001
 ) t
 order by orden;
 PIE

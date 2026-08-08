@@ -110,10 +110,10 @@ select * from (
              -- Sin estas cuatro líneas, la fila de arriba decía «md5 SIN
              -- CATALOGAR» y no distinguía «versión desconocida» —que asusta— de
              -- «versión conocida, mal pegada», que es lo que era.
-             when '17e05875e5b1e14fbdc94a2cb63bd18b' then '0177 ⚠ CON LOS ACENTOS ROTOS'
+             when '17e05875aa7d862e6e9310b124e81f7e' then '0177 ⚠ CON LOS ACENTOS ROTOS'
              when '244e9cf3de7412d7603c036040669a1b' then '0185 ⚠ CON LOS ACENTOS ROTOS'
-             when '16549912e7e0a8b9d6b8b8e0c0ab48c1' then '0186 ⚠ CON LOS ACENTOS ROTOS'
-             when '9ea5860c1dbd0e5f27e5ba0d47b0d47a' then '0187 ⚠ CON LOS ACENTOS ROTOS'
+             when '1654991224bc19095b32468683c5a8e4' then '0186 ⚠ CON LOS ACENTOS ROTOS'
+             when '9ea5860ccb48d497209051de551e8ab3' then '0187 ⚠ CON LOS ACENTOS ROTOS'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
