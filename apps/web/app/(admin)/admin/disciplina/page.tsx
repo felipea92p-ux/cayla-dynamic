@@ -37,7 +37,11 @@ const NIVEL_LABEL: Record<string, string> = {
 };
 const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
-interface TardanzaRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; }
+// `sin_medir` son los días cuya tardanza pasa de tres horas. No suman al umbral
+// legal —con una medición dudosa no se sanciona— pero hasta la 0189 no existían
+// para nadie: se guardaban como NULL y las tres consultas los leían como «no
+// hubo tardanza». Quien llegaba tres horas tarde desaparecía de esta pantalla.
+interface TardanzaRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; sin_medir: number; }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; consecutivas: number; en_30: number; en_180: number; nivel: string; }
 interface Hecho { fecha: string; minutos?: number; }
 /** Quién puede suscribir un documento concreto (fn_expediente_firmantes, mig. 0074). */
@@ -192,7 +196,13 @@ export default function DisciplinaPage() {
       supabase.from("personas").select("id, nombres, apellidos"),
     ]);
     if (eD) setMsg({ tipo: "error", texto: mensajeDeError(eD, "cargar el legajo") });
-    setTardanzas(Array.isArray(t) ? (t as TardanzaRow[]) : []);
+    // El doble casteo no es pereza: `packages/database/src/types.ts` es un
+    // archivo GENERADO y todavía describe la firma anterior de
+    // fn_tardanzas_resumen, sin `sin_medir`. Regenerarlo con el CLI de hoy
+    // reordena las 4.400 líneas del archivo entero, así que se dejó para cuando
+    // toque actualizarlo (anotado en la 0184). Es la misma forma que ya usan
+    // memo/[id], provisiones, politica-salarial y feriados por lo mismo.
+    setTardanzas(Array.isArray(t) ? (t as unknown as TardanzaRow[]) : []);
     setFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
     const lista = Array.isArray(d) ? (d as unknown as Doc[]) : [];
     setDocs(lista);
@@ -454,11 +464,29 @@ export default function DisciplinaPage() {
                 <li key={t.persona_id} id={`tard-${t.persona_id}`} className={`flex flex-wrap items-center justify-between gap-3 scroll-mt-24 px-4 py-3 text-sm transition-colors ${resaltado === `tard-${t.persona_id}` ? "bg-rojo/10" : ""}`}>
                   <span>
                     <strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
-                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "amonestacion" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>
-                      {t.tardanzas_mes} {t.umbral === "amonestacion" ? "· amonestación" : "· aviso"}
-                    </span>
+                    {t.tardanzas_mes > 0 && (
+                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "amonestacion" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>
+                        {t.tardanzas_mes} {t.umbral === "amonestacion" ? "· amonestación" : "· aviso"}
+                      </span>
+                    )}
+                    {t.sin_medir > 0 && (
+                      <span
+                        className="ml-2 rounded-full bg-sand px-2 py-0.5 text-xs text-taupe"
+                        title="Entró más de tres horas después de su hora. Casi siempre significa que ese día tenía otro turno y el sistema comparó contra el equivocado. No cuenta para el umbral legal: míralo tú."
+                      >
+                        {t.sin_medir} sin medir
+                      </span>
+                    )}
                   </span>
-                  <button onClick={() => generar("tardanza", t.persona_id)} disabled={ocupado === t.persona_id}
+                  {/* Desde la 0189 esta lista incluye a quien tiene SOLO días sin medir.
+                      Sobre esa persona no hay nada que imputar —el expediente se arma
+                      únicamente con tardanzas medibles— así que ofrecerle el botón sería
+                      prometer un documento que saldría vacío. */}
+                  <button onClick={() => generar("tardanza", t.persona_id)}
+                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0}
+                    title={t.tardanzas_mes === 0
+                      ? "Sus únicos días son de más de tres horas: no se puede imputar sobre una medición dudosa. Revisa su turno de esos días."
+                      : undefined}
                     className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
                     {ocupado === t.persona_id ? "Generando…" : "Generar borrador"}
                   </button>
