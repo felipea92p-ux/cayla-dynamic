@@ -58,7 +58,10 @@ with repo(numero, nombre) as (values
     (181, 'los_mensajes_rotos_vuelven_a_decir_lider'),
     (182, 'el_cargo_dice_que_eres_el_rol_dice_que_abres'),
     (183, 'los_periodos_vuelven_a_la_version_que_dice_el_repositorio'),
-    (184, 'las_dos_puertas_de_horario_que_nadie_usa_se_cierran')
+    (184, 'las_dos_puertas_de_horario_que_nadie_usa_se_cierran'),
+    (185, 'el_sobretiempo_se_calcula_y_se_paga'),
+    (186, 'un_locador_no_cobra_vacaciones'),
+    (187, 'el_personal_de_direccion_no_genera_sobretiempo')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
