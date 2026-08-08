@@ -39,7 +39,8 @@ cd "${RAIZ:-$(dirname "$0")/..}"
 
 SALIDA="scripts/sql-manual/que_falta_pegar.sql"
 TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT
+TMPC="$(mktemp)"
+trap 'rm -f "$TMP" "$TMPC"' EXIT
 
 # Desde la 0150 hacia adelante. Antes de esa no hay nada pendiente de pegar y
 # listar 150 filas de historia solo esconde las que importan.
@@ -62,6 +63,83 @@ fi
 
 con_nombre() {
   listar | sed -E "s/^0*([0-9]+)_(.*)\.sql$/    (\1, '\2'),/" | sed '$ s/,$//'
+}
+
+# ── El catálogo de versiones de fn_planilla_calcular, CALCULADO ──────────────
+#
+# Hasta el 2026-08-08 estas líneas se escribían a mano, y ese día mintieron TRES
+# veces en una jornada: nacieron conociendo hasta la 0177, y mientras tanto
+# entraron la 0185, 0186, 0187, 0192 y 0193. Cada vez la consulta decía «md5 SIN
+# CATALOGAR» sobre una versión perfectamente conocida, y cada vez hubo que parar
+# a comprobar si era una alarma real. Un aviso que grita por nada se deja de leer.
+#
+# Es exactamente lo que la cabecera de este script ya predicaba sobre la lista de
+# migraciones: «si es un número que un comando puede calcular, no va escrito —
+# va el comando». La lista lo cumplía; el catálogo no.
+#
+# CÓMO SE CALCULA. Se extrae el cuerpo de cada `create or replace function
+# fn_planilla_calcular` de las migraciones y se le saca el md5, que es el mismo
+# que Postgres guarda en `prosrc`. Comprobado contra los cinco valores medidos a
+# mano el 2026-08-08 (0185, 0186, 0187, 0192, 0193): idénticos los cinco.
+#
+# Y DE CADA UNA SALEN DOS. La segunda es el mismo cuerpo pasado por Mac OS Roman
+# —`iconv -f MAC`, que reproduce el daño byte a byte—, porque el 2026-08-08 la
+# 0185 llegó a producción así y el catálogo la dio por desconocida. Distinguir
+# «versión que no conozco» de «versión conocida, mal pegada» es la diferencia
+# entre una alarma y una instrucción.
+md5de() {
+  if command -v md5 >/dev/null 2>&1; then md5 -q; else md5sum | cut -d' ' -f1; fi
+}
+
+# Del archivo: desde el delimitador que abre el cuerpo hasta el que lo cierra.
+# El `print ""` inicial repone el salto de línea que va justo después del
+# delimitador y que forma parte de `prosrc`: sin él los md5 no coinciden con los
+# de la base, y el error es invisible porque el texto se ve igual.
+CUERPO_AWK='
+BEGIN { est = "buscando" }
+est == "buscando" && tolower($0) ~ /create[ \t]+or[ \t]+replace[ \t]+function[ \t]+(public\.)?fn_planilla_calcular[ \t]*\(/ { est = "cabecera"; next }
+est == "cabecera" {
+  if (match($0, /\$function\$/)) { delim = "$function$"; est = "cuerpo"; print ""; next }
+  if (match($0, /\$\$/))         { delim = "$$";         est = "cuerpo"; print ""; next }
+  next
+}
+est == "cuerpo" { if (index($0, delim) > 0) { exit } print }
+'
+
+catalogo_planilla() {
+  # `-l -i -E` y no `-lieE`: en el grep de esta Mac (ugrep) el `-e` del medio se
+  # come el patrón como si fuera su argumento, y la lista sale vacía sin avisar.
+  ARCHIVOS=$(grep -l -i -E 'create[ \t]+or[ \t]+replace[ \t]+function[ \t]+(public\.)?fn_planilla_calcular[ \t]*\(' \
+               supabase/migrations/*.sql 2>/dev/null | sort)
+  [ -z "$ARCHIVOS" ] && return 0
+  ULTIMO=$(echo "$ARCHIVOS" | tail -1)
+
+  echo "$ARCHIVOS" | while read -r f; do
+    [ -z "$f" ] && continue
+    NUM=$(basename "$f" | sed -E 's/^([0-9]+)_.*/\1/')
+    # A un archivo y no a una variable: `$(...)` se come los saltos de línea
+    # finales, y varias versiones de esta función terminan con líneas en blanco
+    # antes del delimitador. Perderlas cambia el md5 y el catálogo entero deja de
+    # coincidir con lo que Postgres guarda — sin que nada se vea distinto.
+    awk "$CUERPO_AWK" "$f" > "$TMPC"
+    # Vacío = este archivo escribe la función de una forma que el extractor no
+    # reconoce (las más viejas usan otro delimitador). Se salta: catalogar el md5
+    # de una cadena vacía como si fuera una versión sería peor que no tenerlo.
+    tr -d '[:space:]' < "$TMPC" | grep -q . || continue
+    SANO=$(md5de < "$TMPC")
+    if [ "$f" = "$ULTIMO" ]; then
+      echo "             when '$SANO' then '$NUM — al día con el repositorio'"
+    else
+      echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
+    fi
+    # La variante con los acentos rotos. Si este sistema no tiene la tabla MAC en
+    # su iconv, se omite: el catálogo pierde precisión pero nunca miente, y el
+    # barrido del signo «√» de más abajo sigue cazando el caso igual.
+    ROTO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
+    if [ -n "$ROTO" ] && [ "$ROTO" != "$SANO" ]; then
+      echo "             when '$ROTO' then '✗ $NUM CON LOS ACENTOS ROTOS — vuelve a pegarla'"
+    fi
+  done
 }
 
 {
@@ -130,22 +208,9 @@ select * from (
          'fn_planilla_calcular · versión viva',
          coalesce((
            select case md5(prosrc)
-             when '30e0ecbf11ac5939457df6c2b3cccc77' then '0166 — movilidad por sede física'
-             when '46c6c3de546f4da080d328a079470478' then '0171 — sin plus ni rendimiento'
-             when 'cb3c5de14dd2b5a8872965814d5e7cd9' then '0173 — sueldo fijo no duplica feriado'
-             when '93e96e37e05799121485e5721de3dc06' then '0177 — las vacaciones se pagan'
-             when '187cb5c3b5389f507fc77a18f8af846c' then '0185 — el sobretiempo se paga'
-             when 'f81bcf49a3a20337365b06f5a850d53e' then '0186 — un locador no cobra vacaciones'
-             when 'ba9dfd2726ea59b86b43fc057c210ece' then '0187 — dirección no genera sobretiempo'
-             -- Las mismas, pero con los acentos rotos. No es una curiosidad: el
-             -- 2026-08-08 producción corría EXACTAMENTE esta variante de la 0185.
-             -- Sin estas cuatro líneas, la fila de arriba decía «md5 SIN
-             -- CATALOGAR» y no distinguía «versión desconocida» —que asusta— de
-             -- «versión conocida, mal pegada», que es lo que era.
-             when '17e05875aa7d862e6e9310b124e81f7e' then '0177 ⚠ CON LOS ACENTOS ROTOS'
-             when '244e9cf3de7412d7603c036040669a1b' then '0185 ⚠ CON LOS ACENTOS ROTOS'
-             when '1654991224bc19095b32468683c5a8e4' then '0186 ⚠ CON LOS ACENTOS ROTOS'
-             when '9ea5860ccb48d497209051de551e8ab3' then '0187 ⚠ CON LOS ACENTOS ROTOS'
+PIE
+catalogo_planilla
+cat <<'PIE2'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
@@ -175,7 +240,7 @@ select * from (
          '', 1000001
 ) t
 order by orden;
-PIE
+PIE2
 } > "$TMP"
 
 al_dia() { [ -f "$SALIDA" ] && cmp -s "$TMP" "$SALIDA"; }
