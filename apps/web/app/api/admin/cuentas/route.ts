@@ -110,7 +110,73 @@ export async function POST(req: Request) {
         nombre: `${p.nombres} ${p.apellidos}`,
         sede: p.sedes?.codigo ?? "?",
       }));
-      return NextResponse.json({ cuentas, promovibles });
+      // Integrantes a invitar para que dejen constancia de la política salarial.
+      // La Ley 30709 obliga a INFORMARLA a cada persona y a poder probarlo, y
+      // `fn_acusar_politica_salarial` solo acepta el acuse de quien tiene sesión
+      // propia: sin cuenta, no hay forma de que dejen constancia.
+      //
+      // NO se les promueve a encargada para lograrlo — eso les daría acceso al
+      // panel de su sede. Con su rol de integrante el menú ya les muestra solo
+      // lo que les corresponde (la política salarial va sin `roles` a propósito)
+      // y las RLS de `asignaciones_salario` y `movimientos_planilla` siguen
+      // cerradas a admin/líder: no ven sueldos de nadie, ni el suyo en planilla.
+      const { data: sinCuenta } = await admin
+        .from("personas")
+        .select("id, nombres, apellidos, email, en_planilla, sedes:sede_base_id(codigo)")
+        .eq("rol", "integrante")
+        .eq("estado", "activo")
+        .eq("en_planilla", true)
+        .is("auth_user_id", null)
+        .order("apellidos");
+      const invitables = (sinCuenta ?? [])
+        .map((p: any) => ({
+          id: p.id,
+          nombre: `${p.nombres} ${p.apellidos}`,
+          sede: p.sedes?.codigo ?? "?",
+          email: p.email ?? null,
+        }));
+      return NextResponse.json({ cuentas, promovibles, invitables });
+    }
+
+    if (accion === "invitar") {
+      // Manda un correo de invitación al correo que la persona declaró. Ella
+      // elige su propia clave: nadie más la conoce, ni siquiera quien invita —
+      // a diferencia de `crear`, que devuelve la contraseña en pantalla.
+      //
+      // Y la cadena de prueba queda mejor: el correo llega a la dirección que
+      // la persona designó en su contrato como medio de comunicación válido,
+      // que es el mismo criterio con el que se entrega el RIT.
+      const { data: p } = await admin
+        .from("personas")
+        .select("id, auth_user_id, rol, email, nombres, apellidos")
+        .eq("id", personaId)
+        .maybeSingle();
+      if (!p) return NextResponse.json({ error: "persona no encontrada" }, { status: 404 });
+      if (!puedeActuarSobre(yo.rol, p.rol)) {
+        return NextResponse.json({ error: "no puedes invitar a esa persona" }, { status: 403 });
+      }
+      if (p.auth_user_id) return NextResponse.json({ error: "esa persona ya tiene cuenta" }, { status: 409 });
+      const destino = (email ?? p.email ?? "").trim();
+      if (!destino.includes("@")) {
+        return NextResponse.json(
+          { error: `${p.nombres} no tiene correo registrado. Agrégalo en Datos personales antes de invitarla.` },
+          { status: 400 },
+        );
+      }
+      const { data: inv, error } = await admin.auth.admin.inviteUserByEmail(destino);
+      if (error) {
+        Sentry.captureException(error);
+        return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
+      }
+      const { error: e2 } = await admin
+        .from("personas")
+        .update({ auth_user_id: inv.user.id })
+        .eq("id", personaId);
+      if (e2) {
+        Sentry.captureException(e2);
+        return NextResponse.json({ error: mensajeDeError(e2, "enlazar la cuenta con su ficha") }, { status: 500 });
+      }
+      return NextResponse.json({ invitado: destino });
     }
 
     if (accion === "promover") {

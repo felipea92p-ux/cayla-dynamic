@@ -24,6 +24,13 @@ interface Promovible {
   sede: string;
 }
 
+interface Invitable {
+  id: string;
+  nombre: string;
+  sede: string;
+  email: string | null;
+}
+
 const ROL_LABEL: Record<string, string> = {
   admin: "Admin",
   lider_do: "Líder DO",
@@ -45,6 +52,7 @@ export default function CuentasPage() {
   // gestión de cuentas
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [promovibles, setPromovibles] = useState<Promovible[]>([]);
+  const [invitables, setInvitables] = useState<Invitable[]>([]);
   const [cargando, setCargando] = useState(false);
   const [emailNuevo, setEmailNuevo] = useState<Record<string, string>>({});
   const [claveGenerada, setClaveGenerada] = useState<Record<string, string>>({});
@@ -67,6 +75,7 @@ export default function CuentasPage() {
     const data = await res.json();
     setCuentas(data.cuentas ?? []);
     setPromovibles(data.promovibles ?? []);
+    setInvitables(data.invitables ?? []);
     setCargando(false);
   }, [token]);
 
@@ -102,6 +111,20 @@ export default function CuentasPage() {
     setProcesando(null);
     if (data.error) { setMsgGestion(`${p.nombre}: ${data.error}`); return; }
     setMsgGestion(`${p.nombre} ahora es encargada de ${p.sede}. Ya puedes crearle su cuenta abajo.`);
+    void listar();
+  }
+
+  async function invitar(p: Invitable) {
+    setProcesando(p.id); setMsgGestion(null);
+    const res = await fetch("/api/admin/cuentas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+      body: JSON.stringify({ accion: "invitar", personaId: p.id }),
+    });
+    const data = await res.json();
+    setProcesando(null);
+    if (data.error) { setMsgGestion(`${p.nombre}: ${data.error}`); return; }
+    setMsgGestion(`Invitación enviada a ${data.invitado}. ${p.nombre} recibirá un correo para poner su propia clave.`);
     void listar();
   }
 
@@ -210,6 +233,39 @@ export default function CuentasPage() {
             </tbody>
           </table>
         </div>
+
+        <h2 className="mb-1 mt-8 font-serif text-lg">Invitar para que dejen constancia</h2>
+        <p className="mb-3 text-sm text-taupe">
+          La Ley 30709 obliga a informar la política salarial a cada persona y a poder probarlo. Para dejar
+          su constancia necesitan entrar con su propia cuenta. Al invitarlas reciben un correo y{" "}
+          <strong>eligen su clave ellas mismas</strong> — nadie más la conoce. No ven planilla, ni sueldos, ni
+          datos de nadie: su menú solo muestra lo que les corresponde.
+        </p>
+        {invitables.length === 0 ? (
+          <SinDatos texto="No hay integrantes por invitar." pista="Acá aparece quien está en planilla y todavía no tiene cuenta. Si está vacío, todas pueden dejar su constancia." />
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {invitables.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+                <span className="text-sm text-tinta">
+                  {p.nombre} <span className="text-taupe">· {p.sede}</span>
+                  {p.email ? (
+                    <span className="block text-xs text-taupe">{p.email}</span>
+                  ) : (
+                    <span className="block text-xs text-ambar">sin correo — agrégalo en Datos personales</span>
+                  )}
+                </span>
+                <button
+                  onClick={() => invitar(p)}
+                  disabled={procesando === p.id || !p.email}
+                  className="rounded-lg border border-sand px-3 py-1 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
+                >
+                  {procesando === p.id ? "…" : "Invitar"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <h2 className="mb-1 mt-8 font-serif text-lg">Convertir en encargada</h2>
         <p className="mb-3 text-sm text-taupe">
