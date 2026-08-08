@@ -62,7 +62,8 @@ with repo(numero, nombre) as (values
     (185, 'el_sobretiempo_se_calcula_y_se_paga'),
     (186, 'un_locador_no_cobra_vacaciones'),
     (187, 'el_personal_de_direccion_no_genera_sobretiempo'),
-    (188, 'el_resellado_del_dia_entra_al_repositorio')
+    (188, 'el_resellado_del_dia_entra_al_repositorio'),
+    (189, 'una_tardanza_de_tres_horas_deja_de_desaparecer')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
