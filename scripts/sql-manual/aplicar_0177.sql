@@ -10,7 +10,10 @@
 -- ANTES de pegar:
 --     select md5(prosrc) from pg_proc where proname = 'fn_planilla_calcular';
 --   cb3c5de14dd2b5a8872965814d5e7cd9 → tiene 0171 y 0173. Adelante.
---   46c6c3de546f4da080d328a079470478 → falta la 0173. Pegar aplicar_0173.sql primero.
+--   46c6c3de546f4da080d328a079470478 → falta la 0173. Pídela con
+--       ./scripts/dame-el-sql.sh 173      (aplicar_0173.sql se borró el 2026-08-08:
+--       llevaba dentro un cuerpo viejo de fn_planilla_calcular y pegarlo revertía
+--       la planilla en silencio.)
 --   30e0ecbf11ac5939457df6c2b3cccc77 → está en la 0166. NO PEGAR, avisar.
 --
 -- DESPUÉS de pegar, el md5 debe quedar exactamente en:

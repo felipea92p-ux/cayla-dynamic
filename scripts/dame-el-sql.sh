@@ -47,6 +47,7 @@ cd "${RAIZ:-$(dirname "$0")/..}"
 
 rojo()  { printf "\033[31m%s\033[0m\n" "$1"; }
 verde() { printf "\033[32m%s\033[0m\n" "$1"; }
+ambar() { printf "\033[33m%s\033[0m\n" "$1"; }
 gris()  { printf "\033[90m%s\033[0m\n" "$1"; }
 
 if [ -z "${1:-}" ]; then
@@ -111,6 +112,70 @@ else
     gris "    Pegarías una versión que nadie más tiene. Empuja lo tuyo:"
     gris "    git push"
     FALLO=1
+  fi
+fi
+
+# ── 4 · ¿Alguna migración POSTERIOR redefine lo mismo? ──────────────────────
+#
+# EL AGUJERO QUE CIERRA, medido el 2026-08-08. Producción tenía la 0177 anotada
+# como aplicada y sin embargo `fn_planilla_calcular` corría el cuerpo de la 0173:
+# las vacaciones habían dejado de pagarse como días trabajados. Las horas de
+# pegado descartaron el orden —la 0177 entró once segundos DESPUÉS de la 0173— y
+# ninguna migración posterior la redefine.
+#
+# La pisó un archivo suelto. Cinco `aplicar_*.sql` llevaban dentro el cuerpo
+# ENTERO de la función, cada uno con una versión distinta; pegar cualquiera para
+# arreglar otra cosa revertía la planilla en silencio, sin error y sin aviso. Los
+# cuatro obsoletos se borraron ese día, pero eso NO cerraba el agujero: las
+# migraciones siguen en el repo y este mismo script las entrega. `dame-el-sql.sh
+# 166` te da el cuerpo de julio con una sonrisa.
+#
+# Y no queda rastro: las migraciones se anotan con `on conflict (numero) do
+# nothing`, así que un repegado sobrescribe la función sin actualizar la fila. La
+# hora que ves es la del PRIMER pegado. La evidencia se destruye por diseño, y por
+# eso no se pudo saber quién lo hizo.
+#
+# Ya había pasado antes con `fn_crear_periodo` y `fn_eliminar_periodo`: eso es la
+# 0183. Dos veces, dos funciones, el mismo mecanismo.
+#
+# Solo AVISA, no bloquea: reaplicar una migración vieja a propósito es legítimo
+# (revertir algo, reparar una base a medias). Lo que no puede pasar es hacerlo
+# creyendo que no tiene consecuencias.
+NUM_PEDIDO=$(basename "$ARCHIVO" | sed -nE 's/^([0-9]+)_.*/\1/p')
+if [ -n "$NUM_PEDIDO" ]; then
+  PISARIA=""
+  # Las dos formas de definir que usa este repo: `create or replace function` y
+  # el `drop` + `create` de las que devuelven TABLE. Mayúsculas o minúsculas, con
+  # prefijo `public.` o sin él — la 0081 escribe distinto que las demás.
+  FUNCS=$(grep -oiE "function[[:space:]]+(public\.)?fn_[a-z0-9_]+" "$ARCHIVO" 2>/dev/null \
+          | sed -E 's/.*(fn_[a-zA-Z0-9_]+)/\1/' | tr 'A-Z' 'a-z' | sort -u)
+
+  for fn in $FUNCS; do
+    ULTIMA=""
+    for otra in supabase/migrations/*.sql; do
+      n=$(basename "$otra" | sed -nE 's/^([0-9]+)_.*/\1/p')
+      [ -z "$n" ] && continue
+      [ "$n" -le "$NUM_PEDIDO" ] 2>/dev/null && continue
+      if grep -qiE "function[[:space:]]+(public\.)?${fn}[[:space:]]*\(" "$otra" 2>/dev/null; then
+        ULTIMA="$n  $(basename "$otra" .sql)"
+      fi
+    done
+    [ -n "$ULTIMA" ] && PISARIA="${PISARIA}    ${fn}
+      la redefine después la ${ULTIMA}
+"
+  done
+
+  if [ -n "$PISARIA" ]; then
+    echo ""
+    ambar "⚠ OJO: esto REVIERTE funciones que una migración posterior ya arregló."
+    printf "%s" "$PISARIA"
+    gris "  Pegarlo devuelve esas funciones a la versión de esta migración, sin"
+    gris "  error y sin aviso. Y no quedará rastro: el apunte no se actualiza al"
+    gris "  repegar, así que después nadie podrá saber que pasó."
+    echo ""
+    gris "  Si lo que quieres es la versión VIGENTE, pide la última:"
+    gris "    ./scripts/donde-vive.sh <nombre_de_la_funcion>"
+    echo ""
   fi
 fi
 

@@ -4,21 +4,23 @@
 --
 -- PARA QUÉ
 --   Ver, sobre los datos reales de producción, qué movilidad está cobrando hoy
---   cada persona — y volver a verlo después de pegar `aplicar_0166.sql` para
+--   cada persona — y volver a verlo después de pegar la 0166 para
 --   comparar fila por fila. La 0166 mueve plata; esto es la prueba de que mueve
 --   solo la que debe.
 --
 -- CÓMO SE USA
 --   1. Pega esto en el SQL Editor ANTES de aplicar la 0166. Copia el resultado
 --      (o toma captura). Esa es la foto del «antes».
---   2. Pega `aplicar_0166.sql`.
+--   2. Pega la 0166:  ./scripts/dame-el-sql.sh 166
+--      (aplicar_0166.sql se borró el 2026-08-08 — llevaba un cuerpo viejo de
+--       fn_planilla_calcular. El script avisa de eso antes de entregártela.)
 --   3. Vuelve a pegar esto. Compara.
 --
 -- QUÉ DEBERÍA CAMBIAR, y NADA MÁS
 --   · ESTEFANY  → tarifa 10.00 (hoy sale un monto sin criterio)
 --   · FELIPE    → movilidad 0.00
 --   · Quien esté en una sede SIN tarifa propia → pasa a 0.00
---       (hoy cobra el pasaje de otra ciudad; ver el punto 3 de aplicar_0166)
+--       (hoy cobra el pasaje de otra ciudad; ver el punto 3 de la migración 0166)
 --   · TODOS LOS DEMÁS → exactamente el mismo número que antes
 --
 --   Si cambia alguien que no está en esa lista, NO SIGAS: avisa antes de
