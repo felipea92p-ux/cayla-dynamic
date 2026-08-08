@@ -1901,6 +1901,16 @@ export type Database = {
         Args: never
         Returns: Json
       }
+      // Agregada a mano (migración 0182): `supabase gen types` no corre en esta
+      // máquina («Failed to end the connection on error»), así que las entradas
+      // nuevas se escriben acá marcadas hasta que vuelva a correr.
+      fn_set_cargo: {
+        Args: {
+          p_persona_id: string
+          p_cargo: string | null
+        }
+        Returns: undefined
+      }
       fn_areas: {
         Args: never
         Returns: Json

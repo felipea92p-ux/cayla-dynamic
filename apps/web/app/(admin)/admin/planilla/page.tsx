@@ -108,6 +108,11 @@ export interface Fila {
   estado: string;
   rango: string | null;
   salario_ref: number | null;
+  // Si NO está en planilla —locador por honorarios— la fila no muestra la
+  // categoría de la escala: la escala es de trabajadores, y decir que ocupa una
+  // es parte de lo que desnaturaliza una locación de servicios (0182). El dato
+  // de `rango` se conserva porque es de donde sale cuánto se le transfiere.
+  en_planilla: boolean | null;
   horas_mes: number;
   dias_trabajados: number;
   dias_pendientes: number;
@@ -439,7 +444,10 @@ function TablaPlanilla(props: {
                   <td className="px-4 py-2">
                     {f.salario_ref !== null ? (
                       <span className="whitespace-nowrap">
-                        {(f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—"} · {formatSoles(f.salario_ref)}
+                        {f.en_planilla === false
+                          ? "Honorarios"
+                          : ((f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—")}
+                        {" · "}{formatSoles(f.salario_ref)}
                       </span>
                     ) : (
                       <span className="text-rojo">Sin salario</span>

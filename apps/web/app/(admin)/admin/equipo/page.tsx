@@ -84,6 +84,10 @@ interface Persona {
   // Qué es esta persona para el sistema (0085). Decide si acumula gratificación,
   // CTS y vacaciones, si recibe movilidad y si genera EsSalud (0117 y 0119).
   tipo_vinculo: string;
+  // Qué ES esta persona para CAYLA: «Socia», «Asesor» (0182). Es lo que se
+  // MUESTRA, y no decide ningún permiso — eso sigue siendo `rol`. Vacío = la
+  // pantalla cae a la etiqueta del rol, como antes de la 0182.
+  cargo: string | null;
   // Cuándo y por qué dejó de trabajar aquí (0086, expuestos por la 0179).
   // `motivo_cese` llega null a quien no sea admin ni líder DO: la función solo
   // se lo entrega a administración, y aquí no se compensa esa ausencia.
@@ -101,6 +105,7 @@ interface FormPersona {
   email: string;
   conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador — se escribe por RPC fn_set_tipo_vinculo
+  cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
   // Último día que trabaja por contrato (0144). Es un PLAN, no un cese: vacío es
@@ -109,7 +114,7 @@ interface FormPersona {
   motivoFinContrato: string; // por qué se fijó o se quitó — va a correcciones_auditoria
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", finContrato: "", motivoFinContrato: "" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", cargo: "", finContrato: "", motivoFinContrato: "" };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -243,15 +248,15 @@ export default function EquipoPage() {
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
-      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
-        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
+      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; cargo?: string | null; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
+        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", cargo: f.cargo ?? null, fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
     setPersonas(
       ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
         const extra = funciones.get(p.id);
-        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
+        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", cargo: extra?.cargo ?? null, fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
       }),
     );
     setCargando(false);
@@ -418,6 +423,21 @@ export default function EquipoPage() {
       if (errorFuncion) {
         setGuardando(false);
         avisar("error", "Datos guardados, pero la función no se pudo cambiar: " + errorFuncion.message);
+        return;
+      }
+    }
+    // Cargo (0182): mismo patrón que el área — viaja en fn_personas_funciones, así
+    // que solo se escribe si la carga fue confiable y si CAMBIÓ. Escribirlo siempre
+    // llenaría la auditoría de filas por editar el correo de alguien.
+    const cargoOriginal = personas.find((p) => p.id === editandoId)?.cargo ?? "";
+    if (funcionesOk && form.cargo.trim() !== cargoOriginal.trim()) {
+      const { error: errorCargo } = await supabase.rpc("fn_set_cargo", {
+        p_persona_id: editandoId,
+        p_cargo: form.cargo.trim() || null,
+      });
+      if (errorCargo) {
+        setGuardando(false);
+        avisar("error", "Datos guardados, pero el cargo no se pudo cambiar: " + errorCargo.message);
         return;
       }
     }
@@ -611,6 +631,7 @@ export default function EquipoPage() {
       email: p.email ?? "",
       conHijos: p.con_hijos,
       tipoVinculo: p.tipo_vinculo ?? "planilla",
+      cargo: p.cargo ?? "",
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
       visibleTodasSedes: p.visible_todas_sedes,
       finContrato: finesContrato.get(p.id) ?? "",
@@ -745,6 +766,24 @@ export default function EquipoPage() {
             <option key={r.valor} value={r.valor}>{r.label}</option>
           ))}
         </select>
+      </label>
+      {/* CARGO (0182) — va justo debajo del rol a propósito: son la pareja que
+          hasta hoy estaba mezclada. El rol de arriba decide qué abre; esto
+          decide cómo se la nombra. */}
+      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        Cargo{" "}
+        <span className="text-taupe">
+          (cómo se la nombra en pantalla: «Socia», «Asesor». Vacío = se muestra el rol.
+          No cambia ningún permiso)
+        </span>
+        <input
+          type="text"
+          value={form.cargo}
+          onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+          placeholder="—"
+          maxLength={60}
+          className="rounded-lg border bg-crema px-3 py-2"
+        />
       </label>
       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
         Área{" "}
@@ -1303,7 +1342,19 @@ export default function EquipoPage() {
                       )}
                     </td>
                     <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
-                    <td className="px-4 py-2">{ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol}</td>
+                    {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
+                        es un permiso —qué pantallas abre— y usarlo como título
+                        hacía que tres locadores figuraran como «Líder de equipo
+                        (encargada)» y «Admin». Cargo de mando, área, sede, rango
+                        y monto fijo son los indicios que desnaturalizan una
+                        locación de servicios, y el expediente lo armaba esta
+                        misma celda. Sin cargo escrito, se muestra el rol como
+                        siempre. */}
+                    <td className="px-4 py-2">
+                      {p.cargo !== null && p.cargo !== ""
+                        ? <span className="whitespace-nowrap">{p.cargo}</span>
+                        : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                    </td>
                     <td className="px-4 py-2">
                       {esOperativaEn(areas, p.funcion)
                         ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
