@@ -43,7 +43,7 @@ const NIVEL: Record<string, string> = { verbal: "Llamada verbal", amonestacion: 
 const CAUSAL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado" };
 
-interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean }
+interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean }
 interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface DocLite { id: string; correlativo: string | null; tipo_causal: string; nivel: string; estado: string; creado_at: string; firmado_at: string | null }
@@ -83,7 +83,7 @@ export default function PerfilPersonaPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const { data: p, error: eP } = await supabase.from("personas")
-      .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo")
+      .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion")
       .eq("id", id).maybeSingle();
     if (eP || !p) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); return; }
     setPersona(p as Persona);
@@ -356,6 +356,19 @@ export default function PerfilPersonaPage() {
                   {persona.funcion} · Sede {sede || "—"}
                   {persona.estado !== "activo" && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">{persona.estado}</span>}
                   {persona.sueldo_fijo && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">sueldo fijo</span>}
+                  {/* Estar marcada como dirección le quita un derecho —no genera
+                      sobretiempo, art. 5 del D.S. 007-2002-TR— así que tiene que
+                      verse. Se marca por SQL, igual que sueldo_fijo y en_planilla;
+                      lo que no puede pasar es que además sea invisible: un permiso
+                      que nadie ve es un permiso que nadie audita. */}
+                  {persona.personal_direccion && (
+                    <span
+                      className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs"
+                      title="Personal de dirección (art. 5, D.S. 007-2002-TR): fuera de la jornada máxima de 48 h, no genera sobretiempo. Sí le corresponde el descanso semanal."
+                    >
+                      dirección
+                    </span>
+                  )}
                   {!persona.en_planilla && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">fuera de planilla</span>}
                 </p>
                 <p className="mt-0.5 text-xs text-taupe">DNI {persona.documento ?? "—"} · Ingresó {fechaCorta(persona.fecha_ingreso)}</p>

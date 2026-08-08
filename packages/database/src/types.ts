@@ -658,6 +658,13 @@ export type Database = {
           estado: string
           sueldo_base_legal: number | null
           sueldo_fijo: boolean
+          // Agregada a mano el 2026-08-08 (la creó la 0187), por el mismo motivo
+          // que sueldo_base_legal arriba: `supabase gen types` en esta máquina
+          // reescribe el archivo entero con otro formato. Es la marca de personal
+          // de dirección del art. 5 del D.S. 007-2002-TR — quien la tiene queda
+          // fuera de la jornada máxima y no genera sobretiempo. NO es lo mismo
+          // que sueldo_fijo (condición de pago) ni que rol (permiso del sistema).
+          personal_direccion: boolean
           fecha_estado_cambio: string | null
           // Agregada a mano el 2026-08-05 (la creó la 0144), por el mismo motivo
           // que tipo_vinculo más abajo: `supabase gen types` no corre en esta
@@ -691,6 +698,7 @@ export type Database = {
           estado?: string
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
+          personal_direccion?: boolean
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
@@ -715,6 +723,7 @@ export type Database = {
           estado?: string
           sueldo_base_legal?: number | null
           sueldo_fijo?: boolean
+          personal_direccion?: boolean
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
