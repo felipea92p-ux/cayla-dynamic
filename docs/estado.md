@@ -14,17 +14,113 @@ y lo que se descartó para no volver a investigarlo.
 |---|---|
 | ¿Cuántas migraciones hay, hasta cuál? | `ls supabase/migrations \| tail -1` |
 | ¿Cuántas pruebas, y pasan? | `npx supabase db reset && npx supabase test db` · `npx pnpm typecheck && npx pnpm test` |
-| ¿Qué está aplicado en producción? | `scripts/sql-manual/comparar_funciones.sql` — y `migraciones_aplicadas` para el registro |
+| ¿Producción dice lo mismo que el repositorio? | `scripts/sql-manual/huella_del_esquema.sql` — una fila, dos segundos. Si difieren las funciones con el mismo conteo, `que_funcion_cambio.sql` dice cuál |
+| ¿Falta pegar alguna migración? | `./scripts/que-falta-pegar.sh` genera la consulta; `migraciones_aplicadas` guarda el registro |
 | ¿Falta anotar alguna migración? | la prueba `122_toda_migracion_deja_su_rastro`, en CI, en cada push |
 | ¿Hay números duplicados o huecos nuevos? | `scripts/hooks/numeracion.sh`, antes de cada push |
 | ¿Qué se hizo y cuándo? | `git log` |
 
-Ninguna de esas seis puede envejecer sin que alguien se entere. Las de abajo sí,
+Ninguna de esas siete puede envejecer sin que alguien se entere. Las de abajo sí,
 y por eso están escritas.
+
+⚠️ **Y la tercera fila es la que más caro salió aprender.** Hasta el 2026-08-08
+esa pregunta la respondía un comparador que llevaba las huellas del repositorio
+escritas dentro, así que caducaba en horas: acusó a 25 funciones que estaban
+bien, y mientras tanto seis funciones de producción llevaban semanas dejando
+cambiar una planilla ya pagada sin que nadie lo viera. **Un dato de referencia
+nunca viaja guardado** — ni en un archivo, ni en un mensaje. Las dos mitades se
+calculan en el mismo minuto o no se calculan.
 
 **Regla para quien edite este archivo:** si lo que vas a agregar es un número que
 un comando puede calcular, no va acá — va el comando. Y si es una lista de
 nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
+
+---
+
+## 2026-08-08 — seis puertas dejaban cambiar una planilla ya pagada
+
+**El repositorio y producción llevaban semanas diciendo cosas distintas, y no
+había manera de enterarse.** Se compararon los dos esquemas enteros —199
+funciones, 261 candados, 467 columnas— y el resultado ordena todo lo de abajo:
+
+| | |
+|---|---|
+| **candados** | idénticos, byte a byte. Es lo que volvió inofensivo casi todo lo demás |
+| **columnas** | idénticas, salvo dos que solo existen en producción |
+| **funciones** | **22 distintas** |
+
+### Lo único que era grave
+
+Seis funciones de producción no tenían el candado de periodo pagado que el
+repositorio les puso en julio con la 0026 y la 0037: `fn_set_feriado`,
+`fn_quitar_feriado`, `fn_set_turno`, `fn_quitar_turno`, `fn_set_horario_semanal`
+y `fn_set_descanso`.
+
+Reproducido en local el estado exacto de producción y llamadas las seis sobre una
+fecha de un mes ya pagado, **las seis dejaron pasar el cambio y una borró un
+feriado de un mes pagado sin decir una palabra.** El daño no se ve: la jornada se
+recalcula sola con el trigger, las horas del mes cambian, y la planilla
+depositada deja de cuadrar con lo que el sistema dice hoy. Se descubre cuando
+alguien reclama.
+
+La [`0180`](../supabase/migrations/0180_el_candado_de_pagado_vuelve_a_las_seis_que_lo_perdieron.sql)
+lo repone —aplicada y confirmada, 6 de 6— y la prueba
+[`141`](../supabase/tests/141_las_seis_puertas_a_una_planilla_pagada.test.sql)
+exige **las dos mitades**: que dentro de lo pagado lancen, y que fuera de lo
+pagado sigan funcionando. Un candado que cierra siempre lo quita cualquiera en la
+primera urgencia.
+
+Antes de sobrescribirlas se pidieron sus cuerpos y se compararon línea a línea:
+producción era el repositorio **menos** el bloque, ni una línea de más. Mirar
+antes de escribir no era ceremonia — siete funciones de las 22 tienen código que
+el repositorio no conoce (ver abajo).
+
+### El resto era texto roto
+
+Seis funciones decían `l√≠der` donde debía decir `líder`: UTF-8 leído como **Mac
+OS Roman**, que parte cada acento en dos. Se confirmó simulando esa conversión
+sobre el cuerpo del repositorio — los md5 salen exactos, así que se identificaron
+sin gastar consultas. Lo arreglan la **0181** (cuatro) y la **0183** (las dos que
+la comprobación de la 0181 destapó, que además corrían la versión de julio de
+`fn_crear_periodo` y `fn_eliminar_periodo`). Las dos aplicadas y confirmadas.
+
+**El canal habitual no es el culpable:** si lo fuera estarían rotas las 199, no
+seis. Ese daño entró una vez, por otra vía.
+
+### El agujero que casi se anuncia y no existía
+
+La 0026 le añadió a `fn_crear_periodo` un candado contra dos periodos que cierren
+el mismo mes, con su motivo escrito en julio: «el plus de objetivos se pagaría
+doble». Producción no lo tenía. La conclusión saltaba sola.
+
+**Se probó antes de afirmarlo y es falsa.** El segundo periodo falla igual: lo
+frena el índice único `periodos_etiqueta_unica` sobre (año, mes) de la fecha de
+cierre. Y los 261 candados de producción son idénticos a los del repositorio.
+Igual con el `advisory lock` que falta: `periodos_sin_solape` impide el solape de
+todos modos.
+
+**Aquí lo que protege el dinero es el candado de la BASE, no el de la función.**
+Las seis puertas eran un agujero real porque detrás no había ningún constraint;
+esta no lo era porque sí lo hay. Misma forma, conclusiones opuestas, y solo
+medirlo las distingue.
+
+### La lección de método, que costó medio día
+
+**Un dato de referencia nunca viaja guardado — ni en un archivo ni en un
+mensaje.** El comparador viejo llevaba las huellas del repositorio dentro y
+acusó a 25 funciones que estaban bien. Se sacaron del archivo… y entonces
+caducaron en el mensaje que las transportaba: se calcularon a las 10:28, entraron
+cinco migraciones a las 10:55 y 11:14, y la comparación de las 11:30 ya no valía.
+
+`huella_del_esquema.sql` calcula las dos mitades en el mismo minuto y trae
+`hasta_migracion`, para que comparar dos generaciones distintas se delate en vez
+de asustar. Los tres comparadores que mentían —`comparar_funciones.sql`,
+`comparar_solo_funciones.sql`, `huellas_produccion.sql`— quedan **vaciados, no
+borrados**: su contenido está en git y su ruta sigue avisando por qué no usarlos.
+
+**Y una comprobación que barre gana a una que pregunta por una lista.** La de la
+0181 no preguntaba por sus cuatro funciones: buscaba el signo «√» en el esquema
+entero. Devolvió dos que nadie había señalado.
 
 ---
 
@@ -82,7 +178,8 @@ copiada de su log; la **137** cubre las dos ubicaciones posibles del acta.
 | **Contratar el Seguro Vida Ley** | cuanto antes | ~S/1,560/año. Sin póliza, CAYLA responde con su patrimonio: 16 remuneraciones por muerte natural (~S/18,000) o 32 por accidente o invalidez total (~S/36,000). Obligatorio desde el primer día (D.Leg. 688, mod. **Ley 31408**) |
 | **Registrar la póliza en el MTPE** | 30 días desde que se firma | No registrarla es la misma infracción que no tenerla |
 | ~~**Pegar la [`0176`](../supabase/migrations/0176_quien_ya_se_fue_deja_de_tener_sueldo_vigente.sql)**~~ | ✅ **pegada el 2026-08-06** | Las seis de julio dejaron de tener sueldo vigente. No movió plata: su liquidación es S/ 0.00 antes y después (RxH, de 0 a 3 días). Comprobado con cuatro ceros: sin tramos abiertos, sin tramos pasados de largo, sin tramos posteriores al cese, sin motivos por revisar |
-| **Pegar la [`0179`](../supabase/migrations/0179_la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue.sql)** — la pantalla dirá cuándo y por qué se fue cada quien | cuando quieras: **no mueve plata** | Solo agrega `fecha_cese` y `motivo_cese` a lo que `fn_personas_funciones` ya devolvía. El motivo viaja solo a admin y líder DO. Listo en `scripts/sql-manual/aplicar_0179.sql`. **Nació como 0177 y se renumeró**: si llegaste a pegar la versión vieja, ese archivo trae arriba el `delete` que corrige el apunte antes de pegar la 0177 de verdad |
+| ~~**Pegar la [`0179`](../supabase/migrations/0179_la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue.sql)**~~ | ✅ **pegada** — figura en `migraciones_aplicadas` de producción | La pantalla de Equipo ya dice cuándo y por qué se fue cada quien. El motivo viaja solo a admin y líder DO |
+| ~~**Pegar la 0180, la 0181 y la 0183**~~ | ✅ **pegadas el 2026-08-08** | Ver la sección del 08-08 arriba. Confirmadas por lo que devolvió el SQL Editor: `las_seis_con_candado: 6` y `funciones_con_texto_roto: 0` |
 
 **Del Seguro de Vida Ley:** cotizado en **La Positiva, S/170/mes por 19
 personas**, sin comisión de corredor —Dante confirmó que el reglamento no la
@@ -171,6 +268,15 @@ son tres.
 externos— y alinear rol, área y rango con esa respuesta. Son tres campos por
 persona, editables desde Equipo; ninguno cambia lo que cobran.
 
+**✅ Decidido el 2026-08-07 y con pieza construida:** Catherine es **socia**;
+Carlos y Claudia, **asesores**. La
+[`0182`](../supabase/migrations/0182_el_cargo_dice_que_eres_el_rol_dice_que_abres.sql)
+agrega un campo `cargo` para escribir **qué es** una persona sin tocar lo que
+puede abrir — se descartó a propósito meter «socio» y «asesor» en el enum `rol`,
+porque `rol` no es un cargo sino una llave de permisos. Con el cargo escrito, la
+pantalla deja de llamarlos encargados y el sistema deja de armar el expediente
+en contra. **Comprueba si ya está pegada** con `./scripts/que-falta-pegar.sh`.
+
 **Lo que YA se verificó, y no hace falta volver a mirar** (2026-08-07): el
 dinero está bien. A un `rxh` no se le calcula movilidad ni EsSalud (0117), ni
 educación (0120), ni gratificación, CTS, vacaciones o el 9% de la Ley 30334
@@ -257,11 +363,14 @@ having max(j.fecha) is null or max(j.fecha) < current_date - 30
 order by 3 nulls first;
 ```
 
-**El hueco de numeración 0108, sin decidir.** No es algo aplicado a escondidas:
-vive en la rama `origin/movilidad-supeditada-a-asistencia`
-(`0108_movilidad_supeditada_a_asistencia.sql`), **sin fusionar**. Falta decidir si
-entra o si su contenido ya lo cubre la 0118. Los otros huecos ya están explicados
-en `scripts/hooks/huecos-conocidos.txt`.
+**~~El hueco de numeración 0108~~ — ✅ cerrado.** Los cinco huecos (0031, 0033,
+0108, 0133, 0139) están investigados y explicados uno por uno en
+[`scripts/hooks/huecos-conocidos.txt`](../scripts/hooks/huecos-conocidos.txt), y el
+hook solo avisa de los que **no** estén ahí. La 0108 se descartó: su contenido lo
+cubren la 0111, 0117, 0118, 0122, 0142 y 0150, y lo único exclusivo que tenía era
+un `fn_planilla_calcular` del 29/07 con tarifa única de S/6 — fusionarlo habría
+revertido ocho migraciones de planilla. Se recupera con
+`git checkout 1b54c02 -- supabase/migrations/0108_*.sql` si algún día hace falta.
 
 **~~El rango `caylo` pagaba educación sin techo~~ — ✅ cerrado el 2026-08-06.**
 La 0140 lo retiró del catálogo por un solo lado: le borró el techo y lo dejó
@@ -392,7 +501,9 @@ Sin esos dos papeles se cobra el nominal.
 | `revision_completa.sql` | 15 comprobaciones de las migraciones 0115–0122 |
 | `encender_movilidad.sql` | Encender la tarifa, en transacción y con verificación |
 | `cargar_educacion_v2.sql` | Cargar una asignación por nombre, sin copiar UUID |
-| `comparar_funciones.sql` | Qué está aplicado de verdad en producción, función por función |
+| `huella_del_esquema.sql` | **¿Producción dice lo mismo que el repositorio?** Una fila: funciones, candados, columnas, y si queda texto con acentos rotos. Empieza siempre por aquí |
+| `que_funcion_cambio.sql` | Solo si la anterior dice que las funciones difieren **con el mismo conteo**: manda las 199 huellas y señala cuál |
+| `rescatar_lo_que_solo_vive_en_produccion.sql` | ⚠️ **Léelo antes de tocar cualquiera de las nueve que lista.** Trae su código para traerlo al repositorio |
 
 **Y el prólogo que hace falta seguido:** `fn_planilla_calcular`, `fn_provisiones`
 y `fn_set_tipo_vinculo` exigen sesión de admin, y el SQL Editor no la tiene. Dos
@@ -568,6 +679,19 @@ Vale la pena mirar con esa lente cualquier verificación nueva antes de
 escribirla: **¿esto pregunta por lo que hay en el disco, o por lo que va a
 salir?** Casi siempre es lo segundo.
 
+**Queda un tercero con el mismo vicio, y por ahora se aguanta.** El `typecheck`
+del pre-push compila el **directorio de trabajo**, no lo que subes: el 2026-08-08
+frenó un push por un archivo `.tsx` que otra sesión tenía a medio editar, y al
+minuto siguiente pasó sin tocar nada. Es falsa alarma, no error — se reintenta y
+ya. Arreglarlo de verdad exigiría compilar contra un árbol aislado, que cuesta
+más de lo que ahorra; lo que no se puede es olvidar por qué pasa y empezar a
+empujar con `--no-verify`.
+
+**El de `que_falta_pegar.sql` sí es de los buenos, y frenó dos veces el mismo
+día:** el repo tenía migraciones que la consulta no listaba, así que le habría
+dicho a Felipe «todo al día» ocultando justo las nuevas. Se arregla corriendo
+`./scripts/que-falta-pegar.sh` y volviendo a empujar.
+
 **Un bug que vale recordar:** `jsonb_build_object` admite **máximo 100
 argumentos**. El objeto de la boleta estaba cerca del techo y cuatro campos
 nuevos lo pasaron — compilaba y fallaba al ejecutarse. Ahora está partido en dos
@@ -590,21 +714,44 @@ al tope.
    reloj de la Mac sin verificación de desfase · persona que marca en dos sedes
    el mismo día y pierde una marca.
 
-3. **Seguridad pendiente** (de `revision-2026-07-15/`):
+3. **Nueve funciones y dos columnas corren SOLO en producción.** No están rotas:
+   están indocumentadas, que a plazo es peor. Deciden marcajes y sueldos cada
+   día, ninguna prueba las toca, y si hubiera que reconstruir la base se pierden.
+   Siete tienen más código que su versión del repositorio —`fn_agregar_marcaje`
+   **+664 caracteres**, `fn_set_sueldo_base_legal` +562, `fn_quitar_rendimiento`
+   +358, `fn_corregir_marcaje` +260, `fn_set_rendimiento` +235,
+   `fn_eliminar_marcaje` +92, `fn_set_meta_cobertura/3` +11— y dos no existen
+   aquí: `fn_resellar_dia` y `fn_set_devenga_beneficios`, esta última con
+   `personas.devenga_beneficios` y `personas.devenga_hasta`.
+
+   **Esas dos últimas son el botón por persona que decide quién devenga CTS,
+   gratificación y vacaciones** — el trabajo que se dio por perdido en otra
+   sesión y que en realidad lleva semanas corriendo. La consulta de rescate y el
+   aviso están en
+   [`rescatar_lo_que_solo_vive_en_produccion.sql`](../scripts/sql-manual/rescatar_lo_que_solo_vive_en_produccion.sql).
+   **Rescatar primero, arreglar después. Nunca al revés.**
+
+4. **Seguridad pendiente** (de `revision-2026-07-15/`):
    - Contraseña mínima 6 sin complejidad, sin cambio forzado en primer login —
      y son cuentas que ven salarios. **Abierto.**
-   - Las rutas de API devuelven el mensaje crudo de Postgres → envolver.
-     **Abierto:** `api/admin/cuentas/route.ts` líneas 113, 126 y 143, y
-     `api/espejo/route.ts:32` lo relanza.
+   - ~~Las rutas de API devuelven el mensaje crudo de Postgres~~ — ✅ **cerrado el
+     2026-08-06.** Las cuatro pasan por `mensajeDeError`, que deja pasar entero
+     lo que escribimos nosotros (código `P0001`) y traduce lo demás; el detalle
+     va a Sentry. `api/espejo` es máquina a máquina y devuelve un genérico a
+     propósito. Lo blindan 15 pruebas en `tests/mensaje-error.test.ts`, una de
+     ellas con una palabra de la lista negra que **solo** la rama `P0001` puede
+     dejar pasar — las otras catorce seguían en verde con la rama desactivada.
 
-4. **Partir `planilla/page.tsx`.** Maneja dinero, y es la pantalla más grande del
+5. **Partir `planilla/page.tsx`.** Maneja dinero, y es la pantalla más grande del
    sistema por lejos (`wc -l` lo dice; la segunda es `turnos`). Los tests SQL que
    fijan la matemática ya existen (`supabase/tests/10` y `20`); falta el refactor
    antes de seguir tocándolo.
 
-5. **Queda un `"America/Lima"` suelto** fuera de `fecha-lima.ts`, en
-   `politica-salarial/page.tsx`. La regla del `CLAUDE.md` es que no exista
-   ninguno: el corte del día decide a qué fecha se le paga un marcaje.
+6. **Quedan tres `"America/Lima"` sueltos** fuera de `fecha-lima.ts`, todos en
+   `politica-salarial/page.tsx` (líneas 66, 77 y 236). La regla del `CLAUDE.md`
+   es que no exista ninguno: el corte del día decide a qué fecha se le paga un
+   marcaje. Aquí son fechas de publicación de un documento, no de pago — pero la
+   regla vale igual, porque la próxima copia de esas líneas puede no serlo.
 
 **El catálogo completo está en
 [`hallazgos-abiertos.md`](hallazgos-abiertos.md)**: hallazgos vivos de una
