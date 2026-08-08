@@ -108,40 +108,55 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
-### A.2.b · La ficha de Catherine describe subordinación, y es locadora
+### A.2.b · Los tres locadores están retratados como personal subordinado
 
 **Para consultar con el contador. No hay nada roto en el cálculo** — eso se
-verificó y se descarta abajo. Lo que hay es un riesgo de cómo el sistema la
+verificó y se descarta abajo. Lo que hay es un riesgo de cómo el sistema los
 retrata.
 
-Catherine es **rxh** (honorarios), y así aparece hoy en el sistema:
+**Son tres, confirmado por Felipe el 2026-08-07:** Carlos Espejo, Catherine
+Pereyra y Claudia Pereyra. Los tres cobran por honorarios y los tres aparecen
+así:
 
-| Campo | Valor |
-|---|---|
-| Rol | **Líder de equipo (encargada)** |
-| Área | Comercial |
-| Sede | CCO |
-| Rango de la escala salarial | **Oráculo · S/ 1,800.00** |
-| Pago | **monto fijo, idéntico todos los meses** |
+| | Sede | Rol en el sistema | Área | Rango de la escala | Pago |
+|---|---|---|---|---|---|
+| **Carlos Espejo** | CCO | **Admin** | Desarrollo org. | Aurora · S/1,800 | fijo mensual |
+| **Catherine Pereyra** | CCO | **Líder de equipo (encargada)** | Comercial | Oráculo · S/1,800 | fijo mensual |
+| **Claudia Pereyra** | LIM | **Líder de equipo (encargada)** | Comercial | Aurora · S/1,800 | fijo mensual |
 
-Esos cinco juntos son los indicios clásicos de **subordinación**, que es lo que
-convierte una locación de servicios en un contrato de trabajo. El riesgo no es
-una multa: es la **desnaturalización** del vínculo, con CTS, gratificaciones,
-vacaciones y EsSalud retroactivos desde el inicio.
+Cargo de mando, área, sede, un rango de la escala salarial y un monto idéntico
+todos los meses. Esos cinco juntos son los indicios clásicos de
+**subordinación**, que es lo que convierte una locación de servicios en un
+contrato de trabajo. El riesgo no es una multa: es la **desnaturalización** del
+vínculo, con CTS, gratificaciones, vacaciones y EsSalud retroactivos desde el
+inicio — y multiplicado por tres.
+
+**Lo que ya está bien:** el cuadro de categorías que se publica al equipo bajo la
+Ley 30709 **no los cuenta ni los incluye en las bandas** desde la 0145: filtra
+por `tipo_vinculo = 'planilla'`. El documento legal no dice que estén dentro de
+la escala. El retrato queda en las pantallas internas.
+
+**Y uno de los tres es un frente aparte: Carlos tiene rol `admin`.** Eso le da
+todas las sedes, todos los datos personales del equipo —**cuentas bancarias y
+DNI incluidos**— y la capacidad de firmar despidos. Es un acceso total a datos
+sensibles de 23 personas en manos de alguien que no es trabajador de la empresa,
+con lo que eso implica bajo la Ley 29733 de protección de datos personales. Ese
+punto no espera al contador: es una decisión de accesos.
 
 Y el agravante: **el expediente lo arma el propio sistema.** La pantalla de
-Equipo la nombra encargada, le asigna un área y le pone un rango de la escala
-que se publica al equipo bajo la Ley 30709. Es prueba escrita, generada por
-CAYLA.
+Equipo los nombra encargados, les asigna un área y les pone un rango de la
+escala salarial. Es prueba escrita, generada por CAYLA.
 
-**Si es socia, cobrar por honorarios es correcto y común.** El problema no es el
-vínculo: es que la ficha la describe como una encargada de equipo, cargo que no
-le agrega autoridad —ya la tiene por ser socia— y en cambio construye la prueba
-de lo contrario. Este archivo ya lo había anotado antes como un problema de
-permisos («el rol de Catherine está al revés de su papel»); es más que eso.
+**Si son socios, cobrar por honorarios es correcto y común.** El problema no es
+el vínculo: es que la ficha los describe como encargados de equipo, cargo que no
+les agrega autoridad —si son socios ya la tienen— y en cambio construye la
+prueba de lo contrario. Este archivo ya lo había anotado antes como un problema
+de permisos («el rol de Catherine está al revés de su papel»); es más que eso, y
+son tres.
 
-**Lo que hay que decidir:** qué es Catherine para CAYLA —socia, dirección,
-asesora externa— y alinear rol, área y rango con esa respuesta.
+**Lo que hay que decidir:** qué son para CAYLA —socios, dirección, asesores
+externos— y alinear rol, área y rango con esa respuesta. Son tres campos por
+persona, editables desde Equipo; ninguno cambia lo que cobran.
 
 **Lo que YA se verificó, y no hace falta volver a mirar** (2026-08-07): el
 dinero está bien. A un `rxh` no se le calcula movilidad ni EsSalud (0117), ni
@@ -632,10 +647,13 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   da lo de una encargada de tienda —ver a la gente de CCO, firmar amonestaciones
   de CCO— y le niega lo que querría una accionista: ver las tres tiendas. Está al
   revés de su papel. ⚠️ **No es solo de permisos:** siendo locadora por
-  honorarios, ese cargo la retrata como subordinada. Ver [A.2.b](#a2b--la-ficha-de-catherine-describe-subordinación-y-es-locadora).
+  honorarios, ese cargo la retrata como subordinada. Ver [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado).
 - **Cuatro personas con rol admin** (Carlos, Estefany, Felipe, Janis). Un admin ve
   todas las sedes, todos los datos personales —cuentas bancarias y DNI incluidos—
   y puede firmar despidos. Cuatro accesos totales en un equipo de 23.
+  ⚠️ **Y uno de los cuatro, Carlos, no es trabajador de la empresa:** cobra por
+  honorarios. Acceso total a datos sensibles de 23 personas en manos de alguien
+  externo a la planilla — ver [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado).
 - Cuenta de Estefany (falta su correo) · revisar áreas reales de cada quien ·
   checkbox «encargada de piso» en Equipo · split mañana/tarde por sede.
 
