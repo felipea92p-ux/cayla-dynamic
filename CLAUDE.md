@@ -40,6 +40,21 @@ cambia cómo se pagan las vacaciones— estaba aplicada en producción y su úni
 ejemplar era un archivo sin commitear en esta Mac**. Ninguno de los otros frenos
 lo veía: `desplegar.sh` cuida el camino de Vercel, y el SQL va por otro camino.
 
+**El md5 de una función se pide a PRODUCCIÓN, no se copia del local.** Cuando
+una migración reescribe una función y su encabezado declara «md5 de partida: X»,
+ese X tiene que venir del SQL Editor. El 2026-08-08 se declaró el md5 local en la
+0185 y costó una hora de falsa alarma: producción devolvía otro porque `pbcopy`
+había roto los acentos al copiar (locale `LC_CTYPE=C` → MacRoman), y el texto
+llegó como «Solo un administrador o l√≠der». El SQL corre igual, así que nada
+falla — solo se vuelve ilegible, y estas migraciones se leen. Ya está arreglado
+en el script, que ahora compara el portapapeles byte por byte y se niega si no
+coincide; la regla de método queda igual.
+
+Y cuando dos md5 no coinciden: **medir dónde está la diferencia** —posiciones de
+marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
+del principio— en vez de proponer explicaciones. Ese día se probaron tres
+hipótesis falsas antes de que el primer `substring` lo resolviera de un vistazo.
+
 **Antes de dar cualquier SQL que toque plata, se audita empíricamente.**
 Contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con casos reales. No se
 entrega un cálculo de planilla, provisiones, bonos o CTS "revisado a ojo".
@@ -233,7 +248,47 @@ Tres cosas de ahí que ahorran el mismo camino:
   promedio que los mezcle no significa nada.
 
 Y la regla de método que costó esas horas: **medir contra la base antes de
-proponer**, no razonar sobre el supuesto anterior.
+proponer**, no razonar sobre el supuesto anterior. La «base» incluye los
+documentos de este repo: el 2026-08-08 se presentó como descuido algo que
+`docs/analisis-estructura-remunerativa-2026-07-30.md` ya tenía decidido con el
+contador y con su exposición cuantificada.
+
+**El sobretiempo se paga solo desde la 0185, y se mide contra 48 h SEMANALES.**
+Nunca contra 8 h diarias: el art. 25 de la Constitución dice «ocho horas diarias
+O cuarenta y ocho semanales» y CAYLA pactó la semanal. Medido por día, el taller
+de Lima (5 días de 9 h = 45 h) generaría sobretiempo todas las semanas haciendo
+tres horas menos que el máximo legal.
+
+- **«Semana» es un ciclo de siete días, no lunes a domingo.** Criterio vinculante
+  del Informe 027-2021-MTPE/14. El ciclo empieza tras un descanso y se corta a
+  los 7 días; sin ese corte, doce días seguidos de 8 h darían 48 h de exceso en
+  vez de 8.
+- **Los ciclos no se solapan.** La alerta de Incidencias sí usa ventana móvil,
+  porque ahí el objetivo es no perderse ningún tramo cargado. En el pago, una
+  ventana móvil pagaría la misma hora siete veces.
+- **Se paga el RECARGO (25 % / 35 %), no la hora completa** — ya está en
+  `pago_base`. Es el error que la 0173 corrigió con el feriado del sueldo fijo.
+- **Tres exclusiones distintas, y no se funden:** RxH (no tiene jornada),
+  `personal_direccion` (art. 5 del D.S. 007-2002-TR, columna propia desde la
+  0187) y `sueldo_fijo` (su pago no depende de horas). Deducir dirección del rol
+  del sistema le quitaría el derecho a quien reciba admin para otra cosa.
+
+**El feriado y el sobretiempo entran a la base de EsSalud y pensión (0193).** No
+admiten discusión: el art. 19 del D.S. 001-97-TR no los lista como no
+remunerativos y SUNAT les da código propio en la PLAME — 0105, 0106 y 0107. Lo
+que sí queda fuera, y es decisión sustentada, es el complemento variable y el
+plus por objetivos; y la movilidad y la educación son no remunerativas por el
+art. 19 e) y f).
+
+- **Las sobretasas COMPLETAN una base declarada; no crean una donde no la hay.**
+  Sin esa condición, a un RxH le aparecían S/41.39 de pensión de la nada y a un
+  sueldo fijo S/46.45 — los dos tienen la básica en 0 a propósito.
+- **La base se dice una sola vez** (`bri.base`, migración 0192). Antes estaba
+  escrita literal en cinco sitios.
+- **La vía legal para reducir el monto en origen no es dejar de declararlo:** es
+  el descanso sustitutorio por feriado trabajado (art. 9, D. Leg. 713, quita la
+  sobretasa del 100 %) y el acuerdo escrito de compensación del sobretiempo con
+  descanso equivalente (art. 10 del TUO, dentro del mes calendario siguiente).
 
 ---
 

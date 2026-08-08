@@ -688,6 +688,66 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
           "descanso sustitutorio. Ese día debe ser uno en el que te correspondía trabajar: un día libre " +
           "otorgado sobre tu descanso semanal no sustituye nada, y en ese caso la sobretasa se paga igual.",
       },
+      // ── Sobretiempo ───────────────────────────────────────────────────────
+      // Se escribe en positivo y no como concesión, porque eso es lo que es: el
+      // sistema lo detecta y lo paga SOLO, sin que nadie tenga que reclamarlo ni
+      // llevar la cuenta. La mayoría de empresas paga horas extras cuando el
+      // trabajador las pide y las puede probar.
+      //
+      // En julio de 2026 Felipe pidió no mencionarlo («podríamos perjudicarnos»).
+      // Cambió de criterio al mandar programarlo, y desde la migración 0185 se
+      // paga en automático. Callarlo ahora sería peor que no tenerlo: la línea
+      // «Sobretiempo» aparece en la boleta, y un documento que se presenta como
+      // completo pierde fuerza el día que se le encuentra un hueco.
+      {
+        tipo: "parrafo",
+        texto:
+          "Sobretiempo. Si en una semana superas las 48 horas de la jornada ordinaria, esas horas de más se " +
+          "pagan con recargo: 25 % las dos primeras horas de cada día y 35 % las siguientes, conforme al " +
+          "artículo 10 del Decreto Supremo 007-2002-TR. La semana se cuenta como un ciclo de siete días " +
+          "corridos, no de lunes a domingo, siguiendo el criterio del Informe 027-2021-MTPE/14 de la " +
+          "Dirección General de Trabajo.",
+      },
+      {
+        tipo: "destacado",
+        texto:
+          "No tienes que pedirlo ni llevar la cuenta. El sistema lo calcula solo a partir de tus marcaciones, " +
+          "cada periodo, y aparece en tu boleta con el detalle del día y de las horas.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "Como el horario que CAYLA programa es de 45 horas, superar las 48 es excepcional y ocurre cuando " +
+          "cubres a una compañera o en una campaña. También puedes acordar por escrito que esas horas se " +
+          "compensen con un descanso equivalente en lugar de cobrarlas, conforme al mismo artículo 10. Esa " +
+          "decisión es tuya y se conversa caso por caso: nunca se aplica sola.",
+      },
+      // ── Aportes ───────────────────────────────────────────────────────────
+      // Va acá y no en la sección de beneficios porque es la contracara de lo
+      // anterior: quien acaba de leer que el sobretiempo y el feriado se pagan
+      // tiene que saber que también se declaran. Es la parte que convierte «te
+      // pagamos bien» en «te pagamos bien y queda registrado».
+      {
+        tipo: "parrafo",
+        texto:
+          "Todo lo que cobras se declara. Tu remuneración, tus feriados y tu sobretiempo forman parte de la " +
+          "base sobre la que CAYLA aporta a EsSalud y sobre la que se retiene tu aporte previsional a la AFP " +
+          "o la ONP. No hay una parte de tu sueldo que quede fuera de la planilla electrónica.",
+      },
+      {
+        tipo: "destacado",
+        texto:
+          "Esto importa para tu futuro, no solo para el mes: la base declarada es la que determina tu pensión, " +
+          "tu cobertura de salud y el monto de tu gratificación, tu CTS y tus vacaciones.",
+      },
+      {
+        tipo: "parrafo",
+        texto:
+          "Hay dos conceptos que la ley reconoce expresamente como no remunerativos y que por eso no forman " +
+          "parte de esa base: la movilidad supeditada a la asistencia y el apoyo a estudios, ambos previstos " +
+          "en el artículo 19 del Decreto Supremo 001-97-TR. Son adicionales a tu remuneración, no parte de " +
+          "ella, y en la sección siguiente se explica cada uno.",
+      },
       {
         tipo: "parrafo",
         texto:
