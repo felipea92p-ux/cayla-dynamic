@@ -19,6 +19,8 @@ import {
   HORARIO_PROGRAMADO_SEMANAL,
   RECARGO_SOBRETIEMPO,
   excesoSobreJornada,
+  MAXIMO_DIAS_SIN_DESCANSO,
+  diasSeguidosTrabajados,
 } from "@cayla-dynamic/shared";
 
 describe("los topes de jornada", () => {
@@ -61,5 +63,43 @@ describe("excesoSobreJornada", () => {
   it("nunca devuelve un negativo, aunque se trabaje poco", () => {
     expect(excesoSobreJornada(0)).toBe(0);
     expect(excesoSobreJornada(12.5)).toBe(0);
+  });
+});
+
+describe("diasSeguidosTrabajados", () => {
+  it("cuenta los días seguidos hacia atrás", () => {
+    const f = ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06"];
+    expect(diasSeguidosTrabajados(f, "2026-08-06")).toBe(4);
+  });
+
+  it("un descanso corta la racha: solo cuenta lo posterior", () => {
+    // Descansó el 5. Los días previos no suman.
+    const f = ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-06", "2026-08-07"];
+    expect(diasSeguidosTrabajados(f, "2026-08-07")).toBe(2);
+  });
+
+  it("devuelve 0 si ese día no trabajó", () => {
+    expect(diasSeguidosTrabajados(["2026-08-03", "2026-08-04"], "2026-08-05")).toBe(0);
+  });
+
+  it("el caso que motivó todo: doce días seguidos con descanso rotativo mal puesto", () => {
+    // Descansó el lunes 3 y el domingo 16. Cada semana calendario cuadra, pero
+    // del martes 4 al sábado 15 no descansó ni un día.
+    const f: string[] = [];
+    for (let d = 4; d <= 15; d++) f.push(`2026-08-${String(d).padStart(2, "0")}`);
+    expect(diasSeguidosTrabajados(f, "2026-08-15")).toBe(12);
+    expect(diasSeguidosTrabajados(f, "2026-08-15")).toBeGreaterThan(MAXIMO_DIAS_SIN_DESCANSO);
+  });
+
+  it("cruza el fin de mes sin romperse", () => {
+    const f = ["2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02"];
+    expect(diasSeguidosTrabajados(f, "2026-08-02")).toBe(5);
+  });
+
+  it("seis días seguidos todavía está dentro; el séptimo ya no", () => {
+    const seis = ["2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08"];
+    expect(diasSeguidosTrabajados(seis, "2026-08-08")).toBe(MAXIMO_DIAS_SIN_DESCANSO);
+    expect(diasSeguidosTrabajados([...seis, "2026-08-09"], "2026-08-09"))
+      .toBeGreaterThan(MAXIMO_DIAS_SIN_DESCANSO);
   });
 });

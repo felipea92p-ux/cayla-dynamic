@@ -51,3 +51,46 @@ export const RECARGO_SOBRETIEMPO = {
 export function excesoSobreJornada(horasSemana: number): number {
   return Math.max(0, horasSemana - MAXIMO_LEGAL_SEMANAL);
 }
+
+// ── Descanso semanal ────────────────────────────────────────────────────────
+// El D. Leg. 713 art. 1 da derecho a 24 horas consecutivas de descanso «en cada
+// semana». Y el Informe 027-2021-MTPE/14 de la Dirección General de Trabajo
+// —criterio VINCULANTE para la administración laboral— aclara qué es «semana»:
+//
+//   «la semana debe ser entendida como el período o ciclo de siete días,
+//    indistintamente si dichos siete días se corresponden con los que se
+//    ordenan cronológicamente en los calendarios: lunes a domingo»
+//
+// La diferencia no es teórica. Con semana calendario y descanso rotativo se
+// puede cumplir «un descanso por semana» y encadenar doce días: descansar el
+// lunes de una semana y el domingo de la siguiente. Cada semana cuadra, la
+// persona trabajó doce días seguidos. Medido en CAYLA el 2026-08-08: 30 rachas
+// desde enero, la peor de 20 días.
+//
+// Por eso el tope se cuenta en DÍAS CONSECUTIVOS y no por semana calendario.
+
+/** Días seguidos que se pueden trabajar. El siguiente tiene que ser descanso. */
+export const MAXIMO_DIAS_SIN_DESCANSO = 6;
+
+/**
+ * Cuántos días seguidos lleva trabajados una persona, contando hacia atrás desde
+ * `hasta`. Devuelve 0 si ese día no trabajó — la racha se cortó, que es lo que
+ * hace un descanso.
+ *
+ * `fechas` son los días CON horas marcadas, en formato ISO (YYYY-MM-DD). El
+ * orden no importa. Vacaciones, permisos y descansos simplemente no están en la
+ * lista, y por eso cortan la racha.
+ */
+export function diasSeguidosTrabajados(fechas: readonly string[], hasta: string): number {
+  const set = new Set(fechas);
+  if (!set.has(hasta)) return 0;
+  let dias = 0;
+  // Se cuenta en UTC a propósito: son fechas civiles (YYYY-MM-DD), no instantes.
+  // Restar días sobre una fecha local cruzaría mal el cambio de día en Lima.
+  const cursor = new Date(`${hasta}T00:00:00Z`);
+  while (set.has(cursor.toISOString().slice(0, 10))) {
+    dias++;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  return dias;
+}

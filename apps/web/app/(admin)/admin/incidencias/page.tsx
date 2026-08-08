@@ -8,7 +8,10 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
-import { TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL } from "@cayla-dynamic/shared";
+import {
+  TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
+  MAXIMO_DIAS_SIN_DESCANSO, diasSeguidosTrabajados,
+} from "@cayla-dynamic/shared";
 
 function haceDias(n: number): string {
   const d = new Date(); d.setDate(d.getDate() - n);
@@ -128,6 +131,7 @@ function IncidenciasContenido() {
       { data: faltasData },
       { data: levTardData },
       { data: horasSemanaData },
+      { data: diasRachaData },
     ] = await Promise.all([
       // Las dos consultas a jornadas van por lotes: PostgREST cortaba en 1000
       // filas sin avisar, así que incidencias reales dejaban de listarse — y la
@@ -175,6 +179,20 @@ function IncidenciasContenido() {
           .from("jornadas")
           .select("persona_id, horas_trabajadas, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
           .gte("fecha", lunesActual).lte("fecha", domingoActual)
+          .gt("horas_trabajadas", 0)
+          .order("persona_id")
+          .range(ini, fin),
+      ),
+      // Días CON marcaje de las últimas 3 semanas, para medir la racha en curso.
+      // Tres semanas alcanzan: la racha más larga medida en CAYLA fue de 20 días
+      // y con 21 se ve entera. Si alguna llegara más lejos, el aviso igual salta
+      // — solo diría «21+» en vez del número exacto, y a esa altura el número
+      // exacto ya no cambia nada.
+      traerTodo<any>((ini, fin) =>
+        supabase
+          .from("jornadas")
+          .select("persona_id, fecha, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          .gte("fecha", haceDias(20)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
@@ -287,6 +305,41 @@ function IncidenciasContenido() {
         sede: j.personas?.sedes?.codigo ?? "?",
         fecha: HOY,
         tipo: `Jornada semanal excedida (${horas.toFixed(1)} h de ${MAXIMO_LEGAL_SEMANAL} máx.)`,
+        entrada: null,
+        salida: null,
+      });
+    }
+
+    // ── Días seguidos sin descansar ───────────────────────────────────────
+    // El D. Leg. 713 art. 1 da 24 h de descanso «en cada semana», y el Informe
+    // 027-2021-MTPE/14 —vinculante— define semana como CICLO DE 7 DÍAS, no como
+    // semana calendario. Por eso se cuentan días consecutivos y no se mira el
+    // lunes: con descanso rotativo se puede cumplir «uno por semana calendario»
+    // y encadenar doce días igual.
+    //
+    // Dos niveles a propósito. Al sexto día todavía se puede mover el turno del
+    // día siguiente; al séptimo la infracción ya ocurrió y el aviso solo sirve
+    // para no repetirla. El que evita el problema es el primero.
+    const porPersonaDias = new Map<string, { fechas: string[]; fila: any }>();
+    for (const j of (diasRachaData as any[]) ?? []) {
+      const prev = porPersonaDias.get(j.persona_id);
+      if (prev) prev.fechas.push(j.fecha);
+      else porPersonaDias.set(j.persona_id, { fechas: [j.fecha], fila: j });
+    }
+    for (const { fechas, fila: j } of porPersonaDias.values()) {
+      // La racha que importa es la que sigue viva: se mide desde el último día
+      // con marcaje. Si fue hace tres días, ya descansó y no hay nada que avisar.
+      const ultimo = fechas.reduce((a, b) => (a > b ? a : b));
+      const seguidos = diasSeguidosTrabajados(fechas, ultimo);
+      if (seguidos < MAXIMO_DIAS_SIN_DESCANSO) continue;
+      out.push({
+        personaId: j.persona_id,
+        nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
+        sede: j.personas?.sedes?.codigo ?? "?",
+        fecha: ultimo,
+        tipo: seguidos === MAXIMO_DIAS_SIN_DESCANSO
+          ? `Lleva ${seguidos} días seguidos — el próximo le toca descansar`
+          : `${seguidos} días seguidos sin descanso semanal`,
         entrada: null,
         salida: null,
       });
@@ -440,7 +493,7 @@ function IncidenciasContenido() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en la semana en curso (lunes a domingo): ese es el <strong>máximo legal</strong>, no un objetivo — pasarse no se arregla pagando, así que el aviso llega mientras la semana corre y todavía se puede reorganizar el turno. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en la semana en curso: ese es el <strong>máximo legal</strong>, no un objetivo. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Los dos avisos llegan mientras todavía se puede mover el turno: ninguno de los dos se arregla pagando después. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde
