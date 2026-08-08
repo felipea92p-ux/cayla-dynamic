@@ -112,6 +112,10 @@ export const REGIMENES_PENSION = [
   "prima",
   "integra",
   "habitat",
+  // Ya percibe pensión de jubilación, así que NO aporta (0190). Va en la lista
+  // a propósito: si no se pudiera elegir, la única forma de expresarlo sería
+  // dejar el campo vacío — y un campo vacío se lee como «falta completar esto».
+  "jubilada",
 ] as const;
 export type RegimenPension = (typeof REGIMENES_PENSION)[number];
 

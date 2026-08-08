@@ -75,6 +75,8 @@ export const REGIMEN_PENSION_LABELS: Record<RegimenPension, string> = {
   prima: "AFP Prima (12.97 %)",
   integra: "AFP Integra (12.92 %)",
   habitat: "AFP Habitat (12.84 %)",
+  // Sin porcentaje porque no hay ninguno que mostrar: no se le descuenta nada.
+  jubilada: "Jubilada — ya cobra su pensión, no aporta",
 };
 
 /**
