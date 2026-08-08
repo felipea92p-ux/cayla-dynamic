@@ -548,6 +548,37 @@ function BoletaContenido() {
                 <td className="py-2 text-right align-top text-rojo">−{formatSoles(pension)}</td>
               </tr>
             )}
+            {/* Y EL CASO CONTRARIO: quien ya se jubiló no aporta, así que su
+                descuento es cero — y con la condición de arriba su boleta no
+                decía NADA de pensión. Es la misma falla que el comentario de
+                arriba describe, del otro lado: allá el total restaba algo que no
+                se imprimía; acá no resta nada y tampoco se imprime por qué.
+
+                Un silencio así es ambiguo entre tres cosas muy distintas: «no
+                aporta porque está jubilada» (una decisión), «se nos olvidó
+                descontarle» (un error) y «no tiene régimen cargado» (un dato que
+                falta). La 0190 se tomó el trabajo de distinguirlas en la base
+                —por eso `jubilada` es un valor y no un campo vacío— y dejarlo
+                fuera de la boleta lo deshacía justo donde lo lee la persona.
+
+                Y le pasa a ella sola: todas sus compañeras tienen esa línea. Sin
+                esto, comparar dos boletas sugiere que a la suya le falta algo.
+
+                No entra en `hayRestas` a propósito: no resta nada, así que un
+                «Subtotal ganado» idéntico al total sería ruido. Y va en color
+                normal, no en rojo: el rojo en esta boleta significa «esto te lo
+                quitan». */}
+            {pension === 0 && f.regimen_pension === "jubilada" && (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Pensión — no se te descuenta
+                  <span className="block text-xs text-tinta/60">
+                    ya te jubilaste, así que no aportas al sistema de pensiones
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(0)}</td>
+              </tr>
+            )}
             {descuentos.map((m) => (
               <tr key={m.id} className="border-t border-sand">
                 <td className="py-2 text-rojo">Descuento — {m.concepto}</td>
