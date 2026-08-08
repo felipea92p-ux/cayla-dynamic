@@ -21,6 +21,7 @@ import {
   excesoSobreJornada,
   MAXIMO_DIAS_SIN_DESCANSO,
   diasSeguidosTrabajados,
+  ventanaMasCargada,
 } from "@cayla-dynamic/shared";
 
 describe("los topes de jornada", () => {
@@ -101,5 +102,39 @@ describe("diasSeguidosTrabajados", () => {
     expect(diasSeguidosTrabajados(seis, "2026-08-08")).toBe(MAXIMO_DIAS_SIN_DESCANSO);
     expect(diasSeguidosTrabajados([...seis, "2026-08-09"], "2026-08-09"))
       .toBeGreaterThan(MAXIMO_DIAS_SIN_DESCANSO);
+  });
+});
+
+describe("ventanaMasCargada", () => {
+  const d = (fecha: string, horas: number) => ({ fecha, horas });
+
+  it("doce días de 8 h: por calendario da 48 y 48, por ventana móvil da 56", () => {
+    // Este es el caso que la semana de lunes a domingo deja pasar.
+    const dias = [];
+    for (let i = 4; i <= 15; i++) dias.push(d(`2026-08-${String(i).padStart(2, "0")}`, 8));
+    const v = ventanaMasCargada(dias, "2026-08-04", "2026-08-15");
+    expect(v?.horas).toBe(56);
+    expect(v!.horas).toBeGreaterThan(MAXIMO_LEGAL_SEMANAL);
+  });
+
+  it("seis días de 8 h con su descanso no pasa de 48 en ninguna ventana", () => {
+    // lun-sáb trabajando, domingo libre, dos semanas seguidas
+    const dias = [];
+    for (const i of [3,4,5,6,7,8, 10,11,12,13,14,15]) {
+      dias.push(d(`2026-08-${String(i).padStart(2, "0")}`, 8));
+    }
+    const v = ventanaMasCargada(dias, "2026-08-03", "2026-08-15");
+    expect(v!.horas).toBeLessThanOrEqual(MAXIMO_LEGAL_SEMANAL);
+  });
+
+  it("Lima con 5 días de 9 h se queda en 45, por debajo del tope", () => {
+    const dias = [3,4,5,6,7].map((i) => d(`2026-08-0${i}`, 9));
+    const v = ventanaMasCargada(dias, "2026-08-03", "2026-08-09");
+    expect(v?.horas).toBe(45);
+  });
+
+  it("sin datos devuelve null", () => {
+    expect(ventanaMasCargada([], "2026-08-03", "2026-08-09")).not.toBeNull();
+    expect(ventanaMasCargada([], "2026-08-03", "2026-08-09")?.horas).toBe(0);
   });
 });

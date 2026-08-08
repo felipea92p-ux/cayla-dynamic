@@ -10,7 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import {
   TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
-  MAXIMO_DIAS_SIN_DESCANSO, diasSeguidosTrabajados,
+  MAXIMO_DIAS_SIN_DESCANSO, diasSeguidosTrabajados, ventanaMasCargada,
 } from "@cayla-dynamic/shared";
 
 function haceDias(n: number): string {
@@ -170,15 +170,15 @@ function IncidenciasContenido() {
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
       // Tardanzas levantadas (perdonadas): no cuentan para el patrón. Ventana del patrón.
       supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", desdePatron).lte("fecha", HOY),
-      // Horas de la SEMANA ACTUAL (lunes–domingo), para avisar de excesos de
-      // jornada. Va por su cuenta y no reusa la consulta de arriba porque esa
-      // depende del filtro Desde/Hasta que elija quien mira, y el tope de
-      // jornada es semanal: mirarlo sobre un rango arbitrario no significa nada.
+      // Horas de los últimos 20 días, para el tope de jornada. NO se piden por
+      // semana de calendario: el tope de 48 h se mide sobre CUALQUIER ventana de
+      // siete días consecutivos (Informe 027-2021-MTPE/14), y para evaluar una
+      // ventana que termina hoy hacen falta los seis días anteriores.
       traerTodo<any>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, horas_trabajadas, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
-          .gte("fecha", lunesActual).lte("fecha", domingoActual)
+          .select("persona_id, fecha, horas_trabajadas, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          .gte("fecha", haceDias(20)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
@@ -281,30 +281,39 @@ function IncidenciasContenido() {
       });
     }
 
-    // ── Exceso de jornada semanal ─────────────────────────────────────────
-    // Las 48 h son el MÁXIMO LEGAL (Const. art. 25), no un objetivo. Pasarse es
-    // infracción y no se arregla pagando: por eso se avisa mientras la semana
-    // corre y no al cerrar la planilla, cuando ya no hay nada que hacer.
+    // ── Exceso de jornada ─────────────────────────────────────────────────
+    // Las 48 h son el MÁXIMO LEGAL (Const. art. 25), no un objetivo: pasarse es
+    // infracción y no se arregla pagando después.
     //
-    // Se mide contra 48 y NO contra las 45 que CAYLA programa. Son cosas
-    // distintas: 45 es el horario, 48 la jornada ordinaria pactada. Avisar a las
-    // 45 llenaría la pantalla de gente que está perfectamente dentro de su
-    // contrato, y un aviso que salta siempre se ignora a la semana.
-    const porPersonaHoras = new Map<string, { horas: number; fila: any }>();
+    // Se mide sobre la ventana de SIETE DÍAS CONSECUTIVOS más cargada de la
+    // última semana, no sobre la semana de calendario. Antes se sumaba de lunes
+    // a domingo, y así doce días seguidos de 8 h daban 48 y 48 —ninguna semana
+    // se pasaba— cuando cualquier ventana de siete días de esa racha suma 56.
+    // El Informe 027-2021-MTPE/14 es explícito: la semana, para determinar el
+    // tiempo de trabajo, es un ciclo de siete días y no el del calendario.
+    //
+    // Y se mide contra 48, NO contra las 45 que CAYLA programa: 45 es el horario,
+    // 48 la jornada ordinaria pactada. Avisar a las 45 llenaría la pantalla de
+    // gente que está dentro de su contrato, y un aviso que salta siempre se
+    // ignora a la semana.
+    const porPersonaHoras = new Map<string, { dias: { fecha: string; horas: number }[]; fila: any }>();
     for (const j of (horasSemanaData as any[]) ?? []) {
       const prev = porPersonaHoras.get(j.persona_id);
-      const h = Number(j.horas_trabajadas) || 0;
-      if (prev) prev.horas += h;
-      else porPersonaHoras.set(j.persona_id, { horas: h, fila: j });
+      const dia = { fecha: j.fecha as string, horas: Number(j.horas_trabajadas) || 0 };
+      if (prev) prev.dias.push(dia);
+      else porPersonaHoras.set(j.persona_id, { dias: [dia], fila: j });
     }
-    for (const { horas, fila: j } of porPersonaHoras.values()) {
-      if (horas <= MAXIMO_LEGAL_SEMANAL) continue;
+    for (const { dias, fila: j } of porPersonaHoras.values()) {
+      // Solo ventanas que terminan en los últimos 7 días: interesa lo que está
+      // pasando ahora, no un exceso de hace tres semanas que ya no se puede evitar.
+      const v = ventanaMasCargada(dias, haceDias(6), HOY);
+      if (v === null || v.horas <= MAXIMO_LEGAL_SEMANAL) continue;
       out.push({
         personaId: j.persona_id,
         nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
         sede: j.personas?.sedes?.codigo ?? "?",
-        fecha: HOY,
-        tipo: `Jornada semanal excedida (${horas.toFixed(1)} h de ${MAXIMO_LEGAL_SEMANAL} máx.)`,
+        fecha: v.fin,
+        tipo: `Jornada excedida: ${v.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
         entrada: null,
         salida: null,
       });
@@ -493,7 +502,7 @@ function IncidenciasContenido() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en la semana en curso: ese es el <strong>máximo legal</strong>, no un objetivo. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Los dos avisos llegan mientras todavía se puede mover el turno: ninguno de los dos se arregla pagando después. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Los dos avisos llegan mientras todavía se puede mover el turno: ninguno de los dos se arregla pagando después. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde

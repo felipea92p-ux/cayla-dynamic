@@ -94,3 +94,42 @@ export function diasSeguidosTrabajados(fechas: readonly string[], hasta: string)
   }
   return dias;
 }
+
+/**
+ * Las horas de la ventana de 7 días consecutivos MÁS CARGADA que termina dentro
+ * del rango mirado. Devuelve la ventana y sus horas, o `null` si no hay datos.
+ *
+ * Por qué una ventana móvil y no la semana de lunes a domingo: el mismo Informe
+ * 027-2021-MTPE/14 dice que la semana, «para los efectos de la determinación del
+ * tiempo de trabajo», es un ciclo de siete días y no el que ordena el calendario.
+ *
+ * La diferencia se ve con doce días seguidos de 8 h. Partidos en semanas de
+ * calendario dan 48 y 48 —ninguna se pasa— pero cualquier ventana de siete días
+ * de esa racha suma 56. Medir por calendario deja pasar justo el caso que hay
+ * que ver.
+ */
+export function ventanaMasCargada(
+  dias: readonly { fecha: string; horas: number }[],
+  desde: string,
+  hasta: string,
+): { fin: string; horas: number } | null {
+  const porFecha = new Map<string, number>();
+  for (const d of dias) porFecha.set(d.fecha, (porFecha.get(d.fecha) ?? 0) + d.horas);
+
+  let mejor: { fin: string; horas: number } | null = null;
+  const cursor = new Date(`${desde}T00:00:00Z`);
+  const tope = new Date(`${hasta}T00:00:00Z`);
+  while (cursor <= tope) {
+    const fin = cursor.toISOString().slice(0, 10);
+    // La ventana es el día y los seis anteriores: siete días consecutivos.
+    let suma = 0;
+    const atras = new Date(cursor);
+    for (let i = 0; i < 7; i++) {
+      suma += porFecha.get(atras.toISOString().slice(0, 10)) ?? 0;
+      atras.setUTCDate(atras.getUTCDate() - 1);
+    }
+    if (mejor === null || suma > mejor.horas) mejor = { fin, horas: suma };
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return mejor;
+}
