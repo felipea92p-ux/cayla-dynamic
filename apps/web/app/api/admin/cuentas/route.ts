@@ -163,7 +163,15 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
-      const { data: inv, error } = await admin.auth.admin.inviteUserByEmail(destino);
+      // A dónde llega al hacer clic. Sin esto, Supabase la manda al Site URL
+      // configurado en el proyecto: la persona cae en la raíz, sin clave y sin
+      // saber qué hacer. Es la misma pantalla a la que lleva «Olvidé mi clave».
+      // El origen sale del request para que funcione igual en producción y en
+      // una vista previa de Vercel, sin una variable de entorno más que mantener.
+      const origen = req.headers.get("origin") ?? new URL(req.url).origin;
+      const { data: inv, error } = await admin.auth.admin.inviteUserByEmail(destino, {
+        redirectTo: `${origen}/admin/nueva-clave`,
+      });
       if (error) {
         Sentry.captureException(error);
         return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
