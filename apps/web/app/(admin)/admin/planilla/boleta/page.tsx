@@ -226,6 +226,18 @@ function BoletaContenido() {
   const pension = f.descuento_afp ?? 0;
   const aporteEssalud = f.aporte_essalud ?? 0;
 
+  // El recargo del sobretiempo (0185). Mismo criterio que la movilidad: entra en
+  // el 'total' del SQL, así que si la boleta no lo imprime el total deja de
+  // cuadrar con sus líneas. `?? 0` para que una base sin la 0185 pegada no dibuje
+  // la fila en vez de escribir «S/ NaN».
+  const sobretiempo = f.monto_sobretiempo ?? 0;
+  const diasSobretiempo =
+    f.sobretiempo_desde && f.sobretiempo_hasta
+      ? f.sobretiempo_desde === f.sobretiempo_hasta
+        ? fechaCorta(f.sobretiempo_desde)
+        : `${fechaCorta(f.sobretiempo_desde)} al ${fechaCorta(f.sobretiempo_hasta)}`
+      : null;
+
   // Subtotal ganado: todo lo que suma, antes de restar. Solo se muestra si hay
   // algo que restar — sin eso sería idéntico al total y solo agregaría ruido.
   // Decidido con Felipe el 2026-07-28: cuando el descuento es grande (un adelanto,
@@ -235,6 +247,7 @@ function BoletaContenido() {
   const subtotalGanado =
     f.pago_base +
     f.monto_feriados +
+    sobretiempo +
     f.asignacion_familiar +
     f.monto_plus +
     movilidad +
@@ -392,6 +405,26 @@ function BoletaContenido() {
               <tr className="border-t border-sand">
                 <td className="py-2">Feriados</td>
                 <td className="py-2 text-right">{formatSoles(f.monto_feriados)}</td>
+              </tr>
+            )}
+            {/* Sobretiempo (0185). Se imprime el RECARGO, que es lo que esta línea
+                agrega: las horas en sí ya están cobradas dentro del pago base. Sin
+                decirlo, «6 h de sobretiempo = S/10.66» se lee como si la hora
+                valiera S/1.78 y la persona no puede reconocer su propio pago.
+                También se dicen los días: el recargo se mide contra las 48 horas
+                SEMANALES, así que sin la fecha nadie puede rehacer la cuenta. */}
+            {sobretiempo > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Sobretiempo
+                  <span className="block text-xs text-taupe">
+                    {fmtHorasHumano(f.horas_sobretiempo ?? 0)} por encima de las 48 de la
+                    semana{diasSobretiempo && ` · ${diasSobretiempo}`} · se paga el recargo
+                    (25 % las 2 primeras horas de cada día, 35 % las demás); las horas
+                    mismas ya están en el pago base
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(sobretiempo)}</td>
               </tr>
             )}
             {f.asignacion_familiar > 0 && (

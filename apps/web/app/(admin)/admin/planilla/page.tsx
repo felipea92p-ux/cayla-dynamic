@@ -186,7 +186,16 @@ export interface Fila {
   provision_cts: number;
   provision_vacaciones: number;
   provision_total: number;
-  total: number; // ya incluye + asignación + movilidad − pensión + bonos − descuentos
+  // Sobretiempo (0185): SOLO el recargo del 25 % / 35 %, no la hora completa —
+  // las horas ya están dentro de pago_base. `horas_sobretiempo` son las horas
+  // que excedieron las 48 semanales; `monto_sobretiempo` es lo que cuesta el
+  // recargo sobre ellas. Opcionales porque una base sin la 0185 pegada no manda
+  // las claves, y la boleta tiene que seguir saliendo igual que antes.
+  monto_sobretiempo?: number;
+  horas_sobretiempo?: number;
+  sobretiempo_desde?: string | null;
+  sobretiempo_hasta?: string | null;
+  total: number; // ya incluye + asignación + movilidad + sobretiempo − pensión + bonos − descuentos
 }
 export interface FactoresProvision {
   gratificacion: number;
