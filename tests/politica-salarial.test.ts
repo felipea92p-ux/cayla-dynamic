@@ -15,6 +15,8 @@ import { describe, it, expect } from "vitest";
 import {
   categoriasFueraDeOrden,
   construirDocumento,
+  documentoAJson,
+  documentoDesdeGuardado,
   type CategoriaCuadro,
   type Cuadro,
 } from "@/lib/politica-salarial";
@@ -213,5 +215,56 @@ describe("la escala publica el monto aunque la categoría esté vacía", () => {
     const iConceptos = titulos.indexOf("Lo que se recibe además de la remuneración");
     expect(iJornada).toBeGreaterThan(-1);
     expect(iJornada).toBeLessThan(iConceptos);
+  });
+});
+
+// ============================================================================
+// El documento publicado se ve igual que el que se va a publicar
+// ============================================================================
+// La 0141 congela el documento como texto para que las constancias apunten a
+// algo inmutable. Pero se guardaba texto PLANO —títulos en mayúsculas, tablas
+// con `|`, guiones de subrayado— y la pantalla lo mostraba en un <pre>: el
+// documento se veía peor DESPUÉS de publicarlo que antes.
+//
+// Guardarlo como JSON cumple lo mismo —también es texto, también es inmutable—
+// y conserva la estructura, así que se pinta con el mismo renderizador. Estas
+// pruebas fijan las dos mitades: que el viaje de ida y vuelta no pierda nada, y
+// que lo publicado con el formato viejo se siga pudiendo leer.
+// ============================================================================
+describe("cómo se congela el documento al publicarlo", () => {
+  const cuadroPropio = (): Cuadro => ({
+    categorias: [
+      { ...cat("colibri", 1, 1130), personas: 13 },
+      { ...cat("cayla", 2, 1185), personas: 5 },
+      { ...cat("archicaylo", 6, 1500), personas: 1 },
+    ],
+    movilidad: [{ sede: "LIM", valor: 12 }],
+    brecha: 1.33,
+  });
+  const doc = () => construirDocumento(cuadroPropio(), "2026-08-07");
+
+  it("guardar y recuperar devuelve el mismo documento, sin perder nada", () => {
+    const original = doc();
+    const recuperado = documentoDesdeGuardado(documentoAJson(original));
+    expect(recuperado).toEqual(original);
+  });
+
+  it("conserva las tablas como tablas, no como texto con barras", () => {
+    const recuperado = documentoDesdeGuardado(documentoAJson(doc()));
+    const escala = recuperado?.secciones.find((s) => s.titulo === "La escala");
+    const tabla = escala?.bloques.find((b) => b.tipo === "tabla");
+    expect(tabla?.tipo).toBe("tabla");
+  });
+
+  it("una versión guardada con el formato viejo devuelve null, para mostrarla tal cual", () => {
+    // Las que la gente ya firmó se siguen leyendo como se firmaron: no se tocan.
+    expect(documentoDesdeGuardado("CUADRO DE CATEGORÍAS\n----\nTexto plano")).toBeNull();
+  });
+
+  it("un JSON que no es un documento tampoco pasa", () => {
+    // Empieza con `{` y parsea, pero no tiene la forma: no alcanza con que sea
+    // JSON válido para tratarlo como documento.
+    expect(documentoDesdeGuardado('{"algo":1}')).toBeNull();
+    expect(documentoDesdeGuardado("{ roto")).toBeNull();
   });
 });

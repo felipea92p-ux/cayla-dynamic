@@ -10,7 +10,8 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
   categoriasFueraDeOrden,
   construirDocumento,
-  documentoATexto,
+  documentoAJson,
+  documentoDesdeGuardado,
   type Bloque,
   type Cuadro,
   type Documento,
@@ -75,6 +76,41 @@ function fechaHora(iso: string): string {
     minute: "2-digit",
     timeZone: "America/Lima",
   }).format(new Date(iso));
+}
+
+// Un solo renderizador del documento, para el que se está por publicar y para el
+// ya publicado. Tenerlo dos veces era pedir que uno mostrara algo que el otro no
+// — y el que vale como prueba es el publicado.
+function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | null }) {
+  return (
+    <article className="rounded border border-slate-300 bg-white p-6">
+      <header className="mb-6 border-b border-slate-300 pb-4">
+        <h2 className="text-lg font-semibold text-slate-900">{doc.titulo}</h2>
+        <p className="text-sm text-slate-600">
+          {doc.empresa.nombre} — RUC {doc.empresa.ruc}
+        </p>
+        <p className="text-sm text-slate-600">{doc.fecha}</p>
+      </header>
+      {doc.secciones.map((sec, i) => (
+        <section key={i} className="mb-6">
+          <h3 className="mb-3 text-base font-semibold text-slate-900">{sec.titulo}</h3>
+          {sec.bloques.map((b, j) => (
+            <BloqueVista key={j} b={b} />
+          ))}
+        </section>
+      ))}
+      <footer className="mt-10 border-t border-slate-300 pt-6">
+        {firmaUrl !== null && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
+        )}
+        <p className="text-sm font-medium text-slate-900">{doc.empresa.firmante}</p>
+        <p className="text-sm text-slate-600">
+          {doc.empresa.cargo} — {doc.empresa.nombre}
+        </p>
+      </footer>
+    </article>
+  );
 }
 
 function BloqueVista({ b }: { b: Bloque }) {
@@ -225,7 +261,7 @@ export default function PoliticaSalarialPage() {
     setAviso(null);
     const supabase = createAdminSupabaseClient();
     const { data, error: e } = await supabase.rpc("fn_publicar_politica_salarial", {
-      p_documento: documentoATexto(docVivo),
+      p_documento: documentoAJson(docVivo),
       p_notas: null,
     });
     if (e !== null) {
@@ -355,43 +391,32 @@ export default function PoliticaSalarialPage() {
 
         {/* ── El documento ── */}
         {vigente !== null && vigente.publicada && !vigente.desactualizada ? (
-          // Lo publicado, tal cual se comunicó. No se regenera: si se regenerara,
-          // cambiar una banda haría que las constancias apuntaran a un texto que
-          // nadie leyó.
-          <article className="rounded border border-slate-300 bg-white p-6">
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
-              {vigente.documento}
-            </pre>
-          </article>
+          // Lo publicado, tal cual se comunicó. NO se regenera desde las tablas:
+          // si se regenerara, cambiar una banda haría que las constancias
+          // apuntaran a un texto que nadie leyó.
+          //
+          // Lo que se muestra sale de lo guardado, no de `docVivo`. Desde que se
+          // guarda como JSON se puede pintar con el mismo renderizador de abajo,
+          // así que el documento se ve igual antes y después de publicarlo. Las
+          // versiones anteriores se guardaron como texto plano: para esas,
+          // `documentoDesdeGuardado` devuelve null y se muestran tal cual — se
+          // ven peor, pero son las que la gente firmó y no se tocan.
+          (() => {
+            const publicado = documentoDesdeGuardado(vigente.documento ?? "");
+            if (publicado === null) {
+              return (
+                <article className="rounded border border-slate-300 bg-white p-6">
+                  <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
+                    {vigente.documento}
+                  </pre>
+                </article>
+              );
+            }
+            return <DocumentoVista doc={publicado} firmaUrl={esFirmante ? firmaUrl : null} />;
+          })()
         ) : (
           docVivo !== null && (
-            <article className="rounded border border-slate-300 bg-white p-6">
-              <header className="mb-6 border-b border-slate-300 pb-4">
-                <h2 className="text-lg font-semibold text-slate-900">{docVivo.titulo}</h2>
-                <p className="text-sm text-slate-600">
-                  {docVivo.empresa.nombre} — RUC {docVivo.empresa.ruc}
-                </p>
-                <p className="text-sm text-slate-600">{docVivo.fecha}</p>
-              </header>
-              {docVivo.secciones.map((sec, i) => (
-                <section key={i} className="mb-6">
-                  <h3 className="mb-3 text-base font-semibold text-slate-900">{sec.titulo}</h3>
-                  {sec.bloques.map((b, j) => (
-                    <BloqueVista key={j} b={b} />
-                  ))}
-                </section>
-              ))}
-              <footer className="mt-10 border-t border-slate-300 pt-6">
-                {firmaUrl !== null && esFirmante && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
-                )}
-                <p className="text-sm font-medium text-slate-900">{docVivo.empresa.firmante}</p>
-                <p className="text-sm text-slate-600">
-                  {docVivo.empresa.cargo} — {docVivo.empresa.nombre}
-                </p>
-              </footer>
-            </article>
+            <DocumentoVista doc={docVivo} firmaUrl={esFirmante ? firmaUrl : null} />
           )
         )}
 

@@ -830,6 +830,56 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
  * que se le muestra a un inspector: tiene que poder leerse tal cual dentro de
  * cinco años, sin depender de que la pantalla siga existiendo.
  */
+// ============================================================================
+// Cómo se congela el documento al publicarlo
+// ============================================================================
+// La 0141 exige guardar el documento ENTERO como texto y no regenerarlo: si se
+// regenerara desde las tablas, cambiar una banda haría que todas las constancias
+// viejas apuntaran a un texto que nadie leyó.
+//
+// Ese requisito se cumple igual guardando JSON —también es texto, también es
+// inmutable— y con una ventaja grande: conserva la ESTRUCTURA. La pantalla lo
+// vuelve a `Documento` y lo pinta con el mismo renderizador que usa antes de
+// publicar, así que se ve idéntico las dos veces.
+//
+// Antes se guardaba texto plano (`documentoATexto`), y el documento publicado se
+// mostraba en un <pre>: títulos en mayúsculas, tablas con `|`, guiones de
+// subrayado. Un documento que 22 personas tienen que leer y entender no puede
+// verse peor DESPUÉS de publicarlo que antes.
+//
+// `documentoATexto` se conserva por dos motivos: las versiones ya publicadas con
+// ese formato tienen que seguir leyéndose, y sigue siendo la forma correcta de
+// volcar el documento a texto llano cuando haga falta (copiar, imprimir sin
+// estilos, adjuntar en un correo).
+export function documentoAJson(doc: Documento): string {
+  return JSON.stringify(doc);
+}
+
+/**
+ * Recupera el documento guardado. Devuelve `null` cuando lo almacenado no es
+ * JSON — que es el caso de las versiones publicadas antes de este cambio, y la
+ * señal de que hay que mostrarlas como texto llano.
+ */
+export function documentoDesdeGuardado(guardado: string): Documento | null {
+  const t = guardado.trim();
+  if (!t.startsWith("{")) return null;
+  try {
+    const d = JSON.parse(t);
+    // Se comprueba la forma, no solo que el JSON sea válido: un texto que
+    // empiece con `{` y parsee no es necesariamente un documento.
+    if (
+      typeof d?.titulo === "string" &&
+      Array.isArray(d?.secciones) &&
+      typeof d?.empresa?.nombre === "string"
+    ) {
+      return d as Documento;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function documentoATexto(doc: Documento): string {
   const out: string[] = [];
   out.push(doc.titulo.toUpperCase());
