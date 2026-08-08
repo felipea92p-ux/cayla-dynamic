@@ -57,7 +57,7 @@ with repo(numero, nombre) as (values
     (180, 'el_candado_de_pagado_vuelve_a_las_seis_que_lo_perdieron'),
     (181, 'los_mensajes_rotos_vuelven_a_decir_lider'),
     (182, 'el_cargo_dice_que_eres_el_rol_dice_que_abres'),
-    (183, 'dos_periodos_del_mismo_mes_pagarian_el_plus_dos_veces')
+    (183, 'los_periodos_vuelven_a_la_version_que_dice_el_repositorio')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
