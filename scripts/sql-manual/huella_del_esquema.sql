@@ -92,6 +92,19 @@ select
   count(*) filter (where k = 'can')                as n_candados,
   count(*) filter (where k = 'col' and not aparte) as n_columnas,
 
+  -- Debe decir 0. Cuenta funciones cuyo cuerpo lleva el signo «√», que en
+  -- castellano no aparece nunca dentro de un mensaje: su presencia SIEMPRE es
+  -- texto UTF-8 leído como Mac OS Roman, que parte cada acento en dos.
+  --
+  -- Va aquí y no en una prueba pgTAP por una razón medida: el 2026-08-07 había
+  -- cuatro funciones así EN PRODUCCIÓN y ninguna en la base local. Una prueba
+  -- mira el repositorio y habría estado en verde todos esos meses. Este dato
+  -- se calcula donde vive el problema.
+  (select count(*)
+     from pg_proc p2 join pg_namespace n2 on n2.oid = p2.pronamespace
+    where n2.nspname = 'public' and p2.proname like 'fn\_%'
+      and p2.prosrc like '%' || chr(8730) || '%') as funciones_con_texto_roto,
+
   coalesce(string_agg(nombre, ' · ' order by nombre) filter (where aparte), 'ninguno')
     as solo_en_produccion
 from marcado;
