@@ -141,7 +141,29 @@ fi
 # Solo AVISA, no bloquea: reaplicar una migración vieja a propósito es legítimo
 # (revertir algo, reparar una base a medias). Lo que no puede pasar es hacerlo
 # creyendo que no tiene consecuencias.
+# El número sale de las DOS formas de nombrar que usa este repo:
+#   0163_las_truncas_descuentan.sql   ← una migración
+#   aplicar_0163.sql                  ← su copia lista para pegar
+#
+# Hasta el 2026-08-08 solo se reconocía la primera, así que esta comprobación
+# **no corría para ningún `aplicar_*`** — justo los archivos que causaron el
+# incidente que la motivó. Y no corría en silencio: entregaba el SQL sin decir
+# una palabra, que es peor que no tener la comprobación, porque quien la conoce
+# confía en ella.
 NUM_PEDIDO=$(basename "$ARCHIVO" | sed -nE 's/^([0-9]+)_.*/\1/p')
+[ -z "$NUM_PEDIDO" ] && NUM_PEDIDO=$(basename "$ARCHIVO" | sed -nE 's/^aplicar_0*([0-9]+).*/\1/p')
+
+# Si aun así no hay número, la comprobación NO puede correr — y hay que decirlo.
+# Un chequeo que se salta callado enseña que estaba en verde cuando en realidad
+# ni miró. Es la misma regla que el resto de este repositorio viene aplicando:
+# un dato ausente y un resultado limpio no pueden verse iguales.
+if [ -z "$NUM_PEDIDO" ]; then
+  echo ""
+  gris "  (No pude sacar un número de este nombre, así que no comprobé si"
+  gris "   revierte algo que una migración posterior ya arregló. Si lleva dentro"
+  gris "   el cuerpo de una función, míralo con ./scripts/donde-vive.sh)"
+fi
+
 if [ -n "$NUM_PEDIDO" ]; then
   PISARIA=""
   # Las dos formas de definir que usa este repo: `create or replace function` y
