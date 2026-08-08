@@ -54,7 +54,8 @@ with repo(numero, nombre) as (values
     (177, 'las_vacaciones_se_pagan_como_dias_trabajados'),
     (178, 'caylo_deja_de_poder_asignarse'),
     (179, 'la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue'),
-    (180, 'el_candado_de_pagado_vuelve_a_las_seis_que_lo_perdieron')
+    (180, 'el_candado_de_pagado_vuelve_a_las_seis_que_lo_perdieron'),
+    (181, 'los_mensajes_rotos_vuelven_a_decir_lider')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
