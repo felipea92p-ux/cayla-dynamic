@@ -108,6 +108,47 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
+### A.2.b · La ficha de Catherine describe subordinación, y es locadora
+
+**Para consultar con el contador. No hay nada roto en el cálculo** — eso se
+verificó y se descarta abajo. Lo que hay es un riesgo de cómo el sistema la
+retrata.
+
+Catherine es **rxh** (honorarios), y así aparece hoy en el sistema:
+
+| Campo | Valor |
+|---|---|
+| Rol | **Líder de equipo (encargada)** |
+| Área | Comercial |
+| Sede | CCO |
+| Rango de la escala salarial | **Oráculo · S/ 1,800.00** |
+| Pago | **monto fijo, idéntico todos los meses** |
+
+Esos cinco juntos son los indicios clásicos de **subordinación**, que es lo que
+convierte una locación de servicios en un contrato de trabajo. El riesgo no es
+una multa: es la **desnaturalización** del vínculo, con CTS, gratificaciones,
+vacaciones y EsSalud retroactivos desde el inicio.
+
+Y el agravante: **el expediente lo arma el propio sistema.** La pantalla de
+Equipo la nombra encargada, le asigna un área y le pone un rango de la escala
+que se publica al equipo bajo la Ley 30709. Es prueba escrita, generada por
+CAYLA.
+
+**Si es socia, cobrar por honorarios es correcto y común.** El problema no es el
+vínculo: es que la ficha la describe como una encargada de equipo, cargo que no
+le agrega autoridad —ya la tiene por ser socia— y en cambio construye la prueba
+de lo contrario. Este archivo ya lo había anotado antes como un problema de
+permisos («el rol de Catherine está al revés de su papel»); es más que eso.
+
+**Lo que hay que decidir:** qué es Catherine para CAYLA —socia, dirección,
+asesora externa— y alinear rol, área y rango con esa respuesta.
+
+**Lo que YA se verificó, y no hace falta volver a mirar** (2026-08-07): el
+dinero está bien. A un `rxh` no se le calcula movilidad ni EsSalud (0117), ni
+educación (0120), ni gratificación, CTS, vacaciones o el 9% de la Ley 30334
+(0160, con la prueba `127`). Lo único que recibe es su pago base, que es lo que
+se le transfiere. **No hay provisiones indebidas ni plata de más.**
+
 ### A.3 · Datos que hacen falta para seguir
 
 **0) Nadie tiene contacto de emergencia — las 25, sin una sola excepción.**
@@ -590,7 +631,8 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
 - **El rol de Catherine.** Tiene `supervisor_sede` en CCO, así que el sistema le
   da lo de una encargada de tienda —ver a la gente de CCO, firmar amonestaciones
   de CCO— y le niega lo que querría una accionista: ver las tres tiendas. Está al
-  revés de su papel.
+  revés de su papel. ⚠️ **No es solo de permisos:** siendo locadora por
+  honorarios, ese cargo la retrata como subordinada. Ver [A.2.b](#a2b--la-ficha-de-catherine-describe-subordinación-y-es-locadora).
 - **Cuatro personas con rol admin** (Carlos, Estefany, Felipe, Janis). Un admin ve
   todas las sedes, todos los datos personales —cuentas bancarias y DNI incluidos—
   y puede firmar despidos. Cuatro accesos totales en un equipo de 23.
