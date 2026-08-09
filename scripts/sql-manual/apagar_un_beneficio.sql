@@ -13,6 +13,7 @@
 --   v_beneficio  'grati', 'cts' o 'vacaciones'. Cualquier otra cosa revienta.
 --   v_devenga    false = NO devenga · true = SÍ devenga
 --                null  = vuelve al defecto de su tipo de vínculo (deshacer)
+--   v_quien_soy  quién queda anotado como autor. Normalmente no se toca.
 --
 -- ── QUÉ HACE Y QUÉ NO ───────────────────────────────────────────────────────
 --   Escribe la bandera y deja rastro en `correcciones_auditoria` con quién lo
@@ -47,9 +48,30 @@ declare
   v_busca     text    := 'PON_AQUI_EL_APELLIDO';   -- ⇦ CAMBIA ESTA LÍNEA
   v_beneficio text    := 'vacaciones';
   v_devenga   boolean := false;
+  v_quien_soy text    := 'Felipe';   -- quién queda como autor del cambio
 
-  v_id uuid; v_nombre text; v_n int;
+  v_id uuid; v_nombre text; v_n int; v_yo uuid;
 begin
+  -- ── Identificarse, que en el SQL Editor no es automático ──────────────────
+  -- Esta función AUDITA quién cambia el devengo, así que se niega a correr sin
+  -- saber quién es. Y el SQL Editor entra como `postgres`, sin sesión de nadie:
+  -- `auth.uid()` es null y `fn_es_admin_o_lider()` dice que no.
+  --
+  -- Es el mismo prólogo que docs/estado.md ya documenta para fn_planilla_calcular
+  -- y fn_provisiones. Va con `false` —alcance de sesión y no de transacción—
+  -- porque la comprobación del final también lo necesita y es otra sentencia.
+  select p.auth_user_id into v_yo
+  from personas p
+  where p.rol in ('admin', 'lider_do')
+    and p.auth_user_id is not null
+    and (p.nombres || ' ' || p.apellidos) ilike '%' || v_quien_soy || '%'
+  limit 1;
+
+  if v_yo is null then
+    raise exception 'No encontré a un administrador que se parezca a «%». Es quien queda anotado como autor del cambio.', v_quien_soy;
+  end if;
+  perform set_config('request.jwt.claim.sub', v_yo::text, false);
+
   select count(*) into v_n
   from personas
   where (nombres || ' ' || apellidos) ilike '%' || v_busca || '%';
@@ -68,7 +90,8 @@ begin
   perform fn_set_devenga_beneficio(v_id, v_beneficio, v_devenga);
   insert into _elegido values (v_id, v_nombre);
 
-  raise notice 'Listo: % → % = %', v_nombre, v_beneficio, coalesce(v_devenga::text, 'defecto del vínculo');
+  raise notice 'Listo: % → % = %  ·  anotado a nombre de %',
+    v_nombre, v_beneficio, coalesce(v_devenga::text, 'defecto del vínculo'), v_quien_soy;
 end $$;
 
 -- ── La comprobación, que es lo único que prueba que sirvió ──────────────────
