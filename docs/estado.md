@@ -911,11 +911,30 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   la prueba `126` blinda que el sexto no se cuele en la gratificación ni en las
   vacaciones. **Falta contárselo al contador antes del depósito de mayo**: si él
   calcula sobre el sueldo pelado, la discrepancia aparece el día del depósito.
-- **A Carlos Espejo no se le toca el tipo de vínculo.** Sigue `planilla` aunque
-  facture por honorarios, a propósito: el tipo de vínculo es un sí/no para los
-  tres conceptos a la vez, así que marcarlo `rxh` le pondría gratificación y CTS
-  en cero — lo contrario de lo decidido. Se revisa el día que exista la excepción
-  por persona.
+- ~~**A Carlos Espejo no se le toca el tipo de vínculo**~~ — **REVISADA Y
+  REVERTIDA el 2026-08-08.** La decisión decía «se revisa el día que exista la
+  excepción por persona»: ese día llegó con la 0196, que parte el sí/no en tres
+  banderas. Carlos pasó a `rxh`, que es lo que es.
+
+  **Qué cambió, medido:** deja de cobrar feriados (S/286.57 en un periodo
+  completo), deja de generar EsSalud (S/134.81 que pagaba CAYLA) y deja de
+  provisionar gratificación, CTS y vacaciones. **Su pago por horas no se movió un
+  céntimo** — de eso vive, y es lo único que le corresponde a un locador.
+
+  **Por qué se revirtió:** los hechos, dichos por Felipe el mismo día, no
+  encajaban con el retrato. Cobra POR HORA, es cuadripléjico, trabaja desde su
+  casa, no está sujeto a horario y marca cuando decide trabajar. Ninguno de los
+  indicios de subordinación que lista la doctrina —horario fijo, instrucciones
+  directas, equipos de la empresa, monto igual cada mes— aplica. Dejarlo como
+  `planilla` era construir por escrito la prueba de una relación laboral que no
+  existe. Ver [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado).
+
+  ⚠️ **Y quedó una pregunta abierta que solo puede cerrar el contador:** el
+  sistema venía calculando S/134.81 mensuales de EsSalud por él. Si eso se
+  declaró de verdad en la PLAME, Carlos está registrado como TRABAJADOR ante
+  SUNAT y EsSalud, y entonces toda la discusión sobre indicios sobra — formalmente
+  ya lo es. Si solo salía en pantalla y nadie lo declaró, no pasa nada. **No es lo
+  mismo y hay que averiguarlo.**
 - **El terminal marca sin PIN**, a propósito. No se puede usar una marca como
   prueba individual en un procedimiento disciplinario sin otro respaldo.
 - **Fecha de ingreso = decisión de negocio, no cálculo.** Se edita persona por
