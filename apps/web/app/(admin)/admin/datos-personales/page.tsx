@@ -85,6 +85,11 @@ export default function DatosPersonalesPage() {
   const [email, setEmail] = useState("");
   const [dhNuevo, setDhNuevo] = useState({ ...DH_VACIO });
   const [dhAbierto, setDhAbierto] = useState(false);
+  // Qué familiar se está editando. `null` = se está creando uno nuevo. El
+  // formulario es el MISMO para las dos cosas: `fn_set_derechohabiente` ya hace
+  // upsert según venga `p_id`, así que duplicarlo sería tener dos sitios donde
+  // arreglar el próximo campo que falte.
+  const [dhEditando, setDhEditando] = useState<string | null>(null);
   // Si la carga falló, la pantalla no sabe qué hay de verdad: guardar desde aquí
   // borraría datos. Se bloquea hasta que una recarga vaya bien.
   const [cargaFallida, setCargaFallida] = useState(false);
@@ -132,7 +137,7 @@ export default function DatosPersonalesPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   function seleccionar(id: string) {
-    setSel(id); setMsg(null); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO });
+    setSel(id); setMsg(null); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO }); setDhEditando(null);
     // En móvil la ficha queda debajo de la lista: la traemos a la vista
     // (respetando la preferencia de "reducir movimiento" del sistema).
     if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -251,7 +256,7 @@ export default function DatosPersonalesPage() {
     }
     setGuardando(true); setMsg(null);
     const { error } = await supabase.rpc("fn_set_derechohabiente", {
-      p_id: null, p_persona_id: sel,
+      p_id: dhEditando, p_persona_id: sel,
       p_nombres: dhNuevo.nombres.trim(), p_apellidos: dhNuevo.apellidos.trim(),
       p_vinculo: dhNuevo.vinculo,
       p_documento: dhNuevo.documento.trim() || null,
@@ -260,9 +265,22 @@ export default function DatosPersonalesPage() {
     });
     setGuardando(false);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
-    setDhNuevo({ ...DH_VACIO }); setDhAbierto(false);
+    const editaba = dhEditando !== null;
+    setDhNuevo({ ...DH_VACIO }); setDhAbierto(false); setDhEditando(null);
     await cargar();
-    setMsg({ tipo: "ok", texto: "Familiar agregado." });
+    setMsg({ tipo: "ok", texto: editaba ? "Familiar corregido." : "Familiar agregado." });
+  }
+
+  /** Carga un familiar ya registrado en el formulario, para corregirlo. */
+  function editarDerechohabiente(d: Derechohabiente) {
+    setDhEditando(d.id);
+    setDhAbierto(true);
+    setMsg(null);
+    setDhNuevo({
+      nombres: d.nombres, apellidos: d.apellidos, vinculo: d.vinculo,
+      documento: d.documento ?? "", fecha_nacimiento: d.fecha_nacimiento ?? "",
+      essalud: d.essalud, vida_ley: d.vida_ley,
+    });
   }
 
   async function cerrarDerechohabiente(id: string, nombre: string) {
@@ -753,7 +771,17 @@ export default function DatosPersonalesPage() {
                       <p className="text-[11px] uppercase tracking-wider text-taupe">
                         Familiares {misDerechos.length > 0 && <span className="normal-case">· {misDerechos.filter((d) => !d.vigente_hasta).length} vigentes</span>}
                       </p>
-                      <button onClick={() => setDhAbierto((v) => !v)} className="text-xs text-tinta hover:underline">
+                      {/* Siempre abre EN BLANCO. Sin el reset, pulsarlo después de
+                          haber estado editando a alguien dejaba sus datos cargados y
+                          el próximo «Guardar» pisaba a esa persona en vez de crear
+                          un familiar nuevo. */}
+                      <button
+                        onClick={() => {
+                          if (dhAbierto) { setDhAbierto(false); setDhEditando(null); setDhNuevo({ ...DH_VACIO }); }
+                          else { setDhEditando(null); setDhNuevo({ ...DH_VACIO }); setDhAbierto(true); }
+                        }}
+                        className="text-xs text-tinta hover:underline"
+                      >
                         {dhAbierto ? "Cancelar" : "+ Agregar familiar"}
                       </button>
                     </div>
@@ -781,8 +809,16 @@ export default function DatosPersonalesPage() {
                               {d.vida_ley && <span className="rounded-full bg-sand/60 px-2 py-0.5">Vida Ley</span>}
                               {d.vigente_hasta
                                 ? <span className="text-taupe">cerrado el {d.vigente_hasta}</span>
-                                : <button onClick={() => void cerrarDerechohabiente(d.id, `${d.nombres} ${d.apellidos}`)}
-                                    disabled={guardando} className="text-rojo hover:underline disabled:opacity-50">cerrar</button>}
+                                : <>
+                                    {/* Antes solo se podía CERRAR. Un typo en el nombre o el
+                                        DNI obligaba a cerrar el registro —dejándolo con los
+                                        datos malos para siempre, porque no se borra— y crear
+                                        otro. La base ya aceptaba corregir: faltaba el botón. */}
+                                    <button onClick={() => editarDerechohabiente(d)}
+                                      disabled={guardando} className="hover:underline disabled:opacity-50">editar</button>
+                                    <button onClick={() => void cerrarDerechohabiente(d.id, `${d.nombres} ${d.apellidos}`)}
+                                      disabled={guardando} className="text-rojo hover:underline disabled:opacity-50">cerrar</button>
+                                  </>}
                             </span>
                           </li>
                         ))}
@@ -831,10 +867,21 @@ export default function DatosPersonalesPage() {
                             </label>
                           </div>
                         </div>
-                        <button onClick={() => void agregarDerechohabiente()} disabled={guardando}
-                          className="mt-3 rounded-lg bg-tinta px-4 py-1.5 text-sm text-crema disabled:opacity-50">
-                          Agregar
-                        </button>
+                        <div className="mt-3 flex items-center gap-3">
+                          <button onClick={() => void agregarDerechohabiente()} disabled={guardando}
+                            className="rounded-lg bg-tinta px-4 py-1.5 text-sm text-crema disabled:opacity-50">
+                            {dhEditando ? "Guardar cambios" : "Agregar"}
+                          </button>
+                          {/* Cancelar solo al editar: al crear, el propio botón de
+                              «Agregar familiar» cierra el formulario, y dos formas de
+                              cerrar lo mismo confunden más de lo que ayudan. */}
+                          {dhEditando && (
+                            <button onClick={() => { setDhAbierto(false); setDhEditando(null); setDhNuevo({ ...DH_VACIO }); }}
+                              disabled={guardando} className="text-sm text-taupe hover:underline disabled:opacity-50">
+                              Cancelar
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </section>
