@@ -239,14 +239,33 @@ así:
 
 | | Sede | Rol en el sistema | Área | Rango de la escala | Pago |
 |---|---|---|---|---|---|
-| **Carlos Espejo** | CCO | **Admin** | Desarrollo org. | Aurora · S/1,800 | fijo mensual |
-| **Catherine Pereyra** | CCO | **Líder de equipo (encargada)** | Comercial | Oráculo · S/1,800 | fijo mensual |
-| **Claudia Pereyra** | LIM | **Líder de equipo (encargada)** | Comercial | Aurora · S/1,800 | fijo mensual |
+| **Carlos Espejo** | CCO | **Admin** | Desarrollo org. | Aurora · S/1,800 | **por hora trabajada** |
+| **Catherine Pereyra** | CCO | **Líder de equipo (encargada)** | Comercial | Oráculo · S/1,800 | por confirmar |
+| **Claudia Pereyra** | LIM | **Líder de equipo (encargada)** | Comercial | Aurora · S/1,800 | por confirmar |
 
-Cargo de mando, área, sede, un rango de la escala salarial y un monto idéntico
-todos los meses. Esos cinco juntos son los indicios clásicos de
+⚠️ **La columna «Pago» decía «fijo mensual» para los tres y era falsa, al menos
+para Carlos** (Felipe, 2026-08-08). Cobra **por hora**: marca cuando decide
+trabajar y se le paga lo que marcó. No es un detalle contable — «monto fijo,
+igual mes a mes» es uno de los indicios de laboralidad que miran SUNAFIL y los
+jueces, y este cuadro lo daba por cierto sin haberlo comprobado. **De Catherine y
+Claudia sigue sin confirmarse.**
+
+Cargo de mando, área, sede y un rango de la escala salarial. Son indicios de
 **subordinación**, que es lo que convierte una locación de servicios en un
-contrato de trabajo. El riesgo no es una multa: es la **desnaturalización** del
+contrato de trabajo.
+
+**Lo que el caso de Carlos tiene A FAVOR, y este documento no decía:** es
+cuadripléjico, trabaja desde su casa, **no está sujeto a horario** y **cobra por
+hora**: marca cuando él decide trabajar. Ninguno de los indicios de subordinación
+que lista la doctrina —horario fijo, instrucciones directas, equipos de la
+empresa, monto idéntico cada mes— aplica a esa descripción. Su marcaje no es
+control de asistencia sino la medida de lo que factura, y desde la
+[`0191`](../supabase/migrations/0191_a_un_locador_no_se_le_mide_la_hora_de_entrada.sql)
+el sistema ya no lo trata como asistencia: no le mide tardanza ni salida
+anticipada, solo sus horas.
+
+Lo que queda en su contra es el RETRATO —el rol `admin`, el área, el rango de la
+escala—, no los hechos. Y el retrato se arregla; los hechos no habría cómo. El riesgo no es una multa: es la **desnaturalización** del
 vínculo, con CTS, gratificaciones, vacaciones y EsSalud retroactivos desde el
 inicio — y multiplicado por tres.
 
