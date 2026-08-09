@@ -17,12 +17,31 @@ import {
   type Fila,
   type Proyeccion,
 } from "../page";
-import { TZ_LIMA, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import {
+  TZ_LIMA,
+  esPrestadorDeServicios,
+  nombreDelDocumentoDePago,
+  puedeVerPlanilla,
+} from "@cayla-dynamic/shared";
 
 // Boleta INTERNA de CAYLA: resumen para que la persona vea cómo se calculó su
 // sueldo del mes, e imprimirlo/entregarlo (Ctrl+P → Guardar como PDF). NO es
 // la boleta oficial PLAME — ver el texto de valor al pie, decidido con Felipe
 // el 2026-07-14 (formato lista, sin montos porque AFP varía por fondo).
+//
+// DESDE EL 2026-08-08 ESTA PANTALLA IMPRIME DOS DOCUMENTOS DISTINTOS, no uno con
+// filas de menos. Quien está en planilla recibe la boleta interna de siempre;
+// quien presta servicios por honorarios recibe un «Detalle de servicios
+// prestados», con su propio encabezado, su propio cierre y su propio texto legal.
+// El interruptor es uno solo —`esLocador`, más abajo— y sale de `en_planilla`,
+// que la base ya calcula sola desde `tipo_vinculo`: no hay una segunda lista de
+// nombres que mantener.
+//
+// La razón no es de redacción. Un documento que CAYLA emite todos los meses
+// llamando «remuneración» a un honorario, contando los días que «te tocaba
+// venir» y mandándote a consultar «con tu líder de equipo» es prueba escrita de
+// subordinación, y pesa más en una inspección que el contrato firmado. Lo que se
+// arregla acá no es el vocabulario: es lo que el papel declara.
 
 function fechaHoyLima(): string {
   return new Intl.DateTimeFormat("es-PE", {
@@ -66,6 +85,25 @@ function contextoPagoBase(f: Fila): string[] {
   const trabajados = num(f.dias_trabajados);
   const vacaciones = num(f.dias_vacaciones);
   const sinSalario = num(f.horas_sin_salario);
+
+  // A QUIEN PRESTA UN SERVICIO NO SE LE CUENTAN LOS DÍAS QUE «LE TOCABA VENIR».
+  // Las tres primeras frases de esta función miden asistencia contra un horario
+  // esperado, y eso es exactamente lo que un locador no tiene. La que salía
+  // impresa era la peor de las tres: «no hay horario asignado, así que el sistema
+  // no sabe qué días te tocaba venir» — un documento firmado por CAYLA diciendo
+  // que espera que alguien venga determinados días es un indicio de subordinación
+  // por escrito, en el único papel que esa persona se lleva a casa.
+  // Los días de vacaciones tampoco: no devenga vacaciones desde la 0196.
+  //
+  // La advertencia de horas SIN TARIFA sí se queda, y a propósito: es dinero que
+  // se trabajó y no se pudo pagar. Callarlo en el documento que la persona usa
+  // para emitir su recibo le esconde lo que se le debe.
+  if (f.en_planilla === false) {
+    if (sinSalario !== null && sinSalario > 0) {
+      partes.push(`${fmtHoras(sinSalario)} sin tarifa asignada, que no se pudieron pagar`);
+    }
+    return partes;
+  }
 
   if (laborables === 0) {
     partes.push("no hay horario asignado, así que el sistema no sabe qué días te tocaba venir");
@@ -145,7 +183,9 @@ function BoletaContenido() {
   const filaTitulo = proy?.filas.find((x) => x.persona_id === personaId);
   useTituloDocumento(
     proy && filaTitulo
-      ? `${filaTitulo.nombre} — Boleta interna ${MESES_LARGO[proy.mes_etiqueta - 1]} ${proy.anio_etiqueta}`
+      ? `${filaTitulo.nombre} — ${
+          filaTitulo.en_planilla === false ? "Servicios prestados" : "Boleta interna"
+        } ${MESES_LARGO[proy.mes_etiqueta - 1]} ${proy.anio_etiqueta}`
       : null,
   );
 
@@ -209,6 +249,21 @@ function BoletaContenido() {
     );
   }
 
+  // ── QUIÉN RECIBE ESTE PAPEL ────────────────────────────────────────────────
+  // Hasta el 2026-08-08 esta pantalla imprimía UN solo documento para todos, y
+  // ese documento hablaba el idioma de un contrato de trabajo: «boleta»,
+  // «remuneración básica», «total a recibir este mes», «consulta con tu líder de
+  // equipo». A quien presta un servicio por honorarios eso no le describe nada —
+  // y peor: es CAYLA por escrito llamando trabajadora a una relación que no lo
+  // es, en el único papel que esa persona se lleva. En una inspección, el
+  // documento que la empresa emite todos los meses pesa más que el contrato.
+  //
+  // La pregunta la responde `packages/shared/src/vinculo.ts`, no esta pantalla:
+  // son nueve las que van a hacerla, y este repositorio ya juntó 35 copias de la
+  // misma condición de permiso antes de aprenderlo. Ahí está también el porqué
+  // de que un dato ausente NO convierta a nadie en locador.
+  const esLocador = esPrestadorDeServicios(f.en_planilla);
+
   const totalObj = f.objetivos_total ?? 10;
   // pctObj y nivelPlus se fueron con la fila del «Incentivo Variable por Metas»
   // (2026-08-01). Traducían el porcentaje de objetivos a la escala del plus
@@ -270,7 +325,15 @@ function BoletaContenido() {
       : proy.estado === "pagado"
         ? { texto: `Pagada${proy.pagado_at ? ` el ${fechaCorta(proy.pagado_at)}` : ""}`, alerta: false }
         : proy.estado === "abierto"
-          ? { texto: "Provisional — el mes aún no cierra", alerta: true }
+          ? {
+              // Para un locador el corte no es «el mes»: es el periodo del 29 al
+              // 28 contra el que va a emitir su recibo. Decirle «mes» lo manda a
+              // fecharlo mal.
+              texto: esLocador
+                ? "Provisional — el periodo aún no cierra"
+                : "Provisional — el mes aún no cierra",
+              alerta: true,
+            }
           : null;
 
   const contexto = contextoPagoBase(f);
@@ -319,7 +382,7 @@ function BoletaContenido() {
         <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3">
           <Marca tono="tinta" isotipo="rojo" />
           <div className="text-right">
-            <p className="etiqueta text-taupe">Boleta interna de pago</p>
+            <p className="etiqueta text-taupe">{nombreDelDocumentoDePago(f.en_planilla)}</p>
             <p className="font-serif text-lg">
               {MESES_LARGO[proy.mes_etiqueta - 1]} {proy.anio_etiqueta}
             </p>
@@ -340,8 +403,21 @@ function BoletaContenido() {
 
         <div className="mb-6 print:mb-4">
           <p className="font-serif text-2xl">{f.nombre}</p>
+          {/* EL PELDAÑO DE LA ESCALA NO SE IMPRIME EN EL PAPEL DE UN LOCADOR.
+              La decisión ya estaba tomada —la 0182 lo quitó de la tabla de
+              Planilla, con este argumento: la escala es de trabajadores, y decir
+              que alguien ocupa una categoría dentro de ella es parte de lo que
+              desnaturaliza una locación de servicios— pero se aplicó solo en la
+              pantalla de gestión. El documento que se imprime y se entrega
+              seguía diciendo «Colibrí». Encontrado el 2026-08-08 mirando la hoja
+              renderizada, no leyendo el código: en el código las dos pantallas
+              parecen distintas y nada las conecta.
+              El rango se sigue usando para saber cuánto se le transfiere; lo que
+              no se hace es escribírselo encima. */}
           <p className="text-sm text-taupe">
-            {f.sede} · {f.rango ? (RANGO_LABEL[f.rango] ?? f.rango) : "sin rango"}
+            {esLocador
+              ? f.sede
+              : `${f.sede} · ${f.rango ? (RANGO_LABEL[f.rango] ?? f.rango) : "sin rango"}`}
           </p>
 
           {/* EL POTENCIAL MÁXIMO DEL RANGO YA NO SE IMPRIME AQUÍ.
@@ -363,7 +439,11 @@ function BoletaContenido() {
                   que había un error. Ahora una dice «mes completo» y la otra
                   «proporcional», y se entienden sin explicación. */}
               <div className="flex justify-between gap-4">
-                <dt className="font-medium">Remuneración Básica Legal (mes completo)</dt>
+                <dt className="font-medium">
+                  {esLocador
+                    ? "Honorarios pactados (mes completo)"
+                    : "Remuneración Básica Legal (mes completo)"}
+                </dt>
                 <dd className="font-medium">{formatSoles(baseLegal)}</dd>
               </div>
             </dl>
@@ -385,12 +465,24 @@ function BoletaContenido() {
                 distingue esa referencia de esta fila proporcional. */}
             <tr className="border-t border-sand">
               <td className="py-2">
-                Remuneración Básica proporcional ({fmtHorasHumano(f.horas_mes)})
-                {baseLegal !== null && (
+                {esLocador
+                  ? `Honorarios por las horas prestadas (${fmtHorasHumano(f.horas_mes)})`
+                  : `Remuneración Básica proporcional (${fmtHorasHumano(f.horas_mes)})`}
+                {/* La sublínea de un locador NO compara contra «el mes completo».
+                    Esa comparación es la que insinúa un sueldo mensual del que
+                    este mes se pagó una parte, y quien factura por hora no tiene
+                    tal cosa: tiene las horas que prestó. */}
+                {esLocador ? (
                   <span className="block text-xs text-taupe">
-                    por tus horas del periodo · el mes completo son{" "}
-                    {formatSoles(baseLegal)}
+                    Horas prestadas en el periodo
                   </span>
+                ) : (
+                  baseLegal !== null && (
+                    <span className="block text-xs text-taupe">
+                      por tus horas del periodo · el mes completo son{" "}
+                      {formatSoles(baseLegal)}
+                    </span>
+                  )
                 )}
                 {contexto.length > 0 && (
                   <span className="block text-xs text-taupe">{contexto.join(" · ")}</span>
@@ -585,9 +677,22 @@ function BoletaContenido() {
                 <td className="py-2 text-right text-rojo">−{formatSoles(m.monto)}</td>
               </tr>
             ))}
+            {/* El cierre de un locador no es «lo que vas a recibir»: es la cifra
+                por la que tiene que emitir su recibo. Sin decirlo, esta hoja
+                parecía el documento del pago — y el documento del pago es el
+                recibo por honorarios que emite él, no este papel. */}
             <tr className="border-t-2 border-tinta">
-              <td className="py-3 font-serif text-lg">Total a recibir este mes</td>
-              <td className="py-3 text-right font-serif text-lg font-bold">{formatSoles(f.total)}</td>
+              <td className="py-3 font-serif text-lg">
+                {esLocador ? "Total del periodo" : "Total a recibir este mes"}
+                {esLocador && (
+                  <span className="block font-sans text-xs font-normal text-taupe">
+                    emite tu recibo por honorarios por este importe
+                  </span>
+                )}
+              </td>
+              <td className="py-3 text-right align-top font-serif text-lg font-bold">
+                {formatSoles(f.total)}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -621,7 +726,16 @@ function BoletaContenido() {
             futuro prometido, por la misma razón que el potencial máximo salió de acá:
             una cifra impresa cada mes en un documento que nadie firma crea una
             expectativa que después se reclama. */}
-        {(aporteEssalud > 0 || f.provision_total > 0) && (
+        {/* Y NUNCA PARA UN LOCADOR, aunque los números vinieran distintos de cero.
+            Desde la 0199 sus cuatro cifras son 0 y el bloque ya no se dibujaba
+            solo, así que este `!esLocador` no cambia nada HOY. Está porque la
+            condición de antes preguntaba por los montos, y un monto puede volver:
+            basta que alguien le encienda una bandera de la 0196 por error, o que
+            un cálculo futuro le genere EsSalud, para que un papel de CAYLA vuelva
+            a decirle a un locador «CAYLA paga por ti tu seguro de salud y tu
+            gratificación» — que es, en una palabra, la definición de trabajador.
+            La regla se dice por lo que la persona ES, no por lo que le salió. */}
+        {!esLocador && (aporteEssalud > 0 || f.provision_total > 0) && (
           <div className="mb-6 rounded-lg bg-arena/60 p-4 print:mb-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-tinta">
               Además, CAYLA paga por ti
@@ -734,6 +848,57 @@ function BoletaContenido() {
             Las cifras se toman de los datos de la persona, NUNCA se escriben a
             mano: un deslinde que cita un monto que no coincide con el desglose de
             arriba se vuelve prueba en contra. Si un dato falta, el punto se omite. */}
+        {/* ── LA VERSIÓN DEL LOCADOR ───────────────────────────────────────────
+            El bloque de abajo es un deslinde: existe para acotar lo que la
+            empresa NO promete dentro de una relación laboral. Aplicado a quien
+            presta un servicio no solo sobra — miente, porque sus cuatro puntos
+            hablan de remuneración computable, boleta PLAME y beneficios sociales.
+
+            Este dice lo contrario, y en positivo: qué relación es esta, quién
+            organiza el tiempo, cuál es el documento oficial, y —recién al final,
+            como consecuencia y no como recorte— por qué no hay grati, CTS,
+            vacaciones ni feriados. El orden importa: si la ausencia de beneficios
+            va primero, el papel se lee como una lista de lo que se le quita.
+
+            NINGUNA CIFRA. Mismo criterio que el otro bloque: un deslinde que cita
+            un monto que no coincide con el recibo de la persona se vuelve prueba
+            en contra. El impuesto de cuarta se nombra sin porcentaje a propósito
+            —depende de su suspensión de retenciones, que es trámite suyo. */}
+        {esLocador ? (
+          <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
+            <p className="mb-3 font-medium">Sobre este documento</p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                <span className="font-medium">Es una locación de servicios.</span> Lo acordado
+                entre CAYLA y quien presta el servicio es un contrato de locación de servicios
+                (Código Civil, artículos 1764 y siguientes). No es un contrato de trabajo.
+              </li>
+              <li>
+                <span className="font-medium">Tú organizas tu propio tiempo.</span> No estás
+                sujeto a horario, jornada ni fiscalización de asistencia. Las horas de esta hoja
+                son las que tú mismo registraste, y sirven para calcular tus honorarios: no son
+                un control de asistencia.
+              </li>
+              <li>
+                <span className="font-medium">El documento oficial es tu recibo por honorarios.</span>{" "}
+                Esta hoja es un detalle interno de CAYLA para que veas cómo salió el importe. Lo
+                que sustenta la operación ante SUNAT es el recibo por honorarios electrónico que
+                emites tú.
+              </li>
+              <li>
+                <span className="font-medium">
+                  Por eso aquí no hay gratificación, CTS, vacaciones ni feriados.
+                </span>{" "}
+                Son derechos propios de un contrato de trabajo. No se están dejando de pagar: no
+                corresponden a esta relación.
+              </li>
+              <li>
+                <span className="font-medium">Impuesto a la renta:</span> el de cuarta categoría
+                es de cargo del prestador. CAYLA retiene únicamente cuando la ley lo exige.
+              </li>
+            </ul>
+          </div>
+        ) : (
         <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
           <p className="mb-3 font-medium">Aclaración y Deslinde Legal de Remuneración</p>
           <ul className="mb-3 list-disc space-y-2 pl-5">
@@ -796,9 +961,18 @@ function BoletaContenido() {
                 ninguna parte, así que el pie contradecía a la tabla. */}
           </p>
         </div>
+        )}
 
+        {/* «Consulta con tu líder de equipo» NO puede ir en el papel de un
+            locador: es la frase más subordinante del documento — dice, por
+            escrito y firmado por la empresa, que esa persona tiene a alguien
+            arriba a quien reportarle. Y además es falsa: no lo tiene. Se le
+            escribe a la administración, que es con quien trata de verdad. */}
         <p className="text-xs text-taupe">
-          ¿Algo no cuadra o tienes dudas? Consulta con tu líder de equipo. Generada el {fechaHoyLima()}.
+          {esLocador
+            ? "¿Algo no cuadra? Avísanos antes de emitir tu recibo."
+            : "¿Algo no cuadra o tienes dudas? Consulta con tu líder de equipo."}{" "}
+          Generada el {fechaHoyLima()}.
         </p>
       </div>
     </main>

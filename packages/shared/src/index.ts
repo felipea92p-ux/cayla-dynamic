@@ -5,3 +5,4 @@ export * from "./permisos";
 export * from "./escalafon";
 export * from "./fecha-lima";
 export * from "./jornada";
+export * from "./vinculo";
