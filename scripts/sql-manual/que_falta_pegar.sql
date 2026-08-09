@@ -71,7 +71,8 @@ with repo(numero, nombre) as (values
     (194, 'el_interruptor_de_beneficios_por_persona_entra_al_repositorio'),
     (195, 'las_cuatro_funciones_que_el_repositorio_no_conocia'),
     (196, 'tres_puertas_en_vez_de_una_para_los_beneficios'),
-    (197, 'el_certificado_medico_se_guarda_y_los_20_dias_avisan')
+    (197, 'el_certificado_medico_se_guarda_y_los_20_dias_avisan'),
+    (198, 'el_cuspp_y_el_correo_entran_a_la_ficha')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at

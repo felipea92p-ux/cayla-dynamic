@@ -54,6 +54,13 @@ export type Database = {
           emergencia_telefono: string | null
           discapacidad: boolean | null
           discapacidad_conadis: string | null
+          // Agregada a mano el 2026-08-08 (la creó la 0198), por el mismo
+          // motivo que los campos de personas: `supabase gen types` en esta
+          // máquina reescribe el archivo entero con otro formato. Es el código
+          // con el que la AFP identifica la cuenta individual de la persona;
+          // obligatorio en el T-Registro para afiliados al sistema privado, y
+          // null para ONP y jubilados, que no tienen cuenta individual.
+          cuspp: string | null
           actualizado_por: string | null
           actualizado_at: string
         }
@@ -76,6 +83,7 @@ export type Database = {
           emergencia_telefono?: string | null
           discapacidad?: boolean | null
           discapacidad_conadis?: string | null
+          cuspp?: string | null
           actualizado_por?: string | null
           actualizado_at?: string
         }
@@ -98,6 +106,7 @@ export type Database = {
           emergencia_telefono?: string | null
           discapacidad?: boolean | null
           discapacidad_conadis?: string | null
+          cuspp?: string | null
           actualizado_por?: string | null
           actualizado_at?: string
         }
@@ -1821,7 +1830,14 @@ export type Database = {
           p_emergencia_telefono?: string | null
           p_discapacidad?: boolean | null
           p_discapacidad_conadis?: string | null
+          p_cuspp?: string | null
         }
+        Returns: undefined
+      }
+      // La 0198. Cambia el correo SOLO si la persona no tiene cuenta de acceso:
+      // con cuenta creada su correo es su login, y la función lo rechaza.
+      fn_set_email: {
+        Args: { p_persona_id: string; p_email: string | null }
         Returns: undefined
       }
       fn_set_documento: {

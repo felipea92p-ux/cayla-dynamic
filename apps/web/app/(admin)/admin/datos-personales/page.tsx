@@ -14,6 +14,9 @@ interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
   sede_base_id: string; email: string | null;
   regimen_pension: string | null;   // CAMBIO 0125
+  // Si tiene cuenta de acceso creada. Su correo pasa a ser su login, y la 0198
+  // rechaza cambiarlo desde acá.
+  auth_user_id: string | null;   // CAMBIO 0198
 }
 interface Ficha {
   persona_id: string; nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
@@ -23,6 +26,7 @@ interface Ficha {
   // CAMBIO 0125
   emergencia_nombre: string | null; emergencia_vinculo: string | null; emergencia_telefono: string | null;
   discapacidad: boolean | null; discapacidad_conadis: string | null;
+  cuspp: string | null;   // CAMBIO 0198
 }
 interface Derechohabiente {
   id: string; persona_id: string; nombres: string; apellidos: string;
@@ -36,6 +40,7 @@ interface Form {
   foto_dni_url: string; foto_personal_url: string; foto_profesional_url: string;
   emergencia_nombre: string; emergencia_vinculo: string; emergencia_telefono: string;
   discapacidad: "" | "si" | "no"; discapacidad_conadis: string;
+  cuspp: string;   // CAMBIO 0198
 }
 
 const VACIO: Form = {
@@ -43,7 +48,7 @@ const VACIO: Form = {
   entidad_bancaria: "", numero_cuenta: "", grado_instruccion: "", hijos_menores: "",
   foto_dni_url: "", foto_personal_url: "", foto_profesional_url: "",
   emergencia_nombre: "", emergencia_vinculo: "", emergencia_telefono: "",
-  discapacidad: "", discapacidad_conadis: "",
+  discapacidad: "", discapacidad_conadis: "", cuspp: "",
 };
 
 /** Familiar nuevo, en blanco. */
@@ -76,6 +81,8 @@ export default function DatosPersonalesPage() {
   const [dni, setDni] = useState("");
   const [motivoDni, setMotivoDni] = useState("");
   const [regimen, setRegimen] = useState("");
+  // El correo vive en `personas`, no en la ficha: es el usuario de acceso.
+  const [email, setEmail] = useState("");
   const [dhNuevo, setDhNuevo] = useState({ ...DH_VACIO });
   const [dhAbierto, setDhAbierto] = useState(false);
   // Si la carga falló, la pantalla no sabe qué hay de verdad: guardar desde aquí
@@ -96,9 +103,9 @@ export default function DatosPersonalesPage() {
       { data: p, error: eP }, { data: s, error: eS },
       { data: dp, error: eD }, { data: dh, error: eDH },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id").eq("estado", "activo").order("nombres"),
       supabase.from("sedes").select("id, codigo"),
-      supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis"),
+      supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
     ]);
 
@@ -135,6 +142,7 @@ export default function DatosPersonalesPage() {
     const persona = personas.find((x) => x.id === id) ?? null;
     setDni(persona?.documento ?? "");
     setRegimen(persona?.regimen_pension ?? "");
+    setEmail(persona?.email ?? "");
     const f = fichas.get(id);
     setForm(f ? {
       nombre_dni: f.nombre_dni ?? "", fecha_nacimiento: f.fecha_nacimiento ?? "", estado_civil: f.estado_civil ?? "",
@@ -146,12 +154,21 @@ export default function DatosPersonalesPage() {
       emergencia_telefono: f.emergencia_telefono ?? "",
       discapacidad: f.discapacidad === true ? "si" : f.discapacidad === false ? "no" : "",
       discapacidad_conadis: f.discapacidad_conadis ?? "",
+      cuspp: f.cuspp ?? "",
     } : { ...VACIO });
   }
 
   const personaSel = personas.find((p) => p.id === sel) ?? null;
   const dniCambio = !!personaSel && dni.trim() !== (personaSel.documento ?? "");
   const regimenCambio = !!personaSel && regimen !== (personaSel.regimen_pension ?? "");
+  const emailCambio = !!personaSel && email.trim().toLowerCase() !== (personaSel.email ?? "");
+  // Tiene acceso creado: su correo es su login y la 0198 rechaza cambiarlo acá.
+  const tieneCuenta = personaSel?.auth_user_id != null;
+  // El CUSPP solo existe en el sistema PRIVADO de pensiones. ONP no tiene cuenta
+  // individual, y quien ya se jubiló no aporta. Se decide por el régimen que se
+  // ve en pantalla —no por el guardado— para que el campo aparezca en cuanto se
+  // elige la AFP, sin tener que guardar primero.
+  const esAfp = regimen !== "" && regimen !== "onp" && regimen !== "jubilada";
 
   async function guardar() {
     if (!sel) return;
@@ -189,6 +206,7 @@ export default function DatosPersonalesPage() {
       p_emergencia_telefono: form.emergencia_telefono.trim() || null,
       p_discapacidad: form.discapacidad === "" ? null : form.discapacidad === "si",
       p_discapacidad_conadis: form.discapacidad_conadis.trim() || null,
+      p_cuspp: form.cuspp.trim() || null,   // CAMBIO 0198
     });
     if (error) { setGuardando(false); setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
 
@@ -205,6 +223,14 @@ export default function DatosPersonalesPage() {
         p_persona_id: sel, p_regimen: regimen || null,
       });
       if (eReg) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}` }); return; }
+    }
+    // El correo va por su propia función (0198): con cuenta creada la base lo
+    // rechaza, porque cambiarlo acá no cambiaría el acceso.
+    if (emailCambio) {
+      const { error: eMail } = await supabase.rpc("fn_set_email", {
+        p_persona_id: sel, p_email: email.trim() || null,
+      });
+      if (eMail) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el correo no: ${mensajeDeError(eMail)}` }); return; }
     }
 
     setGuardando(false);
@@ -277,6 +303,17 @@ export default function DatosPersonalesPage() {
     { clave: "regimen_pension", etiqueta: "régimen de pensión" },
   ];
 
+  // Se devuelven DOS listas separadas y no una sola, porque son dos cosas
+  // distintas y mezclarlas no se entendía:
+  //
+  //   `faltan`  campos vacíos. Se leen en cadena: «falta DNI · celular».
+  //   `avisos`  datos que SÍ están pero se contradicen entre sí. Cada uno es
+  //             una frase entera que dice qué pasa y qué hacer.
+  //
+  // La primera versión los metía en la misma lista y salía «falta ⚠ asignación
+  // familiar sin familiar registrado», que Felipe leyó y no entendió — con
+  // razón: ahí no falta un campo llamado «asignación familiar», sobra una
+  // contradicción. El error es del diseño, no de quien lo lee.
   const incompletas = useMemo(() => {
     const hoy = new Date().toISOString().slice(0, 10);
     return personas
@@ -287,20 +324,39 @@ export default function DatosPersonalesPage() {
           const v = valor[c.clave];
           return v === null || v === undefined || String(v).trim() === "";
         }).map((c) => c.etiqueta);
-        // Una fecha de nacimiento en el futuro no es un hueco, es un dato
-        // imposible — y se ve igual de bien que uno correcto hasta que el
-        // contador lo rechaza. Visto en producción el 2026-08-08.
-        if (f?.fecha_nacimiento && f.fecha_nacimiento > hoy) faltan.unshift("⚠ nacimiento en el futuro");
-        // Quien cobra asignación familiar tiene que tener a quién declararle.
-        // Son S/113 al mes: si no corresponde se paga de más, y si corresponde
-        // falta el respaldo que la sustenta.
-        if (f?.hijos_menores === true && !derechos.some((d) => d.persona_id === p.id)) {
-          faltan.push("⚠ asignación familiar sin familiar registrado");
+
+        // El CUSPP no es un campo más: solo se le pide a quien está en una
+        // AFP. En ONP no hay cuenta individual y quien se jubiló no aporta, así
+        // que para ellas no existe. Va acá y no en FALTANTES porque esa lista
+        // es fija y esta condición depende del régimen de cada persona.
+        const enAfp = p.regimen_pension !== null && p.regimen_pension !== ""
+          && p.regimen_pension !== "onp" && p.regimen_pension !== "jubilada";
+        if (enAfp && !(f?.cuspp ?? "").trim()) faltan.push("CUSPP");
+
+        const avisos: string[] = [];
+        // Un dato imposible se ve igual de bien que uno correcto hasta que el
+        // contador lo rechaza. Había uno en producción el 2026-08-08.
+        if (f?.fecha_nacimiento && f.fecha_nacimiento > hoy) {
+          avisos.push("la fecha de nacimiento está en el futuro — corrígela arriba");
         }
-        return { p, faltan, sinFicha: f === undefined };
+        // Quien cobra asignación familiar tiene que tener a quién declararle.
+        // Son S/113 al mes: si no corresponde se está pagando de más, y si
+        // corresponde falta el respaldo que la sustenta ante una fiscalización.
+        if (f?.hijos_menores === true && !derechos.some((d) => d.persona_id === p.id)) {
+          avisos.push("cobra asignación familiar y no tiene ningún hijo registrado — agrégalo en Familiares, más abajo");
+        }
+        // El caso inverso, que cuesta al revés: hay familiares cargados y la
+        // ficha dice que no hay hijos menores, así que NO se le paga la
+        // asignación que quizá le corresponde.
+        if (f?.hijos_menores === false && derechos.some((d) => d.persona_id === p.id && d.vinculo === "hijo")) {
+          avisos.push("tiene hijos registrados pero la ficha dice que no hay menores a cargo — si los hay, le falta cobrar la asignación familiar");
+        }
+        return { p, faltan, avisos, sinFicha: f === undefined };
       })
-      .filter((x) => x.faltan.length > 0)
-      .sort((a, b) => b.faltan.length - a.faltan.length);
+      .filter((x) => x.faltan.length > 0 || x.avisos.length > 0)
+      // Las contradicciones primero: un campo vacío se llena cuando se pueda,
+      // pero un dato que se contradice ya está moviendo plata hoy.
+      .sort((a, b) => b.avisos.length - a.avisos.length || b.faltan.length - a.faltan.length);
   }, [personas, fichas, derechos]);
 
   // El valor que llega de la base es texto libre: puede traer un código que
@@ -327,16 +383,17 @@ export default function DatosPersonalesPage() {
         "Grado de instruccion": etiqueta(GRADO_INSTRUCCION_LABELS, f?.grado_instruccion ?? null),
         Celular: f?.celular ?? "", Correo: p.email ?? "", Direccion: f?.direccion ?? "",
         "Regimen pension": etiqueta(REGIMEN_PENSION_LABELS, p.regimen_pension),
+        "CUSPP": f?.cuspp ?? "",
         "Asignacion familiar": f?.hijos_menores ? "SI" : "NO",
         Derechohabientes: dh,
         Banco: f?.entidad_bancaria ?? "", Cuenta: f?.numero_cuenta ?? "",
         Discapacidad: f?.discapacidad ? "SI" : "NO", CONADIS: f?.discapacidad_conadis ?? "",
         "Contacto emergencia": f?.emergencia_nombre ?? "",
         "Telefono emergencia": f?.emergencia_telefono ?? "",
-        // El sistema NO guarda estos tres y el T-Registro los pide. Van como
+        // El sistema NO guarda estos dos y el T-Registro los pide. Van como
         // columna vacía y no omitidos: una columna que falta se pasa por alto,
         // una vacía se ve y se llena.
-        Sexo: "", Nacionalidad: "", "CUSPP (codigo AFP)": "",
+        Sexo: "", Nacionalidad: "",
         REVISAR: incompletas.find((x) => x.p.id === p.id)?.faltan.join(" · ") ?? "",
       };
     });
@@ -463,17 +520,29 @@ export default function DatosPersonalesPage() {
               declarar a esa persona ni pagarle por transferencia.
             </p>
             <ul className="space-y-1.5 text-sm">
-              {incompletas.map(({ p, faltan, sinFicha: nueva }) => (
-                <li key={p.id} className="flex flex-wrap items-baseline gap-x-2">
-                  <button
-                    onClick={() => { setSel(p.id); fichaRef.current?.scrollIntoView({ behavior: "smooth" }); }}
-                    className="font-medium underline decoration-dotted underline-offset-2"
-                  >
-                    {p.apellidos}, {p.nombres}
-                  </button>
-                  <span className="text-xs text-taupe">
-                    {nueva ? "sin ficha — falta todo" : `falta ${faltan.join(" · ")}`}
-                  </span>
+              {incompletas.map(({ p, faltan, avisos, sinFicha: nueva }) => (
+                <li key={p.id}>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <button
+                      onClick={() => { setSel(p.id); fichaRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+                      className="font-medium underline decoration-dotted underline-offset-2"
+                    >
+                      {p.apellidos}, {p.nombres}
+                    </button>
+                    {/* Los campos vacíos, en cadena. Si no hay ninguno no se
+                        escribe «falta» a secas, que se lee como error. */}
+                    {(nueva || faltan.length > 0) && (
+                      <span className="text-xs text-taupe">
+                        {nueva ? "sin ficha — falta todo" : `falta ${faltan.join(" · ")}`}
+                      </span>
+                    )}
+                  </div>
+                  {/* Las contradicciones van en su propia línea y con frase
+                      completa: no son un campo vacío más, y la diferencia entre
+                      «falta X» y «esto no cuadra» tiene que verse. */}
+                  {avisos.map((a) => (
+                    <p key={a} className="ml-0.5 mt-0.5 text-xs text-ambar">⚠ {a}</p>
+                  ))}
                 </li>
               ))}
             </ul>
@@ -603,6 +672,28 @@ export default function DatosPersonalesPage() {
                           : "Se descuenta de su remuneración asegurable y va a su fondo de pensión — no se queda en CAYLA."}
                         {regimenCambio && <strong className="block text-amber-800">Se aplicará desde el próximo cálculo de planilla.</strong>}
                       </p>
+                      {/* El CUSPP solo existe en el sistema PRIVADO: identifica
+                          la cuenta individual en la AFP. En ONP no hay cuenta
+                          individual, y quien ya se jubiló no aporta. Pedírselo
+                          a Raquel sería pedirle un código que no existe — y un
+                          campo que no aplica enseña a ignorar los que sí. */}
+                      {esAfp && (
+                        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+                          <span className="text-taupe">
+                            CUSPP · código de su cuenta en la AFP
+                          </span>
+                          <input
+                            value={form.cuspp}
+                            onChange={(e) => setForm((f) => ({ ...f, cuspp: e.target.value }))}
+                            placeholder="Sale en su estado de cuenta o en la app de su AFP"
+                            className="rounded-lg border px-3 py-2 font-mono uppercase"
+                          />
+                          <span className="text-xs text-taupe">
+                            Obligatorio en el T-Registro. Sin él, el aporte se declara pero puede
+                            no llegar a su cuenta.
+                          </span>
+                        </label>
+                      )}
                     </div>
                   </section>
 
@@ -610,6 +701,35 @@ export default function DatosPersonalesPage() {
                     <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {campo("Celular", "celular")}
+                      {/* El correo vive en `personas`, no en la ficha, porque es
+                          el USUARIO con el que se entra al sistema. Con cuenta
+                          creada queda de solo lectura: la 0198 rechaza el cambio
+                          en la base, y una caja que acepta texto para después
+                          fallar al guardar es peor que una que no deja escribir. */}
+                      <label className="flex flex-col gap-1 text-sm">
+                        <span className="text-taupe">
+                          Correo
+                          {tieneCuenta && <span className="ml-1 text-[11px]">· es su usuario para entrar</span>}
+                        </span>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={!puedeIdentidad || tieneCuenta}
+                          placeholder="nombre@correo.com"
+                          className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe"
+                        />
+                        {tieneCuenta ? (
+                          <span className="text-xs text-taupe">
+                            Ya tiene cuenta activa. Cambiarlo acá no cambiaría su acceso —{" "}
+                            <a href="/admin/cuentas" className="underline">hazlo desde Cuentas</a>.
+                          </span>
+                        ) : puedeIdentidad ? (
+                          <span className="text-xs text-taupe">
+                            Todavía no tiene cuenta. Con el correo cargado se le puede invitar desde Cuentas.
+                          </span>
+                        ) : null}
+                      </label>
                       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
                         <span className="text-taupe">Dirección</span>
                         <input value={form.direccion} onChange={(e) => setForm((f) => ({ ...f, direccion: e.target.value }))} className="rounded-lg border px-3 py-2" />
