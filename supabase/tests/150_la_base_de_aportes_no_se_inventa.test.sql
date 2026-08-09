@@ -27,7 +27,7 @@
 -- las dos dejarán de coincidir y esto cae.
 -- ============================================================================
 begin;
-select plan(11);
+select plan(12);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000000a1', 'ZZBAS', 'Sede de laboratorio BAS', true);
@@ -102,11 +102,29 @@ select is(
   'y un RxH tampoco genera EsSalud, por más feriados que tenga en la fila'
 );
 
--- Que tengan feriado es lo que hace la prueba válida: si no lo tuvieran, el
--- cero de arriba no probaría nada.
+-- Que tengan feriado es lo que hace válidos los ceros de arriba: si no lo
+-- tuvieran, esos ceros no probarían nada.
+--
+-- ⚠️ EL CONTROL SE MUDÓ DEL RxH AL SUELDO FIJO, el 2026-08-08. Esta aserción
+-- exigía que el RxH SÍ tuviera feriados —era cierto y servía de control— y la
+-- 0199 lo cambió: un locador presta un servicio y factura sus horas, no tiene
+-- descanso remunerado que respetarle (D. Leg. 713, decisión de Felipe).
+--
+-- No se cambió el número para que la prueba pasara: se movió el control a quien
+-- sigue teniendo feriados y sigue teniendo la base en 0 —el sueldo fijo—, que
+-- es exactamente el segundo caso que la 0193 midió (S/46.45 inventados). La
+-- regla que este archivo defiende no cambia ni una coma: las sobretasas
+-- COMPLETAN una base declarada, no la crean.
 select cmp_ok(
-  (select feriados from b where nombre = 'BasRxh Lab'), '>', 0::numeric,
-  'el RxH SÍ tiene monto de feriados en su fila — por eso el cero de arriba dice algo'
+  (select feriados from b where nombre = 'BasFijo Lab'), '>', 0::numeric,
+  'el de sueldo fijo SÍ tiene monto de feriados — por eso su cero de arriba dice algo'
+);
+
+-- Y del RxH se afirma ahora lo contrario, que es la regla nueva: ni siquiera
+-- llega a tener feriados que pudieran inventarle una base.
+select is(
+  (select feriados from b where nombre = 'BasRxh Lab'), 0::numeric,
+  'y un RxH ya ni siquiera cobra feriados: la 0199 se los quitó en origen'
 );
 
 -- ── 2 · Y a quien sí tiene base, se la completan ────────────────────────────
