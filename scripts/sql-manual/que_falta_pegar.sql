@@ -72,7 +72,8 @@ with repo(numero, nombre) as (values
     (195, 'las_cuatro_funciones_que_el_repositorio_no_conocia'),
     (196, 'tres_puertas_en_vez_de_una_para_los_beneficios'),
     (197, 'el_certificado_medico_se_guarda_y_los_20_dias_avisan'),
-    (198, 'el_cuspp_y_el_correo_entran_a_la_ficha')
+    (198, 'el_cuspp_y_el_correo_entran_a_la_ficha'),
+    (199, 'un_locador_no_cobra_feriados_ni_aparece_provisionando')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
@@ -169,8 +170,10 @@ select * from (
              when '9ea5860ccb48d497209051de551e8ab3' then '✗ 0187 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '684634d24dd1a28ace4e99f1fd174ad6' then '⚠ se quedó en la 0192 — falta pegar lo posterior'
              when 'f588806871f74189de370355dfb22767' then '✗ 0192 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '449cc75cc4d097096fd87cdbd13b68f1' then '0193 — al día con el repositorio'
+             when '449cc75cc4d097096fd87cdbd13b68f1' then '⚠ se quedó en la 0193 — falta pegar lo posterior'
              when 'c6c75c8a3f12c6aeaf1cb9ac19a7044a' then '✗ 0193 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '3ca25dd82de07418c9b9c77abffc8dec' then '0199 — al día con el repositorio'
+             when '2c368e0da180350dad2221012a0a4d57' then '✗ 0199 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
