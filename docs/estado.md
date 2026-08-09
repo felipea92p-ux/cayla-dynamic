@@ -70,6 +70,25 @@ convertiría a **todo el mundo** en locador de golpe: treinta personas recibirí
 un papel que les niega gratificación, CTS y vacaciones, y saldría bonito. Las
 cuatro pruebas de `tests/vinculo.test.ts` existen para eso.
 
+### Se dice la tarifa por hora, no un sueldo mensual
+
+Durante unos minutos la hoja de Carlos imprimió **«Honorarios pactados (mes
+completo) — S/ 1,800.00»**, y era la única frase que contradecía a las otras
+cinco: ellas afirman que no hay contrato de trabajo, y esa afirmaba un monto
+mensual fijo. Carlos y Claudia **cobran por hora**. Ahora dice **«Tarifa por
+hora — S/ 8.9330»**, que es lo que de verdad se pactó y además afirma lo
+contrario de un sueldo.
+
+Dos cosas de esa línea que no son cosmética:
+
+- **Sale de `salario_ref`, no de `sueldo_base_legal`.** Es el dato con el que
+  `fn_planilla_calcular` calcula el pago, así que `tarifa × horas` reproduce el
+  total de la propia hoja. Un documento que no cuadra consigo mismo es peor que
+  uno que no dice nada.
+- **Cuatro decimales, y no dos.** A S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 y
+  la hoja remata en S/ 245.66. Ocho céntimos bastan para que alguien piense que
+  le descontaron algo.
+
 ### Lo que solo se vio mirando la hoja renderizada
 
 La boleta le imprimía **«Colibrí»** — un peldaño de la escala de trabajadores.
@@ -78,13 +97,14 @@ una categoría de la escala es parte de lo que desnaturaliza una locación. Pero
 aplicó solo en la tabla de Planilla. En el código las dos pantallas no se parecen
 en nada y ningún `grep` las conecta; se cazó abriendo el documento.
 
+Y la primera tarifa por hora salió **S/ 0.2882**: `proy.base_horas` ya son las
+horas de todo el periodo (`6.5 × días`), y la fórmula las volvía a multiplicar
+por los días. El typecheck no podía verlo —los dos campos son `number` y las dos
+fórmulas compilan igual— y ninguna prueba de interfaz lo habría cazado. **La
+lección de método: un documento que se imprime se revisa imprimiéndolo.**
+
 ### Lo que queda de este hilo
 
-- **«Honorarios pactados (mes completo) · S/ 1,130.00»** sigue impreso, y el
-  número sale de `personas.sueldo_base_legal`. Carlos y Claudia **cobran por
-  hora**: un importe mensual fijo impreso cada mes es, él solo, un indicio de
-  laboralidad. Quitar esa línea para locadores es un `if` de una línea, y está
-  pendiente de que Felipe decida.
 - **Faltan las otras ocho pantallas** con el mismo problema: Planilla (135
   conceptos laborales), Provisiones, Liquidaciones, Feriados, Vacaciones, Costos,
   Ausencias y Disciplina.
