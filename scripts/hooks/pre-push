@@ -41,6 +41,48 @@ echo "→ numeración de migraciones y pruebas…"
 echo "→ la consulta de qué falta pegar…"
 "$(dirname "$0")/../que-falta-pegar.sh" --arregla || exit 1
 
+# ── Los tipos generados, que no pueden viajar vacíos ────────────────────────
+#
+# `packages/database/src/types.ts` lo escribe `gen-types` de un tirón: si el
+# comando falla a media ejecución, deja el archivo en CERO LÍNEAS. El 2026-08-08
+# se encontró exactamente así, y tumbaba el typecheck de todo el repositorio con
+# «File types.ts is not a module» — un mensaje que no dice ni qué pasó ni qué
+# hacer.
+#
+# ESTO NO CIERRA UN AGUJERO, y conviene ser honesto: el typecheck de más abajo ya
+# lo cazaba. Lo que aporta es llegar antes —es instantáneo, el typecheck tarda
+# diez segundos— y decir en castellano qué pasó y con qué comando se arregla.
+#
+# LA DISTINCIÓN QUE IMPORTA, y es la lección que este repositorio pagó tres veces
+# el mismo día: un freno tiene que hablar de lo que SALE de esta máquina, no de
+# lo que hay en el disco.
+#
+#   · vacío en lo que se EMPUJA  → se bloquea. Eso rompe el repo de cualquiera
+#     que lo clone, y es un defecto real que viaja.
+#   · vacío solo en el disco     → se avisa y se sigue. Molesta a quien lo tenga
+#     a medio regenerar, pero su push no lo lleva. Frenar ahí sería castigar por
+#     algo ajeno, que es como se le enseña a la gente a usar `--no-verify`.
+TIPOS="packages/database/src/types.ts"
+if git rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+  # Lo que este push llevaría: si no lo toca, `git show` falla y no hay nada que
+  # comprobar.
+  LINEAS_PUSH=$(git show "HEAD:$TIPOS" 2>/dev/null | grep -c . || echo "")
+  if [ -n "$LINEAS_PUSH" ] && [ "$LINEAS_PUSH" -lt 100 ]; then
+    echo ""
+    echo "  ✗ $TIPOS viaja con solo $LINEAS_PUSH líneas."
+    echo "    Es un archivo generado: si quedó a medias, el repo no compila para"
+    echo "    nadie que lo clone. Regenéralo y vuelve a commitear:"
+    echo ""
+    echo "      npx pnpm --filter @cayla-dynamic/database gen-types"
+    echo ""
+    exit 1
+  fi
+fi
+if [ -f "$TIPOS" ] && [ "$(grep -c . "$TIPOS")" -lt 100 ]; then
+  echo "  ⚠ $TIPOS está casi vacío EN TU DISCO (no en lo que empujas)."
+  echo "    Alguien lo está regenerando. Tu typecheck local va a fallar hasta que termine."
+fi
+
 echo "→ typecheck…"
 npx pnpm typecheck >/dev/null 2>&1 || {
   echo ""
