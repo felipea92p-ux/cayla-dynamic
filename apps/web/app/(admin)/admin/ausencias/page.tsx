@@ -24,6 +24,28 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+
+// ── POR QUÉ ESTAS DOS FUNCIONES VAN CON UN NOMBRE SIN TIPAR ──────────────────
+//
+// `packages/database/src/types.ts` se genera con `pnpm --filter …database
+// gen-types`, y hoy NO conoce `fn_ausencias_subsidio` ni
+// `fn_ausencia_adjuntar_certificado` porque las crea la 0197.
+//
+// Regenerarlo arreglaría esto en una línea, pero el archivo lleva tiempo sin
+// regenerarse y la versión actual del CLI emite los parámetros opcionales como
+// `string | undefined` donde la vieja ponía `string | null`. Medido el
+// 2026-08-08: **53 errores en 13 pantallas**, entre ellas planilla y
+// liquidaciones. Eso es una tarea propia, no un efecto colateral de agregar un
+// campo a Ausencias.
+//
+// Así que el nombre se pasa sin tipar y SOLO el nombre: los argumentos y lo que
+// devuelve siguen comprobados abajo por las interfaces `Subsidio` y por el
+// `catch` de cada llamada. Cuando alguien regenere los tipos, esto se borra y
+// deja de compilar si se olvida — que es justo lo que se quiere.
+type NombreRpcSinTipar = Parameters<ReturnType<typeof createAdminSupabaseClient>["rpc"]>[0];
+const RPC_SUBSIDIO = "fn_ausencias_subsidio" as unknown as NombreRpcSinTipar;
+const RPC_ADJUNTAR = "fn_ausencia_adjuntar_certificado" as unknown as NombreRpcSinTipar;
 
 function fmt(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -61,6 +83,13 @@ interface Alerta {
   veces: number; ventana_dias: number; umbral: number;
 }
 
+/** Días de descanso médico acumulados en el año — el cupo de EsSalud (0197). */
+interface Subsidio {
+  persona_id: string; nombre: string; dias_calendario: number;
+  umbral: number; hay_que_avisar: boolean;
+  dias_para_el_umbral: number; sin_certificado: number;
+}
+
 export default function AusenciasPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -85,6 +114,9 @@ export default function AusenciasPage() {
   const [docProf, setDocProf] = useState("");
   const [docColeg, setDocColeg] = useState("");
   const [docFecha, setDocFecha] = useState("");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [progreso, setProgreso] = useState<number | null>(null);
+  const [subsidio, setSubsidio] = useState<Subsidio[]>([]);
 
   const [desde, setDesde] = useState(haceMeses(6));
   const [hasta, setHasta] = useState(haceMeses(-6));
@@ -95,11 +127,12 @@ export default function AusenciasPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
+      supabase.rpc(RPC_SUBSIDIO, {}),
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
@@ -114,6 +147,7 @@ export default function AusenciasPage() {
     setTipoCod((prev) => prev || tt[0]?.codigo || "");
     setLista((a as unknown as Ausencia[]) ?? []);
     setAlertas((al as unknown as Alerta[]) ?? []);
+    setSubsidio((sub as unknown as Subsidio[]) ?? []);
     setCargando(false);
   }, [supabase, router, desde, hasta]);
 
@@ -125,7 +159,7 @@ export default function AusenciasPage() {
     if (fin < inicio) { setMsg({ tipo: "error", texto: "La fecha de fin no puede ser anterior a la de inicio." }); return; }
     setGuardando(true);
     setMsg(null);
-    const { error } = await supabase.rpc("fn_registrar_ausencia", {
+    const { data: nuevoId, error } = await supabase.rpc("fn_registrar_ausencia", {
       p_persona_id: personaId,
       p_tipo: tipoCod,
       p_fecha_inicio: inicio,
@@ -135,9 +169,43 @@ export default function AusenciasPage() {
       p_doc_colegiatura: docColeg.trim() || null,
       p_doc_fecha: docFecha || null,
     });
+    if (error) { setGuardando(false); setMsg({ tipo: "error", texto: error.message }); return; }
+
+    // El certificado, si se eligió uno. Va DESPUÉS porque su ruta lleva dentro
+    // el id de la ausencia, que hasta acá no existía.
+    //
+    // Si la subida falla, la ausencia YA quedó registrada y eso está bien: el
+    // registro es lo que evita que esos días cuenten como falta, y perderlo por
+    // un archivo que no subió sería el peor intercambio posible. El mensaje lo
+    // dice para que nadie crea que no se guardó nada.
+    if (archivo && nuevoId) {
+      const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
+      const ruta = `certificados/${personaId}/${nuevoId}.${ext}`;
+      setProgreso(0);
+      const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, archivo, setProgreso);
+      setProgreso(null);
+      if (errorSubida) {
+        setGuardando(false);
+        setMsg({ tipo: "error", texto: `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.` });
+        await cargar();
+        return;
+      }
+      // El `as never` va por lo mismo que el nombre: sin la función en los tipos
+      // generados, TypeScript infiere `never` para sus argumentos. Los dos
+      // valores son los que la 0197 declara y el servidor los valida igual.
+      const { error: eAdj } = await supabase.rpc(RPC_ADJUNTAR, {
+        p_ausencia_id: nuevoId, p_storage_path: ruta,
+      } as never);
+      if (eAdj) {
+        setGuardando(false);
+        setMsg({ tipo: "error", texto: `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${eAdj.message}).` });
+        await cargar();
+        return;
+      }
+    }
+
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
-    setMotivo(""); setDocProf(""); setDocColeg(""); setDocFecha("");
+    setMotivo(""); setDocProf(""); setDocColeg(""); setDocFecha(""); setArchivo(null);
     await cargar();
     setMsg({
       tipo: "ok",
@@ -221,6 +289,43 @@ export default function AusenciasPage() {
           </div>
         )}
 
+        {/* EL CUPO DE ESSALUD. No es disciplinario y por eso no va en ámbar con
+            el aviso de arriba: esto es plata que la empresa puede recuperar, no
+            una conducta que mirar. Los primeros 20 días de incapacidad del año
+            los paga CAYLA; desde el 21 los subsidia EsSalud, y el reclamo se
+            sustenta con el CITT (0197).
+
+            Salta a los 15 y no a los 20 a propósito: un aviso en el día 21 llega
+            cuando el gasto ya ocurrió. */}
+        {subsidio.some((s) => s.hay_que_avisar) && (
+          <div className="mb-4 max-w-3xl rounded-lg bg-tinta/5 px-4 py-3 text-sm">
+            <p className="font-medium">EsSalud puede reembolsar parte de esto:</p>
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {subsidio.filter((s) => s.hay_que_avisar).map((s) => (
+                <li key={s.persona_id}>
+                  <strong className="font-medium">{s.nombre}</strong> lleva{" "}
+                  <strong className="font-medium">{s.dias_calendario} días</strong> de descanso médico este año
+                  {s.dias_para_el_umbral > 0
+                    ? ` — faltan ${s.dias_para_el_umbral} para los ${s.umbral} que paga CAYLA.`
+                    : ` — ya pasó los ${s.umbral}: desde el día ${s.umbral + 1} el subsidio es de EsSalud.`}
+                  {s.sin_certificado > 0 && (
+                    <span className="block text-taupe">
+                      {s.sin_certificado === 1
+                        ? "Uno de sus descansos no tiene el certificado adjunto"
+                        : `${s.sin_certificado} de sus descansos no tienen el certificado adjunto`}{" "}
+                      — sin el CITT no se puede reclamar.
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs text-taupe">
+              Se cuentan días corridos, domingos incluidos: es como los emite el CITT y como los lleva EsSalud.
+              La maternidad no entra — tiene su propio subsidio desde el primer día.
+            </p>
+          </div>
+        )}
+
         {/* Registrar */}
         <div className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
@@ -255,11 +360,21 @@ export default function AusenciasPage() {
 
           {tipoSel?.requiere_documento && (
             <>
+              {/* EMPIEZA POR LA RESPUESTA, y no es un detalle de estilo.
+                  Este párrafo decía «Este tipo se paga, así que exige documento»
+                  y sólo después, a media frase y en gris, «no se guarda el
+                  papel». El 2026-08-08 Felipe leyó la primera mitad y se pasó un
+                  rato buscando dónde subirlo. El texto estaba arriba de los
+                  campos —eso no era el problema— pero abría mandando a buscar un
+                  botón. Quien llega con el certificado en la mano necesita saber
+                  QUÉ HACER en la primera línea, no el fundamento. */}
               <p className="text-xs text-taupe sm:col-span-2">
-                Este tipo <strong className="font-medium">se paga</strong>, así que exige documento. No se guarda el
-                papel: se guarda quién lo firmó y con qué colegiatura, que es lo verificable. Si no hay documento,
-                regístralo como <strong className="font-medium">Descanso por salud</strong> — no paga, pero tampoco
-                cuenta como falta.
+                <strong className="font-medium text-tinta">Lo obligatorio son los tres datos de abajo</strong>{" "}
+                — quién firmó, su colegiatura y la fecha. Eso es lo verificable: un número de CMP se comprueba
+                contra el registro del Colegio Médico. Subir el certificado es <strong className="font-medium">opcional</strong>,
+                y conviene hacerlo si el descanso se alarga: a partir del día 21 del año EsSalud reembolsa, y
+                ese reclamo se sustenta con el CITT. Si no tienes ningún documento, regístralo como{" "}
+                <strong className="font-medium">Descanso por salud</strong> — no paga, pero tampoco cuenta como falta.
               </p>
               <label className="flex flex-col gap-1 text-sm">
                 Profesional o institución
@@ -272,6 +387,22 @@ export default function AusenciasPage() {
               <label className="flex flex-col gap-1 text-sm">
                 Fecha de emisión
                 <input type="date" value={docFecha} onChange={(e) => setDocFecha(e.target.value)} className="rounded-lg border px-3 py-2" />
+              </label>
+              {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
+                  admin y líder de DO: un certificado dice el diagnóstico de una
+                  persona, y la encargada de sede necesita saber que no vino y que
+                  está justificado, no de qué está enferma (0197). */}
+              <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+                Certificado o CITT <span className="text-taupe">(opcional — solo lo ven Administración y DO)</span>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                  className="rounded-lg border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
+                />
+                {progreso !== null && (
+                  <span className="text-xs text-taupe">Subiendo… {progreso}%</span>
+                )}
               </label>
             </>
           )}
