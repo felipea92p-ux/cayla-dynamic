@@ -9,7 +9,8 @@
 import { describe, it, expect } from "vitest";
 import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
-  puedeOperarEquipo, puedeVerTodasLasSedes, ROLES_CON_PANEL, ROLES_DO,
+  puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
+  ROLES_CON_PANEL, ROLES_DO,
 } from "@cayla-dynamic/shared";
 
 describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
@@ -72,5 +73,53 @@ describe("las listas para filtrar en la base coinciden con las funciones", () =>
   it("ROLES_CON_PANEL son exactamente los que operan al equipo", () => {
     expect([...ROLES_CON_PANEL].sort()).toEqual(["admin", "lider_do", "supervisor_sede"]);
     for (const r of ROLES_CON_PANEL) expect(puedeOperarEquipo(r)).toBe(true);
+  });
+});
+
+// ============================================================================
+// Llevarse los datos no es lo mismo que verlos
+// ============================================================================
+// `puedeExportarPadron` es el único permiso más estrecho que `puedeVerIdentidad`,
+// y la tentación es fundirlos: quien ya ve el DNI en pantalla «igual lo podría
+// copiar». La diferencia no es el dato, es su forma. Una ficha en pantalla se
+// mira; un CSV con veintiún DNI, direcciones y cuentas bancarias sale del
+// sistema, se reenvía por WhatsApp y termina en la carpeta de Descargas de
+// alguien. Ver y poder llevarse son dos permisos distintos.
+//
+// Se decidió el 2026-08-08, al construir la descarga del padrón para el contador.
+describe("el padrón completo solo se lo lleva la dirección", () => {
+  it("la dirección sí puede descargarlo", () => {
+    expect(puedeExportarPadron("admin")).toBe(true);
+  });
+
+  it("quien lleva DO edita esas fichas todos los días y NO puede descargarlas", () => {
+    // No es desconfianza: es que el archivo se genera para un trámite concreto
+    // y esa decisión es de dirección. Si esto se pone en true, que sea a
+    // propósito y no porque «total, ya las ve».
+    expect(puedeVerIdentidad("lider_do")).toBe(true);
+    expect(puedeExportarPadron("lider_do")).toBe(false);
+  });
+
+  it("la encargada de sede no, y tampoco veía las fichas", () => {
+    expect(puedeExportarPadron("supervisor_sede")).toBe(false);
+  });
+
+  it("una integrante no", () => {
+    expect(puedeExportarPadron("integrante")).toBe(false);
+  });
+
+  it("y un rol vacío, nulo o desconocido tampoco — null nunca pasa", () => {
+    expect(puedeExportarPadron(null)).toBe(false);
+    expect(puedeExportarPadron(undefined)).toBe(false);
+    expect(puedeExportarPadron("")).toBe(false);
+    expect(puedeExportarPadron("contador")).toBe(false);
+  });
+
+  it("es MÁS estrecho que ver identidad: si alguien los iguala, esto cae", () => {
+    const roles = ["admin", "lider_do", "supervisor_sede", "integrante"];
+    const ve = roles.filter((r) => puedeVerIdentidad(r));
+    const baja = roles.filter((r) => puedeExportarPadron(r));
+    expect(baja.length).toBeLessThan(ve.length);
+    expect(ve).toEqual(expect.arrayContaining(baja));
   });
 });

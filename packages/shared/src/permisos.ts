@@ -89,6 +89,26 @@ export function puedeVerTodasLasSedes(rol: RolPosible): boolean {
 }
 
 /**
+ * Sacar del sistema el padrón COMPLETO: DNI, dirección, celular y número de
+ * cuenta bancaria de todo el equipo, en un archivo.
+ *
+ * Es el único permiso más estrecho que `puedeVerIdentidad`, y la diferencia no
+ * es el dato sino su forma. DO ve esas fichas en pantalla porque las administra;
+ * un CSV es otra cosa: sale del sistema, se copia, se reenvía y ya nadie sabe
+ * dónde está. Ver un dato y poder llevárselo son dos permisos distintos.
+ *
+ * Solo `admin` — la dirección. Quien lleva DO edita las fichas todos los días y
+ * no necesita descargarlas; el archivo se genera para un trámite concreto (el
+ * padrón para el contador) y esa decisión es de dirección.
+ */
+export function puedeExportarPadron(rol: RolPosible): boolean {
+  return tiene(SOLO_DIRECCION, rol);
+}
+
+/** Solo la dirección. Ver arriba por qué esto no es lo mismo que DO. */
+const SOLO_DIRECCION: readonly Rol[] = ["admin"];
+
+/**
  * Las mismas listas, para filtrar datos que vienen de la base (`.in("rol", …)`,
  * `.includes(p.rol)`). Van tipadas como `string` a propósito: el rol que llega de
  * Postgres es texto libre, y exigirle el tipo `Rol` obligaría a un cast en cada

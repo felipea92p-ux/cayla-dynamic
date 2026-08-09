@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
@@ -254,6 +255,101 @@ export default function DatosPersonalesPage() {
   const sinFicha = personas.filter((p) => !fichas.has(p.id)).length;
   const misDerechos = derechos.filter((d) => d.persona_id === sel);
 
+  // ── Qué le falta a cada ficha ──────────────────────────────────────────────
+  //
+  // La lista son los campos que el contador necesita para el T-Registro, y por
+  // eso `foto_personal_url` no está: falta una foto y no pasa nada; falta el
+  // número de cuenta y esa persona no cobra.
+  //
+  // Se calcula acá y no en la base a propósito: los datos ya están cargados en
+  // esta pantalla, y una consulta más para contar nulos sería una segunda verdad
+  // sobre qué es «estar completa».
+  const FALTANTES: readonly { clave: string; etiqueta: string }[] = [
+    { clave: "documento", etiqueta: "DNI" },
+    { clave: "nombre_dni", etiqueta: "nombre según DNI" },
+    { clave: "fecha_nacimiento", etiqueta: "nacimiento" },
+    { clave: "estado_civil", etiqueta: "estado civil" },
+    { clave: "grado_instruccion", etiqueta: "instrucción" },
+    { clave: "celular", etiqueta: "celular" },
+    { clave: "email", etiqueta: "correo" },
+    { clave: "direccion", etiqueta: "dirección" },
+    { clave: "numero_cuenta", etiqueta: "cuenta" },
+    { clave: "regimen_pension", etiqueta: "régimen de pensión" },
+  ];
+
+  const incompletas = useMemo(() => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    return personas
+      .map((p) => {
+        const f = fichas.get(p.id);
+        const valor: Record<string, unknown> = { ...(f ?? {}), documento: p.documento, email: p.email, regimen_pension: p.regimen_pension };
+        const faltan = FALTANTES.filter((c) => {
+          const v = valor[c.clave];
+          return v === null || v === undefined || String(v).trim() === "";
+        }).map((c) => c.etiqueta);
+        // Una fecha de nacimiento en el futuro no es un hueco, es un dato
+        // imposible — y se ve igual de bien que uno correcto hasta que el
+        // contador lo rechaza. Visto en producción el 2026-08-08.
+        if (f?.fecha_nacimiento && f.fecha_nacimiento > hoy) faltan.unshift("⚠ nacimiento en el futuro");
+        // Quien cobra asignación familiar tiene que tener a quién declararle.
+        // Son S/113 al mes: si no corresponde se paga de más, y si corresponde
+        // falta el respaldo que la sustenta.
+        if (f?.hijos_menores === true && !derechos.some((d) => d.persona_id === p.id)) {
+          faltan.push("⚠ asignación familiar sin familiar registrado");
+        }
+        return { p, faltan, sinFicha: f === undefined };
+      })
+      .filter((x) => x.faltan.length > 0)
+      .sort((a, b) => b.faltan.length - a.faltan.length);
+  }, [personas, fichas, derechos]);
+
+  // El valor que llega de la base es texto libre: puede traer un código que
+  // estas etiquetas todavía no conocen. Se devuelve el crudo en vez de dejar
+  // vacía la celda — un dato raro en el CSV se ve y se pregunta; una celda en
+  // blanco se lee como «no tiene».
+  function etiqueta(mapa: Record<string, string>, valor: string | null): string {
+    if (valor === null || valor === "") return "";
+    return mapa[valor] ?? valor;
+  }
+
+  /** El padrón para el contador. Solo dirección — ver `puedeExportarPadron`. */
+  function exportarPadron() {
+    const sede = (id: string) => sedes.get(id) ?? "";
+    const filas = personas.map((p) => {
+      const f = fichas.get(p.id);
+      const dh = derechos.filter((d) => d.persona_id === p.id).length;
+      return {
+        DNI: p.documento ?? "",
+        "Nombre segun DNI": f?.nombre_dni ?? `${p.apellidos}, ${p.nombres}`,
+        Apellidos: p.apellidos, Nombres: p.nombres, Sede: sede(p.sede_base_id),
+        "Fecha nacimiento": f?.fecha_nacimiento ?? "",
+        "Estado civil": etiqueta(ESTADO_CIVIL_LABELS, f?.estado_civil ?? null),
+        "Grado de instruccion": etiqueta(GRADO_INSTRUCCION_LABELS, f?.grado_instruccion ?? null),
+        Celular: f?.celular ?? "", Correo: p.email ?? "", Direccion: f?.direccion ?? "",
+        "Regimen pension": etiqueta(REGIMEN_PENSION_LABELS, p.regimen_pension),
+        "Asignacion familiar": f?.hijos_menores ? "SI" : "NO",
+        Derechohabientes: dh,
+        Banco: f?.entidad_bancaria ?? "", Cuenta: f?.numero_cuenta ?? "",
+        Discapacidad: f?.discapacidad ? "SI" : "NO", CONADIS: f?.discapacidad_conadis ?? "",
+        "Contacto emergencia": f?.emergencia_nombre ?? "",
+        "Telefono emergencia": f?.emergencia_telefono ?? "",
+        // El sistema NO guarda estos tres y el T-Registro los pide. Van como
+        // columna vacía y no omitidos: una columna que falta se pasa por alto,
+        // una vacía se ve y se llena.
+        Sexo: "", Nacionalidad: "", "CUSPP (codigo AFP)": "",
+        REVISAR: incompletas.find((x) => x.p.id === p.id)?.faltan.join(" · ") ?? "",
+      };
+    });
+    // Primero quien necesita corrección: el archivo abre mostrando qué hacer.
+    filas.sort((a, b) => (a.REVISAR === "" ? 1 : 0) - (b.REVISAR === "" ? 1 : 0)
+      || a.Sede.localeCompare(b.Sede) || a.Apellidos.localeCompare(b.Apellidos));
+    descargarCsv(
+      `cayla-padron-${new Date().toISOString().slice(0, 10)}.csv`,
+      generarCsv(filas, Object.keys(filas[0] ?? {})),
+    );
+    setMsg({ tipo: "ok", texto: `Descargadas ${filas.length} fichas. Lleva DNI, dirección y cuentas bancarias: compártelo por un canal que puedas revocar y bórralo al terminar.` });
+  }
+
   if (rol !== null && !puede) {
     return (
       <div className="flex min-h-screen flex-col">
@@ -329,11 +425,60 @@ export default function DatosPersonalesPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
-        <h1 className="mb-1 font-serif text-2xl">Datos personales</h1>
+        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
+          <h1 className="font-serif text-2xl">Datos personales</h1>
+          {/* Solo dirección: un CSV sale del sistema y ya nadie sabe dónde queda.
+              Ver `puedeExportarPadron` para por qué esto es más estrecho que ver
+              las mismas fichas en pantalla. */}
+          {puedeExportarPadron(rol) && personas.length > 0 && (
+            <button
+              onClick={exportarPadron}
+              className="no-print rounded-lg border border-sand px-3 py-1.5 text-sm hover:bg-sand/40"
+              title="Padrón completo para el contador: incluye DNI, dirección y cuentas bancarias"
+            >
+              Descargar padrón para el contador (CSV)
+            </button>
+          )}
+        </div>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
           Ficha personal de cada integrante: DNI, pensión, contacto, familia y documentos.
           Datos sensibles — visibles solo para Desarrollo Organizacional, la encargada de tu sede y cada persona sobre sí misma.
         </p>
+
+        {/* ── Qué falta, arriba de todo ─────────────────────────────────────
+            Solo se listan las fichas incompletas. Cuando estén todas al día
+            este bloque desaparece, y esa ausencia ES la señal de que está
+            cerrado — un contador «21 de 21» ocuparía sitio para no decir nada.
+            Cada nombre lleva al formulario de esa persona: quien ve el hueco lo
+            corrige sin cambiar de pantalla. */}
+        {!cargando && incompletas.length > 0 && (
+          <section className="mb-5 max-w-3xl rounded-2xl border border-ambar/40 bg-ambar/5 p-4">
+            <h2 className="mb-1 text-sm font-medium">
+              {incompletas.length === 1
+                ? "Una ficha está incompleta"
+                : `${incompletas.length} fichas están incompletas`}
+            </h2>
+            <p className="mb-3 text-xs text-taupe">
+              Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede
+              declarar a esa persona ni pagarle por transferencia.
+            </p>
+            <ul className="space-y-1.5 text-sm">
+              {incompletas.map(({ p, faltan, sinFicha: nueva }) => (
+                <li key={p.id} className="flex flex-wrap items-baseline gap-x-2">
+                  <button
+                    onClick={() => { setSel(p.id); fichaRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+                    className="font-medium underline decoration-dotted underline-offset-2"
+                  >
+                    {p.apellidos}, {p.nombres}
+                  </button>
+                  <span className="text-xs text-taupe">
+                    {nueva ? "sin ficha — falta todo" : `falta ${faltan.join(" · ")}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {msg && (
           <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
