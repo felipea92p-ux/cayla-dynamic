@@ -258,6 +258,35 @@ function BoletaContenido() {
   // es, en el único papel que esa persona se lleva. En una inspección, el
   // documento que la empresa emite todos los meses pesa más que el contrato.
   //
+  // ── LA TARIFA POR HORA DE UN LOCADOR ───────────────────────────────────────
+  // Sustituye a «Honorarios pactados (mes completo) — S/ 1,800.00», que estuvo
+  // impreso unas horas del 2026-08-08 y era la única frase de la hoja que
+  // contradecía a todas las demás: los cinco párrafos del pie dicen «no es un
+  // contrato de trabajo, tú organizas tu tiempo», y esa línea afirmaba un monto
+  // mensual fijo — que es, él solo, uno de los indicios de laboralidad que miran
+  // SUNAFIL y los jueces. Carlos y Claudia cobran POR HORA.
+  //
+  // SALE DE `salario_ref`, NO DE `sueldo_base_legal`. Los dos suelen coincidir,
+  // pero el pago lo calcula `fn_planilla_calcular` con el primero
+  // (salario × horas / (6.5 × días)). Si algún día difieren, imprimir el segundo
+  // daría una tarifa que NO reproduce el total de la propia hoja, y un documento
+  // que no cuadra consigo mismo es peor que uno que no dice nada.
+  //
+  // CUATRO DECIMALES, y no dos, por lo mismo: a S/ 8.93 la hora, 27 h 30 min dan
+  // S/ 245.58 y la hoja remata en S/ 245.66. Ocho céntimos de diferencia bastan
+  // para que alguien piense que le están descontando algo. Con S/ 8.9330 la
+  // multiplicación cierra. Una tarifa con cuatro decimales es lo normal en una
+  // PLAME; un documento que no se puede comprobar, no.
+  //
+  // `base_horas` YA SON LAS HORAS DE TODO EL PERIODO, no las de un día: el SQL
+  // la calcula con `v_base := 6.5 * v_dias`, así que en un periodo de 31 días
+  // vale 201.5. Multiplicarla otra vez por `proy.dias` —el error de la primera
+  // versión, que duró diez minutos— daba una tarifa de S/ 0.2882 la hora. Lo
+  // cazó la hoja renderizada, no el typecheck: los dos campos son `number` y las
+  // dos fórmulas compilan igual de bien.
+  const tarifaHora =
+    f.salario_ref !== null && proy.base_horas > 0 ? f.salario_ref / proy.base_horas : null;
+
   // La pregunta la responde `packages/shared/src/vinculo.ts`, no esta pantalla:
   // son nueve las que van a hacerla, y este repositorio ya juntó 35 copias de la
   // misma condición de permiso antes de aprenderlo. Ahí está también el porqué
@@ -431,23 +460,31 @@ function BoletaContenido() {
               (el plus por metas es 21% ENCIMA del rango) y el desmentido que
               había que poner en el pie para explicarla.
               El potencial sigue existiendo en Planilla, para gestión interna. */}
-          {baseLegal !== null && (
-            <dl className="mt-3 space-y-1 text-sm">
-              {/* «(mes completo)» no es decoración: sin eso, esta cifra y la fila
-                  del desglose se llamaban IGUAL y mostraban montos distintos
-                  (1,130.00 aquí y 947.41 abajo). Quien lo leyera rápido pensaba
-                  que había un error. Ahora una dice «mes completo» y la otra
-                  «proporcional», y se entienden sin explicación. */}
-              <div className="flex justify-between gap-4">
-                <dt className="font-medium">
-                  {esLocador
-                    ? "Honorarios pactados (mes completo)"
-                    : "Remuneración Básica Legal (mes completo)"}
-                </dt>
-                <dd className="font-medium">{formatSoles(baseLegal)}</dd>
-              </div>
-            </dl>
-          )}
+          {/* A UN LOCADOR SE LE DICE SU TARIFA, NO UN SUELDO MENSUAL. Ver el
+              cálculo y el porqué de los cuatro decimales donde se define
+              `tarifaHora`, más arriba. */}
+          {esLocador
+            ? tarifaHora !== null && (
+                <dl className="mt-3 space-y-1 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="font-medium">Tarifa por hora</dt>
+                    <dd className="font-medium">S/ {tarifaHora.toFixed(4)}</dd>
+                  </div>
+                </dl>
+              )
+            : baseLegal !== null && (
+                <dl className="mt-3 space-y-1 text-sm">
+                  {/* «(mes completo)» no es decoración: sin eso, esta cifra y la
+                      fila del desglose se llamaban IGUAL y mostraban montos
+                      distintos (1,130.00 aquí y 947.41 abajo). Quien lo leyera
+                      rápido pensaba que había un error. Ahora una dice «mes
+                      completo» y la otra «proporcional». */}
+                  <div className="flex justify-between gap-4">
+                    <dt className="font-medium">Remuneración Básica Legal (mes completo)</dt>
+                    <dd className="font-medium">{formatSoles(baseLegal)}</dd>
+                  </div>
+                </dl>
+              )}
         </div>
 
         {/* Detalle del pago */}
