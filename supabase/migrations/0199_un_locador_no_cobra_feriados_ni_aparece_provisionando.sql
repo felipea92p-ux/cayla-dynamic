@@ -1087,19 +1087,30 @@ notify pgrst, 'reload schema';
 
 -- ── Comprobación ────────────────────────────────────────────────────────────
 -- Va la ÚLTIMA a propósito: el SQL Editor solo muestra la última consulta.
--- Una fila por persona que NO está en planilla. Las cinco columnas en 0.00.
-with p as (
-  select fecha_ini, fecha_fin from periodos_planilla
-  order by (estado = 'abierto') desc, fecha_fin desc limit 1
-)
-select e ->> 'nombre'                        as persona,
-       e ->> 'tipo_vinculo'                  as vinculo,
-       e ->> 'monto_feriados'                as feriados,
-       e ->> 'provision_gratificacion'       as grati,
-       e ->> 'provision_bonif_extraordinaria' as bonif,
-       e ->> 'provision_cts'                 as cts,
-       e ->> 'provision_vacaciones'          as vacaciones,
-       e ->> 'pago_base'                     as pago_base_intacto
-from p, jsonb_array_elements(fn_planilla_calcular(p.fecha_ini, p.fecha_fin) -> 'filas') e
-where (e ->> 'en_planilla')::boolean is not true
-order by 1;
+--
+-- ⚠️ NO llama a `fn_planilla_calcular`. La primera versión de esta migración sí
+-- lo hacía —para enseñar la fila del locador ya en cero— y eso la tumbó entera:
+-- esa función exige sesión de administrador, el SQL Editor entra como `postgres`
+-- sin identidad, y como el editor corre todo en UNA transacción, el fallo de la
+-- comprobación deshizo también los `create or replace`. La migración no llegó a
+-- aplicarse y el error no decía eso.
+--
+-- Una comprobación no puede necesitar más permisos que el cambio que comprueba.
+-- Esta solo lee el catálogo del sistema, que siempre se puede leer.
+--
+-- Las tres deben decir true.
+select
+  (select prosrc ~ 'pe\.en_planilla and tt\.salario is not null'
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_planilla_calcular')
+    as el_feriado_ya_mira_el_vinculo,
+
+  (select prosrc ~ 'dev\.f_grati' and prosrc ~ 'dev\.f_cts' and prosrc ~ 'dev\.f_vacas'
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_planilla_calcular')
+    as las_provisiones_de_la_boleta_tambien,
+
+  (select count(*) = 1
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_devenga')
+    as la_regla_sigue_en_un_solo_sitio;
