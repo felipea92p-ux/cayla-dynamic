@@ -268,3 +268,78 @@ describe("cómo se congela el documento al publicarlo", () => {
     expect(documentoDesdeGuardado("{ roto")).toBeNull();
   });
 });
+
+// ============================================================================
+// El documento no puede convertir el horario de 45 h en la jornada pactada
+// ============================================================================
+// Felipe lo levantó el 2026-08-08, al decidir reforzar en el documento que CAYLA
+// programa 45 horas cuando la ley permite 48: «cuidado, las legales y las de
+// contrato siguen siendo 48 horas, que nunca nos juegue en contra».
+//
+// El riesgo es real y de dos filos. Cuanto más se destaca el beneficio, más se
+// parece a una condición consolidada — y si alguien llegara a sostener que la
+// jornada pactada de CAYLA son 45 h, las horas 46, 47 y 48 pasarían a ser
+// sobretiempo con recargo del 25 % / 35 % para todo el equipo, todas las semanas.
+//
+// Por eso el documento tiene que decir SIEMPRE tres cosas juntas, y estas
+// pruebas no dejan que se caiga ninguna al reescribir la sección:
+//
+//   1. la jornada ordinaria es 48 y es la del contrato;
+//   2. el horario de 45 es una decisión de la empresa, sin derecho adquirido;
+//   3. el sobretiempo se cuenta desde la hora 49, no desde la 46.
+//
+// Las tres se ganan por escrito, no por omisión: un documento que solo callara
+// el punto 3 seguiría siendo cierto y sería mucho más fácil de discutir.
+describe("la sección de jornada se blinda sola", () => {
+  // Fixture propio: `cuadro()` vive dentro de otro describe y no se ve desde
+  // acá. Esta sección no depende de las categorías, así que basta una.
+  const cuadroMinimo = (): Cuadro => ({
+    categorias: [{ ...cat("colibri", 1, 1130), personas: 13 }],
+    movilidad: [],
+    brecha: null,
+  });
+
+  const jornada = (): string => {
+    const doc = construirDocumento(cuadroMinimo(), "2026-08-08");
+    const s = doc.secciones.find((x) => x.titulo.includes("jornada"));
+    if (s === undefined) throw new Error("no hay sección de jornada");
+    return s.bloques
+      .map((b) => (b.tipo === "parrafo" || b.tipo === "destacado" ? b.texto : ""))
+      .join(" ");
+  };
+
+  it("dice que la jornada ordinaria es de 48 horas y que es la del contrato", () => {
+    const t = jornada();
+    expect(t).toContain("cuarenta y ocho (48) horas semanales");
+    expect(t).toContain("Es la jornada que figura en tu contrato de trabajo");
+  });
+
+  it("dice que el horario de 45 NO es condición más beneficiosa ni derecho adquirido", () => {
+    const t = jornada();
+    expect(t).toContain("no constituye condición más beneficiosa");
+    expect(t).toContain("no genera derecho adquirido");
+    expect(t).toContain("no modifica la jornada establecida en tu contrato");
+  });
+
+  it("dice que el sobretiempo empieza en la hora 49, no en la 46", () => {
+    // Esta es la que se puede perder al reescribir «para que quede más corto»,
+    // y es la que traduce el blindaje jurídico a algo operativo.
+    expect(jornada()).toContain("desde la hora 49 de la semana y no desde la 46");
+  });
+
+  it("nunca llama «jornada» a las 45 horas: eso es el HORARIO", () => {
+    // La palabra importa. «Jornada de 45 horas» es exactamente la frase que
+    // convertiría las horas 46 a 48 en sobretiempo.
+    const t = jornada().toLowerCase();
+    expect(t).not.toContain("jornada de 45");
+    expect(t).not.toContain("jornada ordinaria es de 45");
+    expect(t).not.toContain("jornada de cuarenta y cinco");
+  });
+
+  it("y avisa del cambio en el neto antes de que llegue la boleta", () => {
+    const t = jornada();
+    expect(t).toContain("un neto algo menor");
+    expect(t).toContain("no se queda en CAYLA");
+  });
+});
+

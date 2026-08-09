@@ -617,8 +617,8 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
         tipo: "parrafo",
         texto:
           "Esas tres horas de diferencia no son un descuido ni un saldo pendiente: son tiempo que la empresa " +
-          "decide no ocupar. Existen para que puedas estudiar, descansar, ver a tu familia y tener una vida " +
-          "fuera del trabajo.",
+          "decide no ocupar. Tres horas por semana son unas trece al mes, más de un día y medio de trabajo, y " +
+          "existen para que puedas estudiar, descansar, ver a tu familia y tener una vida fuera del trabajo.",
       },
       {
         tipo: "parrafo",
@@ -626,7 +626,9 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
           "Este horario reducido se otorga por decisión de la empresa. Conforme al artículo 6 del Decreto " +
           "Supremo 007-2002-TR, corresponde a CAYLA establecer y modificar el horario de trabajo dentro de la " +
           "jornada ordinaria pactada. Su otorgamiento no constituye condición más beneficiosa, no genera " +
-          "derecho adquirido y no modifica la jornada establecida en tu contrato de trabajo.",
+          "derecho adquirido y no modifica la jornada establecida en tu contrato de trabajo. Por esa misma " +
+          "razón, el sobretiempo se cuenta desde la hora 49 de la semana y no desde la 46: el umbral es la " +
+          "jornada ordinaria de cuarenta y ocho horas que figura en tu contrato, no el horario que se programa.",
       },
       {
         tipo: "parrafo",
@@ -656,8 +658,10 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
       {
         tipo: "parrafo",
         texto:
-          "El horario que te aplica a ti es el que figura en tu contrato de trabajo. Esta tabla describe cómo " +
-          "se organiza cada sede, no reemplaza lo pactado individualmente.",
+          "La tabla describe cómo se organizan las tiendas y el taller. Central no es tienda —ahí están " +
+          "administración y Desarrollo Organizacional— y su horario se pacta en cada contrato. En todos los " +
+          "casos, el horario que te aplica a ti es el que figura en tu contrato de trabajo: esta tabla no " +
+          "reemplaza lo pactado individualmente.",
       },
       {
         tipo: "parrafo",
@@ -712,7 +716,8 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
         tipo: "destacado",
         texto:
           "No tienes que pedirlo ni llevar la cuenta. El sistema lo calcula solo a partir de tus marcaciones, " +
-          "cada periodo, y aparece en tu boleta con el detalle del día y de las horas.",
+          "cada periodo, y aparece en tu boleta con el detalle del día y de las horas. Lo habitual es que las " +
+          "horas extras se paguen cuando el trabajador las reclama y puede probarlas; acá se detectan solas.",
       },
       {
         tipo: "parrafo",
@@ -738,7 +743,30 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
         tipo: "destacado",
         texto:
           "Esto importa para tu futuro, no solo para el mes: la base declarada es la que determina tu pensión, " +
-          "tu cobertura de salud y el monto de tu gratificación, tu CTS y tus vacaciones.",
+          "tu cobertura de salud y el monto de tu gratificación, tu CTS y tus vacaciones. Se calculan sobre tu " +
+          "sueldo completo, no sobre una parte de él.",
+      },
+      // ── El neto que baja ─────────────────────────────────────────────────
+      // Se dice ACÁ y no se deja para la conversación de entrega, por decisión
+      // de Felipe (2026-08-08). Desde la migración 0193 el feriado y el
+      // sobretiempo entran a la base de aportes, así que el descuento
+      // previsional sube y el neto de cada persona baja entre S/9 y S/50.
+      //
+      // Si se enteran por la boleta del 28, la explicación llega tarde y suena a
+      // excusa. Dicho antes, es una decisión de la empresa de declarar completo.
+      {
+        tipo: "parrafo",
+        texto:
+          "Qué cambia desde este periodo. Hasta ahora tus feriados y tu sobretiempo se te pagaban, pero no " +
+          "formaban parte de esa base. Desde este periodo sí. Como consecuencia, tu aporte a la AFP o a la ONP " +
+          "sube un poco y vas a ver un neto algo menor en tu boleta.",
+      },
+      {
+        tipo: "destacado",
+        texto:
+          "Ese monto no se queda en CAYLA: va íntegro a tu fondo de pensión, que es tuyo. Y al declarar más, " +
+          "sube también lo que la empresa aporta a tu EsSalud y la base con la que se calculan tu gratificación, " +
+          "tu CTS y tus vacaciones.",
       },
       {
         tipo: "parrafo",
