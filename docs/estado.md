@@ -37,6 +37,164 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-08 — el papel que se le entrega a un locador dejó de llamarlo trabajador
+
+La 0199 le quitó a un locador las cifras que no le tocaban —feriados,
+gratificación, CTS, vacaciones— y el papel quedó correcto en los números y falso
+en las palabras: seguía titulándose «Boleta interna de pago», llamaba
+«Remuneración Básica» a sus honorarios, cerraba con «Total a recibir este mes»,
+le contaba los días que «le tocaba venir» y lo mandaba a «consultar con tu líder
+de equipo».
+
+**Eso no es redacción, es lo que el documento declara.** En una inspección, el
+papel que la empresa emite todos los meses pesa más que el contrato firmado: la
+subordinación se prueba con indicios, y aquí CAYLA los estaba imprimiendo ella
+misma, en el único ejemplar que esa persona se lleva a casa.
+
+Ahora la pantalla imprime **dos documentos distintos**, no uno con filas de
+menos. Quien presta servicios recibe un «Detalle de servicios prestados»: dice
+qué relación es (locación del Código Civil), quién organiza el tiempo, que el
+documento oficial es **su** recibo por honorarios y —recién al final, como
+consecuencia y no como recorte— por qué no hay beneficios. Cierra con «emite tu
+recibo por este importe».
+
+**El interruptor es uno solo y vive en `packages/shared/src/vinculo.ts`**, no en
+la pantalla. Son nueve las que van a hacer la misma pregunta, y este repositorio
+ya juntó 35 copias de la misma condición de permiso antes de aprenderlo.
+
+Ahí está también la regla que más importa: se pregunta `en_planilla === false`,
+nunca `!en_planilla`. El frontend se despliega por Vercel mientras el SQL lo pega
+Felipe a mano, así que hay ventanas en las que la pantalla nueva corre contra una
+base que todavía no manda el campo. Con `!en_planilla`, ese `undefined`
+convertiría a **todo el mundo** en locador de golpe: treinta personas recibirían
+un papel que les niega gratificación, CTS y vacaciones, y saldría bonito. Las
+cuatro pruebas de `tests/vinculo.test.ts` existen para eso.
+
+### Lo que solo se vio mirando la hoja renderizada
+
+La boleta le imprimía **«Colibrí»** — un peldaño de la escala de trabajadores.
+La 0182 ya había decidido esconderlo, con este argumento: decir que alguien ocupa
+una categoría de la escala es parte de lo que desnaturaliza una locación. Pero se
+aplicó solo en la tabla de Planilla. En el código las dos pantallas no se parecen
+en nada y ningún `grep` las conecta; se cazó abriendo el documento.
+
+### Lo que queda de este hilo
+
+- **«Honorarios pactados (mes completo) · S/ 1,130.00»** sigue impreso, y el
+  número sale de `personas.sueldo_base_legal`. Carlos y Claudia **cobran por
+  hora**: un importe mensual fijo impreso cada mes es, él solo, un indicio de
+  laboralidad. Quitar esa línea para locadores es un `if` de una línea, y está
+  pendiente de que Felipe decida.
+- **Faltan las otras ocho pantallas** con el mismo problema: Planilla (135
+  conceptos laborales), Provisiones, Liquidaciones, Feriados, Vacaciones, Costos,
+  Ausencias y Disciplina.
+- **Claudia** es el mismo caso que Carlos y aún no se movió. **Catherine** es
+  otro distinto —socia, monto fijo— y se dejó para después a propósito.
+
+---
+
+## 2026-08-08 — el sobretiempo se paga solo, y todo lo que se cobra se declara
+
+Empezó con una pregunta de Felipe —por qué el sistema no dejaba dar el sábado
+como descanso por un feriado trabajado— y terminó en cinco migraciones. Lo que
+va acá es lo que ninguna consulta puede responder: **por qué se decidió así**.
+
+### Cómo se mide el sobretiempo, y las tres trampas
+
+**Contra 48 h SEMANALES, nunca contra 8 h diarias.** El art. 25 de la
+Constitución dice «ocho horas diarias O cuarenta y ocho semanales» y CAYLA pactó
+la semanal, en contratos y RIT. Medido por día, el taller de Lima —5 días de
+9 h = 45 h— generaría sobretiempo todas las semanas del año haciendo tres horas
+MENOS que el máximo legal.
+
+**«Semana» es un ciclo de siete días, no lunes a domingo.** Criterio vinculante
+del Informe 027-2021-MTPE/14. El ciclo empieza tras un descanso y se corta a los
+7 días; sin ese corte, doce días seguidos de 8 h darían 48 h de exceso en vez
+de 8 — un tope semanal convertido en tope por racha, que no existe en la norma.
+
+**Los ciclos no se solapan, y por eso el pago NO usa la ventana móvil** que sí
+usa la alerta de Incidencias. Ahí el objetivo es no perderse ningún tramo
+cargado; acá, una ventana móvil pagaría la misma hora siete veces.
+
+Y se suma **el recargo** (25 % / 35 %), no la hora completa: las horas ya están
+en `pago_base`. Es el mismo error que la 0173 corrigió con el feriado del sueldo
+fijo.
+
+### Tres exclusiones distintas que NO se pueden fundir en un campo
+
+| Quién | Por qué | Dónde vive |
+|---|---|---|
+| RxH | Un locador no tiene jornada; pagarle horas extras es indicio de laboralidad | `tipo_vinculo` |
+| Personal de dirección | Art. 5 del D.S. 007-2002-TR: fuera de la jornada máxima | `personas.personal_direccion` (0187) |
+| Sueldo fijo | Su pago no depende de horas: un recargo sobre monto fijo no dice nada | `sueldo_fijo` |
+
+**`personal_direccion` tiene columna propia y no se deduce del rol.** `admin` es
+un permiso informático: el día que se le dé admin a alguien de DO para
+administrar pantallas, se le quitaría sin querer su derecho a horas extras. Y no
+es lo mismo que `sueldo_fijo`, que es una condición de pago — hay dirección que
+cobra por horas. Hoy está marcado Felipe, y solo él.
+
+### Qué entra a la base de EsSalud y pensión, y qué no
+
+Entran el **feriado** y el **sobretiempo** (0193). No admiten discusión: el
+art. 19 del D.S. 001-97-TR no los lista como no remunerativos y SUNAT les da
+código propio en la tabla 22 de la PLAME — **0105** (sobretiempo 25 %), **0106**
+(35 %) y **0107** (feriado o día de descanso).
+
+**No entran, y no es un olvido:** el complemento variable y el plus por
+objetivos, que tienen defensa legal real y están dentro de una estructura
+decidida con el contador (ver
+[`analisis-estructura-remunerativa-2026-07-30.md`](analisis-estructura-remunerativa-2026-07-30.md));
+y la movilidad y la educación, no remunerativas por el art. 19 incisos e) y f).
+
+⚠️ **Las sobretasas COMPLETAN una base declarada; no crean una donde no la hay.**
+La primera versión le inventaba S/41.39 de pensión a un RxH y S/46.45 a alguien
+con sueldo fijo — los dos tienen la básica en 0 a propósito. Ninguna prueba
+existente cayó: eran montos de personas que antes no aparecían en ningún cálculo
+de pensión. Lo fija ahora la `150_la_base_de_aportes_no_se_inventa`.
+
+### La vía para reducir el costo en origen NO es dejar de declarar
+
+Son dos, y las dos son legales:
+
+- **Descanso sustitutorio** por feriado trabajado (art. 9, D. Leg. 713). Con él
+  la sobretasa del 100 % no se genera. Medido en un caso real: el feriado de esa
+  persona baja de S/206.83 a S/104.89.
+- **Compensar el sobretiempo con descanso equivalente** (art. 10 del TUO), con
+  acuerdo por escrito, dentro del mes calendario siguiente, sin tocar el descanso
+  semanal ni caer en feriado.
+
+**No aplicar la 0193 no era una vía.** La obligación existe con o sin migración:
+lo único que cambiaba era si el sistema la mostraba.
+
+### El retroactivo, y por qué no fue «por fuera»
+
+S/100.03 en 8 personas por el sobretiempo de 28-jun → 28-jul, registrado como
+movimiento en la planilla de agosto con el concepto nombrado. Felipe propuso
+pagarlo en efectivo y se descartó: el sobretiempo **es remuneración**, así que
+pagarlo fuera de planilla sería remuneración no declarada — una infracción nueva
+y formal para tapar una vieja e informal. Misma plata, un renglón de diferencia.
+
+### La política salarial, versión 4
+
+Publicada el 2026-08-08 20:20. Dice el sobretiempo (25 % / 35 %), que la base de
+aportes incluye feriados y sobretiempo, y **avisa que el neto baja antes de que
+llegue la boleta** — entre S/9 y S/50 por persona, íntegro a su fondo.
+
+⚠️ **Y lleva un blindaje que hay que conservar.** Al reforzar «45 horas cuando la
+ley permite 48», Felipe levantó el riesgo: si alguien llegara a sostener que la
+jornada pactada son 45, las horas 46 a 48 pasarían a ser sobretiempo con recargo
+para todo el equipo, todas las semanas. El documento dice ahora, en el mismo
+párrafo, que **el sobretiempo se cuenta desde la hora 49 y no desde la 46**, y
+cinco pruebas de `politica-salarial.test.ts` no dejan que se caiga — incluida una
+que verifica que nunca aparezca la frase «jornada de 45 horas».
+
+**La versión 3 se quemó** por caché del navegador: se publicó un documento byte
+por byte idéntico al anterior y el sistema no dijo nada. Quien la haya acusado
+tiene que volver a hacerlo sobre la 4.
+
+---
+
 ## 2026-08-08 — seis puertas dejaban cambiar una planilla ya pagada
 
 **El repositorio y producción llevaban semanas diciendo cosas distintas, y no
@@ -759,26 +917,46 @@ al tope.
 
 ## 🔴 Atender primero
 
-1. **El terminal decide en dos sitios a la vez.** «Qué toca marcar ahora» vive en
+1. **Julio: nadie tuvo descuento de pensión.** Medido el 2026-08-08 sobre el
+   periodo 28-jun → 28-jul: `pension_descontada` = **S/0.00 para las 23
+   personas**, y `con_tasa_de_pension` = 0. En agosto ya son 20 de 22, así que
+   las tasas por régimen se cargaron entre un periodo y otro.
+
+   **Es del contador, no del código, y hay que preguntárselo:** si él descontó
+   por su lado, no pasa nada; si no, es un mes de aporte previsional sin hacer
+   para todo el equipo. Pesa más que cualquier otra cosa abierta hoy — y CAYLA
+   es agente de retención, así que una retención no hecha la termina pagando la
+   empresa de su bolsillo.
+
+2. **Veinte de los veintiún contratos vencen el 31 de diciembre de 2026.** Solo
+   el de Paola termina antes. En una misma semana hay que decidir, redactar y
+   firmar veinte renovaciones, y si una se pasa de fecha con la persona todavía
+   trabajando, **el contrato se desnaturaliza a indefinido por el art. 77 del
+   D.S. 003-97-TR** — no por decisión de nadie.
+
+   El dato ya está en `personas.fecha_fin_contrato`; falta que Incidencias avise
+   con antelación. Es una alerta chica, del mismo tipo que las de jornada.
+
+3. **El terminal decide en dos sitios a la vez.** «Qué toca marcar ahora» vive en
    SQL (`fn_siguiente_tipo_esperado`) y en el navegador
    (`determinarSiguienteAccion`, `packages/shared`). Las dos ignoran ya las
    marcas anuladas, pero **arreglar una dejaba la otra rota** y nada avisa de la
    divergencia. Unificar, o al menos una prueba que compare las dos respuestas
    con los mismos datos y falle si difieren.
 
-2. **Terminal, 4 bordes graves:** marca rechazada que se anuncia como «Listo» y
+4. **Terminal, 4 bordes graves:** marca rechazada que se anuncia como «Listo» y
    desaparece · cola offline que se reenvía en orden de UUID y no cronológico ·
    reloj de la Mac sin verificación de desfase · persona que marca en dos sedes
    el mismo día y pierde una marca.
 
-3. ~~**Tardanza de más de 180 min invisible**~~ · ~~**el sistema mide la jornada
+5. ~~**Tardanza de más de 180 min invisible**~~ · ~~**el sistema mide la jornada
    de quien no está sujeto a horario**~~ — ✅ **los dos cerrados el 2026-08-08**
    por la [`0189`](../supabase/migrations/0189_una_tardanza_de_tres_horas_deja_de_desaparecer.sql)
    y la [`0191`](../supabase/migrations/0191_a_un_locador_no_se_le_mide_la_hora_de_entrada.sql),
    aplicadas y confirmadas. Ver el apartado [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado)
    para lo que significaba el segundo.
 
-4. ~~**Nueve funciones y dos columnas corren SOLO en producción**~~ — ✅ **cerrado
+6. ~~**Nueve funciones y dos columnas corren SOLO en producción**~~ — ✅ **cerrado
    el 2026-08-08.** La 0188 rescató cuatro; la
    [`0194`](../supabase/migrations/0194_el_interruptor_de_beneficios_por_persona_entra_al_repositorio.sql)
    y la [`0195`](../supabase/migrations/0195_las_cuatro_funciones_que_el_repositorio_no_conocia.sql)
@@ -858,6 +1036,24 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
 
 ## 🟡 Valioso pronto
 
+- **Publicar la política salarial no tiene ningún freno.** Dos agujeros que se
+  vieron el 2026-08-08 al quemar la versión 3: el aviso de «desactualizada»
+  compara `md5(fn_cuadro_categorias())`, o sea **solo los datos** — cambiar la
+  redacción no lo dispara y el botón sigue diciendo «Volver a publicar». Y nada
+  compara el documento nuevo contra el vigente, así que el sistema aceptó
+  congelar una versión **byte por byte idéntica** a la anterior, sin decir nada,
+  reiniciando las constancias. Dos frenos chicos en una migración: guardar la
+  huella del TEXTO y rechazar publicar una versión igual a la vigente.
+- **Seis fichas incompletas** al 2026-08-08, con lo que falta a cada una visible
+  en `/admin/datos-personales`. Dos casos no son campos vacíos sino datos que se
+  contradicen: **Carmen Sanándres** tiene fecha de nacimiento en 2026 (su correo
+  sugiere 1960), y **Angie Chávez** cobra asignación familiar teniendo cero
+  familiares registrados — S/113 al mes sin respaldo, o al revés, falta cargar al
+  hijo. Sin esas fichas Dante no puede cerrar el T-Registro.
+- **Tres datos del T-Registro que el sistema no guarda:** sexo, nacionalidad y
+  CUSPP. El CUSPP se agregó el 2026-08-08 (0198) y aplica a 18 de 21 —quien está
+  en AFP—; los otros dos siguen sin campo y se llenan a mano en la hoja del
+  contador.
 - **El candado del periodo que quedó a medias.** Se acordó el 26-07: no dejar
   cerrar un periodo con días sin resolver. Ahora que la incidencia del almuerzo
   ya se puede cerrar desde la pantalla, el candado no bloquearía a nadie.
