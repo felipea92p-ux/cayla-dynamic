@@ -45,7 +45,8 @@ antes que las migraciones que los protegen.
 
 | # | Qué | La prueba de que sigue |
 |---|---|---|
-| **C12 · A16** | `fn_registrar_marcaje` sin candado de periodo pagado — la puerta más usada del sistema | su cuerpo vigente no contiene la palabra `PAGADO` |
+| **C12 · A16** | 🟡 `fn_registrar_marcaje` — **medido el 2026-08-10: NO cambia el pago**, el candado de la 0138 aguanta. Lo que hacía era entrar muda; lo sella la 0207 | reproducido con `BEGIN … ROLLBACK`: horas 8.00 antes y 8.00 después |
+| **A16-b** | 🔴 `fn_auto_cierre` sigue sin el candado — es la otra puerta que corre sin nadie delante | la 0207 no la toca a propósito: su arreglo es saltarse la candidata y alertar, no sellar |
 | **A3** | el cron de auto-cierre reescribe periodos ya pagados | `fn_auto_cierre` no nombra `periodos_planilla` ni una vez |
 | ~~**C3**~~ | ✅ **cerrado el 2026-08-08** por la 0189 — y eran dos líneas, no una | aplicada y confirmada en producción |
 | **C13** | reactivar a quien se cesó por error le paga S/0 | `fn_reactivar_persona` no menciona `asignaciones_salario`: no reabre el tramo que el cese cerró |
@@ -583,7 +584,23 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 **Dónde:** supabase/migrations/0082_todo_el_sistema_conoce_las_anuladas.sql:82-87 (fn_siguiente_tipo_esperado)
 
-**Qué pasa:** La 0082 prometió que ninguna función siguiera contando una marca anulada. Dentro de fn_siguiente_tipo_esperado hay tres consultas: las dos primeras filtran anulada_at is null, la tercera —la que mira cuál fue la última marca del día— no. Si se anula una salida a almuerzo (o cualquier salida temporal), el servidor sigue creyendo que la persona está fuera y solo acepta su «regreso». El navegador, en cambio, SÍ filtra las anuladas (apps/web/lib/terminal/estado-dia.ts:24), así que el terminal le muestra el botón de salida y el servidor lo rechaza. Sumado al borde ya conocido de «marca rechazada que se anuncia como Listo», la persona cree que marcó y no marcó: el día se cierra solo y se le pagan las horas del auto-cierre. docs/estado.md afirma hoy que «se arregló que las dos ignoren las marcas anuladas» — no es cierto.
+> ✅ **CERRADO, y este documento no se había enterado.** Lo arregló la
+> [`0129`](../supabase/migrations/0129_tres_agujeros_de_permiso_cerrados.sql),
+> que lleva el filtro marcado con «⇩⇩⇩ CAMBIO 0129 ⇩⇩⇩» y el defecto descrito
+> en su encabezado. Medido el 2026-08-10 contra el esquema reconstruido:
+> `anulada_at is null` aparece **3 veces** en el cuerpo vivo de
+> `fn_siguiente_tipo_esperado` — las tres consultas, no dos.
+>
+> Y de paso: este hallazgo acusaba a `docs/estado.md` de mentir al decir que
+> se había arreglado. **estado.md tenía razón y el hallazgo no.** Es la
+> tercera entrada de este documento que en un solo día describe como roto
+> algo que ya estaba arreglado — las otras dos fueron la A5 y la C12.
+>
+> **Confirmar en producción** antes de darlo por bueno del todo:
+> `select md5(prosrc) from pg_proc where proname = 'fn_siguiente_tipo_esperado';`
+> debe dar `eb19e1a5549190fc3f167adc7f2195da`.
+
+**Qué pasaba (antes de la 0129):** La 0082 prometió que ninguna función siguiera contando una marca anulada. Dentro de fn_siguiente_tipo_esperado hay tres consultas: las dos primeras filtran anulada_at is null, la tercera —la que mira cuál fue la última marca del día— no. Si se anula una salida a almuerzo (o cualquier salida temporal), el servidor sigue creyendo que la persona está fuera y solo acepta su «regreso». El navegador, en cambio, SÍ filtra las anuladas (apps/web/lib/terminal/estado-dia.ts:24), así que el terminal le muestra el botón de salida y el servidor lo rechaza. Sumado al borde ya conocido de «marca rechazada que se anuncia como Listo», la persona cree que marcó y no marcó: el día se cierra solo y se le pagan las horas del auto-cierre. docs/estado.md afirma hoy que «se arregló que las dos ignoren las marcas anuladas» — no es cierto.
 
 **Arreglo:** Añadir `and anulada_at is null` a la tercera consulta de fn_siguiente_tipo_esperado (la del `select tipo, timestamp_marca into v_ultimo`). Es una línea. Y como el defecto de raíz es que la regla vive en dos idiomas, añadir la prueba que docs/estado.md ya pide: comparar fn_siguiente_tipo_esperado contra determinarSiguienteAccion con el mismo juego de marcas, incluidas anuladas.
 
