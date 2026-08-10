@@ -58,13 +58,28 @@ interface Adjunto {
   id: string;
   documento_id: string;
   storage_path: string;
-  tipo: "cargo_firmado" | "acta_negativa";
+  tipo: TipoPapel;
   nota: string | null;
   subido_at: string;
 }
 
 const MAX_BYTES_CARGO = 50 * 1024 * 1024;
 const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
+
+/** Los tres papeles que pueden colgar de un documento (mig. 0206). */
+type TipoPapel = "cargo_firmado" | "acta_negativa" | "descargo";
+
+const NOMBRE_ARCHIVO: Record<TipoPapel, string> = {
+  cargo_firmado: "cargo", acta_negativa: "acta", descargo: "descargo",
+};
+const FALTA_PAPEL: Record<TipoPapel, string> = {
+  cargo_firmado: "Falta el cargo firmado.",
+  acta_negativa: "Falta el acta de la negativa. Sin el papel con el testigo no queda constancia de que se ofreció.",
+  descargo: "Falta el descargo. Es el papel que prueba que la persona pudo defenderse dentro del plazo del art. 31.",
+};
+const ETIQUETA_PAPEL: Record<TipoPapel, string> = {
+  cargo_firmado: "Ver cargo", acta_negativa: "Ver acta de negativa", descargo: "Ver descargo",
+};
 
 interface Doc {
   id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
@@ -73,6 +88,10 @@ interface Doc {
   suspension_fechas: string[] | null;
   /** Fecha de cese declarada en la carta de despido (art. 32 LPCL, mig. 0205). */
   fecha_cese: string | null;
+  // Cómo terminó el procedimiento del art. 31 (mig. 0206). Mientras esto sea
+  // null, una imputación entregada sigue pidiendo una decisión — y el semáforo
+  // sigue diciendo «decide Gerencia».
+  resuelto_at: string | null; resuelto_resultado: string | null; resuelto_motivo: string | null;
   correlativo: string | null; creado_at: string; firmado_at: string | null;
   entregado_at: string | null; medio_entrega: string | null;
 }
@@ -90,10 +109,10 @@ interface Doc {
  * ya entregado la fecha buena es la registrada y la base no la pisa.
  */
 function FormularioCargo({
-  negativa, pideFecha, entregadoEl, fecha, progreso, ocupado,
+  tipo, pideFecha, entregadoEl, fecha, progreso, ocupado,
   alElegirArchivo, alCambiarFecha, alCambiarNota, nota, alGuardar, alCancelar,
 }: {
-  negativa: boolean; pideFecha: boolean; entregadoEl: string | null;
+  tipo: TipoPapel; pideFecha: boolean; entregadoEl: string | null;
   fecha: string; nota: string; progreso: number | null; ocupado: boolean;
   alElegirArchivo: (f: File | null) => void;
   alCambiarFecha: (v: string) => void;
@@ -103,15 +122,17 @@ function FormularioCargo({
   return (
     <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
       <p className="mb-2 text-xs text-taupe">
-        {negativa
+        {tipo === "acta_negativa"
           ? "Sube el acta con testigo. Queda constancia de que se ofreció entregar; el documento NO se marca entregado."
+          : tipo === "descargo"
+            ? "Sube el descargo que presentó por escrito. Se archiva en el legajo junto al memo que lo provocó; no cambia el estado del documento."
           : pideFecha
             ? "Al subir el cargo, el documento queda entregado con esta fecha. Desde ahí corren los plazos de descargo (art. 31)."
             : `Sube el cargo para archivarlo en el legajo. No cambia la entrega ya registrada${entregadoEl ? ` (${entregadoEl})` : ""}.`}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs">
-          {negativa ? "Acta de la negativa" : "Cargo firmado"}
+          {tipo === "acta_negativa" ? "Acta de la negativa" : tipo === "descargo" ? "Descargo presentado" : "Cargo firmado"}
           <input type="file" accept={TIPOS_CARGO}
             onChange={(e) => alElegirArchivo(e.target.files?.[0] ?? null)}
             className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
@@ -127,7 +148,7 @@ function FormularioCargo({
         <label className="flex flex-col gap-1 text-xs sm:col-span-2">
           Nota (opcional)
           <input value={nota} onChange={(e) => alCambiarNota(e.target.value)}
-            placeholder={negativa ? "ej. presente la encargada de TRU como testigo" : "ej. recibido en la tienda"}
+            placeholder={tipo === "acta_negativa" ? "ej. presente la encargada de TRU como testigo" : tipo === "descargo" ? "ej. entregado en mesa de partes el 14/08" : "ej. recibido en la tienda"}
             className="rounded border px-2 py-1 text-xs" />
         </label>
       </div>
@@ -177,7 +198,11 @@ export default function DisciplinaPage() {
 
   // ── El cargo firmado ────────────────────────────────────────────────────
   const [adjuntos, setAdjuntos] = useState<Map<string, Adjunto[]>>(new Map());
-  const [subiendoCargo, setSubiendoCargo] = useState<{ id: string; negativa: boolean } | null>(null);
+  // Tres papeles distintos cuelgan del mismo documento y hasta la 0206 esto era
+  // un booleano `negativa`. Con el descargo del art. 31 ya son tres, y un
+  // booleano con tres valores posibles es cómo se cuela el tercero en la rama
+  // del segundo.
+  const [subiendoCargo, setSubiendoCargo] = useState<{ id: string; tipo: TipoPapel } | null>(null);
   const [archivoCargo, setArchivoCargo] = useState<File | null>(null);
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [notaCargo, setNotaCargo] = useState("");
@@ -203,7 +228,7 @@ export default function DisciplinaPage() {
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, correlativo, creado_at, firmado_at, entregado_at, medio_entrega")
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega")
         // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
         //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
         //   papel de una entrega de hace dos meses.
@@ -320,8 +345,8 @@ export default function DisciplinaPage() {
     setMsg({ tipo: "ok", texto: `Firmado — documento ${data ?? ""}. Ya puedes entregarlo.` });
   }
 
-  async function abrirCargo(id: string, negativa: boolean) {
-    setSubiendoCargo({ id, negativa });
+  async function abrirCargo(id: string, tipo: TipoPapel) {
+    setSubiendoCargo({ id, tipo });
     setArchivoCargo(null);
     setFechaEntrega(hoyLima());
     setNotaCargo("");
@@ -334,11 +359,9 @@ export default function DisciplinaPage() {
     // documento ya entregado la fecha buena es la registrada, y en un acta de
     // negativa no hay entrega que fechar.
     const doc = docs.find((x) => x.id === subiendoCargo.id) ?? null;
-    const pideFecha = !subiendoCargo.negativa && doc?.estado === "firmado";
+    const pideFecha = subiendoCargo.tipo === "cargo_firmado" && doc?.estado === "firmado";
     if (!archivoCargo) {
-      setMsg({ tipo: "error", texto: subiendoCargo.negativa
-        ? "Falta el acta de la negativa. Sin el papel con el testigo no queda constancia de que se ofreció."
-        : "Falta el cargo firmado." });
+      setMsg({ tipo: "error", texto: FALTA_PAPEL[subiendoCargo.tipo] });
       return;
     }
     if (archivoCargo.size > MAX_BYTES_CARGO) {
@@ -355,7 +378,7 @@ export default function DisciplinaPage() {
     // fn_expediente_puede_adjuntar, así que no hay forma de colgarlo del memo
     // equivocado.
     const ext = archivoCargo.name.split(".").pop()?.toLowerCase() ?? "bin";
-    const ruta = `${subiendoCargo.id}/${subiendoCargo.negativa ? "acta" : "cargo"}-${Date.now()}.${ext}`;
+    const ruta = `${subiendoCargo.id}/${NOMBRE_ARCHIVO[subiendoCargo.tipo]}-${Date.now()}.${ext}`;
 
     setProgresoCargo(0);
     const fallo = await subirArchivoConProgreso(supabase, "expedientes", ruta, archivoCargo, setProgresoCargo);
@@ -373,7 +396,7 @@ export default function DisciplinaPage() {
     const { error } = await supabase.rpc("fn_expediente_adjuntar", {
       p_documento_id: subiendoCargo.id,
       p_path: ruta,
-      p_tipo: subiendoCargo.negativa ? "acta_negativa" : "cargo_firmado",
+      p_tipo: subiendoCargo.tipo,
       p_fecha_entrega: pideFecha ? instanteEntrega(fechaEntrega, doc?.firmado_at ?? null) : null,
       p_nota: notaCargo.trim() || null,
     });
@@ -382,11 +405,53 @@ export default function DisciplinaPage() {
 
     setSubiendoCargo(null);
     await cargar();
-    setMsg({ tipo: "ok", texto: subiendoCargo.negativa
-      ? "Acta de negativa archivada contra el documento."
-      : pideFecha
-        ? "Cargo archivado y documento marcado como entregado. Ya no hace falta guardarlo en ninguna carpeta."
-        : "Cargo archivado contra el documento. La fecha de entrega registrada no cambió." });
+    setMsg({ tipo: "ok", texto:
+      subiendoCargo.tipo === "acta_negativa"
+        ? "Acta de negativa archivada contra el documento."
+        : subiendoCargo.tipo === "descargo"
+          ? "Descargo archivado en el legajo. Es la pieza que prueba que se respetó el plazo del art. 31."
+          : pideFecha
+            ? "Cargo archivado y documento marcado como entregado. Ya no hace falta guardarlo en ninguna carpeta."
+            : "Cargo archivado contra el documento. La fecha de entrega registrada no cambió." });
+  }
+
+  /**
+   * Cerrar el procedimiento del art. 31 diciendo qué se resolvió (mig. 0206).
+   *
+   * NO es anular. Anular borra un documento que sí se entregó y sí produjo
+   * efectos; resolver lo deja donde está y solo anota la decisión. Mientras no
+   * se resuelva, el semáforo seguirá pidiendo esa decisión durante doce meses.
+   */
+  async function resolver(d: Doc, resultado: "archivado" | "despido") {
+    const que = resultado === "archivado"
+      ? "ARCHIVAR el procedimiento sin sancionar"
+      : "dejar constancia de que se resolvió con DESPIDO";
+    const motivo = window.prompt(
+      `Vas a ${que}.\n\n`
+      + "Explica la decisión (mínimo 10 caracteres). Es lo que sostiene el expediente si alguien lo revisa:\n\n"
+      + (resultado === "despido"
+        ? "Ojo: esto solo ANOTA la decisión. La carta de despido se redacta, se firma y se entrega aparte."
+        : "El documento sigue entregado y sigue contando como antecedente doce meses."),
+    );
+    if (!motivo || motivo.trim().length < 10) return;
+    setOcupado(d.id); setMsg(null);
+    // El casteo no es pereza, y esta vez se midió. `packages/database/src/types.ts`
+    // es un archivo GENERADO y todavía no conoce `fn_expediente_resolver`, que es
+    // de la 0206. Se intentó regenerarlo: el CLI de hoy produce 4.217 líneas en
+    // vez de 2.535, gana 65 nombres y suelta los dos que borró la 0184 —hasta ahí
+    // bien— pero además cambia la convención de los argumentos opcionales de
+    // `string | null` a `string | undefined`, y eso rompe Ausencias, Correcciones
+    // y Datos personales de golpe. Es una migración de tipos por su cuenta, no un
+    // paso de esta. Queda anotado en docs/estado.md.
+    const { error } = await supabase.rpc("fn_expediente_resolver" as never, {
+      p_id: d.id, p_resultado: resultado, p_motivo: motivo.trim(),
+    } as never);
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: resultado === "archivado"
+      ? "Procedimiento archivado. El semáforo deja de pedir una decisión ya tomada."
+      : "Anotado que se resolvió con despido. La carta se emite aparte." });
   }
 
   async function verAdjunto(path: string) {
@@ -748,11 +813,11 @@ export default function DisciplinaPage() {
                           entregado sin papel sigue siendo posible —una entrega
                           por correo certificado es válida y su cargo llega
                           días después— pero deja de ser el atajo. */}
-                      <button onClick={() => void abrirCargo(d.id, false)} disabled={ocupado === d.id}
+                      <button onClick={() => void abrirCargo(d.id, "cargo_firmado")} disabled={ocupado === d.id}
                         className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
                         Subir cargo firmado
                       </button>
-                      <button onClick={() => void abrirCargo(d.id, true)} disabled={ocupado === d.id}
+                      <button onClick={() => void abrirCargo(d.id, "acta_negativa")} disabled={ocupado === d.id}
                         className="text-xs text-taupe underline disabled:opacity-40">se negó a firmar</button>
                       <details className="text-xs text-taupe">
                         <summary className="cursor-pointer">entregar sin papel</summary>
@@ -780,8 +845,8 @@ export default function DisciplinaPage() {
 
                   {subiendoCargo?.id === d.id && (
                     <FormularioCargo
-                      negativa={subiendoCargo.negativa}
-                      pideFecha={!subiendoCargo.negativa}
+                      tipo={subiendoCargo.tipo}
+                      pideFecha={subiendoCargo.tipo === "cargo_firmado"}
                       entregadoEl={null}
                       fecha={fechaEntrega} nota={notaCargo}
                       progreso={progresoCargo} ocupado={ocupado === d.id}
@@ -834,25 +899,60 @@ export default function DisciplinaPage() {
                           {papeles.map((a) => (
                             <button key={a.id} onClick={() => void verAdjunto(a.storage_path)}
                               className="text-xs font-medium underline">
-                              {a.tipo === "acta_negativa" ? "Ver acta de negativa" : "Ver cargo"}
+                              {ETIQUETA_PAPEL[a.tipo as TipoPapel] ?? "Ver papel"}
                             </button>
                           ))}
-                          {papeles.length === 0 && (
-                            <button onClick={() => void abrirCargo(d.id, false)}
+                          {!papeles.some((a) => a.tipo === "cargo_firmado" || a.tipo === "acta_negativa") && (
+                            <button onClick={() => void abrirCargo(d.id, "cargo_firmado")}
                               className="rounded-lg border border-rojo/40 px-3 py-1 text-xs text-rojo">Subir cargo</button>
+                          )}
+                          {/* Solo la imputación abre un plazo de descargo, así que
+                              solo ella lo pide. La base rechaza lo demás igual. */}
+                          {d.nivel === "imputacion" && !papeles.some((a) => a.tipo === "descargo") && (
+                            <button onClick={() => void abrirCargo(d.id, "descargo")}
+                              className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">
+                              Subir su descargo
+                            </button>
+                          )}
+                          {/* Cerrar el procedimiento. Sin esto el semáforo pide la
+                              misma decisión durante doce meses. */}
+                          {d.nivel === "imputacion" && !d.resuelto_at && (
+                            <>
+                              <button onClick={() => void resolver(d, "archivado")} disabled={ocupado === d.id}
+                                className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+                                Archivar sin sancionar
+                              </button>
+                              <button onClick={() => void resolver(d, "despido")} disabled={ocupado === d.id}
+                                className="rounded-lg border border-rojo/40 px-3 py-1 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
+                                Se resolvió con despido
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
                       <p className="mt-1 text-xs text-taupe">
                         Entregado {d.entregado_at ? selloLima(d.entregado_at) : "—"}
                         {d.medio_entrega && ` · ${d.medio_entrega}`}
-                        {papeles.length === 0 && (
+                        {!papeles.some((a) => a.tipo === "cargo_firmado" || a.tipo === "acta_negativa") && (
                           <span className="text-rojo"> · sin el papel archivado</span>
                         )}
                       </p>
+                      {d.nivel === "imputacion" && (
+                        d.resuelto_at ? (
+                          <p className="mt-1 text-xs text-taupe">
+                            <strong>{d.resuelto_resultado === "despido" ? "Resuelto con despido" : "Archivado sin sancionar"}</strong>
+                            {" "}el {selloLima(d.resuelto_at)} — {d.resuelto_motivo}
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-rojo">
+                            Procedimiento abierto. Tras evaluar sus descargos, ciérralo con uno de los dos botones —
+                            si no, el semáforo seguirá pidiendo esta decisión durante doce meses.
+                          </p>
+                        )
+                      )}
                       {subiendoCargo?.id === d.id && (
                         <FormularioCargo
-                          negativa={subiendoCargo.negativa}
+                          tipo={subiendoCargo.tipo}
                           pideFecha={false}
                           entregadoEl={d.entregado_at ? selloLima(d.entregado_at) : null}
                           fecha={fechaEntrega} nota={notaCargo}

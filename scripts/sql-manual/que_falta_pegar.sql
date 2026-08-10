@@ -79,7 +79,8 @@ with repo(numero, nombre) as (values
     (202, 'un_terminal_activo_sin_dueno_deja_de_poder_existir'),
     (203, 'lo_que_se_congela_al_pagar_se_descongela_al_reabrir'),
     (204, 'un_drop_se_lleva_el_permiso_y_la_pantalla_se_calla'),
-    (205, 'la_carta_de_despido_lleva_su_fecha_de_cese')
+    (205, 'la_carta_de_despido_lleva_su_fecha_de_cese'),
+    (206, 'el_descargo_entra_al_legajo_y_la_imputacion_se_puede_cerrar')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at

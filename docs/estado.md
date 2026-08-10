@@ -37,6 +37,30 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-10 — regenerar `types.ts` ya no es solo reordenar
+
+**Medido, no supuesto.** El repositorio venía diciendo que regenerar
+`packages/database/src/types.ts` «reordena las 4.400 líneas del archivo entero»
+y por eso se aplazaba, resolviendo cada función nueva con un doble casteo. Se
+probó de verdad al añadir `fn_expediente_resolver` (0206):
+
+- Genera **4.217 líneas** contra las 2.535 de hoy.
+- **Gana 65 nombres** y suelta exactamente dos: `fn_set_horario` y
+  `fn_quitar_horario`, que la 0184 borró. Hasta ahí, estrictamente correcto.
+- **Pero cambia la convención de los argumentos opcionales**, de
+  `string | null` a `string | undefined`. Eso rompe de golpe Ausencias,
+  Correcciones y Datos personales, que pasan `null` a propósito.
+
+O sea: **no es un reordenamiento, es una migración de tipos.** Aplazarla sigue
+siendo razonable, pero por un motivo distinto al que estaba escrito, y el coste
+de aplazarla crece — ya son tres las funciones que el archivo no conoce
+(`fn_expediente_resolver`, `fn_tardanza_escalon`, y las columnas nuevas de
+`fn_tardanzas_resumen`).
+
+Cuando se haga, va sola en su propia rama y con las tres pantallas revisadas.
+
+---
+
 ## 2026-08-10 — un `drop function` se llevó el permiso y la pantalla se calló
 
 **Dos pantallas llevaban días caídas en producción y ninguna lo dijo.** Se
