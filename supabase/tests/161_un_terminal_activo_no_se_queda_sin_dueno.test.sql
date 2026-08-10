@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 156_un_terminal_activo_no_se_queda_sin_dueno.test.sql
+-- 161_un_terminal_activo_no_se_queda_sin_dueno.test.sql
 -- ============================================================================
 -- QUÉ DEFIENDE ESTE ARCHIVO
 --
