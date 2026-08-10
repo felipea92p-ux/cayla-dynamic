@@ -83,7 +83,7 @@ function fechaHora(iso: string): string {
 // — y el que vale como prueba es el publicado.
 function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | null }) {
   return (
-    <article className="rounded border border-slate-300 bg-white p-6">
+    <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
       <header className="mb-6 border-b border-slate-300 pb-4">
         <h2 className="text-lg font-semibold text-slate-900">{doc.titulo}</h2>
         <p className="text-sm text-slate-600">
@@ -93,13 +93,19 @@ function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | 
       </header>
       {doc.secciones.map((sec, i) => (
         <section key={i} className="mb-6">
-          <h3 className="mb-3 text-base font-semibold text-slate-900">{sec.titulo}</h3>
+          {/* Un título que se queda solo al pie de una hoja manda a la siguiente
+              página el texto que anuncia; en papel eso se lee como si faltara. */}
+          <h3 className="mb-3 text-base font-semibold text-slate-900 print:break-after-avoid">
+            {sec.titulo}
+          </h3>
           {sec.bloques.map((b, j) => (
             <BloqueVista key={j} b={b} />
           ))}
         </section>
       ))}
-      <footer className="mt-10 border-t border-slate-300 pt-6">
+      {/* La firma no se separa nunca del nombre y el cargo que la sostienen: una
+          rúbrica suelta en la última hoja no acredita a quién pertenece. */}
+      <footer className="mt-10 border-t border-slate-300 pt-6 print:break-inside-avoid">
         {firmaUrl !== null && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
@@ -304,22 +310,40 @@ export default function PoliticaSalarialPage() {
 
   return (
     <>
-      <AdminNav />
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <h1 className="mb-1 text-2xl font-semibold text-slate-900">
-          Cuadro de categorías y política salarial
-        </h1>
-        <p className="mb-6 text-sm text-slate-600">
-          Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona.
-        </p>
+      <div className="print:hidden">
+        <AdminNav />
+      </div>
+      <main className="mx-auto max-w-4xl px-4 py-8 print:max-w-none print:p-0">
+        {/* En papel esta cabecera sobra: el documento trae la suya con el título,
+            el RUC y la fecha, que es la que vale como ejemplar entregado. */}
+        <div className="print:hidden">
+          <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Cuadro de categorías y política salarial
+            </h1>
+            {/* La Ley 30709 pide ENTREGAR este documento a cada integrante, así
+                que llevarse una copia no es cosa de la Gerencia: el botón lo ve
+                cualquiera que pueda leer la pantalla. */}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
+              Imprimir / Guardar como PDF
+            </button>
+          </div>
+          <p className="mb-6 text-sm text-slate-600">
+            Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona.
+          </p>
+        </div>
 
         {error !== null && (
-          <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 print:hidden">
             {error}
           </p>
         )}
         {aviso !== null && (
-          <p className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <p className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 print:hidden">
             {aviso}
           </p>
         )}
@@ -405,7 +429,7 @@ export default function PoliticaSalarialPage() {
             const publicado = documentoDesdeGuardado(vigente.documento ?? "");
             if (publicado === null) {
               return (
-                <article className="rounded border border-slate-300 bg-white p-6">
+                <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
                   <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
                     {vigente.documento}
                   </pre>
