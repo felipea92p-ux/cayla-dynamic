@@ -1,10 +1,24 @@
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
-import { TZ_LIMA, determinarSiguienteAccion, type MarcajeDelDia, type SiguienteAccion } from "@cayla-dynamic/shared";
+import {
+  determinarSiguienteAccion,
+  fechaLima,
+  hoyLima,
+  rangoDelDiaLima,
+  type MarcajeDelDia,
+  type SiguienteAccion,
+} from "@cayla-dynamic/shared";
 import { obtenerPendientes } from "./offline-db";
 
-/** Perú (America/Lima) no tiene horario de verano — offset fijo -05:00 todo el año. */
+/**
+ * Qué día es hoy en Lima.
+ *
+ * Delega en `hoyLima()` en vez de repetir el `Intl.DateTimeFormat`: el corte del
+ * día decide a qué fecha se le paga un marcaje, y el CLAUDE.md pide que esa
+ * respuesta tenga UNA sola versión. Este archivo llegó a tener tres copias del
+ * huso de Lima —esta, el `-05:00` escrito a mano del filtro, y la de abajo—.
+ */
 export function fechaLimaHoy(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
+  return hoyLima();
 }
 
 export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, MarcajeDelDia[]>> {
@@ -12,7 +26,13 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
 
   if (typeof navigator !== "undefined" && navigator.onLine) {
     const supabase = createTerminalSupabaseClient();
-    const inicioDia = `${fechaLimaHoy()}T00:00:00-05:00`;
+    // Los DOS extremos del día, no solo el de abajo. Con `.gte` a secas, una
+    // marca con fecha futura —hoy se pueden guardar— quedaba viva para siempre
+    // en el estado del día: el terminal creía a esa persona dentro, no le
+    // dejaba marcar su salida, y fn_reabrir_dia respondía «No hay una salida
+    // final de hoy para reabrir». El servidor sí filtra por fecha exacta; era
+    // esta copia la que difería.
+    const { inicio: inicioDia, fin: finDia } = rangoDelDiaLima();
     const { data } = await supabase
       .from("marcajes")
       .select("persona_id, tipo, timestamp_marca")
@@ -22,7 +42,8 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
       // La 0082 arregló esto en fn_siguiente_tipo_esperado, pero el terminal
       // decide en el navegador con determinarSiguienteAccion, y esa es otra copia.
       .is("anulada_at", null)
-      .gte("timestamp_marca", inicioDia);
+      .gte("timestamp_marca", inicioDia)
+      .lte("timestamp_marca", finDia);
 
     for (const m of data ?? []) {
       const lista = mapa.get(m.persona_id) ?? [];
@@ -37,10 +58,7 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
   const hoy = fechaLimaHoy();
   const pendientes = await obtenerPendientes();
   for (const p of pendientes) {
-    const fechaMarca = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(
-      new Date(p.timestampCliente),
-    );
-    if (fechaMarca !== hoy) continue;
+    if (fechaLima(p.timestampCliente) !== hoy) continue;
     const lista = mapa.get(p.personaId) ?? [];
     lista.push({ tipo: p.tipo, timestamp: p.timestampCliente });
     mapa.set(p.personaId, lista);

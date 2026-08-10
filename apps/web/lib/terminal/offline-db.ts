@@ -58,11 +58,31 @@ export async function encolarMarcaje(entry: OutboxEntry) {
   await db.put("outbox", entry);
 }
 
-/** Solo lo que todavía debe intentarse. Lo apartado se conserva, pero no se reintenta. */
+/**
+ * Solo lo que todavía debe intentarse. Lo apartado se conserva, pero no se reintenta.
+ *
+ * VAN EN ORDEN DE HORA, y eso no es cosmética. `getAll` devuelve por el keyPath
+ * del almacén, que es `clientUuid` —un UUID aleatorio—, así que la cola se
+ * reenviaba en un orden que no tiene nada que ver con el que ocurrió. Si la
+ * salida llega antes que la entrada, fn_registrar_marcaje toma la rama de marca
+ * atrasada, fn_dia_incoherente da true y TODAS las marcas de ese día quedan
+ * selladas como `pendiente_revision`. Cuando después llega la que faltaba el día
+ * vuelve a cuadrar, pero el sello NO se levanta solo: quitarlo es cosa de
+ * fn_resellar_dia, y a esa solo la llaman las correcciones manuales.
+ *
+ * Ordenar no descarta ni retrasa nada: la cola se envía igual de completa.
+ *
+ * Se comparan como texto porque `timestampCliente` lo escribe `toISOString()`
+ * (marcar/page.tsx), que siempre da UTC con `Z` y ancho fijo — ahí el orden
+ * alfabético ES el cronológico. Si algún día se guardara con el offset de Lima,
+ * esto habría que pasarlo a Date.
+ */
 export async function obtenerPendientes(): Promise<OutboxEntry[]> {
   const db = await getDb();
   const todas: OutboxEntry[] = await db.getAll("outbox");
-  return todas.filter((e) => !e.descartada);
+  return todas
+    .filter((e) => !e.descartada)
+    .sort((a, b) => a.timestampCliente.localeCompare(b.timestampCliente));
 }
 
 /**

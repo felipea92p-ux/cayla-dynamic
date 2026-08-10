@@ -10,7 +10,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { TZ_LIMA, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { TZ_LIMA, parsearMontoSoles, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // ── Fechas ───────────────────────────────────────────────────────────────────
 // Exportadas: las reutiliza /admin/planilla/boleta (misma fuente de verdad de formato).
@@ -1276,9 +1276,17 @@ export default function PlanillaPage() {
       String(sugerido),
     );
     if (montoTxt === null) return;
-    const monto = Number(montoTxt.replace(",", "."));
-    if (!Number.isFinite(monto) || monto <= 0) {
-      avisar("error", "El monto tiene que ser un número mayor a 0.");
+    // El monto lo lee `parsearMontoSoles`, no un `replace` a mano: la app
+    // imprime «8,500.00» con Intl y quien copia esa cifra tiene que poder
+    // pegarla. Ver packages/shared/src/montos.ts para por qué esto no vive acá.
+    const leido = parsearMontoSoles(montoTxt);
+    if (!leido.ok) {
+      avisar("error", leido.motivo);
+      return;
+    }
+    const monto = leido.monto;
+    if (monto <= 0) {
+      avisar("error", "El monto tiene que ser mayor a 0.");
       return;
     }
     const fecha = window.prompt(

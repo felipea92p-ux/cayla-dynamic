@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TIPO_MARCA_LABELS, TZ_LIMA, sugerirSalidaPrincipal, type MarcajeDelDia, type TipoMarca } from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
-import { type RosterEntry, encolarMarcaje, obtenerPendientes } from "@/lib/terminal/offline-db";
+import {
+  type RosterEntry,
+  encolarMarcaje,
+  eliminarDeOutbox,
+  obtenerPendientes,
+} from "@/lib/terminal/offline-db";
+import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { verificarPin } from "@/lib/terminal/pin";
@@ -271,7 +277,34 @@ export default function MarcarPage() {
   }
 
   async function confirmarMarcaje() {
-    if (!personaActual || !accionPendiente || !terminal) return;
+    // Sin persona o sin acción no hay nada que marcar: eso no es un fallo, es
+    // que no se pulsó nada.
+    if (!personaActual || !accionPendiente) return;
+
+    // LA FICHA DEL TERMINAL SÍ ES UN FALLO, Y HAY QUE DECIRLO.
+    //
+    // `terminalId` es obligatorio para componer la marca, así que sin la ficha
+    // no se puede enviar ni encolar. Antes esto salía por el mismo `return` mudo
+    // de la línea de arriba: no mandaba, no encolaba y no decía una palabra, y
+    // la pantalla de confirmación se iba sola a los 3 segundos. La persona veía
+    // exactamente lo mismo que cuando todo va bien, y su marca no quedaba en
+    // ningún sitio.
+    //
+    // Es la única forma en que este sistema pierde una marca, y contradice lo
+    // que sync.ts promete por escrito: «una marca que una persona hizo de verdad
+    // jamás se destruye». Callarse es lo peor que se puede hacer acá: quien
+    // marcó se va tranquilo y el hueco aparece a fin de mes, cuando ya nadie
+    // recuerda ese día.
+    if (!terminal) {
+      setMensaje(
+        `${personaActual.nombres}: este equipo no terminó de configurarse y tu marca NO quedó ` +
+          `registrada. Avisa a tu encargada ahora — no te vayas creyendo que marcaste.`,
+      );
+      setPantalla("mensaje");
+      setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
+      return;
+    }
+
     if (confirmandoRef.current) return; // ya se está procesando este marcaje
     confirmandoRef.current = true;
 
@@ -291,22 +324,37 @@ export default function MarcarPage() {
     lista.push({ tipo: entry.tipo, timestamp: entry.timestampCliente });
     marcajesHoyRef.current.set(personaActual.id, lista);
 
+    // LA MARCA SE GUARDA ANTES DE INTENTAR ENVIARLA, siempre, haya red o no.
+    //
+    // Antes se encolaba solo dentro del `if (error)`, o sea DESPUÉS de que el
+    // envío fallara — y un envío colgado no falla: no vuelve nunca. Con
+    // `navigator.onLine` en true y la red muerta, esa marca no llegaba a la cola
+    // y no quedaba en ningún sitio, mientras la pantalla decía «Listo». Guardar
+    // primero cuesta unos milisegundos de IndexedDB; perder una marca le cuesta
+    // el día a una persona.
+    let encolada = false;
+    try {
+      await encolarMarcaje(entry);
+      encolada = true;
+    } catch {
+      // Sin almacén local no hay red de seguridad, pero el envío se intenta
+      // igual: que falle IndexedDB no es motivo para no registrar la marca.
+    }
+
     let sincronizadoAhora = false;
     if (navigator.onLine) {
-      const supabase = createTerminalSupabaseClient();
-      const { error } = await supabase.rpc("fn_registrar_marcaje", {
-        p_persona_id: entry.personaId,
-        p_tipo: entry.tipo,
-        p_timestamp_cliente: entry.timestampCliente,
-        p_client_uuid: entry.clientUuid,
-        p_origen: "terminal",
-        p_terminal_id: entry.terminalId,
-        p_motivo_otro: entry.motivoOtro,
-      });
-      sincronizadoAhora = !error;
-      if (error) await encolarMarcaje(entry);
-    } else {
-      await encolarMarcaje(entry);
+      const { ok } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
+      sincronizadoAhora = ok;
+    }
+
+    // De la cola sale solo lo que el servidor confirmó.
+    if (sincronizadoAhora && encolada) {
+      try {
+        await eliminarDeOutbox(entry.clientUuid);
+      } catch {
+        // Se queda en la cola: el reintento la mandará otra vez y
+        // fn_registrar_marcaje la reconoce por su client_uuid sin duplicarla.
+      }
     }
 
     setMensaje(

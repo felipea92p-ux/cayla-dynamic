@@ -660,7 +660,17 @@ export default function EducacionPage() {
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap gap-2 text-xs">
                               <button onClick={() => empezarEdicion(f)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                              {!f.vigente_hasta && (
+                              {/* La condición era `!f.vigente_hasta`, y esa columna es NOT NULL
+                                  desde la 0149 (línea 84): el botón NO se dibujaba nunca. Quien
+                                  dejaba el instituto en septiembre con la asignación puesta hasta
+                                  diciembre seguía devengando entre S/90 y S/480 al mes, porque
+                                  desde la pantalla no había forma de cerrarla salvo deducir que
+                                  se entra por «Editar». `cerrar()` y fn_educacion_cerrar existían
+                                  y no los llamaba nadie.
+                                  El criterio es el mismo del filtro «ver solo vigentes» (línea
+                                  295), para que no vuelvan a divergir: lo ya vencido no se cierra
+                                  porque ya está cerrado. */}
+                              {f.semaforo !== "vencida" && (
                                 <button onClick={() => void cerrar(f)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Cerrar</button>
                               )}
                             </div>
