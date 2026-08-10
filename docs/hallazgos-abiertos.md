@@ -60,7 +60,9 @@ antes que las migraciones que los protegen.
 | **A15** | la marca se encola DESPUÉS de intentar enviarla, y el envío no tiene tope de tiempo | `if (error) await encolarMarcaje(entry)` en `:307`, y ni un `AbortSignal` en todo el archivo |
 | **A14** | sin service worker, un reinicio sin internet deja la sede sin marcar | no hay `sw.js` ni manifest en `public/`, ni dependencia de PWA |
 | **A12** | la Hoja de sede se imprime en ceros si una consulta falla | una sola aparición de `error` en las ocho consultas |
-| **A5** | «suspensión de 3 días» desde el viernes es 1 día real | `fn_dias_suspension` existe y **ninguna pantalla la llama** |
+| ~~**A5**~~ | ✅ **cerrado el 2026-08-10.** La 0075 **sí** estaba en producción —medido, este documento decía lo contrario— y la pantalla ya la llama (0200) | `fn_dias_suspension`, `fn_expediente_set_suspension` y la columna: las tres presentes en prod |
+| **A20** | ✅ **cerrado el 2026-08-10** por la 0200 — el semáforo pedía 3 tardanzas a quien por escala ya le tocaba 1 | la escala vive en `fn_tardanza_escalon`; prueba [`155`](../supabase/tests/155_el_semaforo_conoce_el_escalon.test.sql) |
+| **A21** | el semáforo excluye `sueldo_fijo` y el generador **no**: invisible en pantalla, sancionable desde la base | `fn_tardanzas_resumen` filtra `pe.sueldo_fijo = false`; `fn_expediente_generar_tardanza` no nombra la columna |
 | **A11** | 🟡 el borrador ya dice «BORRADOR», pero sigue firmado por Gerencia General | ver su entrada |
 
 **Lo que hoy cambió el terreno:** varios de estos hallazgos se apoyan en la frase
@@ -338,7 +340,39 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 **Arreglo:** Copiar la exclusión que fn_faltas ya tiene, a las tres funciones que cuentan tardanzas (fn_tardanzas_resumen, fn_expediente_generar_tardanza, fn_calcular_bono_puntualidad): no contar un día que sea feriado sin turno explícito asignado, ni un día de vacaciones o descanso sustitutorio. Si el feriado tiene turno explícito asignado (se le programó trabajar), la tardanza sí es medible — igual criterio que faltas, para que las dos mitades del motor digan lo mismo.
 
-### 5. La suspensión se calcula en días de calendario: una 'suspensión de 3 días' desde el viernes es 1 día real
+### 5. ~~La suspensión se calcula en días de calendario: una 'suspensión de 3 días' desde el viernes es 1 día real~~
+
+> ✅ **CERRADO el 2026-08-10**, y **dos de sus tres afirmaciones eran falsas.**
+> Medido contra producción con
+> [`revisar_expediente_de_tardanzas.sql`](../scripts/sql-manual/revisar_expediente_de_tardanzas.sql),
+> no razonado.
+>
+> **1 · «La 0075 no está aplicada en producción» — FALSO.** Están las dos
+> funciones y la columna. El encabezado de la propia 0075 lo decía desde julio
+> («aplicada en producción DESPUÉS de la 0071-0073 de main») y este documento
+> afirmaba lo contrario sin medirlo. Ganó el encabezado.
+>
+> **2 · «El memo de Mateo imprime 3 día(s), del 24 al 26 de julio» — FALSO hoy.**
+> El registro de producción del T-02/0002-2026-CAYLA dice **1 día, fechas
+> exactas: 2026-07-27**, que fue **lunes**, y ese día no tiene marcas: la sanción
+> se cumplió. `suspension_fechas` solo la escribe `fn_expediente_set_suspension`,
+> así que ese memo se corrigió por esa vía el mismo día en que se detectó el
+> defecto — el 25/07/2026, que fue sábado, la fecha que la 0075 lleva en su
+> encabezado. El daño se reparó entonces; este documento se quedó describiendo el
+> minuto anterior a la reparación.
+>
+> **3 · «Ningún archivo de apps/web la llama» — era cierto, y ya no.** Es lo único
+> que quedaba en pie, y lo cierra la
+> [`0200`](../supabase/migrations/0200_el_semaforo_sabe_en_que_escalon_esta_cada_quien.sql):
+> `guardarDias` llama a `fn_expediente_set_suspension`, muestra las fechas
+> concretas y avisa cuando se salta un descanso; el memo las imprime una por una
+> en vez de un rango. Hasta hoy la corrección solo existía si alguien la aplicaba
+> a mano desde el SQL Editor, como pasó con este memo.
+>
+> **La lección de método:** un hallazgo escrito sobre una base local de auditoría
+> describió como roto en producción algo que llevaba dos semanas arreglado, y
+> señaló a una persona concreta. Medir contra la base antes de proponer —la regla
+> que CLAUDE.md ya tenía escrita— habría costado un `select`.
 
 `disciplina-legal` · ⚖️ decisión injusta · arreglo de **horas**
 
@@ -574,6 +608,34 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 **Qué pasa:** La 0066 se escribió justo para esto: «Reabrir toca DINERO: debe quedar QUIÉN lo reabrió, CUÁNDO y POR QUÉ». Creó fn_revertir_pago, que exige motivo y escribe en reversas_pago. Pero dejó la puerta vieja abierta: fn_periodo_pagado(id, false) sigue concedida a `authenticated`, sigue reabriendo el periodo y no pide motivo ni escribe una sola fila de auditoría. La pantalla usa la puerta buena, pero PostgREST expone la otra a cualquier sesión de admin o líder. Y reabrir no es cosmético: es lo que levanta todos los candados que impiden anular, corregir o agregar marcajes de ese periodo. Se puede reabrir, mover marcas, volver a pagar, y no quedar rastro de la reapertura.
 
 **Arreglo:** Cambiar la firma a fn_periodo_pagado(p_periodo_id uuid) que solo MARQUE pagado, y que la única forma de reabrir sea fn_revertir_pago. Si se prefiere no tocar la firma: que fn_periodo_pagado lance excepción cuando p_pagado es false, con el mensaje «Para reabrir un pago usa Revertir pago: la ley del sistema es que quede el motivo». Actualizar la llamada de planilla/page.tsx:760 (que ya pasa true).
+
+### 21. ~~El semáforo de tardanzas pide 3 a todo el mundo, incluso a quien por escala ya le corresponde 1~~
+
+> ✅ **CERRADO el 2026-08-10** por la
+> [`0200`](../supabase/migrations/0200_el_semaforo_sabe_en_que_escalon_esta_cada_quien.sql).
+> La escala del RIT art. 7 vive ahora en `fn_tardanza_escalon` y la consumen las
+> DOS funciones. Prueba
+> [`155`](../supabase/tests/155_el_semaforo_conoce_el_escalon.test.sql), que
+> falla contra la versión anterior en sus casos 4-7 y pasa los 1-3 —el caso sin
+> antecedente no se movió, y eso también se mide—.
+
+`disciplina-legal` · ⚖️ decisión injusta · arreglo de **horas**
+
+**Dónde:** supabase/migrations/0189_una_tardanza_de_tres_horas_deja_de_desaparecer.sql:444 (`fn_tardanzas_resumen`, `where c.n >= 2`) frente a :363-374 (`fn_expediente_generar_tardanza`, la escala) · consumidores: `admin/disciplina/page.tsx`, `admin/dashboard/page.tsx:334`, `admin/reporte-sede/page.tsx:153`
+
+**Qué pasa:** las dos mitades del motor de tardanzas respondían preguntas distintas creyendo responder la misma. El semáforo listaba a quien llevaba 2+ en el mes y rotulaba «amonestación» a las 3, sin mirar antecedentes. El generador escalaba: 3 sin antecedente, 2 tras una amonestación, **1 tras una suspensión**, y se niega con una imputación vigente. Para quien arrastra una suspensión vigente el umbral real es una sola tardanza, y la pantalla seguía pidiendo tres — así que el expediente ya se podía generar mientras Disciplina decía «Nadie con tardanzas relevantes este mes». Es el falso NEGATIVO simétrico del que persigue este repositorio: el sistema no acusa de más, deja de avisar, y justamente sobre la gente por la que hay que actuar antes. Los otros dos consumidores agravaban lo mismo por su cuenta: comparaban `umbral === "amonestacion"` para pintar el rojo, así que a quien le tocaba una suspensión o una imputación lo anunciaban con el nombre del escalón equivocado o no lo anunciaban.
+
+**Arreglo (aplicado):** extraer la escala a `fn_tardanza_escalon(persona)` —qué documento toca, cuántas tardanzas exige, desde qué fecha se cuenta y si está bloqueado— y que las dos funciones la consuman. Copiarla a la segunda habría creado la segunda copia de una regla, que es literalmente la causa de este hallazgo. `umbral` pasa a nombrar el escalón alcanzado y los tres consumidores comparan contra `'aviso'`.
+
+### 22. El semáforo excluye a quien tiene sueldo fijo y el generador no: invisible en pantalla, sancionable desde la base
+
+`disciplina-legal` · ⚖️ decisión injusta · arreglo de **minutos** · **necesita una decisión de negocio, no solo código**
+
+**Dónde:** `fn_tardanzas_resumen` (`where … and pe.sueldo_fijo = false`) frente a `fn_expediente_generar_tardanza`, que no nombra la columna ni una vez.
+
+**Qué pasa:** una persona con `sueldo_fijo = true` no aparece NUNCA en el semáforo de Disciplina, por muchas tardanzas que acumule, y sin embargo `fn_expediente_generar_tardanza` le arma el memo sin objetar nada. Las dos mitades vuelven a decir cosas distintas, y esta vez en la dirección que deja a alguien sin la señal temprana: la conversación que el sistema existe para provocar no se provoca, y la sanción sí es posible. `sueldo_fijo` significa que su pago no depende de las horas — no que su horario no exista.
+
+**Arreglo:** decidir cuál de las dos mitades tiene razón, y que la otra la siga. Si la tardanza de quien cobra fijo importa para el patrón disciplinario, quitar el filtro del semáforo; si no importa, añadir el guard al generador para que no pueda imputarla. **No se tocó en la 0200 a propósito:** quitar el filtro haría aparecer gente nueva en Disciplina de golpe, y eso es una decisión de Felipe, no una corrección. `scripts/sql-manual/por_que_no_sale_en_disciplina.sql` dice quién está hoy en esa situación.
 
 
 ---

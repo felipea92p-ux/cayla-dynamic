@@ -7,7 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
-import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 const REFRESCO_MS = 30_000;
 // Corte mañana/tarde de la meta de cobertura — mismo valor fijo que Turnos (14:15).
@@ -105,7 +105,9 @@ function fechaBonita(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
-interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; ultima_fecha: string | null }
+// `umbral` nombra el escalón alcanzado desde la 0200 — amonestacion ·
+// suspension · imputacion · bloqueado · aviso —, no solo «amonestacion o aviso».
+interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; ultima_fecha: string | null; minimo: number | null }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: string }
 // Contratos a plazo fijo con fecha de término anotada (0144). `dias_restantes` es
 // negativo cuando la fecha ya pasó, y ese es el grupo que duele.
@@ -331,7 +333,10 @@ export default function DashboardPage() {
         ) : (
           <>
         {(() => {
-          const rojosT = discTard.filter((t) => t.umbral === "amonestacion");
+          // Cualquier escalón alcanzado va en rojo, no solo la amonestación.
+          // Comparar contra "amonestacion" dejaba fuera del aviso a quien ya
+          // estaba en suspensión o imputación — los casos más urgentes.
+          const rojosT = discTard.filter((t) => t.umbral !== "aviso");
           const avisoT = discTard.filter((t) => t.umbral === "aviso").length;
           const rojosF = discFaltas.filter((f) => f.nivel === "rojo");
           const ambarF = discFaltas.filter((f) => f.nivel === "ambar").length;
@@ -346,7 +351,11 @@ export default function DashboardPage() {
                 <Link key={t.persona_id} href={`/admin/disciplina#tard-${t.persona_id}`}
                   className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm transition-colors hover:bg-rojo/[0.06]">
                   <span><strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
-                    <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">corresponde amonestación por tardanzas</span></span>
+                    <span className="ml-2 rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo">
+                      {t.umbral === "bloqueado"
+                        ? "imputación de cargos vigente — decide Gerencia"
+                        : `corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral} por tardanzas`}
+                    </span></span>
                   {t.ultima_fecha && <span className="text-xs font-medium text-rojo">actúa antes del {fechaBonita(masDiasHabiles(t.ultima_fecha, 10))} →</span>}
                 </Link>
               ))}

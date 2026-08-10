@@ -153,3 +153,23 @@ export const PARES_SALIDA_RETORNO: Record<string, TipoMarca> = {
   salida_medico: "retorno_medico",
   salida_otro: "retorno_otro",
 };
+
+/**
+ * La escala disciplinaria del RIT art. 7 sobre el D.S. 003-97-TR art. 25, en
+ * orden. El sistema llega hasta `imputacion` y ahí se detiene: el despido se
+ * decide después de leer los descargos (art. 31) y no lo genera ninguna
+ * función.
+ *
+ * ⚠️ Esto son NOMBRES, no la regla. Qué escalón le toca hoy a una persona lo
+ * responde `fn_tardanza_escalon` en la base (migración 0200), que es el único
+ * sitio donde vive la escala. Escribir aquí un umbral en números sería la
+ * segunda copia que la 0200 existió para borrar.
+ */
+export const NIVELES_DISCIPLINARIOS = [
+  "verbal",
+  "amonestacion",
+  "suspension",
+  "imputacion",
+  "despido",
+] as const;
+export type NivelDisciplinario = (typeof NIVELES_DISCIPLINARIOS)[number];

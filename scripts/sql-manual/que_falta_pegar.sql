@@ -73,7 +73,13 @@ with repo(numero, nombre) as (values
     (196, 'tres_puertas_en_vez_de_una_para_los_beneficios'),
     (197, 'el_certificado_medico_se_guarda_y_los_20_dias_avisan'),
     (198, 'el_cuspp_y_el_correo_entran_a_la_ficha'),
-    (199, 'un_locador_no_cobra_feriados_ni_aparece_provisionando')
+    (199, 'un_locador_no_cobra_feriados_ni_aparece_provisionando'),
+    (200, 'el_semaforo_sabe_en_que_escalon_esta_cada_quien'),
+    (201, 'la_foto_del_pago_aprende_el_sobretiempo'),
+    (202, 'un_terminal_activo_sin_dueno_deja_de_poder_existir'),
+    (203, 'lo_que_se_congela_al_pagar_se_descongela_al_reabrir'),
+    (204, 'un_drop_se_lleva_el_permiso_y_la_pantalla_se_calla'),
+    (205, 'la_carta_de_despido_lleva_su_fecha_de_cese')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at

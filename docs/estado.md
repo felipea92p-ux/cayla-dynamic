@@ -37,6 +37,54 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-10 — un `drop function` se llevó el permiso y la pantalla se calló
+
+**Dos pantallas llevaban días caídas en producción y ninguna lo dijo.** Se
+levantaron con la [`0204`](../supabase/migrations/0204_un_drop_se_lleva_el_permiso_y_la_pantalla_se_calla.sql),
+que son dos `grant` y nada más. Verificado en producción: las tres filas en
+`true`, y Disciplina volvió a listar a las dos personas que le tocaban.
+
+**LA CAUSA, y es de clase, no de caso:** un `drop function` se lleva por delante
+los `GRANT`. La [`0189`](../supabase/migrations/0189_una_tardanza_de_tres_horas_deja_de_desaparecer.sql)
+hace ese drop sobre `fn_tardanzas_resumen` —obligada, porque devuelve `TABLE` y
+Postgres no deja añadirle una columna con `create or replace`— y no vuelve a
+otorgar. El último `grant execute` de esa función era de la **0067**. Como este
+proyecto revoca el `EXECUTE` que Postgres da a PUBLIC por defecto, no hubo red.
+
+**POR QUÉ NADIE LO VIO EN DOS DÍAS:** `authenticated` no podía ejecutarla,
+PostgREST devolvía error, y `admin/disciplina/page.tsx` **no miraba el error de
+esa llamada**. Imprimía «Nadie con tardanzas relevantes este mes» — la misma
+frase exacta que cuando de verdad no hay nadie. El Dashboard y la Hoja de sede
+leen la misma función y estaban igual de ciegos. Un falso negativo mudo en las
+tres pantallas que existen para no dejar pasar a nadie.
+
+**LA SEGUNDA, encontrada barriendo las 122 funciones que el panel llama por
+`rpc()`:** la 0198 añadió `p_cuspp` a `fn_set_datos_personales` con un
+`create or replace`. **Un parámetro nuevo no reemplaza: crea otra función.**
+Quedaron dos sobrecargas —18 argumentos con permiso, 19 sin él— y el panel manda
+`p_cuspp`, así que PostgREST elegía justo la que no podía ejecutar. Guardar una
+ficha fallaba desde entonces. La sobrecarga huérfana de 18 sigue viva, muerta
+pero inofensiva; **soltarla queda pendiente**.
+
+**LAS DOS REGLAS QUE DEJA:**
+
+1. **Toda migración que haga `drop function` vuelve a poner su `grant`.** No es
+   opcional y no lo cubre nada: el `create or replace` conserva permisos, el
+   `drop` + `create` no. La 0200 ya lo lleva por esto.
+2. **Añadir un parámetro a una función es crear una función nueva.** Hay que
+   otorgarle permiso, y decidir qué se hace con la vieja — dejarla viva es una
+   ambigüedad esperando a que alguien la pise.
+
+**Cómo se vuelve a comprobar**, sin fiarse de ninguna lista guardada:
+[`quien_puede_ejecutar_el_semaforo.sql`](../scripts/sql-manual/quien_puede_ejecutar_el_semaforo.sql).
+
+**Lo que sigue abierto de aquí:** ninguna prueba habría cazado esto. Las pgTAP
+corren como `postgres`, que puede ejecutar todo; el defecto solo existe para
+`authenticated`. Una prueba que compruebe los permisos del rol real es el
+guardián que falta.
+
+---
+
 ## 2026-08-08 — el papel que se le entrega a un locador dejó de llamarlo trabajador
 
 La 0199 le quitó a un locador las cifras que no le tocaban —feriados,

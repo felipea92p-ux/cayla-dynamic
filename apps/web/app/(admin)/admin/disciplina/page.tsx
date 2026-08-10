@@ -9,7 +9,9 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { instanteEntrega } from "@/lib/admin/instante-entrega";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
-import { TZ_LIMA, hoyLima, puedeOperarEquipo } from "@cayla-dynamic/shared";
+import {
+  NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, TZ_LIMA, hoyLima, puedeOperarEquipo,
+} from "@cayla-dynamic/shared";
 
 
 // Fechas planas: se formatean en UTC para que no se corran un día por zona horaria.
@@ -28,20 +30,26 @@ function selloLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
-const NIVEL_LABEL: Record<string, string> = {
-  verbal: "Llamada verbal",
-  amonestacion: "Amonestación escrita",
-  suspension: "Suspensión sin goce",
-  imputacion: "Imputación de cargos",
-  despido: "Carta de despido",
-};
+// Las etiquetas de la escala viven en packages/shared desde la 0200: las
+// necesitan también el Dashboard y el Reporte por sede.
+const NIVEL_LABEL: Record<string, string> = NIVEL_DISCIPLINARIO_LABELS;
 const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
 // `sin_medir` son los días cuya tardanza pasa de tres horas. No suman al umbral
 // legal —con una medición dudosa no se sanciona— pero hasta la 0189 no existían
 // para nadie: se guardaban como NULL y las tres consultas los leían como «no
 // hubo tardanza». Quien llegaba tres horas tarde desaparecía de esta pantalla.
-interface TardanzaRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string; sin_medir: number; }
+//
+// `umbral` (desde la 0200) ya no es «amonestacion o aviso»: nombra el escalón
+// ALCANZADO — amonestacion · suspension · imputacion · bloqueado · aviso. Y
+// `minimo` es cuántas tardanzas exige el escalón de ESA persona, que depende de
+// su historial: 3 sin antecedente, 2 tras una amonestación, 1 tras una
+// suspensión. Antes la pantalla pedía 3 a todo el mundo y no mostraba a quien
+// ya había cruzado el suyo.
+interface TardanzaRow {
+  persona_id: string; nombre: string; sede: string; tardanzas_mes: number;
+  umbral: string; sin_medir: number; minimo: number | null; nivel_siguiente: string;
+}
 interface FaltaRow { persona_id: string; nombre: string; sede: string; consecutivas: number; en_30: number; en_180: number; nivel: string; }
 interface Hecho { fecha: string; minutos?: number; }
 /** Quién puede suscribir un documento concreto (fn_expediente_firmantes, mig. 0074). */
@@ -62,6 +70,9 @@ interface Doc {
   id: string; persona_id: string; tipo_causal: string; nivel: string; estado: string;
   periodo_desde: string | null; periodo_hasta: string | null; hechos: Hecho[];
   suspension_dias: number | null; suspension_desde: string | null; suspension_hasta: string | null;
+  suspension_fechas: string[] | null;
+  /** Fecha de cese declarada en la carta de despido (art. 32 LPCL, mig. 0205). */
+  fecha_cese: string | null;
   correlativo: string | null; creado_at: string; firmado_at: string | null;
   entregado_at: string | null; medio_entrega: string | null;
 }
@@ -151,6 +162,11 @@ export default function DisciplinaPage() {
 
   const [tardanzas, setTardanzas] = useState<TardanzaRow[]>([]);
   const [faltas, setFaltas] = useState<FaltaRow[]>([]);
+  // «No hay nadie» y «no pude mirar» son cosas distintas y hasta hoy se
+  // imprimían con la misma frase. En esta pantalla esa confusión es la peor
+  // que puede haber: da por revisado lo que no se revisó.
+  const [falloTard, setFalloTard] = useState(false);
+  const [falloFaltas, setFalloFaltas] = useState(false);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [nombres, setNombres] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
@@ -183,11 +199,11 @@ export default function DisciplinaPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: t }, { data: f }, { data: d, error: eD }, { data: p }] = await Promise.all([
+    const [{ data: t, error: eT }, { data: f, error: eF }, { data: d, error: eD }, { data: p }] = await Promise.all([
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, correlativo, creado_at, firmado_at, entregado_at, medio_entrega")
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, correlativo, creado_at, firmado_at, entregado_at, medio_entrega")
         // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
         //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
         //   papel de una entrega de hace dos meses.
@@ -195,7 +211,25 @@ export default function DisciplinaPage() {
         .order("creado_at", { ascending: false }),
       supabase.from("personas").select("id, nombres, apellidos"),
     ]);
-    if (eD) setMsg({ tipo: "error", texto: mensajeDeError(eD, "cargar el legajo") });
+    // Los TRES errores, no solo el del legajo.
+    //
+    // Hasta hoy solo se miraba `eD`. Si fn_tardanzas_resumen fallaba, `t` venía
+    // undefined, la lista quedaba vacía y la pantalla imprimía «Nadie con
+    // tardanzas relevantes este mes» — que es lo mismo que dice cuando de
+    // verdad no hay nadie. Un falso negativo MUDO, en la pantalla cuyo único
+    // trabajo es no dejar pasar a nadie. Es la misma forma del hallazgo A12:
+    // la Hoja de sede imprimiéndose en ceros cuando una consulta falla.
+    //
+    // El aviso nombra la sección para que se sepa QUÉ no se pudo mirar: un
+    // «error al cargar» genérico deja igual de ciego que el silencio.
+    const fallos = [
+      eT ? mensajeDeError(eT, "cargar el semáforo de tardanzas") : null,
+      eF ? mensajeDeError(eF, "cargar el semáforo de faltas") : null,
+      eD ? mensajeDeError(eD, "cargar el legajo") : null,
+    ].filter(Boolean);
+    if (fallos.length) setMsg({ tipo: "error", texto: fallos.join(" · ") });
+    setFalloTard(!!eT);
+    setFalloFaltas(!!eF);
     // El doble casteo no es pereza: `packages/database/src/types.ts` es un
     // archivo GENERADO y todavía describe la firma anterior de
     // fn_tardanzas_resumen, sin `sin_medir`. Regenerarlo con el CLI de hoy
@@ -373,16 +407,81 @@ export default function DisciplinaPage() {
     setMsg({ tipo: "ok", texto: "Marcado como entregado. Guarda el cargo firmado en el legajo." });
   }
 
+  /**
+   * Fijar los días de una suspensión.
+   *
+   * Los días de suspensión son días LABORABLES DE ESA PERSONA (mig. 0075). Tres
+   * días desde un jueves, trabajando de lunes a viernes, son jueves, viernes y
+   * lunes: se salta el descanso, no se lo regala. Una suspensión sin goce que
+   * cae en el día libre no es una sanción — la persona no deja de trabajar nada
+   * ni deja de cobrar nada.
+   *
+   * Esta función sumaba días de CALENDARIO. El 25/07/2026 eso convirtió una
+   * suspensión de tres días en una de uno, porque cayó en sábado, y el memo
+   * impreso declaró tres. El cálculo vive ahora en la base y no acá: decide
+   * cuánto deja de cobrar una persona y no puede depender de qué pantalla lo
+   * pida.
+   *
+   * El camino viejo se conserva SOLO como red: si `fn_expediente_set_suspension`
+   * no existe en esta base —la 0075 se aplicó a mano y su estado en producción
+   * no está confirmado— la pantalla seguiría pudiendo fijar los días, pero
+   * diciendo en voz alta que el rango puede incluir descansos. Sin esa red, una
+   * base sin la 0075 dejaría la suspensión sin poder editarse.
+   */
   async function guardarDias(d: Doc, dias: number) {
     if (dias < 1) return;
     const desde = d.suspension_desde ?? addDias(hoyLima(), 1);
     setOcupado(d.id); setMsg(null);
-    const { error } = await supabase.rpc("fn_expediente_editar_borrador", {
+
+    const { data, error } = await supabase.rpc("fn_expediente_set_suspension", {
+      p_id: d.id, p_dias: dias, p_desde: desde,
+    });
+
+    // PGRST202 = PostgREST no encuentra la función. Cualquier otro error es un
+    // error de verdad y se muestra tal cual.
+    if (error && error.code !== "PGRST202") {
+      setOcupado(null);
+      setMsg({ tipo: "error", texto: mensajeDeError(error) });
+      return;
+    }
+
+    if (!error) {
+      setOcupado(null);
+      const fechas = (data as Array<{ fecha: string }> | null)?.map((x) => x.fecha) ?? [];
+      const salta = fechas.length > 1
+        && addDias(fechas[0], fechas.length - 1) !== fechas[fechas.length - 1];
+      await cargar();
+      if (fechas.length) {
+        setMsg({ tipo: "ok", texto: salta
+          ? `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")} — se saltan sus días de descanso, que no cuentan como sanción.`
+          : `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")}.` });
+      }
+      return;
+    }
+
+    // Red: esta base no tiene la 0075.
+    const { error: eViejo } = await supabase.rpc("fn_expediente_editar_borrador", {
       p_id: d.id, p_suspension_dias: dias, p_suspension_desde: desde, p_suspension_hasta: addDias(desde, dias - 1),
+    });
+    setOcupado(null);
+    if (eViejo) { setMsg({ tipo: "error", texto: mensajeDeError(eViejo) }); return; }
+    await cargar();
+    setMsg({ tipo: "error", texto:
+      "Días fijados por CALENDARIO: falta aplicar la migración 0075 en esta base. "
+      + "Comprueba a mano que ninguno caiga en su día de descanso — si cae, la suspensión no se cumple ese día y el memo diría algo falso." });
+  }
+
+  /** La fecha de cese que declarará la carta de despido (art. 32 LPCL, mig. 0205). */
+  async function guardarFechaCese(d: Doc, fecha: string) {
+    if (!fecha || fecha === d.fecha_cese) return;
+    setOcupado(d.id); setMsg(null);
+    const { error } = await supabase.rpc("fn_expediente_editar_borrador", {
+      p_id: d.id, p_fecha_cese: fecha,
     });
     setOcupado(null);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
+    setMsg({ tipo: "ok", texto: `Fecha de cese fijada en ${fechaCorta(fecha)}. Es la que imprimirá la carta.` });
   }
 
   // Volver un memo firmado a borrador para cambiar quién lo suscribe (mig. 0131).
@@ -452,10 +551,24 @@ export default function DisciplinaPage() {
         <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ_LIMA }).format(new Date())}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
-            <p className="mt-0.5 text-xs text-taupe">Umbral RIT art. 7: 3 en el mes corresponde amonestación.</p>
+            {/* El umbral NO es el mismo para todas: depende del escalón en el
+                que esté cada quien (RIT art. 7 b/c/d). Decir «3» aquí, como
+                decía hasta la 0200, era falso para quien arrastra un
+                antecedente vigente — y esa es justamente la gente por la que
+                hay que actuar antes. */}
+            <p className="mt-0.5 text-xs text-taupe">
+              Umbral RIT art. 7: <strong>3</strong> en el mes sin antecedente ·
+              {" "}<strong>2</strong> tras una amonestación · <strong>1</strong> tras una suspensión.
+              Cada fila dice el suyo.
+            </p>
           </div>
           {cargando ? (
             <Cargando />
+          ) : falloTard ? (
+            <p className="px-4 py-6 text-sm text-rojo">
+              No se pudo leer el semáforo de tardanzas. <strong>Esto NO significa que no haya nadie</strong> —
+              significa que no se pudo mirar. Vuelve a cargar la página; si sigue igual, avisa antes de dar el mes por revisado.
+            </p>
           ) : tardanzas.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">Nadie con tardanzas relevantes este mes.</p>
           ) : (
@@ -465,8 +578,13 @@ export default function DisciplinaPage() {
                   <span>
                     <strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
                     {t.tardanzas_mes > 0 && (
-                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "amonestacion" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>
-                        {t.tardanzas_mes} {t.umbral === "amonestacion" ? "· amonestación" : "· aviso"}
+                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "aviso" ? "bg-amber-100 text-amber-800" : "bg-rojo/10 text-rojo"}`}>
+                        {t.tardanzas_mes}
+                        {t.umbral === "aviso"
+                          ? ` de ${t.minimo} · aviso`
+                          : t.umbral === "bloqueado"
+                            ? " · imputación vigente, decide Gerencia"
+                            : ` · corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral}`}
                       </span>
                     )}
                     {t.sin_medir > 0 && (
@@ -482,11 +600,18 @@ export default function DisciplinaPage() {
                       Sobre esa persona no hay nada que imputar —el expediente se arma
                       únicamente con tardanzas medibles— así que ofrecerle el botón sería
                       prometer un documento que saldría vacío. */}
+                  {/* Con una imputación vigente el generador se niega siempre
+                      («decide Gerencia»). Ofrecer un botón que solo puede dar
+                      error enseña a ignorar los errores de esta pantalla. */}
                   <button onClick={() => generar("tardanza", t.persona_id)}
-                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0}
+                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0 || t.umbral === "bloqueado"}
                     title={t.tardanzas_mes === 0
                       ? "Sus únicos días son de más de tres horas: no se puede imputar sobre una medición dudosa. Revisa su turno de esos días."
-                      : undefined}
+                      : t.umbral === "bloqueado"
+                        ? "Ya tiene una imputación de cargos vigente. El siguiente paso es evaluar sus descargos (art. 31) y lo decide Gerencia, no el sistema."
+                        : t.umbral === "aviso"
+                          ? `Aún no llega a su umbral: lleva ${t.tardanzas_mes} y su escalón exige ${t.minimo}.`
+                          : undefined}
                     className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
                     {ocupado === t.persona_id ? "Generando…" : "Generar borrador"}
                   </button>
@@ -504,6 +629,11 @@ export default function DisciplinaPage() {
           </div>
           {cargando ? (
             <Cargando />
+          ) : falloFaltas ? (
+            <p className="px-4 py-6 text-sm text-rojo">
+              No se pudo leer el semáforo de faltas. <strong>Esto NO significa que no haya nadie.</strong>{" "}
+              Vuelve a cargar la página; si sigue igual, avisa antes de dar el periodo por revisado.
+            </p>
           ) : faltas.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">Nadie en umbral de faltas. Buena señal.</p>
           ) : (
@@ -565,13 +695,32 @@ export default function DisciplinaPage() {
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-taupe">Hechos: {fechasDe(d.hechos)}</p>
+                  {/* El art. 32 de la LPCL exige que la carta de despido diga
+                      la causa Y la fecha de cese. Se fija acá, en el borrador,
+                      porque después de firmar el documento ya no se edita. */}
+                  {d.nivel === "despido" && (
+                    <label className="mt-1 flex flex-wrap items-center gap-2 text-xs text-taupe">
+                      Fecha de cese (art. 32):
+                      <input type="date" defaultValue={d.fecha_cese ?? ""}
+                        onBlur={(e) => guardarFechaCese(d, e.target.value)}
+                        className="rounded border px-2 py-1" />
+                      {!d.fecha_cese && (
+                        <span className="text-rojo">sin fecha, la carta saldría incompleta</span>
+                      )}
+                    </label>
+                  )}
                   {d.nivel === "suspension" && (
                     <label className="mt-1 flex items-center gap-2 text-xs text-taupe">
                       Días de suspensión:
                       <input type="number" min={1} max={15} defaultValue={d.suspension_dias ?? 1}
                         onBlur={(e) => guardarDias(d, Number(e.target.value))}
                         className="w-16 rounded border px-2 py-1" />
-                      {d.suspension_desde && <span>del {fechaCorta(d.suspension_desde)}{d.suspension_hasta ? ` al ${fechaCorta(d.suspension_hasta)}` : ""}</span>}
+                      {/* Las fechas una por una cuando se saltan un descanso:
+                          «del 23 al 27» sobre días no contiguos mete en la
+                          sanción dos días que la persona sí tenía libres. */}
+                      {d.suspension_fechas?.length
+                        ? <span>{d.suspension_fechas.map(fechaCorta).join(", ")}</span>
+                        : d.suspension_desde && <span>del {fechaCorta(d.suspension_desde)}{d.suspension_hasta ? ` al ${fechaCorta(d.suspension_hasta)}` : ""}</span>}
                     </label>
                   )}
                 </li>

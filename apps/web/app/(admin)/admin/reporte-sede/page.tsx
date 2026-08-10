@@ -8,7 +8,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
-import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -38,6 +38,8 @@ interface Fila {
   dias: number; horas: number; tardanzas: number; minTarde: number; salidasTemp: number;
 }
 interface Meta { man: number; tar: number; enc: number }
+// `umbral` nombra el escalón alcanzado desde la 0200 — amonestacion ·
+// suspension · imputacion · bloqueado · aviso —, no solo «amonestacion o aviso».
 interface TardRow { persona_id: string; nombre: string; sede: string; tardanzas_mes: number; umbral: string }
 interface FaltaRow { persona_id: string; nombre: string; sede: string; nivel: string }
 
@@ -150,7 +152,9 @@ function ReporteSedeContenido() {
       };
     });
     setFilas(filasCalc);
-    setTardAlerta(((tardResumen as TardRow[]) ?? []).filter((t) => t.sede === codigoSede && t.umbral === "amonestacion"));
+    // Cualquier escalón alcanzado entra a «Necesita atención», no solo la
+    // amonestación: esta hoja se imprime y se lleva a la sede.
+    setTardAlerta(((tardResumen as TardRow[]) ?? []).filter((t) => t.sede === codigoSede && t.umbral !== "aviso"));
     setFaltaAlerta(((faltasResumen as FaltaRow[]) ?? []).filter((f) => f.sede === codigoSede && f.nivel === "rojo"));
     setCargado(true);
     setCargando(false);
@@ -297,7 +301,12 @@ function ReporteSedeContenido() {
               ) : (
                 <ul className="space-y-1.5 text-sm">
                   {tardAlerta.map((t) => (
-                    <li key={t.persona_id}><strong>{t.nombre}</strong> — corresponde amonestación por tardanzas ({t.tardanzas_mes} este mes).</li>
+                    <li key={t.persona_id}>
+                      <strong>{t.nombre}</strong> — {t.umbral === "bloqueado"
+                        ? "tiene una imputación de cargos vigente; decide Gerencia"
+                        : `corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral} por tardanzas`}
+                      {" "}({t.tardanzas_mes} este mes).
+                    </li>
                   ))}
                   {faltaAlerta.map((f) => (
                     <li key={f.persona_id}><strong>{f.nombre}</strong> — causal por faltas (art. 25-h). Acción inmediata.</li>

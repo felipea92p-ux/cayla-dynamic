@@ -1,5 +1,6 @@
 import type {
-  EstadoCivil, GradoInstruccion, MotivoCese, RegimenPension, TipoMarca, VinculoDerechohabiente,
+  EstadoCivil, GradoInstruccion, MotivoCese, NivelDisciplinario, RegimenPension, TipoMarca,
+  VinculoDerechohabiente,
 } from "./enums";
 
 export const TIPO_MARCA_LABELS: Record<TipoMarca, string> = {
@@ -77,6 +78,32 @@ export const REGIMEN_PENSION_LABELS: Record<RegimenPension, string> = {
   habitat: "AFP Habitat (12.84 %)",
   // Sin porcentaje porque no hay ninguno que mostrar: no se le descuenta nada.
   jubilada: "Jubilada — ya cobra su pensión, no aporta",
+};
+
+/**
+ * Cómo se nombra cada escalón disciplinario en un documento y en pantalla.
+ *
+ * Vive acá porque desde la 0200 lo necesitan tres superficies —Disciplina, el
+ * Dashboard y el Reporte por sede—, y antes estaba escrito solo dentro de la
+ * pantalla de Disciplina. Las otras dos decían «corresponde amonestación»
+ * literal, así que a quien le tocaba una suspensión o una imputación lo
+ * anunciaban con el nombre del escalón equivocado.
+ */
+export const NIVEL_DISCIPLINARIO_LABELS: Record<NivelDisciplinario, string> = {
+  verbal: "Llamada verbal",
+  amonestacion: "Amonestación escrita",
+  suspension: "Suspensión sin goce",
+  imputacion: "Imputación de cargos",
+  despido: "Carta de despido",
+};
+
+/** Forma corta, para la pastilla del semáforo, donde la larga no entra. */
+export const NIVEL_DISCIPLINARIO_CORTO: Record<NivelDisciplinario, string> = {
+  verbal: "llamada verbal",
+  amonestacion: "amonestación",
+  suspension: "suspensión",
+  imputacion: "imputación de cargos",
+  despido: "despido",
 };
 
 /**
