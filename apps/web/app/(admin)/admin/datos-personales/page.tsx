@@ -166,7 +166,16 @@ export default function DatosPersonalesPage() {
   const personaSel = personas.find((p) => p.id === sel) ?? null;
   const dniCambio = !!personaSel && dni.trim() !== (personaSel.documento ?? "");
   const regimenCambio = !!personaSel && regimen !== (personaSel.regimen_pension ?? "");
-  const emailCambio = !!personaSel && email.trim().toLowerCase() !== (personaSel.email ?? "");
+  // Los DOS lados en minúsculas. Antes se bajaba solo el izquierdo, así que un
+  // correo guardado con mayúsculas —medidos en producción el 2026-08-10: dos—
+  // daba «cambió» para siempre sin que nadie tocara el campo. Cada «Guardar
+  // ficha» llamaba entonces a fn_set_email, y si esa persona ya tiene cuenta la
+  // 0198 lo rechaza a propósito: la pantalla terminaba en «La ficha se guardó,
+  // pero el correo no» y hacía return, así que el aviso de éxito no salía nunca.
+  // Un error rojo, permanente y falso, que además no se podía corregir desde acá.
+  // Se compara como compara la base: `lower(trim())` contra `lower(trim())`.
+  const emailCambio =
+    !!personaSel && email.trim().toLowerCase() !== (personaSel.email ?? "").trim().toLowerCase();
   // Tiene acceso creado: su correo es su login y la 0198 rechaza cambiarlo acá.
   const tieneCuenta = personaSel?.auth_user_id != null;
   // El CUSPP solo existe en el sistema PRIVADO de pensiones. ONP no tiene cuenta
