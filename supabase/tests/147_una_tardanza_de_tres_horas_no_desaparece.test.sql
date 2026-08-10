@@ -41,9 +41,15 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, tipo_vincu
 values ('00000000-0000-0000-0000-00000000e102', 'TarPersona', 'Laboratorio',
         '00000000-0000-0000-0000-00000000e100', 'test-hash', 'planilla');
 
-insert into terminales (id, sede_id, nombre_dispositivo, activo)
+-- El terminal necesita dueño desde la 0202: `terminal_activo_con_dueno` prohíbe
+-- que uno ACTIVO tenga `auth_user_id` nulo, y este montaje se escribió cuando esa
+-- regla no existía. El replica_role salta la FK contra auth.users, que en las
+-- pruebas no existe; los CHECK no son triggers y siguen aplicando.
+set session_replication_role = replica;
+insert into terminales (id, sede_id, nombre_dispositivo, activo, auth_user_id)
 values ('00000000-0000-0000-0000-00000000e10e', '00000000-0000-0000-0000-00000000e100',
-        'Mac mini de laboratorio', true);
+        'Mac mini de laboratorio', true, '00000000-0000-0000-0000-00000000e10f');
+set session_replication_role = origin;
 
 insert into horarios_asignados
   (persona_id, vigente_desde, hora_entrada, hora_salida,

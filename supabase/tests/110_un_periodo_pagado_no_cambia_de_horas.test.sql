@@ -35,9 +35,15 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash) values
   ('00000000-0000-0000-0000-00000000ad02', 'PagPagada',  'Laboratorio', '00000000-0000-0000-0000-00000000ad00', 'test-hash'),
   ('00000000-0000-0000-0000-00000000ad03', 'PagAbierta', 'Laboratorio', '00000000-0000-0000-0000-00000000ad00', 'test-hash');
 
-insert into terminales (id, sede_id, nombre_dispositivo, activo)
+-- El terminal necesita dueño desde la 0202: `terminal_activo_con_dueno` prohíbe
+-- que uno ACTIVO tenga `auth_user_id` nulo, y este montaje se escribió cuando esa
+-- regla no existía. El replica_role salta la FK contra auth.users, que en las
+-- pruebas no existe; los CHECK no son triggers y siguen aplicando.
+set session_replication_role = replica;
+insert into terminales (id, sede_id, nombre_dispositivo, activo, auth_user_id)
 values ('00000000-0000-0000-0000-00000000ad0e', '00000000-0000-0000-0000-00000000ad00',
-        'Mac mini de laboratorio', true);
+        'Mac mini de laboratorio', true, '00000000-0000-0000-0000-00000000ad0f');
+set session_replication_role = origin;
 
 insert into horarios_asignados
   (persona_id, vigente_desde, hora_entrada, hora_salida,
@@ -69,6 +75,15 @@ select is((select horas_trabajadas from jornadas
           'DE PARTIDA · el 16 de junio se pagó con 9.00 h');
 
 -- ── 1 · La cola offline sube el par de almuerzo de un día YA PAGADO ─────────
+--
+-- LA SESIÓN PASA A SER LA DEL TERMINAL, y esto no es ceremonia: desde que el
+-- terminal tiene dueño (0202), fn_registrar_marcaje compara auth.uid() contra
+-- `terminales.auth_user_id` y rechaza la marca si no coinciden. Es exactamente
+-- lo que pasa en producción —la Mac mini marca con su propia cuenta, no con la
+-- de una persona—, así que el montaje se parece más a la realidad que antes.
+-- Más abajo se vuelve a la de admin, que es la que fn_dias_por_revisar exige.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000ad0f', true);
+
 select lives_ok(
   $$ select fn_registrar_marcaje(
        '00000000-0000-0000-0000-00000000ad02'::uuid, 'salida_almuerzo'::tipo_marca,
@@ -97,12 +112,20 @@ select is((select horas_trabajadas from jornadas
           'PAGADO · pero el día sigue con las 9.00 h que se pagaron: no se movió solo');
 
 -- ── 2 · Y el día no queda mudo ──────────────────────────────────────────────
+-- Vuelve la sesión de admin: fn_dias_por_revisar filtra por fn_es_admin_o_lider()
+-- y con la cuenta del terminal devolvería cero filas — el número correcto por el
+-- motivo equivocado.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000ad09', true);
+
 select isnt((select count(*)::int from fn_dias_por_revisar(120)
               where persona_id = '00000000-0000-0000-0000-00000000ad02'),
             0,
             'PAGADO · el día aparece para revisión: se avisa, no se esconde');
 
 -- ── 3 · Fuera de un periodo pagado, el recálculo sigue igual que siempre ────
+-- Y otra vez la del terminal, porque vuelve a marcar.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000ad0f', true);
+
 select fn_registrar_marcaje(
   '00000000-0000-0000-0000-00000000ad03'::uuid, 'salida_almuerzo'::tipo_marca,
   '2026-08-03T13:00:00-05:00'::timestamptz, gen_random_uuid(),

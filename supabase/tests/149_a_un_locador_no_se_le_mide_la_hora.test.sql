@@ -42,9 +42,15 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, tipo_vincu
   ('00000000-0000-0000-0000-00000000f102', 'EnPlanilla',    'Laboratorio', '00000000-0000-0000-0000-00000000f100', 'test-hash', 'planilla'),
   ('00000000-0000-0000-0000-00000000f103', 'PorHonorarios', 'Laboratorio', '00000000-0000-0000-0000-00000000f100', 'test-hash', 'rxh');
 
-insert into terminales (id, sede_id, nombre_dispositivo, activo)
+-- El terminal necesita dueño desde la 0202: `terminal_activo_con_dueno` prohíbe
+-- que uno ACTIVO tenga `auth_user_id` nulo, y este montaje se escribió cuando esa
+-- regla no existía. El replica_role salta la FK contra auth.users, que en las
+-- pruebas no existe; los CHECK no son triggers y siguen aplicando.
+set session_replication_role = replica;
+insert into terminales (id, sede_id, nombre_dispositivo, activo, auth_user_id)
 values ('00000000-0000-0000-0000-00000000f10e', '00000000-0000-0000-0000-00000000f100',
-        'Mac mini de laboratorio', true);
+        'Mac mini de laboratorio', true, '00000000-0000-0000-0000-00000000f10f');
+set session_replication_role = origin;
 
 -- Mismo horario para las dos: el del locador está cargado «solo como
 -- referencia», que es exactamente el caso que motivó la 0191.
