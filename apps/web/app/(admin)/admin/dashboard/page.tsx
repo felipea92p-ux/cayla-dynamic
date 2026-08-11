@@ -124,15 +124,26 @@ export default function DashboardPage() {
   const [discFaltas, setDiscFaltas] = useState<FaltaRow[]>([]);
   const [contratos, setContratos] = useState<ContratoRow[]>([]);
   const [sinCargo, setSinCargo] = useState(0);
+  /**
+   * El semáforo no contestó. NO es lo mismo que «no hay nadie en escalón».
+   *
+   * Sin esta distinción la franja se borraba entera cuando la RPC fallaba, y la
+   * portada quedaba idéntica a un mes tranquilo. Ya pasó: un `drop function` se
+   * llevó por delante su GRANT (0204) y la consulta estuvo caída. Los plazos del
+   * art. 25 corren igual mientras la pantalla calla, y esta franja es el único
+   * sitio donde el aviso no está dentro de un panel plegado.
+   */
+  const [discNoRespondio, setDiscNoRespondio] = useState(false);
 
   // Semáforo disciplinario para la franja (aparte del refresco de asistencia).
   useEffect(() => {
     const sb = createAdminSupabaseClient();
     void (async () => {
-      const [{ data: t }, { data: f }] = await Promise.all([
+      const [{ data: t, error: errT }, { data: f, error: errF }] = await Promise.all([
         sb.rpc("fn_tardanzas_resumen", {}),
         sb.rpc("fn_faltas_resumen", {}),
       ]);
+      setDiscNoRespondio(Boolean(errT || errF));
       setDiscTard(Array.isArray(t) ? (t as TardRow[]) : []);
       setDiscFaltas(Array.isArray(f) ? (f as FaltaRow[]) : []);
 
@@ -348,6 +359,22 @@ export default function DashboardPage() {
           const avisoT = discTard.filter((t) => t.umbral === "aviso").length;
           const rojosF = discFaltas.filter((f) => f.nivel === "rojo");
           const ambarF = discFaltas.filter((f) => f.nivel === "ambar").length;
+          // Si el semáforo no contestó, la franja NO se borra: se queda diciendo
+          // que no pudo mirar. «No hay nadie sancionable» y «no lo sé» se ven
+          // igual de tranquilos en una portada, y solo uno de los dos es cierto.
+          if (discNoRespondio) {
+            return (
+              <section className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
+                <div className="etiqueta text-ambar">Disciplina · no se pudo consultar</div>
+                <p className="mt-2 text-sm text-tinta">
+                  El semáforo de tardanzas y faltas no respondió, así que esta franja{" "}
+                  <strong>no está diciendo que no haya nadie</strong>: está diciendo que no pudo mirar.
+                  Vuelve a cargar, y si sigue igual ábrelo en{" "}
+                  <a href="/admin/disciplina" className="underline">Disciplina</a>.
+                </p>
+              </section>
+            );
+          }
           if (!rojosT.length && !avisoT && !rojosF.length && !ambarF && !sinCargo) return null;
           return (
             <div className="mb-10 rounded-2xl border border-sand bg-rojo/[0.04] p-5">
