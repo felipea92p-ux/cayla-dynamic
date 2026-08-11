@@ -1063,6 +1063,31 @@ export type Database = {
         }
         Relationships: []
       }
+      // Añadida a mano, migración 0208 — ver la nota en las funciones.
+      documentos_tipos: {
+        Row: {
+          codigo: string
+          nombre: string
+          orden: number
+          requiere_acuse: boolean
+          activo: boolean
+        }
+        Insert: {
+          codigo: string
+          nombre: string
+          orden?: number
+          requiere_acuse?: boolean
+          activo?: boolean
+        }
+        Update: {
+          codigo?: string
+          nombre?: string
+          orden?: number
+          requiere_acuse?: boolean
+          activo?: boolean
+        }
+        Relationships: []
+      }
       feriados: {
         Row: {
           fecha: string

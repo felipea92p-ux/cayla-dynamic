@@ -62,6 +62,17 @@ interface FilaAcuse {
   via: string | null;
 }
 
+interface Tipo {
+  codigo: string;
+  nombre: string;
+  requiere_acuse: boolean;
+}
+
+/** Un reglamento de 61 artículos pesa cerca de 300 KB. El tope es generoso a
+ *  propósito, pero existe: sin él, un archivo equivocado se sube entero antes
+ *  de que nadie note que no era un documento. */
+const MAX_BYTES_DOC = 2 * 1024 * 1024;
+
 function selloLima(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -120,6 +131,19 @@ export default function NormasPage() {
   const [acuses, setAcuses] = useState<Map<string, FilaAcuse[]>>(new Map());
   const [verSeguimiento, setVerSeguimiento] = useState<string | null>(null);
 
+  // ── Publicar una versión ──────────────────────────────────────────────────
+  // El texto NO se escribe aquí: se sube el archivo que vive en `docs/`, bajo
+  // control de versiones. Pegar 277.000 caracteres a mano es justo donde se
+  // pierde un trozo sin que nadie lo note, y el documento que vale como prueba
+  // es el que se guarda.
+  const [tipos, setTipos] = useState<Tipo[]>([]);
+  const [publicando, setPublicando] = useState(false);
+  const [tipoElegido, setTipoElegido] = useState("rit");
+  const [archivoDoc, setArchivoDoc] = useState<{ nombre: string; texto: string } | null>(null);
+  const [tituloDoc, setTituloDoc] = useState("");
+  const [vigenteDesde, setVigenteDesde] = useState("");
+  const [notasDoc, setNotasDoc] = useState("");
+
   // La constancia en papel de quien no tiene cuenta.
   const [papelPara, setPapelPara] = useState<{ doc: string; persona: string; nombre: string } | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -154,6 +178,61 @@ export default function NormasPage() {
   useEffect(() => {
     if (yo?.nombreCompleto) setNombreDeclarado(yo.nombreCompleto);
   }, [yo]);
+
+  // El catálogo de tipos: se lee de la tabla, nunca se escribe en el código.
+  // Añadir «Presentación de CAYLA» tiene que ser un dato, no un despliegue.
+  useEffect(() => {
+    if (!puedeGestionar) return;
+    void (async () => {
+      const { data } = await supabase
+        .from("documentos_tipos")
+        .select("codigo, nombre, requiere_acuse")
+        .eq("activo", true)
+        .order("orden");
+      setTipos((data as Tipo[]) ?? []);
+    })();
+  }, [supabase, puedeGestionar]);
+
+  async function elegirArchivo(f: File | null) {
+    setArchivoDoc(null);
+    if (!f) return;
+    if (f.size > MAX_BYTES_DOC) {
+      setMsg({ tipo: "error", texto: `“${f.name}” pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es 2 MB. ¿Seguro que es el documento?` });
+      return;
+    }
+    const texto = await f.text();
+    if (!texto.trim()) {
+      setMsg({ tipo: "error", texto: "El archivo está vacío." });
+      return;
+    }
+    setArchivoDoc({ nombre: f.name, texto });
+    // El título sale de la primera línea de encabezado del documento, para que
+    // no haya dos verdades sobre cómo se llama.
+    const h1 = texto.split("\n").find((l) => l.trim().startsWith("# "));
+    if (h1 && !tituloDoc) setTituloDoc(h1.replace(/^#\s*/, "").trim());
+    setMsg(null);
+  }
+
+  async function publicar() {
+    if (!archivoDoc) { setMsg({ tipo: "error", texto: "Elige el archivo del documento." }); return; }
+    if (!tituloDoc.trim()) { setMsg({ tipo: "error", texto: "Falta el título con el que se va a mostrar." }); return; }
+    setOcupado(true); setMsg(null);
+    const { data, error } = await supabase.rpc("fn_publicar_documento", {
+      p_tipo: tipoElegido,
+      p_titulo: tituloDoc.trim(),
+      p_documento: archivoDoc.texto,
+      p_vigente_desde: vigenteDesde || null,
+      p_notas: notasDoc.trim() || null,
+    });
+    setOcupado(false);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "publicar el documento") }); return; }
+    setPublicando(false); setArchivoDoc(null); setNotasDoc("");
+    await cargar();
+    setMsg({
+      tipo: "ok",
+      texto: `Publicada la versión ${String(data)}. Desde ahora cada integrante deja su constancia, y quien no tenga cuenta la deja en papel.`,
+    });
+  }
 
   async function cargarAcuses(documentoId: string) {
     const { data } = await supabase.rpc("fn_acuses_documento", { p_documento_id: documentoId });
@@ -242,12 +321,91 @@ export default function NormasPage() {
           </div>
         )}
 
+        {/* ── Publicar, sólo para quien puede ── */}
+        {puedeGestionar && (
+          <div className="mb-5 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+            <button onClick={() => setPublicando((v) => !v)}
+              className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
+              <span>Publicar una versión</span>
+              <span className="text-xs font-normal text-taupe">{publicando ? "ocultar" : "abrir"}</span>
+            </button>
+            {publicando && (
+              <div className="px-4 py-3">
+                <p className="mb-3 text-xs text-taupe">
+                  El documento se sube desde su archivo, no se escribe aquí: el texto vive versionado
+                  en el repositorio y así no hay dos verdades. Publicar el <strong>mismo</strong> texto no
+                  crea versión nueva — pedir constancia sin que nada cambie enseña que la constancia es trámite.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs">
+                    Tipo de documento
+                    <select value={tipoElegido} onChange={(e) => setTipoElegido(e.target.value)}
+                      className="rounded border bg-crema px-2 py-1 text-xs">
+                      {tipos.map((t) => (
+                        <option key={t.codigo} value={t.codigo}>
+                          {t.nombre}{t.requiere_acuse ? "" : " (sin constancia)"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    Archivo (.md o .txt)
+                    <input type="file" accept=".md,.txt,text/markdown,text/plain"
+                      onChange={(e) => void elegirArchivo(e.target.files?.[0] ?? null)}
+                      className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    Título con el que se muestra
+                    <input value={tituloDoc} onChange={(e) => setTituloDoc(e.target.value)}
+                      placeholder="Reglamento Interno de Trabajo"
+                      className="rounded border px-2 py-1 text-xs" />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    Rige desde
+                    <input type="date" value={vigenteDesde} onChange={(e) => setVigenteDesde(e.target.value)}
+                      className="rounded border px-2 py-1 text-xs" />
+                    <span className="text-taupe">Si lo dejas vacío, rige desde hoy.</span>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+                    Nota de la versión (opcional)
+                    <input value={notasDoc} onChange={(e) => setNotasDoc(e.target.value)}
+                      placeholder="ej. sustituye a la v3.0 de junio de 2026"
+                      className="rounded border px-2 py-1 text-xs" />
+                  </label>
+                </div>
+
+                {archivoDoc && (
+                  <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">
+                    <p className="text-xs text-taupe">
+                      <strong>{archivoDoc.nombre}</strong> · {archivoDoc.texto.length.toLocaleString("es-PE")} caracteres ·{" "}
+                      {archivoDoc.texto.split("\n").filter((l) => /^#{1,4}\s*ART[IÍ]CULO/i.test(l.trim())).length} artículos detectados
+                    </p>
+                    <div className="mt-2 max-h-40 overflow-y-auto text-[11px] leading-relaxed text-tinta">
+                      <Documento texto={archivoDoc.texto.slice(0, 1200)} />
+                    </div>
+                    <p className="mt-1 text-xs text-taupe">Vista previa del principio, para comprobar que es el archivo correcto.</p>
+                  </div>
+                )}
+
+                <div className="mt-3 flex items-center gap-2">
+                  <button onClick={() => void publicar()} disabled={ocupado || !archivoDoc}
+                    className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
+                    Publicar
+                  </button>
+                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); }}
+                    className="rounded-lg border px-3 py-1.5 text-xs">Cancelar</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {cargando ? (
           <Cargando texto="Cargando los documentos…" />
         ) : docs.length === 0 ? (
           <p className="max-w-xl rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
             Todavía no hay ningún documento publicado.
-            {puedeGestionar && " Publica el primero desde la base, con fn_publicar_documento."}
+            {puedeGestionar && " Publica el primero con el botón de arriba."}
           </p>
         ) : (
           <div className="space-y-4">
