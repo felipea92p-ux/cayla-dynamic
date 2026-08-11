@@ -37,6 +37,143 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-10 — un terminal sin dueño, y un diseño de plata que se cayó al medirlo
+
+### El terminal ya no puede quedarse sin dueño ([`0202`](../supabase/migrations/0202_un_terminal_activo_sin_dueno_deja_de_poder_existir.sql))
+
+El guard que impide que una sesión se haga pasar por un terminal son **tres
+condiciones unidas por AND** dentro de `fn_registrar_marcaje`. Con
+`terminales.auth_user_id` en null la segunda es falsa, el AND entero es falso y
+**no se lanza nada**: cualquier sesión con login podía registrar marcas a nombre
+de otra persona, en cualquier sede, y la planilla las paga. Medido:
+`anon` no puede ejecutar la función, `authenticated` sí — o sea que no hacía
+falta ser admin ni encargada.
+
+**El esquema fabricaba ese estado por su cuenta, y por dos caminos:**
+
+- `activo` tiene **default `true`**, así que el insert natural —
+  `insert into terminales (sede_id, nombre_dispositivo)` — nacía activo y sin
+  dueño. El camino cómodo era el peligroso.
+- La FK es **`ON DELETE SET NULL`**. Borrar en Auth la cuenta de un terminal no
+  lo desactivaba: le ponía el dueño en null y lo dejaba activo. La puerta se
+  abría sola, sin que nadie tocara nada. Esto no estaba en el catálogo.
+
+El candado va en la TABLA, no en la función — la lección de la 0180. Y cierra el
+hueco entero: cuando la función llega al guard, la fila ya se buscó
+`where id = p_terminal_id and activo`, así que con el CHECK `auth_user_id` no
+puede ser null ahí. **Aplicada y confirmada**; los tres terminales de producción
+tenían dueño, así que esto no tapó un agujero abierto: **impide el próximo, que
+es el terminal de Central el día que se cargue.**
+
+**NO se reescribió `fn_registrar_marcaje`** para dejar el guard como
+`is distinct from`, que es la forma correcta por doctrina. Son 129 líneas y es la
+única puerta de escritura del sistema; el 08-08 se vio que 22 funciones de
+producción no coincidían con el repositorio. Queda pendiente, y va después de
+pedir el cuerpo de producción.
+
+⚠️ **Y dejó una lección de método:** un CHECK nuevo **rompe los montajes de
+cualquier prueba que fabrique el estado que prohíbe**. Rompió tres (110, 147,
+149) y CI salió en rojo. El hook de pre-push corre `typecheck` y las pruebas de
+interfaz, **no las pgTAP** — esas solo corren en CI. Antes de empujar un CHECK,
+un `grep` de treinta segundos por `supabase/tests`.
+
+### Dos hallazgos del catálogo son FALSOS desde la 0138
+
+`hallazgos-abiertos.md` lista **C12·A16** (`fn_registrar_marcaje` sin candado de
+periodo pagado) y **A3** (`fn_auto_cierre` reescribe periodos pagados) como los
+dos más graves que quedan vivos. **Medidos contra el esquema de hoy, los dos son
+falsos**, y el daño estaba tapado una capa más abajo:
+
+- `fn_recalcular_jornada` **sí** lleva el candado desde la 0138, y se **sale en
+  silencio en vez de lanzar**, a propósito: lanzar abortaría el INSERT y el
+  terminal acabaría descartando una marca REAL tras seis reintentos.
+- `fn_auto_cierre` solo escribe en `marcajes` y `alertas` — nunca en `jornadas`
+  directo—, así que pasa por el mismo trigger y queda igual de tapado.
+
+Lo que sí quedaba era el residuo: la marca entraba y la jornada no se
+recalculaba, **sin que nadie se enterara**. Eso lo cerró la
+[`0207`](../supabase/migrations/0207_una_marca_que_cae_en_un_periodo_pagado_deja_de_entrar_muda.sql).
+
+**Falta tacharlos en `hallazgos-abiertos.md`**, y con ellos otras dos entradas
+que también envejecieron: dice que no existen las pruebas 84 y 85 (existen, de
+otros temas) y que «los montos pagados no se congelan en ninguna tabla» (la foto
+del pago existe desde la 0096). El propio archivo avisa de por qué importa: un
+catálogo con entradas mentirosas hace desconfiar de las que sí siguen vivas.
+
+### El borrador de un memo dejó de imprimirse firmado por Gerencia General
+
+`firmante` y `cargoFirmante` arrancaban en la constante `EMPRESA` y solo se
+reemplazaban dentro de `if (doc.firmante_id)`, que en un borrador es null por
+definición. El papel salía diciendo **«De: Alvarez Pereyra Felipe Miguel ·
+Gerencia General»** en un documento que no había firmado nadie. Y el aviso de
+borrador llevaba `no-print`: se veía en pantalla y **desaparecía justo en el
+papel**.
+
+Ahora arrancan en null y sin firmante se imprime «Pendiente de firma»; el aviso
+sí se imprime y dice que no tiene validez como documento entregado. **En vista
+previa, pendiente de mirar y subir a producción.**
+
+Lo que el catálogo tenía mal: cuando el memo SÍ está firmado pero su ficha no se
+puede leer —una encargada imprimiendo un memo suyo suscrito por gerencia, flujo
+legítimo y a propósito— caer al representante legal no es inventar nada. Ese
+caso avisa en pantalla, no en el papel.
+
+### La 0209 está escrita y SIN TERMINAR — y su primer diseño se descartó midiéndolo
+
+El defecto es real y está reproducido dos veces: `fn_cesar_persona` cierra los
+tramos de salario y horario, `fn_reactivar_persona` no los devuelve, y quien se
+reactiva queda **activa, marcando, cobrando S/0.00** (S/2,254.64 contra S/0.00
+con jornadas idénticas) e **invisible para el motor de faltas** (5 contra 0).
+
+**El primer diseño era simétrico y habría metido un defecto peor que el que
+arregla.** Reabrir el tramo viejo con `vigente_hasta = null` no lo deja vigente
+«desde que volvió»: lo deja vigente **desde su `vigente_desde` hasta el
+infinito**, cubriendo hacia atrás todo el hueco. Medido en `BEGIN … ROLLBACK`:
+
+| Qué | Cuánto |
+|---|---|
+| Reescribe planillas YA PAGADAS | S/2,420.63 en un periodo · **S/3,390.00** en tres |
+| Sobrepaga el periodo EN CURSO | S/1,130.00 del mes entero, sin trabajar un día |
+| Devenga grati, CTS y vacaciones del hueco | **+S/719.52**, y `fn_grati_cts_periodo` lo desembolsa |
+| Fabrica faltas | **89** no justificadas, alimentando el expediente disciplinario |
+
+Y pasa **mudo**: no hay ni un trigger sobre `asignaciones_salario` ni sobre
+`horarios_asignados`, y el candado de periodo pagado vive DENTRO de
+`fn_set_salario`, así que un update desde otra función lo esquiva.
+
+**El diseño que queda:** no se reabre el tramo viejo, se **crea uno nuevo desde
+el día de la reactivación**. El hueco queda sin salario y sin horario, que es la
+verdad —esa persona no trabajó—, y ninguno de los cuatro daños puede ocurrir.
+
+**El candado es ESTRECHO, y se decidió con datos.** Volver a `activo` mueve por
+sí solo el total de las planillas pagadas de quien tiene hijos —S/98.31 por
+periodo, porque la asignación familiar no mira tramos ni jornadas—. Pero de las
+**8 personas inactivas de producción, seis tienen un periodo pagado posterior** y
+para las seis el daño es CERO (RxH, sin hijos, sin sueldo fijo). Un candado sobre
+«hay un periodo pagado» rechazaría seis reactivaciones legítimas de ocho: no
+protegería, prohibiría. Se pone solo donde el daño está medido — `con_hijos` con
+un periodo pagado detrás—, y **eso es una lista que hay que revisar** el día que
+aparezca otro concepto que se pague sin mirar tramos.
+
+**Lo que falta antes de pegarla:** la prueba pgTAP, medir la promesa central
+contra un periodo pagado de verdad, y los tres bordes reproducidos (volver
+teniendo ya un tramo abierto, un tramo cerrado con fecha futura, y el caso de
+cero filas). **No urge:** medido en producción, nadie está hoy en ese estado.
+
+**Y hay dos cosas que la medición destapó y que NO causa la 0209:**
+
+- Una **liquidación ya pagada se vuelve a devengar entera** al reactivar:
+  S/852.19 sobre ventanas ya liquidadas por S/1,380.81. `fn_liquidacion_pagar`
+  escribe en `liquidacion_pagada` y en `correcciones_auditoria`, pero **no** en
+  `desembolsos_beneficios` ni en `movimientos_planilla`, que son las dos únicas
+  cosas que miran los guards de `fn_provisiones`.
+- La cabecera de la **0176 tiene una errata**: dice que «`fn_set_salario`
+  comprueba que la persona esté activa». **Es falso** en la versión vigente — ni
+  esa ni `fn_set_horario_semanal` miran `personas.estado`. Es justo la frase que
+  haría no poner un freno creyéndolo puesto.
+
+---
+
 ## 2026-08-10 — regenerar `types.ts` ya no es solo reordenar
 
 **Medido, no supuesto.** El repositorio venía diciendo que regenerar
