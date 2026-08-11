@@ -53,6 +53,10 @@ const LABEL_PRINCIPAL: Partial<Record<TipoMarca, string>> = {
 
 const SEGUNDOS_CONFIRMACION = 3;
 const SEGUNDOS_MENSAJE = 2.5;
+// Un rechazo se queda MÁS TIEMPO en pantalla. Dos segundos y medio bastan
+// para leer «Listo»; no bastan para leer que no quedó registrada, entenderlo
+// y decidir ir a buscar a la encargada. El que trae mala noticia espera.
+const SEGUNDOS_MENSAJE_ALERTA = 8;
 
 function horaCorta(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", {
@@ -86,6 +90,7 @@ export default function MarcarPage() {
   const [marcasApartadas, setMarcasApartadas] = useState(0);
   const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
   const [mensaje, setMensaje] = useState("");
+  const [tonoMensaje, setTonoMensaje] = useState<"ok" | "alerta">("ok");
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
 
   const cargarTodo = useCallback(async () => {
@@ -378,9 +383,22 @@ export default function MarcarPage() {
     }
 
     let sincronizadoAhora = false;
+    // `llego` distingue «el servidor la rechazó» de «no llegué a preguntarle», y
+    // esa diferencia es la que esta pantalla tiraba a la basura leyendo solo
+    // `ok`. Las dos acababan en el mismo cartel:
+    //
+    //     Listo — Entrada de Mateo (se sincronizará cuando vuelva la conexión)
+    //
+    // Para un corte de red eso es verdad: la marca está en la cola y va a
+    // salir. Para un RECHAZO es mentira, y de la peor clase — el servidor ya
+    // dijo que no y volverá a decirlo en cada reintento hasta que la cola la
+    // descarte a los seis. La persona se va convencida de que marcó, el día se
+    // le cierra solo y cobra las horas que le invente el auto-cierre.
+    let rechazadaPorElServidor = false;
     if (navigator.onLine) {
-      const { ok } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
+      const { ok, llego } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
       sincronizadoAhora = ok;
+      rechazadaPorElServidor = !ok && llego;
     }
 
     // De la cola sale solo lo que el servidor confirmó.
@@ -393,13 +411,20 @@ export default function MarcarPage() {
       }
     }
 
+    // El texto NO empieza por «Listo» cuando no lo está. Es lo único que la
+    // persona lee antes de darse la vuelta, y en una pantalla que se limpia a
+    // los pocos segundos no hay una segunda oportunidad de decírselo.
     setMensaje(
-      `Listo — ${TIPO_MARCA_LABELS[entry.tipo]} de ${personaActual.nombres}${
-        sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
-      }`,
+      rechazadaPorElServidor
+        ? `No quedó registrada — el sistema no aceptó esta marca de ${personaActual.nombres}. `
+          + "Avisa a tu encargada ANTES de irte: no se va a arreglar sola."
+        : `Listo — ${TIPO_MARCA_LABELS[entry.tipo]} de ${personaActual.nombres}${
+            sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
+          }`,
     );
+    setTonoMensaje(rechazadaPorElServidor ? "alerta" : "ok");
     setPantalla("mensaje");
-    setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
+    setTimeout(volverALista, (rechazadaPorElServidor ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
   }
 
   // Sedes presentes en el roster (para el selector) y roster filtrado a la sede activa.
@@ -506,7 +531,7 @@ export default function MarcarPage() {
           />
         )}
 
-        {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} />}
+        {pantalla === "mensaje" && <PantallaMensaje mensaje={mensaje} tono={tonoMensaje} />}
       </main>
     </div>
   );

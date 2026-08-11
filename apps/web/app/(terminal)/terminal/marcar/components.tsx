@@ -342,10 +342,24 @@ export function MotivoReentrada({
   );
 }
 
-export function PantallaMensaje({ mensaje }: { mensaje: string }) {
+/**
+ * El cartel que ve la persona antes de darse la vuelta.
+ *
+ * `tono` existe porque hasta el 2026-08-10 un rechazo del servidor se pintaba
+ * EXACTAMENTE igual que un «Listo»: mismo tamaño, mismo color, mismos dos
+ * segundos y medio. Cambiar solo el texto habría dejado el arreglo a medias —
+ * en una pantalla que se limpia sola, lo que distingue una buena noticia de una
+ * mala es sobre todo el color, y quien marca lo mira de reojo mientras guarda
+ * el celular.
+ */
+export function PantallaMensaje({ mensaje, tono = "ok" }: { mensaje: string; tono?: "ok" | "alerta" }) {
+  const alerta = tono === "alerta";
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-      <p className="font-serif text-3xl">{mensaje}</p>
+    <div className={`flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center ${alerta ? "bg-rojo/[0.06]" : ""}`}>
+      {alerta && <span aria-hidden className="text-5xl">⚠️</span>}
+      <p className={`font-serif text-3xl ${alerta ? "font-medium text-rojo" : ""}`} role={alerta ? "alert" : undefined}>
+        {mensaje}
+      </p>
     </div>
   );
 }
