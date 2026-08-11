@@ -1,5 +1,6 @@
 import type { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import type { OutboxEntry } from "./offline-db";
+import { SEGUNDOS_ESPERA_RED } from "./tope-de-red";
 
 type ClienteTerminal = ReturnType<typeof createTerminalSupabaseClient>;
 
@@ -21,7 +22,7 @@ type ClienteTerminal = ReturnType<typeof createTerminalSupabaseClient>;
  * una persona se quede mirando una pantalla que no avanza. Pasado el tope la
  * marca ya está guardada en la cola y se sincroniza sola.
  */
-export const SEGUNDOS_ESPERA_ENVIO = 8;
+export const SEGUNDOS_ESPERA_ENVIO = SEGUNDOS_ESPERA_RED;
 
 export interface ResultadoEnvio {
   ok: boolean;

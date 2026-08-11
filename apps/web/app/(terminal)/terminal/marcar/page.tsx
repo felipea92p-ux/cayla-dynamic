@@ -8,9 +8,11 @@ import {
   type RosterEntry,
   encolarMarcaje,
   eliminarDeOutbox,
+  obtenerDescartadas,
   obtenerPendientes,
 } from "@/lib/terminal/offline-db";
 import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
+import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { verificarPin } from "@/lib/terminal/pin";
@@ -81,6 +83,7 @@ export default function MarcarPage() {
   const [salidaConfig, setSalidaConfig] = useState<SalidaConfig | null>(null);
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
+  const [marcasApartadas, setMarcasApartadas] = useState(0);
   const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
@@ -93,8 +96,17 @@ export default function MarcarPage() {
 
   useEffect(() => {
     const supabase = createTerminalSupabaseClient();
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) {
+    // getSession() ES LA PRIMERA LLAMADA DE RED DEL ARRANQUE, aunque no lo parezca:
+    // cuando el token guardado está vencido, auth-js sale a renovarlo, y no acepta
+    // señal de aborto. De ahí el `conTope` en vez de un `.abortSignal()`.
+    //
+    // El respaldo es SIN_RESPUESTA y no `{ session: null }`, y esa distinción es
+    // todo el punto: «no hay sesión» manda a vincular el dispositivo, «no hubo
+    // respuesta» tiene que seguir con la caché. Confundirlas mandaría a la sede a
+    // una pantalla de vinculación por un corte de red, con el terminal ya vinculado.
+    const SIN_RESPUESTA = Symbol("sin respuesta");
+    void conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
+      if (respuesta !== SIN_RESPUESTA && !respuesta.data.session) {
         router.replace("/terminal/vincular");
         return;
       }
@@ -120,8 +132,22 @@ export default function MarcarPage() {
   }, [router, cargarTodo]);
 
   // Vigila cuántas marcas quedan sin enviar al servidor (para el aviso visible).
+  //
+  // Y TAMBIÉN LAS APARTADAS, que es lo que faltaba: la cola deja de reintentar una
+  // marca tras seis fallos y la aparta en vez de borrarla —«una marca que una
+  // persona hizo de verdad jamás se destruye»—, pero hasta hoy `obtenerDescartadas`
+  // no la llamaba NADIE en todo el repositorio. O sea que se conservaba y no se
+  // veía: el contador «sin enviar» las excluye, así que al apartarse la última
+  // bajaba a cero y la pantalla decía que estaba todo enviado. Una marca guardada
+  // que nadie sabe que existe se pierde igual que una borrada, solo que más tarde.
   useEffect(() => {
-    const revisar = () => obtenerPendientes().then((p) => setPendientesSinEnviar(p.length)).catch(() => {});
+    const revisar = () =>
+      Promise.all([obtenerPendientes(), obtenerDescartadas()])
+        .then(([p, d]) => {
+          setPendientesSinEnviar(p.length);
+          setMarcasApartadas(d.length);
+        })
+        .catch(() => {});
     revisar();
     const t = setInterval(revisar, 4000);
     return () => clearInterval(t);
@@ -245,7 +271,14 @@ export default function MarcarPage() {
   async function reabrirDia(motivo: string) {
     if (!personaActual) return;
     const supabase = createTerminalSupabaseClient();
-    const { data } = await supabase.auth.getSession();
+    // También con tope: getSession sale a la red cuando el token está vencido, y
+    // sin él esta pantalla se quedaba colgada antes incluso de intentar el fetch.
+    // Si no contesta se sigue sin token: la ruta responderá 401 y la persona verá
+    // «No se pudo reabrir», que es un final y no un cuelgue.
+    const data = await conTope(
+      supabase.auth.getSession().then((r) => r.data),
+      { session: null },
+    );
     let ok = false;
     try {
       const res = await fetch("/api/reabrir-dia", {
@@ -255,6 +288,9 @@ export default function MarcarPage() {
           Authorization: `Bearer ${data.session?.access_token ?? ""}`,
         },
         body: JSON.stringify({ personaId: personaActual.id, motivo }),
+        // Con tope, como todo lo demás: sin él, esta pantalla se quedaba en
+        // «confirmando» para siempre y el guardia de doble envío no se soltaba.
+        signal: topeDeRed(),
       });
       ok = res.ok;
     } catch {
@@ -396,6 +432,15 @@ export default function MarcarPage() {
           {pendientesSinEnviar > 0 && (
             <span className="rounded-full bg-ambar/15 px-3 py-1 text-xs font-medium text-ambar">
               ⟳ {pendientesSinEnviar} sin enviar
+            </span>
+          )}
+          {/* Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven.
+              Por eso van en rojo y con instrucción, no en ámbar como las de arriba
+              —que se van a enviar solas en cuanto haya red— y por eso el texto
+              nombra a la encargada: es la única acción que resuelve esto. */}
+          {marcasApartadas > 0 && (
+            <span className="rounded-full bg-rojo/15 px-3 py-1 text-xs font-medium text-rojo">
+              ⚠ {marcasApartadas} sin registrar — avisa a tu encargada
             </span>
           )}
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>

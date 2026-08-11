@@ -8,6 +8,7 @@ import {
   type SiguienteAccion,
 } from "@cayla-dynamic/shared";
 import { obtenerPendientes } from "./offline-db";
+import { topeDeRed } from "./tope-de-red";
 
 /**
  * Qué día es hoy en Lima.
@@ -33,17 +34,33 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
     // final de hoy para reabrir». El servidor sí filtra por fecha exacta; era
     // esta copia la que difería.
     const { inicio: inicioDia, fin: finDia } = rangoDelDiaLima();
-    const { data } = await supabase
-      .from("marcajes")
-      .select("persona_id, tipo, timestamp_marca")
-      // Las anuladas (mig. 0081) no existen para el estado del día. Sin este
-      // filtro, anular la entrada de alguien dejaba al terminal creyéndolo
-      // dentro: le ofrecería "salida" y no le dejaría volver a marcar entrada.
-      // La 0082 arregló esto en fn_siguiente_tipo_esperado, pero el terminal
-      // decide en el navegador con determinarSiguienteAccion, y esa es otra copia.
-      .is("anulada_at", null)
-      .gte("timestamp_marca", inicioDia)
-      .lte("timestamp_marca", finDia);
+    // Con tope y dentro de un try: esta consulta corre en el arranque y en cada
+    // refresco, y sin tope una red colgada dejaba a `cargarTodo()` esperando para
+    // siempre. Aquí el respaldo es no traer nada del servidor y quedarse con lo
+    // local, que es exactamente lo que hace el bloque de abajo.
+    type FilaMarcaje = {
+      persona_id: string;
+      tipo: MarcajeDelDia["tipo"];
+      timestamp_marca: string;
+    };
+    let data: FilaMarcaje[] | null = null;
+    try {
+      const res = await supabase
+        .from("marcajes")
+        .select("persona_id, tipo, timestamp_marca")
+        .abortSignal(topeDeRed())
+        // Las anuladas (mig. 0081) no existen para el estado del día. Sin este
+        // filtro, anular la entrada de alguien dejaba al terminal creyéndolo
+        // dentro: le ofrecería "salida" y no le dejaría volver a marcar entrada.
+        // La 0082 arregló esto en fn_siguiente_tipo_esperado, pero el terminal
+        // decide en el navegador con determinarSiguienteAccion, y esa es otra copia.
+        .is("anulada_at", null)
+        .gte("timestamp_marca", inicioDia)
+        .lte("timestamp_marca", finDia);
+      data = res.data as unknown as FilaMarcaje[];
+    } catch {
+      data = null;
+    }
 
     for (const m of data ?? []) {
       const lista = mapa.get(m.persona_id) ?? [];
