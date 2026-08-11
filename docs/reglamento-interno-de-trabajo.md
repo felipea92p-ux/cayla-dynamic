@@ -2630,5 +2630,4 @@ Sede: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_  Fecha: \_\_\_\_ / \_\_\_\_ / \_\_\_\_
 
 Firma: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 
-*La constancia puede dejarse también desde el sistema Dynamic, en la pantalla
-Normas, conforme al artículo 60.*
+*La constancia puede dejarse también desde el sistema Dynamic, en la pantalla Normas, conforme al artículo 60.*
