@@ -264,22 +264,48 @@ notify pgrst, 'reload schema';
 -- ── Comprobación ────────────────────────────────────────────────────────────
 -- Va la ÚLTIMA a propósito: el SQL Editor solo muestra la última consulta.
 --
--- `marcas_mudas_en_pagado` es el número que motivó la migración: marcas que ya
--- están dentro de un periodo pagado y que nadie selló. No se corrigen solas
--- —esta migración cambia el futuro, no el pasado— así que si sale distinto de
--- cero, esas son las que conviene mirar en Correcciones.
+-- ⚠️ ESTA CONSULTA SE CORRIGIÓ EL MISMO 2026-08-10, DESPUÉS DE PEGARLA. Nada de
+-- lo que está arriba cambió —ni el cuerpo de la función, ni un permiso, ni el
+-- md5— pero la consulta de abajo preguntaba lo que no era, y en producción
+-- devolvió **1.323**, un número que parecía una catástrofe y no lo era.
+--
+-- Preguntaba «cuántas marcas dentro de un periodo pagado no están señaladas».
+-- Eso es, prácticamente, TODA la asistencia normal de cada mes ya cerrado: 23
+-- personas por 22 días por 2-4 marcas. Con un solo periodo pagado, 1.323 es
+-- exactamente lo que tenía que salir, y no señala nada.
+--
+-- Lo que había que preguntar es cuántas marcas **llegaron al servidor DESPUÉS**
+-- de que ese periodo se pagara, que es lo único anómalo. La respuesta está en
+-- comparar `marcajes.server_received_at` con `periodos_planilla.pagado_at`, y
+-- eso es lo que hace la versión de abajo.
+--
+-- Se deja escrito en vez de borrarlo: un número tranquilizador que asusta gasta
+-- la misma confianza que uno alarmante que no avisa.
 select
+  -- Las anómalas de verdad: su fecha cae en un periodo pagado Y entraron al
+  -- servidor después de pagarlo.
   (select count(*) from marcajes m
-    where m.estado_revision = 'normal'
-      and m.anulada_at is null
-      and exists (select 1 from periodos_planilla p
-                   where p.estado = 'pagado'
-                     and (m.timestamp_marca at time zone 'America/Lima')::date
-                         between p.fecha_ini and p.fecha_fin))
-                                                        as marcas_mudas_en_pagado,
-  (select count(*) from periodos_planilla where estado = 'pagado') as periodos_pagados,
+     join periodos_planilla p
+       on p.estado = 'pagado'
+      and (m.timestamp_marca at time zone 'America/Lima')::date
+          between p.fecha_ini and p.fecha_fin
+    where m.anulada_at is null
+      and p.pagado_at is not null
+      and m.server_received_at > p.pagado_at)                      as marcas_llegadas_tarde,
+  -- Y de esas, las que además nadie señaló: el pasado que la 0207 no arregla,
+  -- porque cambia lo que viene, no lo que ya pasó.
+  (select count(*) from marcajes m
+     join periodos_planilla p
+       on p.estado = 'pagado'
+      and (m.timestamp_marca at time zone 'America/Lima')::date
+          between p.fecha_ini and p.fecha_fin
+    where m.anulada_at is null
+      and p.pagado_at is not null
+      and m.server_received_at > p.pagado_at
+      and m.estado_revision = 'normal')                            as y_sin_ninguna_senal,
+  (select count(*) from periodos_planilla where estado = 'pagado')  as periodos_pagados,
   (select case when prosrc ilike '%v_en_pagado%' then 'sí' else '⚠ NO' end
-     from pg_proc where proname = 'fn_registrar_marcaje')          as la_0207_esta_viva,
+     from pg_proc where proname = 'fn_registrar_marcaje')           as la_0207_esta_viva,
   has_function_privilege('authenticated',
     'public.fn_registrar_marcaje(uuid,tipo_marca,timestamptz,uuid,origen_marca,uuid,uuid,text)'::regprocedure,
-    'EXECUTE')                                                     as terminal_puede_marcar;
+    'EXECUTE')                                                      as terminal_puede_marcar;
