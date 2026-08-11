@@ -594,6 +594,40 @@ caracteres» que circulaban seguirían siendo una suposición escrita en una
 restricción. Aviso en pantalla y nada más, que es lo que ya decidió el
 encabezado de la 0198.
 
+### A.2.d · Dos campos para «¿tiene hijos menores?» — uno paga y el otro declara
+
+**Medido el 2026-08-10: hoy no cuesta nada.** De las 21 personas activas en
+planilla, las 21 concuerdan. Cero desacuerdos, cero fichas sin el dato. Esto
+queda escrito como riesgo latente, no como pendiente urgente — y con la consulta
+que lo vuelve a medir en dos segundos:
+[`los_dos_campos_de_hijos_no_se_hablan.sql`](../scripts/sql-manual/los_dos_campos_de_hijos_no_se_hablan.sql).
+
+| Campo | Quién lo escribe | Qué hace |
+|---|---|---|
+| `personas.con_hijos` (0025) | pantalla de **Equipo**, con `fn_set_con_hijos` | **decide el pago** de los S/113 en `fn_planilla_calcular` |
+| `datos_personales.hijos_menores` (0061) | pantalla de **Datos personales** | **es lo que sale en el padrón** al contador |
+
+**Nada los mantiene de acuerdo.** Ninguna migración menciona los dos a la vez;
+ninguna pantalla escribe los dos. Comprobado con `grep` sobre
+`supabase/migrations` y sobre `apps/web`. Que hoy concuerden es mérito de quien
+los ha ido llenando a mano, no del sistema.
+
+Lo que puede pasar el día que se despisten: marcar «sí tiene hijos» en la ficha,
+que el padrón se lo declare al contador, **y que la planilla abone S/0** porque
+`con_hijos` se quedó en su `false` por defecto. O al revés — cobrar los S/113
+mientras el papel que emite la empresa dice que no corresponden.
+
+⚠️ **Y ojo con el arreglo fácil.** Fusionarlos en un solo campo toca el cálculo
+de planilla, así que va con auditoría empírica contra el Postgres local en
+`BEGIN … ROLLBACK`, como manda el `CLAUDE.md`. Lo barato y sin riesgo mientras
+tanto sería que la pantalla de Datos personales **avise** cuando los dos
+difieran: ya tiene dos comprobaciones cruzadas de esa forma exacta —cobra
+asignación sin hijos registrados, y su inversa— y ninguna mira `con_hijos`.
+
+*(De aquí salió también el arreglo del padrón que ya está hecho: imprimía «NO»
+donde la verdad era «no se sabe». Ver `siNoSinDato` en
+`packages/shared/src/labels.ts`.)*
+
 ### A.3 · Datos que hacen falta para seguir
 
 **0) Nadie tiene contacto de emergencia — las 25, sin una sola excepción.**
