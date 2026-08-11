@@ -122,3 +122,28 @@ export function etiquetaDeCatalogo(
   if (!valor) return null;
   return labels[valor] ?? valor;
 }
+
+/**
+ * Un sí/no que puede no saberse todavía, escrito para un documento que SALE de
+ * la empresa.
+ *
+ * Son TRES estados y tienen que seguir siendo tres. El padrón que va al contador
+ * los imprimía con un ternario —`v ? "SI" : "NO"`— y eso convertía «nadie ha
+ * llenado esta ficha» en un **NO rotundo**: el documento afirmaba ante un
+ * tercero algo que en realidad no se había preguntado nunca.
+ *
+ * Duele distinto según el campo. En la asignación familiar, un «NO» falso dice
+ * que a esa persona no le corresponden los S/113 mensuales que la ley le da por
+ * tener hijos menores; en discapacidad, que no tiene una condición que quizá sí
+ * tiene. En los dos casos es la empresa la que lo pone por escrito.
+ *
+ * Y NO puede resolverse dejando la celda vacía: el padrón ya decidió lo
+ * contrario para las etiquetas de catálogo, y por la misma razón —una celda en
+ * blanco se lee como «no tiene», que es el error que se quería evitar—. Lo
+ * desconocido se dice con todas sus letras o no se dice.
+ */
+export function siNoSinDato(valor: boolean | null | undefined): "SI" | "NO" | "SIN DATO" {
+  if (valor === true) return "SI";
+  if (valor === false) return "NO";
+  return "SIN DATO";
+}

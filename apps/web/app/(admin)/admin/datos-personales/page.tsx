@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -411,10 +411,16 @@ export default function DatosPersonalesPage() {
         Celular: f?.celular ?? "", Correo: p.email ?? "", Direccion: f?.direccion ?? "",
         "Regimen pension": etiqueta(REGIMEN_PENSION_LABELS, p.regimen_pension),
         "CUSPP": f?.cuspp ?? "",
-        "Asignacion familiar": f?.hijos_menores ? "SI" : "NO",
+        // Tres estados, no dos. El ternario de antes —`f?.hijos_menores ? "SI"
+        // : "NO"`— metía en el mismo saco el `false` declarado y el `null` de
+        // una ficha que nadie llenó, así que este papel le AFIRMABA al contador
+        // que la persona no tiene hijos menores cuando la verdad es que no se
+        // sabe. Son S/113 al mes de asignación familiar, y el documento que lo
+        // niega lo emite CAYLA. Ver `siNoSinDato`.
+        "Asignacion familiar": siNoSinDato(f?.hijos_menores),
         Derechohabientes: dh,
         Banco: f?.entidad_bancaria ?? "", Cuenta: f?.numero_cuenta ?? "",
-        Discapacidad: f?.discapacidad ? "SI" : "NO", CONADIS: f?.discapacidad_conadis ?? "",
+        Discapacidad: siNoSinDato(f?.discapacidad), CONADIS: f?.discapacidad_conadis ?? "",
         "Contacto emergencia": f?.emergencia_nombre ?? "",
         "Telefono emergencia": f?.emergencia_telefono ?? "",
         // El sistema NO guarda estos dos y el T-Registro los pide. Van como
