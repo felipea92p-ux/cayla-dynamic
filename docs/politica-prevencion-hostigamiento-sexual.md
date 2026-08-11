@@ -10,7 +10,7 @@
 
 Esta política existe para difundir y explicar. No es la norma.
 
-La norma son los artículos 47 a 51 del Reglamento Interno de Trabajo, que son a la vez la política interna y el protocolo completo de atención y sanción del hostigamiento sexual de CAYLA. Esta política, el formato de queja y las resoluciones de designación o de elección de los órganos tienen finalidad informativa, de difusión y de gestión: **ninguno crea obligaciones, faltas, sanciones ni plazos distintos de los del Reglamento, y si algo aquí discrepa de él, prevalece el Reglamento** (art. 47.2). Su existencia tampoco restringe ningún derecho que el Título X reconoce.
+La norma son los artículos 47 a 51 del Reglamento Interno de Trabajo, que son a la vez la política interna y el protocolo completo de atención y sanción del hostigamiento sexual de CAYLA. Esta política, el formato de queja y las resoluciones de designación o de convocatoria a elección de los órganos tienen finalidad informativa, de difusión y de gestión: **ninguno crea obligaciones, faltas, sanciones ni plazos distintos de los del Reglamento, y si algo aquí discrepa de él, prevalece el Reglamento** (art. 47.2). Su existencia tampoco restringe ningún derecho que el Título X reconoce.
 
 En este documento, cada regla lleva entre paréntesis el artículo del Reglamento del que sale. Cuando dice «el Reglamento», es el Reglamento Interno de Trabajo de CAYLA.
 
@@ -41,7 +41,7 @@ Es una forma de violencia. Se configura con una conducta de naturaleza o connota
 
 ## 3. A quién protege
 
-A toda persona vinculada a CAYLA por cualquier título: colaboradoras con contrato de trabajo, personas en modalidad formativa o de prácticas, **locadoras de servicios** y personal de empresas contratistas o de tercerización que tenga contacto con el equipo con ocasión del servicio. Protege tanto a quien padece la conducta como alcanza a quien la realiza (art. 47.7).
+A toda persona vinculada a CAYLA por cualquier título: colaboradoras con contrato de trabajo, personas en modalidad formativa o de prácticas, **locadoras de servicios** y personal de empresas contratistas, de intermediación o de tercerización que tenga contacto con el equipo con ocasión del servicio. Protege tanto a quien padece la conducta como alcanza a quien la realiza (art. 47.7).
 
 Las locadoras de servicios están excluidas del resto del Reglamento, pero **no de este Título**: les comprende por mandato de la Ley N.° 27942 y de su Reglamento (arts. 2.5 y 47.7). Cuando la queja involucra a una locadora o a una persona en prácticas, se sigue el mismo procedimiento, con la única diferencia de que investiga un órgano formado por dos representantes de Desarrollo Organizacional (DO) y una representante del área donde ocurrieron los hechos (art. 47.7). Aplicar este Título a quien presta servicios de forma independiente no altera la naturaleza civil de su vínculo (art. 47.9).
 
@@ -53,13 +53,17 @@ También alcanza a los actos cometidos por clientas, proveedoras o terceras pers
 
 **Ante Desarrollo Organizacional** (art. 48.1). La queja puede ser verbal o escrita, presencial o electrónica. **La vía verbal basta por sí sola y nadie puede exigirte otra** (art. 48.7).
 
-- La dirección de correo de acceso exclusivo de DO está publicada en cada sede y en Dynamic. Mientras no lo esté, la queja escrita se entrega en sobre cerrado dirigido a DO en cualquier centro de trabajo (art. 48.7). Ninguna cuenta de correo de uso general sirve como canal de queja.
+- Para la vía escrita hay una dirección de correo de acceso exclusivo de DO, que se publica en cada sede y en Dynamic junto con el resto de la información del artículo 48.6. **Mientras esa dirección no esté publicada**, la queja escrita se entrega en sobre cerrado dirigido a DO en cualquier centro de trabajo (art. 48.7). Ninguna cuenta de correo de uso general sirve como canal de queja.
 - **Ningún formato condiciona la queja.** Se presenta en cualquier soporte y con cualquier redacción. Ninguna queja se suspende ni se archiva por no haber usado un formato o por no existir uno (art. 48.8). Si CAYLA pone a disposición un formato, su uso es **voluntario**.
-- **Si la queja es contra la titular de DO**, se presenta ante la Gerencia General, que asume sus funciones (art. 48.2). Para ese supuesto se publica una dirección de correo de acceso exclusivo de la Gerencia General; mientras no lo esté, la queja escrita se entrega en sobre cerrado dirigido a la Gerencia General en cualquier centro de trabajo (art. 48.7).
-- **Si la queja es contra la Gerencia General, una socia, una directora o quien representa a la Empresa**, esa persona queda apartada de todo el procedimiento de pleno derecho, no puede dar instrucciones a quienes intervienen, y la investigación la conduce la Delegada contra el Hostigamiento Sexual o una persona externa e independiente contratada para ese solo encargo (art. 48.2-bis).
+- **Si la queja es contra la titular de DO**, se presenta ante la Gerencia General, que asume sus funciones (art. 48.2). Para ese supuesto hay una dirección de correo de acceso exclusivo de la Gerencia General, que se publica del mismo modo; **mientras esa dirección no esté publicada**, la queja escrita se entrega en sobre cerrado dirigido a la Gerencia General en cualquier centro de trabajo (art. 48.7).
+- **Si la queja es contra la Gerencia General, una socia, una directora o quien representa a la Empresa**, esa persona queda apartada de todo el procedimiento de pleno derecho, no puede dar instrucciones a quienes intervienen, y la investigación la conduce la Delegada contra el Hostigamiento Sexual —o, mientras no haya Delegada elegida, quien ejerza sus funciones conforme al artículo 48.3—. Si esa persona depende directamente de la persona denunciada o puede razonablemente verse afectada por ella, la conduce una persona externa a la Empresa, independiente y con competencia en la materia, contratada para ese solo encargo; su designación consta en acta y se comunica a ambas partes (arts. 48.2-bis a) y b), y 48.3).
 - Nadie interviene en un procedimiento en el que esté involucrada (art. 48.2).
 
-Quién ocupa hoy cada cargo —la Delegada de cada centro de trabajo o el Comité, y DO— se te comunica por escrito al inicio de tu relación con la Empresa, se actualiza en cada cambio y se mantiene publicado en lugar visible de cada sede (art. 48.6). Los artículos 47 a 51 también están publicados en cada sede (art. 48.8).
+Quién ejerce hoy cada función —quién investiga en tu centro de trabajo, y quién es DO— se te comunica por escrito al inicio de tu relación con la Empresa, se actualiza en cada cambio y se mantiene publicado en lugar visible de cada sede (art. 48.6).
+
+**La Delegada contra el Hostigamiento Sexual todavía no ha sido elegida.** El Reglamento entró en vigencia el 10 de agosto de 2026 y manda convocar la primera elección dentro de los treinta (30) días calendario siguientes (art. 48.3). Mientras la Delegada no haya sido elegida y asumido el cargo, esas funciones de investigación y propuesta las ejerce la persona que la Gerencia General designe para ese solo encargo —que nunca puede ser quien sanciona—, y su identidad y sus datos de contacto se publican igual que los de la Delegada. **Ningún plazo ni obligación de este Título queda en suspenso por eso** (art. 48.3): la queja se presenta ante DO igual, y DO sigue siendo quien recibe, protege y decide. Si no ves publicado ese dato en tu sede, pídeselo a DO. El punto 11 explica cómo se elige.
+
+Los artículos 47 a 51 se mantienen publicados en cada sede (art. 48.8).
 
 **Si te enteras de un hecho así, tienes que avisar.** Toda persona que en el ejercicio de sus funciones conoce hechos que puedan constituir hostigamiento sexual debe comunicarlos a DO dentro de **un día hábil**. Alcanza en todo caso a la Gerencia General, a DO, a las encargadas de sede y a las líderes de equipo, y no se agota en ellas. No hacerlo es falta laboral (art. 49.3).
 
@@ -78,7 +82,7 @@ Los plazos son **máximos y no admiten prórroga** (art. 49.4).
 | Se dictan y **ejecutan** las medidas de protección | 3 días hábiles | art. 49.4 c), 50.3 |
 | Se comunica al Ministerio de Trabajo que hay una queja, con las medidas otorgadas | 6 días hábiles | art. 49.4 d) |
 | La persona denunciada presenta sus descargos | plazo no menor de 5 días hábiles, dentro de la investigación | art. 49.5 |
-| La Delegada o el Comité investiga y emite su informe | 15 días calendario desde la queja | art. 49.4 e) |
+| Quien investiga —la Delegada o, mientras no haya sido elegida, la persona designada por la Gerencia General— emite su informe | 15 días calendario desde la queja | arts. 49.4 e), 48.3 |
 | El informe pasa a Desarrollo Organizacional | 1 día hábil | art. 49.4 f) |
 | Ambas partes reciben el informe y pueden presentar alegatos | plazo no menor de 3 días hábiles | art. 49.8 |
 | Desarrollo Organizacional emite su decisión | 10 días calendario desde recibido el informe | art. 49.4 g) |
@@ -89,7 +93,7 @@ Ambas partes tienen derecho a conocer los hechos, a ser escuchadas y a ofrecer p
 
 **Renunciar no cierra el caso.** Que la persona afectada o la denunciada renuncie o cese no exime a CAYLA de iniciar o continuar el procedimiento hasta el final y, si corresponde, de sancionar. No renovar el contrato de la persona denunciada tampoco sustituye a la investigación (art. 49.10).
 
-La decisión final puede impugnarse: se pide reconsideración por escrito a la Gerencia General dentro de los 5 días hábiles siguientes, y ella resuelve por escrito en un plazo no mayor de 10 días hábiles (arts. 49.11 y 55.5).
+La decisión final puede impugnarse: se pide reconsideración por escrito a la Gerencia General dentro de los 5 días hábiles siguientes a la recepción, y ella resuelve por escrito en un plazo no mayor de 10 días hábiles (arts. 49.11 y 55.5). Esta vía interna es **voluntaria** y no te quita el derecho de recurrir a la Autoridad Inspectiva de Trabajo o al Poder Judicial (art. 55.5).
 
 ---
 
@@ -139,7 +143,7 @@ La decisión se motiva por escrito, se notifica a ambas partes y contiene las me
 
 ## 10. No estás obligada a pasar por aquí
 
-Presentar la queja ante CAYLA **no es requisito** para acudir a otra instancia, no la sustituye y no la posterga. Puedes recurrir directamente a la Autoridad Inspectiva de Trabajo (SUNAFIL), al Ministerio de Trabajo y Promoción del Empleo y a sus servicios de orientación y acompañamiento, al Ministerio Público, a la Policía Nacional del Perú y al Poder Judicial (art. 48.9). Sus datos de contacto vigentes están publicados en cada sede.
+Presentar la queja ante CAYLA **no es requisito** para acudir a otra instancia, no la sustituye y no la posterga. Puedes recurrir directamente a la Autoridad Inspectiva de Trabajo (SUNAFIL), al Ministerio de Trabajo y Promoción del Empleo y a sus servicios de orientación y acompañamiento, al Ministerio Público, a la Policía Nacional del Perú y al Poder Judicial (art. 48.9). Sus datos de contacto vigentes se publican y se actualizan junto con la información del artículo 48.6, en cada sede y en Dynamic (arts. 48.9 y 60.4).
 
 Además, cuando quien hostiga es el empleador, personal de dirección o de confianza, una socia, una directora o una accionista, o cuando CAYLA omite investigar o adoptar las medidas que corresponden, la persona afectada puede optar entre pedir el cese de la hostilidad o dar por terminado el contrato y demandar la indemnización del artículo 35 de la Ley de Productividad y Competitividad Laboral, sin que se le exija emplazamiento previo. Conserva el derecho de demandar los daños y perjuicios y de recurrir a la Autoridad Inspectiva de Trabajo (art. 51.11).
 
@@ -149,12 +153,17 @@ Además, cuando quien hostiga es el empleador, personal de dirección o de confi
 
 ## 11. Prevención: capacitación y difusión
 
-- **Al inicio.** Toda persona que se incorpore a CAYLA, bajo cualquiera de las modalidades del artículo 47.7, recibe una capacitación en materia de hostigamiento sexual: para reconocer estas situaciones y para saber cuáles son los canales de queja. La asistencia se registra por escrito. A quienes no reciben ejemplar del Reglamento por no estar comprendidas en su artículo 2, CAYLA les entrega copia del Título X (art. 47.10).
-- **Capacitación especializada** anual para quienes intervienen en la investigación y la sanción, salvo que a CAYLA le aplique la exoneración prevista para la micro y pequeña empresa acreditada en el REMYPE, en cuyo caso deja constancia escrita de su acreditación vigente (art. 47.11).
+- **Al inicio.** Desde la entrada en vigencia del Reglamento, toda persona que se incorpore a CAYLA bajo cualquiera de las modalidades del artículo 47.7 recibe una capacitación en materia de hostigamiento sexual: para reconocer estas situaciones y para saber cuáles son los canales de queja. La asistencia se registra por escrito. A quienes no reciben ejemplar del Reglamento por no estar comprendidas en su artículo 2, CAYLA les entrega copia del Título X (art. 47.10).
+- **Capacitación especializada** anual para quienes intervienen en la investigación y la sanción, salvo que a CAYLA le aplique la exoneración prevista para la micro y pequeña empresa acreditada en el REMYPE, en cuyo caso deja constancia escrita de su acreditación vigente (art. 47.11). CAYLA está en el régimen de la Pequeña Empresa, de modo que puede corresponderle esa exoneración; si la invoca, la constancia escrita es obligatoria.
 - **Difusión periódica** de la información que permite identificar estas conductas y de las sanciones que acarrean (art. 47.12).
 - No asistir sin causa justificada a una capacitación obligatoria de prevención del hostigamiento sexual es falta (art. 53.2 k).
 
-**Órganos.** En cada centro de trabajo con menos de veinte trabajadoras, quien investiga y propone la sanción es la **Delegada contra el Hostigamiento Sexual**, elegida por las trabajadoras de ese centro de trabajo, junto con una Delegada suplente; su elección puede hacerse en la misma votación que la representación de las trabajadoras en seguridad y salud en el trabajo (art. 48.3). Mientras la Delegada no haya sido elegida y haya asumido el cargo, y durante cualquier período en que el cargo esté vacante, esas funciones las ejerce la persona que la Gerencia General designe para ese solo encargo, que nunca puede ser quien sanciona; su identidad y sus datos de contacto se publican igual que los de la Delegada, y ningún plazo ni obligación de este Título queda en suspenso por no haberse realizado todavía la elección, que se convoca dentro de los treinta días calendario siguientes a la entrada en vigencia del Reglamento (art. 48.3). Cuando un centro de trabajo alcanza veinte o más trabajadoras, se constituye un **Comité de Intervención frente al Hostigamiento Sexual** (arts. 48.4 y 48.5). Quien investiga es siempre distinta de quien sanciona (art. 48.3).
+**Órganos.** Quien investiga y propone la sanción es siempre distinta de quien sanciona (art. 48.3).
+
+- **En cada centro de trabajo con menos de veinte trabajadoras** el órgano que investiga y propone es la **Delegada contra el Hostigamiento Sexual**, elegida por las trabajadoras de ese centro de trabajo, junto con una Delegada suplente. Su elección puede hacerse en la misma votación que la de la representación de las trabajadoras en seguridad y salud en el trabajo (art. 48.3).
+- **Hoy no hay Delegada elegida en ninguna sede.** La primera elección se convoca en cada uno de los cuatro centros de trabajo dentro de los treinta (30) días calendario siguientes a la entrada en vigencia del Reglamento —vigente desde el 10 de agosto de 2026—, esto es, a más tardar el **9 de septiembre de 2026**. Mientras la Delegada no haya sido elegida y haya asumido el cargo, y durante cualquier período en que el cargo esté vacante, esas funciones las ejerce la persona que la Gerencia General designe para ese solo encargo, que nunca puede ser quien sanciona; su identidad y sus datos de contacto se publican igual que los de la Delegada, y **ningún plazo ni obligación de este Título queda en suspenso** por no haberse realizado todavía la elección (art. 48.3).
+- **El Comité solo aparece si un centro de trabajo llega a veinte.** Cuando un centro de trabajo alcanza veinte o más trabajadoras se constituye en él un **Comité de Intervención frente al Hostigamiento Sexual**, de cuatro miembros: dos representantes de las trabajadoras, elegidas por ellas, y dos de la Empresa —una de DO y otra designada por la Gerencia General—, con paridad de género (art. 48.4). CAYLA verifica el número de cada centro de trabajo al 1 de enero de cada año y cada vez que incorpora personal, deja constancia escrita del recuento y de su fecha, y constituye o convoca el órgano que corresponda dentro de los treinta días calendario siguientes (art. 48.5).
+- **El umbral de veinte se cuenta por centro de trabajo**, sede por sede, y no sumando el conjunto de la Empresa (art. 48.4). No se confunde con el otro umbral de veinte del Reglamento, el de seguridad y salud en el trabajo, que sí se cuenta por empleador porque así lo manda su propia norma (art. 34.5). Son dos umbrales de veinte con dos formas de contar, cada una fijada por la norma que la impone. El dato aplicable en cada momento es el que conste en la constancia escrita del artículo 48.5, no un número escrito en este documento.
 
 ---
 
@@ -168,8 +177,8 @@ Además, cuando quien hostiga es el empleador, personal de dirección o de confi
 
 ## 13. Dónde encontrar todo esto
 
-- El texto completo de los artículos 47 a 51 está publicado en lugar visible de cada centro de trabajo y en el sistema Dynamic (arts. 48.8 y 60.4).
-- Junto a él se publican y se mantienen actualizados: quién es la Delegada o quiénes integran el Comité de cada centro de trabajo, los datos de contacto de Desarrollo Organizacional, las direcciones de correo exclusivas para quejas escritas y los datos de los canales externos (arts. 48.6, 48.7, 48.9 y 60.4).
+- El texto completo de los artículos 47 a 51 se mantiene publicado en lugar visible de cada centro de trabajo y en el sistema Dynamic (arts. 48.8 y 60.4). El Reglamento se dio treinta (30) días calendario desde su entrada en vigencia —hasta el 9 de septiembre de 2026— para dejar publicada esa información en los cuatro centros de trabajo (art. 61.6). Si al leer esto todavía no la ves publicada en tu sede, pídesela a DO: el plazo no suspende ninguno de tus derechos.
+- Junto a él se publican y se mantienen actualizados: quién ejerce hoy la función de investigar en cada centro de trabajo —la Delegada y su suplente cuando ya estén elegidas, la persona designada por la Gerencia General mientras no lo estén, o el Comité si alguna sede llega a veinte trabajadoras—, los datos de contacto de Desarrollo Organizacional, las direcciones de correo de acceso exclusivo para quejas escritas cuando estén habilitadas y los datos de los canales externos (arts. 48.3, 48.6, 48.7, 48.9 y 60.4).
 - El Reglamento nombra cargos, no personas. Que cambie quien ocupa un cargo no modifica el Reglamento ni exige un nuevo cargo de recepción: basta actualizar la información publicada y comunicarla por escrito (art. 48.6).
 
 ---

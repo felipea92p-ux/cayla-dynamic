@@ -16,7 +16,8 @@ Formato referencial derivado de los artículos 47 a 51 del Reglamento Interno de
 - Ante **Desarrollo Organizacional (DO)**, que recibe la queja, dicta las medidas de protección y emite la decisión final (numeral 48.1).
 - Si la persona denunciada es **la titular de Desarrollo Organizacional**, la queja se presenta ante la **Gerencia General** (numeral 48.2).
 - Si la persona denunciada es **la Gerencia General, una socia, una directora o quien ejerce la representación de la Empresa**, la queja se presenta igualmente ante Desarrollo Organizacional; esa persona queda apartada de pleno derecho de toda intervención en el procedimiento (numeral 48.2-bis).
-- Mientras no esté publicada una dirección de correo de acceso exclusivo, la queja escrita puede entregarse **en sobre cerrado** dirigido a Desarrollo Organizacional —o a la Gerencia General, según el caso— en cualquier centro de trabajo (numeral 48.7).
+- Mientras no esté publicada una dirección de correo de acceso exclusivo, la queja escrita puede entregarse **en sobre cerrado** dirigido a Desarrollo Organizacional —o a la Gerencia General, según el caso— en cualquier centro de trabajo (numeral 48.7). Ninguna cuenta de correo de uso general sirve como canal de queja (numeral 48.7).
+- **Usted no tiene que buscar a quien investiga:** la queja siempre se entrega a Desarrollo Organizacional, y es Desarrollo Organizacional quien corre traslado al órgano que investiga, que es distinto del que decide (numerales 48.1 y 48.3). Quién ejerce ese encargo hoy en su sede está publicado en lugar visible de cada centro de trabajo (numeral 48.6).
 - Presentar la queja ante CAYLA **no es requisito** para acudir a SUNAFIL, al Ministerio de Trabajo y Promoción del Empleo, al Ministerio Público, a la Policía Nacional del Perú o al Poder Judicial, ni la sustituye, ni la posterga (numeral 48.9).
 
 ---
@@ -85,7 +86,7 @@ Nombre y forma de ubicarla, si usted quiere señalarla:
 1. ____________________________________________________________
 2. ____________________________________________________________
 
-> El nombre de las testigos se mantiene en reserva cuando ellas lo soliciten (numeral 48.10). Pueden dictarse medidas de protección a su favor (numeral 50.5), y toda represalia contra quienes declaran está prohibida (numeral 51.6).
+> Señalar testigos **no es requisito** para presentar la queja ni para que se tramite: ninguna queja puede suspenderse en su trámite ni archivarse por la forma en que se presentó (numeral 48.8) y la falta de testigos no constituye falta ni habilita sanción contra quien la presentó (numeral 51.9). El nombre de las testigos se mantiene en reserva cuando ellas lo soliciten (numeral 48.10). Pueden dictarse medidas de protección a su favor (numeral 50.5), y toda represalia contra quienes declaran está prohibida (numeral 51.6).
 
 ## 6. Medios probatorios (opcional)
 
@@ -96,7 +97,7 @@ Descripción de lo que adjunta: _________________________________
 
 ______________________________________________________________
 
-> No presentar pruebas no impide el trámite: la queja no requiere formato ni requisito alguno (numeral 48.8) y, cuando el procedimiento se inicia de oficio o a pedido de una tercera persona, la investigación se conduce con los medios probatorios de que se disponga (numeral 49.2). La valoración toma en cuenta la situación de vulnerabilidad de la persona afectada (numeral 49.9).
+> No presentar pruebas no impide el trámite: la queja no requiere formato alguno y se presenta en cualquier soporte y con cualquier redacción (numeral 48.8) y, cuando el procedimiento se inicia de oficio o a pedido de una tercera persona, la investigación se conduce con los medios probatorios de que se disponga (numeral 49.2). La valoración toma en cuenta la situación de vulnerabilidad de la persona afectada (numeral 49.9).
 
 ## 7. Medidas de protección (opcional)
 
@@ -110,14 +111,14 @@ Las medidas se dictan y ejecutan dentro de los **tres (3) días hábiles** de in
 
 > En ningún caso se considera medida de protección válida ofrecer o imponer vacaciones a la persona afectada que no las ha solicitado (numeral 50.7). La medida de protección no es una sanción ni se computa como tal (numeral 50.8), y puede sustituirse o ampliarse a pedido de parte (numeral 50.9).
 
-## 8. Atención en salud
+## 8. Atención en salud (opcional en este formato)
 
-Dentro de **un (1) día hábil** de recibida la queja, Desarrollo Organizacional pone a disposición de la persona afectada los canales de atención médica, física y mental o psicológica con que cuente la Empresa, o la deriva a servicios de salud a los que pueda acudir (numerales 49.4.a y 50.1).
+Dentro de **un (1) día hábil** de recibida la queja, Desarrollo Organizacional pone a disposición de la persona afectada los canales de atención médica, física y mental o psicológica con que cuente la Empresa, o la deriva a servicios de salud a los que pueda acudir (numerales 49.4.a y 50.1). Ese ofrecimiento se hace en todo caso, esté o no llenada esta sección; si usted la deja en blanco, decidirá cuando se lo ofrezcan.
 
 `[ ]` Acepto la derivación.
 `[ ]` No deseo la derivación por ahora. *Puedo aceptarla después, en cualquier momento.*
 
-Firma de la persona afectada, solo para esta sección (numeral 50.1): _______________________
+Firma de la persona afectada, solo para esta sección y solo si marcó una de las dos casillas —el Reglamento pide su firma tanto si acepta como si no acepta la derivación (numeral 50.1)—: _______________________
 
 > El informe que resulte de esa atención se incorpora al procedimiento como medio probatorio **solo si la persona afectada lo autoriza** (numeral 50.2).
 
@@ -150,10 +151,10 @@ Los plazos siguientes son **máximos y no admiten prórroga** (numeral 49.4). Ca
 | Plazo | Qué ocurre | Base |
 |---|---|---|
 | 1 día hábil | Se pone a disposición de la persona afectada la atención en salud. | 49.4.a · 50.1 |
-| 1 día hábil | Se corre traslado a la Delegada contra el Hostigamiento Sexual o al Comité de Intervención —o, cuando la persona afectada o la denunciada esté unida a CAYLA por locación de servicios, modalidad formativa o prácticas, al órgano integrado por dos (2) representantes de Desarrollo Organizacional y una (1) representante del área donde ocurrieron los hechos (numeral 47.7)—, se inicia la investigación y se ponen los hechos en conocimiento de la persona denunciada. | 49.4.b · 47.7 · 48.3 · 48.4 |
+| 1 día hábil | Se corre traslado al órgano que investiga, se inicia la investigación y se ponen los hechos en conocimiento de la persona denunciada. Ese órgano es la **Delegada contra el Hostigamiento Sexual** de la sede o, mientras no haya sido elegida y asumido el cargo o mientras este esté vacante, **quien ejerza ese encargo por designación de la Gerencia General**, que en ningún caso puede ser quien decide (numeral 48.3); es el **Comité de Intervención** en el centro de trabajo que alcance veinte (20) trabajadoras (numeral 48.4); y es, cuando la persona afectada o la denunciada esté unida a CAYLA por locación de servicios, modalidad formativa o prácticas, el órgano integrado por dos (2) representantes de Desarrollo Organizacional y una (1) representante del área donde ocurrieron los hechos (numeral 47.7); y es una persona o entidad **externa a la Empresa**, independiente y con competencia en la materia, cuando la persona denunciada sea la Gerencia General, una socia, una directora o quien ejerza la representación de la Empresa y la Delegada dependa directamente de ella o pueda razonablemente verse afectada por ella (literal b del numeral 48.2-bis). | 49.4.b · 47.7 · 48.2-bis · 48.3 · 48.4 |
 | 3 días hábiles | Se dictan y ejecutan las medidas de protección. Su ejecución es inmediata. | 49.4.c · 50.3 |
 | 6 días hábiles | Se comunica al Ministerio de Trabajo y Promoción del Empleo la queja recibida y las medidas otorgadas. | 49.4.d |
-| 15 días calendario | La Delegada, el Comité o el órgano del numeral 47.7 investiga y emite su informe. Dentro de ese plazo, la persona denunciada dispone de no menos de 5 días hábiles para sus descargos. | 49.4.e · 49.5 |
+| 15 días calendario | El órgano que investiga —el de la fila anterior, según el caso— investiga y emite su informe. Dentro de ese plazo, la persona denunciada dispone de no menos de 5 días hábiles para sus descargos. | 49.4.e · 49.5 |
 | 1 día hábil | El informe se traslada a Desarrollo Organizacional. | 49.4.f |
 | 10 días calendario | Desarrollo Organizacional emite su decisión. Dentro de ese plazo traslada el informe a ambas partes y les otorga no menos de 3 días hábiles para alegatos. | 49.4.g · 49.8 |
 | 6 días hábiles | La decisión se informa al Ministerio de Trabajo y Promoción del Empleo. | 49.4.h |
@@ -167,9 +168,9 @@ Los plazos siguientes son **máximos y no admiten prórroga** (numeral 49.4). Ca
 - **No revictimización.** La actuación de los medios probatorios no puede exponer a la persona afectada a declaraciones reiterativas de los hechos, careos, confrontaciones con la persona denunciada, ni cuestionamientos a su conducta o a su vida personal (numeral 48.14).
 - **Facilidades.** CAYLA otorga las facilidades necesarias para acudir a centros de salud, denunciar y realizar cualquier acto derivado del hostigamiento sexual; ese tiempo se computa como efectivamente laborado y no se descuenta de las vacaciones ni de ningún otro derecho (numeral 50.10).
 - **La renuncia no cierra el caso.** El cese o el término del vínculo de cualquiera de las partes no exime a CAYLA de iniciar o continuar el procedimiento hasta su culminación (numeral 49.10).
-- **Impugnación.** La decisión que pone fin al procedimiento puede impugnarse conforme al artículo 55: reconsideración ante la Gerencia General dentro de los 5 días hábiles de recibida, resuelta por escrito en no más de 10 días hábiles (numerales 49.11 y 55.5). Cuando la persona denunciada sea la Gerencia General, una socia, una directora o quien ejerza la representación de la Empresa, esta queda apartada de toda intervención en el procedimiento, incluida la resolución de la reconsideración (numeral 48.2-bis, literal a). Esa vía interna es voluntaria y no impide acudir a la vía administrativa o judicial (numerales 49.11 y 55.5).
+- **Impugnación.** La decisión que pone fin al procedimiento puede impugnarse conforme al artículo 55: reconsideración ante la Gerencia General dentro de los 5 días hábiles de recibida, resuelta por escrito en no más de 10 días hábiles (numerales 49.11 y 55.5). Cuando la persona denunciada sea la Gerencia General, una socia, una directora o quien ejerza la representación de la Empresa, esta queda apartada de toda intervención en el procedimiento (literal a del numeral 48.2-bis), y ese apartamiento alcanza también a esta vía, que forma parte del procedimiento (numeral 49.11). Esa vía interna es voluntaria y no impide acudir a la vía administrativa o judicial (numerales 49.11 y 55.5).
 - **Derechos de la persona afectada** cuando quien hostiga es el empleador, personal de dirección o de confianza, socia, directora o accionista, o cuando la Empresa omite investigar o proteger: puede optar entre accionar el cese de la hostilidad o dar por terminado el contrato y demandar la indemnización correspondiente, sin emplazamiento previo, y conserva el derecho de demandar daños y perjuicios y de recurrir a la Autoridad Inspectiva de Trabajo (numeral 51.11).
 
 ---
 
-*Formato referencial de uso voluntario (numeral 48.8). No crea obligaciones, faltas, sanciones ni plazos distintos de los previstos en los artículos 47 a 51 del Reglamento Interno de Trabajo; en caso de discrepancia prevalece el Reglamento (numeral 47.2). La identidad y los datos de contacto de Desarrollo Organizacional y de la Delegada o del Comité de cada centro de trabajo, y los canales externos, se mantienen publicados en lugar visible de cada sede y en el sistema Dynamic (numerales 48.6, 48.9 y 60.4).*
+*Formato referencial de uso voluntario (numeral 48.8). No crea obligaciones, faltas, sanciones ni plazos distintos de los previstos en los artículos 47 a 51 del Reglamento Interno de Trabajo; en caso de discrepancia prevalece el Reglamento (numeral 47.2). La identidad y los datos de contacto de Desarrollo Organizacional y de quien ejerce en cada centro de trabajo el encargo de investigar —la Delegada titular y la suplente, el Comité donde corresponda, o quien ejerza ese encargo mientras la Delegada no haya sido elegida—, y los canales externos, se mantienen publicados en lugar visible de cada sede y en el sistema Dynamic (numerales 48.3, 48.6, 48.9 y 60.4).*

@@ -28,7 +28,7 @@ Están en el artículo 52 y conviene leerlas antes de abrir cualquier caso.
 
 1. **Solo se sanciona lo que está tipificado** (52.3). Si la conducta no está en el artículo 53 ni en los artículos a los que remite, no se sanciona —salvo que sea falta grave del artículo 25 de la LPCL.
 2. **Nunca dos veces por el mismo hecho** (52.5). Un hecho ya sancionado no vuelve a computarse en ningún procedimiento posterior, aunque el documento que lo sancionó siga vigente como antecedente.
-3. **Siempre descargo previo** (52.7, 55.2). Ninguna sanción —**tampoco la amonestación escrita**— se impone sin comunicar antes los hechos por escrito y sin dar plazo de descargo. Omitirlo **invalida** la sanción (55.2 y 19.3).
+3. **Siempre descargo previo** (52.7, 55.2). Ninguna sanción —**tampoco la amonestación escrita**— se impone sin comunicar antes los hechos por escrito y sin dar plazo de descargo. Omitirlo **invalida** la sanción (55.2 y 19.3). Dynamic no deja firmar una amonestación ni una suspensión mientras no consten los cargos comunicados, el plazo vencido y el descargo valorado por escrito, **aunque no se haya presentado ninguno**: si la pantalla se niega a firmar, es esto.
 4. **Inmediatez, sin plazo numérico** (52.6). El Reglamento **no fija un número de días**, porque la ley no lo fija. Lo que sí exige es dejar **constancia escrita de la fecha en que se tomó conocimiento comprobado** de los hechos y actuar desde ahí sin demora injustificada. La demora injustificada hace decaer la facultad sancionadora por condonación tácita.
 5. **La duda favorece a la colaboradora** (52.8). Acreditar la falta corresponde siempre a la Empresa.
 6. **Ninguna sanción automática** (52.9, 46.6). Dynamic detecta, mide, advierte y prepara borradores; **no sanciona**. Que el sistema muestre un umbral alcanzado no es sanción, no es imputación y no obliga a sancionar.
@@ -49,6 +49,8 @@ Están en el artículo 52 y conviene leerlas antes de abrir cualquier caso.
 (Artículo 54.4.)
 
 «Solo en su sede» significa: únicamente respecto de las personas cuya sede base es la suya (54.4 b).
+
+**La carta de despido la suscribe la Gerencia General, y la suscribe en persona** (54.4 c). Desarrollo Organizacional instruye el procedimiento, revisa la medición y prepara el borrador —el literal c) del numeral 54.4 se lo encarga—, pero no la firma. Dynamic tampoco deja firmar un documento a nombre de otra persona: quien firma es quien aparece firmando.
 
 **Una sanción firmada por quien no es competente no produce efecto alguno, no entra al legajo y no sirve de escalón para ninguna sanción posterior** (54.4 d). Ese documento no se convalida añadiéndole después la firma de quien sí lo es: si la Empresa quiere reprochar esos hechos, la persona competente tramita el procedimiento del artículo 55 desde su inicio, con nueva comunicación de cargos y nuevo plazo de descargo, dentro de los límites del principio de inmediatez (52.6).
 
@@ -154,7 +156,7 @@ Y la que más confusión produce: **el antecedente no se reinicia con el cambio 
 | — | Tardanza que no alcanza ningún umbral | Registro en el sistema. **Sin sanción** (19.2 a) |
 | **1.º** | **3 tardanzas** en un mismo periodo mensual calendario, **sin** antecedente vigente por la misma causa | **Amonestación escrita** (19.2 b) |
 | **2.º** | **2 o más tardanzas** en un periodo mensual calendario, **con amonestación escrita vigente** por la misma causa | **Suspensión sin goce de haber de 1 a 3 días** (19.2 c) |
-| **3.º** | **1 o más tardanzas** en un periodo mensual calendario, **con suspensión vigente** por la misma causa | **Segunda suspensión** sin goce de haber **de dos (2) a seis (6) días** (19.2 d), **de mayor duración que la primera** y dentro de los topes del numeral 54.5, que para la falta significativa es de tres (3) días (54.5, primer y segundo párrafo; ver Anexo B) |
+| **3.º** | **1 o más tardanzas** en un periodo mensual calendario, **con suspensión vigente** por la misma causa | **Segunda suspensión** sin goce de haber **de dos (2) a tres (3) días** (19.2 d), **de mayor duración que la primera**, graduada según los mismos criterios del literal c) y **dentro del tope del numeral 54.5** |
 | **4.º** | (i) **1 o más tardanzas** posteriores a la notificación de la segunda suspensión vigente; **o** (ii) **5 o más tardanzas en 30 días corridos** con suspensión previa vigente | **Imputación de cargos** del artículo 57 (19.2 e). Su inicio **no prejuzga** la decisión |
 
 La graduación de los días de suspensión atiende al número de tardanzas, a su magnitud en minutos y a los antecedentes de la colaboradora (19.2 c y d), y el criterio aplicado **se escribe en el documento** (52.4, 55.3).
@@ -201,6 +203,8 @@ Surte efecto de antecedente agravante **durante doce meses contados desde su not
 - La firma es de **Gerencia General o de Desarrollo Organizacional** (54.4 c). La encargada de sede **no puede** firmarla.
 - El documento indica **los días concretos** en que se cumplirá, que **no pueden fijarse sobre días de descanso semanal, feriados ni descanso vacacional** (19.2, reglas comunes; 54.5).
 
+**El margen ya está en la norma.** La primera suspensión es de **uno (1) a dos (2) días** —y no de tres— precisamente para que la segunda pueda ser de mayor duración sin pasarse del tope de tres (3) días del numeral 54.5 (19.2 c, 19.2 d, 54.5). Aun así, graduar la primera en dos días deja una sola salida posible para la segunda: exactamente tres.
+
 Los días de suspensión cumplida **se registran como ausencia disciplinaria, no se computan como inasistencia para ningún efecto y no pueden sustentar una sanción posterior** (19.2 reglas comunes, 54.5).
 
 ### 5.7. Tercer escalón — segunda suspensión
@@ -209,7 +213,7 @@ Mismo procedimiento del segundo escalón. Requisitos propios:
 
 1. **Suspensión anterior vigente** por la misma causa, con su cargo de entrega dentro de los doce meses (19.2 d, 56.3).
 2. Al menos **una tardanza nueva** en un periodo mensual calendario (19.2 d).
-3. La segunda suspensión es de **dos (2) a seis (6) días** conforme al literal d) del numeral 19.2 y, en todo caso, **de mayor duración que la primera**; el numeral 54.5 la mantiene dentro de sus topes, que para la falta significativa son de tres (3) días (19.2 d, 54.5). Ver Anexo B sobre cómo se leen esos topes.
+3. La segunda suspensión es de **dos (2) a tres (3) días** conforme al literal d) del numeral 19.2 y, en todo caso, **de mayor duración que la primera**, graduada según los mismos criterios del literal c) y dentro del tope del numeral 54.5, que para la falta significativa es de tres (3) días (19.2 d, 54.5).
 4. Tope acumulado: la suspensión **no acumula más de quince (15) días en doce (12) meses** (54.5).
 
 ### 5.8. Cuarto escalón — imputación de cargos
@@ -255,7 +259,9 @@ El aviso corresponde a la colaboradora el mismo día y antes del inicio de su jo
 |---|---|---|
 | **1.º** | **1 inasistencia injustificada**, sin antecedente vigente por la misma causa | **Amonestación escrita** (21.2 a) |
 | **2.º** | **1 inasistencia injustificada nueva**, cualquiera sea el mes en que ocurra, **con amonestación escrita vigente** por la misma causa | **Suspensión sin goce de haber de 1 a 3 días** (21.2 b) |
-| **3.º** | **1 inasistencia injustificada nueva**, cualquiera sea el mes, **con suspensión vigente** por la misma causa | **Imputación de cargos** del artículo 57, sin que ello prejuzgue la decisión (21.2 c) |
+| **3.º** | **1 inasistencia injustificada nueva**, cualquiera sea el mes, **con suspensión vigente** por la misma causa | **Segunda suspensión** sin goce de haber **de dos (2) a tres (3) días**, de mayor duración que la primera, dentro del tope del numeral 54.5 (21.2 c). **La imputación de cargos del artículo 57 solo procede si, además, la conducta configura alguna de las causales del numeral 21.5** (21.2 c) |
+
+**El tercer umbral no es automáticamente un despido.** A diferencia de la impuntualidad reiterada, las inasistencias tienen umbrales de falta grave fijados por la ley —los tres del numeral 21.5, que se ven en 6.4—. Sin alcanzar uno de ellos **no hay causal de despido que imputar, por muchas sanciones previas que consten en el legajo**, y abrir el procedimiento del artículo 57 sin causal expondría a la Empresa a un despido sin causa justa (21.2 c). Lo que ese tercer umbral habilita por sí solo es la **segunda suspensión**.
 
 **Qué se reúne en cada umbral:** lo mismo que en las tardanzas (5.5 a 5.7), sustituyendo el detalle de horas y minutos por: la fecha del día no laborado, el turno u horario que le correspondía ese día y la constancia de la verificación del numeral 20.8, más el resultado de la justificación cuando la hubo (20.4).
 
@@ -294,7 +300,7 @@ El descargo es el corazón del procedimiento. El Reglamento lo exige para **toda
 - **Otorgar un plazo no menor de dos (2) días hábiles** (55.2). Puede otorgarse uno mayor; nunca menor.
 - **Admitir el descargo verbal**, levantando acta (55.2, 19.3; Modelo 3).
 - **Mantener el documento como borrador** durante todo el plazo (55.2).
-- **Valorar el descargo por escrito dentro del propio documento**, diciendo si fue acogido total o parcialmente y, si no lo fue, **por qué** (19.3, 55.2).
+- **Valorar el descargo por escrito dentro del propio documento**, diciendo si fue acogido total o parcialmente y, si no lo fue, **por qué** (19.3, 55.2). **Esa valoración escrita se hace también cuando no se presentó descargo alguno**: se deja constancia de que el plazo venció sin respuesta y de con qué elementos se resuelve. Dynamic no deja firmar el documento sin ella; no es un recordatorio, es un requisito que el sistema exige.
 - **Archivar el descargo en el legajo, junto al documento al que responde**, aunque ese documento se encuentre aún en borrador (19.3, 55.6).
 - **Aceptar la justificación tardía con documento idóneo**: se evalúa igualmente, y si se acepta después de emitido un documento disciplinario, **la Empresa lo deja sin efecto en la parte que corresponde a ese día** y lo hace constar en el legajo (18.5, 20.4, 55.8).
 
@@ -323,7 +329,7 @@ El descargo es el corazón del procedimiento. El Reglamento lo exige para **toda
 
 **Legajo (55.6):** la comunicación de cargos, el descargo, el documento de sanción, su cargo o acta de negativa y la resolución de la reconsideración se registran en el **expediente disciplinario en Dynamic**, que es el legajo único para estos efectos.
 
-**Reconsideración interna (55.5):** la colaboradora puede pedirla por escrito ante Gerencia General **dentro de los cinco (5) días hábiles** siguientes a la recepción; Gerencia General resuelve por escrito **en no más de diez (10) días hábiles**. No suspende la ejecución salvo que Gerencia General lo disponga. Si se declara fundada, el documento se anula y deja de producir efecto agravante desde ese momento, y así consta en el legajo. Esta vía es **voluntaria** y no restringe el derecho a acudir a la Autoridad Inspectiva de Trabajo ni al Poder Judicial.
+**Reconsideración interna (55.5):** la colaboradora puede pedirla por escrito ante Gerencia General **dentro de los cinco (5) días hábiles** siguientes a la recepción; Gerencia General resuelve por escrito **en no más de diez (10) días hábiles**. No suspende la ejecución salvo que Gerencia General lo disponga. Si se declara fundada, el documento se anula y deja de producir efecto agravante desde ese momento, y así consta en el legajo. Esta vía es **voluntaria** y no restringe el derecho a acudir a la Autoridad Inspectiva de Trabajo ni al Poder Judicial. El Reglamento manda dejar constancia, en beneficio de la colaboradora, de que conforme al criterio del **IX Pleno Jurisdiccional Supremo en materia Laboral y Previsional** el plazo para impugnar judicialmente una sanción distinta al despido es de **treinta (30) días hábiles** desde el día siguiente de notificada la medida; la vía interna no lo suspende, no lo interrumpe y no lo sustituye (55.5).
 
 **Canal de consultas y reclamos (43-B):** la colaboradora puede presentar consultas y reclamos ante la encargada de su sede, su líder de equipo o directamente ante DO, por cualquier medio que deje constancia; DO responde por escrito dentro de los **diez (10) días hábiles**. Presentar un reclamo **no constituye falta ni puede motivar consecuencia desfavorable alguna**.
 
@@ -411,18 +417,19 @@ Cada línea de esta lista corresponde a una regla del Reglamento. No son recomen
 15. **Imputar falta grave por «la sola inobservancia del Reglamento»** mientras este no haya sido presentado ante la Autoridad Administrativa de Trabajo: la imputación se funda en la conducta concreta y en la causal legal que la tipifica (2.4).
 16. **Citar el inciso a) del artículo 25 de la LPCL** en una imputación por impuntualidad reiterada: vicia la imputación desde su origen. Se cita el **inciso h)** (19.6).
 17. **Despedir por tardanzas sin las dos suspensiones previas notificadas**, o sin la amonestación escrita (19.6, 57.10).
-18. **Cambiar la causa entre la imputación y la carta de despido** (19.6, 57.7).
-19. **Aplicar una sanción distinta de las tres de la escala** —multa, descuento sancionador, traslado, cambio de turno, rebaja de categoría o de funciones con finalidad de castigo—: son actos de hostilidad (54.6, 29.4).
-20. **Aplicar un descuento por los días de suspensión, o por tardanzas e inasistencias**, además del no cómputo de horas (54.6, 29.5, 23.5, 17.6, 20.5).
-21. **Fijar la suspensión sobre descanso semanal, feriados o vacaciones** (54.5).
-22. **Exceder los topes de suspensión** del numeral 54.5, incluido el acumulado de quince (15) días en doce (12) meses.
-23. **Demorar sin justificación** desde el conocimiento comprobado del hecho: hay condonación tácita, y un hecho condonado no sustenta sanción ni se valora como antecedente (52.6, 19.4).
-24. **Dejar constancia disciplinaria fuera de Dynamic** —mensajería, correo personal, documento suelto— o archivar en el legajo documentos que el sistema no respalde (54.2).
-25. **Emitir la sanción porque el sistema la propuso**, sin revisión, decisión y firma de persona competente (52.9, 46.6, 56.3).
-26. **Sancionar a quien no está comprendida**: locadoras y locadores de servicios (2.5), y personal de dirección o no sujeto a fiscalización inmediata calificado por escrito (15, 19.7, 21.7).
-27. **Imputar abandono de trabajo sin cursar antes el requerimiento de reincorporación** al domicilio registrado, con plazo no menor de dos (2) días hábiles y constancia de su envío y resultado (57.9, 21.6).
-28. **Rechazar una justificación sin motivo escrito** (18.4).
-29. **Consignar el motivo de una ausencia del artículo 22 en tableros, listados o reportes de acceso general** (22.5).
+18. **Imputar cargos por inasistencias sin que la conducta configure alguna de las tres causales del numeral 21.5.** El tercer umbral del numeral 21.2 c) habilita por sí solo una segunda suspensión, no una imputación: sin causal legal no hay falta grave que imputar, por muchas sanciones previas que consten, y abrirla igual expone a la Empresa a un despido sin causa justa (21.2 c, 21.5).
+19. **Cambiar la causa entre la imputación y la carta de despido** (19.6, 57.7).
+20. **Aplicar una sanción distinta de las tres de la escala** —multa, descuento sancionador, traslado, cambio de turno, rebaja de categoría o de funciones con finalidad de castigo—: son actos de hostilidad (54.6, 29.4).
+21. **Aplicar un descuento por los días de suspensión, o por tardanzas e inasistencias**, además del no cómputo de horas (54.6, 29.5, 23.5, 17.6, 20.5).
+22. **Fijar la suspensión sobre descanso semanal, feriados o vacaciones** (54.5).
+23. **Exceder los topes de suspensión** del numeral 54.5: tres (3) días por falta significativa —y las tardanzas reiteradas y la inasistencia injustificada lo son (53.2 b y c)—, ocho (8) días por falta grave que no se sancione con despido, y el acumulado de quince (15) días en doce (12) meses.
+24. **Demorar sin justificación** desde el conocimiento comprobado del hecho: hay condonación tácita, y un hecho condonado no sustenta sanción ni se valora como antecedente (52.6, 19.4).
+25. **Dejar constancia disciplinaria fuera de Dynamic** —mensajería, correo personal, documento suelto— o archivar en el legajo documentos que el sistema no respalde (54.2).
+26. **Emitir la sanción porque el sistema la propuso**, sin revisión, decisión y firma de persona competente (52.9, 46.6, 56.3).
+27. **Sancionar a quien no está comprendida**: locadoras y locadores de servicios (2.5), y personal de dirección o no sujeto a fiscalización inmediata calificado por escrito (15, 19.7, 21.7).
+28. **Imputar abandono de trabajo sin cursar antes el requerimiento de reincorporación** al domicilio registrado, con plazo no menor de dos (2) días hábiles y constancia de su envío y resultado (57.9, 21.6).
+29. **Rechazar una justificación sin motivo escrito** (18.4).
+30. **Consignar el motivo de una ausencia del artículo 22 en tableros, listados o reportes de acceso general** (22.5).
 
 ---
 
@@ -528,15 +535,15 @@ Los modelos se emiten desde Dynamic (54.2, 55.6). Los corchetes se completan; na
 >
 > **4. Verificación de antecedentes.** Se comprobó que [no existe antecedente entregado y vigente por la misma causa / el documento ( ) fue entregado el ( ), dentro de los doce meses anteriores al hecho evaluado], conforme al numeral 56.3.
 >
-> **5. Sanción.** **Amonestación escrita**, conforme al numeral i) del numeral 54.1.
+> **5. Sanción.** **Amonestación escrita**, primera sanción de la escala del numeral 54.1.
 >
 > **6. Criterio de graduación.** [Número de hechos, magnitud, circunstancias y antecedentes considerados], conforme a los numerales 52.4 y 54.8.
 >
 > **7. Efecto.** Esta amonestación se incorpora a su legajo y surte efecto de antecedente agravante durante **doce (12) meses contados desde su notificación** (numerales 19.2 b y 56.1). El cómputo de una eventual medida posterior solo considerará hechos posteriores al [fecha final del periodo aquí cubierto] (numeral 56.6).
 >
-> **8. Advertencia.** De reiterarse la conducta en los términos del literal [c) del numeral 19.2 / b) del numeral 21.2], la sanción siguiente en la escala es la **suspensión sin goce de remuneraciones de uno (1) a tres (3) días** (numeral 55.3).
+> **8. Advertencia.** De reiterarse la conducta en los términos del literal [c) del numeral 19.2 / b) del numeral 21.2], la sanción siguiente en la escala es la **suspensión sin goce de remuneraciones de uno (1) a dos (2) días** (numeral 55.3).
 >
-> **9. Reconsideración.** Puede solicitarla por escrito ante Gerencia General dentro de los cinco (5) días hábiles siguientes a la recepción; se resuelve por escrito en no más de diez (10) días hábiles (numeral 55.5). Esta vía es voluntaria y no restringe su derecho a acudir a la Autoridad Inspectiva de Trabajo o al Poder Judicial.
+> **9. Reconsideración.** Puede solicitarla por escrito ante Gerencia General dentro de los cinco (5) días hábiles siguientes a la recepción; se resuelve por escrito en no más de diez (10) días hábiles (numeral 55.5). Esta vía es voluntaria y no restringe su derecho a acudir a la Autoridad Inspectiva de Trabajo o al Poder Judicial. Se deja constancia, conforme al mismo numeral 55.5, de que según el criterio del IX Pleno Jurisdiccional Supremo en materia Laboral y Previsional el plazo para impugnar judicialmente una sanción distinta al despido es de treinta (30) días hábiles contados desde el día siguiente de esta notificación, y de que esta vía interna no lo suspende, no lo interrumpe ni lo sustituye.
 >
 > ____________________
 > [nombre], [cargo] · Fecha: [ ]
@@ -554,7 +561,7 @@ Los modelos se emiten desde Dynamic (54.2, 55.6). Los corchetes se completan; na
 >
 > **1. Hechos.** [Detalle con fechas.]
 >
-> **2. Norma infringida.** Literal [b/c] del numeral 53.2, con la gradación del literal [c) o d) del numeral 19.2 / b) del numeral 21.2].
+> **2. Norma infringida.** Literal [b/c] del numeral 53.2, con la gradación del literal [c) o d) del numeral 19.2 / b) o c) del numeral 21.2].
 >
 > **3. Antecedente que habilita este escalón.** [Documento], **entregado** el [fecha], vigente por la misma causa. Se dejó constancia de esta comprobación conforme al numeral 56.3.
 >
@@ -564,7 +571,7 @@ Los modelos se emiten desde Dynamic (54.2, 55.6). Los corchetes se completan; na
 >
 > Estos días no son de descanso semanal, ni feriados, ni de descanso vacacional (numeral 54.5).
 >
-> **6. Criterio de graduación.** [Número de tardanzas o inasistencias, magnitud en minutos, antecedentes y circunstancias]. [Cuando sea la segunda suspensión: Esta suspensión es de mayor duración que la anterior, conforme al literal d) del numeral 19.2 y al numeral 54.5.]
+> **6. Criterio de graduación.** [Número de tardanzas o inasistencias, magnitud en minutos, antecedentes y circunstancias]. [Cuando sea la segunda suspensión: Esta suspensión es de dos (2) a tres (3) días y de mayor duración que la anterior, conforme al literal d) del numeral 19.2 o al literal c) del numeral 21.2, según corresponda, y dentro del tope del numeral 54.5.]
 >
 > **7. Efectos económicos.** Conforme a los numerales 54.6, 29.5 y 23.5, los días de suspensión **no generan pago de horas** y **no dan lugar a descuento adicional alguno** por el mismo hecho, ni sobre el descanso semanal ni sobre ningún otro concepto. Su boleta no contendrá concepto alguno de descuento por este motivo.
 >
@@ -614,7 +621,7 @@ Los modelos se emiten desde Dynamic (54.2, 55.6). Los corchetes se completan; na
 >
 > **3. Calificación.** Inasistencia injustificada, falta significativa del literal c) del numeral 53.2, con la gradación del artículo 21.
 >
-> **4. Escalón que correspondería.** [Amonestación escrita, literal a) del numeral 21.2 / Suspensión de uno (1) a tres (3) días, literal b) / Imputación de cargos del artículo 57, literal c)].
+> **4. Escalón que correspondería.** [Amonestación escrita, literal a) del numeral 21.2 / Primera suspensión de uno (1) a dos (2) días, literal b) / Segunda suspensión de dos (2) a tres (3) días, de mayor duración que la primera y dentro del tope del numeral 54.5, literal c)]. [Solo cuando la conducta configure alguna de las causales del numeral 21.5, que se indica cuál: imputación de cargos del artículo 57.]
 >
 > **5. Antecedente invocado**, cuando lo haya: [documento], notificado el [ ], vigente por la misma causa.
 >
@@ -719,17 +726,11 @@ Los modelos se emiten desde Dynamic (54.2, 55.6). Los corchetes se completan; na
 
 ---
 
-## 15. Anexo B — Dos puntos que se leen con cuidado
+## 15. Anexo B — Un punto que se lee con cuidado
 
 Este anexo no crea reglas: aplica las que el propio Reglamento da para resolver dudas de lectura.
 
-**1. La duración de la segunda suspensión por tardanzas.** El literal d) del numeral 19.2 habilita una segunda suspensión «de dos (2) a seis (6) días». El numeral 54.5 establece que la suspensión **no excede de tres (3) días por una falta significativa**, y las tardanzas reiteradas son falta significativa (literal b del numeral 53.2). El literal d) del numeral 19.2 no remite al numeral 54.5. Es el numeral 54.5, en su segundo párrafo, el que alcanza a esa segunda suspensión: «Cuando la gradación del artículo 19 o la del artículo 21 prevea una segunda suspensión por la misma causa, esta es de mayor duración que la primera y se mantiene dentro de los topes de este numeral».
-
-Cómo se resuelve, aplicando el numeral 1.4 —duda insalvable sobre una disposición que establece una sanción: interpretación más favorable a la colaboradora— y el segundo párrafo del numeral 4.1 —entre disposiciones internas de igual rango prevalece la más favorable—: **la segunda suspensión por tardanzas se impone entre dos (2) y tres (3) días**, siempre de mayor duración que la primera. En la práctica esto significa que la primera suspensión debe graduarse dejando margen: una primera suspensión de tres días no deja espacio para una segunda mayor dentro del tope.
-
-Corresponde a Gerencia General decidir si aclara este punto en la próxima versión del Reglamento.
-
-**2. Una sola tardanza cuando hay amonestación vigente.** El literal c) del numeral 19.2 exige **dos o más** tardanzas en el periodo mensual para el segundo escalón. Una sola tardanza con amonestación vigente **no alcanza ningún umbral**: es tardanza ocasional del literal a) y **no da lugar a sanción**. No se «adelanta» el escalón por existir un antecedente; el antecedente cambia el umbral aplicable, no lo elimina.
+**Una sola tardanza cuando hay amonestación vigente.** El literal c) del numeral 19.2 exige **dos o más** tardanzas en el periodo mensual para el segundo escalón. Una sola tardanza con amonestación vigente **no alcanza ningún umbral**: es tardanza ocasional del literal a) y **no da lugar a sanción**. No se «adelanta» el escalón por existir un antecedente; el antecedente cambia el umbral aplicable, no lo elimina.
 
 ---
 
@@ -749,6 +750,8 @@ Se marca cada casilla en el expediente. Si una queda sin marcar, el documento no
 - [ ] Quien firma es competente para esa sanción (54.4).
 - [ ] El documento contiene todo lo que exige el numeral 55.3, incluida la advertencia de cuál es la sanción siguiente.
 - [ ] Si es suspensión: días concretos indicados, ninguno sobre descanso semanal, feriado ni vacaciones; dentro de los topes del numeral 54.5; sin coordinación de descuento alguno (54.5, 54.6, 29.5).
+- [ ] Si es la **segunda** suspensión: de dos (2) a tres (3) días y de mayor duración que la primera, sin pasar el tope de tres (3) días (19.2 d, 21.2 c, 54.5).
+- [ ] Si es **imputación de cargos por inasistencias**: la conducta configura una de las tres causales del numeral 21.5 y el documento dice cuál (21.2 c, 21.5).
 - [ ] El documento se emitió desde Dynamic y quedará en el expediente disciplinario, con su cargo o acta de negativa (54.2, 55.6).
 
 ---

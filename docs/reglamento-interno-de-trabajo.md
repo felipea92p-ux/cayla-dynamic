@@ -738,7 +738,7 @@ Habilita la emisión de amonestación escrita, que se incorpora al legajo y surt
 
 **c) Segundo escalón — primera suspensión sin goce de haber.** **Dos (2) o más tardanzas en un periodo mensual calendario**, cuando la colaboradora cuenta con una amonestación escrita vigente por la misma causa, notificada dentro de los doce (12) meses anteriores conforme al literal c) del numeral 19.1.
 
-Habilita suspensión sin goce de haber **de uno (1) a tres (3) días**, graduada según el número de tardanzas, su magnitud en minutos y los antecedentes de la colaboradora.
+Habilita suspensión sin goce de haber **de uno (1) a dos (2) días**, graduada según el número de tardanzas, su magnitud en minutos y los antecedentes de la colaboradora. El tope de este escalón es de dos (2) días —y no de tres— para que el escalón siguiente pueda ser de mayor duración sin exceder el límite del numeral 54.5.
 
 **d) Tercer escalón — segunda suspensión sin goce de haber.** **Una (1) o más tardanzas en un periodo mensual calendario**, cuando la colaboradora cuenta con una suspensión vigente por la misma causa.
 
@@ -842,7 +842,7 @@ Solo se computan las inasistencias injustificadas conforme al artículo 20. Un d
 
 **a) Primer umbral — amonestación escrita.** Una (1) inasistencia injustificada, sin antecedente disciplinario vigente por la misma causa. Se incorpora al legajo y surte efecto de antecedente agravante durante doce (12) meses contados desde su notificación.
 
-**b) Segundo umbral — suspensión sin goce de haber de uno (1) a tres (3) días.** Una (1) inasistencia injustificada nueva, cualquiera sea el periodo mensual calendario en que ocurra, cuando la colaboradora cuenta con una amonestación escrita vigente por la misma causa.
+**b) Segundo umbral — suspensión sin goce de haber de uno (1) a dos (2) días.** Una (1) inasistencia injustificada nueva, cualquiera sea el periodo mensual calendario en que ocurra, cuando la colaboradora cuenta con una amonestación escrita vigente por la misma causa. El tope de este umbral es de dos (2) días —y no de tres— para que el umbral siguiente pueda ser de mayor duración sin exceder el límite del numeral 54.5.
 
 La suspensión se comunica por escrito con los hechos, los días en que se cumplirá y el criterio de graduación, y no puede fijarse sobre días de descanso semanal, feriados ni descanso vacacional.
 
@@ -2262,7 +2262,7 @@ d) Ninguna sanción impuesta por quien no es competente conforme a este numeral 
 
 **54.5. Límites de la suspensión.** La suspensión sin goce de remuneraciones no excede de tres (3) días por una falta significativa, ni de ocho (8) días por una falta grave que la Empresa decida no sancionar con despido, ni acumula más de quince (15) días en doce (12) meses.
 
-Cuando la gradación del artículo 19 o la del artículo 21 prevea una segunda suspensión por la misma causa, esta es de mayor duración que la primera y se mantiene dentro de los topes de este numeral.
+Cuando la gradación del artículo 19 o la del artículo 21 prevea una segunda suspensión por la misma causa, esta es de mayor duración que la primera y se mantiene dentro de los topes de este numeral. Para que las dos condiciones puedan cumplirse a la vez, la primera suspensión de esas gradaciones no excede de dos (2) días: si agotara el tope de tres, ninguna segunda suspensión podría ser mayor sin superarlo, y el escalón quedaría sin contenido posible.
 
 La suspensión se comunica por escrito indicando los hechos, los días concretos en que se cumplirá y el criterio de graduación aplicado. No puede fijarse sobre días de descanso semanal, feriados ni descanso vacacional.
 

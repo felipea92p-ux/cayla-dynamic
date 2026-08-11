@@ -19,11 +19,11 @@ La necesidad de dejar operativos, desde el primer día de vigencia de ese Reglam
 
 **Primero.** CAYLA no tolera ningún acto de hostigamiento sexual, y asume el deber de prevenirlo, atenderlo, investigarlo y sancionarlo (numeral 47.1).
 
-**Segundo.** Los artículos 47 a 51 del Reglamento son, a la vez, la política interna y el protocolo completo de atención y sanción: contienen los órganos, los canales, el procedimiento y sus plazos. Los instrumentos complementarios que la Empresa apruebe en esta materia —incluida la presente Resolución— tienen finalidad **informativa, de difusión y de gestión**; ninguno crea obligaciones, faltas, sanciones ni plazos distintos de los previstos en esos artículos, y en caso de discrepancia prevalece el Reglamento (numeral 47.2, y artículos 4.3 y 4.5).
+**Segundo.** Los artículos 47 a 51 del Reglamento son, a la vez, la política interna y el protocolo completo de atención y sanción: contienen los órganos, los canales, el procedimiento y sus plazos. Los instrumentos complementarios que la Empresa apruebe en esta materia —incluida la presente Resolución— tienen finalidad **informativa, de difusión y de gestión**; ninguno crea obligaciones, faltas, sanciones ni plazos distintos de los previstos en esos artículos, y en caso de discrepancia prevalece el Reglamento (numeral 47.2, y numerales 4.3 y 4.5).
 
 **Tercero.** El Reglamento **separa** las funciones: Desarrollo Organizacional (DO) recibe la queja o denuncia, dicta y ejecuta las medidas de protección y emite la decisión final (numeral 48.1), mientras que **la investigación y la propuesta de sanción corresponden a un órgano distinto del que sanciona** (numeral 48.3). Ninguna resolución de la Empresa puede reunir ambas funciones en una sola persona.
 
-**Cuarto.** El órgano que investiga y propone en cada centro de trabajo que no alcance el umbral del numeral 48.4 es la **Delegada contra el Hostigamiento Sexual**, y esa figura **se elige por las trabajadoras de ese centro de trabajo**; la Empresa no la designa (numeral 48.3). La designación por la Gerencia General **solo cabe mientras la Delegada no haya sido elegida y haya asumido el cargo, y durante cualquier período de vacancia**, y la persona designada **en ningún caso puede ser quien ejerce la función sancionadora** del numeral 48.1 (numeral 48.3). Por eso la designación que esta Resolución dispone es transitoria y cesa de pleno derecho.
+**Cuarto.** El órgano que investiga y propone en cada centro de trabajo que no alcance el umbral del numeral 48.4 es la **Delegada contra el Hostigamiento Sexual**, y esa figura **se elige por las trabajadoras de ese centro de trabajo**; la Empresa no la designa (numeral 48.3). La designación por la Gerencia General **solo cabe mientras la Delegada no haya sido elegida y asumido el cargo, y durante cualquier período en que el cargo esté vacante**, y la persona designada **en ningún caso puede ser quien ejerce la función sancionadora** del numeral 48.1 (numeral 48.3). Por eso la designación que esta Resolución dispone es transitoria y cesa de pleno derecho.
 
 **Quinto.** Ninguna obligación ni plazo del Título X queda en suspenso por no haberse realizado todavía la elección (numeral 48.3).
 
@@ -57,9 +57,9 @@ e) Presentar la queja ante CAYLA **no es requisito** para acudir a otra instanci
 
 ### Artículo segundo.- Designación transitoria de la persona a cargo de la investigación y la propuesta
 
-**2.1.** Se designa a **\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_** (cargo: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_) para ejercer **las funciones de investigación y propuesta** que el Título X atribuye a la Delegada contra el Hostigamiento Sexual, **mientras la Delegada no haya sido elegida y asumido el cargo y durante cualquier período de vacancia** (numeral 48.3).
+**2.1.** Se designa a **\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_** (cargo: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_) para ejercer **las funciones de investigación y propuesta** que el Título X atribuye a la Delegada contra el Hostigamiento Sexual **en cada uno de los cuatro centros de trabajo** —Central (CCO), Taller Lima, Tienda Arequipa y Tienda Trujillo—, **mientras la Delegada de ese centro de trabajo no haya sido elegida y asumido el cargo y durante cualquier período en que el cargo esté vacante** (numerales 48.3, 48.4 y 48.5).
 
-**2.2. Carácter transitorio.** Esta designación **no es definitiva ni indefinida**. Cesa **de pleno derecho, sin necesidad de acto que lo declare**, en el momento en que la Delegada elegida en el centro de trabajo que corresponda asume el cargo (numeral 48.3). Los procedimientos que a esa fecha se encuentren en trámite ante ella pasan de inmediato a la Delegada elegida, a quien se entrega el expediente completo. Los plazos del numeral 49.4 siguen corriendo y no admiten prórroga (numerales 48.3 y 49.4).
+**2.2. Carácter transitorio.** Esta designación **no es definitiva ni indefinida**. Cesa **de pleno derecho, sin necesidad de acto que lo declare, y centro de trabajo por centro de trabajo**: respecto de cada uno de los cuatro, en el momento en que la Delegada elegida en ese centro de trabajo asume el cargo. El cese respecto de un centro de trabajo no altera el encargo respecto de los demás (numeral 48.3). La elección que le pone término se convoca en el plazo del numeral 3.2 de esta Resolución. Los procedimientos de ese mismo centro de trabajo que a esa fecha se encuentren en trámite ante ella pasan de inmediato a la Delegada elegida, a quien se entrega el expediente completo. Los plazos del numeral 49.4 siguen corriendo y no admiten prórroga (numerales 48.3 y 49.4).
 
 **2.3. Incompatibilidad.** La persona designada **no es, ni puede ser, quien ejerce la función sancionadora** del numeral 48.1; se deja constancia de que no integra ni dirige Desarrollo Organizacional a efectos de la decisión final (numeral 48.3). Ninguna persona interviene en un procedimiento en el que esté involucrada: quien lo esté debe abstenerse de participar en cualquier etapa (numeral 48.2). Producido el impedimento, la Gerencia General designa **mediante acta que se incorpora al expediente** a otra persona para ese solo procedimiento, con la misma incompatibilidad de este numeral (numerales 48.2 y 48.3).
 
@@ -85,7 +85,7 @@ f) comunicarse con la persona afectada únicamente a través de los canales form
 
 **3.1.** Se convoca, **en cada uno de los cuatro centros de trabajo** —Central (CCO), Taller Lima, Tienda Arequipa y Tienda Trujillo—, la elección de la **Delegada contra el Hostigamiento Sexual titular** y de la **Delegada suplente**, elegidas por las trabajadoras de ese centro de trabajo (numeral 48.3).
 
-**3.2. Plazo.** La convocatoria se practica **dentro de los treinta (30) días calendario siguientes a la entrada en vigencia del Reglamento**, esto es, a más tardar el **9 de septiembre de 2026** (numeral 48.3; el cómputo en días calendario es el del literal u del numeral 3.2).
+**3.2. Plazo.** La convocatoria se practica **dentro de los treinta (30) días calendario siguientes a la entrada en vigencia del Reglamento**, esto es, a más tardar el **9 de septiembre de 2026** (numeral 48.3; el cómputo en días calendario es el del literal u del numeral 3.2 del Reglamento).
 
 **3.3. Elección conjunta.** La elección **puede** realizarse conjuntamente con la de la representación de las trabajadoras en seguridad y salud en el trabajo del artículo 34 —con la Supervisora de Seguridad y Salud en el Trabajo cuando corresponda una Supervisora, y con las representantes ante el Comité cuando corresponda un Comité— (numeral 48.3). Cuando así se realice, la Empresa **convoca la elección y facilita su realización dentro de la jornada de trabajo, no designa a la elegida ni condiciona su elección, y el resultado consta en acta que se archiva y se publica en cada sede** (numeral 34.2). En todo caso, y se realice o no conjuntamente, la Delegada la eligen las trabajadoras del centro de trabajo y la Empresa no la designa (numeral 48.3).
 
@@ -119,7 +119,7 @@ e) **Información a la persona afectada.** La Empresa le informa expresamente, *
 
 Cuando la queja o denuncia involucre, como persona afectada o como persona denunciada, a quien esté unida a CAYLA por un vínculo que no es contrato de trabajo —locación de servicios, modalidad formativa o prácticas—, se sigue el procedimiento de los artículos 49 a 51, pero **la investigación la conduce un órgano conformado por dos (2) representantes de Desarrollo Organizacional y una (1) representante del área donde ocurrieron los hechos**, que respeta el derecho de defensa de ambas partes y emite el informe del numeral 49.7 (numeral 47.7).
 
-Si DO no cuenta con dos personas disponibles y no impedidas conforme al numeral 48.2, **la Gerencia General designa a la segunda representante mediante acta que se incorpora al expediente**, de modo que la investigación no quede paralizada ni fuera de plazo (numeral 47.7). Esa acta se emite con la prontitud que exige el numeral 47.7, de modo que la investigación no quede paralizada ni fuera de los plazos del numeral 49.4.
+Si DO no cuenta con dos personas disponibles y no impedidas conforme al numeral 48.2, **la Gerencia General designa a la segunda representante mediante acta que se incorpora al expediente**, de modo que la investigación no quede paralizada ni fuera de los plazos del numeral 49.4 (numeral 47.7).
 
 Este Título alcanza también los actos cometidos por clientas, proveedoras o terceras personas hacia el equipo y los cometidos por el equipo hacia ellas, con ocasión del servicio, y los casos con empresas contratistas, de intermediación o de tercerización, con las reglas del numeral 47.8. Aplicar el Título X a quien presta servicios de forma independiente no altera ni desnaturaliza la naturaleza civil de su vínculo (numeral 47.9).
 
@@ -214,7 +214,7 @@ Los plazos del procedimiento son los del numeral 49.4, **máximos y no prorrogab
 
 ### Artículo décimo cuarto.- Naturaleza, vigencia y prelación de esta Resolución
 
-**14.1.** Esta Resolución es un instrumento de **gestión y difusión**. **No crea obligaciones, faltas, sanciones ni plazos distintos** de los previstos en los artículos 47 a 51 del Reglamento, y en caso de discrepancia **prevalece el Reglamento** (numeral 47.2, y artículos 4.3 y 4.5).
+**14.1.** Esta Resolución es un instrumento de **gestión y difusión**. **No crea obligaciones, faltas, sanciones ni plazos distintos** de los previstos en los artículos 47 a 51 del Reglamento, y en caso de discrepancia **prevalece el Reglamento** (numeral 47.2, y numerales 4.3 y 4.5).
 
 **14.2.** Rige desde su emisión y su publicación conforme al artículo décimo tercero.
 
@@ -237,7 +237,7 @@ Los plazos del procedimiento son los del numeral 49.4, **máximos y no prorrogab
 >
 > **A quién se lo dices:** a **Desarrollo Organizacional (DO)**. DO recibe la queja, dicta las medidas de protección y emite la decisión (numeral 48.1).
 >
-> **Cómo:** **de palabra o por escrito, en persona o por medios electrónicos.** Decirlo de palabra basta; no te pueden exigir nada más (numeral 48.7). **No hay formato:** ninguna queja se detiene ni se archiva por no haber usado uno (numeral 48.8).
+> **Cómo:** **de palabra o por escrito, en persona o por medios electrónicos.** Decirlo de palabra basta; no te pueden exigir nada más (numeral 48.7). **Ningún formato es obligatorio:** ninguna queja se detiene ni se archiva por no haber usado uno, y si la Empresa pone un formato a disposición, usarlo es voluntario (numeral 48.8).
 >
 > - Correo de acceso exclusivo de DO: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 > - Si la queja es contra la titular de DO, correo de acceso exclusivo de la Gerencia General: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ (numerales 48.2 y 48.7)
@@ -289,7 +289,7 @@ Sede: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ · Fecha de la convocatoria: \_\_
 
 1. Se convoca a las trabajadoras de esta sede a elegir a su **Delegada contra el Hostigamiento Sexual titular** y a su **Delegada suplente** (numeral 48.3).
 2. La elección **puede** realizarse conjuntamente con la de la representación de las trabajadoras en seguridad y salud en el trabajo del artículo 34 (numeral 48.3). ☐ Se realiza conjuntamente ☐ Se realiza por separado.
-3. La Empresa convoca la elección y la facilita; **no designa a la elegida ni condiciona su elección** (numeral 48.3). Cuando se realice conjuntamente con la del artículo 34, se practica **dentro de la jornada de trabajo** conforme al numeral 34.2.
+3. La Empresa convoca la elección y la facilita; **no designa a la elegida ni condiciona su elección** (numerales 48.3 y 34.2). Cuando se realice conjuntamente con la del artículo 34, se practica **dentro de la jornada de trabajo** conforme al numeral 34.2.
 4. El resultado consta en acta, que se archiva y se publica en esta sede, y da lugar a la actualización de la información publicada conforme al numeral 48.6.
 5. Desde que la elegida asume el cargo cesa de pleno derecho el encargo transitorio del artículo segundo de la Resolución de Gerencia General N.° \_\_\_\_-2026-GG/CAYLA (numeral 48.3).
 
