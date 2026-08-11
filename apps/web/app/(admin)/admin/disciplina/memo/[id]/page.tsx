@@ -122,13 +122,27 @@ export default function MemoPage() {
   const [previas, setPrevias] = useState<Previa[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
   const [sede, setSede] = useState<string>("");
-  const [firmante, setFirmante] = useState<string>(EMPRESA.firmante);
+  // ⚠️ ARRANCAN EN null, NO en la constante de la empresa, y es el punto entero.
+  //
+  // Un BORRADOR tiene `firmante_id` en null por definición: nadie lo ha firmado
+  // todavía. Con el valor por defecto puesto en EMPRESA, el papel salía
+  // impreso «De: Alvarez Pereyra Felipe Miguel · Gerencia General» y con la
+  // misma línea bajo la firma — un documento disciplinario afirmando que lo
+  // suscribió Gerencia General cuando no lo suscribió nadie. Eso no es un
+  // defecto de estilo: es el papel que se le entrega a una persona y el que
+  // aguanta o no cuando alguien lo discute.
+  //
+  // Sin firmante NO se inventa uno: se imprime «Pendiente de firma» (ver render).
+  const [firmante, setFirmante] = useState<string | null>(null);
   // El cargo impreso sale de QUIÉN firmó, no de una constante. Estaba fijo en
   // "Gerencia General": como fn_expediente_puede_actuar sí deja a una encargada
   // suscribir un memo verbal o de amonestación de su sede, el papel salía
   // diciendo que lo firmó Gerencia General. Un documento disciplinario que
   // miente sobre quién lo suscribió se cae si alguien lo discute.
-  const [cargoFirmante, setCargoFirmante] = useState<string>(EMPRESA.cargo);
+  const [cargoFirmante, setCargoFirmante] = useState<string | null>(null);
+  // Firmado, pero no se pudo leer la fila de quien firma. Es distinto de «no
+  // hay firmante» y no se trata igual: ver el bloque de carga.
+  const [firmanteIlegible, setFirmanteIlegible] = useState(false);
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -178,10 +192,26 @@ export default function MemoPage() {
       setFirmante(`${f.nombres} ${f.apellidos}`);
       // fn_cargo_de_rol vive en la base (mig. 0074) para que el panel y
       // cualquier otro consumidor impriman exactamente el mismo cargo. Si la
-      // función aún no está aplicada, se queda el valor por defecto: el memo
-      // sigue imprimiéndose, nunca se rompe por esto.
+      // función aún no está aplicada, el cargo se queda en null y el papel sale
+      // con el NOMBRE de quien firma y sin cargo debajo. Antes caía al valor de
+      // la empresa, que a una encargada le imprimía «Gerencia General»: es
+      // preferible no decir el cargo que decir uno falso.
       const { data: cargo } = await supabase.rpc("fn_cargo_de_rol", { p_rol: f.rol });
       if (typeof cargo === "string" && cargo) setCargoFirmante(cargo);
+    } else if (doc.firmante_id) {
+      // FIRMADO, pero su fila no vino en la consulta. El caso normal es RLS:
+      // `personas_select_supervisor` solo expone la sede propia, así que una
+      // encargada que imprime un memo SUYO suscrito por gerencia no puede leer
+      // la fila de gerencia. Ese flujo es legítimo y existe a propósito — la
+      // firma escaneada se pide por documento justamente para permitirlo.
+      //
+      // Aquí SÍ se cae al representante legal, y no es lo mismo que inventarlo
+      // en un borrador: consta que el documento está firmado, solo no podemos
+      // nombrar a quien lo firmó. Se avisa en pantalla (no en el papel) para
+      // que quien imprime pueda comprobarlo si el memo no era de gerencia.
+      setFirmante(EMPRESA.firmante);
+      setCargoFirmante(EMPRESA.cargo);
+      setFirmanteIlegible(true);
     }
     // Firma escaneada de quien suscribe ESTE documento. Se pide por documento y
     // no por persona: así la encargada de una sede puede imprimir un memo suyo
@@ -342,8 +372,21 @@ export default function MemoPage() {
               </p>
             )}
             {doc.estado === "borrador" && (
+              // SIN `no-print`, y es deliberado. Este aviso llevaba la clase y
+              // se borraba justo en el papel: en pantalla ponía «borrador», e
+              // impreso no ponía nada. Imprimir un borrador para revisarlo es
+              // legítimo y por eso no se deshabilita el botón — lo que no puede
+              // pasar es que el papel no diga lo que es.
+              <p className="mb-4 rounded border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-900">
+                <strong>BORRADOR — sin numerar y sin firmar.</strong> No tiene validez como
+                documento entregado. Fírmalo en la pantalla de Disciplina para asignarle su número.
+              </p>
+            )}
+            {firmanteIlegible && (
               <p className="no-print mb-4 rounded bg-sand/50 px-3 py-2 text-xs text-taupe">
-                Este es un <strong>borrador sin numerar</strong>. Fírmalo en la pantalla de Disciplina para asignarle su número de documento.
+                No se pudo leer la ficha de quien firma este documento —lo normal es que sea de
+                otra sede—, así que abajo figura el representante legal de la empresa. Si lo
+                suscribió otra persona, compruébalo antes de entregarlo.
               </p>
             )}
 
@@ -362,7 +405,7 @@ export default function MemoPage() {
               <tbody>
                 <tr><td className="w-16 py-0.5 align-top text-taupe">Para:</td><td className="py-0.5"><strong>{nombre}</strong> · DNI {persona?.documento ?? "—"}</td></tr>
                 <tr><td className="py-0.5 align-top text-taupe">Área:</td><td className="py-0.5">{persona ? areaNombre(areas, persona.funcion) : "—"} · Sede {sede || "—"}</td></tr>
-                <tr><td className="py-0.5 align-top text-taupe">De:</td><td className="py-0.5">{firmante} · {cargoFirmante}</td></tr>
+                <tr><td className="py-0.5 align-top text-taupe">De:</td><td className="py-0.5">{firmante ? `${firmante}${cargoFirmante ? ` · ${cargoFirmante}` : ""}` : <em>Pendiente de firma</em>}</td></tr>
               </tbody>
             </table>
 
@@ -397,8 +440,8 @@ export default function MemoPage() {
                     <img src={firmaUrl} alt="" aria-hidden className="block h-28 w-auto max-w-full" />
                   )}
                 </div>
-                <div className="border-t pt-1">{firmante}</div>
-                <p className="text-taupe">{cargoFirmante} — {EMPRESA.nombre}</p>
+                <div className="border-t pt-1">{firmante ?? "Pendiente de firma"}</div>
+                <p className="text-taupe">{cargoFirmante ? `${cargoFirmante} — ${EMPRESA.nombre}` : EMPRESA.nombre}</p>
               </div>
               <div>
                 <div className="h-28 text-taupe">Recibí conforme:</div>
