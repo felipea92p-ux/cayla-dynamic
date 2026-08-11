@@ -375,8 +375,6 @@ El cese producido dentro del periodo de prueba se rige por el numeral 7.8 y no g
 
 ## TÍTULO III — JORNADA, HORARIO Y DESCANSOS
 
-## TÍTULO III — JORNADA, HORARIO Y DESCANSOS
-
 ### ARTÍCULO 9.- JORNADA ORDINARIA Y HORARIO PROGRAMADO
 
 **9.1. Jornada ordinaria.** La jornada ordinaria de trabajo en CAYLA es de cuarenta y ocho (48) horas semanales, que es la jornada que figura en el contrato de trabajo de cada integrante.
@@ -560,8 +558,6 @@ Mientras la condición no conste de ese modo, la persona está comprendida en la
 **15.4. Qué sí les alcanza.** A las personas señaladas en el numeral 15.1 les alcanzan el descanso semanal del artículo 12, los feriados del artículo 13, el descanso vacacional del artículo 30 y las licencias y permisos que este Reglamento regula.
 
 **15.5. Registro de asistencia.** Cuando estas personas registren su asistencia, ese registro se lleva con fines de control de acceso, seguridad y organización interna. No supone sujeción a fiscalización inmediata del tiempo de trabajo ni convierte en sobretiempo su permanencia.
-
-## TÍTULO IV — ASISTENCIA Y PUNTUALIDAD
 
 ## TÍTULO IV — ASISTENCIA Y PUNTUALIDAD
 
@@ -877,8 +873,6 @@ Toda represalia por este motivo constituye falta grave conforme al artículo 53.
 
 Concluida la suspensión, la colaboradora se reincorpora a su mismo puesto de trabajo. La Empresa cumple asimismo las demás medidas laborales de protección que la autoridad competente disponga.
 
-## TÍTULO V — REMUNERACIÓN
-
 ## TÍTULO V — REMUNERACIÓN Y BENEFICIOS
 
 ### ARTÍCULO 23.- PAGO POR HORAS EFECTIVAMENTE LABORADAS
@@ -1079,8 +1073,6 @@ En particular, no se practica descuento unilateral por faltantes de caja, ni por
 
 ## TÍTULO VI — VACACIONES, LICENCIAS Y PERMISOS
 
-## TÍTULO VI — VACACIONES, LICENCIAS Y PERMISOS
-
 ### ARTÍCULO 30.- VACACIONES
 
 **30.1. Derecho al descanso vacacional.** Las colaboradoras tienen derecho a quince (15) días calendario de descanso vacacional remunerado por cada año completo de servicios, conforme al régimen laboral especial de la pequeña empresa previsto en el Texto Único Ordenado de la Ley de Impulso al Desarrollo Productivo y al Crecimiento Empresarial, aprobado por el Decreto Supremo N.° 013-2013-PRODUCE —o la norma que lo sustituya—, y al Decreto Legislativo N.° 713.
@@ -1253,8 +1245,6 @@ El ejercicio del permiso no constituye tardanza ni salida anticipada. Cuando se 
 **33.6. Ninguna de estas licencias reduce la remuneración.** Los días y las horas amparados por este artículo se computan como tiempo laborado para el cálculo del pago del artículo 23.
 
 Ninguna colaboradora puede percibir una remuneración menor por causa del embarazo, del descanso por maternidad o del ejercicio del permiso por lactancia. El cálculo por horas efectivamente laboradas no se aplica de manera que produzca ese resultado.
-
-## TÍTULO VII — SEGURIDAD Y SALUD EN EL TRABAJO
 
 ## TÍTULO VII — SEGURIDAD Y SALUD EN EL TRABAJO
 
@@ -1581,8 +1571,6 @@ La colaboradora puede desarrollar fuera de su jornada cualquier otra actividad l
 Omitir deliberadamente la comunicación de un conflicto de intereses y obtener de él un provecho se evalúa conforme al Título XI. Cuando la conducta configure competencia desleal o el uso o la entrega a terceros de información reservada, constituye falta grave conforme al inciso d) del artículo 25 de la LPCL.
 
 Para los efectos de este artículo se entiende por vínculo familiar el que une a la colaboradora con su cónyuge o conviviente y con sus parientes hasta el segundo grado de consanguinidad o de afinidad: madres y padres, hijas e hijos, hermanas y hermanos, abuelas y abuelos, nietas y nietos, y quienes tengan esos mismos vínculos con su cónyuge o conviviente.
-
-## TÍTULO IX — PROTECCIÓN DE DATOS PERSONALES
 
 ## TÍTULO IX — PROTECCIÓN DE DATOS PERSONALES
 
@@ -1933,8 +1921,6 @@ e) Cualquier otra que proteja y asegure su bienestar.
 **51.11. Derechos de la persona afectada.** Cuando quien hostiga es el empleador, personal de dirección, personal de confianza, socia, directora o accionista, o cuando CAYLA omite iniciar la investigación o adoptar las medidas de protección y sanción que corresponden, la persona afectada puede optar entre accionar el cese de la hostilidad o dar por terminado el contrato de trabajo y demandar la indemnización del artículo 35 de la Ley de Productividad y Competitividad Laboral, sin que le sea exigible el emplazamiento previo del artículo 30 de esa norma. Conserva además el derecho de demandar los daños y perjuicios sufridos y de recurrir a la Autoridad Inspectiva de Trabajo.
 
 Estas acciones caducan a los treinta (30) días calendario de producido el último acto de hostigamiento. Si se inició el procedimiento interno de este título, el plazo se computa desde el día siguiente de emitida la decisión que le pone fin o, si no llegó a emitirse, desde la fecha en que debió emitirse.
-
-## TÍTULO XI — RÉGIMEN DISCIPLINARIO
 
 ## TÍTULO XI — RÉGIMEN DISCIPLINARIO
 
