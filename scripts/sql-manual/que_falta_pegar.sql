@@ -87,7 +87,8 @@ with repo(numero, nombre) as (values
     (210, 'la_planilla_ve_la_liquidacion_que_ya_se_pago'),
     (211, 'reemplazar_la_politica_de_movilidad_la_reemplaza'),
     (212, 'ninguna_sancion_sin_escuchar_antes'),
-    (213, 'solo_agrava_lo_que_se_entrego')
+    (213, 'solo_agrava_lo_que_se_entrego'),
+    (214, 'la_carta_de_despido_la_firma_gerencia_general')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
