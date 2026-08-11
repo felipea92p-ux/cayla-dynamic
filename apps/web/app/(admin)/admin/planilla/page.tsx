@@ -1918,6 +1918,18 @@ export default function PlanillaPage() {
                 onMovForm={setMovForm}
                 onAgregarMov={(f) => void agregarMovimiento(f)}
                 onQuitarMov={(m) => void quitarMovimiento(m)}
+                // Sin esta línea el botón «💸 Ya le pagué aparte» NO EXISTE en la
+                // pantalla: la tabla solo lo pinta si recibe este manejador, y
+                // nadie se lo pasaba. `marcarYaPagado` llevaba desde su primer
+                // día escrita, completa y sin llamar — código muerto que se leía
+                // como una función disponible.
+                //
+                // Lo destapó un caso real (2026-08-10): a seis personas cesadas
+                // se les registró el mismo mes dos veces —una en la foto del
+                // periodo y otra en su liquidación, S/1,145.87 en total— y este
+                // botón es justo el remedio que había que apretar y no estaba.
+                // Ver docs/estado.md, sección A.2.b.bis.
+                onYaPagado={(f) => void marcarYaPagado(f)}
                 guardandoMov={guardandoMov}
                 gc={gc}
               />

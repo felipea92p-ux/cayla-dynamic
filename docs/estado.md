@@ -37,6 +37,143 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-10 — un terminal sin dueño, y un diseño de plata que se cayó al medirlo
+
+### El terminal ya no puede quedarse sin dueño ([`0202`](../supabase/migrations/0202_un_terminal_activo_sin_dueno_deja_de_poder_existir.sql))
+
+El guard que impide que una sesión se haga pasar por un terminal son **tres
+condiciones unidas por AND** dentro de `fn_registrar_marcaje`. Con
+`terminales.auth_user_id` en null la segunda es falsa, el AND entero es falso y
+**no se lanza nada**: cualquier sesión con login podía registrar marcas a nombre
+de otra persona, en cualquier sede, y la planilla las paga. Medido:
+`anon` no puede ejecutar la función, `authenticated` sí — o sea que no hacía
+falta ser admin ni encargada.
+
+**El esquema fabricaba ese estado por su cuenta, y por dos caminos:**
+
+- `activo` tiene **default `true`**, así que el insert natural —
+  `insert into terminales (sede_id, nombre_dispositivo)` — nacía activo y sin
+  dueño. El camino cómodo era el peligroso.
+- La FK es **`ON DELETE SET NULL`**. Borrar en Auth la cuenta de un terminal no
+  lo desactivaba: le ponía el dueño en null y lo dejaba activo. La puerta se
+  abría sola, sin que nadie tocara nada. Esto no estaba en el catálogo.
+
+El candado va en la TABLA, no en la función — la lección de la 0180. Y cierra el
+hueco entero: cuando la función llega al guard, la fila ya se buscó
+`where id = p_terminal_id and activo`, así que con el CHECK `auth_user_id` no
+puede ser null ahí. **Aplicada y confirmada**; los tres terminales de producción
+tenían dueño, así que esto no tapó un agujero abierto: **impide el próximo, que
+es el terminal de Central el día que se cargue.**
+
+**NO se reescribió `fn_registrar_marcaje`** para dejar el guard como
+`is distinct from`, que es la forma correcta por doctrina. Son 129 líneas y es la
+única puerta de escritura del sistema; el 08-08 se vio que 22 funciones de
+producción no coincidían con el repositorio. Queda pendiente, y va después de
+pedir el cuerpo de producción.
+
+⚠️ **Y dejó una lección de método:** un CHECK nuevo **rompe los montajes de
+cualquier prueba que fabrique el estado que prohíbe**. Rompió tres (110, 147,
+149) y CI salió en rojo. El hook de pre-push corre `typecheck` y las pruebas de
+interfaz, **no las pgTAP** — esas solo corren en CI. Antes de empujar un CHECK,
+un `grep` de treinta segundos por `supabase/tests`.
+
+### Dos hallazgos del catálogo son FALSOS desde la 0138
+
+`hallazgos-abiertos.md` lista **C12·A16** (`fn_registrar_marcaje` sin candado de
+periodo pagado) y **A3** (`fn_auto_cierre` reescribe periodos pagados) como los
+dos más graves que quedan vivos. **Medidos contra el esquema de hoy, los dos son
+falsos**, y el daño estaba tapado una capa más abajo:
+
+- `fn_recalcular_jornada` **sí** lleva el candado desde la 0138, y se **sale en
+  silencio en vez de lanzar**, a propósito: lanzar abortaría el INSERT y el
+  terminal acabaría descartando una marca REAL tras seis reintentos.
+- `fn_auto_cierre` solo escribe en `marcajes` y `alertas` — nunca en `jornadas`
+  directo—, así que pasa por el mismo trigger y queda igual de tapado.
+
+Lo que sí quedaba era el residuo: la marca entraba y la jornada no se
+recalculaba, **sin que nadie se enterara**. Eso lo cerró la
+[`0207`](../supabase/migrations/0207_una_marca_que_cae_en_un_periodo_pagado_deja_de_entrar_muda.sql).
+
+**Falta tacharlos en `hallazgos-abiertos.md`**, y con ellos otras dos entradas
+que también envejecieron: dice que no existen las pruebas 84 y 85 (existen, de
+otros temas) y que «los montos pagados no se congelan en ninguna tabla» (la foto
+del pago existe desde la 0096). El propio archivo avisa de por qué importa: un
+catálogo con entradas mentirosas hace desconfiar de las que sí siguen vivas.
+
+### El borrador de un memo dejó de imprimirse firmado por Gerencia General
+
+`firmante` y `cargoFirmante` arrancaban en la constante `EMPRESA` y solo se
+reemplazaban dentro de `if (doc.firmante_id)`, que en un borrador es null por
+definición. El papel salía diciendo **«De: Alvarez Pereyra Felipe Miguel ·
+Gerencia General»** en un documento que no había firmado nadie. Y el aviso de
+borrador llevaba `no-print`: se veía en pantalla y **desaparecía justo en el
+papel**.
+
+Ahora arrancan en null y sin firmante se imprime «Pendiente de firma»; el aviso
+sí se imprime y dice que no tiene validez como documento entregado. **En vista
+previa, pendiente de mirar y subir a producción.**
+
+Lo que el catálogo tenía mal: cuando el memo SÍ está firmado pero su ficha no se
+puede leer —una encargada imprimiendo un memo suyo suscrito por gerencia, flujo
+legítimo y a propósito— caer al representante legal no es inventar nada. Ese
+caso avisa en pantalla, no en el papel.
+
+### La 0209 está escrita y SIN TERMINAR — y su primer diseño se descartó midiéndolo
+
+El defecto es real y está reproducido dos veces: `fn_cesar_persona` cierra los
+tramos de salario y horario, `fn_reactivar_persona` no los devuelve, y quien se
+reactiva queda **activa, marcando, cobrando S/0.00** (S/2,254.64 contra S/0.00
+con jornadas idénticas) e **invisible para el motor de faltas** (5 contra 0).
+
+**El primer diseño era simétrico y habría metido un defecto peor que el que
+arregla.** Reabrir el tramo viejo con `vigente_hasta = null` no lo deja vigente
+«desde que volvió»: lo deja vigente **desde su `vigente_desde` hasta el
+infinito**, cubriendo hacia atrás todo el hueco. Medido en `BEGIN … ROLLBACK`:
+
+| Qué | Cuánto |
+|---|---|
+| Reescribe planillas YA PAGADAS | S/2,420.63 en un periodo · **S/3,390.00** en tres |
+| Sobrepaga el periodo EN CURSO | S/1,130.00 del mes entero, sin trabajar un día |
+| Devenga grati, CTS y vacaciones del hueco | **+S/719.52**, y `fn_grati_cts_periodo` lo desembolsa |
+| Fabrica faltas | **89** no justificadas, alimentando el expediente disciplinario |
+
+Y pasa **mudo**: no hay ni un trigger sobre `asignaciones_salario` ni sobre
+`horarios_asignados`, y el candado de periodo pagado vive DENTRO de
+`fn_set_salario`, así que un update desde otra función lo esquiva.
+
+**El diseño que queda:** no se reabre el tramo viejo, se **crea uno nuevo desde
+el día de la reactivación**. El hueco queda sin salario y sin horario, que es la
+verdad —esa persona no trabajó—, y ninguno de los cuatro daños puede ocurrir.
+
+**El candado es ESTRECHO, y se decidió con datos.** Volver a `activo` mueve por
+sí solo el total de las planillas pagadas de quien tiene hijos —S/98.31 por
+periodo, porque la asignación familiar no mira tramos ni jornadas—. Pero de las
+**8 personas inactivas de producción, seis tienen un periodo pagado posterior** y
+para las seis el daño es CERO (RxH, sin hijos, sin sueldo fijo). Un candado sobre
+«hay un periodo pagado» rechazaría seis reactivaciones legítimas de ocho: no
+protegería, prohibiría. Se pone solo donde el daño está medido — `con_hijos` con
+un periodo pagado detrás—, y **eso es una lista que hay que revisar** el día que
+aparezca otro concepto que se pague sin mirar tramos.
+
+**Lo que falta antes de pegarla:** la prueba pgTAP, medir la promesa central
+contra un periodo pagado de verdad, y los tres bordes reproducidos (volver
+teniendo ya un tramo abierto, un tramo cerrado con fecha futura, y el caso de
+cero filas). **No urge:** medido en producción, nadie está hoy en ese estado.
+
+**Y hay dos cosas que la medición destapó y que NO causa la 0209:**
+
+- Una **liquidación ya pagada se vuelve a devengar entera** al reactivar:
+  S/852.19 sobre ventanas ya liquidadas por S/1,380.81. `fn_liquidacion_pagar`
+  escribe en `liquidacion_pagada` y en `correcciones_auditoria`, pero **no** en
+  `desembolsos_beneficios` ni en `movimientos_planilla`, que son las dos únicas
+  cosas que miran los guards de `fn_provisiones`.
+- La cabecera de la **0176 tiene una errata**: dice que «`fn_set_salario`
+  comprueba que la persona esté activa». **Es falso** en la versión vigente — ni
+  esa ni `fn_set_horario_semanal` miran `personas.estado`. Es justo la frase que
+  haría no poner un freno creyéndolo puesto.
+
+---
+
 ## 2026-08-10 — regenerar `types.ts` ya no es solo reordenar
 
 **Medido, no supuesto.** El repositorio venía diciendo que regenerar
@@ -570,6 +707,73 @@ dinero está bien. A un `rxh` no se le calcula movilidad ni EsSalud (0117), ni
 educación (0120), ni gratificación, CTS, vacaciones o el 9% de la Ley 30334
 (0160, con la prueba `127`). Lo único que recibe es su pago base, que es lo que
 se le transfiere. **No hay provisiones indebidas ni plata de más.**
+
+### A.2.b.bis · A quien cesa se le paga dos veces el mismo mes, y de más
+
+**Medido en producción el 2026-08-10, con las dos consultas que quedan en
+`scripts/sql-manual/`.** Son dos defectos distintos que se dan la mano, y
+conviene no mezclarlos.
+
+#### 1 · El divisor: la liquidación paga inflado — **S/1,097.67 en 7 personas**
+
+`fn_planilla_calcular` reparte el sueldo mensual entre los días **del rango que
+se le pida**:
+
+```
+v_dias := (p_fin - p_ini) + 1;   v_base := 6.5 * v_dias;   pago := horas * salario / v_base
+```
+
+`fn_liquidacion` (0164:103) es **la única en todo el sistema que pide un rango
+parcial** — del inicio del periodo a la fecha de cese, «ni un día más». Con menos
+días el divisor se encoge y el mismo trabajo se paga más. Quien cesa el día 10 de
+un periodo de 31 cobra ~3× lo suyo.
+
+El encabezado de la 0164 lo justifica con una premisa **falsa**: dice que un
+rango parcial se calcula bien porque «es lo que usa la pantalla de planilla con
+el periodo en curso». No lo es — la pantalla usa `fn_proyeccion_periodo`
+(0105:493), que pasa el periodo **entero**; lo parcial viene de que aún no hay
+marcajes, no del rango.
+
+**Seis de siete casos cuadran al segundo decimal** con la proporción que predice
+el divisor. La séptima, **Ytamar Cueva**, no: 1.53× pagado contra 1.11× que
+justifica el rango. Unos S/45 vienen de otra cosa y hay que mirarla aparte.
+
+⚠️ **La prueba 130 no puede cazarlo**: compara la liquidación contra
+`fn_planilla_calcular` con el **mismo** rango parcial. Se compara consigo misma.
+
+#### 2 · El doble registro: **S/1,145.87 en 6 personas**, periodo 28/06–28/07
+
+`liquidacion_pagada` aparece en **un solo archivo de todo el repositorio** (la
+0167). Ni `fn_planilla_calcular`, ni `fn_planilla_congelar`, ni la pantalla de
+Planilla la leen jamás. La etiqueta «ya no está» es puramente visual.
+
+Las seis dicen **«primero el periodo, después la liquidación»**: el 28/07 se
+cerró el periodo con ellas dentro —habían cesado entre el 16 y el 25— y después
+se pagaron sus liquidaciones, que volvían a incluir ese mismo mes.
+
+**Si el dinero salió dos veces solo lo dice el extracto bancario.** El sistema lo
+tiene registrado dos veces; eso es lo que se puede afirmar.
+
+#### Lo que ya existe y solo le falta el aviso
+
+El botón **«💸 Ya le pagué aparte»** (`planilla/page.tsx:1268`) registra un
+descuento y deja el total de esa persona en cero. **La herramienta está**; lo que
+falta es que la pantalla diga que hace falta apretarla. Por eso la 0210 es un
+**cartel, no una exclusión automática**: mientras el divisor siga como está, la
+cifra de la liquidación no es de fiar, y descontar solo propagaría un número
+inflado con la seguridad de una máquina.
+
+#### Lo que queda por hacer
+
+| Qué | Cuándo |
+|---|---|
+| **Rufina Salvatierra: apretar «Ya le pagué aparte»** antes de cerrar el periodo en curso | **antes del 28/08** — su liquidación fue S/1,106.82, la mayor; si el periodo cierra sin eso, se repite por el monto más alto |
+| Revisar el extracto de finales de julio para las seis | esta semana |
+| **0210** — el cartel en la pantalla de Planilla | no toca plata |
+| **0211** — el divisor | su propia sesión, con auditoría empírica: ceses el día 1, a mitad y al final, en TRU y en LIM. Encenderá en rojo todas las liquidaciones ya congeladas |
+
+**Nadie cobró de menos.** Todo lo encontrado es dinero de más, de personas que ya
+no están.
 
 ### A.2.c · No hay ni un CUSPP cargado, y este archivo daba a entender lo contrario
 

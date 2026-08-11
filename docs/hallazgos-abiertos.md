@@ -47,7 +47,7 @@ antes que las migraciones que los protegen.
 |---|---|---|
 | **C12 · A16** | 🟡 `fn_registrar_marcaje` — **medido el 2026-08-10: NO cambia el pago**, el candado de la 0138 aguanta. Lo que hacía era entrar muda; lo sella la 0207 | reproducido con `BEGIN … ROLLBACK`: horas 8.00 antes y 8.00 después |
 | **A16-b** | 🔴 `fn_auto_cierre` sigue sin el candado — es la otra puerta que corre sin nadie delante | la 0207 no la toca a propósito: su arreglo es saltarse la candidata y alertar, no sellar |
-| **A3** | el cron de auto-cierre reescribe periodos ya pagados | `fn_auto_cierre` no nombra `periodos_planilla` ni una vez |
+| ~~**A3**~~ | 🟡 el cron de auto-cierre — **medido el 2026-08-10: NO reescribe lo pagado.** Es cierto que no nombra `periodos_planilla`, pero solo escribe en `marcajes` y en `alertas`, nunca en `jornadas` directo: pasa por el mismo trigger que el candado de la 0138 detiene. Misma forma y mismo desenlace que C12·A16 | `insert into` en su cuerpo vigente: `marcajes` y `alertas`, y nada más. Lo que sí hacía —entrar mudo— lo sella la 0207 |
 | ~~**C3**~~ | ✅ **cerrado el 2026-08-08** por la 0189 — y eran dos líneas, no una | aplicada y confirmada en producción |
 | **C13** | reactivar a quien se cesó por error le paga S/0 | `fn_reactivar_persona` no menciona `asignaciones_salario`: no reabre el tramo que el cese cerró |
 | **C14** | corregir un auto-cierre deja DOS salidas finales | `fn_agregar_marcaje` no nombra `auto_cierre`: inserta sin reconciliar |
