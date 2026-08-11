@@ -82,7 +82,8 @@ with repo(numero, nombre) as (values
     (205, 'la_carta_de_despido_lleva_su_fecha_de_cese'),
     (206, 'el_descargo_entra_al_legajo_y_la_imputacion_se_puede_cerrar'),
     (207, 'una_marca_que_cae_en_un_periodo_pagado_deja_de_entrar_muda'),
-    (208, 'el_reglamento_se_entrega_y_queda_constancia')
+    (208, 'el_reglamento_se_entrega_y_queda_constancia'),
+    (209, 'reactivar_devuelve_el_sueldo_desde_el_dia_que_vuelve')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
