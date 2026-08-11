@@ -23,7 +23,7 @@
 5. SELECCIÓN E IGUALDAD DE OPORTUNIDADES  ·  6. FORMALIZACIÓN Y REGISTRO  ·  7. PERIODO DE PRUEBA  ·  8. CONTRATOS SUJETOS A MODALIDAD
 
 **TÍTULO III — JORNADA, HORARIO Y DESCANSOS**  
-9. JORNADA ORDINARIA Y HORARIO PROGRAMADO  ·  10. DISTRIBUCIÓN, TURNOS Y CAMBIOS  ·  11. REFRIGERIO  ·  12. DESCANSO SEMANAL Y DESCANSO ROTATIVO  ·  13. FERIADOS Y DESCANSO SUSTITUTORIO  ·  14. SOBRETIEMPO  ·  15. PERSONAL DE DIRECCIÓN Y PERSONAL NO SUJETO A FISCALIZACIÓN INMEDIATA
+9. JORNADA ORDINARIA Y HORARIO PROGRAMADO  ·  10. DISTRIBUCIÓN, TURNOS Y CAMBIOS  ·  11. REFRIGERIO  ·  12. DESCANSO SEMANAL Y DESCANSO ROTATIVO  ·  13. FERIADOS Y DESCANSO SUSTITUTORIO  ·  14. SOBRETIEMPO  ·  15. PERSONAL DE DIRECCIÓN Y PERSONAL NO SUJETO A FISCALIZACIÓN INMEDIATA  ·  15-A. TELETRABAJO Y TRABAJO EN MODALIDAD MIXTA
 
 **TÍTULO IV — ASISTENCIA Y PUNTUALIDAD**  
 16. REGISTRO DE ASISTENCIA  ·  17. TARDANZA Y TOLERANCIA  ·  18. JUSTIFICACIÓN DE TARDANZAS  ·  19. GRADACIÓN DISCIPLINARIA POR TARDANZAS  ·  20. INASISTENCIAS  ·  21. GRADACIÓN DISCIPLINARIA POR INASISTENCIAS  ·  22. AUSENCIAS Y TARDANZAS POR HECHOS DE VIOLENCIA
@@ -32,19 +32,19 @@
 23. PAGO POR HORAS EFECTIVAMENTE LABORADAS  ·  24. PERIODO DE PLANILLA Y OPORTUNIDAD DE PAGO  ·  25. BOLETAS DE PAGO  ·  26. POLÍTICA SALARIAL Y CUADRO DE CATEGORÍAS  ·  27. BENEFICIOS DEL RÉGIMEN DE LA PEQUEÑA EMPRESA  ·  28. CONCEPTOS ADICIONALES, CONCEPTOS NO REMUNERATIVOS Y LIBERALIDADES  ·  29. DESCUENTOS Y RETENCIONES
 
 **TÍTULO VI — VACACIONES, LICENCIAS Y PERMISOS**  
-30. VACACIONES  ·  31. LICENCIAS CON GOCE  ·  32. LICENCIAS SIN GOCE Y PERMISOS  ·  33. MATERNIDAD, PATERNIDAD Y LACTANCIA
+30. VACACIONES  ·  31. LICENCIAS CON GOCE  ·  32. LICENCIAS SIN GOCE Y PERMISOS  ·  32-A. TRASLADOS Y MOVILIDAD ENTRE SEDES  ·  33. MATERNIDAD, PATERNIDAD Y LACTANCIA
 
 **TÍTULO VII — SEGURIDAD Y SALUD EN EL TRABAJO**  
-34. ORGANIZACIÓN DE LA SEGURIDAD Y SALUD EN EL TRABAJO  ·  35. OBLIGACIONES DE LA EMPRESA Y DE LAS COLABORADORAS  ·  36. RIESGOS DEL TALLER Y DE LA TIENDA  ·  37. ACCIDENTES E INCIDENTES
+34. ORGANIZACIÓN DE LA SEGURIDAD Y SALUD EN EL TRABAJO  ·  35. OBLIGACIONES DE LA EMPRESA Y DE LAS COLABORADORAS  ·  36. RIESGOS DEL TALLER Y DE LA TIENDA  ·  37. ACCIDENTES E INCIDENTES  ·  37-A. PRIMEROS AUXILIOS Y ATENCIÓN DE EMERGENCIAS
 
 **TÍTULO VIII — CONDUCTA Y DEBERES**  
-38. DEBERES DE LA COLABORADORA  ·  39. PRESENTACION PERSONAL  ·  40. USO DE BIENES, SISTEMAS Y COMUNICACIONES  ·  41. CONFIDENCIALIDAD  ·  42. LIBERTAD DE EXPRESION Y SUS LIMITES  ·  43. CONFLICTO DE INTERESES
+38. DEBERES DE LA COLABORADORA  ·  38-A. DERECHOS Y OBLIGACIONES DE LA EMPRESA  ·  38-B. DERECHOS DE LA COLABORADORA  ·  39. PRESENTACIÓN PERSONAL  ·  40. USO DE BIENES, SISTEMAS Y COMUNICACIONES  ·  41. CONFIDENCIALIDAD  ·  42. LIBERTAD DE EXPRESIÓN Y SUS LIMITES  ·  43. CONFLICTO DE INTERESES  ·  43-A. CONVIVENCIA, PREVENCIÓN DEL ACOSO LABORAL Y DE LA VIOLENCIA EN EL TRABAJO  ·  43-B. CONSULTAS, RECLAMOS Y SUGERENCIAS
 
 **TÍTULO IX — PROTECCIÓN DE DATOS PERSONALES**  
 44. TRATAMIENTO DE DATOS PERSONALES  ·  45. VIDEOVIGILANCIA  ·  46. EL REGISTRO DE MARCAJE COMO DATO PERSONAL
 
 **TÍTULO X — HOSTIGAMIENTO SEXUAL**  
-47. POLITICA, DEFINICION Y AMBITO  ·  48. ORGANOS, CANAL DE QUEJA Y RESERVA  ·  49. PROCEDIMIENTO Y PLAZOS  ·  50. ATENCION EN SALUD Y MEDIDAS DE PROTECCION  ·  51. SANCION, QUEJA FALSA Y PROHIBICION DE REPRESALIAS
+47. POLÍTICA, DEFINICIÓN Y ÁMBITO  ·  48. ÓRGANOS, CANAL DE QUEJA Y RESERVA  ·  49. PROCEDIMIENTO Y PLAZOS  ·  50. ATENCIÓN EN SALUD Y MEDIDAS DE PROTECCIÓN  ·  51. SANCIÓN, QUEJA FALSA Y PROHIBICION DE REPRESALIAS
 
 **TÍTULO XI — RÉGIMEN DISCIPLINARIO**  
 52. PRINCIPIOS DEL RÉGIMEN DISCIPLINARIO  ·  53. CATÁLOGO DE FALTAS  ·  54. SANCIONES Y COMPETENCIA PARA IMPONERLAS  ·  55. PROCEDIMIENTO DE LAS SANCIONES DISTINTAS AL DESPIDO  ·  56. REINCIDENCIA Y ANTECEDENTES DISCIPLINARIOS  ·  57. PROCEDIMIENTO DE DESPIDO
@@ -58,19 +58,19 @@
 
 ### ARTÍCULO 1.- OBJETO
 
-1.1. Objeto. El presente Reglamento Interno de Trabajo establece las normas que rigen la relación laboral entre CAYLA S.A.C., con RUC N.° 20605964550 (en adelante, «la Empresa» o «CAYLA»), y las colaboradoras vinculadas a ella por un contrato de trabajo, en todos sus centros de trabajo. Las personas no comprendidas en este Reglamento se enumeran en el artículo 2.
+**1.1.** Objeto. El presente Reglamento Interno de Trabajo establece las normas que rigen la relación laboral entre CAYLA S.A.C., con RUC N.° 20605964550 (en adelante, «la Empresa» o «CAYLA»), y las colaboradoras vinculadas a ella por un contrato de trabajo, en todos sus centros de trabajo. Las personas no comprendidas en este Reglamento se enumeran en el artículo 2.
 
-1.2. Finalidad. Su propósito es garantizar un ambiente de trabajo ordenado, transparente y respetuoso, en el que cada colaboradora conozca sus derechos, sus obligaciones y las consecuencias de su incumplimiento.
+**1.2.** Finalidad. Su propósito es garantizar un ambiente de trabajo ordenado, transparente y respetuoso, en el que cada colaboradora conozca sus derechos, sus obligaciones y las consecuencias de su incumplimiento.
 
-1.3. Naturaleza. Este Reglamento es un acto unilateral de la Empresa, dictado en ejercicio de la facultad de dirección reconocida por el artículo 9 del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo N.° 003-97-TR (en adelante, «la LPCL»).
+**1.3.** Naturaleza. Este Reglamento es un acto unilateral de la Empresa, dictado en ejercicio de la facultad de dirección reconocida por el artículo 9 del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo N.° 003-97-TR (en adelante, «la LPCL»).
 
 No es un convenio ni un acuerdo de partes, no sustituye ni modifica el contrato individual de trabajo y no requiere la aceptación de la colaboradora para regir. Sí requiere que le haya sido entregado con constancia de recepción, conforme al artículo 60.
 
-1.4. Interpretación. Este Reglamento se redacta e interpreta en español y siempre en concordancia con la legislación laboral peruana vigente.
+**1.4.** Interpretación. Este Reglamento se redacta e interpreta en español y siempre en concordancia con la legislación laboral peruana vigente.
 
 Cuando exista duda insalvable sobre el alcance de una disposición de este Reglamento, y en especial de una disposición que tipifique una falta o establezca una sanción, se aplica la interpretación más favorable a la colaboradora, conforme al numeral 3 del artículo 26 de la Constitución Política del Perú.
 
-1.5. Límite. Ninguna disposición de este Reglamento puede reducir, condicionar, compensar ni sustituir derechos reconocidos por la Constitución, por la ley o por el contrato individual de trabajo. Los derechos laborales son irrenunciables conforme al numeral 2 del artículo 26 de la Constitución Política del Perú.
+**1.5.** Límite. Ninguna disposición de este Reglamento puede reducir, condicionar, compensar ni sustituir derechos reconocidos por la Constitución, por la ley o por el contrato individual de trabajo. Los derechos laborales son irrenunciables conforme al numeral 2 del artículo 26 de la Constitución Política del Perú.
 
 La disposición de este Reglamento que resultara contraria a una norma imperativa se tiene por no puesta, sin que ello afecte la validez de las demás.
 
@@ -78,11 +78,11 @@ La disposición de este Reglamento que resultara contraria a una norma imperativ
 
 ### ARTÍCULO 2.- ALCANCE Y PERSONAS NO COMPRENDIDAS
 
-2.1. Personas comprendidas. Este Reglamento es de aplicación obligatoria para todas las personas que mantienen con CAYLA un contrato de trabajo, cualquiera sea su cargo, función, área, jornada, régimen de contratación laboral —a plazo indeterminado o sujeto a modalidad, a tiempo completo o a tiempo parcial— y sede en la que presten servicios.
+**2.1.** Personas comprendidas. Este Reglamento es de aplicación obligatoria para todas las personas que mantienen con CAYLA un contrato de trabajo, cualquiera sea su cargo, función, área, jornada, régimen de contratación laboral —a plazo indeterminado o sujeto a modalidad, a tiempo completo o a tiempo parcial— y sede en la que presten servicios.
 
 Sus disposiciones de carácter laboral se entienden incorporadas a cada contrato de trabajo y obligan desde el inicio de la relación laboral y desde que este Reglamento ha sido entregado a la colaboradora con constancia escrita de recepción, conforme al artículo 60.
 
-2.2. Centros de trabajo. Este Reglamento rige en todos los centros de trabajo de la Empresa. A la fecha de su aprobación son cuatro:
+**2.2.** Centros de trabajo. Este Reglamento rige en todos los centros de trabajo de la Empresa. A la fecha de su aprobación son cuatro:
 
 a) Central (CCO): oficinas de administración y de Desarrollo Organizacional.
 b) Taller Lima (LIM): taller de producción.
@@ -93,15 +93,15 @@ Rige también en cualquier otro centro de trabajo que la Empresa habilite, trasl
 
 La Empresa comunica por escrito la habilitación o el traslado de un centro de trabajo a las colaboradoras asignadas a él, antes del inicio de sus labores en ese local.
 
-2.3. Prestación fuera del centro de trabajo. Este Reglamento rige también cuando la colaboradora presta servicios fuera de las instalaciones de la Empresa por encargo de esta —comisiones de servicio, traslados entre sedes, ferias, capacitaciones, visitas a proveedores o a clientas—, respecto de aquellas obligaciones que por su naturaleza resulten aplicables, en particular las de conducta, confidencialidad, protección de datos personales y seguridad y salud en el trabajo.
+**2.3.** Prestación fuera del centro de trabajo. Este Reglamento rige también cuando la colaboradora presta servicios fuera de las instalaciones de la Empresa por encargo de esta —comisiones de servicio, traslados entre sedes, ferias, capacitaciones, visitas a proveedores o a clientas—, respecto de aquellas obligaciones que por su naturaleza resulten aplicables, en particular las de conducta, confidencialidad, protección de datos personales y seguridad y salud en el trabajo.
 
-2.4. Adopción voluntaria. CAYLA no ocupa más de cien (100) personas trabajadoras, por lo que no le resulta exigible contar con un Reglamento Interno de Trabajo conforme al artículo 3 del Decreto Supremo N.° 039-91-TR. La Empresa lo adopta voluntariamente como instrumento de orden, transparencia y seguridad jurídica para ambas partes.
+**2.4.** Adopción voluntaria. CAYLA no ocupa más de cien (100) personas trabajadoras, por lo que no le resulta exigible contar con un Reglamento Interno de Trabajo conforme al artículo 3 del Decreto Supremo N.° 039-91-TR. La Empresa lo adopta voluntariamente como instrumento de orden, transparencia y seguridad jurídica para ambas partes.
 
 La eficacia de este Reglamento frente a cada colaboradora deriva de su entrega con constancia escrita de recepción, conforme al artículo 60, y no de trámite alguno ante la autoridad. Si la Empresa optara por presentarlo ante la Autoridad Administrativa de Trabajo, lo hará conforme al procedimiento del artículo 4 del Decreto Supremo N.° 039-91-TR.
 
 La presentación ante la Autoridad Administrativa de Trabajo no condiciona la vigencia ni la exigibilidad de este Reglamento, pero sí es relevante para un efecto concreto: el literal a) del artículo 25 de la LPCL se refiere a la inobservancia del Reglamento Interno de Trabajo aprobado o expedido por la autoridad competente. Mientras este Reglamento no haya sido presentado ante dicha autoridad, la imputación de falta grave se funda en la conducta concreta de la colaboradora y en la causal legal que la tipifica, y no en la sola inobservancia de este texto.
 
-2.5. Locadoras y locadores de servicios: exclusión expresa. Quedan expresamente excluidas del alcance de este Reglamento las personas naturales que prestan servicios a CAYLA bajo contrato de locación de servicios regulado por el artículo 1764 y siguientes del Código Civil, retribuido mediante recibo por honorarios.
+**2.5.** Locadoras y locadores de servicios: exclusión expresa. Quedan expresamente excluidas del alcance de este Reglamento las personas naturales que prestan servicios a CAYLA bajo contrato de locación de servicios regulado por el artículo 1764 y siguientes del Código Civil, retribuido mediante recibo por honorarios.
 
 La razón de la exclusión es que su vínculo con la Empresa es civil y no laboral: el servicio se presta sin subordinación, con autonomía en la organización del tiempo y sin recibir instrucciones sobre el modo de ejecutarlo. Aplicarles este Reglamento contradiría la naturaleza de ese vínculo.
 
@@ -113,25 +113,25 @@ Sus obligaciones —incluidas las de confidencialidad y de tratamiento de datos 
 
 Esta exclusión no alcanza a la política y al procedimiento de prevención y sanción del hostigamiento sexual del Título X, que sí les comprende por mandato expreso del numeral 4 del artículo 2 de la Ley N.° 27942 y del numeral 1 del artículo 75 de su Reglamento, aprobado por Decreto Supremo N.° 014-2019-MIMP. Su participación en las acciones de prevención y capacitación en esa materia no altera la naturaleza civil de su vínculo, conforme al literal a) del numeral 1 del artículo 11 del mismo Reglamento.
 
-2.6. Modalidades formativas laborales. Las personas que, de existir, se vinculen a CAYLA mediante convenio de modalidad formativa laboral regulado por la Ley N.° 28518 no tienen la condición de trabajadoras, no mantienen relación laboral con la Empresa y no están comprendidas en este Reglamento. Se rigen por su convenio y por dicha ley.
+**2.6.** Modalidades formativas laborales. Las personas que, de existir, se vinculen a CAYLA mediante convenio de modalidad formativa laboral regulado por la Ley N.° 28518 no tienen la condición de trabajadoras, no mantienen relación laboral con la Empresa y no están comprendidas en este Reglamento. Se rigen por su convenio y por dicha ley.
 
 Les resultan exigibles, desde el primer día y con independencia de lo que estipule su convenio, las normas de seguridad y salud en el trabajo de este Reglamento: el artículo 68 de la Ley N.° 29783 reconoce a las personas vinculadas por modalidad formativa el mismo nivel de protección en esa materia que a las colaboradoras, y la Empresa asume respecto de ellas las obligaciones del Título VII.
 
 Les resultan igualmente exigibles las normas de conducta, de confidencialidad y de protección de datos personales de este Reglamento, que su convenio incorpora por remisión expresa. Nada de lo anterior altera la naturaleza formativa del vínculo ni le atribuye carácter laboral.
 
-2.7. Personal de terceros y visitantes. El personal de empresas contratistas, proveedores y transportistas, así como las visitantes, no está comprendido en este Reglamento y no mantiene relación laboral con la Empresa.
+**2.7.** Personal de terceros y visitantes. El personal de empresas contratistas, proveedores y transportistas, así como las visitantes, no está comprendido en este Reglamento y no mantiene relación laboral con la Empresa.
 
 Mientras permanezca en las instalaciones de la Empresa debe cumplir las normas de seguridad y salud en el trabajo vigentes en la sede y las instrucciones que imparta la encargada de sede.
 
 Por su parte, CAYLA garantiza a ese personal el mismo nivel de protección en seguridad y salud en el trabajo que a sus colaboradoras, conforme al artículo 68 de la Ley N.° 29783.
 
-2.8. Personal de dirección y personal no sujeto a fiscalización inmediata. Estas personas sí están comprendidas en este Reglamento. Su única particularidad es la que establece el artículo 15: no están comprendidas en la jornada máxima ni en la obligación de registro de control de asistencia.
+**2.8.** Personal de dirección y personal no sujeto a fiscalización inmediata. Estas personas sí están comprendidas en este Reglamento. Su única particularidad es la que establece el artículo 15: no están comprendidas en la jornada máxima ni en la obligación de registro de control de asistencia.
 
 Esa condición consta por escrito en su contrato individual y en el registro de la Empresa. Tratándose de personal de dirección, la Empresa además le comunica por escrito que su puesto ha sido calificado como tal y consigna esa calificación en la planilla y en la boleta de pago, conforme al artículo 59 del Decreto Supremo N.° 001-96-TR; desde esa comunicación corre el plazo de treinta (30) días naturales que el artículo 61 del mismo decreto concede para recurrir judicialmente contra la calificación.
 
 La calificación no se deduce del cargo, del organigrama ni del rol que la persona tenga en el sistema de control de asistencia, y no afecta ninguno de sus demás derechos, incluido el descanso vacacional.
 
-2.9. Primacía de la realidad. Las exclusiones de este artículo se sustentan en la naturaleza real de cada vínculo. Si en los hechos una persona excluida prestara servicios de manera personal, remunerada y subordinada, la Empresa regularizará su situación conforme a ley; la denominación que se dé al contrato no altera esa calificación.
+**2.9.** Primacía de la realidad. Las exclusiones de este artículo se sustentan en la naturaleza real de cada vínculo. Si en los hechos una persona excluida prestara servicios de manera personal, remunerada y subordinada, la Empresa regularizará su situación conforme a ley; la denominación que se dé al contrato no altera esa calificación.
 
 Ninguna disposición de este Reglamento se interpretará como sometimiento al poder de dirección de la Empresa de quien no esté vinculada a ella por un contrato de trabajo.
 
@@ -139,13 +139,13 @@ Ninguna disposición de este Reglamento se interpretará como sometimiento al po
 
 ### ARTÍCULO 3.- DEFINICIONES
 
-3.1. Lenguaje del Reglamento. El equipo de CAYLA es mayoritariamente de mujeres y este Reglamento se redacta en femenino genérico.
+**3.1.** Lenguaje del Reglamento. El equipo de CAYLA es mayoritariamente de mujeres y este Reglamento se redacta en femenino genérico.
 
 Las expresiones empleadas en femenino para referirse a quienes trabajan en la Empresa —colaboradora, integrante, encargada, líder— comprenden por igual a toda persona con contrato de trabajo con CAYLA, sin distinción de sexo ni de identidad de género, y no confieren ni limitan derecho alguno por esa razón.
 
 La misma regla se aplica a «clienta» y a las demás expresiones que este Reglamento emplea en femenino para referirse a personas ajenas a la relación laboral.
 
-3.2. Definiciones. Para todos los efectos de este Reglamento se entiende por:
+**3.2.** Definiciones. Para todos los efectos de este Reglamento se entiende por:
 
 a) Empresa o CAYLA: CAYLA S.A.C., RUC N.° 20605964550.
 
@@ -205,13 +205,15 @@ Cuando este Reglamento dice «día hábil» se excluyen los sábados, los doming
 
 ### ARTÍCULO 4.- PRELACIÓN NORMATIVA Y DOCUMENTOS COMPLEMENTARIOS
 
-4.1. Orden de prelación. En caso de discrepancia se aplica, en este orden: (i) la norma legal laboral imperativa, que prevalece en todo caso; (ii) la condición más favorable pactada por escrito en el contrato individual de trabajo; (iii) el presente Reglamento; y (iv) las políticas internas publicadas por la Empresa y entregadas con constancia de recepción.
+**4.1.** Orden de prelación. En caso de discrepancia se aplica, en este orden: (i) la norma legal laboral imperativa, que prevalece en todo caso; (ii) la condición más favorable pactada por escrito en el contrato individual de trabajo; (iii) el presente Reglamento; y (iv) las políticas internas publicadas por la Empresa y entregadas con constancia de recepción.
 
 Cuando dos disposiciones internas de igual rango discrepen entre sí, prevalece la más favorable a la colaboradora.
 
-4.2. Norma supletoria. Todo lo no previsto en este Reglamento se rige por el régimen laboral de la pequeña empresa —Texto Único Ordenado de la Ley de Impulso al Desarrollo Productivo y al Crecimiento Empresarial, aprobado por Decreto Supremo N.° 013-2013-PRODUCE, que integra la Ley N.° 28015, el Decreto Legislativo N.° 1086 y sus modificatorias, o la norma que lo sustituya—, por la LPCL y por las demás normas laborales vigentes, las que prevalecen en caso de discrepancia.
+Se exceptúa de este orden, por especialidad, la Política Salarial: en materia de estructura de categorías y de cálculo remunerativo prevalece sobre este Reglamento, en los términos y con los límites del numeral 26.4, que reserva como garantías mínimas indisponibles los numerales 23.4 a 23.8. Fuera de esa materia, la Política Salarial no prevalece sobre este Reglamento en ningún extremo.
 
-4.3. Autosuficiencia. Este Reglamento es autosuficiente. Toda obligación, falta, sanción o consecuencia económica que la Empresa pueda invocar frente a una colaboradora está escrita en su articulado.
+**4.2.** Norma supletoria. Todo lo no previsto en este Reglamento se rige por el régimen laboral de la pequeña empresa —Texto Único Ordenado de la Ley de Impulso al Desarrollo Productivo y al Crecimiento Empresarial, aprobado por Decreto Supremo N.° 013-2013-PRODUCE, que integra la Ley N.° 28015, el Decreto Legislativo N.° 1086 y sus modificatorias, o la norma que lo sustituya—, por la LPCL y por las demás normas laborales vigentes, las que prevalecen en caso de discrepancia.
+
+**4.3.** Autosuficiencia. Este Reglamento es autosuficiente. Toda obligación, falta, sanción o consecuencia económica que la Empresa pueda invocar frente a una colaboradora está escrita en su articulado.
 
 En particular: el régimen de asistencia, puntualidad, tardanzas e inasistencias está contenido en el Título IV; el estándar de presentación personal, en el artículo 39; el procedimiento de prevención, atención y sanción del hostigamiento sexual, en el Título X; y el régimen disciplinario, en el Título XI.
 
@@ -219,57 +221,59 @@ Ningún documento distinto de este Reglamento forma parte integrante de él. No 
 
 Las políticas internas de la Empresa —entre ellas la Política Salarial— obligan en su propia materia y en los términos de los numerales 4.4 y 4.5; no tipifican faltas ni establecen sanciones.
 
-4.4. Política Salarial. La Empresa cuenta con una Política Salarial escrita, que incluye el cuadro de categorías y funciones y los criterios objetivos de determinación de la retribución, elaborada conforme a la Ley N.° 30709 y a su Reglamento aprobado por Decreto Supremo N.° 002-2018-TR.
+En consecuencia, el incumplimiento de una política interna solo es susceptible de reproche disciplinario cuando la conducta concreta encaja además, por sí misma, en una falta tipificada en el artículo 53 de este Reglamento —señaladamente, el incumplimiento de una instrucción lícita y expresa conforme al literal e) del numeral 53.2—, y siempre que la entrega de esa política a la colaboradora conste acreditada. La sola existencia de la política nunca es fundamento de sanción.
+
+**4.4.** Política Salarial. La Empresa cuenta con una Política Salarial escrita, que incluye el cuadro de categorías y funciones y los criterios objetivos de determinación de la retribución, elaborada conforme a la Ley N.° 30709 y a su Reglamento aprobado por Decreto Supremo N.° 002-2018-TR.
 
 La Política Salarial está publicada en el sistema de la Empresa, se identifica por número de versión y se entrega a cada colaboradora con constancia de recepción de la versión vigente. Se aplica en los términos del artículo 26.
 
 La Política Salarial regula exclusivamente materia retributiva. Comprende, además de la remuneración, los conceptos adicionales de carácter no remunerativo que la Empresa otorgue, cuyo detalle, condiciones y vigencia constan en ella y no en este Reglamento. No tipifica faltas, no establece sanciones y no puede reducir derechos reconocidos por la ley ni por este Reglamento.
 
-4.5. Políticas internas futuras. Las políticas, guías, manuales o procedimientos que la Empresa apruebe en el futuro tienen carácter instrumental. No pueden crear faltas ni sanciones no previstas en este Reglamento y solo son exigibles desde que se entregan a la colaboradora con constancia de recepción y en aquello que no se oponga a la ley ni a este Reglamento.
+**4.5.** Políticas internas futuras. Las políticas, guías, manuales o procedimientos que la Empresa apruebe en el futuro tienen carácter instrumental. No pueden crear faltas ni sanciones no previstas en este Reglamento y solo son exigibles desde que se entregan a la colaboradora con constancia de recepción y en aquello que no se oponga a la ley ni a este Reglamento.
 
-4.6. Acción judicial. La colaboradora que considere que alguna disposición de este Reglamento vulnera normas legales o convencionales vigentes puede accionar judicialmente, conforme al artículo 5 del Decreto Supremo N.° 039-91-TR. La presentación de este Reglamento ante la Autoridad Administrativa de Trabajo, de producirse, no enerva ese derecho.
+**4.6.** Acción judicial. La colaboradora que considere que alguna disposición de este Reglamento vulnera normas legales o convencionales vigentes puede accionar judicialmente, conforme al artículo 5 del Decreto Supremo N.° 039-91-TR. La presentación de este Reglamento ante la Autoridad Administrativa de Trabajo, de producirse, no enerva ese derecho.
 
 ## TÍTULO II — INGRESO Y CONTRATACIÓN
 
 ### ARTÍCULO 5.- SELECCIÓN E IGUALDAD DE OPORTUNIDADES
 
-5.1. Igualdad de oportunidades y no discriminación. Los procesos de convocatoria y selección de CAYLA se conducen bajo los principios de igualdad de oportunidades y de no discriminación, conforme al numeral 1 del artículo 26 de la Constitución Política del Perú y a la Ley N.° 26772.
+**5.1.** Igualdad de oportunidades y no discriminación. Los procesos de convocatoria y selección de CAYLA se conducen bajo los principios de igualdad de oportunidades y de no discriminación, conforme al numeral 1 del artículo 26 de la Constitución Política del Perú y a la Ley N.° 26772.
 
 Las convocatorias no contienen requisitos que impliquen discriminación por raza, sexo, identidad de género, religión, opinión, idioma, origen social, condición económica, estado civil, edad, discapacidad, condición de salud, responsabilidades familiares ni por cualquier otro motivo. No es discriminatoria la exigencia de las calificaciones objetivamente requeridas para el desempeño del puesto.
 
-5.2. Criterio de decisión. La selección atiende exclusivamente a la idoneidad de la persona para el puesto y a los requisitos objetivos que ese puesto exige.
+**5.2.** Criterio de decisión. La selección atiende exclusivamente a la idoneidad de la persona para el puesto y a los requisitos objetivos que ese puesto exige.
 
-5.3. Lo que la Empresa no pide. CAYLA no exige prueba de embarazo ni prueba de descarte de VIH como condición para postular, para ingresar o para permanecer en la Empresa, ni indaga sobre planes de maternidad o de paternidad, ni sobre aspectos de la vida privada ajenos al puesto.
+**5.3.** Lo que la Empresa no pide. CAYLA no exige prueba de embarazo ni prueba de descarte de VIH como condición para postular, para ingresar o para permanecer en la Empresa, ni indaga sobre planes de maternidad o de paternidad, ni sobre aspectos de la vida privada ajenos al puesto.
 
-5.4. Categorías y política salarial. La ubicación de cada puesto en una categoría y la remuneración que le corresponde se determinan por criterios objetivos de función, responsabilidad y requisitos, y en ningún caso por el sexo ni por otra característica personal de quien lo ocupa.
+**5.4.** Categorías y política salarial. La ubicación de cada puesto en una categoría y la remuneración que le corresponde se determinan por criterios objetivos de función, responsabilidad y requisitos, y en ningún caso por el sexo ni por otra característica personal de quien lo ocupa.
 
 Conforme a la Ley N.° 30709 y a su Reglamento aprobado por Decreto Supremo N.° 002-2018-TR, la Empresa cuenta con un cuadro de categorías y funciones y con una política salarial escrita, publicados en el sistema de gestión de la Empresa e identificados por versión. Su entrega se registra con constancia de recepción por cada versión, y se practica al ingreso, al cambiar de categoría y cada vez que se modifica el esquema remunerativo. Ambos se rigen por el artículo 26 de este Reglamento.
 
-5.5. Ajustes razonables. La Empresa realiza los ajustes razonables que una persona con discapacidad requiera para postular y para desempeñar su puesto —adaptación de herramientas, del entorno, de la organización del trabajo y de los horarios—, conforme al artículo 50 de la Ley N.° 29973, salvo que supongan una carga desproporcionada o indebida debidamente acreditada.
+**5.5.** Ajustes razonables. La Empresa realiza los ajustes razonables que una persona con discapacidad requiera para postular y para desempeñar su puesto —adaptación de herramientas, del entorno, de la organización del trabajo y de los horarios—, conforme al artículo 50 de la Ley N.° 29973, salvo que supongan una carga desproporcionada o indebida debidamente acreditada.
 
-5.6. Información de las postulantes. Los datos personales que se recaban en un proceso de selección se tratan únicamente para ese proceso y se rigen por el Título IX de este Reglamento.
+**5.6.** Información de las postulantes. Los datos personales que se recaban en un proceso de selección se tratan únicamente para ese proceso y se rigen por el Título IX de este Reglamento.
 
 ### ARTÍCULO 6.- FORMALIZACIÓN Y REGISTRO
 
-6.1. Contrato de trabajo. Toda prestación de servicios personal, subordinada y remunerada a favor de CAYLA se formaliza mediante contrato de trabajo. La Empresa celebra sus contratos por escrito, entrega un ejemplar firmado a la colaboradora y conserva otro en su legajo.
+**6.1.** Contrato de trabajo. Toda prestación de servicios personal, subordinada y remunerada a favor de CAYLA se formaliza mediante contrato de trabajo. La Empresa celebra sus contratos por escrito, entrega un ejemplar firmado a la colaboradora y conserva otro en su legajo.
 
 La Empresa no recurre a la locación de servicios ni a ninguna otra forma de contratación civil para encubrir una relación de trabajo. Quienes prestan servicios bajo locación no están comprendidas en este Reglamento, conforme al artículo 2, salvo en materia de hostigamiento sexual, ámbito en el que la norma sí las comprende y en el que les son aplicables los artículos 48 a 51.
 
-6.2. Contenido del contrato. El contrato consigna, cuando menos: la identidad de las partes; el puesto y la categoría; la sede a la que la colaboradora queda asignada —Central (CCO), Taller Lima, Tienda Arequipa o Tienda Trujillo—; la jornada ordinaria de cuarenta y ocho (48) horas semanales y el horario programado, conforme al Título III; la remuneración convenida y su forma de cálculo en función de las horas efectivamente laboradas, conforme al Título V; la fecha de inicio de labores y, si el contrato está sujeto a modalidad, su duración y su causa objetiva conforme al artículo 8; y el domicilio y el correo electrónico que la colaboradora señala para recibir comunicaciones.
+**6.2.** Contenido del contrato. El contrato consigna, cuando menos: la identidad de las partes; el puesto y la categoría; la sede a la que la colaboradora queda asignada —Central (CCO), Taller Lima, Tienda Arequipa o Tienda Trujillo—; la jornada ordinaria de cuarenta y ocho (48) horas semanales y el horario programado, conforme al Título III; la remuneración convenida y su forma de cálculo en función de las horas efectivamente laboradas, conforme al Título V; la fecha de inicio de labores y, si el contrato está sujeto a modalidad, su duración y su causa objetiva conforme al artículo 8; y el domicilio y el correo electrónico que la colaboradora señala para recibir comunicaciones.
 
-6.3. Registro en la planilla electrónica y seguridad social. La Empresa registra a la colaboradora en la planilla electrónica el mismo día en que esta inicia la prestación de sus servicios, conforme al Decreto Supremo N.° 018-2007-TR y sus normas complementarias.
+**6.3.** Registro en la planilla electrónica y seguridad social. La Empresa registra a la colaboradora en la planilla electrónica el mismo día en que esta inicia la prestación de sus servicios, conforme al Decreto Supremo N.° 018-2007-TR y sus normas complementarias.
 
 En el mismo acto se efectúa su afiliación al régimen de seguridad social en salud y se recoge su elección de régimen pensionario —Sistema Nacional de Pensiones o Sistema Privado de Pensiones—, para practicar en adelante las retenciones que correspondan conforme al artículo 29.
 
-6.4. Ninguna prestación sin contrato ni registro. Ninguna persona inicia labores sin haber suscrito previamente su contrato de trabajo. Su registro en la planilla electrónica se efectúa, a más tardar, el mismo día en que inicia la prestación de sus servicios, conforme al numeral 6.3.
+**6.4.** Ninguna prestación sin contrato ni registro. Ninguna persona inicia labores sin haber suscrito previamente su contrato de trabajo. Su registro en la planilla electrónica se efectúa, a más tardar, el mismo día en que inicia la prestación de sus servicios, conforme al numeral 6.3.
 
 Si por un error administrativo se produjera una prestación efectiva de servicios sin ese registro, la Empresa lo regulariza de inmediato con efecto desde el primer día efectivamente laborado, sin que la omisión afecte ninguno de los derechos generados desde ese día.
 
-6.5. Contratos a tiempo parcial. Cuando la Empresa celebre contratos a tiempo parcial, estos constan necesariamente por escrito y se ponen en conocimiento de la Autoridad Administrativa de Trabajo, para su registro, dentro de los quince (15) días naturales siguientes a su suscripción, conforme al Reglamento de la Ley de Fomento del Empleo, aprobado por Decreto Supremo N.° 001-96-TR. La ausencia de forma escrita hace que el contrato deje de considerarse a tiempo parcial.
+**6.5.** Contratos a tiempo parcial. Cuando la Empresa celebre contratos a tiempo parcial, estos constan necesariamente por escrito y se ponen en conocimiento de la Autoridad Administrativa de Trabajo, para su registro, dentro de los quince (15) días naturales siguientes a su suscripción, conforme al Reglamento de la Ley de Fomento del Empleo, aprobado por Decreto Supremo N.° 001-96-TR. La ausencia de forma escrita hace que el contrato deje de considerarse a tiempo parcial.
 
 Quienes prestan servicios a tiempo parcial están comprendidas en este Reglamento conforme al artículo 2.
 
-6.6. Entrega de documentos e inducción al ingreso. Al iniciar sus labores, la colaboradora recibe:
+**6.6.** Entrega de documentos e inducción al ingreso. Al iniciar sus labores, la colaboradora recibe:
 
 a) un ejemplar de este Reglamento, con cargo de recepción que indica su versión y su fecha, conforme al artículo 60;
 
@@ -287,19 +291,19 @@ g) el cuadro de categorías y funciones y la política salarial vigentes, con co
 
 Las constancias de estas entregas se archivan en su legajo. La entrega del literal g) se repite cada vez que la colaboradora cambia de categoría y cada vez que la Empresa modifica el esquema remunerativo.
 
-6.7. Datos de contacto y comunicaciones válidas. La colaboradora mantiene actualizados su domicilio, su correo electrónico, su teléfono y la cuenta en la que recibe el pago, y comunica por escrito cualquier cambio.
+**6.7.** Datos de contacto y comunicaciones válidas. La colaboradora mantiene actualizados su domicilio, su correo electrónico, su teléfono y la cuenta en la que recibe el pago, y comunica por escrito cualquier cambio.
 
 El domicilio y el correo electrónico consignados en el contrato, o los que la colaboradora comunique después por escrito, son válidos para todas las comunicaciones de la Empresa, incluidas las del Título XI. El tratamiento de estos datos se rige por el Título IX.
 
-6.8. Veracidad de la información. La información y los documentos que la persona entrega para su contratación y durante la relación laboral deben ser veraces. Su falsedad se evalúa conforme al Título XI, con el procedimiento y las garantías que este establece.
+**6.8.** Veracidad de la información. La información y los documentos que la persona entrega para su contratación y durante la relación laboral deben ser veraces. Su falsedad se evalúa conforme al Título XI, con el procedimiento y las garantías que este establece.
 
 ### ARTÍCULO 7.- PERIODO DE PRUEBA
 
-7.1. Duración y efecto. Conforme al artículo 10 del TUO del Decreto Legislativo N.° 728 (LPCL), el periodo de prueba es de tres (3) meses, contados desde el inicio de la prestación efectiva de servicios. A su término, la colaboradora alcanza el derecho a la protección contra el despido arbitrario.
+**7.1.** Duración y efecto. Conforme al artículo 10 del TUO del Decreto Legislativo N.° 728 (LPCL), el periodo de prueba es de tres (3) meses, contados desde el inicio de la prestación efectiva de servicios. A su término, la colaboradora alcanza el derecho a la protección contra el despido arbitrario.
 
-7.2. Derechos durante el periodo de prueba. Durante el periodo de prueba la colaboradora tiene todos los derechos que este Reglamento y la ley le reconocen —remuneración, jornada, descansos, licencias, seguridad social, seguridad y salud en el trabajo, y un ambiente libre de hostigamiento sexual—. El periodo de prueba solo incide en la protección contra el despido arbitrario, y en nada más.
+**7.2.** Derechos durante el periodo de prueba. Durante el periodo de prueba la colaboradora tiene todos los derechos que este Reglamento y la ley le reconocen —remuneración, jornada, descansos, licencias, seguridad social, seguridad y salud en el trabajo, y un ambiente libre de hostigamiento sexual—. El periodo de prueba solo incide en la protección contra el despido arbitrario, y en nada más.
 
-7.3. Requisitos de la ampliación. Las partes pueden pactar un periodo de prueba mayor únicamente si concurren todos estos requisitos:
+**7.3.** Requisitos de la ampliación. Las partes pueden pactar un periodo de prueba mayor únicamente si concurren todos estos requisitos:
 
 a) que el pacto conste por escrito y esté suscrito por ambas partes;
 
@@ -309,7 +313,7 @@ c) que exprese la causa concreta que lo justifica, que solo puede ser una de est
 
 d) que respete los topes del numeral 7.4.
 
-7.4. Topes. El periodo de prueba no puede exceder, EN CONJUNTO CON EL PERIODO INICIAL DE TRES (3) MESES:
+**7.4.** Topes. El periodo de prueba no puede exceder, EN CONJUNTO CON EL PERIODO INICIAL DE TRES (3) MESES:
 
 a) seis (6) meses en total, tratándose de personal calificado o de confianza; ni
 
@@ -317,45 +321,45 @@ b) un (1) año en total, tratándose de personal de dirección.
 
 El exceso que se pactara por encima de estos límites no surte efecto legal, conforme al artículo 17 del Decreto Supremo N.° 001-96-TR.
 
-7.5. Este Reglamento no amplía ningún periodo de prueba. La ampliación es siempre un pacto individual con los requisitos del numeral 7.3. A falta de pacto válido, el periodo de prueba de toda colaboradora es de tres (3) meses.
+**7.5.** Este Reglamento no amplía ningún periodo de prueba. La ampliación es siempre un pacto individual con los requisitos del numeral 7.3. A falta de pacto válido, el periodo de prueba de toda colaboradora es de tres (3) meses.
 
-7.6. Confianza y dirección. La aplicación del tope mayor previsto en el numeral 7.4 para el personal de confianza o de dirección exige que esa calificación se haya determinado individualmente conforme al artículo 43 de la LPCL y se haya comunicado por escrito a la colaboradora, conforme al artículo 59 del Decreto Supremo N.° 001-96-TR y al artículo 15 de este Reglamento. Ni el cargo, ni el área, ni el nivel de acceso que la persona tenga en los sistemas de la Empresa sustituyen esa comunicación.
+**7.6.** Confianza y dirección. La aplicación del tope mayor previsto en el numeral 7.4 para el personal de confianza o de dirección exige que esa calificación se haya determinado individualmente conforme al artículo 43 de la LPCL y se haya comunicado por escrito a la colaboradora, conforme al artículo 59 del Decreto Supremo N.° 001-96-TR y al artículo 15 de este Reglamento. Ni el cargo, ni el área, ni el nivel de acceso que la persona tenga en los sistemas de la Empresa sustituyen esa comunicación.
 
-7.7. Suspensión y reingreso. Conforme al artículo 16 del Decreto Supremo N.° 001-96-TR, en caso de suspensión del contrato o de reingreso, los periodos laborados en cada oportunidad se suman hasta completar el periodo de prueba.
+**7.7.** Suspensión y reingreso. Conforme al artículo 16 del Decreto Supremo N.° 001-96-TR, en caso de suspensión del contrato o de reingreso, los periodos laborados en cada oportunidad se suman hasta completar el periodo de prueba.
 
 No hay acumulación —y puede fijarse un nuevo periodo de prueba en el nuevo contrato— cuando el reingreso se produce a un puesto notoria y cualitativamente distinto del ocupado antes, o cuando se produce transcurridos tres (3) años desde el cese.
 
-7.8. Cese durante el periodo de prueba. El cese durante el periodo de prueba no requiere expresión de causa ni el procedimiento del artículo 55, se comunica por escrito y da lugar a la liquidación de los beneficios truncos conforme al artículo 59.
+**7.8.** Cese durante el periodo de prueba. El cese durante el periodo de prueba no requiere expresión de causa ni el procedimiento del artículo 55, se comunica por escrito y da lugar a la liquidación de los beneficios truncos conforme al artículo 59.
 
 El periodo de prueba no ampara el cese fundado en un motivo discriminatorio, en el embarazo o la maternidad, en la condición de salud, en haber presentado una queja o denuncia, ni en el ejercicio de un derecho. Tales ceses son nulos conforme al artículo 29 de la LPCL, y en materia de hostigamiento sexual se rigen además por el artículo 51.
 
 ### ARTÍCULO 8.- CONTRATOS SUJETOS A MODALIDAD
 
-8.1. Carácter excepcional. La contratación a plazo indeterminado es la regla en CAYLA. El contrato sujeto a modalidad solo procede cuando existe una causa objetiva prevista en la ley que justifique la temporalidad, y dura mientras esa causa subsista.
+**8.1.** Carácter excepcional. La contratación a plazo indeterminado es la regla en CAYLA. El contrato sujeto a modalidad solo procede cuando existe una causa objetiva prevista en la ley que justifique la temporalidad, y dura mientras esa causa subsista.
 
-8.2. Forma. Los contratos sujetos a modalidad constan por escrito y por triplicado, y consignan de manera expresa su duración y las causas objetivas determinantes de la contratación, conforme al artículo 72 de la LPCL.
+**8.2.** Forma. Los contratos sujetos a modalidad constan por escrito y por triplicado, y consignan de manera expresa su duración y las causas objetivas determinantes de la contratación, conforme al artículo 72 de la LPCL.
 
-8.3. Registro ante la Autoridad Administrativa de Trabajo. Una copia del contrato se presenta ante la Autoridad Administrativa de Trabajo, por la plataforma virtual del Ministerio de Trabajo y Promoción del Empleo, dentro de los QUINCE (15) DÍAS NATURALES siguientes a su celebración, conforme al artículo 73 de la LPCL.
+**8.3.** Registro ante la Autoridad Administrativa de Trabajo. Una copia del contrato se presenta ante la Autoridad Administrativa de Trabajo, por la plataforma virtual del Ministerio de Trabajo y Promoción del Empleo, dentro de los QUINCE (15) DÍAS NATURALES siguientes a su celebración, conforme al artículo 73 de la LPCL.
 
 La Empresa entrega a la colaboradora copia de su contrato dentro de los tres (3) días hábiles siguientes a esa presentación, conforme al artículo 83 del Decreto Supremo N.° 001-96-TR.
 
 La presentación fuera de plazo es sancionable por la autoridad inspectiva y puede además ser valorada como indicio en un procedimiento de desnaturalización.
 
-8.4. Duración máxima. Cada modalidad tiene el plazo máximo que la ley le asigna: tres (3) años para los contratos por inicio o incremento de actividad, dos (2) años para el de reconversión empresarial, seis (6) meses al año para el contrato ocasional, y el que corresponda a las demás modalidades.
+**8.4.** Duración máxima. Cada modalidad tiene el plazo máximo que la ley le asigna: tres (3) años para los contratos por inicio o incremento de actividad, dos (2) años para el de reconversión empresarial, seis (6) meses al año para el contrato ocasional, y el que corresponda a las demás modalidades.
 
 Aunque se celebren sucesivamente contratos bajo distintas modalidades, la suma de todos ellos con una misma colaboradora no puede superar CINCO (5) AÑOS, conforme al artículo 74 de la LPCL.
 
-8.5. Igualdad de derechos. Quien está contratada bajo modalidad percibe los mismos beneficios que por ley, pacto o costumbre corresponden al personal contratado a plazo indeterminado, y tiene estabilidad laboral durante el tiempo que dure su contrato, una vez superado el periodo de prueba, conforme al artículo 79 de la LPCL. El periodo de prueba se rige por el artículo 7 de este Reglamento.
+**8.5.** Igualdad de derechos. Quien está contratada bajo modalidad percibe los mismos beneficios que por ley, pacto o costumbre corresponden al personal contratado a plazo indeterminado, y tiene estabilidad laboral durante el tiempo que dure su contrato, una vez superado el periodo de prueba, conforme al artículo 79 de la LPCL. El periodo de prueba se rige por el artículo 7 de este Reglamento.
 
-8.6. Renovación. La renovación o prórroga se formaliza por escrito ANTES de la fecha de vencimiento y se registra conforme al numeral 8.3. Ninguna renovación puede llevar la duración total más allá de los topes del numeral 8.4.
+**8.6.** Renovación. La renovación o prórroga se formaliza por escrito ANTES de la fecha de vencimiento y se registra conforme al numeral 8.3. Ninguna renovación puede llevar la duración total más allá de los topes del numeral 8.4.
 
 Corresponde a Desarrollo Organizacional verificar, antes de cada fecha de vencimiento, si procede la renovación. La Empresa comunica por escrito a la colaboradora su decisión de renovar o de no renovar antes de la fecha de vencimiento.
 
 La decisión de no renovar no puede fundarse en un motivo discriminatorio ni constituir represalia por el ejercicio de un derecho o por haber presentado una queja o denuncia, conforme al artículo 51.
 
-8.7. Vencimiento. El vencimiento del plazo del contrato legalmente celebrado bajo modalidad extingue el vínculo laboral conforme al inciso c) del artículo 16 de la LPCL, y da lugar a la entrega de cargo, a la liquidación de beneficios sociales y al certificado de trabajo previstos en el artículo 59.
+**8.7.** Vencimiento. El vencimiento del plazo del contrato legalmente celebrado bajo modalidad extingue el vínculo laboral conforme al inciso c) del artículo 16 de la LPCL, y da lugar a la entrega de cargo, a la liquidación de beneficios sociales y al certificado de trabajo previstos en el artículo 59.
 
-8.8. Desnaturalización. Conforme al artículo 77 de la LPCL, el contrato sujeto a modalidad se considera de duración indeterminada:
+**8.8.** Desnaturalización. Conforme al artículo 77 de la LPCL, el contrato sujeto a modalidad se considera de duración indeterminada:
 
 a) si la colaboradora continúa laborando después de la fecha de vencimiento del plazo estipulado, o después de las prórrogas pactadas si estas exceden el límite máximo permitido;
 
@@ -365,13 +369,13 @@ c) si la titular del puesto sustituido no se reincorpora vencido el término leg
 
 d) cuando se acredite la existencia de simulación o de fraude a las normas laborales.
 
-8.9. Recontratación. Conforme al artículo 78 de la LPCL, quien cesa habiendo sido personal permanente no puede ser recontratada bajo ninguna de las modalidades de contratación temporal, salvo que haya transcurrido un año desde su cese.
+**8.9.** Recontratación. Conforme al artículo 78 de la LPCL, quien cesa habiendo sido personal permanente no puede ser recontratada bajo ninguna de las modalidades de contratación temporal, salvo que haya transcurrido un año desde su cese.
 
-8.10. Terminación anticipada. Vencido el periodo de prueba, si la Empresa resuelve el contrato antes de su vencimiento sin causa justa, corresponde a la colaboradora la indemnización que la ley prevé para la resolución anticipada del contrato sujeto a modalidad, que se calcula en función del tiempo que faltaba hasta el vencimiento del plazo pactado y no por años de servicios, sin perjuicio de su derecho a impugnar la decisión.
+**8.10.** Terminación anticipada. Vencido el periodo de prueba, si la Empresa resuelve el contrato antes de su vencimiento sin causa justa, corresponde a la colaboradora la indemnización que la ley prevé para la resolución anticipada del contrato sujeto a modalidad, que se calcula en función del tiempo que faltaba hasta el vencimiento del plazo pactado y no por años de servicios, sin perjuicio de su derecho a impugnar la decisión.
 
 El cese producido dentro del periodo de prueba se rige por el numeral 7.8 y no genera esta indemnización.
 
-8.11. Periodo de prueba en la contratación modal. El periodo de prueba solo puede establecerse en el contrato primigenio; su eventual ampliación se rige por el numeral 7.3. La renovación del contrato o la celebración de un nuevo contrato sujeto a modalidad con la misma colaboradora no abre un nuevo periodo de prueba, salvo que se trate del desempeño de una labor notoria y cualitativamente distinta de la desempeñada antes, conforme al artículo 84 del Decreto Supremo N.° 001-96-TR.
+**8.11.** Periodo de prueba en la contratación modal. El periodo de prueba solo puede establecerse en el contrato primigenio; su eventual ampliación se rige por el numeral 7.3. La renovación del contrato o la celebración de un nuevo contrato sujeto a modalidad con la misma colaboradora no abre un nuevo periodo de prueba, salvo que se trate del desempeño de una labor notoria y cualitativamente distinta de la desempeñada antes, conforme al artículo 84 del Decreto Supremo N.° 001-96-TR.
 
 ## TÍTULO III — JORNADA, HORARIO Y DESCANSOS
 
@@ -559,6 +563,29 @@ Mientras la condición no conste de ese modo, la persona está comprendida en la
 
 **15.5. Registro de asistencia.** Cuando estas personas registren su asistencia, ese registro se lleva con fines de control de acceso, seguridad y organización interna. No supone sujeción a fiscalización inmediata del tiempo de trabajo ni convierte en sobretiempo su permanencia.
 
+### ARTÍCULO 15-A.- TELETRABAJO Y TRABAJO EN MODALIDAD MIXTA
+
+**15-A.1. Marco.** El teletrabajo se rige por la Ley N.° 31572, Ley del Teletrabajo, por su Reglamento aprobado por el Decreto Supremo N.° 002-2023-TR y por la Ley N.° 32102, y por este artículo en lo que este no se les oponga.
+
+**15-A.2. Carácter voluntario y reversible.** El teletrabajo se pacta por acuerdo escrito entre CAYLA y la colaboradora, sea en el contrato de trabajo o en acuerdo de cambio de modalidad. Nadie puede ser obligada a teletrabajar ni a retornar a la presencialidad al margen de las reglas de reversibilidad de la Ley y de su Reglamento. La negativa a teletrabajar no constituye falta.
+
+**15-A.3. Contenido mínimo del acuerdo.** El acuerdo consigna, cuando menos: la modalidad total o parcial y su plazo —a falta de plazo, el teletrabajo se entiende permanente—; el lugar de prestación; la jornada y el horario, que son los del Título III; el preaviso para requerir la asistencia presencial; los equipos y medios que provee cada parte; la compensación de gastos del numeral 15-A.5; las condiciones de reversibilidad; las medidas de seguridad y salud; las medidas de seguridad digital y protección de datos personales; y las medidas de prevención del hostigamiento sexual aplicables al teletrabajo, conforme al Título X.
+
+**15-A.4. Equipos.** CAYLA provee los equipos y los medios necesarios para el teletrabajo. Cuando por acuerdo escrito los aporte la colaboradora, la Empresa compensa su uso en los términos del acuerdo.
+
+**15-A.5. Compensación de gastos.** CAYLA compensa los gastos de acceso a internet y de consumo de energía eléctrica derivados del teletrabajo, en la forma y con los valores referenciales que el Reglamento de la Ley y las Resoluciones Ministeriales anuales establezcan, salvo pacto escrito más favorable. La compensación se identifica como concepto separado en la boleta de pago y no tiene naturaleza remunerativa.
+
+**15-A.6. Desconexión digital.** La colaboradora que teletrabaja tiene derecho a desconectar los equipos y medios digitales fuera de su jornada de trabajo y durante los descansos, las licencias, las vacaciones y los períodos de suspensión de la relación laboral. Durante esos períodos no se le puede exigir atender asuntos de trabajo, tareas ni coordinaciones. La Empresa no valora negativamente, en ninguna evaluación, la falta de respuesta fuera de la jornada, y el requerimiento reiterado de atención fuera de ella se evalúa conforme al Título XI.
+
+**15-A.7. Jornada, registro y sobretiempo.** El teletrabajo no altera la jornada ordinaria del numeral 9.1 ni el régimen de sobretiempo del artículo 14. El registro de asistencia se practica por el medio que la Empresa habilite, con las mismas garantías del artículo 16.
+
+**15-A.8. Seguridad y salud.** CAYLA informa a la teletrabajadora de las condiciones de seguridad y salud aplicables, le imparte la capacitación correspondiente dentro de la jornada y realiza la evaluación ergonómica del puesto en la forma que el Reglamento de la Ley disponga. El accidente ocurrido durante la jornada y con ocasión del teletrabajo es accidente de trabajo y se rige por el artículo 37.
+
+**15-A.9. Igualdad de derechos y no discriminación.** La teletrabajadora tiene los mismos derechos, beneficios, oportunidades de capacitación y de desarrollo que el resto del equipo. La modalidad no puede fundar diferencia alguna de remuneración, categoría ni evaluación.
+
+**15-A.10. Registro.** La condición de teletrabajadora se consigna en la planilla electrónica en los términos que la normativa exija.
+
+
 ## TÍTULO IV — ASISTENCIA Y PUNTUALIDAD
 
 ### ARTÍCULO 16.- REGISTRO DE ASISTENCIA
@@ -571,7 +598,7 @@ No están sujetas a este artículo las personas no comprendidas en el artículo 
 
 **16.2. Qué se registra.** Se registran, en el terminal de la sede: el ingreso, la salida, el inicio y el término del refrigerio conforme al artículo 11, y la salida y el retorno en toda ausencia durante la jornada.
 
-De cada marca quedan la fecha y la hora y los minutos en que se hizo, y de cada día quedan las horas y minutos de permanencia fuera de la jornada, que es el contenido mínimo que exige el artículo 2 del Decreto Supremo N.° 004-2006-TR.
+De cada marca quedan la fecha y la hora y los minutos en que se hizo, y de cada día quedan las horas y minutos de permanencia fuera de la jornada, que es el contenido mínimo que exige el artículo 2 del Decreto Supremo N.° 004-2006-TR. El registro contiene además, respecto de cada colaboradora, su nombre y su número de documento de identidad.
 
 Los registros son la base del cálculo de la remuneración del artículo 23 y del sobretiempo del artículo 14.
 
@@ -957,6 +984,9 @@ d) los beneficios que integran la liquidación al cese, conforme al artículo 59
 
 ---
 
+
+**24.7. Conceptos de referencia mensual calendario.** Cuando una norma legal fije como referencia el mes calendario —en particular para la declaración en la planilla electrónica, para la determinación de las gratificaciones y para la gestión de subsidios—, CAYLA emplea el mes calendario y no el período del numeral 24.1. La boleta de pago identifica ambos períodos cuando difieran, y la diferencia entre ellos no puede traducirse en un pago menor ni en un retraso respecto de la oportunidad que la ley señale para cada concepto.
+
 ### ARTÍCULO 25.- BOLETAS DE PAGO
 
 **25.1. Entrega.** CAYLA entrega la boleta de pago a más tardar el tercer día hábil siguiente a la fecha de pago, conforme al artículo 18 del Decreto Supremo N.° 001-98-TR.
@@ -1019,11 +1049,32 @@ h) **Descansos remunerados:** descanso semanal obligatorio y días feriados, con
 
 i) **Indemnización por despido arbitrario:** equivalente a veinte (20) remuneraciones diarias por cada año completo de servicios, con un tope de ciento veinte (120) remuneraciones diarias; las fracciones de año se abonan por dozavos. Ello conforme al artículo 56 del Texto Único Ordenado aprobado por el Decreto Supremo N.° 013-2013-PRODUCE. No es de aplicación el artículo 38 del Texto Único Ordenado del Decreto Legislativo N.° 728, propio del régimen laboral general.
 
+j) **Participación en las utilidades:** cuando la Empresa cuente con más de veinte (20) personas trabajadoras en promedio durante el ejercicio y genere renta neta anual antes de impuestos, conforme al Decreto Legislativo N.° 892 y a su Reglamento. El porcentaje aplicable es el que ese Decreto Legislativo asigna a la actividad de la Empresa. La distribución se practica dentro del plazo legal, se detalla en la hoja de liquidación que se entrega a cada colaboradora y comprende también a quienes hubieran cesado durante el ejercicio, en proporción a los días efectivamente laborados y a la remuneración percibida. Desarrollo Organizacional verifica anualmente el promedio de personas trabajadoras del ejercicio y deja constancia escrita del resultado.
+
 **27.2. Base de cálculo.** Cada beneficio se calcula sobre la remuneración computable que la ley señala para él.
 
 El sobretiempo y las sobretasas por trabajo en feriado y en día de descanso semanal no figuran entre los conceptos no remunerativos del artículo 19 del Decreto Supremo N.° 001-97-TR y, en consecuencia, integran la base de cálculo de las aportaciones y contribuciones que la ley disponga.
 
-**27.3. Continuidad normativa.** Las referencias de este artículo al Decreto Supremo N.° 013-2013-PRODUCE se entienden hechas a la norma que lo sustituya, sin que ello altere el contenido de los beneficios aquí reconocidos.
+
+**27.2-bis. Remuneración imprecisa.** Como la remuneración de CAYLA se determina en función de las horas efectivamente laboradas conforme al artículo 23 y por ello puede variar de un período a otro, tiene la condición de remuneración principal imprecisa. En consecuencia, y sin perjuicio de reglas legales más favorables:
+
+a) para la compensación por tiempo de servicios, la remuneración computable es el promedio de las remuneraciones percibidas en los seis (6) meses anteriores al respectivo período de depósito, conforme al artículo 16 del Decreto Supremo N.° 001-97-TR;
+
+b) para las gratificaciones de Fiestas Patrias y Navidad, la remuneración computable es el promedio de las remuneraciones percibidas en los seis (6) meses anteriores al 15 de julio y al 15 de diciembre, respectivamente, conforme a la Ley N.° 27735 y a su Reglamento;
+
+c) para la remuneración vacacional rige el artículo 15 del Decreto Legislativo N.° 713 y el numeral 30.8 de este Reglamento: no puede ser inferior a la que la colaboradora habría percibido de haber continuado laborando;
+
+d) para la indemnización por despido arbitrario rige la remuneración computable que la ley señale, calculada con el mismo criterio de promedio;
+
+e) en ningún caso el promedio puede arrojar una remuneración computable inferior a la remuneración mínima vital vigente cuando la colaboradora cumplió el horario que le fue programado.
+
+La hoja de cálculo de cada beneficio identifica los períodos promediados y se entrega a la colaboradora cuando lo solicite.
+
+**27.3. Continuidad normativa y tránsito al nuevo régimen MYPE.** Las referencias de este Reglamento al Texto Único Ordenado aprobado por el Decreto Supremo N.° 013-2013-PRODUCE se entienden hechas a la norma que lo sustituya, sin que ello altere el contenido de los beneficios aquí reconocidos.
+
+En particular, la Ley N.° 32353, Ley para la Formalización, Desarrollo y Competitividad de la Micro y Pequeña Empresa, publicada el 27 de mayo de 2025, entra en vigencia al día siguiente de la publicación de su reglamento. Hasta esa fecha rige el Texto Único Ordenado aprobado por el Decreto Supremo N.° 013-2013-PRODUCE, que es el que este Reglamento aplica.
+
+Producida esa entrada en vigencia, la Empresa aplica el nuevo régimen a los contratos de trabajo celebrados a partir de ella y mantiene, respecto de los contratos celebrados con anterioridad, los términos y condiciones bajo los que fueron celebrados. Desarrollo Organizacional identifica individualmente cada situación, deja constancia escrita de ella en el legajo y comunica por escrito a cada colaboradora el régimen que le corresponde, dentro de los treinta (30) días calendario siguientes a la entrada en vigencia. En ningún caso el tránsito puede reducir derechos ya adquiridos.
 
 **27.4. Régimen anterior conservado.** La colaboradora cuyo vínculo se hubiera iniciado bajo un régimen laboral distinto conserva los derechos y beneficios que le correspondían al momento de su contratación, cuando la ley así lo disponga. La Empresa identifica individualmente esa situación y la reconoce sin necesidad de solicitud.
 
@@ -1203,6 +1254,21 @@ CAYLA resuelve las solicitudes con criterios uniformes para todas las sedes y co
 **32.6. Prohibición.** No puede exigirse ni sugerirse a una colaboradora que impute a su descanso vacacional, a un permiso sin goce o a una licencia sin goce un tiempo amparado por una licencia legal con goce del artículo 31 o del artículo 33.
 
 ---
+
+### ARTÍCULO 32-A.- TRASLADOS Y MOVILIDAD ENTRE SEDES
+
+**32-A.1. Facultad y su límite.** CAYLA puede disponer el traslado de una colaboradora a otro centro de trabajo, dentro de la misma localidad o a otra, en ejercicio de su facultad de dirección y por razones objetivas de organización, de operación o de desarrollo del equipo. Esa facultad no puede ejercerse con ánimo de perjudicar, conforme al literal c) del artículo 30 del Texto Único Ordenado del Decreto Legislativo N.° 728.
+
+**32-A.2. Requisitos.** Todo traslado consta por escrito, expresa la razón objetiva que lo motiva y se comunica con una anticipación no menor de quince (15) días calendario, salvo acuerdo escrito de la colaboradora o urgencia acreditada. La comunicación indica la sede de destino, el puesto, la fecha de inicio y las condiciones del numeral 32-A.3.
+
+**32-A.3. Garantías.** El traslado no puede reducir la categoría, la remuneración ni las condiciones de trabajo de la colaboradora. Cuando implique cambio de localidad, CAYLA asume los gastos de traslado y, cuando corresponda, los de instalación, en los términos que se acuerden por escrito antes de su ejecución.
+
+**32-A.4. Traslado prohibido.** No procede el traslado con finalidad sancionadora, conforme al artículo 54, ni como respuesta a una queja, denuncia, reclamo o al ejercicio de un derecho, conforme a los artículos 41, 42 y 51. Tampoco procede cuando constituya represalia por hechos comprendidos en el Título X.
+
+**32-A.5. Situaciones que exigen evaluación previa.** Antes de disponer un traslado, la Empresa evalúa y hace constar por escrito la situación de la colaboradora gestante o en período de lactancia, la de quien tenga a su cargo a una persona con discapacidad o a un familiar directo en tratamiento acreditado, y la de quien esté amparada por el artículo 22. En estos casos el traslado requiere el acuerdo escrito de la colaboradora.
+
+**32-A.6. Impugnación.** La colaboradora que considere que un traslado constituye acto de hostilidad puede emplazar a la Empresa conforme al numeral 58.10 y recurrir a la Autoridad Inspectiva de Trabajo o al Poder Judicial.
+
 
 ### ARTÍCULO 33.- MATERNIDAD, PATERNIDAD Y LACTANCIA
 
@@ -1424,9 +1490,40 @@ La notificación de los demás accidentes de trabajo y de las enfermedades ocupa
 
 **37.6. Reserva.** La información sobre el estado de salud de la persona accidentada es dato personal sensible. Se trata conforme al Título IX, no se difunde en canales internos y no se comenta con quien no participe en la atención o en la investigación.
 
+### ARTÍCULO 37-A.- PRIMEROS AUXILIOS Y ATENCIÓN DE EMERGENCIAS
+
+**37-A.1. Botiquín.** Cada centro de trabajo cuenta con un botiquín de primeros auxilios en lugar visible, señalizado y de acceso libre, cuyo contenido se revisa y repone mensualmente. La encargada de sede es responsable de esa revisión y deja constancia fechada de ella.
+
+**37-A.2. Personas capacitadas.** En cada centro de trabajo hay al menos una colaboradora capacitada en primeros auxilios por turno. La capacitación la brinda CAYLA, dentro de la jornada y a su costo, y se renueva cuando menos una vez al año. La condición de persona capacitada se publica junto con el horario de trabajo.
+
+**37-A.3. Instrucciones generales.** Ante una emergencia:
+
+a) se verifica que el lugar sea seguro antes de asistir a la persona afectada;
+
+b) se solicita ayuda de inmediato y se avisa a la encargada de sede o a la líder de equipo;
+
+c) no se moviliza a la persona afectada cuando se presuma lesión de columna, salvo peligro inminente;
+
+d) no se administra medicamento, alimento ni bebida;
+
+e) ante una hemorragia se aplica presión directa sobre la herida con material limpio;
+
+f) ante una quemadura se enfría la zona con agua corriente a temperatura ambiente y no se aplica hielo, pasta dental ni sustancia alguna;
+
+g) ante un pinchazo o corte con aguja o instrumento de corte del taller se lava la zona con agua y jabón y se acude a un centro de salud;
+
+h) ante pérdida de conocimiento o dificultad respiratoria se llama de inmediato al servicio de emergencia y se acompaña a la persona hasta su llegada.
+
+**37-A.4. Números de emergencia.** Los números del servicio de emergencia, del centro de salud más cercano, de la compañía de bomberos y de la Policía Nacional del Perú se exhiben junto al botiquín de cada sede y se mantienen actualizados.
+
+**37-A.5. Traslado.** Dispuesto el traslado conforme al numeral 37.2, la Empresa lo costea y ninguna colaboradora queda sola en la sede durante la atención de una emergencia.
+
+**37-A.6. Simulacros.** CAYLA convoca cuando menos un simulacro de evacuación al año en cada sede, dentro de la jornada, y deja registro de asistencia.
+
+
 ## TÍTULO VIII — CONDUCTA Y DEBERES
 
-### ARTICULO 38.- DEBERES DE LA COLABORADORA
+### ARTÍCULO 38.- DEBERES DE LA COLABORADORA
 
 La convivencia en CAYLA se sostiene en la integridad, el respeto y la responsabilidad. Son deberes de cumplimiento obligatorio de la colaboradora los siguientes:
 
@@ -1462,7 +1559,70 @@ o) Abstenerse de concurrir o de permanecer en el centro de trabajo en estado de 
 
 La inobservancia de estos deberes se evalúa y, de corresponder, se sanciona conforme al Título XI. Ninguna medida disciplinaria puede sustentarse en el incumplimiento de un deber que no esté previsto en el presente Reglamento, en la ley o en el contrato individual de trabajo. La apreciación genérica de la actitud, de la disposición o de la afinidad de la colaboradora no constituye, por sí sola, falta sancionable.
 
-### ARTICULO 39.- PRESENTACION PERSONAL
+### ARTÍCULO 38-A.- DERECHOS Y OBLIGACIONES DE LA EMPRESA
+
+**38-A.1. Derechos de la Empresa.** Corresponde a CAYLA, en ejercicio de la facultad de dirección reconocida por el artículo 9 del Texto Único Ordenado del Decreto Legislativo N.° 728: organizar el trabajo y la estructura de sus sedes; determinar y modificar las funciones, la jornada, el horario y los turnos en los términos del Título III; seleccionar y contratar; establecer los estándares de calidad, de servicio y de presentación; supervisar el cumplimiento de las obligaciones de trabajo con respeto de la dignidad y de la intimidad de la colaboradora; y ejercer la facultad disciplinaria con las garantías del Título XI.
+
+**38-A.2. Obligaciones de la Empresa.** Corresponde a CAYLA:
+
+a) Pagar íntegra y oportunamente la remuneración y los beneficios sociales, conforme al Título V.
+
+b) Registrar a cada colaboradora en la planilla electrónica el mismo día en que inicia sus servicios y mantener al día su información, conforme al artículo 6.
+
+c) Entregar la boleta de pago en el plazo del artículo 25 y explicar por escrito el cálculo cuando se le solicite.
+
+d) Llevar el registro de control de asistencia conforme al artículo 16 y ponerlo a disposición de la colaboradora y de la autoridad.
+
+e) Otorgar los descansos, las licencias y los permisos de los Títulos III y VI sin condicionarlos ni diferirlos cuando la ley los reconozca.
+
+f) Cumplir el deber de prevención en seguridad y salud en el trabajo del Título VII, incluidas la entrega gratuita de los equipos de protección y la capacitación dentro de la jornada.
+
+g) Tratar los datos personales de sus colaboradoras conforme al Título IX.
+
+h) Prevenir, atender, investigar y sancionar el hostigamiento sexual conforme al Título X, y prevenir el acoso laboral conforme al artículo 43-A.
+
+i) Entregar este Reglamento y sus modificaciones con constancia de recepción, conforme al artículo 60, y publicar la información que este Reglamento manda publicar.
+
+j) Tratar a cada colaboradora con respeto y sin discriminación, y abstenerse de todo acto de hostilidad de los previstos en el artículo 30 del Texto Único Ordenado del Decreto Legislativo N.° 728.
+
+k) Resolver por escrito las consultas, los reclamos y las solicitudes que la colaboradora presente conforme al artículo 43-B.
+
+l) Entregar el certificado de trabajo, la constancia de cese y la liquidación en los plazos del artículo 59.
+
+m) Cumplir las demás obligaciones que la ley le imponga como empleadora.
+
+**38-A.3. Responsabilidad de quien ejerce mando.** Quien lidera un equipo o encarga una sede ejerce facultades delegadas de la Empresa y responde disciplinariamente del incumplimiento de las obligaciones de este artículo que le correspondan por su función, conforme al Título XI.
+
+### ARTÍCULO 38-B.- DERECHOS DE LA COLABORADORA
+
+Sin perjuicio de los que la Constitución, la ley y su contrato le reconocen, toda colaboradora de CAYLA tiene derecho a:
+
+a) Percibir íntegra y oportunamente su remuneración y sus beneficios sociales, y a conocer y a que se le explique por escrito el cálculo de cada período, conforme al numeral 23.8.
+
+b) Conocer su categoría, los criterios objetivos que la sustentan y los requisitos para acceder a una categoría superior, conforme al numeral 26.6.
+
+c) Gozar de la jornada, los descansos, los feriados, las vacaciones, las licencias y los permisos que este Reglamento y la ley reconocen.
+
+d) Trabajar en condiciones seguras y saludables, recibir gratuitamente los equipos de protección y la capacitación correspondiente, e interrumpir sus labores ante peligro inminente conforme al numeral 36.9, sin sanción ni represalia.
+
+e) Trabajar en un ambiente libre de hostigamiento sexual, de acoso laboral, de violencia y de discriminación.
+
+f) Ser oída antes de cualquier sanción, conocer los hechos que se le imputan, formular descargo y obtener respuesta motivada, conforme a los artículos 55 y 57.
+
+g) Acceder a sus datos personales, a su registro de marcaje y a las grabaciones en que aparezca, y a solicitar su rectificación o cancelación, conforme al Título IX.
+
+h) Presentar quejas, denuncias, reclamos y consultas, dentro o fuera de la Empresa, sin represalia de ninguna clase.
+
+i) Expresar opiniones y comentar y comparar su propia remuneración y sus condiciones de trabajo, conforme a los artículos 41 y 42.
+
+j) Recibir un ejemplar de este Reglamento, de su contrato, de la Política Salarial y del Cuadro de Categorías vigentes, y de sus versiones sucesivas.
+
+k) Recibir al cese el certificado de trabajo, la constancia de cese, la hoja de liquidación y el pago de sus beneficios en los plazos del artículo 59.
+
+l) No renunciar a ninguno de estos derechos: son irrenunciables conforme al numeral 2 del artículo 26 de la Constitución Política del Perú.
+
+
+### ARTÍCULO 39.- PRESENTACIÓN PERSONAL
 
 La colaboradora se presenta a laborar en condiciones de aseo y pulcritud, con la vestimenta o el uniforme que la Empresa proporcione o indique para su función y su sede, y portando de manera visible el distintivo de identificación cuando corresponda.
 
@@ -1476,7 +1636,7 @@ El estándar de presentación de CAYLA es funcional y responde únicamente a raz
 
 Toda especificación adicional de vestimenta, uniforme o distintivo se comunica por escrito y con constancia de recepción antes de ser exigible. Ningún estándar que no haya sido comunicado previamente por escrito puede sustentar una medida disciplinaria.
 
-### ARTICULO 40.- USO DE BIENES, SISTEMAS Y COMUNICACIONES
+### ARTÍCULO 40.- USO DE BIENES, SISTEMAS Y COMUNICACIONES
 
 Los bienes, herramientas, equipos, dispositivos, líneas telefónicas, cuentas de correo institucional y accesos al sistema Dynamic que CAYLA entrega son de propiedad de la Empresa y se asignan como herramientas de trabajo. La colaboradora los destina a fines laborales y no los emplea para fines ajenos al trabajo más allá de un uso personal mínimo, ocasional y razonable.
 
@@ -1494,7 +1654,7 @@ El deterioro, la pérdida o el daño de un bien de la Empresa se comunica de inm
 
 Al cese de la relación laboral la colaboradora devuelve los equipos y accesos asignados conforme al artículo 59, y CAYLA cierra sus cuentas conservando únicamente lo que la ley obligue a conservar.
 
-### ARTICULO 41.- CONFIDENCIALIDAD
+### ARTÍCULO 41.- CONFIDENCIALIDAD
 
 La colaboradora guarda reserva sobre la información confidencial, reservada o estratégica de CAYLA a la que acceda en el ejercicio de sus funciones, y la utiliza exclusivamente para los fines autorizados. Comprende, entre otra, la información de diseños, moldes, patrones y colecciones no lanzadas; la de clientas y proveedores; la de precios, costos y márgenes; la de procesos internos; y la de planilla y remuneraciones de otras personas. La reserva sobre la planilla y sobre las remuneraciones de otras personas alcanza únicamente a la información a la que la colaboradora accede por razón de sus funciones. No alcanza a lo que otra colaboradora le comunique voluntariamente sobre su propia remuneración, ni limita en modo alguno el derecho reconocido en el literal c) de este artículo.
 
@@ -1516,7 +1676,7 @@ Este artículo no constituye pacto de no competencia ni restringe el derecho de 
 
 La divulgación o el uso no autorizado de información reservada constituye falta grave conforme al inciso d) del artículo 25 de la LPCL, sin perjuicio de las acciones civiles y penales que correspondan, entre ellas las derivadas del artículo 165 del Código Penal y de las normas sobre protección de secretos empresariales del Decreto Legislativo N.° 1044.
 
-### ARTICULO 42.- LIBERTAD DE EXPRESION Y SUS LIMITES
+### ARTÍCULO 42.- LIBERTAD DE EXPRESIÓN Y SUS LIMITES
 
 CAYLA reconoce el derecho de sus colaboradoras a la libertad de expresión, de opinión y de información, amparado por el artículo 2, inciso 4, de la Constitución Política del Perú, así como el ejercicio de los derechos de sindicación y de participación que la Constitución reconoce.
 
@@ -1546,7 +1706,7 @@ Cuando la conducta se produzca fuera del centro de trabajo, solo puede ser evalu
 
 La calificación de la conducta atiende al contenido de lo expresado, al contexto en que se produjo, a la intención de agraviar y al perjuicio efectivamente causado. No basta la sola circunstancia de que la expresión resulte desfavorable para la Empresa. La eventual sanción se gradúa conforme al Título XI y respeta los principios de razonabilidad y proporcionalidad.
 
-### ARTICULO 43.- CONFLICTO DE INTERESES
+### ARTÍCULO 43.- CONFLICTO DE INTERESES
 
 Existe conflicto de intereses cuando el interés personal, familiar o económico de la colaboradora puede interferir con su deber de actuar con lealtad y en el mejor interés de CAYLA, o cuando así pueda razonablemente parecerlo.
 
@@ -1571,6 +1731,39 @@ La colaboradora puede desarrollar fuera de su jornada cualquier otra actividad l
 Omitir deliberadamente la comunicación de un conflicto de intereses y obtener de él un provecho se evalúa conforme al Título XI. Cuando la conducta configure competencia desleal o el uso o la entrega a terceros de información reservada, constituye falta grave conforme al inciso d) del artículo 25 de la LPCL.
 
 Para los efectos de este artículo se entiende por vínculo familiar el que une a la colaboradora con su cónyuge o conviviente y con sus parientes hasta el segundo grado de consanguinidad o de afinidad: madres y padres, hijas e hijos, hermanas y hermanos, abuelas y abuelos, nietas y nietos, y quienes tengan esos mismos vínculos con su cónyuge o conviviente.
+
+### ARTÍCULO 43-A.- CONVIVENCIA, PREVENCIÓN DEL ACOSO LABORAL Y DE LA VIOLENCIA EN EL TRABAJO
+
+**43-A.1. Compromiso.** CAYLA se compromete a mantener un ambiente de trabajo respetuoso y libre de violencia. Ninguna meta comercial, exigencia operativa ni estilo personal de conducción justifica el maltrato.
+
+**43-A.2. Qué se entiende por acoso laboral.** Es toda conducta reiterada de hostigamiento, humillación, descrédito, aislamiento, exigencia manifiestamente irrazonable o desprecio dirigida contra una colaboradora, que tenga por efecto degradar sus condiciones de trabajo, menoscabar su dignidad o afectar su salud. Puede provenir de quien ejerce mando, de una compañera de igual nivel o de una persona con nivel inferior, y puede producirse por medios digitales.
+
+**43-A.3. Qué no es acoso laboral.** No lo son la asignación de tareas propias del puesto, la evaluación del desempeño, la formulación de observaciones o correcciones en términos respetuosos, la aplicación del régimen disciplinario del Título XI ni el ejercicio regular de la facultad de dirección.
+
+**43-A.4. Prohibición.** Quedan prohibidas, entre otras: las agresiones verbales, los gritos, los insultos y las burlas; la difusión de rumores; la exclusión deliberada de comunicaciones, reuniones o capacitaciones; la asignación de tareas sin sentido o notoriamente ajenas al puesto con ánimo de menoscabo; la amenaza velada o expresa con el despido o con la no renovación como método de conducción; y la reprensión en público.
+
+**43-A.5. Canal.** Los hechos se comunican a Desarrollo Organizacional, por cualquier medio que deje constancia. Cuando la conducta se atribuya a la titular de Desarrollo Organizacional, se comunican a la Gerencia General; cuando se atribuya a la Gerencia General, se aplican por analogía las reglas del numeral 48.2-bis. Los hechos de connotación sexual o sexista se tramitan siempre por el Título X, cualquiera sea el canal por el que ingresen.
+
+**43-A.6. Trámite.** Desarrollo Organizacional acusa recibo dentro de un (1) día hábil, escucha a ambas partes, adopta las medidas razonables de protección que el caso exija y resuelve por escrito en un plazo no mayor de quince (15) días hábiles. Si de los hechos resulta una falta, se tramita por los artículos 55 o 57. Si no resulta falta, la Empresa adopta igualmente las medidas organizativas que eviten su repetición.
+
+**43-A.7. Prohibición de represalia.** Comunicar de buena fe una situación de acoso laboral, o declarar en su averiguación, no constituye falta y no puede motivar consecuencia desfavorable alguna. La represalia es falta grave conforme al artículo 53.
+
+**43-A.8. Riesgo psicosocial.** CAYLA identifica y gestiona los factores de riesgo psicosocial de sus sedes —carga de trabajo, ritmo, trato con público, estilo de conducción— dentro del sistema de gestión de seguridad y salud del Título VII.
+
+**43-A.9. Relación con los actos de hostilidad.** Lo dispuesto en este artículo no limita el derecho de la colaboradora a emplazar a la Empresa por actos de hostilidad conforme al numeral 58.10 y al artículo 30 del Texto Único Ordenado del Decreto Legislativo N.° 728, ni a recurrir a la Autoridad Inspectiva de Trabajo, que puede conocer los hechos sin emplazamiento previo.
+
+### ARTÍCULO 43-B.- CONSULTAS, RECLAMOS Y SUGERENCIAS
+
+**43-B.1. Canal.** Toda colaboradora puede presentar consultas, reclamos y sugerencias sobre su relación de trabajo ante la encargada de su sede, ante su líder de equipo o directamente ante Desarrollo Organizacional, por cualquier medio que deje constancia.
+
+**43-B.2. Plazo de respuesta.** Desarrollo Organizacional responde por escrito dentro de los diez (10) días hábiles siguientes. Cuando la respuesta requiera verificación previa, comunica ese hecho dentro del mismo plazo e indica la fecha en que responderá.
+
+**43-B.3. Reclamos remunerativos.** Los reclamos sobre remuneración, registro de asistencia o cálculo del período se rigen además por los numerales 16.6, 23.8 y 26.6, y su procedencia da lugar al reintegro con los intereses legales que correspondan.
+
+**43-B.4. Registro.** Desarrollo Organizacional lleva un registro de las consultas y reclamos recibidos, de su fecha y de su resultado, que emplea para identificar problemas recurrentes y corregirlos.
+
+**43-B.5. Sin represalia y sin agotamiento previo.** Presentar una consulta o un reclamo no constituye falta ni puede motivar consecuencia desfavorable alguna. Este canal no es requisito previo para acudir a la Autoridad Administrativa de Trabajo, a la Autoridad Inspectiva de Trabajo ni al Poder Judicial.
+
 
 ## TÍTULO IX — PROTECCIÓN DE DATOS PERSONALES
 
@@ -1728,11 +1921,11 @@ La colaboradora tiene derecho a conocer los criterios con los que el sistema rea
 
 ## TÍTULO X — HOSTIGAMIENTO SEXUAL
 
-### ARTICULO 47.- POLITICA, DEFINICION Y AMBITO
+### ARTÍCULO 47.- POLÍTICA, DEFINICIÓN Y ÁMBITO
 
 **47.1. Política.** CAYLA no tolera ningún acto de hostigamiento sexual. Toda persona que trabaja o presta servicios para la Empresa tiene derecho a hacerlo en un ambiente libre de hostigamiento sexual, y la Empresa asume el deber de prevenirlo, atenderlo, investigarlo y sancionarlo.
 
-**47.2. Este título es el procedimiento completo.** Los artículos 47 a 51 son, a la vez, la política interna y el protocolo de atención y sanción del hostigamiento sexual de CAYLA: contienen los órganos, los canales, el procedimiento, sus plazos y la ruta completa que exigen el artículo 24 y la Quinta Disposición Complementaria Final del Reglamento de la Ley. CAYLA no mantiene ningún otro documento sobre esta materia: lo que no está en estos artículos no existe y no puede invocarse contra nadie.
+**47.2. Este título es el procedimiento completo.** Los artículos 47 a 51 son, a la vez, la política interna y el protocolo de atención y sanción del hostigamiento sexual de CAYLA: contienen los órganos, los canales, el procedimiento, sus plazos y la ruta completa que exigen el artículo 24 y la Quinta Disposición Complementaria Final del Reglamento de la Ley. Los instrumentos complementarios que la Empresa aprueba en esta materia —la Política de Prevención del Hostigamiento Sexual Laboral, el Formato de Queja o Denuncia y las resoluciones de designación o de convocatoria a elección de los órganos del artículo 48— tienen finalidad informativa, de difusión y de gestión. Ninguno de ellos crea obligaciones, faltas, sanciones ni plazos distintos de los previstos en los artículos 47 a 51, y en caso de discrepancia prevalece este Reglamento. Su existencia no restringe en ningún caso los derechos que este Título reconoce.
 
 **47.3. Marco normativo.** Se aplican la Ley N.° 27942, Ley de Prevención y Sanción del Hostigamiento Sexual, modificada por la Ley N.° 29430 y por el Decreto Legislativo N.° 1410, y su Reglamento aprobado por el Decreto Supremo N.° 014-2019-MIMP, modificado por el Decreto Supremo N.° 021-2021-MIMP. Cuando este título se quede corto frente a esas normas, prevalecen ellas.
 
@@ -1776,11 +1969,24 @@ Cuando la persona denunciada no esté sujeta al poder de dirección de CAYLA ni 
 
 ---
 
-### ARTICULO 48.- ORGANOS, CANAL DE QUEJA Y RESERVA
+### ARTÍCULO 48.- ÓRGANOS, CANAL DE QUEJA Y RESERVA
 
 **48.1. Órgano que recibe, protege y sanciona.** Desarrollo Organizacional recibe la queja o denuncia, dicta y ejecuta las medidas de protección, y emite la decisión final. Para todos los efectos de la Ley y de su Reglamento, Desarrollo Organizacional es el órgano al que esas normas llaman «la Oficina de Recursos Humanos o quien haga sus veces».
 
 **48.2. Si la queja es contra quien la recibiría.** Cuando la persona denunciada sea la titular de Desarrollo Organizacional, la queja se presenta ante la Gerencia General, que asume sus funciones. Ninguna persona interviene en un procedimiento en el que esté involucrada: quien lo esté debe abstenerse de participar en cualquier etapa.
+
+
+**48.2-bis. Si la persona denunciada es la Gerencia General, una socia, una directora o quien ejerza la representación de la Empresa.** En ese supuesto operan, de pleno derecho y sin necesidad de acto que las declare, las siguientes reglas:
+
+a) La persona denunciada queda apartada de toda intervención en el procedimiento —recepción, investigación, dictado de medidas de protección, decisión, notificación y archivo— y no puede impartir instrucción alguna, directa ni indirecta, a quienes intervienen en él. El apartamiento se documenta en acta que se incorpora al expediente dentro de un (1) día hábil y se comunica por escrito a la persona afectada.
+
+b) La investigación la conduce la Delegada contra el Hostigamiento Sexual o, cuando esta se encuentre en relación de dependencia directa de la persona denunciada o pueda razonablemente verse afectada por ella, una persona natural o jurídica externa a la Empresa, independiente y con competencia en la materia, contratada para ese solo encargo. Su designación consta en acta y se comunica a ambas partes.
+
+c) La decisión que pone fin al procedimiento la adopta Desarrollo Organizacional. Cuando Desarrollo Organizacional dependa jerárquicamente de la persona denunciada, la decisión se adopta con el informe previo del órgano investigador del literal b), vinculante en cuanto a la calificación de los hechos, y se motiva por escrito.
+
+d) Ninguna facultad de la Empresa —incluidas la de no renovar un contrato sujeto a modalidad, la de reorganizar funciones, turnos o sedes y la de iniciar un procedimiento disciplinario— puede ejercerse respecto de la persona afectada, de quien presentó la queja o de las testigos mientras el procedimiento esté en trámite, salvo que la ejerza Desarrollo Organizacional con motivación escrita ajena por completo a los hechos denunciados y previa comunicación a la persona afectada. Toda medida adoptada en contravención de este literal se tiene por represalia conforme al artículo 51.
+
+e) La Empresa informa expresamente a la persona afectada, al inicio del procedimiento y por escrito, de los derechos y opciones que le reconoce el numeral 51.11 y de los canales externos del numeral 48.9. Esa información no sustituye ni condiciona la tramitación interna, que continúa en todo caso.
 
 **48.3. Órgano que investiga y propone.** La investigación y la propuesta de sanción corresponden a un órgano distinto del que sanciona. En cada centro de trabajo con menos de veinte (20) trabajadoras, ese órgano es la Delegada contra el Hostigamiento Sexual —figura a la que el Reglamento de la Ley denomina «Delegado/a contra el Hostigamiento Sexual», y que este Reglamento nombra en femenino conforme a la cláusula de género del artículo 3—, elegida por las trabajadoras de ese centro de trabajo. Su elección puede realizarse conjuntamente con la de la representación de las trabajadoras en seguridad y salud en el trabajo prevista en el artículo 34: con la Supervisora de Seguridad y Salud en el Trabajo cuando corresponda una Supervisora, y con las representantes de las trabajadoras ante el Comité de Seguridad y Salud en el Trabajo cuando corresponda un Comité.
 
@@ -1818,7 +2024,7 @@ Este Reglamento nombra los cargos y no a las personas que los ocupan. El cambio 
 
 ---
 
-### ARTICULO 49.- PROCEDIMIENTO Y PLAZOS
+### ARTÍCULO 49.- PROCEDIMIENTO Y PLAZOS
 
 **49.1. Cómo se inicia.** El procedimiento se inicia de tres maneras: a pedido de la persona afectada; a pedido de una tercera persona, sin que se requiera la autorización de la persona afectada; o de oficio y bajo responsabilidad, cuando CAYLA conoce por cualquier medio hechos que presuntamente constituyen hostigamiento sexual.
 
@@ -1862,7 +2068,7 @@ i) **Veinticuatro (24) horas** desde que se conocen los hechos, para poner en co
 
 ---
 
-### ARTICULO 50.- ATENCION EN SALUD Y MEDIDAS DE PROTECCION
+### ARTÍCULO 50.- ATENCIÓN EN SALUD Y MEDIDAS DE PROTECCIÓN
 
 **50.1. Atención en salud.** Dentro de un (1) día hábil de recibida la queja o denuncia, Desarrollo Organizacional pone a disposición de la persona afectada los canales de atención médica, física y mental o psicológica con que cuente la Empresa. Si no cuenta con ellos, la deriva a servicios de salud públicos o privados a los que pueda acudir. No basta el ofrecimiento verbal: la derivación y la aceptación o la renuncia de la persona constan por escrito con su firma.
 
@@ -1896,7 +2102,7 @@ e) Cualquier otra que proteja y asegure su bienestar.
 
 ---
 
-### ARTICULO 51.- SANCION, QUEJA FALSA Y PROHIBICION DE REPRESALIAS
+### ARTÍCULO 51.- SANCIÓN, QUEJA FALSA Y PROHIBICION DE REPRESALIAS
 
 **51.1. El hostigamiento sexual es falta grave.** Constituye falta grave conforme al literal i) del artículo 25 de la Ley de Productividad y Competitividad Laboral, cualquiera sea la posición de quien lo comete y de quien lo padece.
 
@@ -2086,7 +2292,9 @@ Si la colaboradora se niega a firmar, se levanta acta de negativa suscrita por q
 
 La reconsideración no suspende la ejecución de la sanción, salvo que la Gerencia General lo disponga. Si se declara fundada, el documento se anula, deja de producir efecto agravante desde ese momento y así se hace constar en el legajo.
 
-Esta vía interna es voluntaria y no restringe el derecho de la colaboradora a recurrir a la Autoridad Inspectiva de Trabajo o al Poder Judicial. La Empresa deja constancia de que, conforme al criterio jurisprudencial vigente, el plazo para impugnar judicialmente una sanción distinta al despido es de treinta (30) días hábiles.
+Esta vía interna es voluntaria y no restringe el derecho de la colaboradora a recurrir a la Autoridad Inspectiva de Trabajo o al Poder Judicial. La Empresa deja constancia de que, conforme al criterio establecido por el IX Pleno Jurisdiccional Supremo en materia Laboral y Previsional, el plazo para impugnar judicialmente una sanción distinta al despido es de treinta (30) días hábiles.
+
+Esta información se consigna en beneficio de la colaboradora y no restringe ningún derecho: la vía interna de este artículo no suspende, interrumpe ni sustituye plazo alguno, y en todo caso rigen los plazos y los criterios de cómputo que la ley y la jurisprudencia establezcan al momento de ejercerse la acción.
 
 **55.6. Legajo.** La comunicación de cargos, el descargo, el documento de sanción, su cargo de recepción o acta de negativa y la resolución de su reconsideración se registran en el expediente disciplinario de la colaboradora en el sistema Dynamic, que es el legajo único para estos efectos. El descargo se archiva contra el documento al que responde, cualquiera sea su nivel y aunque ese documento se encuentre aún en borrador. La ausencia del cargo de notificación impide invocar la sanción como antecedente.
 
@@ -2302,9 +2510,9 @@ Ese deber no restringe el derecho de la colaboradora a emplear en un trabajo pos
 
 ### ARTÍCULO 60.- VIGENCIA, VERSIÓN, ENTREGA Y MODIFICACIÓN
 
-**60.1. Versión y vigencia.** Este documento es el Reglamento Interno de Trabajo de CAYLA S.A.C., **versión 4.0**, aprobado por la Gerencia General el [__] de [________] de 2026.
+**60.1. Versión y vigencia.** Este documento es el Reglamento Interno de Trabajo de CAYLA S.A.C., **versión 4.0**, aprobado por la Gerencia General el 10 de agosto de 2026.
 
-Entra en vigencia el [__] de [________] de 2026, fecha desde la cual se mantiene publicado conforme al numeral 60.4, y, respecto de cada colaboradora, desde la fecha en que conste acreditada su entrega conforme al numeral 60.3, si esta fuera posterior.
+Entra en vigencia el 10 de agosto de 2026, fecha desde la cual se mantiene publicado conforme al numeral 60.4, y, respecto de cada colaboradora, desde la fecha en que conste acreditada su entrega conforme al numeral 60.3, si esta fuera posterior.
 
 Toda copia, impresa o digital, lleva en cada página el número de versión y la fecha de vigencia.
 
@@ -2405,7 +2613,7 @@ Aprobado por la Gerencia General de CAYLA S.A.C.
 \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 **Alvarez Pereyra Felipe Miguel**
 Gerente General — CAYLA S.A.C.
-DNI N.° [se completa en el ejemplar firmado]
+DNI N.° 47384306
 
 ---
 
