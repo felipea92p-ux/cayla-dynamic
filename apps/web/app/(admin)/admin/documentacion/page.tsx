@@ -268,6 +268,25 @@ interface EstadoPolitica {
   storage_path: string | null;
 }
 
+/**
+ * Una fila de `fn_documentos_listar` — el archivo tal como quedó guardado.
+ *
+ * Se declaran solo los campos que esta pantalla usa. La RPC devuelve más (monto
+ * declarado, ruta, año, negativa); traerlos aquí sin usarlos invitaría a
+ * pintarlos, y este historial se lee para responder una sola pregunta: qué papel
+ * regía en cada momento y por qué dejó de regir.
+ */
+interface DocArchivado {
+  id: string;
+  tipo: string;
+  fecha_firma: string | null;
+  storage_path: string | null;
+  nota: string | null;
+  registrado_por: string | null;
+  anulado_at: string | null;
+  anulado_motivo: string | null;
+}
+
 const MAX_BYTES_DOC = 50 * 1024 * 1024;
 const TIPOS_DOC = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 
@@ -317,8 +336,18 @@ export default function DocumentacionPage() {
   // ── El tablero de firmas ────────────────────────────────────────────────
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
   const [politica, setPolitica] = useState<EstadoPolitica | null>(null);
-  /** id de `documentos_firmados` → dónde está su archivo. Vacío si no se pudo leer. */
-  const [rutasDeArchivo, setRutasDeArchivo] = useState<Map<string, string>>(new Map());
+  /**
+   * Todo lo archivado, tal como lo devuelve `fn_documentos_listar` — incluidas
+   * las filas anuladas, que son el historial.
+   *
+   * Se guarda la lista entera y no solo los paths porque la política necesita
+   * las dos cosas: abrir el archivo vigente Y enseñar qué versiones hubo antes,
+   * quién las registró y por qué se reemplazaron. Ese relato es lo que sostiene
+   * los pagos de movilidad ya hechos si alguien pregunta qué documento regía.
+   */
+  const [documentos, setDocumentos] = useState<DocArchivado[]>([]);
+  /** Anulación en curso: qué fila y con qué motivo. Null = nadie está anulando. */
+  const [anulando, setAnulando] = useState<{ id: string; motivo: string } | null>(null);
   // Qué se está subiendo. `que` decide todo lo demás: la política no lleva
   // persona, el bono no lleva monto y solo la ruta admite negativa. Antes esto
   // era un `{personaId, negativa}` y el tipo iba fijo en «ruta» dentro del
@@ -487,6 +516,45 @@ export default function DocumentacionPage() {
     setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 30);
   }
 
+  /** id → dónde está su archivo. Derivado, para no guardar dos veces la verdad. */
+  const rutasDeArchivo = useMemo(
+    () => new Map(documentos.filter((d) => d.storage_path).map((d) => [d.id, d.storage_path as string])),
+    [documentos],
+  );
+
+  /**
+   * Las políticas ya reemplazadas, de la más reciente a la más antigua.
+   *
+   * Solo las anuladas: la vigente ya se muestra arriba, y repetirla aquí haría
+   * dudar de cuál manda — que es exactamente el problema que esta pantalla tenía.
+   */
+  const politicasAnteriores = useMemo(
+    () =>
+      documentos
+        .filter((d) => d.tipo === "politica" && d.anulado_at)
+        .sort((a, b) => (b.anulado_at ?? "").localeCompare(a.anulado_at ?? "")),
+    [documentos],
+  );
+
+  /**
+   * Anular un documento. NUNCA se borra — decisión de Felipe, 2026-08-11.
+   *
+   * Una política anulada sigue diciendo cuál regía cuando se pagó la movilidad de
+   * cada mes, y ese rastro es lo que sostiene los pagos ya hechos si alguien los
+   * discute. Es la misma regla por la que una persona nunca se borra y un marcaje
+   * se anula en vez de desaparecer.
+   */
+  async function anularDocumento(id: string, motivo: string) {
+    const { error } = await supabase.rpc("fn_documento_anular", { p_id: id, p_motivo: motivo });
+    if (error) {
+      setAvisoDoc({ tipo: "error", texto: mensajeDeError(error, "anular el documento") });
+      return;
+    }
+    setAnulando(null);
+    setAvisoDoc({ tipo: "ok", texto: "Documento anulado. Sigue guardado en el historial." });
+    await cargar();
+  }
+
   // Abrir en una pestaña lo que ya está archivado. Sin esto, quien sube un
   // escaneo no tiene forma de comprobar que subió el archivo correcto — y el
   // error de subir el papel equivocado es invisible hasta que lo pide un
@@ -649,13 +717,8 @@ export default function DocumentacionPage() {
     // Tolerante como sus vecinas: si falla, la pantalla se queda sin el botón
     // «Ver» y todo lo demás sigue funcionando.
     const { data: archivos } = await supabase.rpc("fn_documentos_listar");
-    setRutasDeArchivo(
-      new Map(
-        ((archivos as { id: string; storage_path: string | null }[]) ?? [])
-          .filter((d) => d.storage_path)
-          .map((d) => [d.id, d.storage_path as string]),
-      ),
-    );
+    // Se guardan TODAS, anuladas incluidas: las anuladas son el historial.
+    setDocumentos((archivos as DocArchivado[]) ?? []);
 
     // El monto del bono, en consulta aparte por lo mismo que el tablero: si la
     // 0165 todavía no está pegada, que falle ESTA consulta y no las demás.
@@ -1354,7 +1417,68 @@ export default function DocumentacionPage() {
               )}
               <button onClick={() => abrirSubida("politica", null)}
                 className="text-xs underline">Reemplazar</button>
+              {/* Anular, no borrar. Solo hace falta cuando se quiere retirar la
+                  política SIN subir otra —reemplazarla ya anula la anterior sola—,
+                  y deja a CAYLA pagando movilidad sin papel que la sostenga: por
+                  eso el aviso rojo de arriba vuelve a aparecer en cuanto se hace. */}
+              {politica.id && (
+                <button onClick={() => setAnulando({ id: politica.id!, motivo: "" })}
+                  className="text-xs text-taupe underline">Anular</button>
+              )}
             </div>
+          )}
+
+          {/* El motivo es obligatorio y no es burocracia: sin él, el historial se
+              convierte en una lista de papeles retirados sin decir por qué, que no
+              sirve para lo único que tiene que servir. */}
+          {anulando && (
+            <div className="mb-4 rounded-lg border border-rojo/40 bg-rojo/[0.04] p-3 text-sm">
+              <div className="font-medium text-rojo">Anular este documento</div>
+              <p className="mt-1 text-xs text-taupe">
+                No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input value={anulando.motivo}
+                  onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
+                  placeholder="ej. se subió el escaneo equivocado"
+                  className="min-w-64 flex-1 rounded-lg border px-3 py-1.5 text-sm" />
+                <button
+                  onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
+                  disabled={anulando.motivo.trim().length < 4}
+                  className="rounded-lg bg-rojo px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
+                  Anular
+                </button>
+                <button onClick={() => setAnulando(null)} className="text-xs underline">Cancelar</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── El historial ─────────────────────────────────────────────────
+              Existía desde la 0157 y no se veía: cada reemplazo dejaba su fila y
+              nadie la leía nunca. Se enseña porque responde la única pregunta que
+              importa el día que alguien discuta un pago de movilidad — qué papel
+              regía entonces, quién lo registró y por qué dejó de regir. */}
+          {politicasAnteriores.length > 0 && (
+            <details className="mb-4 rounded-lg border border-sand px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-xs text-taupe">
+                Versiones anteriores de la política ({politicasAnteriores.length})
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {politicasAnteriores.map((d) => (
+                  <li key={d.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-sand pt-2 text-xs">
+                    <span className="text-tinta">
+                      Firmada el <strong>{d.fecha_firma ? fechaLarga(d.fecha_firma) : "—"}</strong>
+                    </span>
+                    {d.registrado_por && <span className="text-taupe">la registró {d.registrado_por}</span>}
+                    <span className="text-taupe">· {d.anulado_motivo ?? "sin motivo anotado"}</span>
+                    {d.storage_path && (
+                      <button onClick={() => void verDocumento(d.storage_path!)}
+                        className="font-medium underline">Ver</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
 
           {/* ── El bono del mes ─────────────────────────────────────────────
