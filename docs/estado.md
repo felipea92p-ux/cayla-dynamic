@@ -571,6 +571,73 @@ educación (0120), ni gratificación, CTS, vacaciones o el 9% de la Ley 30334
 (0160, con la prueba `127`). Lo único que recibe es su pago base, que es lo que
 se le transfiere. **No hay provisiones indebidas ni plata de más.**
 
+### A.2.b.bis · A quien cesa se le paga dos veces el mismo mes, y de más
+
+**Medido en producción el 2026-08-10, con las dos consultas que quedan en
+`scripts/sql-manual/`.** Son dos defectos distintos que se dan la mano, y
+conviene no mezclarlos.
+
+#### 1 · El divisor: la liquidación paga inflado — **S/1,097.67 en 7 personas**
+
+`fn_planilla_calcular` reparte el sueldo mensual entre los días **del rango que
+se le pida**:
+
+```
+v_dias := (p_fin - p_ini) + 1;   v_base := 6.5 * v_dias;   pago := horas * salario / v_base
+```
+
+`fn_liquidacion` (0164:103) es **la única en todo el sistema que pide un rango
+parcial** — del inicio del periodo a la fecha de cese, «ni un día más». Con menos
+días el divisor se encoge y el mismo trabajo se paga más. Quien cesa el día 10 de
+un periodo de 31 cobra ~3× lo suyo.
+
+El encabezado de la 0164 lo justifica con una premisa **falsa**: dice que un
+rango parcial se calcula bien porque «es lo que usa la pantalla de planilla con
+el periodo en curso». No lo es — la pantalla usa `fn_proyeccion_periodo`
+(0105:493), que pasa el periodo **entero**; lo parcial viene de que aún no hay
+marcajes, no del rango.
+
+**Seis de siete casos cuadran al segundo decimal** con la proporción que predice
+el divisor. La séptima, **Ytamar Cueva**, no: 1.53× pagado contra 1.11× que
+justifica el rango. Unos S/45 vienen de otra cosa y hay que mirarla aparte.
+
+⚠️ **La prueba 130 no puede cazarlo**: compara la liquidación contra
+`fn_planilla_calcular` con el **mismo** rango parcial. Se compara consigo misma.
+
+#### 2 · El doble registro: **S/1,145.87 en 6 personas**, periodo 28/06–28/07
+
+`liquidacion_pagada` aparece en **un solo archivo de todo el repositorio** (la
+0167). Ni `fn_planilla_calcular`, ni `fn_planilla_congelar`, ni la pantalla de
+Planilla la leen jamás. La etiqueta «ya no está» es puramente visual.
+
+Las seis dicen **«primero el periodo, después la liquidación»**: el 28/07 se
+cerró el periodo con ellas dentro —habían cesado entre el 16 y el 25— y después
+se pagaron sus liquidaciones, que volvían a incluir ese mismo mes.
+
+**Si el dinero salió dos veces solo lo dice el extracto bancario.** El sistema lo
+tiene registrado dos veces; eso es lo que se puede afirmar.
+
+#### Lo que ya existe y solo le falta el aviso
+
+El botón **«💸 Ya le pagué aparte»** (`planilla/page.tsx:1268`) registra un
+descuento y deja el total de esa persona en cero. **La herramienta está**; lo que
+falta es que la pantalla diga que hace falta apretarla. Por eso la 0210 es un
+**cartel, no una exclusión automática**: mientras el divisor siga como está, la
+cifra de la liquidación no es de fiar, y descontar solo propagaría un número
+inflado con la seguridad de una máquina.
+
+#### Lo que queda por hacer
+
+| Qué | Cuándo |
+|---|---|
+| **Rufina Salvatierra: apretar «Ya le pagué aparte»** antes de cerrar el periodo en curso | **antes del 28/08** — su liquidación fue S/1,106.82, la mayor; si el periodo cierra sin eso, se repite por el monto más alto |
+| Revisar el extracto de finales de julio para las seis | esta semana |
+| **0210** — el cartel en la pantalla de Planilla | no toca plata |
+| **0211** — el divisor | su propia sesión, con auditoría empírica: ceses el día 1, a mitad y al final, en TRU y en LIM. Encenderá en rojo todas las liquidaciones ya congeladas |
+
+**Nadie cobró de menos.** Todo lo encontrado es dinero de más, de personas que ya
+no están.
+
 ### A.2.c · No hay ni un CUSPP cargado, y este archivo daba a entender lo contrario
 
 Medido en producción el **2026-08-10**: la columna existe —la 0198 está pegada—
