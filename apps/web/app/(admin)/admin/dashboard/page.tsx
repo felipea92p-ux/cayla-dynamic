@@ -168,7 +168,15 @@ export default function DashboardPage() {
   useEffect(() => {
     const sb = createAdminSupabaseClient();
     void (async () => {
-      const { data } = await sb.rpc("fn_contratos_por_vencer", { p_dias: 30 });
+      // NOVENTA días, no treinta. Veintiún contratos a plazo fijo y **veinte
+      // vencen el mismo 31 de diciembre**: con la ventana de 30 el aviso
+      // aparecía el 1 de diciembre, dejando un mes —en plena campaña de fin de
+      // año— para decidir, redactar y firmar veinte renovaciones.
+      //
+      // Y el que se pasa no se pasa a medias: el artículo 77 del D.S. 003-97-TR
+      // convierte el contrato en indefinido SOLO, sin que nadie lo decida, por
+      // el hecho de que la persona siga trabajando después de la fecha.
+      const { data } = await sb.rpc("fn_contratos_por_vencer", { p_dias: 90 });
       setContratos(Array.isArray(data) ? (data as ContratoRow[]) : []);
     })();
   }, []);
@@ -398,12 +406,29 @@ export default function DashboardPage() {
           if (!vencidos.length && !porVencer.length) return null;
           const enCuantos = (dias: number) =>
             dias <= 0 ? "vence hoy" : dias === 1 ? "vence mañana" : `vence en ${dias} días`;
+          // ¿Muchos caen el MISMO día? Veinte líneas seguidas con la misma fecha
+          // se leen como veinte avisos sueltos, y el problema no son veinte
+          // renovaciones repartidas: es que hay que hacerlas todas esa semana.
+          // Se dice de una vez, arriba, antes de la lista.
+          const porFecha = new Map<string, number>();
+          for (const c of porVencer) porFecha.set(c.fecha_fin_contrato, (porFecha.get(c.fecha_fin_contrato) ?? 0) + 1);
+          const [fechaRacimo, cuantos] = [...porFecha.entries()]
+            .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+          const hayRacimo = cuantos >= 3;
           return (
             <div className="mb-10 rounded-2xl border border-sand bg-ambar/[0.05] p-5">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-serif text-lg text-tinta">Contratos a plazo fijo</span>
                 <Link href="/admin/equipo" className="text-xs font-medium text-rojo hover:underline">Ver equipo →</Link>
               </div>
+              {hayRacimo && (
+                <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                  <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaBonita(fechaRacimo)}).
+                  No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
+                  y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
+                  todavía trabajando, el <strong>art. 77</strong> lo vuelve indefinido solo.
+                </p>
+              )}
               {vencidos.map((c) => (
                 <div key={c.persona_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-sand/60 py-2 text-sm">
                   <span>
