@@ -1,7 +1,7 @@
 -- ============================================================================
--- 164_ninguna_sancion_sin_escuchar_antes.test.sql
+-- 165_ninguna_sancion_sin_escuchar_antes.test.sql
 -- ============================================================================
--- Defiende la 0210, que existe por una razón concreta: el artículo 55.2 del
+-- Defiende la 0212, que existe por una razón concreta: el artículo 55.2 del
 -- Reglamento dice que la omisión del descargo previo **invalida** la sanción.
 -- Una sanción inválida no se nota al firmarla. Se nota el día que alguien la
 -- discute, y para entonces el documento ya está en el legajo, ya contó como

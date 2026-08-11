@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0210_ninguna_sancion_sin_escuchar_antes.sql
+-- 0212_ninguna_sancion_sin_escuchar_antes.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que el sistema pueda hacer lo que el Reglamento exige antes de cualquier
@@ -415,7 +415,7 @@ revoke execute on function fn_expediente_adjuntar(uuid, text, text, timestamptz,
 
 -- ── El registro, y que la API recargue el esquema ───────────────────────────
 insert into migraciones_aplicadas (numero, nombre)
-values (210, 'ninguna_sancion_sin_escuchar_antes')
+values (212, 'ninguna_sancion_sin_escuchar_antes')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
@@ -450,5 +450,5 @@ select
        at time zone 'America/Lima', 2)
      at time zone 'America/Lima')::date) = 2)
     as el_plazo_salta_el_fin_de_semana,
-  (select count(*) from migraciones_aplicadas where numero = 210) = 1
+  (select count(*) from migraciones_aplicadas where numero = 212) = 1
     as queda_registrada;
