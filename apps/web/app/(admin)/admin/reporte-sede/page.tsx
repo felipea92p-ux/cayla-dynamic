@@ -8,6 +8,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
@@ -57,13 +58,34 @@ function ReporteSedeContenido() {
   const [faltaAlerta, setFaltaAlerta] = useState<FaltaRow[]>([]);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
+  /**
+   * Qué NO se pudo traer. Vacío es el caso normal.
+   *
+   * POR QUÉ ESTA PANTALLA LO NECESITA MÁS QUE NINGUNA: esta hoja se imprime, se
+   * firma y se lleva a la sede. Hasta hoy sus nueve consultas tiraban el `error`
+   * —solo `errAreas` se miraba— así que un fallo de red salía como un papel con
+   * el equipo entero en «Días 0 · 0h 00m · Tardanzas —» y el botón de PDF
+   * habilitado. Un cero es una afirmación: dice que esa persona no trabajó.
+   *
+   * No se distingue por gravedad a propósito. Cualquiera de estas consultas
+   * alimenta una columna del papel, y la regla de la casa es que un dato que
+   * falta se NOTE en vez de rellenarse.
+   */
+  const [noSePudo, setNoSePudo] = useState<string[]>([]);
 
   // Cargar sedes (para el selector). Pre-selecciona la del ?sede=CODIGO si viene.
   useEffect(() => {
     void (async () => {
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/admin/login"); return; }
-      const { data } = await supabase.from("sedes").select("id, codigo, nombre").eq("activa", true).order("codigo");
+      const { data, error } = await supabase.from("sedes").select("id, codigo, nombre").eq("activa", true).order("codigo");
+      // Si esta falla, el desplegable queda vacío, nunca hay `sedeId`, `cargar()`
+      // sale por su primera línea y la pantalla se queda en blanco SIN UNA SOLA
+      // PALABRA — se lee como «no hay sedes», que es una frase falsa.
+      if (error) {
+        setNoSePudo(["la lista de sedes"]);
+        return;
+      }
       const lista = (data as Sede[]) ?? [];
       setSedes(lista);
       const cod = searchParams.get("sede")?.toUpperCase();
@@ -82,14 +104,14 @@ function ReporteSedeContenido() {
     const codigoSede = sedes.find((s) => s.id === sedeId)?.codigo ?? "";
 
     const [
-      { data: personas },
-      { data: jornadas },
-      { data: extras },
-      { data: funciones },
+      { data: personas, error: errPersonas },
+      { data: jornadas, error: errJornadas },
+      { data: extras, error: errExtras },
+      { data: funciones, error: errFunciones },
       { data: areasRaw, error: errAreas },
-      { data: metasRaw },
-      { data: tardResumen },
-      { data: faltasResumen },
+      { data: metasRaw, error: errMetas },
+      { data: tardResumen, error: errTard },
+      { data: faltasResumen, error: errFaltas },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id")
         .eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).eq("sede_base_id", sedeId).order("nombres"),
@@ -113,6 +135,21 @@ function ReporteSedeContenido() {
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
     ]);
+
+    // Qué se cayó, con el nombre de la columna que alimenta — no el de la RPC.
+    // Quien lee esto está a punto de firmar el papel, no de depurar.
+    setNoSePudo(
+      loQueNoSePudo([
+        { error: errPersonas, que: "el equipo de la sede" },
+        { error: errJornadas, que: "los días y las horas" },
+        { error: errExtras, que: "las salidas anticipadas" },
+        { error: errFunciones, que: "las funciones" },
+        { error: errAreas, que: "las áreas" },
+        { error: errMetas, que: "las metas de cobertura" },
+        { error: errTard, que: "las tardanzas" },
+        { error: errFaltas, que: "las faltas" },
+      ]),
+    );
 
     const areasList: Area[] = parseAreas(areasRaw, errAreas);
     const funcionPorPersona = new Map(
@@ -220,9 +257,27 @@ function ReporteSedeContenido() {
             <label className="flex flex-col gap-1 text-sm">Mes
               <input type="month" value={mes} onChange={(e) => { setMes(e.target.value); setCargado(false); }} className="rounded-xl border border-sand bg-crema px-3 py-2" />
             </label>
-            <button onClick={() => window.print()} disabled={!cargado} className="rounded-xl bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">Descargar PDF</button>
+            {/* Sin todos los datos NO se imprime. El papel se firma y se lleva a
+                la sede: un cero que en realidad es «no se pudo consultar» dice por
+                escrito que esa persona no trabajó. */}
+            <button onClick={() => window.print()} disabled={!sePuedeEntregar(cargado, noSePudo)}
+              className="rounded-xl bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">Descargar PDF</button>
           </div>
         </div>
+
+        {/* El aviso SÍ se imprime — no lleva `no-print` a propósito. Si alguien
+            fuerza la impresión con ⌘P saltándose el botón, el papel tiene que
+            salir diciendo que está incompleto. Un aviso que desaparece justo en
+            el papel es el defecto que la A11 tuvo con el memo en borrador. */}
+        {noSePudo.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-rojo/30 bg-rojo/[0.06] p-4 text-sm">
+            <div className="font-medium text-rojo">Esta hoja está incompleta — no la imprimas todavía</div>
+            <p className="mt-1 text-tinta">
+              No se pudo traer {noSePudo.join(", ")}. Lo que falta aparece abajo como cero o como raya, y
+              eso <strong>no significa que no ocurriera</strong>. Vuelve a cargar; si sigue igual, avisa.
+            </p>
+          </div>
+        )}
 
         {/* Cabecera impresa */}
         {sede && (

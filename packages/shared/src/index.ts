@@ -7,3 +7,4 @@ export * from "./fecha-lima";
 export * from "./jornada";
 export * from "./vinculo";
 export * from "./montos";
+export * from "./asignacion-familiar";

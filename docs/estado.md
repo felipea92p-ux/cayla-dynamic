@@ -594,6 +594,40 @@ caracteres» que circulaban seguirían siendo una suposición escrita en una
 restricción. Aviso en pantalla y nada más, que es lo que ya decidió el
 encabezado de la 0198.
 
+### A.2.d · Dos campos para «¿tiene hijos menores?» — uno paga y el otro declara
+
+**Medido el 2026-08-10: hoy no cuesta nada.** De las 21 personas activas en
+planilla, las 21 concuerdan. Cero desacuerdos, cero fichas sin el dato. Esto
+queda escrito como riesgo latente, no como pendiente urgente — y con la consulta
+que lo vuelve a medir en dos segundos:
+[`los_dos_campos_de_hijos_no_se_hablan.sql`](../scripts/sql-manual/los_dos_campos_de_hijos_no_se_hablan.sql).
+
+| Campo | Quién lo escribe | Qué hace |
+|---|---|---|
+| `personas.con_hijos` (0025) | pantalla de **Equipo**, con `fn_set_con_hijos` | **decide el pago** de los S/113 en `fn_planilla_calcular` |
+| `datos_personales.hijos_menores` (0061) | pantalla de **Datos personales** | **es lo que sale en el padrón** al contador |
+
+**Nada los mantiene de acuerdo.** Ninguna migración menciona los dos a la vez;
+ninguna pantalla escribe los dos. Comprobado con `grep` sobre
+`supabase/migrations` y sobre `apps/web`. Que hoy concuerden es mérito de quien
+los ha ido llenando a mano, no del sistema.
+
+Lo que puede pasar el día que se despisten: marcar «sí tiene hijos» en la ficha,
+que el padrón se lo declare al contador, **y que la planilla abone S/0** porque
+`con_hijos` se quedó en su `false` por defecto. O al revés — cobrar los S/113
+mientras el papel que emite la empresa dice que no corresponden.
+
+⚠️ **Y ojo con el arreglo fácil.** Fusionarlos en un solo campo toca el cálculo
+de planilla, así que va con auditoría empírica contra el Postgres local en
+`BEGIN … ROLLBACK`, como manda el `CLAUDE.md`. Lo barato y sin riesgo mientras
+tanto sería que la pantalla de Datos personales **avise** cuando los dos
+difieran: ya tiene dos comprobaciones cruzadas de esa forma exacta —cobra
+asignación sin hijos registrados, y su inversa— y ninguna mira `con_hijos`.
+
+*(De aquí salió también el arreglo del padrón que ya está hecho: imprimía «NO»
+donde la verdad era «no se sabe». Ver `siNoSinDato` en
+`packages/shared/src/labels.ts`.)*
+
 ### A.3 · Datos que hacen falta para seguir
 
 **0) Nadie tiene contacto de emergencia — las 25, sin una sola excepción.**
@@ -1065,10 +1099,18 @@ al tope.
    divergencia. Unificar, o al menos una prueba que compare las dos respuestas
    con los mismos datos y falle si difieren.
 
-4. **Terminal, 4 bordes graves:** marca rechazada que se anuncia como «Listo» y
-   desaparece · cola offline que se reenvía en orden de UUID y no cronológico ·
-   reloj de la Mac sin verificación de desfase · persona que marca en dos sedes
-   el mismo día y pierde una marca.
+4. **Terminal, los «4 bordes graves» — reproducidos uno por uno el 2026-08-10.
+   Tres de los cuatro no eran lo que decían.**
+
+   | Borde | Veredicto medido |
+   |---|---|
+   | Marca rechazada anunciada como «Listo» | ✅ **era real a medias, y se arregló.** La cola ya guardaba la marca antes de enviar; lo que seguía mal era el CARTEL: la pantalla leía solo `ok` y tiraba `llego`, así que un rechazo del servidor se anunciaba igual que estar sin internet — «se sincronizará cuando vuelva la conexión», siendo mentira. |
+   | Cola offline reenviada por UUID | ❌ **refutado.** `offline-db.ts:85` ordena por `timestampCliente`. |
+   | Reloj de la Mac sin verificar desfase | ✅ **REAL Y ABIERTO.** Cero menciones de desfase en todo el terminal: el `timestamp_marca` que decide a qué día se paga sale del reloj de la Mac sin comprobar nada. Necesita decidir qué se hace cuando está corrido. |
+   | Marca en dos sedes el mismo día «pierde una marca» | ⚠️ **exagerado.** No se pierde ninguna —`marcajes` es append-only— pero `fn_recalcular_jornada` hace `coalesce(v_sede_id, …)` y le atribuye el día entero a la sede donde marcó PRIMERO. Lo que sale mal es el Reporte por sede, no el pago. |
+
+   Y el quinto que se miró de paso, `fn_auto_cierre` sin candado de periodo
+   pagado: ❌ **refutado**, lo cerró la 0203 el mismo día.
 
 5. ~~**Tardanza de más de 180 min invisible**~~ · ~~**el sistema mide la jornada
    de quien no está sujeto a horario**~~ — ✅ **los dos cerrados el 2026-08-08**

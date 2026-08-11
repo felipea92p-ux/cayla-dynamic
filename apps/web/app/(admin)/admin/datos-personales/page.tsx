@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { desacuerdoAsignacionFamiliar, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -90,6 +90,17 @@ export default function DatosPersonalesPage() {
   // upsert según venga `p_id`, así que duplicarlo sería tener dos sitios donde
   // arreglar el próximo campo que falte.
   const [dhEditando, setDhEditando] = useState<string | null>(null);
+  // `personas.con_hijos` es OTRO campo que el `hijos_menores` de la ficha, y es
+  // el que de verdad decide si se pagan los S/113 de asignación familiar
+  // (fn_planilla_calcular). Lo escribe la pantalla de Equipo; la ficha escribe
+  // el suyo; y nada los mantiene de acuerdo. Se trae aquí solo para poder
+  // avisar cuando difieran.
+  //
+  // `null` significa «no se pudo cargar», y NO es lo mismo que «nadie tiene
+  // hijos». La pantalla de Equipo degrada a `false` para todos cuando su RPC
+  // falla; copiar eso aquí convertiría un fallo de red en un aviso falso contra
+  // cada persona del equipo. Cuando es null, la comprobación no se hace.
+  const [conHijos, setConHijos] = useState<Map<string, boolean> | null>(null);
   // Si la carga falló, la pantalla no sabe qué hay de verdad: guardar desde aquí
   // borraría datos. Se bloquea hasta que una recarga vaya bien.
   const [cargaFallida, setCargaFallida] = useState(false);
@@ -107,11 +118,15 @@ export default function DatosPersonalesPage() {
     const [
       { data: p, error: eP }, { data: s, error: eS },
       { data: dp, error: eD }, { data: dh, error: eDH },
+      { data: fn, error: eFN },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id").eq("estado", "activo").order("nombres"),
       supabase.from("sedes").select("id, codigo"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
+      // `con_hijos` viaja por RPC porque el schema cache de PostgREST no expone
+      // esa columna — misma razón que en la pantalla de Equipo.
+      supabase.rpc("fn_personas_funciones"),
     ]);
 
     // Si una consulta falla NO se pisa el estado. Antes se hacía
@@ -127,6 +142,19 @@ export default function DatosPersonalesPage() {
       return;
     }
     setCargaFallida(false);
+    // A propósito FUERA del corte de arriba: esta RPC solo alimenta un aviso,
+    // nunca lo que se guarda. Que se caiga no puede bloquear la ficha entera ni
+    // impedir corregir un DNI. Si falla, el mapa queda en null y la
+    // comprobación cruzada simplemente no se hace — callarse es correcto,
+    // inventar un aviso contra cada persona no lo sería.
+    setConHijos(
+      eFN
+        ? null
+        : new Map(
+            (((fn as { persona_id: string; con_hijos: boolean | null }[] | null) ?? []))
+              .map((x) => [x.persona_id, x.con_hijos === true] as const),
+          ),
+    );
     setPersonas((p as Persona[]) ?? []);
     setSedes(new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo])));
     setFichas(new Map(((dp as Ficha[]) ?? []).map((x) => [x.persona_id, x])));
@@ -378,13 +406,36 @@ export default function DatosPersonalesPage() {
         if (f?.hijos_menores === false && derechos.some((d) => d.persona_id === p.id && d.vinculo === "hijo")) {
           avisos.push("tiene hijos registrados pero la ficha dice que no hay menores a cargo — si los hay, le falta cobrar la asignación familiar");
         }
+        // Las dos comprobaciones de arriba miran la ficha contra los familiares
+        // cargados. Ninguna mira el campo que DE VERDAD paga: `personas.con_hijos`,
+        // que escribe la pantalla de Equipo y lee `fn_planilla_calcular`. Son dos
+        // campos, en dos tablas, para la misma pregunta, y nada los sincroniza:
+        // se puede declarar una cosa al contador y abonar la contraria.
+        //
+        // Si `conHijos` es null la RPC no cargó, y entonces no se dice nada: un
+        // fallo de red no puede convertirse en un aviso contra cada persona.
+        // Quién decide qué es un desacuerdo vive en `asignacion-familiar.ts`,
+        // con sus pruebas: es la parte que puede producir un aviso FALSO contra
+        // una persona real, y eso cuesta más que no avisar. Aquí solo se elige
+        // la frase, que sí es asunto de esta pantalla.
+        switch (desacuerdoAsignacionFamiliar(conHijos?.get(p.id), f?.hijos_menores)) {
+          case "paga_y_declara_que_no":
+            avisos.push("se le paga la asignación familiar y esta ficha dice que NO tiene hijos menores — y es esta ficha la que sale en el padrón del contador; cuadra las dos");
+            break;
+          case "declara_y_no_cobra":
+            avisos.push("esta ficha dice que tiene hijos menores y NO se le está pagando la asignación familiar (S/113 al mes) — si le corresponde, actívala en Equipo");
+            break;
+          case "paga_y_la_ficha_calla":
+            avisos.push("se le paga la asignación familiar y esta ficha no lo declara — el padrón saldrá con «SIN DATO» en esa columna");
+            break;
+        }
         return { p, faltan, avisos, sinFicha: f === undefined };
       })
       .filter((x) => x.faltan.length > 0 || x.avisos.length > 0)
       // Las contradicciones primero: un campo vacío se llena cuando se pueda,
       // pero un dato que se contradice ya está moviendo plata hoy.
       .sort((a, b) => b.avisos.length - a.avisos.length || b.faltan.length - a.faltan.length);
-  }, [personas, fichas, derechos]);
+  }, [personas, fichas, derechos, conHijos]);
 
   // El valor que llega de la base es texto libre: puede traer un código que
   // estas etiquetas todavía no conocen. Se devuelve el crudo en vez de dejar
@@ -411,10 +462,16 @@ export default function DatosPersonalesPage() {
         Celular: f?.celular ?? "", Correo: p.email ?? "", Direccion: f?.direccion ?? "",
         "Regimen pension": etiqueta(REGIMEN_PENSION_LABELS, p.regimen_pension),
         "CUSPP": f?.cuspp ?? "",
-        "Asignacion familiar": f?.hijos_menores ? "SI" : "NO",
+        // Tres estados, no dos. El ternario de antes —`f?.hijos_menores ? "SI"
+        // : "NO"`— metía en el mismo saco el `false` declarado y el `null` de
+        // una ficha que nadie llenó, así que este papel le AFIRMABA al contador
+        // que la persona no tiene hijos menores cuando la verdad es que no se
+        // sabe. Son S/113 al mes de asignación familiar, y el documento que lo
+        // niega lo emite CAYLA. Ver `siNoSinDato`.
+        "Asignacion familiar": siNoSinDato(f?.hijos_menores),
         Derechohabientes: dh,
         Banco: f?.entidad_bancaria ?? "", Cuenta: f?.numero_cuenta ?? "",
-        Discapacidad: f?.discapacidad ? "SI" : "NO", CONADIS: f?.discapacidad_conadis ?? "",
+        Discapacidad: siNoSinDato(f?.discapacidad), CONADIS: f?.discapacidad_conadis ?? "",
         "Contacto emergencia": f?.emergencia_nombre ?? "",
         "Telefono emergencia": f?.emergencia_telefono ?? "",
         // El sistema NO guarda estos dos y el T-Registro los pide. Van como

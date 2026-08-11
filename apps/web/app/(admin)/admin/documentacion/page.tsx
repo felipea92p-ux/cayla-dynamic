@@ -317,6 +317,8 @@ export default function DocumentacionPage() {
   // ── El tablero de firmas ────────────────────────────────────────────────
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
   const [politica, setPolitica] = useState<EstadoPolitica | null>(null);
+  /** id de `documentos_firmados` → dónde está su archivo. Vacío si no se pudo leer. */
+  const [rutasDeArchivo, setRutasDeArchivo] = useState<Map<string, string>>(new Map());
   // Qué se está subiendo. `que` decide todo lo demás: la política no lleva
   // persona, el bono no lleva monto y solo la ruta admite negativa. Antes esto
   // era un `{personaId, negativa}` y el tipo iba fijo en «ruta» dentro del
@@ -624,6 +626,36 @@ export default function DocumentacionPage() {
     ]);
     setTablero((tab.data as FilaTablero[]) ?? []);
     setPolitica(((pol.data as EstadoPolitica[]) ?? [])[0] ?? null);
+
+    // DÓNDE VIVE CADA ARCHIVO YA SUBIDO.
+    //
+    // `fn_documentos_tablero` devuelve `ruta_id` y `bono_id` pero NO el
+    // storage_path, así que hasta hoy estas dos secciones no tenían forma de
+    // abrir lo archivado: `verDocumento` existía y se llamaba desde un solo
+    // sitio, el de la política —que sí recibe su path por RPC—. Quien subía un
+    // escaneo de ruta o un cargo de cumpleaños no podía comprobar que había
+    // subido el papel correcto, que es justo lo que esa función vino a evitar.
+    //
+    // Y no hace falta ni una migración ni leer la tabla: `fn_documentos_listar`
+    // devuelve `id` y `storage_path` desde la 0157 y no la llamaba nadie.
+    //
+    // POR RPC Y NO CON .from("documentos_firmados"), que es lo primero que se me
+    // ocurrió y está mal por partida doble: los tipos generados van 26 tablas por
+    // detrás del esquema, y —lo que de verdad importa— el schema cache de
+    // PostgREST se traba con las tablas nuevas. Es la misma razón por la que
+    // turnos/page.tsx:558 dice «nunca .from("areas")». Habría compilado tras un
+    // cast y fallado en producción.
+    //
+    // Tolerante como sus vecinas: si falla, la pantalla se queda sin el botón
+    // «Ver» y todo lo demás sigue funcionando.
+    const { data: archivos } = await supabase.rpc("fn_documentos_listar");
+    setRutasDeArchivo(
+      new Map(
+        ((archivos as { id: string; storage_path: string | null }[]) ?? [])
+          .filter((d) => d.storage_path)
+          .map((d) => [d.id, d.storage_path as string]),
+      ),
+    );
 
     // El monto del bono, en consulta aparte por lo mismo que el tablero: si la
     // 0165 todavía no está pegada, que falle ESTA consulta y no las demás.
@@ -1528,6 +1560,16 @@ export default function DocumentacionPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap items-center justify-end gap-3">
+                              {/* «Ver» va PRIMERO y solo si hay archivo: comprobar lo
+                                  que subiste es lo que se hace justo después de
+                                  subirlo, y el error de subir el papel equivocado no
+                                  se nota de ninguna otra forma hasta que lo pide un
+                                  inspector. Si la fila no tiene archivo, no hay botón
+                                  —mejor que uno que abre una pestaña en blanco—. */}
+                              {f.ruta_id && rutasDeArchivo.has(f.ruta_id) && (
+                                <button onClick={() => void verDocumento(rutasDeArchivo.get(f.ruta_id!)!)}
+                                  className="text-xs font-medium underline">Ver</button>
+                              )}
                               <button onClick={() => imprimirFila(f.persona_id, "ruta")}
                                 className="text-xs font-medium underline">Imprimir</button>
                               <button onClick={() => abrirSubida("ruta", f.persona_id)}
@@ -1604,6 +1646,10 @@ export default function DocumentacionPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap items-center justify-end gap-3">
+                              {f.bono_id && rutasDeArchivo.has(f.bono_id) && (
+                                <button onClick={() => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)}
+                                  className="text-xs font-medium underline">Ver</button>
+                              )}
                               <button onClick={() => imprimirFila(f.persona_id, "bono")}
                                 className="text-xs font-medium underline">Imprimir</button>
                               <button onClick={() => abrirSubida("bono", f.persona_id)}

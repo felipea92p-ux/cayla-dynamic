@@ -63,7 +63,7 @@ antes que las migraciones que los protegen.
 | **A12** | la Hoja de sede se imprime en ceros si una consulta falla | una sola aparición de `error` en las ocho consultas |
 | ~~**A5**~~ | ✅ **cerrado el 2026-08-10.** La 0075 **sí** estaba en producción —medido, este documento decía lo contrario— y la pantalla ya la llama (0200) | `fn_dias_suspension`, `fn_expediente_set_suspension` y la columna: las tres presentes en prod |
 | **A20** | ✅ **cerrado el 2026-08-10** por la 0200 — el semáforo pedía 3 tardanzas a quien por escala ya le tocaba 1 | la escala vive en `fn_tardanza_escalon`; prueba [`155`](../supabase/tests/155_el_semaforo_conoce_el_escalon.test.sql) |
-| **A21** | el semáforo excluye `sueldo_fijo` y el generador **no**: invisible en pantalla, sancionable desde la base | `fn_tardanzas_resumen` filtra `pe.sueldo_fijo = false`; `fn_expediente_generar_tardanza` no nombra la columna |
+| ~~**A21**~~ | ❌ **REFUTADO el 2026-08-10, y era mío.** El sistema ya es coherente: a quien cobra fijo no se le arma memo por ningún camino | `fn_expediente_crear_borrador` —un nivel por debajo del generador— lleva `or v_p.sueldo_fijo = true then` y aborta. Miré el generador y no bajé un nivel más |
 | **A11** | 🟡 el borrador ya dice «BORRADOR», pero sigue firmado por Gerencia General | ver su entrada |
 
 **Lo que hoy cambió el terreno:** varios de estos hallazgos se apoyan en la frase
@@ -644,15 +644,28 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 **Arreglo (aplicado):** extraer la escala a `fn_tardanza_escalon(persona)` —qué documento toca, cuántas tardanzas exige, desde qué fecha se cuenta y si está bloqueado— y que las dos funciones la consuman. Copiarla a la segunda habría creado la segunda copia de una regla, que es literalmente la causa de este hallazgo. `umbral` pasa a nombrar el escalón alcanzado y los tres consumidores comparan contra `'aviso'`.
 
-### 22. El semáforo excluye a quien tiene sueldo fijo y el generador no: invisible en pantalla, sancionable desde la base
+### 22. ~~El semáforo excluye a quien tiene sueldo fijo y el generador no~~
 
-`disciplina-legal` · ⚖️ decisión injusta · arreglo de **minutos** · **necesita una decisión de negocio, no solo código**
-
-**Dónde:** `fn_tardanzas_resumen` (`where … and pe.sueldo_fijo = false`) frente a `fn_expediente_generar_tardanza`, que no nombra la columna ni una vez.
-
-**Qué pasa:** una persona con `sueldo_fijo = true` no aparece NUNCA en el semáforo de Disciplina, por muchas tardanzas que acumule, y sin embargo `fn_expediente_generar_tardanza` le arma el memo sin objetar nada. Las dos mitades vuelven a decir cosas distintas, y esta vez en la dirección que deja a alguien sin la señal temprana: la conversación que el sistema existe para provocar no se provoca, y la sanción sí es posible. `sueldo_fijo` significa que su pago no depende de las horas — no que su horario no exista.
-
-**Arreglo:** decidir cuál de las dos mitades tiene razón, y que la otra la siga. Si la tardanza de quien cobra fijo importa para el patrón disciplinario, quitar el filtro del semáforo; si no importa, añadir el guard al generador para que no pueda imputarla. **No se tocó en la 0200 a propósito:** quitar el filtro haría aparecer gente nueva en Disciplina de golpe, y eso es una decisión de Felipe, no una corrección. `scripts/sql-manual/por_que_no_sale_en_disciplina.sql` dice quién está hoy en esa situación.
+> ❌ **REFUTADO el 2026-08-10, y el hallazgo era mío — escrito ese mismo día.**
+>
+> Miré `fn_expediente_generar_tardanza`, vi que no nombra `sueldo_fijo`, y
+> concluí que podía imputar a quien el semáforo esconde. **No bajé un nivel
+> más.** El generador no crea nada: delega en `fn_expediente_crear_borrador`,
+> que abre con
+>
+> ```sql
+> if v_p.estado <> 'activo' or v_p.en_planilla = false or v_p.sueldo_fijo = true then
+> ```
+>
+> y aborta. Las dos mitades coinciden: a quien cobra fijo no se le arma memo por
+> ningún camino.
+>
+> **La lección, y es la del día entero:** «esta función no nombra la columna» no
+> prueba que la regla no se aplique. Las reglas de este sistema viven repartidas
+> en cadenas de funciones, y medir una sola es medir un eslabón. La pregunta
+> correcta no era *¿nombra la columna?* sino *¿qué pasa si lo intento?* — y eso
+> se responde intentándolo contra la base, que es lo que costó un minuto hacer
+> después.
 
 
 ---
