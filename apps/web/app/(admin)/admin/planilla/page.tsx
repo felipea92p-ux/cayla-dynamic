@@ -265,6 +265,19 @@ interface GratiCts {
   porPersona: Record<string, { grati: number; cts: number }>;
 }
 
+// Una liquidación YA PAGADA de alguien que cesó dentro de este periodo, tal
+// como la devuelve fn_liquidaciones_del_periodo (0210).
+//
+// `cobro_del_periodo` es la parte que SE SOLAPA con la planilla: el sueldo del
+// mes que esa liquidación ya cubrió. El resto del total son las truncas, que la
+// planilla no calcula y por tanto no duplica.
+interface Liquidada {
+  cobro_del_periodo: number;
+  total_liquidacion: number;
+  pagada_el: string;
+  fecha_cese: string;
+}
+
 function etiquetaPeriodo(p: PeriodoInfo): string {
   return `${MESES_LARGO[p.mes_etiqueta - 1]} ${p.anio_etiqueta} · ${fechaCorta(p.fecha_ini)} → ${fechaCorta(p.fecha_fin)}`;
 }
@@ -325,6 +338,8 @@ function TablaPlanilla(props: {
   onAgregarMov?: (f: Fila) => void;
   onQuitarMov?: (m: Movimiento) => void;
   onYaPagado?: (f: Fila) => void;
+  /** Quién de este periodo ya cobró su liquidación (0210), por persona_id. */
+  liquidadas?: Record<string, Liquidada>;
   guardandoMov?: boolean;
   gc?: GratiCts | null;
 }) {
@@ -334,6 +349,7 @@ function TablaPlanilla(props: {
     baseEdit = {}, onBaseChange, onBaseBlur, guardandoBase = null,
     rendEdit = {}, onRendChange, onRendBlur, guardandoRend = null,
     movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov, onYaPagado,
+    liquidadas = {},
     guardandoMov = false, gc = null,
   } = props;
   // Al elegir grati/CTS en el desplegable, autocompleta concepto y el monto que el
@@ -427,6 +443,28 @@ function TablaPlanilla(props: {
                         </button>
                       </>
                     )}
+                    {/* CAMBIO 0210 · El aviso que faltaba. Hasta hoy esta fila
+                        solo decía «ya no está», y con eso se cerró el periodo de
+                        julio con seis personas dentro que YA habían cobrado su
+                        liquidación: S/1,145.87 registrados dos veces.
+                        Se muestra aunque el total sea 0 —es decir, aunque ya se
+                        haya apretado el botón— porque entonces confirma que está
+                        resuelto en vez de dejar la duda. */}
+                    {(() => {
+                      const liq = liquidadas[f.persona_id];
+                      if (!liq) return null;
+                      const resuelto = f.total <= 0;
+                      return (
+                        <p className={`mt-0.5 text-xs ${resuelto ? "text-taupe" : "text-ambar"}`}>
+                          {resuelto ? "✓ " : "⚠ "}
+                          Ya cobró su liquidación el {fechaCorta(liq.pagada_el)} ·{" "}
+                          {formatSoles(liq.cobro_del_periodo)} de este mes
+                          {resuelto
+                            ? " — ya está descontado aquí."
+                            : " — si no vas a transferirle otra vez, usa «Ya le pagué aparte»."}
+                        </p>
+                      );
+                    })()}
                     {(() => {
                       const r = razonDelCero(f);
                       if (!r) return null;
@@ -716,6 +754,10 @@ export default function PlanillaPage() {
   // Proyección del periodo seleccionado
   const [proy, setProy] = useState<Proyeccion | null>(null);
   const [gc, setGc] = useState<GratiCts | null>(null);
+  // Quién de este periodo ya cobró su liquidación (0210), indexado por
+  // persona_id. `{}` significa «no hay ninguna», que es lo normal casi todos los
+  // meses; nunca null, para que la búsqueda por clave no tenga que defenderse.
+  const [liquidadas, setLiquidadas] = useState<Record<string, Liquidada>>({});
   const [cargando, setCargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -864,6 +906,13 @@ export default function PlanillaPage() {
       ctsConcepto: g.cts_concepto ?? "",
       porPersona: Object.fromEntries(((g.personas as any[]) ?? []).map((x) => [x.persona_id, { grati: Number(x.grati) || 0, cts: Number(x.cts) || 0 }])),
     } : null);
+    // Quién de este periodo YA cobró su liquidación (0210). Falla suave a
+    // propósito: si no llega, la pantalla se queda como estaba y sigue
+    // pagándose igual. Es un aviso, no un requisito — un cartel que tumbe la
+    // planilla sería peor que el problema que avisa.
+    const { data: liqData } = await supabase.rpc("fn_liquidaciones_del_periodo", { p_periodo_id: id });
+    if (mi !== reqId.current) return;
+    setLiquidadas((liqData as Record<string, Liquidada> | null) ?? {});
   }, [supabase, puedeVer]);
 
   useEffect(() => {
@@ -1930,6 +1979,7 @@ export default function PlanillaPage() {
                 // botón es justo el remedio que había que apretar y no estaba.
                 // Ver docs/estado.md, sección A.2.b.bis.
                 onYaPagado={(f) => void marcarYaPagado(f)}
+                liquidadas={liquidadas}
                 guardandoMov={guardandoMov}
                 gc={gc}
               />
