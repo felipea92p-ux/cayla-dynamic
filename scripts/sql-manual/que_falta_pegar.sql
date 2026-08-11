@@ -84,7 +84,8 @@ with repo(numero, nombre) as (values
     (207, 'una_marca_que_cae_en_un_periodo_pagado_deja_de_entrar_muda'),
     (208, 'el_reglamento_se_entrega_y_queda_constancia'),
     (209, 'reactivar_devuelve_el_sueldo_desde_el_dia_que_vuelve'),
-    (210, 'la_planilla_ve_la_liquidacion_que_ya_se_pago')
+    (210, 'la_planilla_ve_la_liquidacion_que_ya_se_pago'),
+    (212, 'ninguna_sancion_sin_escuchar_antes')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
