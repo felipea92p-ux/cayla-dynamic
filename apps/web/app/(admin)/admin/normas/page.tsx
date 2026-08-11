@@ -153,6 +153,12 @@ export default function NormasPage() {
   // es el que se guarda.
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [publicando, setPublicando] = useState(false);
+  // Alta de un tipo nuevo. La 0208 dejó escrito que este catálogo «se
+  // administra desde la pantalla», pero la pantalla no tenía cómo: hasta la
+  // 0215 la tabla solo permitía leer, así que cada documento nuevo era una
+  // migración. Esto es esa mitad que faltaba.
+  const [creandoTipo, setCreandoTipo] = useState(false);
+  const [tipoNuevo, setTipoNuevo] = useState({ nombre: "", acuse: true });
   const [tipoElegido, setTipoElegido] = useState("rit");
   const [archivoDoc, setArchivoDoc] = useState<{ nombre: string; texto: string } | null>(null);
   const [tituloDoc, setTituloDoc] = useState("");
@@ -230,6 +236,48 @@ export default function NormasPage() {
     const h1 = texto.split("\n").find((l) => l.trim().startsWith("# "));
     if (h1 && !tituloDoc) setTituloDoc(h1.replace(/^#\s*/, "").trim());
     setMsg(null);
+  }
+
+  /** El código a partir del nombre: la tabla exige `^[a-z0-9_]{2,40}$`, así que
+   *  se pide UNA cosa —el nombre— y el código se deriva. Pedir los dos obliga a
+   *  explicar qué es un código y deja que alguien escriba «Política HS» en el
+   *  campo equivocado, que es un error que no se ve hasta que falla el insert. */
+  function codigoDesde(nombre: string): string {
+    const sinTildes = nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return sinTildes.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "").slice(0, 40);
+  }
+
+  async function crearTipo() {
+    const nombre = tipoNuevo.nombre.trim();
+    const codigo = codigoDesde(nombre);
+    if (codigo.length < 2) {
+      setMsg({ tipo: "error", texto: "El nombre tiene que tener al menos dos letras o números." });
+      return;
+    }
+    if (tipos.some((t) => t.codigo === codigo)) {
+      setMsg({ tipo: "error", texto: `Ya existe un documento con ese nombre (${codigo}).` });
+      return;
+    }
+    setOcupado(true); setMsg(null);
+    // `orden` al final, y a partir del 100: los seis documentos que vinieron con
+    // el sistema ocupan del 10 al 60, así que uno nuevo se coloca detrás sin
+    // desplazar a ninguno. No se calcula del máximo real porque esta consulta
+    // no trae la columna `orden`, y fingir que sí la usa sería peor que esto.
+    const orden = 100 + tipos.length * 10;
+    const { error } = await supabase.from("documentos_tipos")
+      .insert({ codigo, nombre, orden, requiere_acuse: tipoNuevo.acuse });
+    setOcupado(false);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "crear el tipo de documento") }); return; }
+    const { data } = await supabase.from("documentos_tipos")
+      .select("codigo, nombre, requiere_acuse").eq("activo", true).order("orden");
+    setTipos((data as Tipo[]) ?? []);
+    setTipoElegido(codigo);
+    setCreandoTipo(false); setTipoNuevo({ nombre: "", acuse: true });
+    setMsg({
+      tipo: "ok",
+      texto: `«${nombre}» ya se puede publicar${tipoNuevo.acuse ? ", y pedirá constancia a cada integrante" : ", para consulta y sin constancia"}.`,
+    });
   }
 
   async function publicar() {
@@ -357,7 +405,13 @@ export default function NormasPage() {
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="flex flex-col gap-1 text-xs">
-                    Tipo de documento
+                    <span className="flex items-baseline justify-between gap-2">
+                      Tipo de documento
+                      <button type="button" onClick={() => setCreandoTipo((v) => !v)}
+                        className="text-[11px] font-normal text-taupe underline underline-offset-2 hover:text-tinta">
+                        {creandoTipo ? "cancelar" : "añadir uno"}
+                      </button>
+                    </span>
                     <select value={tipoElegido} onChange={(e) => setTipoElegido(e.target.value)}
                       className="rounded border bg-crema px-2 py-1 text-xs">
                       {tipos.map((t) => (
@@ -392,6 +446,45 @@ export default function NormasPage() {
                       className="rounded border px-2 py-1 text-xs" />
                   </label>
                 </div>
+
+                {creandoTipo && (
+                  <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">
+                    <p className="mb-2 text-xs text-taupe">
+                      Un documento nuevo del expediente — una política, un protocolo, la
+                      presentación de la empresa. El código interno se deriva del nombre.
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="flex flex-col gap-1 text-xs">
+                        Nombre
+                        <input value={tipoNuevo.nombre}
+                          onChange={(e) => setTipoNuevo((t) => ({ ...t, nombre: e.target.value }))}
+                          placeholder="Reglamento Interno de Seguridad y Salud"
+                          className="rounded border px-2 py-1 text-xs" />
+                        {tipoNuevo.nombre.trim() !== "" && (
+                          <span className="text-[11px] text-taupe">código: {codigoDesde(tipoNuevo.nombre) || "—"}</span>
+                        )}
+                      </label>
+                      <label className="flex items-start gap-2 text-xs sm:pt-5">
+                        <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5"
+                          onChange={(e) => setTipoNuevo((t) => ({ ...t, acuse: e.target.checked }))} />
+                        <span>
+                          Pedir constancia a cada integrante
+                          <span className="block text-[11px] text-taupe">
+                            Desmárcalo si el documento no le impone nada al equipo — una guía
+                            interna, un formulario en blanco. Un registro lleno de constancias
+                            que no significan nada no prueba nada.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button onClick={() => void crearTipo()} disabled={ocupado || !tipoNuevo.nombre.trim()}
+                        className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                        Añadir
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {archivoDoc && (
                   <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">

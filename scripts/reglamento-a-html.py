@@ -16,8 +16,21 @@ DE DÓNDE SALEN LOS COLORES Y LAS TIPOGRAFÍAS
   hereda al regenerarse — y si se hubieran escrito aquí, no.
 
 USO
-  python3 scripts/reglamento-a-html.py
-  → docs/reglamento-interno-de-trabajo.html
+  python3 scripts/reglamento-a-html.py                              → el Reglamento
+  python3 scripts/reglamento-a-html.py manual-procedimiento-disciplinario
+  python3 scripts/reglamento-a-html.py --todos                      → los seis
+
+  El argumento es el nombre del archivo en `docs/`, sin `.md`. Sirve para el
+  Reglamento y para los cinco documentos satélite, que comparten la misma
+  cabecera —título, razón social, RUC y líneas de «**Clave:** valor»— y por
+  eso se maquetan igual.
+
+POR QUÉ EL ÍNDICE SE CONSTRUYE DE DOS MANERAS
+  El Reglamento se organiza en TÍTULOS con ARTÍCULOS dentro, y su índice tiene
+  dos niveles. Los satélites son documentos planos, con secciones numeradas a
+  secas. Un índice de dos niveles sobre un documento plano sale vacío, y uno
+  plano sobre el Reglamento sale con 68 entradas sin agrupar: se elige según
+  lo que el documento tenga dentro, no según cuál sea.
 """
 import base64
 import glob
@@ -27,9 +40,24 @@ import re
 import sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MD = os.path.join(RAIZ, "docs", "reglamento-interno-de-trabajo.md")
-SALIDA = os.path.join(RAIZ, "docs", "reglamento-interno-de-trabajo.html")
 CSS_APP = os.path.join(RAIZ, "apps", "web", "app", "globals.css")
+
+PREDETERMINADO = "reglamento-interno-de-trabajo"
+
+# Los seis documentos del expediente. El Reglamento primero: es el que manda,
+# y los otros cinco derivan de él (numeral 47 del propio Reglamento).
+TODOS = [
+    PREDETERMINADO,
+    "manual-procedimiento-disciplinario",
+    "politica-prevencion-hostigamiento-sexual",
+    "resolucion-designacion-hostigamiento",
+    "formato-queja-hostigamiento-sexual",
+    "cargo-recepcion-reglamento",
+]
+
+# Por debajo de esto, un índice estorba más de lo que ayuda: el cargo de
+# recepción cabe en una hoja.
+MINIMO_PARA_INDICE = 6
 
 
 def paleta() -> dict:
@@ -89,7 +117,17 @@ def cuerpo_html(md: str) -> tuple:
     """Devuelve (portada, indice, articulado)."""
     partes = md.split("\n---\n", 2)
     cabecera = partes[0]
-    resto = partes[-1] if len(partes) > 1 else md
+    # El Reglamento lleva un índice ESCRITO A MANO entre su primer y su segundo
+    # «---». Ese bloque se descarta a propósito, porque `indice()` lo reconstruye
+    # del articulado. Los satélites no tienen índice escrito: ahí el segundo
+    # bloque es su PRIMERA SECCIÓN, y descartarlo la borraba del documento
+    # impreso sin decir nada — el cargo de recepción salía sin su tabla de
+    # firma, y el formato de queja sin el aviso de que no es obligatorio. Por
+    # eso se decide mirando si ese bloque es el índice, no contando separadores.
+    if len(partes) > 2 and re.match(r"\s*##\s+Índice\s*$", partes[1].split("\n\n")[0]):
+        resto = partes[2]
+    else:
+        resto = "\n---\n".join(partes[1:]) if len(partes) > 1 else md
 
     # ── Portada, de las líneas «**Clave:** valor» de la cabecera ────────────
     datos = re.findall(r"\*\*([^*]+):\*\*\s*(.+)", cabecera)
@@ -99,9 +137,14 @@ def cuerpo_html(md: str) -> tuple:
     # identifica el documento ante la autoridad, y en el markdown no llevan
     # dos puntos, así que el barrido de «**Clave:** valor» no las veía.
     razon = re.search(r"\*\*(CAYLA[^*]*)\*\*\s*·\s*(RUC[^\n]*)", cabecera)
+    # El título sale del propio documento, del «# » de su primera línea. Antes
+    # estaba escrito aquí, y con eso los cinco satélites habrían salido todos
+    # titulados «Reglamento Interno de Trabajo».
+    h1 = re.search(r"(?m)^#\s+(.+)$", cabecera)
+    titulo = h1.group(1).strip() if h1 else "Documento"
     portada = ['<section class="portada">',
                '<div class="marca">CAYLA</div>',
-               '<h1>Reglamento Interno de Trabajo</h1>']
+               f'<h1>{en_linea(titulo)}</h1>']
     if razon:
         portada.append(f'<p class="razon">{html.escape(razon.group(1).strip())}'
                        f'<span>{html.escape(razon.group(2).strip())}</span></p>')
@@ -118,14 +161,35 @@ def cuerpo_html(md: str) -> tuple:
     portada.append("</section>")
 
     # ── Articulado ──────────────────────────────────────────────────────────
-    salida, buffer_cita = [], []
+    salida, buffer_cita, buffer_tabla = [], [], []
     def cerrar_cita():
         if buffer_cita:
             salida.append("<blockquote>" + " ".join(buffer_cita) + "</blockquote>")
             buffer_cita.clear()
 
+    def cerrar_tabla():
+        """Una tabla de markdown, a <table>. Sin esto sus filas salían como
+        párrafos con las barras a la vista («| **Nombre y apellidos** | |»), que
+        en un cargo que se firma a mano es la casilla donde va el nombre."""
+        if not buffer_tabla:
+            return
+        filas = [[c.strip() for c in f.strip().strip("|").split("|")]
+                 for f in buffer_tabla
+                 if not re.fullmatch(r"[\s|:-]+", f)]
+        buffer_tabla.clear()
+        if not filas:
+            return
+        cuerpo = []
+        for f in filas:
+            celdas = "".join(f'<td>{en_linea(c)}</td>' for c in f)
+            cuerpo.append(f"<tr>{celdas}</tr>")
+        salida.append('<table class="campos">' + "".join(cuerpo) + "</table>")
+
     for linea in resto.split("\n"):
         t = linea.rstrip()
+        if t.lstrip().startswith("|"):
+            cerrar_cita(); buffer_tabla.append(t.lstrip()); continue
+        cerrar_tabla()
         if not t.strip():
             cerrar_cita(); continue
         if t.strip() == "---":
@@ -147,12 +211,20 @@ def cuerpo_html(md: str) -> tuple:
         else:
             salida.append(f"<p>{en_linea(t)}</p>")
     cerrar_cita()
-    return "\n".join(portada), "", "\n".join(salida)
+    cerrar_tabla()
+    return "\n".join(portada), titulo, "\n".join(salida)
 
 
 def indice(articulado: str) -> str:
     """Se construye recorriendo el articulado ya montado. Copiarlo del markdown
-    lo dejaría desactualizado el día que se inserte un artículo."""
+    lo dejaría desactualizado el día que se inserte un artículo.
+
+    Dos formas, según lo que el documento tenga dentro: de dos niveles cuando
+    hay TÍTULOS, y plano cuando solo hay secciones. Se decide mirando el texto
+    y no el nombre del archivo, porque el día que un satélite crezca hasta
+    tener títulos, hereda el índice bueno sin tocar nada."""
+    if '<h2 class="titulo">' not in articulado:
+        return indice_plano(articulado)
     filas, titulo = [], None
     for m in re.finditer(r'<h2 class="titulo"><span class="rom">([^<]*)</span>'
                          r'<span class="nom">([^<]*)</span></h2>|<h3>([^<]*)</h3>', articulado):
@@ -174,14 +246,48 @@ def indice(articulado: str) -> str:
     return "\n".join(out)
 
 
+def indice_plano(articulado: str) -> str:
+    """El índice de un documento sin títulos: una entrada por sección.
+
+    Devuelve cadena vacía si hay pocas secciones. Un índice de tres líneas
+    sobre un documento de dos páginas ocupa más de lo que orienta."""
+    secciones = re.findall(r'<h2 class="seccion">([^<]*)</h2>', articulado)
+    if len(secciones) < MINIMO_PARA_INDICE:
+        return ""
+    out = ['<section class="indice"><h2 class="seccion">Índice</h2>',
+           '<ul class="idx-arts idx-plano">']
+    out += [f"<li>{s}</li>" for s in secciones]
+    out.append("</ul></section>")
+    return "\n".join(out)
+
+
 def main() -> None:
-    md = open(MD, encoding="utf-8").read()
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if "--todos" in sys.argv:
+        for slug in TODOS:
+            generar(slug)
+        return
+    generar(args[0] if args else PREDETERMINADO)
+
+
+def generar(slug: str) -> None:
+    slug = slug.removesuffix(".md")
+    ruta = os.path.join(RAIZ, "docs", slug + ".md")
+    salida = os.path.join(RAIZ, "docs", slug + ".html")
+    if not os.path.exists(ruta):
+        sys.exit(f"No encuentro {ruta}.")
+    md = open(ruta, encoding="utf-8").read()
     c = paleta()
-    portada, _, articulado = cuerpo_html(md)
+    portada, titulo, articulado = cuerpo_html(md)
+    # El mismo tratamiento que recibe el <h1>, y por la misma razón: al título
+    # le llegan las barras de escape del markdown (`\_\_\_\_`) y le podría
+    # llegar un «&» o un «<», que en el <head> no rompen a la vista — rompen
+    # el documento entero sin decir nada.
+    titulo = re.sub(r"<[^>]+>", "", en_linea(titulo))
 
     doc = f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
-<title>Reglamento Interno de Trabajo — CAYLA S.A.C.</title>
+<title>{titulo} — CAYLA S.A.C.</title>
 <style>
 {fuentes()}
 
@@ -263,6 +369,20 @@ blockquote {{
   text-align: left; break-inside: avoid;
 }}
 
+/* ── Tablas de campos ────────────────────────────────────────────────────
+   Son casillas que se rellenan a mano, no cuadros de datos: por eso la
+   segunda columna va vacía y ancha, y la fila entera no se parte de página. */
+table.campos {{
+  width: 100%; border-collapse: collapse; margin: .6cm 0 .7cm;
+  font-size: 10.6pt; text-align: left; break-inside: avoid;
+}}
+table.campos td {{
+  border: 1px solid var(--sand); padding: .3cm .34cm;
+  vertical-align: bottom; text-align: left;
+}}
+table.campos td:first-child {{ width: 7.4cm; color: var(--taupe); }}
+table.campos tr {{ break-inside: avoid; }}
+
 /* ── Índice ─────────────────────────────────────────────────────────── */
 .indice {{ break-after: page; page-break-after: always; }}
 .indice .seccion {{ break-before: auto; page-break-before: auto; }}
@@ -307,8 +427,8 @@ blockquote {{
   Las tipografías van incrustadas: sale igual en cualquier ordenador.
 </div>
 </body></html>"""
-    open(SALIDA, "w", encoding="utf-8").write(doc)
-    print(f"→ {os.path.relpath(SALIDA, RAIZ)}  ({len(doc)/1024:.0f} KB)")
+    open(salida, "w", encoding="utf-8").write(doc)
+    print(f"→ {os.path.relpath(salida, RAIZ)}  ({len(doc)/1024:.0f} KB)")
 
 
 if __name__ == "__main__":

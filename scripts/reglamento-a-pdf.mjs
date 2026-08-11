@@ -18,16 +18,41 @@
  *   genera de vez en cuando sería pagar 300 MB por una llamada.
  *
  * USO
- *   node scripts/reglamento-a-pdf.mjs
+ *   node scripts/reglamento-a-pdf.mjs                              → el Reglamento
+ *   node scripts/reglamento-a-pdf.mjs manual-procedimiento-disciplinario
+ *   node scripts/reglamento-a-pdf.mjs --todos                      → los seis
+ *
+ *   El argumento es el nombre del archivo en `docs/`, sin extensión. El .html
+ *   tiene que existir ya: lo genera `reglamento-a-html.py`.
+ *
+ * DE DÓNDE SALE EL PIE DE PÁGINA
+ *   Del propio HTML — su <title> y su línea de versión— y no de una constante
+ *   escrita aquí. Un pie escrito a mano sobrevive a los cambios del documento
+ *   sin avisar, y es justo el sitio donde nadie lo mira: seis documentos
+ *   distintos habrían salido todos rotulados «Reglamento Interno de Trabajo,
+ *   versión 4.0».
  */
 import { spawn } from "node:child_process";
-import { writeFileSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
-const HTML = join(RAIZ, "docs", "reglamento-interno-de-trabajo.html");
-const PDF = join(RAIZ, "docs", "reglamento-interno-de-trabajo.pdf");
+
+const PREDETERMINADO = "reglamento-interno-de-trabajo";
+const TODOS = [
+  PREDETERMINADO,
+  "manual-procedimiento-disciplinario",
+  "politica-prevencion-hostigamiento-sexual",
+  "resolucion-designacion-hostigamiento",
+  "formato-queja-hostigamiento-sexual",
+  "cargo-recepcion-reglamento",
+];
+
+const args = process.argv.slice(2).filter((a) => !a.startsWith("-"));
+const SLUGS = process.argv.includes("--todos")
+  ? TODOS
+  : [(args[0] ?? PREDETERMINADO).replace(/\.html?$|\.md$/, "")];
 
 const CHROME = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -39,8 +64,10 @@ if (!CHROME) {
   console.error("No encuentro Chrome. Sin él no hay numeración de páginas.");
   process.exit(1);
 }
-if (!existsSync(HTML)) {
-  console.error(`Falta ${HTML}. Corre antes: python3 scripts/reglamento-a-html.py`);
+const FALTAN = SLUGS.filter((s) => !existsSync(join(RAIZ, "docs", `${s}.html`)));
+if (FALTAN.length) {
+  console.error(`Falta el HTML de: ${FALTAN.join(", ")}.`);
+  console.error(`Corre antes: python3 scripts/reglamento-a-html.py --todos`);
   process.exit(1);
 }
 
@@ -55,10 +82,21 @@ const ENCABEZADO = `<div style="${ESTILO} text-align: right; letter-spacing:.04e
   CAYLA S.A.C. &middot; RUC N.&deg; 20605964550
 </div>`;
 
-const PIE = `<div style="${ESTILO} display:flex; justify-content:space-between;">
-  <span>Reglamento Interno de Trabajo &middot; Versi&oacute;n 4.0 &middot; Vigente desde el 10/08/2026</span>
-  <span>P&aacute;gina <span class="pageNumber"></span> de <span class="totalPages"></span></span>
+/** El rótulo del pie sale del HTML que se va a imprimir, no de una constante.
+ *  El <title> da el nombre y la línea de versión da la vigencia; si el
+ *  documento no declara versión —el formato de queja, por ejemplo— el pie se
+ *  queda solo con el nombre en vez de heredar la del Reglamento. */
+function pieDe(html) {
+  const t = html.match(/<title>([\s\S]*?)<\/title>/);
+  const nombre = (t ? t[1] : "Documento").replace(/\s+—\s+CAYLA S\.A\.C\.\s*$/, "").trim();
+  const v = html.match(/<p class="version">([\s\S]*?)<\/p>/);
+  const version = v ? v[1].replace(/<[^>]+>/g, "").trim() : "";
+  const izquierda = version ? `${nombre} &middot; ${version}` : nombre;
+  return `<div style="${ESTILO} display:flex; justify-content:space-between; gap:10mm;">
+  <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${izquierda}</span>
+  <span style="white-space:nowrap;">P&aacute;gina <span class="pageNumber"></span> de <span class="totalPages"></span></span>
 </div>`;
+}
 
 const puerto = 9333 + (process.pid % 500);
 const chrome = spawn(CHROME, [
@@ -117,38 +155,46 @@ function cliente(url) {
 }
 
 try {
-  const destino = `file://${resolve(HTML)}`;
-  const c = cliente(await endpoint(destino));
-  await c.lista;
-  await c.envia("Page.enable");
-  const cargado = c.espera("Page.loadEventFired");
-  await c.envia("Page.navigate", { url: destino });
-  await cargado;
-  // Las tipografías van incrustadas en base64 y tardan un instante en aplicarse.
-  // Sin esta pausa el PDF sale con la tipografía de reserva y no se nota hasta
-  // que alguien lo abre.
-  await esperar(2500);
+  for (const slug of SLUGS) {
+    const html = join(RAIZ, "docs", `${slug}.html`);
+    const pdf = join(RAIZ, "docs", `${slug}.pdf`);
+    const destino = `file://${resolve(html)}`;
+    // Una pestaña por documento, y se cierra al terminar. Reutilizar una sola
+    // dejaba las tipografías de la anterior en caché — cómodo, pero el día que
+    // dos documentos usen fuentes distintas el segundo saldría con las del
+    // primero y nadie lo notaría hasta tenerlo impreso.
+    const c = cliente(await endpoint(destino));
+    await c.lista;
+    await c.envia("Page.enable");
+    const cargado = c.espera("Page.loadEventFired");
+    await c.envia("Page.navigate", { url: destino });
+    await cargado;
+    // Las tipografías van incrustadas en base64 y tardan un instante en aplicarse.
+    // Sin esta pausa el PDF sale con la tipografía de reserva y no se nota hasta
+    // que alguien lo abre.
+    await esperar(2500);
 
-  const { data } = await c.envia("Page.printToPDF", {
-    printBackground: true,
-    displayHeaderFooter: true,
-    headerTemplate: ENCABEZADO,
-    footerTemplate: PIE,
-    paperWidth: 8.27,   // A4
-    paperHeight: 11.69,
-    marginTop: 0.86,
-    marginBottom: 0.82,
-    marginLeft: 0.79,
-    marginRight: 0.79,
-    preferCSSPageSize: false,
-  });
-  writeFileSync(PDF, Buffer.from(data, "base64"));
-  c.cierra();
+    const { data } = await c.envia("Page.printToPDF", {
+      printBackground: true,
+      displayHeaderFooter: true,
+      headerTemplate: ENCABEZADO,
+      footerTemplate: pieDe(readFileSync(html, "utf8")),
+      paperWidth: 8.27,   // A4
+      paperHeight: 11.69,
+      marginTop: 0.86,
+      marginBottom: 0.82,
+      marginLeft: 0.79,
+      marginRight: 0.79,
+      preferCSSPageSize: false,
+    });
+    writeFileSync(pdf, Buffer.from(data, "base64"));
+    c.cierra();
 
-  const paginas = (Buffer.from(data, "base64").toString("latin1")
-    .match(/\/Type\s*\/Page[^s]/g) || []).length;
-  console.log(`→ docs/reglamento-interno-de-trabajo.pdf`);
-  console.log(`   ${paginas} páginas · ${(Buffer.byteLength(data, "base64") / 1048576).toFixed(1)} MB`);
+    const paginas = (Buffer.from(data, "base64").toString("latin1")
+      .match(/\/Type\s*\/Page[^s]/g) || []).length;
+    console.log(`\u2192 docs/${slug}.pdf`);
+    console.log(`   ${paginas} p\u00e1ginas \u00b7 ${(Buffer.byteLength(data, "base64") / 1048576).toFixed(1)} MB`);
+  }
 } finally {
   chrome.kill();
 }
