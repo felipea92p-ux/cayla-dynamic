@@ -45,17 +45,18 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000cc06
 -- Una imputación YA FIRMADA que cubre hasta el 10 de julio.
 insert into expediente_disciplinario
   (id, correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta,
-   hechos, firmante_id, firmado_at, creado_por)
+   hechos, firmante_id, firmado_at, medio_entrega, entregado_at, creado_por)
 values ('00000000-0000-0000-0006-000000000001', 'IM-2026-0001',
-        '00000000-0000-0000-0000-0000000000c7', 'falta', 'imputacion', 'firmado',
+        '00000000-0000-0000-0000-0000000000c7', 'falta', 'imputacion', 'entregado',
         '2026-06-01', '2026-07-10',
         '[{"fecha":"2026-06-01","tipo":"falta"}]'::jsonb,
         '00000000-0000-0000-0000-0000000000c6', now() - interval '2 days',
+        'fisico', now() - interval '2 days',
         '00000000-0000-0000-0000-0000000000c6');
 
 select is((select count(*)::int from expediente_disciplinario
            where persona_id='00000000-0000-0000-0000-0000000000c7'),
-          1, 'DE PARTIDA · hay una imputación firmada que cubre hasta el 10 de julio');
+          1, 'DE PARTIDA · hay una imputación entregada que cubre hasta el 10 de julio');
 
 -- Sin ninguna falta nueva posterior a esa fecha, no se puede volver a sancionar.
 select throws_ok($$ select fn_expediente_generar_falta('00000000-0000-0000-0000-0000000000c7') $$,

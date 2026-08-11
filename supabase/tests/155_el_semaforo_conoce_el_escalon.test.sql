@@ -52,38 +52,47 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, tipo_vincu
   ('00000000-0000-0000-0000-00000000e2a6', 'EscYaSancionado', 'Laboratorio', '00000000-0000-0000-0000-00000000e200', 'test-hash', 'planilla');
 
 -- ── Los antecedentes ────────────────────────────────────────────────────────
--- Todos FIRMADOS (no entregados): a la escala le da igual, y así la prueba no
--- arrastra las restricciones de la entrega, que no es lo que se está midiendo.
+-- Todos ENTREGADOS. Antes decían «firmado» con la nota «a la escala le da
+-- igual», y eso dejó de ser cierto con la 0213: el artículo 56 del Reglamento
+-- dice que un documento firmado y no entregado «no está vigente, no agrava, no
+-- habilita el escalón siguiente». La edad del antecedente la marca ahora
+-- `entregado_at`, no `firmado_at`.
 insert into expediente_disciplinario
   (correlativo, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta,
-   suspension_dias, suspension_desde, suspension_hasta, firmante_id, firmado_at, creado_por)
+   suspension_dias, suspension_desde, suspension_hasta, firmante_id, firmado_at,
+   medio_entrega, entregado_at, creado_por)
 values
   -- amonestación vigente (hace un mes)
-  ('T-ZZ/0001', '00000000-0000-0000-0000-00000000e2a2', 'tardanza', 'amonestacion', 'firmado',
+  ('T-ZZ/0001', '00000000-0000-0000-0000-00000000e2a2', 'tardanza', 'amonestacion', 'entregado',
    fn_hoy_lima() - 40, fn_hoy_lima() - 35, null, null, null,
    '00000000-0000-0000-0000-00000000e201', now() - interval '1 month',
+   'fisico', now() - interval '1 month',
    '00000000-0000-0000-0000-00000000e201'),
   -- suspensión vigente — el caso que motivó la 0200
-  ('T-ZZ/0002', '00000000-0000-0000-0000-00000000e2a3', 'tardanza', 'suspension', 'firmado',
+  ('T-ZZ/0002', '00000000-0000-0000-0000-00000000e2a3', 'tardanza', 'suspension', 'entregado',
    fn_hoy_lima() - 40, fn_hoy_lima() - 35, 1, fn_hoy_lima() - 34, fn_hoy_lima() - 34,
    '00000000-0000-0000-0000-00000000e201', now() - interval '1 month',
+   'fisico', now() - interval '1 month',
    '00000000-0000-0000-0000-00000000e201'),
   -- imputación vigente: decide Gerencia, el sistema no
-  ('T-ZZ/0003', '00000000-0000-0000-0000-00000000e2a4', 'tardanza', 'imputacion', 'firmado',
+  ('T-ZZ/0003', '00000000-0000-0000-0000-00000000e2a4', 'tardanza', 'imputacion', 'entregado',
    fn_hoy_lima() - 40, fn_hoy_lima() - 35, null, null, null,
    '00000000-0000-0000-0000-00000000e201', now() - interval '1 month',
+   'fisico', now() - interval '1 month',
    '00000000-0000-0000-0000-00000000e201'),
   -- amonestación de hace 13 meses: caducada, no escala
-  ('T-ZZ/0004', '00000000-0000-0000-0000-00000000e2a5', 'tardanza', 'amonestacion', 'firmado',
+  ('T-ZZ/0004', '00000000-0000-0000-0000-00000000e2a5', 'tardanza', 'amonestacion', 'entregado',
    fn_hoy_lima() - 400, fn_hoy_lima() - 395, null, null, null,
    '00000000-0000-0000-0000-00000000e201', now() - interval '13 months',
+   'fisico', now() - interval '13 months',
    '00000000-0000-0000-0000-00000000e201'),
   -- suspensión vigente cuyo periodo LLEGA hasta el inicio de este mes: la
   -- tardanza de ese día ya se sancionó y no se vuelve a contar (non bis in idem)
-  ('T-ZZ/0005', '00000000-0000-0000-0000-00000000e2a6', 'tardanza', 'suspension', 'firmado',
+  ('T-ZZ/0005', '00000000-0000-0000-0000-00000000e2a6', 'tardanza', 'suspension', 'entregado',
    date_trunc('month', fn_hoy_lima())::date - 5, date_trunc('month', fn_hoy_lima())::date,
    1, date_trunc('month', fn_hoy_lima())::date + 1, date_trunc('month', fn_hoy_lima())::date + 1,
    '00000000-0000-0000-0000-00000000e201', now() - interval '3 days',
+   'fisico', now() - interval '3 days',
    '00000000-0000-0000-0000-00000000e201');
 
 -- ── Las tardanzas, ancladas al inicio de mes ────────────────────────────────

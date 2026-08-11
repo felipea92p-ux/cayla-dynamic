@@ -71,11 +71,14 @@ insert into tardanzas_justificadas (persona_id, fecha, motivo, creado_por) value
   ('00000000-0000-0000-0000-0000000000cd', '2026-07-02', 'salud', '00000000-0000-0000-0000-0000000000aa'),
   ('00000000-0000-0000-0000-0000000000cd', '2026-07-03', 'salud', '00000000-0000-0000-0000-0000000000aa');
 
--- TE: ya tiene un memo de tardanza FIRMADO que cubre hasta el 03/07 → esas
+-- TE: ya tiene un memo de tardanza ENTREGADO que cubre hasta el 03/07 → esas
 -- tardanzas no deben volver a alertar (non bis in idem).
-insert into expediente_disciplinario (persona_id, tipo_causal, nivel, estado, periodo_hasta, firmante_id, firmado_at, correlativo, creado_por)
-values ('00000000-0000-0000-0000-0000000000ce', 'tardanza', 'amonestacion', 'firmado', '2026-07-03',
-        '00000000-0000-0000-0000-0000000000aa', now(), 'TEST-TARD-001', '00000000-0000-0000-0000-0000000000aa');
+--
+-- Entregado y no solo firmado, desde la 0213: el artículo 56 del Reglamento
+-- dice que un documento que no se entregó no agrava ni corta nada.
+insert into expediente_disciplinario (persona_id, tipo_causal, nivel, estado, periodo_hasta, firmante_id, firmado_at, medio_entrega, entregado_at, correlativo, creado_por)
+values ('00000000-0000-0000-0000-0000000000ce', 'tardanza', 'amonestacion', 'entregado', '2026-07-03',
+        '00000000-0000-0000-0000-0000000000aa', now(), 'fisico', now(), 'TEST-TARD-001', '00000000-0000-0000-0000-0000000000aa');
 
 -- Resultado, con fecha de corte fija
 create temp table _tard as
