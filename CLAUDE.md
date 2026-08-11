@@ -299,7 +299,7 @@ art. 19 e) y f).
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
 | `terminales-mac-mini.md` | Manual para dejar la Mac mini de una sede como terminal. |
 | `trabajar-en-dos-maquinas.md` | Ir y venir entre MacBook y Mac mini sin perder trabajo. |
-| `disciplina-tardanzas-faltas/` | Marco legal peruano, plantillas de cartas, RIT. |
+| `disciplina-tardanzas-faltas/` | Marco legal peruano, plantillas de cartas, RIT. El `09` es el que se usa el día que alguien presenta un descargo. |
 | `revision-2026-07-15/` | Auditoría de seguridad. Vive hasta cerrar sus pendientes. |
 | `integracion-retail/` | Plan del puente con retail. Aún no arranca. |
 | `plan.md` | **Documento histórico** (jul 2026, antes de construir). Buen contexto del porqué; su estructura de carpetas y su roadmap ya no describen el sistema actual. |
