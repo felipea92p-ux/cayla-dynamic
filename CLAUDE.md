@@ -65,9 +65,29 @@ npx vercel --prod --yes    # solo con OK explícito de Felipe
 ```
 Vista previa sin permiso: `npx vercel --yes`.
 
-**Ojo con el entorno.** `apps/web/.env.local` apunta al Supabase **local**
-(127.0.0.1), no a producción. Para diagnosticar prod, Felipe corre SELECTs en el
-SQL Editor. Nunca asumir que lo que se ve en local es lo que pasa en prod.
+**Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
+producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
+asumir que lo que se ve en local es lo que pasa en prod.
+
+⚠️ **Y ese `.env.local` HOY NO EXISTE.** Este archivo decía que vivía en
+`apps/web/.env.local`; ahí no hay nada, y el de la raíz solo trae un token de
+Vercel, sin las claves de Supabase. Un clon nuevo **no puede levantar el panel**:
+cualquier pantalla revienta al renderizar con «supabaseUrl is required», y no se
+nota que es el entorno porque el síntoma parece un error de la pantalla. Se
+resuelve creando `apps/web/.env.local` con `NEXT_PUBLIC_SUPABASE_URL` y
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` de `npx supabase status` — y para eso hace falta
+que la pila entera esté arriba (`npx supabase start`), no solo Postgres:
+`npx supabase db start` levanta la base pero **no la API**, y sin API el
+navegador no tiene con quién hablar.
+
+**Desplegar desde un worktree crea un proyecto de Vercel NUEVO.** `.vercel` está
+en `.gitignore`, así que un worktree no hereda el enlace y el CLI se inventa un
+proyecto con el nombre de la carpeta. El 2026-08-10 eso mandó un despliegue a un
+proyecto vacío llamado `tardanzas-memos-issue-7f4e44`: falló por no tener
+variables de entorno, y si hubiera compilado habría publicado la app en una URL
+que nadie mira mientras alguien anunciaba «desplegado». Antes de desplegar desde
+un worktree: `cp ../../.vercel/project.json .vercel/` y comprobar con
+`npx vercel env ls` que salen las variables de **cayla-dynamic**.
 
 **Datos personales fuera de git.** Correos, DNI, sueldos por persona y fechas de
 ingreso reales no se commitean. Hay dos scripts explícitamente ignorados en

@@ -84,13 +84,22 @@ select is(
   'descargo',
   'Y queda guardado como descargo, no como cargo firmado');
 
+-- ⚠️ CAMBIÓ CON LA 0210, y el motivo importa. Cuando se escribió esta prueba,
+-- una amonestación no admitía descargo porque «ahí no hay plazo del art. 31 que
+-- responder». Seguía siendo verdad del art. 31 — pero el artículo 55.2 del
+-- Reglamento v4.0 creó OTRO plazo, previo y propio de la amonestación, cuya
+-- omisión invalida la sanción. Desde entonces una amonestación SÍ admite
+-- descargo, pero solo después de comunicar los cargos.
+--
+-- Lo que esta prueba defiende sigue en pie: un borrador al que nadie comunicó
+-- los cargos no admite descargo. Lo que cambia es por qué.
 select throws_like(
   $$ select fn_expediente_adjuntar(
        '00000000-0000-0000-0000-00000000f3d2',
        '00000000-0000-0000-0000-00000000f3d2/descargo-1.pdf',
        'descargo', null, null) $$,
-  '%imputación de cargos%',
-  'Un descargo NO se cuelga de una amonestación: ahí no hay plazo del art. 31 que responder');
+  '%cargos ya comunicados%',
+  'Un descargo no se cuelga de una amonestación cuyos cargos aún no se comunicaron');
 
 -- ── 6-8 · Resolver exige decir qué y por qué ───────────────────────────────
 select throws_like(
