@@ -432,6 +432,7 @@ copiada de su log; la **137** cubre las dos ubicaciones posibles del acta.
 | ~~**Pegar la [`0176`](../supabase/migrations/0176_quien_ya_se_fue_deja_de_tener_sueldo_vigente.sql)**~~ | ✅ **pegada el 2026-08-06** | Las seis de julio dejaron de tener sueldo vigente. No movió plata: su liquidación es S/ 0.00 antes y después (RxH, de 0 a 3 días). Comprobado con cuatro ceros: sin tramos abiertos, sin tramos pasados de largo, sin tramos posteriores al cese, sin motivos por revisar |
 | ~~**Pegar la [`0179`](../supabase/migrations/0179_la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue.sql)**~~ | ✅ **pegada** — figura en `migraciones_aplicadas` de producción | La pantalla de Equipo ya dice cuándo y por qué se fue cada quien. El motivo viaja solo a admin y líder DO |
 | ~~**Pegar la 0180, la 0181 y la 0183**~~ | ✅ **pegadas el 2026-08-08** | Ver la sección del 08-08 arriba. Confirmadas por lo que devolvió el SQL Editor: `las_seis_con_candado: 6` y `funciones_con_texto_roto: 0` |
+| ~~**Pegar la [`0201`](../supabase/migrations/0201_la_foto_del_pago_aprende_el_sobretiempo.sql)**~~ | ✅ **pegada el 2026-08-10** | Sin ella, «Marcar como PAGADO» fallaba **para todo el periodo** —no solo para quien hiciera sobretiempo— en cuanto alguien pasara de 48 h en un ciclo de siete días. El candado de la foto era de julio (0127) y no conocía el sobretiempo que la 0185 empezó a pagar en agosto. Confirmada con cinco comprobaciones en verde, incluida la que recorre las 96 fotos ya guardadas con la fórmula nueva: ninguna se rompió |
 
 **Del Seguro de Vida Ley:** cotizado en **La Positiva, S/170/mes por 19
 personas**, sin comisión de corredor —Dante confirmó que el reglamento no la
@@ -570,6 +571,29 @@ educación (0120), ni gratificación, CTS, vacaciones o el 9% de la Ley 30334
 (0160, con la prueba `127`). Lo único que recibe es su pago base, que es lo que
 se le transfiere. **No hay provisiones indebidas ni plata de más.**
 
+### A.2.c · No hay ni un CUSPP cargado, y este archivo daba a entender lo contrario
+
+Medido en producción el **2026-08-10**: la columna existe —la 0198 está pegada—
+y está **vacía de punta a punta**. Cero fichas. Este archivo decía que el campo
+«se está llenando ahora»; no ha empezado.
+
+**Por qué importa.** El CUSPP es el identificador de la persona dentro del
+sistema privado de pensiones: es lo que permite que el aporte declarado llegue a
+**su** cuenta individual y no se quede sin atribuir. El aviso de la propia
+pantalla ya lo dice — *«el aporte se declara pero puede no llegar a su cuenta»*.
+
+**Lo que NO se sabe todavía, y es la pregunta a Dante:** si él lleva los CUSPP
+por su lado para armar la PLAME, aquí no falta nada urgente. Si la declaración
+se construye con lo que hay en este sistema, entonces son 18 personas en AFP
+declarando sin identificador. **Es una pregunta de una línea y va antes que
+cualquier validación.**
+
+De paso cierra una decisión que estaba abierta: **al CUSPP no se le puede poner
+un CHECK.** No hay ni un dato con el que dimensionarlo, así que los «12
+caracteres» que circulaban seguirían siendo una suposición escrita en una
+restricción. Aviso en pantalla y nada más, que es lo que ya decidió el
+encabezado de la 0198.
+
 ### A.3 · Datos que hacen falta para seguir
 
 **0) Nadie tiene contacto de emergencia — las 25, sin una sola excepción.**
@@ -585,6 +609,31 @@ equipo a la que le falta.
 Las 20 de planilla están completas en lo que toca a plata: banco, cuenta,
 documento y nombre legal. Lo que falta es todo del lado de **poder contactarlas**.
 Corre la consulta para ver cómo va; ordena por quién tiene más huecos.
+
+**0-bis) Tres correos hay que corregir a mano** (medidos el 2026-08-10 con
+[`mediciones_antes_de_validar.sql`](../scripts/sql-manual/mediciones_antes_de_validar.sql)).
+Quiénes son lo dice
+[`quien_tiene_el_correo_mal.sql`](../scripts/sql-manual/quien_tiene_el_correo_mal.sql),
+que además dice **dónde** se corrige cada uno — con cuenta creada el correo es
+el usuario de acceso y la ficha no lo puede tocar, así que va por
+`/admin/cuentas`.
+
+- **Uno no tiene forma de correo.** Esa persona figura como ficha completa, sale
+  así en el padrón que va al contador, y al intentar invitarla el sistema
+  responde «no tiene correo registrado» — que es falso: lo tiene, mal escrito.
+  Son dos estados distintos y la pantalla los confundía.
+- **Dos están guardados con mayúsculas.** La pantalla ya no falla por eso (se
+  comparaba en minúsculas contra el valor crudo, así que daba «cambió» para
+  siempre y cada guardado terminaba en un error rojo y falso), pero el dato
+  sigue en mayúsculas. Bajarlo va en migración, no en un `update` pegado a mano:
+  un correo que es un login tiene consecuencias que hay que dejar escritas.
+
+**Y lo que la misma medición descartó, para no volver a mirarlo:** ni un
+documento sin dígitos, ni uno fuera del patrón que ya exige la 0125, ni una
+cuenta bancaria con letras, ni un valor de `estado_civil` o
+`grado_instruccion` fuera de `enums.ts`, ni una sede huérfana en
+`parametros_laborales`. Los agujeros de validación que quedan son **teóricos
+hoy**; valen por lo que impiden mañana, no por lo que haya guardado.
 
 **a) Quiénes estudian y cuánto cuesta su curso** (del tipo `aurora 1 →
 universidad S/520`). Con el nombre y el monto alcanza; se cargan de a uno en
