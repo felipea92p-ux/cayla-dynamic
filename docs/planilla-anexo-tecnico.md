@@ -94,8 +94,13 @@ Tres partes, y conviene tenerlas separadas porque se confunden:
 | | Qué es | Cuándo |
 |---|---|---|
 | **1** | Las horas marcadas ese día | solo si vino |
-| **2** | Esas mismas horas otra vez (sobretasa, art. 8 D. Leg. 713) | solo si vino |
-| **3** | El día de feriado prorrateado: `7,5 × horas_mes ÷ base` | **siempre**, venga o no |
+| **2** | Esas mismas horas otra vez (sobretasa del 100 %, **art. 9** D. Leg. 713) | solo si vino |
+| **3** | El día de feriado prorrateado: `7,5 × horas_mes ÷ base` — es el **art. 8**, la remuneración ordinaria del feriado no laborable | **siempre**, venga o no |
+
+> Esta tabla citaba el art. 8 para la sobretasa, y era al revés: el **art. 8** es
+> el pago del día feriado (la parte 3) y el **art. 9** es la sobretasa del 100 %
+> por trabajarlo sin descanso sustitutorio (la parte 2). Corregido y verificado
+> contra el texto de la norma el 2026-08-10. `CLAUDE.md` ya lo citaba bien.
 
 Las tres juntas son el "pago triple". La parte 3 es proporcional al mes
 trabajado — ver la tabla de descartados.

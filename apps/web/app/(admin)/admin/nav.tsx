@@ -10,6 +10,7 @@ import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
+  BookText,
   LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
@@ -39,6 +40,9 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // Sin `roles` a propósito: la Ley 30709 obliga a INFORMAR la política salarial
     // a todo el equipo, y un menú que solo ve la gerencia no informa a nadie.
     { href: "/admin/politica-salarial", label: "Política salarial", Icon: Scale },
+    // Por lo mismo, y con más razón: el Reglamento Interno hay que entregarlo a
+    // todo el mundo y poder probarlo. Un menú que solo ve DO no entrega nada.
+    { href: "/admin/normas", label: "Normas", Icon: BookText },
   ] },
   { label: "Nómina", items: [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },

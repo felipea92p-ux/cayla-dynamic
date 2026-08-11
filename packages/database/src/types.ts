@@ -2169,6 +2169,43 @@ export type Database = {
         Args: Record<string, never>
         Returns: unknown
       }
+      // ── Añadidas a mano, migración 0208 ──────────────────────────────────
+      // Este archivo es GENERADO, pero regenerarlo con el CLI de hoy reordena
+      // sus 4.400 líneas enteras, así que el repo lo evita a propósito (ver el
+      // comentario de admin/disciplina). Estas cinco se agregan en su sitio
+      // alfabético; el día que toque regenerar de verdad, saldrán solas.
+      fn_publicar_documento: {
+        Args: {
+          p_tipo: string
+          p_titulo: string
+          p_documento: string
+          p_vigente_desde?: string | null
+          p_notas?: string | null
+        }
+        Returns: unknown
+      }
+      fn_acusar_documento: {
+        Args: { p_documento_id: string; p_nombre_declarado: string }
+        Returns: unknown
+      }
+      fn_registrar_acuse_papel: {
+        Args: {
+          p_documento_id: string
+          p_persona_id: string
+          p_path: string
+          p_acusado_at?: string | null
+          p_nota?: string | null
+        }
+        Returns: unknown
+      }
+      fn_documentos_vigentes: {
+        Args: Record<string, never>
+        Returns: unknown
+      }
+      fn_acuses_documento: {
+        Args: { p_documento_id: string }
+        Returns: unknown
+      }
       fn_anular_marcaje: {
         Args: { p_marcaje_id: string; p_motivo: string }
         Returns: unknown
