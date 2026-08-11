@@ -232,6 +232,12 @@ export default function DisciplinaPage() {
   // pero no una suspensión ni la de otra sede (fn_expediente_firmantes, 0074).
   // Antes se usaba fn_firmantes_disponibles, que solo listaba admin y líder DO:
   // la delegación existía en la base pero la pantalla no la ofrecía.
+  //
+  // Desde la 0214 la lista aplica el art. 54.4 del RIT entero, y por eso hay un
+  // caso en que sale VACÍA a propósito: la carta de despido solo la suscribe la
+  // Gerencia General, y en persona. Si quien mira es Desarrollo Organizacional,
+  // no hay firmante que ofrecerle — puede instruir el expediente y preparar el
+  // borrador, pero no firmarlo ni delegar esa firma.
   const [firmantes, setFirmantes] = useState<Record<string, Firmante[]>>({});
   const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
   const borradoresRef = useRef<HTMLDivElement>(null);
@@ -835,7 +841,18 @@ function fechasDe(h: Hecho[]): string {
                       )}
                       <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
                         className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
-                      <button onClick={() => firmar(d.id)} disabled={ocupado === d.id}
+                      {/* Sin nadie a quien ofrecer, firmar solo produciría un
+                          error de la base. Es el caso del art. 54.4 c): DO ve
+                          el borrador del despido porque lo instruye, pero la
+                          carta la suscribe la Gerencia General en persona.
+                          Se compara con `=== 0` y no con `?? []` a propósito:
+                          la clave ausente es «todavía no se preguntó», y ahí el
+                          botón se deja pasar para que decida la base. */}
+                      <button onClick={() => firmar(d.id)}
+                        disabled={ocupado === d.id || firmantes[d.id]?.length === 0}
+                        title={firmantes[d.id]?.length === 0
+                          ? `Un documento de nivel ${NIVEL_LABEL[d.nivel].toLowerCase()} no lo puedes suscribir tú (art. 54.4 del Reglamento).`
+                          : "Firmar este documento"}
                         className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">Firmar</button>
                       <button onClick={() => anular(d.id)} disabled={ocupado === d.id}
                         className="rounded border border-rojo/30 px-2 py-0.5 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">Anular</button>
