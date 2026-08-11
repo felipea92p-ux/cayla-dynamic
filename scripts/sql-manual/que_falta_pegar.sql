@@ -85,6 +85,7 @@ with repo(numero, nombre) as (values
     (208, 'el_reglamento_se_entrega_y_queda_constancia'),
     (209, 'reactivar_devuelve_el_sueldo_desde_el_dia_que_vuelve'),
     (210, 'la_planilla_ve_la_liquidacion_que_ya_se_pago'),
+    (211, 'reemplazar_la_politica_de_movilidad_la_reemplaza'),
     (212, 'ninguna_sancion_sin_escuchar_antes')
 ),
 diff as (
