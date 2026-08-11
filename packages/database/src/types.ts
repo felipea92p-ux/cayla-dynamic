@@ -2194,6 +2194,23 @@ export type Database = {
         Args: Record<string, never>
         Returns: unknown
       }
+      // ── Añadidas a mano, migración 0210 ──────────────────────────────────
+      fn_expediente_comunicar_cargos: {
+        Args: { p_id: string; p_dias?: number; p_nota?: string | null }
+        Returns: unknown
+      }
+      fn_expediente_valorar_descargo: {
+        Args: { p_id: string; p_acogido: string; p_valoracion: string | null }
+        Returns: unknown
+      }
+      fn_expediente_puede_recibir_descargo: {
+        Args: { p_id: string }
+        Returns: unknown
+      }
+      fn_sumar_dias_habiles: {
+        Args: { p_desde: string; p_dias: number }
+        Returns: unknown
+      }
       // ── Añadidas a mano, migración 0208 ──────────────────────────────────
       // Este archivo es GENERADO, pero regenerarlo con el CLI de hoy reordena
       // sus 4.400 líneas enteras, así que el repo lo evita a propósito (ver el

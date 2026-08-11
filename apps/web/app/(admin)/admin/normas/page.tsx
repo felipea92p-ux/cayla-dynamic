@@ -68,6 +68,20 @@ interface Tipo {
   requiere_acuse: boolean;
 }
 
+/**
+ * Qué es principal y qué es anexo.
+ *
+ * No es cosmética: el artículo 47 del Reglamento dice que los documentos
+ * complementarios «tienen finalidad informativa» y que «en caso de discrepancia
+ * prevalece este Reglamento». Si los seis aparecieran al mismo nivel, la
+ * pantalla estaría diciendo lo contrario que el articulado, y quien la mire
+ * creerá lo que ve antes que lo que lee.
+ *
+ * La lista vive acá y no en la base a propósito: es una decisión de jerarquía
+ * normativa, no un dato que DO deba poder cambiar desde una pantalla.
+ */
+const PRINCIPALES = ["rit"];
+
 /** Un reglamento de 61 artículos pesa cerca de 300 KB. El tope es generoso a
  *  propósito, pero existe: sin él, un archivo equivocado se sube entero antes
  *  de que nadie note que no era un documento. */
@@ -130,6 +144,7 @@ export default function NormasPage() {
   // El seguimiento de quién falta, sólo para quien puede verlo.
   const [acuses, setAcuses] = useState<Map<string, FilaAcuse[]>>(new Map());
   const [verSeguimiento, setVerSeguimiento] = useState<string | null>(null);
+  const [verAnexos, setVerAnexos] = useState(false);
 
   // ── Publicar una versión ──────────────────────────────────────────────────
   // El texto NO se escribe aquí: se sube el archivo que vive en `docs/`, bajo
@@ -152,6 +167,10 @@ export default function NormasPage() {
   const [progreso, setProgreso] = useState<number | null>(null);
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+
+  // Todo lo que no es principal es anexo, sin lista escrita a mano: el día que
+  // se publique un documento nuevo aparece aquí solo.
+  const anexosVisibles = docs.filter((d) => !PRINCIPALES.includes(d.tipo));
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -409,7 +428,7 @@ export default function NormasPage() {
           </p>
         ) : (
           <div className="space-y-4">
-            {docs.map((d) => {
+            {docs.filter((d) => PRINCIPALES.includes(d.tipo)).map((d) => {
               const filas = acuses.get(d.documento_id) ?? [];
               const pendientes = filas.filter((f) => f.acusado_at === null);
               return (
@@ -593,6 +612,54 @@ export default function NormasPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ── Anexos ────────────────────────────────────────────────────────
+            Plegados y debajo, no al lado. El artículo 47 del Reglamento dice
+            que estos documentos «tienen finalidad informativa» y que «en caso
+            de discrepancia prevalece este Reglamento»; ponerlos al mismo nivel
+            haría que la pantalla dijera lo contrario que el articulado. */}
+        {!cargando && anexosVisibles.length > 0 && (
+          <div className="mt-6 max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+            <button onClick={() => setVerAnexos((v) => !v)}
+              className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
+              <span>Anexos <span className="font-normal text-taupe">· {anexosVisibles.length}</span></span>
+              <span className="text-xs font-normal text-taupe">{verAnexos ? "ocultar" : "ver"}</span>
+            </button>
+            {verAnexos && (
+              <div className="px-4 py-3">
+                <p className="mb-3 text-xs text-taupe">
+                  Documentos que explican y desarrollan el Reglamento. <strong>No crean
+                  obligaciones, faltas, sanciones ni plazos distintos</strong> de los que él
+                  establece, y si alguno discrepara, prevalece el Reglamento (artículo 47).
+                </p>
+                <ul className="divide-y">
+                  {anexosVisibles.map((a) => (
+                    <li key={a.documento_id} className="py-2">
+                      <button onClick={() => setAbierto(abierto === a.documento_id ? null : a.documento_id)}
+                        className="flex w-full items-center justify-between gap-3 text-left text-sm">
+                        <span>
+                          {a.titulo}
+                          <span className="ml-2 text-xs text-taupe">versión {a.version}</span>
+                        </span>
+                        <span className="flex items-center gap-2 text-xs">
+                          {a.requiere_acuse && (a.mi_acuse_at
+                            ? <span className="rounded-full bg-sand px-2 py-0.5 text-tinta">tu constancia está</span>
+                            : <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">falta tu constancia</span>)}
+                          <span className="text-taupe">{abierto === a.documento_id ? "ocultar" : "leer"}</span>
+                        </span>
+                      </button>
+                      {abierto === a.documento_id && (
+                        <div className="mt-2 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
+                          <Documento texto={a.documento} />
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </main>

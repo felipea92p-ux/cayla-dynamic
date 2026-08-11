@@ -32,6 +32,18 @@ function selloLima(iso: string): string {
 
 // Las etiquetas de la escala viven en packages/shared desde la 0200: las
 // necesitan también el Dashboard y el Reporte por sede.
+/** Los niveles que pasan por el descargo previo del art. 55.2 del RIT. La
+ *  imputación y el despido NO: siguen el procedimiento del art. 57, con el
+ *  plazo del art. 31 de la LPCL, que es otro y más largo. */
+const esGradual = (nivel: string) => nivel === "amonestacion" || nivel === "suspension";
+
+const ETIQUETA_DESCARGO: Record<string, string> = {
+  sin_descargo: "no presentó descargo",
+  total: "acogido",
+  parcial: "acogido en parte",
+  no: "no acogido",
+};
+
 const NIVEL_LABEL: Record<string, string> = NIVEL_DISCIPLINARIO_LABELS;
 const CAUSAL_LABEL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
@@ -92,6 +104,12 @@ interface Doc {
   // null, una imputación entregada sigue pidiendo una decisión — y el semáforo
   // sigue diciendo «decide Gerencia».
   resuelto_at: string | null; resuelto_resultado: string | null; resuelto_motivo: string | null;
+  // El descargo previo del art. 55.2 del RIT (mig. 0210). Mientras
+  // `cargos_comunicados_at` sea null, el borrador no se puede firmar: la
+  // omisión del descargo INVALIDA la sanción, y una sanción inválida no se
+  // nota al firmarla — se nota el día que alguien la discute.
+  cargos_comunicados_at: string | null; descargo_vence_at: string | null;
+  descargo_acogido: string | null; descargo_valoracion: string | null;
   correlativo: string | null; creado_at: string; firmado_at: string | null;
   entregado_at: string | null; medio_entrega: string | null;
 }
@@ -228,7 +246,7 @@ export default function DisciplinaPage() {
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega")
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion")
         // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
         //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
         //   papel de una entrega de hace dos meses.
@@ -326,6 +344,63 @@ export default function DisciplinaPage() {
     setMsg({ tipo: "ok", texto: "Borrador generado. Revísalo abajo y fírmalo cuando esté listo." });
     const suave = typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setTimeout(() => borradoresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 80);
+  }
+
+  /**
+   * Comunicar los cargos: el acto que abre el plazo de descargo del art. 55.2
+   * del RIT. Hasta que no ocurre, el borrador no se puede firmar.
+   *
+   * Va con confirmación porque el plazo NO se reabre: una vez comunicado,
+   * comunicado. Si se hace por error hay que anular el borrador y generar otro.
+   */
+  async function comunicarCargos(d: Doc) {
+    if (!window.confirm(
+      `¿Comunicar los cargos a ${nombres.get(d.persona_id) ?? "esta persona"}?\n\n` +
+      "Se abre el plazo de dos días hábiles para que presente su descargo, y hasta " +
+      "que venza no se podrá firmar. El plazo no se reabre.\n\n" +
+      "Antes de continuar: entrégale por escrito los hechos con sus fechas, la norma " +
+      "que se le imputa y el detalle de la medición. El sistema guarda la fecha; el " +
+      "documento lo entregas tú.",
+    )) return;
+    setOcupado(d.id); setMsg(null);
+    const { data, error } = await supabase.rpc("fn_expediente_comunicar_cargos", {
+      p_id: d.id, p_dias: 2, p_nota: null,
+    });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: `Cargos comunicados. El plazo vence el ${selloLima(String(data))}.` });
+  }
+
+  /**
+   * La valoración escrita del descargo, que el art. 19.3 exige que diga si se
+   * acogió y —cuando no— por qué. Sin ella no se puede firmar, aunque no se
+   * haya presentado ningún descargo: que no lo haya también hay que hacerlo
+   * constar.
+   */
+  async function valorarDescargo(d: Doc, acogido: string) {
+    let valoracion: string | null = null;
+    if (acogido === "parcial" || acogido === "no") {
+      valoracion = window.prompt(
+        acogido === "no"
+          ? "¿Por qué no se acoge el descargo? Queda escrito en el documento (art. 19.3)."
+          : "¿Qué parte se acoge y qué parte no? Queda escrito en el documento (art. 19.3).",
+      );
+      if (!valoracion || valoracion.trim().length < 10) {
+        setMsg({ tipo: "error", texto: "Hace falta el motivo, y con algo de detalle: es lo que se lee si alguien discute la sanción." });
+        return;
+      }
+    }
+    setOcupado(d.id); setMsg(null);
+    const { error } = await supabase.rpc("fn_expediente_valorar_descargo", {
+      p_id: d.id, p_acogido: acogido, p_valoracion: valoracion,
+    });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: acogido === "total"
+      ? "Descargo acogido. Si ya no corresponde sancionar, anula el borrador."
+      : "Valoración guardada. Ya se puede firmar." });
   }
 
   async function firmar(id: string) {
@@ -591,7 +666,14 @@ export default function DisciplinaPage() {
     );
   }
 
-  function fechasDe(h: Hecho[]): string {
+  /** Si el plazo de descargo sigue corriendo. Se mira contra el reloj del
+ *  navegador solo para PINTAR: quien decide es la base, que rechaza la firma
+ *  mientras el plazo no haya vencido. Si los dos discreparan por unos minutos,
+ *  el peor caso es un botón que aparece y da error, no una sanción inválida. */
+const plazoAbierto = (d: Doc) =>
+  d.descargo_vence_at !== null && new Date(d.descargo_vence_at) > new Date();
+
+function fechasDe(h: Hecho[]): string {
     if (!Array.isArray(h) || h.length === 0) return "—";
     return h.map((x) => fechaCorta(x.fecha) + (x.minutos != null ? ` (${x.minutos}′)` : "")).join(" · ");
   }
