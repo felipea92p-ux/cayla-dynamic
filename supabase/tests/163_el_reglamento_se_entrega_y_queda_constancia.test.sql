@@ -29,6 +29,14 @@ begin;
 select plan(12);
 
 -- ── Escenario ───────────────────────────────────────────────────────────────
+-- La prueba crea SU PROPIO tipo de documento y no usa 'rit'. Al principio sí lo
+-- usaba, y falló en cuanto alguien publicó un reglamento de verdad en esta base:
+-- `fn_publicar_documento` devolvía la versión 2 donde la prueba esperaba la 1.
+-- Una prueba que depende de lo que haya alrededor no defiende nada; pasa o falla
+-- según quién tocó la base antes, que es la peor forma de fallar.
+insert into documentos_tipos (codigo, nombre, orden, requiere_acuse)
+values ('zz_laboratorio', 'Documento de laboratorio', 999, true);
+
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-00000000d200', 'ZZDOC', 'Sede de laboratorio', true);
 
@@ -73,7 +81,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"dd000000-0000-0000-0000-0000000000d2","role":"authenticated"}';
 
 select throws_ok(
-  $$ select fn_publicar_documento('rit', 'RIT', 'texto cualquiera') $$,
+  $$ select fn_publicar_documento('zz_laboratorio', 'RIT', 'texto cualquiera') $$,
   null,
   'Una integrante no puede publicar un documento institucional');
 
@@ -81,7 +89,7 @@ select throws_ok(
 set local request.jwt.claims = '{"sub":"dd000000-0000-0000-0000-0000000000d1","role":"authenticated"}';
 
 select is(
-  fn_publicar_documento('rit', 'Reglamento Interno de Trabajo', 'TEXTO v4.0'),
+  fn_publicar_documento('zz_laboratorio', 'Documento de laboratorio', 'TEXTO v4.0'),
   1,
   'La primera publicación es la versión 1');
 
@@ -90,19 +98,19 @@ select is(
 -- vez de algo que no cambió, y una constancia pedida sin motivo enseña que la
 -- constancia es trámite.
 select is(
-  fn_publicar_documento('rit', 'Reglamento Interno de Trabajo', 'TEXTO v4.0'),
+  fn_publicar_documento('zz_laboratorio', 'Documento de laboratorio', 'TEXTO v4.0'),
   1,
   'Publicar el mismo texto devuelve la versión que ya existía');
 
 -- ── 5 · Un texto distinto sí ────────────────────────────────────────────────
 select is(
-  fn_publicar_documento('rit', 'Reglamento Interno de Trabajo', 'TEXTO v4.1'),
+  fn_publicar_documento('zz_laboratorio', 'Documento de laboratorio', 'TEXTO v4.1'),
   2,
   'Un texto distinto crea la versión siguiente');
 
 -- ── 6 · El texto queda CONGELADO, no se regenera ────────────────────────────
 select is(
-  (select documento from documentos_institucionales where tipo = 'rit' and version = 1),
+  (select documento from documentos_institucionales where tipo = 'zz_laboratorio' and version = 1),
   'TEXTO v4.0',
   'La versión 1 conserva su texto aunque exista la 2');
 
@@ -111,13 +119,13 @@ set local request.jwt.claims = '{"sub":"dd000000-0000-0000-0000-0000000000d2","r
 
 select lives_ok(
   $$ select fn_acusar_documento(
-       (select id from documentos_institucionales where tipo='rit' and version=2),
+       (select id from documentos_institucionales where tipo='zz_laboratorio' and version=2),
        'Doc Integrante') $$,
   'Una integrante puede dejar constancia de la versión vigente');
 
 -- ── 8 · Y no se puede pisar ─────────────────────────────────────────────────
 select fn_acusar_documento(
-  (select id from documentos_institucionales where tipo='rit' and version=2),
+  (select id from documentos_institucionales where tipo='zz_laboratorio' and version=2),
   'Nombre Distinto');
 
 select is(
@@ -138,7 +146,7 @@ select is(
 -- ── 10 · El seguimiento es sólo para quien manda ────────────────────────────
 select is(
   (select count(*)::int from fn_acuses_documento(
-     (select id from documentos_institucionales where tipo='rit' and version=2))),
+     (select id from documentos_institucionales where tipo='zz_laboratorio' and version=2))),
   0,
   'Una integrante no ve quién falta por dejar constancia');
 
@@ -150,16 +158,16 @@ set local request.jwt.claims = '{"sub":"dd000000-0000-0000-0000-0000000000d1","r
 -- ── 11 · Sin papel no hay constancia en papel ───────────────────────────────
 select throws_ok(
   $$ select fn_registrar_acuse_papel(
-       (select id from documentos_institucionales where tipo='rit' and version=2),
+       (select id from documentos_institucionales where tipo='zz_laboratorio' and version=2),
        '00000000-0000-0000-0000-00000000d203', '   ') $$,
   null,
   'La vía en papel exige el escaneo del cargo firmado');
 
 -- ── 12 · Con el papel, quien no tiene cuenta queda cubierta ─────────────────
 select fn_registrar_acuse_papel(
-  (select id from documentos_institucionales where tipo='rit' and version=2),
+  (select id from documentos_institucionales where tipo='zz_laboratorio' and version=2),
   '00000000-0000-0000-0000-00000000d203',
-  'rit/v2/sincuenta-cargo.jpg',
+  'zz/v2/sincuenta-cargo.jpg',
   now() - interval '1 day',
   'entregado en la tienda');
 
