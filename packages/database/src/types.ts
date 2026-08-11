@@ -1691,6 +1691,17 @@ export type Database = {
           diferencia: number
         }[]
       }
+      // Agregada a mano el 2026-08-10 (la creó la 0210), por el mismo motivo
+      // que el cuspp y personal_direccion de arriba: `supabase gen types` en
+      // esta máquina reescribe el archivo entero con otro formato y se lleva por
+      // delante estas anotaciones. Devuelve un objeto indexado por persona_id
+      // —no una lista— para que la pantalla de Planilla busque por clave en vez
+      // de recorrerla por cada fila. `{}` cuando no hay nada que decir, y
+      // también cuando quien pregunta no es admin ni líder.
+      fn_liquidaciones_del_periodo: {
+        Args: { p_periodo_id: string }
+        Returns: Json
+      }
       fn_liquidaciones_pendientes: {
         Args: Record<PropertyKey, never>
         Returns: {
