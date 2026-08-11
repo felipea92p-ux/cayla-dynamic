@@ -150,13 +150,34 @@ def cuerpo_html(md: str) -> tuple:
     return "\n".join(portada), "", "\n".join(salida)
 
 
+def indice(articulado: str) -> str:
+    """Se construye recorriendo el articulado ya montado. Copiarlo del markdown
+    lo dejaría desactualizado el día que se inserte un artículo."""
+    filas, titulo = [], None
+    for m in re.finditer(r'<h2 class="titulo"><span class="rom">([^<]*)</span>'
+                         r'<span class="nom">([^<]*)</span></h2>|<h3>([^<]*)</h3>', articulado):
+        if m.group(1) is not None:
+            if titulo:
+                filas.append(titulo)
+            titulo = {"rom": m.group(1), "nom": m.group(2), "arts": []}
+        elif titulo is not None:
+            t = re.sub(r"^ARTÍCULO\s+", "", m.group(3)).replace(".-", ".", 1)
+            titulo["arts"].append(t)
+    if titulo:
+        filas.append(titulo)
+    out = ['<section class="indice"><h2 class="seccion">Índice</h2>']
+    for f in filas:
+        out.append(f'<div class="idx-tit"><span>{f["rom"]}</span> {f["nom"]}</div>')
+        out.append('<ul class="idx-arts">' +
+                   "".join(f"<li>{a}</li>" for a in f["arts"]) + "</ul>")
+    out.append("</section>")
+    return "\n".join(out)
+
+
 def main() -> None:
     md = open(MD, encoding="utf-8").read()
     c = paleta()
     portada, _, articulado = cuerpo_html(md)
-    # El índice se descarta: en papel estorba y el documento ya va por títulos.
-    articulado = re.sub(r'<h2 class="seccion">Índice</h2>.*?(?=<h2 class="titulo")',
-                        "", articulado, flags=re.S)
 
     doc = f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8">
@@ -242,6 +263,20 @@ blockquote {{
   text-align: left; break-inside: avoid;
 }}
 
+/* ── Índice ─────────────────────────────────────────────────────────── */
+.indice {{ break-after: page; page-break-after: always; }}
+.indice .seccion {{ break-before: auto; page-break-before: auto; }}
+.idx-tit {{
+  font-family: 'DM Sans', system-ui, sans-serif; font-size: 9.4pt; font-weight: 500;
+  margin: .55cm 0 .12cm; color: var(--tinta); break-after: avoid;
+}}
+.idx-tit span {{ color: var(--rojo); letter-spacing: .08em; margin-right: .2cm; }}
+.idx-arts {{
+  list-style: none; margin: 0 0 0 .5cm; padding: 0;
+  font-size: 9.6pt; color: var(--taupe); columns: 2; column-gap: 1cm;
+}}
+.idx-arts li {{ margin: 0 0 .1cm; break-inside: avoid; text-align: left; }}
+
 /* ── Impresión ───────────────────────────────────────────────────────── */
 @page {{ size: A4; margin: 18mm 20mm 20mm; }}
 @media print {{
@@ -263,6 +298,7 @@ blockquote {{
 <body>
 <div class="hoja">
 {portada}
+{indice(articulado)}
 {articulado}
 </div>
 <div class="aviso">

@@ -38,13 +38,13 @@
 34. ORGANIZACIÓN DE LA SEGURIDAD Y SALUD EN EL TRABAJO  ·  35. OBLIGACIONES DE LA EMPRESA Y DE LAS COLABORADORAS  ·  36. RIESGOS DEL TALLER Y DE LA TIENDA  ·  37. ACCIDENTES E INCIDENTES  ·  37-A. PRIMEROS AUXILIOS Y ATENCIÓN DE EMERGENCIAS
 
 **TÍTULO VIII — CONDUCTA Y DEBERES**  
-38. DEBERES DE LA COLABORADORA  ·  38-A. DERECHOS Y OBLIGACIONES DE LA EMPRESA  ·  38-B. DERECHOS DE LA COLABORADORA  ·  39. PRESENTACIÓN PERSONAL  ·  40. USO DE BIENES, SISTEMAS Y COMUNICACIONES  ·  41. CONFIDENCIALIDAD  ·  42. LIBERTAD DE EXPRESIÓN Y SUS LIMITES  ·  43. CONFLICTO DE INTERESES  ·  43-A. CONVIVENCIA, PREVENCIÓN DEL ACOSO LABORAL Y DE LA VIOLENCIA EN EL TRABAJO  ·  43-B. CONSULTAS, RECLAMOS Y SUGERENCIAS
+38. DEBERES DE LA COLABORADORA  ·  38-A. DERECHOS Y OBLIGACIONES DE LA EMPRESA  ·  38-B. DERECHOS DE LA COLABORADORA  ·  39. PRESENTACIÓN PERSONAL  ·  40. USO DE BIENES, SISTEMAS Y COMUNICACIONES  ·  41. CONFIDENCIALIDAD  ·  42. LIBERTAD DE EXPRESIÓN Y SUS LÍMITES  ·  43. CONFLICTO DE INTERESES  ·  43-A. CONVIVENCIA, PREVENCIÓN DEL ACOSO LABORAL Y DE LA VIOLENCIA EN EL TRABAJO  ·  43-B. CONSULTAS, RECLAMOS Y SUGERENCIAS
 
 **TÍTULO IX — PROTECCIÓN DE DATOS PERSONALES**  
 44. TRATAMIENTO DE DATOS PERSONALES  ·  45. VIDEOVIGILANCIA  ·  46. EL REGISTRO DE MARCAJE COMO DATO PERSONAL
 
 **TÍTULO X — HOSTIGAMIENTO SEXUAL**  
-47. POLÍTICA, DEFINICIÓN Y ÁMBITO  ·  48. ÓRGANOS, CANAL DE QUEJA Y RESERVA  ·  49. PROCEDIMIENTO Y PLAZOS  ·  50. ATENCIÓN EN SALUD Y MEDIDAS DE PROTECCIÓN  ·  51. SANCIÓN, QUEJA FALSA Y PROHIBICION DE REPRESALIAS
+47. POLÍTICA, DEFINICIÓN Y ÁMBITO  ·  48. ÓRGANOS, CANAL DE QUEJA Y RESERVA  ·  49. PROCEDIMIENTO Y PLAZOS  ·  50. ATENCIÓN EN SALUD Y MEDIDAS DE PROTECCIÓN  ·  51. SANCIÓN, QUEJA FALSA Y PROHIBICIÓN DE REPRESALIAS
 
 **TÍTULO XI — RÉGIMEN DISCIPLINARIO**  
 52. PRINCIPIOS DEL RÉGIMEN DISCIPLINARIO  ·  53. CATÁLOGO DE FALTAS  ·  54. SANCIONES Y COMPETENCIA PARA IMPONERLAS  ·  55. PROCEDIMIENTO DE LAS SANCIONES DISTINTAS AL DESPIDO  ·  56. REINCIDENCIA Y ANTECEDENTES DISCIPLINARIOS  ·  57. PROCEDIMIENTO DE DESPIDO
@@ -94,6 +94,8 @@ Rige también en cualquier otro centro de trabajo que la Empresa habilite, trasl
 La Empresa comunica por escrito la habilitación o el traslado de un centro de trabajo a las colaboradoras asignadas a él, antes del inicio de sus labores en ese local.
 
 **2.3.** Prestación fuera del centro de trabajo. Este Reglamento rige también cuando la colaboradora presta servicios fuera de las instalaciones de la Empresa por encargo de esta —comisiones de servicio, traslados entre sedes, ferias, capacitaciones, visitas a proveedores o a clientas—, respecto de aquellas obligaciones que por su naturaleza resulten aplicables, en particular las de conducta, confidencialidad, protección de datos personales y seguridad y salud en el trabajo.
+
+Lo dispuesto en este numeral no comprende el teletrabajo, que se rige por el artículo 15-A.
 
 **2.4.** Adopción voluntaria. CAYLA no ocupa más de cien (100) personas trabajadoras, por lo que no le resulta exigible contar con un Reglamento Interno de Trabajo conforme al artículo 3 del Decreto Supremo N.° 039-91-TR. La Empresa lo adopta voluntariamente como instrumento de orden, transparencia y seguridad jurídica para ambas partes.
 
@@ -215,7 +217,7 @@ Se exceptúa de este orden, por especialidad, la Política Salarial: en materia 
 
 **4.3.** Autosuficiencia. Este Reglamento es autosuficiente. Toda obligación, falta, sanción o consecuencia económica que la Empresa pueda invocar frente a una colaboradora está escrita en su articulado.
 
-En particular: el régimen de asistencia, puntualidad, tardanzas e inasistencias está contenido en el Título IV; el estándar de presentación personal, en el artículo 39; el procedimiento de prevención, atención y sanción del hostigamiento sexual, en el Título X; y el régimen disciplinario, en el Título XI.
+En particular: el régimen de asistencia, puntualidad, tardanzas e inasistencias está contenido en el Título IV; el estándar de presentación personal, en el artículo 39; el procedimiento de prevención, atención y sanción del hostigamiento sexual, en el Título X; las instrucciones de primeros auxilios, en el artículo 37-A; la prevención del acoso laboral, en el artículo 43-A; y el régimen disciplinario, en el Título XI.
 
 Ningún documento distinto de este Reglamento forma parte integrante de él. No puede tipificarse una falta, imponerse una sanción ni agravarse la posición de una colaboradora con fundamento en un documento que no forme parte de este Reglamento y cuya entrega no conste acreditada.
 
@@ -395,7 +397,7 @@ La distribución vigente de cada sede —Central (CCO), Taller Lima, Tienda Areq
 
 Las duraciones diarias del horario asignado son la distribución de la jornada ordinaria semanal del numeral 9.1 y ninguna de ellas constituye una jornada ordinaria diaria autónoma. En consecuencia, el tiempo trabajado por encima de la duración asignada a un día no genera por sí solo trabajo en sobretiempo: el sobretiempo se determina única y exclusivamente conforme al artículo 14.
 
-**9.3. Horario programado de cuarenta y cinco (45) horas.** Dentro de la jornada ordinaria del numeral 9.1, CAYLA programa un horario de cuarenta y cinco (45) horas semanales, inferior en tres (3) horas al máximo. Estas son las mismas palabras con que lo dice la política salarial vigente de CAYLA, y ambos documentos se leen en un solo sentido.
+**9.3. Horario programado de cuarenta y cinco (45) horas.** Dentro de la jornada ordinaria del numeral 9.1, CAYLA programa un horario de cuarenta y cinco (45) horas semanales, inferior en tres (3) horas al máximo. Esta misma programación consta en la política salarial vigente, a la que remite el artículo 26.
 
 La duración semanal del horario efectivamente asignado puede diferir entre sedes y entre puestos, por la distribución del numeral 9.2 y por el rol de turnos, y en ningún caso excede de cuarenta y ocho (48) horas. La duración vigente consta en el horario asignado a cada integrante y se exhibe conforme al numeral 9.6.
 
@@ -844,7 +846,11 @@ Solo se computan las inasistencias injustificadas conforme al artículo 20. Un d
 
 La suspensión se comunica por escrito con los hechos, los días en que se cumplirá y el criterio de graduación, y no puede fijarse sobre días de descanso semanal, feriados ni descanso vacacional.
 
-**c) Tercer umbral — imputación de cargos.** Una (1) inasistencia injustificada nueva, cualquiera sea el periodo mensual calendario en que ocurra, cuando la colaboradora cuenta con una suspensión vigente por la misma causa. Habilita el procedimiento del artículo 57, sin que ello prejuzgue la decisión.
+**c) Tercer umbral — nueva suspensión o imputación de cargos.** Una (1) inasistencia injustificada nueva, cualquiera sea el periodo mensual calendario en que ocurra, cuando la colaboradora cuenta con una suspensión vigente por la misma causa.
+
+Este umbral habilita una **segunda suspensión sin goce de haber**, de dos (2) a seis (6) días y en todo caso de mayor duración que la primera.
+
+Habilita además el procedimiento de imputación de cargos del artículo 57 **únicamente cuando la conducta configure alguna de las causales del numeral 21.5**. Fuera de esos supuestos no procede la imputación, por mucho que consten sanciones previas: a diferencia de la impuntualidad reiterada, las inasistencias tienen umbrales objetivos fijados por la ley, y sin alcanzarlos no hay causal de despido que imputar. Iniciarlo sin ella expondría a la Empresa a un despido sin causa justa.
 
 **21.3. Descargo previo.** Se aplica íntegramente el numeral 19.3: ninguna medida de este artículo se adopta sin conceder antes un plazo no menor de dos (2) días hábiles para el descargo, conforme al artículo 55.
 
@@ -1676,7 +1682,7 @@ Este artículo no constituye pacto de no competencia ni restringe el derecho de 
 
 La divulgación o el uso no autorizado de información reservada constituye falta grave conforme al inciso d) del artículo 25 de la LPCL, sin perjuicio de las acciones civiles y penales que correspondan, entre ellas las derivadas del artículo 165 del Código Penal y de las normas sobre protección de secretos empresariales del Decreto Legislativo N.° 1044.
 
-### ARTÍCULO 42.- LIBERTAD DE EXPRESIÓN Y SUS LIMITES
+### ARTÍCULO 42.- LIBERTAD DE EXPRESIÓN Y SUS LÍMITES
 
 CAYLA reconoce el derecho de sus colaboradoras a la libertad de expresión, de opinión y de información, amparado por el artículo 2, inciso 4, de la Constitución Política del Perú, así como el ejercicio de los derechos de sindicación y de participación que la Constitución reconoce.
 
@@ -1907,7 +1913,7 @@ También puede pedir que se le explique cómo se calcularon las horas con las qu
 
 **46.5. El terminal no identifica: qué significa eso.** El terminal de marcaje de cada sede no exige clave, credencial ni identificación biométrica. Es una decisión expresa de la Empresa, tomada para que marcar sea inmediato y para que nadie deje de registrar su jornada por una barrera técnica; el control real es que el terminal está a la vista de todo el equipo.
 
-De esa decisión se sigue una consecuencia que este Reglamento declara en voz alta: el marcaje acredita la actividad del centro de trabajo, pero no acredita por sí solo la identidad de quien lo hizo.
+De esa decisión se sigue una consecuencia que este Reglamento declara expresamente: el marcaje acredita la actividad del centro de trabajo, pero no acredita por sí solo la identidad de quien lo hizo.
 
 En consecuencia, y aunque el artículo 16 obliga a cada colaboradora a registrar personalmente su asistencia y califica como falta grave registrar la de otra persona, ninguna medida disciplinaria individual puede fundarse únicamente en el registro de marcaje. Se requiere siempre, además, al menos un elemento adicional que vincule el hecho con la persona, y la colaboradora es oída antes de resolver, conforme al Título XI.
 
@@ -2102,7 +2108,7 @@ e) Cualquier otra que proteja y asegure su bienestar.
 
 ---
 
-### ARTÍCULO 51.- SANCIÓN, QUEJA FALSA Y PROHIBICION DE REPRESALIAS
+### ARTÍCULO 51.- SANCIÓN, QUEJA FALSA Y PROHIBICIÓN DE REPRESALIAS
 
 **51.1. El hostigamiento sexual es falta grave.** Constituye falta grave conforme al literal i) del artículo 25 de la Ley de Productividad y Competitividad Laboral, cualquiera sea la posición de quien lo comete y de quien lo padece.
 
@@ -2292,7 +2298,7 @@ Si la colaboradora se niega a firmar, se levanta acta de negativa suscrita por q
 
 La reconsideración no suspende la ejecución de la sanción, salvo que la Gerencia General lo disponga. Si se declara fundada, el documento se anula, deja de producir efecto agravante desde ese momento y así se hace constar en el legajo.
 
-Esta vía interna es voluntaria y no restringe el derecho de la colaboradora a recurrir a la Autoridad Inspectiva de Trabajo o al Poder Judicial. La Empresa deja constancia de que, conforme al criterio establecido por el IX Pleno Jurisdiccional Supremo en materia Laboral y Previsional, el plazo para impugnar judicialmente una sanción distinta al despido es de treinta (30) días hábiles.
+Esta vía interna es voluntaria y no restringe el derecho de la colaboradora a recurrir a la Autoridad Inspectiva de Trabajo o al Poder Judicial. La Empresa deja constancia de que, conforme al criterio establecido por el IX Pleno Jurisdiccional Supremo en materia Laboral y Previsional, el plazo para impugnar judicialmente una sanción distinta al despido es de treinta (30) días hábiles, contados desde el día siguiente de notificada la medida.
 
 Esta información se consigna en beneficio de la colaboradora y no restringe ningún derecho: la vía interna de este artículo no suspende, interrumpe ni sustituye plazo alguno, y en todo caso rigen los plazos y los criterios de cómputo que la ley y la jurisprudencia establezcan al momento de ejercerse la acción.
 
@@ -2522,11 +2528,15 @@ Las versiones anteriores se conservan archivadas, con constancia de su periodo d
 
 **60.3. Entrega y cargo de recepción.** CAYLA entrega un ejemplar de este Reglamento a cada colaboradora. A quien ingrese después de su entrada en vigencia se le entrega al inicio de la relación laboral, junto con su contrato.
 
-La entrega se acredita de cualquiera de estas dos formas:
+La entrega se acredita de cualquiera de estas tres formas:
 
 a) Con cargo firmado y fechado en papel, que identifique la versión y la fecha del Reglamento entregado.
 
 b) Con la confirmación remitida desde el correo electrónico que la colaboradora haya designado en su contrato, o el que haya comunicado por escrito a Desarrollo Organizacional y conste aceptado como medio de comunicación válido entre las partes, en la que declare haber recibido, leído y comprendido el Reglamento, identificando su versión y su fecha. El envío se hace de manera individual y con el documento adjunto.
+
+c) Con la constancia dejada por la propia colaboradora en el sistema Dynamic, en la pantalla Normas, que registra quién la dejó, en qué fecha y hora y —lo que ninguna de las dos formas anteriores garantiza por sí sola— **sobre qué versión exacta** del Reglamento. Esta constancia tiene el mismo valor acreditativo que las de los literales a) y b).
+
+Para quien no tenga cuenta en el sistema, Desarrollo Organizacional registra en Dynamic la constancia del literal a), adjuntando el cargo firmado escaneado. Ese registro no sustituye al papel: lo archiva.
 
 Si la colaboradora no tiene correo designado ni lo comunica, la entrega se hace en papel conforme al literal a).
 
@@ -2607,8 +2617,6 @@ c) Publica el texto vigente en el sistema Dynamic y en un lugar visible de cada 
 ## SUSCRIPCIÓN
 
 Aprobado por la Gerencia General de CAYLA S.A.C.
-
-<br>
 
 \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 **Alvarez Pereyra Felipe Miguel**
