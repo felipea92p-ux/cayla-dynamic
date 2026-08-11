@@ -131,7 +131,7 @@ Este Título alcanza también los actos cometidos por clientas, proveedoras o te
 
 **7.3.** El Comité se integra por cuatro (4) miembros: dos (2) representantes de las trabajadoras, **elegidas por ellas**, y dos (2) representantes de la Empresa —una de DO y otra designada por la Gerencia General—, garantizando la paridad de género. Sus acuerdos se adoptan por mayoría simple y el voto dirimente corresponde a la representante de DO (numeral 48.4).
 
-**7.4.** Si el conjunto de la Empresa alcanza veinte (20) o más personas con contrato de trabajo, se constituye **además** un Comité de Intervención de alcance general, con la misma composición, dentro de los treinta (30) días calendario siguientes a la verificación (numeral 48.4).
+**7.4.** El umbral de veinte (20) de este artículo se cuenta **por centro de trabajo**, conforme al numeral 27.1 del Reglamento de la Ley N.° 27942 y al numeral 48.4. No se suma el conjunto de la Empresa, y no se confunde con el umbral de veinte del numeral 34.5 —seguridad y salud en el trabajo—, que sí se cuenta por empleador porque así lo manda el artículo 29 de la Ley N.° 29783.
 
 **7.5.** Esta Resolución no consigna número alguno de personas: el dato aplicable es el que conste en la constancia escrita del numeral 48.5 vigente a la fecha del hecho.
 

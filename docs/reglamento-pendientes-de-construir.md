@@ -18,13 +18,12 @@ agrupado por área y ordenado dentro de cada una por lo que más expone si falta
 > solo empleador con cuatro sedes. El recuento formal del numeral 48.5 es el
 > primer papel que hay que firmar.
 >
-> **Hay una tercera, y esa la pusimos nosotros.** El Comité de Intervención
-> frente al Hostigamiento Sexual de alcance general (entrada 17) **no lo pide
-> ninguna norma**: el Reglamento de la Ley 27942 cuenta el umbral de veinte *por
-> centro de trabajo*, y ninguna de las cuatro sedes llega. Lo ordena una frase
-> del numeral 48.4 que escribimos de más. Se decide antes de publicar —
-> constituirlo o quitar esa frase— y después sale caro: modificar un Reglamento
-> ya entregado obliga a una versión nueva y a volver a recoger las 21 constancias.
+> **Hubo una tercera, y esa la habíamos puesto nosotros.** El Comité de
+> Intervención frente al Hostigamiento Sexual de alcance general (entrada 17) no
+> lo pide ninguna norma: el Reglamento de la Ley 27942 cuenta el umbral de
+> veinte *por centro de trabajo*, y ninguna de las cuatro sedes llega. Lo
+> ordenaba una frase del numeral 48.4 escrita de más, y **el 10-08-2026 se
+> decidió quitarla** — a tiempo, porque el Reglamento aún no se había entregado.
 
 ---
 
@@ -58,7 +57,7 @@ Con un expediente en trámite, lo que falta acá no es documentación de archivo
 son piezas del procedimiento que ya está corriendo.
 
 16. ⚖️ **Elección por las trabajadoras de la Delegada contra el Hostigamiento Sexual —y su suplente— en cada una de las cuatro sedes, con acta** — numeral 27.1 del Reglamento de la Ley 27942 y numeral 48.3. **Designar no es elegir:** un órgano mal constituido hace impugnable la investigación en curso. Plazo: treinta (30) días calendario desde la vigencia. La resolución transitoria ya está redactada (`docs/resolucion-designacion-hostigamiento.md`); falta firmarla, publicarla y convocar.
-17. 📜 **Comité de Intervención frente al Hostigamiento Sexual de alcance general**, de cuatro miembros con paridad de género, dentro de los treinta (30) días — lo ordena el numeral 48.4 cuando el conjunto de la Empresa alcanza veinte personas con contrato de trabajo. Hoy son 21. **Ninguna norma lo exige**: el art. 27.1 del Reglamento de la Ley 27942 cuenta por centro de trabajo y ninguna sede llega a veinte. Es una obligación que nos impusimos, y la decisión —constituirlo o quitar la frase del 48.4— hay que tomarla **antes de entregar el Reglamento**.
+17. ~~**Comité de Intervención frente al Hostigamiento Sexual de alcance general.**~~ **Resuelto el 10-08-2026: no va.** Lo ordenaba una frase del numeral 48.4 que se escribió de más; ninguna norma lo exige, porque el art. 27.1 del Reglamento de la Ley 27942 cuenta el umbral por centro de trabajo y ninguna sede llega a veinte. La frase se quitó del Reglamento y del numeral 7.4 de la resolución de designación, y en su lugar cada uno explica por qué los dos umbrales de veinte —este por centro de trabajo, el de SST por empleador— se cuentan distinto. Lo que sí sigue en pie es la entrada 16: **las cuatro elecciones de Delegada**.
 18. ⚖️ **Lista de servicios de salud a los que derivar dentro de un (1) día hábil, y formato de constancia de aceptación o renuncia firmada** — numeral 50.1. Sin la lista, el plazo de un día hábil no se cumple, y es de los primeros que se revisan en un expediente en trámite.
 19. ⚖️ **Procedimiento operativo de las dos comunicaciones al MTPE** —seis (6) días hábiles al recibir la queja y seis (6) al decidir—: quién las envía, por qué vía y dónde se archiva el cargo. Son plazos que ya están corriendo.
 20. ⚖️ **Material, temario y registro de asistencia firmado de la capacitación de ingreso** — art. 11.1-a del Reglamento de la Ley y numeral 47.10. El numeral se queda porque es obligación legal directa; sin el registro firmado, la promesa se vuelve prueba en contra.

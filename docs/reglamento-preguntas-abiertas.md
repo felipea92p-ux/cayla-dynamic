@@ -1,6 +1,6 @@
 # Reglamento Interno de Trabajo v4.0 — decisiones pendientes
 
-De las 105 preguntas que dejaron abiertas los redactores quedan **catorce**. El resto o las contesta el propio Reglamento consolidado, o las contesta el repositorio, o eran la misma pregunta escrita de varias maneras.
+De las 105 preguntas que dejaron abiertas los redactores quedaron **catorce**, y dos se resolvieron el 10-08-2026 (la 6 y la del Comité del 48.4). Quedan **doce**. El resto o las contesta el propio Reglamento consolidado, o las contesta el repositorio, o eran la misma pregunta escrita de varias maneras.
 
 Están ordenadas por lo que cuesta no responderlas. Se responden por número.
 
@@ -63,14 +63,11 @@ La calificación no se puede aplicar hacia atrás: el plazo de treinta días nat
 
 ---
 
-### 6. La segunda suspensión por tardanzas: ¿de dos a seis días, o dentro del tope de tres?
+### 6. ~~La segunda suspensión por tardanzas: ¿de dos a seis días, o dentro del tope de tres?~~
 
-**Por qué importa:** el numeral 19.2 d) habilita una segunda suspensión «de dos (2) a seis (6) días», y el 54.5 topa la suspensión por falta significativa en tres. Las tardanzas reiteradas son falta significativa por el 53.2 b). Una suspensión de cuatro días contradice el propio Reglamento, y una suspensión anulada rompe la escalera del inciso h) del artículo 25 de la LPCL.
+**RESUELTA el 10-08-2026.** El numeral 19.2 d) baja a «de dos (2) a tres (3) días y, en todo caso, de mayor duración que la primera», con remisión expresa al tope del 54.5. Se corrigió **también el artículo 21**, donde el tercer umbral de inasistencias arrastraba idéntica contradicción: las inasistencias injustificadas también son falta significativa por el 53.2 c), así que dejar solo uno de los dos habría mantenido viva la misma trampa a dos artículos de distancia.
 
-- **a) Bajar el 19.2 d) a «de dos (2) a tres (3) días y, en todo caso, de mayor duración que la primera».** ← **recomendada**: mantiene el escalón y no toca el catálogo de faltas
-- b) Subir el tope del 54.5 a seis días para esta falta en concreto.
-- c) Calificar la impuntualidad reiterada como falta grave, con lo que el tope pasa a ocho días — desproporcionado para el hecho.
-
+El escalón se conserva: la segunda suspensión sigue siendo más larga que la primera. El sistema no tenía escrito ese rango en ninguna parte, así que no hubo migración.
 ---
 
 ### 7. ¿Qué actividad figura en la CIIU inscrita del RUC 20605964550, y corresponde SCTR al Taller Lima?

@@ -742,7 +742,7 @@ Habilita suspensión sin goce de haber **de uno (1) a tres (3) días**, graduada
 
 **d) Tercer escalón — segunda suspensión sin goce de haber.** **Una (1) o más tardanzas en un periodo mensual calendario**, cuando la colaboradora cuenta con una suspensión vigente por la misma causa.
 
-Habilita una segunda suspensión sin goce de haber **de dos (2) a seis (6) días** y, en todo caso, **de mayor duración que la primera**, graduada según los mismos criterios del literal c).
+Habilita una segunda suspensión sin goce de haber **de dos (2) a tres (3) días** y, en todo caso, **de mayor duración que la primera**, graduada según los mismos criterios del literal c), dentro del tope del numeral 54.5.
 
 **e) Cuarto escalón — imputación de cargos.** Cualquiera de estos dos supuestos:
 
@@ -848,7 +848,7 @@ La suspensión se comunica por escrito con los hechos, los días en que se cumpl
 
 **c) Tercer umbral — nueva suspensión o imputación de cargos.** Una (1) inasistencia injustificada nueva, cualquiera sea el periodo mensual calendario en que ocurra, cuando la colaboradora cuenta con una suspensión vigente por la misma causa.
 
-Este umbral habilita una **segunda suspensión sin goce de haber**, de dos (2) a seis (6) días y en todo caso de mayor duración que la primera.
+Este umbral habilita una **segunda suspensión sin goce de haber**, de dos (2) a tres (3) días y en todo caso de mayor duración que la primera, dentro del tope del numeral 54.5.
 
 Habilita además el procedimiento de imputación de cargos del artículo 57 **únicamente cuando la conducta configure alguna de las causales del numeral 21.5**. Fuera de esos supuestos no procede la imputación, por mucho que consten sanciones previas: a diferencia de la impuntualidad reiterada, las inasistencias tienen umbrales objetivos fijados por la ley, y sin alcanzarlos no hay causal de despido que imputar. Iniciarlo sin ella expondría a la Empresa a un despido sin causa justa.
 
@@ -2002,7 +2002,7 @@ Mientras la Delegada no haya sido elegida y asumido el cargo, y durante cualquie
 
 **48.4. Comité, cuando corresponda.** En el centro de trabajo que alcance veinte (20) o más trabajadoras se constituye un Comité de Intervención frente al Hostigamiento Sexual, integrado por cuatro (4) miembros: dos (2) representantes de las trabajadoras, elegidas por ellas, y dos (2) representantes de la Empresa —una de Desarrollo Organizacional y otra designada por la Gerencia General—, garantizando en ambos casos la paridad de género. Sus acuerdos se adoptan por mayoría simple y el voto dirimente corresponde a la representante de Desarrollo Organizacional.
 
-CAYLA cuenta el umbral de veinte por centro de trabajo, conforme al numeral 27.1 del Reglamento de la Ley, y deja constancia escrita del recuento de cada centro de trabajo y de su fecha. Sin perjuicio de ello, si el conjunto de la Empresa alcanza veinte (20) o más personas con contrato de trabajo, CAYLA constituye además un Comité de Intervención frente al Hostigamiento Sexual de alcance general, con la composición de este numeral, dentro de los treinta (30) días calendario siguientes a la verificación.
+CAYLA cuenta el umbral de veinte por centro de trabajo, conforme al numeral 27.1 del Reglamento de la Ley, y deja constancia escrita del recuento de cada centro de trabajo y de su fecha. Ese es el único criterio de cómputo de este artículo, y no se confunde con el del numeral 34.5, que para seguridad y salud en el trabajo cuenta por empleador porque así lo manda el artículo 29 de la Ley N.° 29783: son dos umbrales de veinte con dos formas de contar, cada una fijada por su propia norma.
 
 **48.5. Verificación del número y constitución del órgano.** CAYLA verifica el número de trabajadoras de cada centro de trabajo —Central (CCO), Taller Lima, Tienda Arequipa y Tienda Trujillo— al 1 de enero de cada año y cada vez que incorpora personal, y deja constancia escrita del resultado. Constituye o convoca la elección del órgano que corresponda dentro de los treinta (30) días calendario siguientes. Alcanzado el umbral de veinte, el Comité sustituye a la Delegada sin necesidad de modificar este Reglamento.
 
