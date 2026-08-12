@@ -291,8 +291,12 @@ export default function NormasPage() {
   }
 
   async function acusar(d: Doc) {
-    if (!nombreDeclarado.trim()) {
-      setMsg({ tipo: "error", texto: "Escribe tu nombre para dejar constancia." });
+    // Nombre Y apellido, no solo nombre. El `nombre_declarado` es lo que hace de
+    // firma en la constancia: escrito de puño y letra en un cargo de papel nadie
+    // pone solo el nombre de pila, y una constancia que dice «Ana» no identifica
+    // a nadie el día que hay dos Anas en la misma sede.
+    if (nombreDeclarado.trim().split(/\s+/).filter(Boolean).length < 2) {
+      setMsg({ tipo: "error", texto: "Escribe tu nombre y tu apellido para dejar constancia." });
       return;
     }
     setOcupado(true); setMsg(null);
@@ -563,9 +567,11 @@ export default function NormasPage() {
                               </p>
                               <div className="flex flex-wrap items-end gap-2">
                                 <label className="flex flex-col gap-1 text-xs">
-                                  Tu nombre
+                                  Tu nombre y apellido
                                   <input value={nombreDeclarado} onChange={(e) => setNombreDeclarado(e.target.value)}
-                                    className="rounded border px-2 py-1 text-xs" />
+                                    placeholder="como lo escribirías a mano"
+                                    autoComplete="name"
+                                    className="w-64 rounded border px-2 py-1 text-xs" />
                                 </label>
                                 <button onClick={() => void acusar(d)} disabled={ocupado}
                                   className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
