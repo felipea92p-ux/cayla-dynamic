@@ -90,7 +90,8 @@ with repo(numero, nombre) as (values
     (213, 'solo_agrava_lo_que_se_entrego'),
     (214, 'la_carta_de_despido_la_firma_gerencia_general'),
     (215, 'los_cinco_anexos_del_reglamento'),
-    (228, 'no_se_sanciona_con_un_reglamento_que_no_se_entrego')
+    (228, 'no_se_sanciona_con_un_reglamento_que_no_se_entrego'),
+    (230, 'el_terminal_puede_preguntar_la_hora')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
