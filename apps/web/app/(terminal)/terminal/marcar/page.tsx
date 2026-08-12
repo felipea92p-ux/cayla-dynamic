@@ -18,6 +18,10 @@ import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal
 import { verificarPin } from "@/lib/terminal/pin";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
+import {
+  DESFASE_AVISO_SEG, DESFASE_GRAVE_SEG, leerDesfaseCacheado, medirDesfase, textoDesfase,
+  type MedidaDesfase,
+} from "@/lib/terminal/reloj-servidor";
 import { Marca } from "@/components/marca";
 import { RelojCentral } from "@/components/reloj";
 import {
@@ -91,6 +95,11 @@ export default function MarcarPage() {
   const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [tonoMensaje, setTonoMensaje] = useState<"ok" | "alerta">("ok");
+  // El reloj de ESTA Mac contra el del servidor. Arranca con la última medida
+  // guardada: un reloj corrido no se arregla al recargar la página, y que el
+  // aviso desapareciera al reiniciar convertiría un problema permanente en uno
+  // intermitente — o sea, invisible.
+  const [desfase, setDesfase] = useState<MedidaDesfase | null>(null);
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
 
   const cargarTodo = useCallback(async () => {
@@ -135,6 +144,18 @@ export default function MarcarPage() {
     const detener = iniciarSincronizacionPeriodica();
     return detener;
   }, [router, cargarTodo]);
+
+  // El desfase del reloj: la última medida guardada primero —para que el aviso
+  // esté en pantalla desde el primer segundo— y una medición nueva enseguida.
+  // Se repite cada diez minutos: un reloj no se descuadra de golpe, y preguntar
+  // más seguido solo añade tráfico a una sede con mala conexión.
+  useEffect(() => {
+    setDesfase(leerDesfaseCacheado());
+    const medir = () => { void medirDesfase().then((m) => { if (m) setDesfase(m); }); };
+    medir();
+    const t = setInterval(medir, 10 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // Vigila cuántas marcas quedan sin enviar al servidor (para el aviso visible).
   //
@@ -466,6 +487,27 @@ export default function MarcarPage() {
           {marcasApartadas > 0 && (
             <span className="rounded-full bg-rojo/15 px-3 py-1 text-xs font-medium text-rojo">
               ⚠ {marcasApartadas} sin registrar — avisa a tu encargada
+            </span>
+          )}
+          {/* El reloj corrido va DESPUÉS de los avisos de la cola y antes del
+              nombre de la sede: no es urgente como una marca sin registrar
+              —nadie tiene que hacer nada ahora mismo— pero sí permanente, y
+              quien mira el terminal es quien puede avisar de que hay que
+              corregirlo. Nunca bloquea: se sigue marcando igual. */}
+          {desfase && Math.abs(desfase.segundos) >= DESFASE_AVISO_SEG && (
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
+                  ? "bg-rojo/15 text-rojo"
+                  : "bg-ambar/15 text-ambar"
+              }`}
+              title={
+                Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
+                  ? "Con este desfase una marca puede caer en el día equivocado y pagarse en otra jornada. Avisa para que corrijan la fecha y hora de esta Mac."
+                  : "Las tardanzas se miden por minuto, así que este desfase puede inventar o borrar una. Avisa para que corrijan la hora de esta Mac."
+              }
+            >
+              🕐 {textoDesfase(desfase.segundos)} — avisa a tu encargada
             </span>
           )}
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
