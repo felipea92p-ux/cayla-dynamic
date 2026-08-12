@@ -153,6 +153,9 @@ export default function NormasPage() {
   // Todo lo que no es principal es anexo, sin lista escrita a mano: el día que
   // se publique un documento nuevo aparece aquí solo.
   const anexosVisibles = docs.filter((d) => !PRINCIPALES.includes(d.tipo));
+  // Las constancias que ME faltan a mí. Sale de lo que la pantalla ya cargó:
+  // ninguna consulta nueva, y ninguna lista escrita a mano que se quede vieja.
+  const mias = docs.filter((d) => d.requiere_acuse && !d.mi_acuse_at);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -539,6 +542,49 @@ export default function NormasPage() {
           de que se recibieron — con la <strong>versión</strong>, que es lo que un papel firmado no dice.
         </p>
 
+        {/* ── Lo que te falta a TI, antes que nada ──────────────────────────
+            Desde que hay más de un documento pidiendo constancia, el riesgo no
+            es que nadie firme: es que firmen el primero y se vayan. El
+            Reglamento está arriba y los anexos van plegados más abajo, así que
+            la segunda constancia se puede quedar sin dejar durante semanas sin
+            que nadie lo note.
+
+            Se apaga solo cuando no falta ninguna, y no hay lista escrita a
+            mano: sale de los mismos documentos que ya cargó la pantalla, así
+            que el día que se publique el RISST funciona sin tocar nada. */}
+        {!cargando && mias.length > 0 && (
+          <div className="mb-5 max-w-2xl rounded-2xl border border-rojo/30 bg-rojo/5 px-4 py-3">
+            <p className="text-sm text-tinta">
+              {mias.length === 1
+                ? <>Te falta dejar constancia de <strong>un documento</strong>.</>
+                : <>Te faltan por dejar <strong>{mias.length} constancias</strong>.</>}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {mias.map((d) => (
+                <li key={d.documento_id}>
+                  <button
+                    onClick={() => {
+                      if (!PRINCIPALES.includes(d.tipo)) setVerAnexos(true);
+                      setAbierto(d.documento_id);
+                      // Abrirlo no basta si está plegado más abajo: sin llevar
+                      // la vista hasta él, el aviso parece no hacer nada.
+                      requestAnimationFrame(() =>
+                        document.getElementById(`doc-${d.documento_id}`)
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                    }}
+                    className="text-sm font-medium text-tinta underline underline-offset-2">
+                    {d.titulo}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-taupe">
+              Dejar constancia significa que recibiste el documento. No es una firma de
+              conformidad ni renuncia a nada.
+            </p>
+          </div>
+        )}
+
         {msg && (
           <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
             {msg.texto}
@@ -680,7 +726,8 @@ export default function NormasPage() {
           <div className="space-y-4">
             {docs.filter((d) => PRINCIPALES.includes(d.tipo)).map((d) => {
               return (
-                <div key={d.documento_id} className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+                <div key={d.documento_id} id={`doc-${d.documento_id}`}
+                  className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
                   <button
                     onClick={() => setAbierto(abierto === d.documento_id ? null : d.documento_id)}
                     className="flex w-full items-center justify-between gap-3 border-b bg-sand/50 px-4 py-3 text-left">
@@ -751,7 +798,7 @@ export default function NormasPage() {
                 </p>
                 <ul className="divide-y">
                   {anexosVisibles.map((a) => (
-                    <li key={a.documento_id} className="py-2">
+                    <li key={a.documento_id} id={`doc-${a.documento_id}`} className="py-2">
                       <button onClick={() => setAbierto(abierto === a.documento_id ? null : a.documento_id)}
                         className="flex w-full items-center justify-between gap-3 text-left text-sm">
                         <span>
