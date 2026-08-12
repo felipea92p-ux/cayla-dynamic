@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Marca } from "@/components/marca";
+import { AcusesPendientes } from "@/components/acuses-pendientes";
 import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
@@ -194,6 +195,10 @@ export function AdminNav() {
           </button>
         </nav>
       )}
+      {/* Va aquí y no en el layout porque el layout envuelve también el login y
+          «nueva clave», donde todavía no hay sesión a la que preguntarle nada.
+          Este menú, en cambio, solo lo pinta una pantalla real del panel. */}
+      <AcusesPendientes />
     </header>
   );
 }
