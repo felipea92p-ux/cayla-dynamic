@@ -9,7 +9,7 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
-import { bloquesDe, type Marca } from "@/lib/admin/markdown-documento";
+import { Documento } from "@/components/documento";
 
 // Normas: los documentos que rigen para todo el equipo, y la prueba de que se
 // entregaron.
@@ -103,105 +103,6 @@ function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(y, m - 1, d)));
-}
-
-/**
- * El documento se guarda como markdown y se pinta sin librería. El análisis
- * —dónde empieza una tabla, cuándo acaba una lista, qué es negrita— vive en
- * `lib/admin/markdown-documento.ts` porque es la parte que se puede equivocar y
- * ahí sí se puede probar. Aquí solo se dibuja.
- *
- * Nunca `dangerouslySetInnerHTML`: el texto viene de la base, y quien pudiera
- * publicar un documento podría inyectar marcado en la pantalla de quien lo
- * acusa. Con nodos de React, React lo escapa todo por su cuenta.
- */
-function Marcado({ marcas }: { marcas: Marca[] }) {
-  return (
-    <>
-      {marcas.map((m, i) =>
-        m.estilo === "negrita" ? <strong key={i}>{m.texto}</strong>
-        : m.estilo === "cursiva" ? <em key={i}>{m.texto}</em>
-        : m.estilo === "codigo" ? <code key={i} className="rounded bg-sand/50 px-1 text-[12px]">{m.texto}</code>
-        : <span key={i}>{m.texto}</span>,
-      )}
-    </>
-  );
-}
-
-const CLASE_ENCABEZADO: Record<number, string> = {
-  1: "mt-2 font-serif text-2xl",
-  2: "mt-6 border-b border-sand pb-1 font-serif text-lg",
-  3: "mt-5 font-serif text-base font-medium",
-  4: "mt-4 font-serif text-sm font-medium",
-};
-
-function Documento({ texto }: { texto: string }) {
-  const bloques = useMemo(() => bloquesDe(texto), [texto]);
-  return (
-    <div className="prose-cayla max-w-none text-[13px] leading-relaxed text-tinta">
-      {bloques.map((b, i) => {
-        switch (b.tipo) {
-          case "espacio":
-            return <div key={i} className="h-2" />;
-          case "regla":
-            return <hr key={i} className="my-4 border-sand" />;
-          case "encabezado": {
-            const H = (["h1", "h2", "h3", "h4"] as const)[b.nivel - 1];
-            return <H key={i} className={CLASE_ENCABEZADO[b.nivel]}><Marcado marcas={b.marcas} /></H>;
-          }
-          case "cita":
-            return (
-              <p key={i} className="my-2 border-l-2 border-sand pl-3 text-xs text-taupe">
-                <Marcado marcas={b.marcas} />
-              </p>
-            );
-          case "lista": {
-            const L = b.ordenada ? "ol" : "ul";
-            // `enCita` mantiene el filete a la izquierda: dentro de un modelo de
-            // carta, una lista sin él se lee como texto del Manual y no como
-            // parte de la carta que se va a firmar.
-            return (
-              <L key={i} className={`my-2 space-y-0.5 pl-6 ${b.ordenada ? "list-decimal" : "list-disc"}`
-                + (b.enCita ? " ml-3 border-l-2 border-sand pl-8 text-xs text-taupe" : "")}>
-                {b.items.map((it, j) => <li key={j} className="my-1"><Marcado marcas={it} /></li>)}
-              </L>
-            );
-          }
-          case "tabla":
-            return (
-              // La tabla se desborda dentro de su propia caja: el documento se
-              // lee en un panel estrecho y una tabla ancha no puede empujar el
-              // texto de al lado fuera de la pantalla.
-              <div key={i} className={"my-3 overflow-x-auto"
-                + (b.enCita ? " ml-3 border-l-2 border-sand pl-3" : "")}>
-                <table className="w-full border-collapse text-[12px]">
-                  {b.cabecera && (
-                    <thead>
-                      <tr>{b.cabecera.map((c, j) => (
-                        <th key={j} className="border border-sand bg-sand/40 px-2 py-1 text-left font-medium">
-                          <Marcado marcas={c} />
-                        </th>
-                      ))}</tr>
-                    </thead>
-                  )}
-                  <tbody>
-                    {b.filas.map((f, j) => (
-                      <tr key={j}>{f.map((c, k) => (
-                        <td key={k} className="border border-sand px-2 py-1 align-top">
-                          <Marcado marcas={c} />
-                        </td>
-                      ))}</tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          default:
-            return <p key={i} className="my-2"><Marcado marcas={b.marcas} /></p>;
-        }
-      })}
-    </div>
-  );
 }
 
 export default function NormasPage() {
@@ -368,7 +269,15 @@ export default function NormasPage() {
     });
     setOcupado(false);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "publicar el documento") }); return; }
-    setPublicando(false); setArchivoDoc(null); setNotasDoc("");
+    // El título TAMBIÉN se limpia, y esto no es aseo.
+    //
+    // `elegirArchivo` rellena el título con el «# » del archivo solo si el campo
+    // está vacío, para no pisar lo que se haya escrito a mano. Sin limpiarlo
+    // aquí, el título de la publicación anterior seguía puesto, el guard lo veía
+    // lleno y no lo actualizaba: el 12-08-2026 la Resolución de designación se
+    // publicó con el título de la Política de Prevención, y en la lista salían
+    // dos documentos con el mismo nombre.
+    setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc("");
     await cargar();
     setMsg({
       tipo: "ok",
@@ -382,8 +291,12 @@ export default function NormasPage() {
   }
 
   async function acusar(d: Doc) {
-    if (!nombreDeclarado.trim()) {
-      setMsg({ tipo: "error", texto: "Escribe tu nombre para dejar constancia." });
+    // Nombre Y apellido, no solo nombre. El `nombre_declarado` es lo que hace de
+    // firma en la constancia: escrito de puño y letra en un cargo de papel nadie
+    // pone solo el nombre de pila, y una constancia que dice «Ana» no identifica
+    // a nadie el día que hay dos Anas en la misma sede.
+    if (nombreDeclarado.trim().split(/\s+/).filter(Boolean).length < 2) {
+      setMsg({ tipo: "error", texto: "Escribe tu nombre y tu apellido para dejar constancia." });
       return;
     }
     setOcupado(true); setMsg(null);
@@ -445,6 +358,175 @@ export default function NormasPage() {
     const { data, error } = await supabase.storage.from("acuses").createSignedUrl(path, 60);
     if (error || !data) { setMsg({ tipo: "error", texto: `No se pudo abrir: ${error?.message ?? "sin URL"}` }); return; }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
+
+  /**
+   * La constancia propia y su seguimiento.
+   *
+   * Es una función y no está escrita dos veces porque la usan el Reglamento y
+   * los anexos que piden constancia. Estaba solo en el Reglamento, y cuando la
+   * migración 0215 marcó la Política de Prevención como que sí la pide, quedó
+   * pidiendo una constancia que nadie podía dejar: la etiqueta roja salía en la
+   * lista y no había formulario debajo. Veintidós personas viendo un aviso que
+   * no se puede resolver.
+   *
+   * Vive dentro de NormasPage a propósito: cierra sobre `nombreDeclarado`,
+   * `acusar`, `verSeguimiento` y media docena más. Sacarla fuera obligaría a
+   * pasar doce props, y doce props es donde se cuela el que se olvidó.
+   */
+  function BloqueConstancia({ d }: { d: Doc }) {
+    const filas = acuses.get(d.documento_id) ?? [];
+    const pendientes = filas.filter((f) => f.acusado_at === null);
+    return (
+      <>
+        {/* ── La constancia propia ── */}
+        {d.requiere_acuse && (
+          <div className="mt-4 rounded-lg border border-sand bg-sand/20 p-3">
+            {d.mi_acuse_at ? (
+              <p className="text-xs text-taupe">
+                Dejaste constancia el <strong>{selloLima(d.mi_acuse_at)}</strong>. No hace falta
+                hacer nada más hasta que se publique una versión nueva. Si algo de este documento
+                no te cuadra, puedes plantearlo a la Gerencia y recibirás respuesta por escrito.
+              </p>
+            ) : (
+              <>
+                <p className="mb-2 text-xs text-taupe">
+                  Dejar constancia significa que recibiste este documento y fuiste informada de su
+                  contenido. No es una firma de conformidad ni renuncia a nada.
+                </p>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col gap-1 text-xs">
+                    Tu nombre y apellido
+                    <input value={nombreDeclarado} onChange={(e) => setNombreDeclarado(e.target.value)}
+                      placeholder="como lo escribirías a mano"
+                      autoComplete="name"
+                      className="w-64 rounded border px-2 py-1 text-xs" />
+                  </label>
+                  <button onClick={() => void acusar(d)} disabled={ocupado}
+                    className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
+                    Dejar constancia
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── El seguimiento, sólo para quien manda ── */}
+        {puedeGestionar && d.requiere_acuse && (
+          <div className="mt-4">
+            <button
+              onClick={() => {
+                const nuevo = verSeguimiento === d.documento_id ? null : d.documento_id;
+                setVerSeguimiento(nuevo);
+                if (nuevo) void cargarAcuses(nuevo);
+              }}
+              className="text-xs font-medium underline">
+              {d.total_acuses} de {d.poblacion} han dejado constancia
+              {d.total_acuses < d.poblacion && ` · faltan ${d.poblacion - d.total_acuses}`}
+              {verSeguimiento === d.documento_id ? " · ocultar" : " · ver quién"}
+            </button>
+
+            {verSeguimiento === d.documento_id && (
+              <ul className="mt-2 divide-y rounded-lg border border-sand">
+                {filas.map((f) => (
+                  <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
+                    <span>
+                      {f.nombre} <span className="text-taupe">· {f.sede}</span>
+                      {!f.tiene_cuenta && <span className="ml-2 rounded-full bg-sand px-2 py-0.5 text-taupe">sin cuenta</span>}
+                    </span>
+                    {f.acusado_at ? (
+                      <span className="text-taupe">
+                        {selloLima(f.acusado_at)} · {f.via === "papel" ? "en papel" : "desde el sistema"}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setPapelPara({ doc: d.documento_id, persona: f.persona_id, nombre: f.nombre });
+                          setArchivo(null); setFechaPapel(hoyLima()); setNotaPapel(""); setMsg(null);
+                        }}
+                        className="rounded border border-tinta/30 px-2 py-0.5 text-tinta hover:bg-sand/40">
+                        registrar su cargo en papel
+                      </button>
+                    )}
+                  </li>
+                ))}
+                {filas.length === 0 && <li className="px-3 py-2 text-xs text-taupe">Sin datos.</li>}
+              </ul>
+            )}
+
+            {pendientes.length > 0 && verSeguimiento === d.documento_id && (
+              <p className="mt-2 text-xs text-taupe">
+                Quien no tiene cuenta deja constancia en papel: se le entrega el documento impreso,
+                firma el cargo y aquí se archiva el escaneo.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── El formulario del cargo en papel ── */}
+        {papelPara && papelPara.doc === d.documento_id && (
+          <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+            <p className="mb-2 text-xs text-taupe">
+              Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo
+              firmado no se registra: aquí la constancia es la prueba.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs">
+                Cargo firmado
+                <input type="file" accept={TIPOS_CARGO}
+                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                  className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                Fecha de recepción
+                <input type="date" value={fechaPapel} max={hoyLima()}
+                  onChange={(e) => setFechaPapel(e.target.value)}
+                  className="rounded border px-2 py-1 text-xs" />
+              </label>
+              <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+                Nota (opcional)
+                <input value={notaPapel} onChange={(e) => setNotaPapel(e.target.value)}
+                  placeholder="ej. entregado en la tienda, con la encargada presente"
+                  className="rounded border px-2 py-1 text-xs" />
+              </label>
+            </div>
+            {progreso !== null && (
+              <div className="mt-2">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
+                  <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }}
+                    role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}
+                    aria-label="Subiendo el cargo" />
+                </div>
+                <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
+              </div>
+            )}
+            <div className="mt-2 flex items-center gap-2">
+              <button onClick={() => void guardarPapel()} disabled={ocupado}
+                className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                {progreso !== null ? `Subiendo… ${progreso}%` : "Registrar constancia"}
+              </button>
+              <button onClick={() => setPapelPara(null)} className="rounded-lg border px-3 py-1 text-xs">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Los cargos ya archivados ── */}
+        {puedeGestionar && verSeguimiento === d.documento_id && filas.some((f) => f.via === "papel") && (
+          <p className="mt-3 text-xs text-taupe">
+            Cargos archivados:{" "}
+            {filas.filter((f) => f.via === "papel").map((f) => (
+              <button key={f.persona_id}
+                onClick={() => void verCargo(`${d.documento_id}/${f.persona_id}`)}
+                className="mr-2 font-medium underline">{f.nombre}</button>
+            ))}
+          </p>
+        )}
+      </>
+    );
   }
 
   return (
@@ -579,7 +661,7 @@ export default function NormasPage() {
                     className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
                     Publicar
                   </button>
-                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); }}
+                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); setTituloDoc(""); }}
                     className="rounded-lg border px-3 py-1.5 text-xs">Cancelar</button>
                 </div>
               </div>
@@ -597,8 +679,6 @@ export default function NormasPage() {
         ) : (
           <div className="space-y-4">
             {docs.filter((d) => PRINCIPALES.includes(d.tipo)).map((d) => {
-              const filas = acuses.get(d.documento_id) ?? [];
-              const pendientes = filas.filter((f) => f.acusado_at === null);
               return (
                 <div key={d.documento_id} className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
                   <button
@@ -624,153 +704,20 @@ export default function NormasPage() {
 
                   {abierto === d.documento_id && (
                     <div className="px-4 py-4">
+                      {/* La hoja se compone del MISMO texto que se lee acá, no
+                          de un PDF guardado aparte: dos archivos del mismo
+                          documento se desincronizan el día que uno cambia. */}
+                      <div className="mb-2 flex justify-end">
+                        <a href={`/admin/normas/${d.documento_id}/imprimir`} target="_blank" rel="noopener"
+                          className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
+                          imprimir
+                        </a>
+                      </div>
                       <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
                         <Documento texto={d.documento} />
                       </div>
 
-                      {/* ── La constancia propia ── */}
-                      {d.requiere_acuse && (
-                        <div className="mt-4 rounded-lg border border-sand bg-sand/20 p-3">
-                          {d.mi_acuse_at ? (
-                            <p className="text-xs text-taupe">
-                              Dejaste constancia el <strong>{selloLima(d.mi_acuse_at)}</strong>. No hace falta
-                              hacer nada más hasta que se publique una versión nueva. Si algo de este documento
-                              no te cuadra, puedes plantearlo a la Gerencia y recibirás respuesta por escrito.
-                            </p>
-                          ) : (
-                            <>
-                              <p className="mb-2 text-xs text-taupe">
-                                Dejar constancia significa que recibiste este documento y fuiste informada de su
-                                contenido. No es una firma de conformidad ni renuncia a nada.
-                              </p>
-                              <div className="flex flex-wrap items-end gap-2">
-                                <label className="flex flex-col gap-1 text-xs">
-                                  Tu nombre
-                                  <input value={nombreDeclarado} onChange={(e) => setNombreDeclarado(e.target.value)}
-                                    className="rounded border px-2 py-1 text-xs" />
-                                </label>
-                                <button onClick={() => void acusar(d)} disabled={ocupado}
-                                  className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
-                                  Dejar constancia
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      {/* ── El seguimiento, sólo para quien manda ── */}
-                      {puedeGestionar && d.requiere_acuse && (
-                        <div className="mt-4">
-                          <button
-                            onClick={() => {
-                              const nuevo = verSeguimiento === d.documento_id ? null : d.documento_id;
-                              setVerSeguimiento(nuevo);
-                              if (nuevo) void cargarAcuses(nuevo);
-                            }}
-                            className="text-xs font-medium underline">
-                            {d.total_acuses} de {d.poblacion} han dejado constancia
-                            {d.total_acuses < d.poblacion && ` · faltan ${d.poblacion - d.total_acuses}`}
-                            {verSeguimiento === d.documento_id ? " · ocultar" : " · ver quién"}
-                          </button>
-
-                          {verSeguimiento === d.documento_id && (
-                            <ul className="mt-2 divide-y rounded-lg border border-sand">
-                              {filas.map((f) => (
-                                <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
-                                  <span>
-                                    {f.nombre} <span className="text-taupe">· {f.sede}</span>
-                                    {!f.tiene_cuenta && <span className="ml-2 rounded-full bg-sand px-2 py-0.5 text-taupe">sin cuenta</span>}
-                                  </span>
-                                  {f.acusado_at ? (
-                                    <span className="text-taupe">
-                                      {selloLima(f.acusado_at)} · {f.via === "papel" ? "en papel" : "desde el sistema"}
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => {
-                                        setPapelPara({ doc: d.documento_id, persona: f.persona_id, nombre: f.nombre });
-                                        setArchivo(null); setFechaPapel(hoyLima()); setNotaPapel(""); setMsg(null);
-                                      }}
-                                      className="rounded border border-tinta/30 px-2 py-0.5 text-tinta hover:bg-sand/40">
-                                      registrar su cargo en papel
-                                    </button>
-                                  )}
-                                </li>
-                              ))}
-                              {filas.length === 0 && <li className="px-3 py-2 text-xs text-taupe">Sin datos.</li>}
-                            </ul>
-                          )}
-
-                          {pendientes.length > 0 && verSeguimiento === d.documento_id && (
-                            <p className="mt-2 text-xs text-taupe">
-                              Quien no tiene cuenta deja constancia en papel: se le entrega el documento impreso,
-                              firma el cargo y aquí se archiva el escaneo.
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* ── El formulario del cargo en papel ── */}
-                      {papelPara && papelPara.doc === d.documento_id && (
-                        <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
-                          <p className="mb-2 text-xs text-taupe">
-                            Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo
-                            firmado no se registra: aquí la constancia es la prueba.
-                          </p>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <label className="flex flex-col gap-1 text-xs">
-                              Cargo firmado
-                              <input type="file" accept={TIPOS_CARGO}
-                                onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                                className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
-                            </label>
-                            <label className="flex flex-col gap-1 text-xs">
-                              Fecha de recepción
-                              <input type="date" value={fechaPapel} max={hoyLima()}
-                                onChange={(e) => setFechaPapel(e.target.value)}
-                                className="rounded border px-2 py-1 text-xs" />
-                            </label>
-                            <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                              Nota (opcional)
-                              <input value={notaPapel} onChange={(e) => setNotaPapel(e.target.value)}
-                                placeholder="ej. entregado en la tienda, con la encargada presente"
-                                className="rounded border px-2 py-1 text-xs" />
-                            </label>
-                          </div>
-                          {progreso !== null && (
-                            <div className="mt-2">
-                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
-                                <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }}
-                                  role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}
-                                  aria-label="Subiendo el cargo" />
-                              </div>
-                              <span className="text-xs text-taupe">Subiendo — {progreso}%</span>
-                            </div>
-                          )}
-                          <div className="mt-2 flex items-center gap-2">
-                            <button onClick={() => void guardarPapel()} disabled={ocupado}
-                              className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
-                              {progreso !== null ? `Subiendo… ${progreso}%` : "Registrar constancia"}
-                            </button>
-                            <button onClick={() => setPapelPara(null)} className="rounded-lg border px-3 py-1 text-xs">
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Los cargos ya archivados ── */}
-                      {puedeGestionar && verSeguimiento === d.documento_id && filas.some((f) => f.via === "papel") && (
-                        <p className="mt-3 text-xs text-taupe">
-                          Cargos archivados:{" "}
-                          {filas.filter((f) => f.via === "papel").map((f) => (
-                            <button key={f.persona_id}
-                              onClick={() => void verCargo(`${d.documento_id}/${f.persona_id}`)}
-                              className="mr-2 font-medium underline">{f.nombre}</button>
-                          ))}
-                        </p>
-                      )}
+                      <BloqueConstancia d={d} />
 
                       <p className="mt-4 text-xs text-taupe">
                         Publicado el {selloLima(d.publicado_at)} · {d.tipo_nombre}
@@ -819,9 +766,18 @@ export default function NormasPage() {
                         </span>
                       </button>
                       {abierto === a.documento_id && (
-                        <div className="mt-2 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
+                        <>
+                        <div className="mt-2 flex justify-end">
+                          <a href={`/admin/normas/${a.documento_id}/imprimir`} target="_blank" rel="noopener"
+                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
+                            imprimir
+                          </a>
+                        </div>
+                        <div className="mt-1 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
                           <Documento texto={a.documento} />
                         </div>
+                        <BloqueConstancia d={a} />
+                        </>
                       )}
                     </li>
                   ))}
