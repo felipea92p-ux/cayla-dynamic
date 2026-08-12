@@ -89,7 +89,19 @@ with repo(numero, nombre) as (values
     (212, 'ninguna_sancion_sin_escuchar_antes'),
     (213, 'solo_agrava_lo_que_se_entrego'),
     (214, 'la_carta_de_despido_la_firma_gerencia_general'),
-    (215, 'los_cinco_anexos_del_reglamento')
+    (215, 'los_cinco_anexos_del_reglamento'),
+    (216, 'el_tipo_de_cada_sede_que_retail_necesita'),
+    (217, 'el_cajon_retail_y_sus_permisos'),
+    (218, 'retail_lee_la_identidad_de_dynamic'),
+    (219, 'el_catalogo_de_tiendas_entra_al_cajon'),
+    (220, 'la_operacion_de_tiendas_entra_al_cajon'),
+    (221, 'contabilidad_y_produccion_entran_al_cajon'),
+    (222, 'las_funciones_que_mueven_stock_caja_y_ventas'),
+    (223, 'las_funciones_de_finanzas_del_cajon'),
+    (224, 'las_funciones_de_produccion_del_taller'),
+    (225, 'el_buzon_de_fotos_de_producto'),
+    (226, 'el_material_del_modelo_y_las_seis_etapas'),
+    (227, 'las_once_de_retail_entran_al_registro')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
