@@ -1064,6 +1064,25 @@ export type Database = {
         Relationships: []
       }
       // Añadida a mano, migración 0208 — ver la nota en las funciones.
+      documentos_institucionales: {
+        Row: {
+          id: string
+          tipo: string
+          version: number
+          titulo: string
+          documento: string
+          notas: string | null
+          vigente_desde: string
+          publicado_por: string | null
+          publicado_at: string
+        }
+        // No hay Insert ni Update reales: el texto se congela al publicarlo y
+        // solo `fn_publicar_documento` escribe en esta tabla. La RLS solo
+        // permite leer — se declaran para que el tipo compile, no como permiso.
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       documentos_tipos: {
         Row: {
           codigo: string

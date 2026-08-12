@@ -9,7 +9,7 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
-import { bloquesDe, type Marca } from "@/lib/admin/markdown-documento";
+import { Documento } from "@/components/documento";
 
 // Normas: los documentos que rigen para todo el equipo, y la prueba de que se
 // entregaron.
@@ -103,105 +103,6 @@ function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(y, m - 1, d)));
-}
-
-/**
- * El documento se guarda como markdown y se pinta sin librería. El análisis
- * —dónde empieza una tabla, cuándo acaba una lista, qué es negrita— vive en
- * `lib/admin/markdown-documento.ts` porque es la parte que se puede equivocar y
- * ahí sí se puede probar. Aquí solo se dibuja.
- *
- * Nunca `dangerouslySetInnerHTML`: el texto viene de la base, y quien pudiera
- * publicar un documento podría inyectar marcado en la pantalla de quien lo
- * acusa. Con nodos de React, React lo escapa todo por su cuenta.
- */
-function Marcado({ marcas }: { marcas: Marca[] }) {
-  return (
-    <>
-      {marcas.map((m, i) =>
-        m.estilo === "negrita" ? <strong key={i}>{m.texto}</strong>
-        : m.estilo === "cursiva" ? <em key={i}>{m.texto}</em>
-        : m.estilo === "codigo" ? <code key={i} className="rounded bg-sand/50 px-1 text-[12px]">{m.texto}</code>
-        : <span key={i}>{m.texto}</span>,
-      )}
-    </>
-  );
-}
-
-const CLASE_ENCABEZADO: Record<number, string> = {
-  1: "mt-2 font-serif text-2xl",
-  2: "mt-6 border-b border-sand pb-1 font-serif text-lg",
-  3: "mt-5 font-serif text-base font-medium",
-  4: "mt-4 font-serif text-sm font-medium",
-};
-
-function Documento({ texto }: { texto: string }) {
-  const bloques = useMemo(() => bloquesDe(texto), [texto]);
-  return (
-    <div className="prose-cayla max-w-none text-[13px] leading-relaxed text-tinta">
-      {bloques.map((b, i) => {
-        switch (b.tipo) {
-          case "espacio":
-            return <div key={i} className="h-2" />;
-          case "regla":
-            return <hr key={i} className="my-4 border-sand" />;
-          case "encabezado": {
-            const H = (["h1", "h2", "h3", "h4"] as const)[b.nivel - 1];
-            return <H key={i} className={CLASE_ENCABEZADO[b.nivel]}><Marcado marcas={b.marcas} /></H>;
-          }
-          case "cita":
-            return (
-              <p key={i} className="my-2 border-l-2 border-sand pl-3 text-xs text-taupe">
-                <Marcado marcas={b.marcas} />
-              </p>
-            );
-          case "lista": {
-            const L = b.ordenada ? "ol" : "ul";
-            // `enCita` mantiene el filete a la izquierda: dentro de un modelo de
-            // carta, una lista sin él se lee como texto del Manual y no como
-            // parte de la carta que se va a firmar.
-            return (
-              <L key={i} className={`my-2 space-y-0.5 pl-6 ${b.ordenada ? "list-decimal" : "list-disc"}`
-                + (b.enCita ? " ml-3 border-l-2 border-sand pl-8 text-xs text-taupe" : "")}>
-                {b.items.map((it, j) => <li key={j} className="my-1"><Marcado marcas={it} /></li>)}
-              </L>
-            );
-          }
-          case "tabla":
-            return (
-              // La tabla se desborda dentro de su propia caja: el documento se
-              // lee en un panel estrecho y una tabla ancha no puede empujar el
-              // texto de al lado fuera de la pantalla.
-              <div key={i} className={"my-3 overflow-x-auto"
-                + (b.enCita ? " ml-3 border-l-2 border-sand pl-3" : "")}>
-                <table className="w-full border-collapse text-[12px]">
-                  {b.cabecera && (
-                    <thead>
-                      <tr>{b.cabecera.map((c, j) => (
-                        <th key={j} className="border border-sand bg-sand/40 px-2 py-1 text-left font-medium">
-                          <Marcado marcas={c} />
-                        </th>
-                      ))}</tr>
-                    </thead>
-                  )}
-                  <tbody>
-                    {b.filas.map((f, j) => (
-                      <tr key={j}>{f.map((c, k) => (
-                        <td key={k} className="border border-sand px-2 py-1 align-top">
-                          <Marcado marcas={c} />
-                        </td>
-                      ))}</tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          default:
-            return <p key={i} className="my-2"><Marcado marcas={b.marcas} /></p>;
-        }
-      })}
-    </div>
-  );
 }
 
 export default function NormasPage() {
@@ -368,7 +269,15 @@ export default function NormasPage() {
     });
     setOcupado(false);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "publicar el documento") }); return; }
-    setPublicando(false); setArchivoDoc(null); setNotasDoc("");
+    // El título TAMBIÉN se limpia, y esto no es aseo.
+    //
+    // `elegirArchivo` rellena el título con el «# » del archivo solo si el campo
+    // está vacío, para no pisar lo que se haya escrito a mano. Sin limpiarlo
+    // aquí, el título de la publicación anterior seguía puesto, el guard lo veía
+    // lleno y no lo actualizaba: el 12-08-2026 la Resolución de designación se
+    // publicó con el título de la Política de Prevención, y en la lista salían
+    // dos documentos con el mismo nombre.
+    setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc("");
     await cargar();
     setMsg({
       tipo: "ok",
@@ -579,7 +488,7 @@ export default function NormasPage() {
                     className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
                     Publicar
                   </button>
-                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); }}
+                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); setTituloDoc(""); }}
                     className="rounded-lg border px-3 py-1.5 text-xs">Cancelar</button>
                 </div>
               </div>
@@ -624,6 +533,15 @@ export default function NormasPage() {
 
                   {abierto === d.documento_id && (
                     <div className="px-4 py-4">
+                      {/* La hoja se compone del MISMO texto que se lee acá, no
+                          de un PDF guardado aparte: dos archivos del mismo
+                          documento se desincronizan el día que uno cambia. */}
+                      <div className="mb-2 flex justify-end">
+                        <a href={`/admin/normas/${d.documento_id}/imprimir`} target="_blank" rel="noopener"
+                          className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
+                          imprimir
+                        </a>
+                      </div>
                       <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
                         <Documento texto={d.documento} />
                       </div>
@@ -819,9 +737,17 @@ export default function NormasPage() {
                         </span>
                       </button>
                       {abierto === a.documento_id && (
-                        <div className="mt-2 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
+                        <>
+                        <div className="mt-2 flex justify-end">
+                          <a href={`/admin/normas/${a.documento_id}/imprimir`} target="_blank" rel="noopener"
+                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
+                            imprimir
+                          </a>
+                        </div>
+                        <div className="mt-1 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
                           <Documento texto={a.documento} />
                         </div>
+                        </>
                       )}
                     </li>
                   ))}
