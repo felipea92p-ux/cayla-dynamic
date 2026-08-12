@@ -31,3 +31,4 @@ politica-salarial.pdf
 # Sentry Config File
 .env.sentry-build-plugin
 .env.local
+.cambios-del-rit.md

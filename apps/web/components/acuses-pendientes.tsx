@@ -1,0 +1,147 @@
+"use client";
+
+// ============================================================================
+// El aviso que pide dejar constancia de lo que hay pendiente de firmar.
+// ============================================================================
+//
+// POR QUÉ EXISTE. La Ley 30709 obliga a informar la política salarial a cada
+// persona y a PODER PROBARLO; el reglamento interno tiene la misma exigencia por
+// su lado. Las dos pantallas para firmarlo llevan meses construidas, y aun así
+// una integrante que entra por primera vez cae en el Dashboard y no tiene por
+// qué saber que le toca ir a buscarlas. Un trámite que depende de que alguien
+// adivine dónde está no se completa: no es culpa suya, es del diseño.
+//
+// QUÉ NO HACE, Y ES DELIBERADO
+//
+//   · NO bloquea el panel. Se puede cerrar y seguir trabajando. Un aviso que
+//     secuestra la pantalla acabaría bloqueando a quien entra a arreglar algo
+//     urgente un domingo, y ese precio no lo paga la ley.
+//   · NO firma nada por nadie. Lleva a la pantalla donde se firma y ahí la
+//     persona lee y decide. El valor probatorio del acuse depende justo de eso.
+//   · NO se guarda que lo cerraste. Vuelve a salir en la siguiente visita, y
+//     desaparece para siempre en cuanto firmas. Recordar el «ahora no» sería
+//     construir la forma de que nunca se firme.
+//
+// EL AVISO DEL MENÚ, QUE APLICA A MEDIAS. `nav.tsx` dice —con razón— que «un
+// aviso que aparece en todos lados deja de ser un aviso», y por eso solo tiene
+// un contador. Éste se salta esa regla a propósito y con una condición: solo lo
+// ve quien tiene algo pendiente, y deja de verlo el día que lo resuelve. No es
+// un adorno permanente; es una tarea con final.
+// ============================================================================
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { usePersonaActual } from "@/lib/admin/use-rol";
+
+type Pendiente = { titulo: string; detalle: string; href: string };
+
+/** Lo que devuelve fn_documentos_vigentes, en lo que aquí importa. */
+type DocVigente = {
+  titulo: string | null;
+  tipo_nombre: string | null;
+  requiere_acuse: boolean | null;
+  mi_acuse_at: string | null;
+};
+
+export function AcusesPendientes() {
+  const persona = usePersonaActual();
+  const [pendientes, setPendientes] = useState<Pendiente[]>([]);
+  const [cerrado, setCerrado] = useState(false);
+
+  useEffect(() => {
+    if (!persona) return;
+    let vivo = true;
+    const supabase = createAdminSupabaseClient();
+
+    void (async () => {
+      const [pol, docs] = await Promise.all([
+        supabase.rpc("fn_politica_salarial_vigente"),
+        supabase.rpc("fn_documentos_vigentes"),
+      ]);
+      if (!vivo) return;
+
+      const lista: Pendiente[] = [];
+
+      // La política salarial. `mi_acuse` viene null mientras no se haya firmado;
+      // y si no hay versión publicada, `version` viene null y no hay nada que
+      // pedir — pedir constancia de un documento que no existe sería peor que
+      // callar.
+      const p = pol.data as { version?: number | null; mi_acuse?: unknown } | null;
+      if (p && p.version != null && !p.mi_acuse) {
+        lista.push({
+          titulo: "Política salarial",
+          detalle: "El cuadro de categorías y cómo se decide lo que cobra cada quien.",
+          href: "/admin/politica-salarial",
+        });
+      }
+
+      // Los documentos institucionales (reglamento interno y los que vengan
+      // después). Solo los que EXIGEN constancia: hay tipos que se publican
+      // para leer y no para firmar, y meterlos aquí convertiría el aviso en
+      // ruido.
+      for (const d of ((docs.data as DocVigente[] | null) ?? [])) {
+        if (d.requiere_acuse === true && !d.mi_acuse_at) {
+          lista.push({
+            titulo: d.tipo_nombre ?? d.titulo ?? "Documento",
+            detalle: d.titulo ?? "",
+            href: "/admin/normas",
+          });
+        }
+      }
+
+      setPendientes(lista);
+    })();
+
+    return () => { vivo = false; };
+    // `persona` y no `persona.id`: si cambia la sesión, se vuelve a preguntar.
+  }, [persona]);
+
+  if (cerrado || pendientes.length === 0) return null;
+
+  const uno = pendientes.length === 1;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="acuses-titulo"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-tinta/40 p-4 sm:items-center"
+    >
+      <div className="w-full max-w-lg rounded-2xl border border-sand bg-crema p-6 shadow-xl">
+        <h2 id="acuses-titulo" className="font-serif text-xl text-tinta">
+          {uno ? "Te falta dejar una constancia" : "Te faltan dos constancias"}
+        </h2>
+
+        <p className="mt-2 text-sm text-taupe">
+          CAYLA tiene que poder demostrar que te informó de esto, y la única forma
+          es que lo dejes tú desde tu propia cuenta. Se lee en un minuto y no
+          firmas ningún compromiso: dejas constancia de haber sido informada.
+        </p>
+
+        <ul className="mt-4 space-y-2">
+          {pendientes.map((x) => (
+            <li key={x.href + x.titulo} className="rounded-xl border border-sand bg-white/50 p-3">
+              <p className="text-sm font-medium text-tinta">{x.titulo}</p>
+              {x.detalle && <p className="mt-0.5 text-xs text-taupe">{x.detalle}</p>}
+              <Link
+                href={x.href}
+                onClick={() => setCerrado(true)}
+                className="mt-2 inline-block rounded-lg bg-tinta px-3 py-1.5 text-xs text-crema hover:bg-tinta/90"
+              >
+                Leer y dejar constancia
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <button
+          onClick={() => setCerrado(true)}
+          className="mt-4 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta"
+        >
+          Ahora no — me lo recuerdas la próxima vez
+        </button>
+      </div>
+    </div>
+  );
+}
