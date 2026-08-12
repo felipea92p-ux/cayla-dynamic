@@ -38,6 +38,7 @@ type Pendiente = { titulo: string; detalle: string; href: string };
 
 /** Lo que devuelve fn_documentos_vigentes, en lo que aquí importa. */
 type DocVigente = {
+  documento_id: string | null;
   titulo: string | null;
   tipo_nombre: string | null;
   requiere_acuse: boolean | null;
@@ -85,7 +86,12 @@ export function AcusesPendientes() {
           lista.push({
             titulo: d.tipo_nombre ?? d.titulo ?? "Documento",
             detalle: d.titulo ?? "",
-            href: "/admin/normas",
+            // Al documento CONCRETO, no a la pantalla. Con dos pendientes, dos
+            // enlaces al mismo sitio dejan a la persona buscando — y el segundo
+            // suele ser un anexo, que va plegado más abajo. Normas lee este
+            // fragmento al abrirse, despliega los anexos si hace falta y lleva
+            // la vista hasta él.
+            href: d.documento_id ? `/admin/normas#doc-${d.documento_id}` : "/admin/normas",
           });
         }
       }
