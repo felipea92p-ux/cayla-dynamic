@@ -2259,6 +2259,14 @@ export type Database = {
         Args: { p_documento_id: string }
         Returns: unknown
       }
+      fn_reglamento_no_acusado: {
+        Args: { p_persona_id: string; p_fecha: string }
+        Returns: string
+      }
+      fn_sin_constancia_del_reglamento: {
+        Args: Record<PropertyKey, never>
+        Returns: unknown
+      }
       fn_anular_marcaje: {
         Args: { p_marcaje_id: string; p_motivo: string }
         Returns: unknown

@@ -239,6 +239,10 @@ export default function DisciplinaPage() {
   // no hay firmante que ofrecerle — puede instruir el expediente y preparar el
   // borrador, pero no firmarlo ni delegar esa firma.
   const [firmantes, setFirmantes] = useState<Record<string, Firmante[]>>({});
+  // Quién no tiene constancia del Reglamento vigente (numeral 60.5, mig. 0228).
+  // Se avisa ANTES de empezar el procedimiento: citar a alguien a descargo y
+  // después no poder firmar es hacerle pasar el mal rato para nada.
+  const [sinConstancia, setSinConstancia] = useState<Map<string, string>>(new Map());
   const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
   const borradoresRef = useRef<HTMLDivElement>(null);
 
@@ -316,6 +320,13 @@ export default function DisciplinaPage() {
       }),
     );
     setFirmantes(Object.fromEntries(pares));
+
+    // Consulta aparte y tolerante: si fallara, la pantalla sigue funcionando
+    // sin el aviso — la base frena igual, que es donde tiene que frenar.
+    const { data: sc } = await supabase.rpc("fn_sin_constancia_del_reglamento");
+    setSinConstancia(new Map(
+      ((sc as { persona_id: string; motivo: string }[]) ?? []).map((x) => [x.persona_id, x.motivo]),
+    ));
     setCargando(false);
   }, [supabase, router]);
 
@@ -859,6 +870,18 @@ function fechasDe(h: Hecho[]): string {
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-taupe">Hechos: {fechasDe(d.hechos)}</p>
+                  {/* Numeral 60.5: sin constancia del Reglamento no se puede
+                      fundar una amonestación ni una suspensión. Se avisa acá,
+                      en el borrador, y no al pulsar Firmar: lo que no se puede
+                      deshacer es haberla citado a descargo para nada.
+                      La imputación y el despido no lo llevan — se fundan en el
+                      art. 25 de la LPCL, que rige por ley y no por entrega. */}
+                  {sinConstancia.has(d.persona_id) && d.nivel !== "imputacion" && d.nivel !== "despido" && (
+                    <p className="mt-1 rounded border border-rojo/30 bg-rojo/5 px-2 py-1 text-xs text-rojo">
+                      Sin constancia del Reglamento. Este documento no se va a poder firmar hasta
+                      que se le entregue y quede registrada en Normas — también vale en papel.
+                    </p>
+                  )}
                   {/* El art. 32 de la LPCL exige que la carta de despido diga
                       la causa Y la fecha de cese. Se fija acá, en el borrador,
                       porque después de firmar el documento ya no se edita. */}
