@@ -162,6 +162,12 @@ export interface Fila {
   // ' · ' cuando hay más de un comprobante vigente.
   monto_educacion?: number;
   instituciones_educacion?: string | null;
+  // Los dos de la 0236, con los que la boleta explica un cero en vez de borrar la
+  // línea. Opcionales y leídos con `?? false`: una base sin la 0236 pegada no los
+  // devuelve, y entonces la boleta se comporta como antes — no dibuja la fila —
+  // en vez de escribir una explicación falsa.
+  educacion_registrada?: boolean;
+  educacion_sin_comprobante?: boolean;
   descuento_afp?: number;
   tasa_afp?: number;
   regimen_pension?: string | null;

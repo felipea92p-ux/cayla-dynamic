@@ -278,6 +278,18 @@ function BoletaContenido() {
   // dando el mismo resultado que antes.
   const movilidad = f.monto_movilidad ?? 0;
   const educacion = f.monto_educacion ?? 0;
+
+  // ── Por qué la educación vale cero (0236) ────────────────────────────────
+  // Hasta el 2026-08-12 esta fila se pintaba bajo `educacion > 0`, así que un
+  // cero no imprimía «S/0.00»: no imprimía nada. Siete personas cobraron cero
+  // durante un mes con su asignación vigente y su comprobante cargado, y la
+  // boleta no daba pie ni para preguntar. Un concepto que desaparece cuando
+  // falla es peor que uno que sale mal — el que sale mal se reclama el mismo día.
+  //
+  // `?? false` para que una base sin la 0236 pegada siga sin dibujar la fila en
+  // vez de escribir una explicación que no puede sostener.
+  const educacionRegistrada = f.educacion_registrada ?? false;
+  const educacionSinPapel = f.educacion_sin_comprobante ?? false;
   const pension = f.descuento_afp ?? 0;
   const aporteEssalud = f.aporte_essalud ?? 0;
 
@@ -551,14 +563,22 @@ function BoletaContenido() {
                 un monto pelado sin decir de qué estudio sale se lee como sueldo
                 con otro nombre. El nombre del hijo NO se imprime: identifica al
                 estudio, no al menor. */}
-            {educacion > 0 && (
+            {/* ⇩ CAMBIO 0236 ⇩ La fila también sale en cero, y dice por qué. Solo
+                cuando la persona TIENE una asignación que se solapa con el
+                periodo: para quien no estudia, una línea en cero sería ruido y
+                no transparencia. */}
+            {(educacion > 0 || educacionRegistrada) && (
               <tr className="border-t border-sand">
                 <td className="py-2">
                   Asignación por educación
                   <span className="block text-xs text-taupe">
-                    {f.instituciones_educacion
-                      ? `${f.instituciones_educacion} · contra comprobante`
-                      : "contra el comprobante archivado"}
+                    {educacion > 0
+                      ? f.instituciones_educacion
+                        ? `${f.instituciones_educacion} · contra comprobante`
+                        : "contra el comprobante archivado"
+                      : educacionSinPapel
+                        ? "tu asignación está registrada, pero todavía falta cargar el comprobante · no se paga hasta tenerlo"
+                        : "tu asignación no está vigente en este periodo · consúltalo con Desarrollo Organizacional"}
                   </span>
                 </td>
                 <td className="py-2 text-right align-top">{formatSoles(educacion)}</td>
