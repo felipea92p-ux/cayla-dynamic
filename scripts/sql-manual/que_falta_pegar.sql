@@ -93,7 +93,8 @@ with repo(numero, nombre) as (values
     (228, 'no_se_sanciona_con_un_reglamento_que_no_se_entrego'),
     (229, 'la_lista_de_constancias_solo_cuenta_a_quien_obliga'),
     (230, 'el_terminal_puede_preguntar_la_hora'),
-    (231, 'marcar_despues_del_contrato_deja_de_pasar_en_silencio')
+    (231, 'marcar_despues_del_contrato_deja_de_pasar_en_silencio'),
+    (232, 'la_escalera_de_tardanzas_recupera_su_cuarto_escalon')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
