@@ -95,7 +95,8 @@ with repo(numero, nombre) as (values
     (230, 'el_terminal_puede_preguntar_la_hora'),
     (231, 'marcar_despues_del_contrato_deja_de_pasar_en_silencio'),
     (232, 'la_escalera_de_tardanzas_recupera_su_cuarto_escalon'),
-    (235, 'la_segunda_suspension_cae_en_dias_habiles_y_no_se_pasa_del_tope')
+    (233, 'la_educacion_se_paga_por_el_dia_en_que_empieza'),
+    (234, 'cada_quien_puede_saber_en_que_periodo_esta')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
@@ -194,8 +195,10 @@ select * from (
              when 'f588806871f74189de370355dfb22767' then '✗ 0192 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '449cc75cc4d097096fd87cdbd13b68f1' then '⚠ se quedó en la 0193 — falta pegar lo posterior'
              when 'c6c75c8a3f12c6aeaf1cb9ac19a7044a' then '✗ 0193 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '3ca25dd82de07418c9b9c77abffc8dec' then '0199 — al día con el repositorio'
+             when '3ca25dd82de07418c9b9c77abffc8dec' then '⚠ se quedó en la 0199 — falta pegar lo posterior'
              when '2c368e0da180350dad2221012a0a4d57' then '✗ 0199 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'f61eca56c6d2017155c990a958ecd3a6' then '0233 — al día con el repositorio'
+             when 'f38d38f3b72f1a8aa85b8e9a79b20d28' then '✗ 0233 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'

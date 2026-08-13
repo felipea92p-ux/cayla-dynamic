@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 
@@ -20,8 +21,21 @@ export default function OlvideClavePage() {
     });
     setEnviando(false);
     // No revelamos si el correo existe o no: mismo mensaje en ambos casos.
+    // (Supabase tampoco lo revela: a un correo sin cuenta responde 200 y no
+    // manda nada. Por eso un error acá nunca significa «ese correo no existe».)
     if (error && error.status !== 400) {
-      setError("No se pudo enviar el correo. Intenta de nuevo en un momento.");
+      // Se perdía entero. El 2026-08-12 alguien vio este mensaje desde su
+      // teléfono y no quedó rastro de por qué: ni el status, ni el texto de
+      // Supabase, ni a qué correo se le intentó enviar. Ahora va a Sentry.
+      Sentry.captureException(error, { tags: { pantalla: "olvide-clave" } });
+      // Dos causas distintas, y a la persona le importa la diferencia: con 429
+      // basta esperar; con cualquier otra, esperar no arregla nada y lo que
+      // corresponde es pedir la clave por el otro camino.
+      setError(
+        error.status === 429
+          ? "Se pidieron demasiados enlaces en la última hora. Espera un rato y vuelve a intentarlo."
+          : "No se pudo enviar el correo. Pídele a Felipe una clave nueva desde el panel; no hace falta que sigas intentando acá.",
+      );
       return;
     }
     setEnviado(true);

@@ -56,9 +56,21 @@
 --     es el supuesto de abandono del art. 25 inc. h) del D.S. 003-97-TR. Es el
 --     falso positivo que este proyecto define como su peor error.
 --
--- Un tramo que empieza el día de la reactivación no puede hacer nada de eso: el
--- pasado se queda como está. Y el hueco sin salario y sin horario **es la
--- verdad de lo que pasó** — esa persona no trabajó esos días.
+-- Un tramo que empieza el día de la reactivación no puede tocar el PASADO: lo ya
+-- pagado se queda como está, y la prueba 173 lo exige llamando a
+-- `fn_planilla_calcular` sobre un periodo pagado antes y después.
+--
+-- ⚠️ PERO EL PERIODO EN CURSO SÍ SE MUEVE PARA UN SUELDO FIJO, y la primera
+-- versión de esta cabecera prometía que no. `fn_planilla_calcular` resuelve esa
+-- rama con un lateral que toma CUALQUIER tramo que solape el periodo, sin
+-- prorratear: el tramo nuevo enciende el mes entero — S/1,130.00 sin un día
+-- trabajado. Por eso hay un segundo candado, abajo. No es un defecto que
+-- introduzca esta migración: a quien INGRESA a mitad de periodo le pasa igual
+-- desde siempre. Lo que sí hace esta migración es convertirlo en un camino
+-- cómodo, así que se para y se dice qué hacer.
+--
+-- Y el hueco sin salario y sin horario **es la verdad de lo que pasó**: esa
+-- persona no trabajó esos días.
 --
 -- La llave por fecha tampoco era fiable: en `horarios_asignados` puede
 -- seleccionar DOS filas, porque `fn_set_horario_semanal` no recorta los tramos
@@ -82,13 +94,20 @@
 -- reactivaciones legítimas de ocho. No protegería: prohibiría. Y un candado que
 -- cierra siempre lo quita cualquiera en la primera urgencia.
 --
--- Se pone donde el daño está medido: `con_hijos` con un periodo pagado detrás.
--- Con los datos de hoy eso bloquea 0 de 8 casos reales y atrapa el único que
--- hace daño.
+-- Se pone donde el daño está medido, y son DOS condiciones, no una:
 --
---   ⚠️ ESA CONDICIÓN ES UNA LISTA, Y HAY QUE REVISARLA. Dice «qué se paga sin
---   mirar tramos ni jornadas». Hoy es solo la asignación familiar. El día que
---   se agregue otro concepto así, esta condición se queda corta sin avisar.
+--   1. `con_hijos` con un periodo PAGADO detrás — la asignación familiar.
+--   2. `sueldo_fijo` con cualquier periodo que solape entre el cese y hoy — el
+--      mes completo. Esta la destapó la revisión adversaria de la 0209 después
+--      de que la primera versión de esta cabecera prometiera lo contrario.
+--
+-- Con los datos de producción del 2026-08-10 las dos juntas bloquean **0 de 8**
+-- casos reales: ninguna de las ocho personas inactivas tiene hijos ni sueldo
+-- fijo.
+--
+--   ⚠️ ESA LISTA HAY QUE REVISARLA. Dice «qué se paga sin mirar las horas que
+--   trabajó». Hoy son dos cosas. El día que se agregue un tercer concepto así,
+--   estas condiciones se quedan cortas sin avisar.
 --
 -- ── LO QUE NO HACE, Y ES DELIBERADO ─────────────────────────────────────────
 --
@@ -120,6 +139,7 @@ as $function$
 declare
   v_cese      date;
   v_hijos     boolean;
+  v_fijo      boolean;
   v_hoy       date := (now() at time zone 'America/Lima')::date;
   v_actor     uuid;
   v_desde     date;
@@ -137,7 +157,7 @@ begin
   -- llave con la que se reconoce qué tramos cerró ese cese. El orden importa:
   -- si algún día un refactor mueve el update arriba, esto compararía contra
   -- null, no encontraría nada y fallaría EN SILENCIO.
-  select fecha_cese, con_hijos into v_cese, v_hijos
+  select fecha_cese, con_hijos, sueldo_fijo into v_cese, v_hijos, v_fijo
     from personas
    where id = p_persona_id and estado = 'inactivo'
    for update;
@@ -145,8 +165,15 @@ begin
     raise exception 'Esa persona no existe o ya está activa.';
   end if;
 
-  -- El candado estrecho. Ver la cabecera: solo cuando volver a 'activo' movería
-  -- de verdad el total de una planilla ya pagada.
+  -- ── Los dos candados: donde reactivar movería plata que no se trabajó ─────
+  -- Ver la cabecera. Los dos son ESTRECHOS a propósito: de las 8 personas
+  -- inactivas de producción, seis tienen un periodo pagado detrás y para las
+  -- seis el daño es cero. Un candado ancho rechazaría seis reactivaciones
+  -- legítimas de ocho, y eso no protege: prohíbe.
+
+  -- 1 · La asignación familiar se paga por tener hijos, sin mirar tramos ni
+  --     jornadas. Volver a 'activo' basta para que aparezca en una planilla ya
+  --     pagada. Medido: S/98.31 por periodo.
   if v_hijos is true and exists (
        select 1 from periodos_planilla
         where estado = 'pagado' and fecha_fin >= v_cese) then
@@ -154,6 +181,24 @@ begin
       'Reactivarla ahora cambiaría el total de una planilla YA PAGADA: cobra asignación familiar, '
       'y esa se paga por tener hijos, sin depender de si trabajó. Reabre primero el periodo con '
       'Revertir pago, que deja constancia del motivo.';
+  end if;
+
+  -- 2 · El sueldo fijo cobra el periodo COMPLETO con que un tramo suyo roce el
+  --     periodo: `fn_planilla_calcular` no prorratea esa rama. Reactivar a
+  --     mitad de mes le entrega el mes entero — medido, S/1,130.00 sin un solo
+  --     día trabajado, más S/196.81 de provisiones y S/101.70 de EsSalud.
+  --     No se prorratea aquí: eso es un cambio en `fn_planilla_calcular` que
+  --     movería también a quien INGRESA a mitad de periodo, y esa es una
+  --     decisión aparte (Crítico 1 del catálogo, que Felipe ya evaluó una vez).
+  --     Aquí se para y se dice qué hacer.
+  if v_fijo is true and exists (
+       select 1 from periodos_planilla
+        where fecha_fin >= v_cese and fecha_ini <= v_hoy) then
+    raise exception
+      'Tiene sueldo fijo, y el sueldo fijo se paga por periodo completo en cuanto tiene un tramo '
+      'que lo toque: reactivarla hoy le pagaría el periodo entero sin haberlo trabajado. '
+      'Reactívala el primer día del periodo siguiente, o hazlo igual y registra el ajuste como '
+      'movimiento con su motivo.';
   end if;
 
   update personas
@@ -168,8 +213,20 @@ begin
   -- alguien pudo asignarle salario —`fn_set_salario` no mira `personas.estado`,
   -- pese a lo que dice la cabecera de la 0176, que en eso es una errata—. Si ya
   -- lo tiene, el suyo manda y aquí no se toca nada.
+  -- La pregunta es «¿le llega algún tramo hasta hoy?», NO «¿tiene alguno
+  -- abierto?». No es lo mismo, y la diferencia la cazó la prueba 173: un tramo
+  -- CERRADO el 2099-12-31 está vigente hoy igual que uno sin fecha de fin, y es
+  -- así como `fn_planilla_calcular` elige el suyo. Preguntando solo por
+  -- `vigente_hasta is null` no se veía, y se le creaba un tramo encima que —para
+  -- no chocar con el antisolape— arrancaba en el año 2100: no le devolvía el
+  -- sueldo, se lo prometía para dentro de setenta y seis años.
+  --
+  -- Con esta condición, si nada le llega a hoy es que todos sus tramos
+  -- terminaron ANTES de hoy, así que uno nuevo desde hoy no puede solaparse con
+  -- ninguno y el EXCLUDE `asignacion_salario_sin_solape` no tiene nada que decir.
   if not exists (select 1 from asignaciones_salario
-                  where persona_id = p_persona_id and vigente_hasta is null) then
+                  where persona_id = p_persona_id
+                    and (vigente_hasta is null or vigente_hasta > v_hoy)) then
 
     select a.rango, a.salario_mensual_soles, a.base_provision
       into v_sal
@@ -179,10 +236,13 @@ begin
      limit 1;
 
     if found then
-      -- Nunca antes del día siguiente al último tramo cerrado: hay tramos
-      -- cerrados con `vigente_hasta` en el futuro, y arrancar encima de uno
-      -- reventaría contra el EXCLUDE `asignacion_salario_sin_solape` con un
-      -- error de Postgres en inglés que la app no traduce.
+      -- Nunca encima de un tramo que ya termina hoy. Cuando el cese es de HOY
+      -- —el caso más probable, porque un cese por error se nota el mismo día—
+      -- `fn_cesar_persona` acaba de cerrar el tramo con `vigente_hasta = hoy`,
+      -- y el EXCLUDE `asignacion_salario_sin_solape` usa un daterange con los
+      -- dos extremos cerrados: arrancar hoy chocaría contra él. Se restituye
+      -- desde MAÑANA, y el día del cese queda cubierto por el tramo viejo, que
+      -- es lo correcto: ese día sí trabajó.
       select greatest(v_hoy, max(a.vigente_hasta) + 1)
         into v_desde
         from asignaciones_salario a
@@ -211,8 +271,10 @@ begin
   -- Se copian las columnas en vez de delegar en `fn_set_horario_semanal`:
   -- esa función exige un jsonb, y `horario_por_dia` es NULLABLE — los tramos
   -- viejos la tienen vacía y delegar fallaría justo con los más antiguos.
+  -- Misma pregunta que con el salario, y por el mismo motivo.
   if not exists (select 1 from horarios_asignados
-                  where persona_id = p_persona_id and vigente_hasta is null) then
+                  where persona_id = p_persona_id
+                    and (vigente_hasta is null or vigente_hasta > v_hoy)) then
 
     select h.hora_entrada, h.hora_salida, h.almuerzo_min_minutos, h.almuerzo_max_minutos,
            h.dias_laborables, h.horas_semana_objetivo, h.horario_por_dia

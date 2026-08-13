@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
+import { ROLES_CON_PANEL } from "@cayla-dynamic/shared";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -17,13 +18,32 @@ export default function AdminLoginPage() {
     setCargando(true);
     setError(null);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setCargando(false);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      setCargando(false);
       setError("Correo o contraseña incorrectos.");
       return;
     }
-    router.replace("/admin/dashboard");
+
+    // A DÓNDE ATERRIZA CADA QUIEN.
+    //
+    // El Dashboard es un tablero de encargada. Una integrante con cuenta —las
+    // hay: se les invita para que dejen constancia de la política salarial, Ley
+    // 30709— caía ahí y veía una pantalla que su propia RLS le devuelve casi
+    // vacía: no es una fuga, es un tablero de otra persona que se lee como que
+    // el sistema no tiene datos. Su sitio es «Lo mío».
+    //
+    // Ante la duda se manda a /mio, no al panel: equivocarse hacia lo suyo no
+    // rompe nada, y equivocarse hacia el panel deja a alguien mirando pantallas
+    // que no le hablan.
+    const { data: yo } = await supabase
+      .from("personas")
+      .select("rol")
+      .eq("auth_user_id", data.user?.id ?? "")
+      .maybeSingle();
+    setCargando(false);
+    const rol = (yo as { rol?: string } | null)?.rol;
+    router.replace(rol && ROLES_CON_PANEL.includes(rol as never) ? "/admin/dashboard" : "/mio");
   }
 
   return (

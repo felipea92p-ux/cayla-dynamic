@@ -11,7 +11,7 @@ import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText,
+  BookText, UserRound,
   LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
@@ -24,16 +24,27 @@ const SEDE = ROLES_CON_PANEL;
 type Item = { href: string; label: string; Icon: LucideIcon; roles?: readonly string[] };
 
 const GRUPOS: Array<{ label?: string; items: Item[] }> = [
-  { items: [{ href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard }] },
+  { items: [
+    // «Lo mío» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
+    // quien lo está mirando. Para una integrante es su pantalla —sus días, sus
+    // horas, sus tardanzas— y para DO es la suya, que también la tiene.
+    { href: "/mio", label: "Lo mío", Icon: UserRound },
+    // Con `roles` desde hoy. Antes iba sin filtro, así que una integrante con
+    // cuenta —las hay: se les invita para que acusen la política salarial (Ley
+    // 30709)— aterrizaba aquí y veía un tablero de encargada que su propia RLS
+    // le devuelve casi vacío. No era una fuga; era una pantalla que no es suya y
+    // que se lee como que el sistema no tiene datos.
+    { href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard, roles: SEDE },
+  ] },
   { label: "Asistencia", items: [
     { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE },
     { href: "/admin/correcciones", label: "Correcciones", Icon: PencilLine, roles: SEDE },
     { href: "/admin/turnos", label: "Turnos", Icon: CalendarClock, roles: SEDE },
     { href: "/admin/horarios", label: "Horarios", Icon: Clock, roles: SEDE },
-    { href: "/admin/horas", label: "Horas", Icon: Hourglass },
+    { href: "/admin/horas", label: "Horas", Icon: Hourglass, roles: SEDE },
   ] },
   { label: "Personas", items: [
-    { href: "/admin/equipo", label: "Equipo", Icon: Users },
+    { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
