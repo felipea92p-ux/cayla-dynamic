@@ -153,6 +153,30 @@ export default function NormasPage() {
   // Todo lo que no es principal es anexo, sin lista escrita a mano: el día que
   // se publique un documento nuevo aparece aquí solo.
   const anexosVisibles = docs.filter((d) => !PRINCIPALES.includes(d.tipo));
+  /**
+   * Obedecer al «#doc-<id>» con el que llega quien viene del aviso de acuses
+   * pendientes.
+   *
+   * El aviso vive en `components/acuses-pendientes.tsx` y sale en todas las
+   * pantallas. Antes sus enlaces apuntaban a `/admin/normas` a secas: con dos
+   * constancias pendientes, los dos llevaban al mismo sitio y la persona tenía
+   * que buscar — y la segunda suele ser un anexo, que va plegado.
+   *
+   * Se espera a que `docs` esté cargado porque el elemento no existe hasta
+   * entonces, y se despliega el bloque de anexos si el documento está ahí: sin
+   * eso, abrirlo no se vería.
+   */
+  useEffect(() => {
+    if (cargando || docs.length === 0) return;
+    const id = window.location.hash.replace(/^#doc-/, "");
+    if (!id || id === window.location.hash) return;
+    const d = docs.find((x) => x.documento_id === id);
+    if (!d) return;
+    if (!PRINCIPALES.includes(d.tipo)) setVerAnexos(true);
+    setAbierto(id);
+    requestAnimationFrame(() =>
+      document.getElementById(`doc-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [cargando, docs]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -680,7 +704,8 @@ export default function NormasPage() {
           <div className="space-y-4">
             {docs.filter((d) => PRINCIPALES.includes(d.tipo)).map((d) => {
               return (
-                <div key={d.documento_id} className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+                <div key={d.documento_id} id={`doc-${d.documento_id}`}
+                  className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
                   <button
                     onClick={() => setAbierto(abierto === d.documento_id ? null : d.documento_id)}
                     className="flex w-full items-center justify-between gap-3 border-b bg-sand/50 px-4 py-3 text-left">
@@ -751,7 +776,7 @@ export default function NormasPage() {
                 </p>
                 <ul className="divide-y">
                   {anexosVisibles.map((a) => (
-                    <li key={a.documento_id} className="py-2">
+                    <li key={a.documento_id} id={`doc-${a.documento_id}`} className="py-2">
                       <button onClick={() => setAbierto(abierto === a.documento_id ? null : a.documento_id)}
                         className="flex w-full items-center justify-between gap-3 text-left text-sm">
                         <span>
