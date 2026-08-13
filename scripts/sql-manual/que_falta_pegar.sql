@@ -100,7 +100,8 @@ with repo(numero, nombre, nunca) as (values
     (235, 'la_segunda_suspension_cae_en_dias_habiles_y_no_se_pasa_del_tope', false),
     (236, 'un_concepto_en_cero_se_escribe_no_se_borra', false),
     (237, 'la_mitad_de_la_0213_que_produccion_nunca_recibio', false),
-    (238, 'un_dia_compensatorio_que_no_compensa_deja_de_entrar', false)
+    (238, 'un_dia_compensatorio_que_no_compensa_deja_de_entrar', false),
+    (239, 'la_hora_vale_lo_que_vale_el_mes_no_lo_que_dura_la_consulta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -211,8 +212,10 @@ select * from (
              when '2c368e0da180350dad2221012a0a4d57' then '✗ 0199 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'f61eca56c6d2017155c990a958ecd3a6' then '⚠ se quedó en la 0233 — falta pegar lo posterior'
              when 'f38d38f3b72f1a8aa85b8e9a79b20d28' then '✗ 0233 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '7d285ab4eb0cd8c1e5871b0eebaf78a2' then '0236 — al día con el repositorio'
+             when '7d285ab4eb0cd8c1e5871b0eebaf78a2' then '⚠ se quedó en la 0236 — falta pegar lo posterior'
              when '6124769053b350ff9c877b983275080a' then '✗ 0236 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '7d67ff3c1d769ebffc3de0af20ab83fe' then '0239 — al día con el repositorio'
+             when '6a920445e3fb7ca0fc4a79bf17c89374' then '✗ 0239 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
