@@ -3,52 +3,61 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
+import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 /**
- * «Lo mío» — lo que cada integrante ve de sí misma.
+ * «Lo mío» — lo que cada persona ve de sí misma.
  *
- * POR QUÉ ESTÁ FUERA DE /admin, Y NO ES UN CAPRICHO DE RUTAS
+ * POR QUÉ ESTÁ FUERA DE /admin
  *
- * El layout de `(admin)` no comprueba ningún rol: es un `<div>`. Cada pantalla
- * se defiende sola pidiendo sesión, pero ninguna pregunta QUIÉN eres. Meter aquí
- * a alguien con rol `integrante` dejaría alcanzables las 35 pantallas del panel,
- * y confiar en que las de abajo aguanten —RLS, guardas de las funciones— es
- * exactamente la suposición que este repositorio ha aprendido a medir en vez de
- * dar por buena. Auditar 35 pantallas cuesta; tener una sola no.
+ * El layout de `(admin)` no comprueba ningún rol: es un `<div>`. Cada pantalla se
+ * defiende sola pidiendo sesión, pero ninguna pregunta QUIÉN eres. Meter aquí a
+ * alguien con rol `integrante` dejaría alcanzables las 35 pantallas del panel, y
+ * confiar en que las capas de abajo aguanten es la suposición que este
+ * repositorio ha aprendido a medir en vez de dar por buena.
+ *
+ * ⚠ EL ERROR QUE ESTA PANTALLA YA COMETIÓ, Y QUE NO SE PUEDE REPETIR
+ *
+ * La primera versión (2026-08-12) no filtraba por persona: pedía `personas` con
+ * `.limit(1)` y las jornadas sin `persona_id`, dando por hecho que la RLS
+ * devolvería «lo suyo». Eso es cierto para una integrante y FALSO para todas las
+ * demás: a una encargada, `personas_select_supervisor` le devuelve su sede
+ * entera, y a DO, `personas_select_admin_lider` le devuelve a todo el mundo.
+ *
+ * Resultado medido en producción: Danitza —encargada— entró y la pantalla le
+ * mostró el nombre de Dayana y 148 días, 1098 horas y 9 de 150 tardanzas, que
+ * son la suma de medio equipo. No fue una fuga —esos datos ya los ve en el
+ * panel, es su trabajo— pero la pantalla mintió sobre DE QUIÉN eran, en la
+ * pantalla que se llama «lo mío».
+ *
+ * La regla que sale de ahí: SE FILTRA SIEMPRE POR `persona_id`, explícitamente,
+ * en cada consulta. La RLS es la red de abajo, nunca el mecanismo. Una consulta
+ * que depende de la RLS para acertar devuelve cosas distintas según quién
+ * pregunte, y eso no se ve hasta que alguien con más permisos la abre.
  *
  * QUÉ VE, Y QUÉ NO
  *
- * Sus días trabajados, sus horas, su promedio y sus tardanzas. Nada de dinero:
- * ni sueldo, ni boleta, ni el sobretiempo — decisión de Felipe (2026-08-11).
- *
- * En particular NO se muestra el «tiempo adicional» que sí sale en la pestaña
- * Desempeño del panel. Ese número son horas por encima del horario programado, y
- * NO es sobretiempo pagable: desde la 0185 el sobretiempo se mide contra 48 h
- * SEMANALES por ciclo, no contra la jornada del día. Enseñarle «6h 26m
- * adicionales» invita a leerlo como «me deben 6h 26m» y a reclamar sobre una
- * cifra que no significa eso.
- *
- * DE DÓNDE SALEN LOS DATOS
- *
- * De consultas normales, sin ninguna función nueva: las políticas
- * `jornadas_select_propia`, `tardj_select_propia` y `personas_select_propia`
- * existen desde la 0003 y la 0053, así que la base devuelve LO SUYO y nada más.
- * Si esta pantalla tuviera un fallo y pidiera el mes de otra persona, la
- * respuesta seguiría siendo vacía. La única pieza que hizo falta añadir fue la
- * lectura del calendario de periodos (0234).
+ * Sus días, sus horas, sus tardanzas y el detalle de cada día. Nada de dinero:
+ * ni sueldo, ni boleta, ni sobretiempo — decisión de Felipe (2026-08-11). En
+ * particular NO el «tiempo adicional» del panel: son horas por encima del
+ * horario programado y NO es sobretiempo pagable (desde la 0185 se mide contra
+ * 48 h SEMANALES por ciclo), así que enseñarlo invita a leerlo como «me deben
+ * estas horas».
  */
 
-interface Periodo {
+interface Yo {
   id: string;
-  fecha_ini: string;
-  fecha_fin: string;
-  estado: string;
+  nombre: string;
+  fechaIngreso: string | null;
 }
 
 interface Dia {
   fecha: string;
+  entrada_ts: string | null;
+  salida_final_ts: string | null;
   horas_trabajadas: number | null;
   minutos_tarde: number | null;
+  estado: string;
 }
 
 const MESES = [
@@ -56,7 +65,7 @@ const MESES = [
   "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre",
 ];
 
-/** «2026-07-29» → «29 de julio». Sin año: el año va en el encabezado del periodo. */
+/** «2026-07-29» → «29 de julio». */
 function diaYMes(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${Number(d)} de ${MESES[Number(m) - 1]}`;
@@ -68,18 +77,38 @@ function comoReloj(horas: number): string {
   return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
 }
 
+/** La hora de un marcaje, en Lima. Nunca `toLocaleTimeString` a secas: el huso
+ *  del navegador no es el que decide a qué día pertenece una marca. */
+function hora(iso: string | null): string {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true,
+  }).format(new Date(iso));
+}
+
+/** Hoy menos N días, en fecha de Lima. */
+function haceDias(n: number): string {
+  const [a, m, d] = hoyLima().split("-").map(Number);
+  const x = new Date(Date.UTC(a, m - 1, d));
+  x.setUTCDate(x.getUTCDate() - n);
+  return x.toISOString().slice(0, 10);
+}
+
 export default function MioPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [sesion, setSesion] = useState<boolean | null>(null);
-  const [nombre, setNombre] = useState<string>("");
-  const [periodos, setPeriodos] = useState<Periodo[]>([]);
-  const [cual, setCual] = useState(0); // 0 = el más reciente
+  const [yo, setYo] = useState<Yo | null>(null);
   const [dias, setDias] = useState<Dia[]>([]);
   const [perdonadas, setPerdonadas] = useState<Set<string>>(new Set());
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  // ── Entrar ────────────────────────────────────────────────────────────────
+  // El rango. Por defecto los últimos 30 días: es lo que se entiende por «el
+  // último mes» dicho en voz alta, y siempre incluye lo de esta semana — que es
+  // lo primero que alguien mira. El periodo de pago está a un botón.
+  const [desde, setDesde] = useState(haceDias(30));
+  const [hasta, setHasta] = useState(hoyLima());
+
   const [email, setEmail] = useState("");
   const [clave, setClave] = useState("");
   const [entrando, setEntrando] = useState(false);
@@ -95,74 +124,73 @@ export default function MioPage() {
     setErrorLogin(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password: clave });
     setEntrando(false);
-    if (error) {
-      setErrorLogin("Correo o contraseña incorrectos.");
-      return;
-    }
+    if (error) { setErrorLogin("Correo o contraseña incorrectos."); return; }
     setSesion(true);
   }
 
-  // ── Cargar ────────────────────────────────────────────────────────────────
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    setAviso(null);
-
-    // Su ficha. Por RLS esta consulta devuelve UNA fila: la suya.
-    const { data: yo, error: errYo } = await supabase
-      .from("personas")
-      .select("nombres, apellidos, fecha_ingreso")
-      .limit(1)
-      .maybeSingle();
-
-    if (errYo || !yo) {
-      // Pasa si la cuenta existe en Auth pero no está enlazada a una persona.
-      // Se dice, en vez de dejar la pantalla vacía pareciendo que no trabajó.
-      setAviso("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
-      setCargando(false);
-      return;
-    }
-    setNombre(`${yo.nombres} ${yo.apellidos}`);
-
-    // El calendario de pago, desde que entró. Nunca se calcula el 29 aquí: el
-    // CHECK de la 0025 admite periodos de 20 a 46 días, así que la regla del 29
-    // es costumbre, no garantía.
-    const { data: peris, error: errPer } = await supabase
-      .from("periodos_planilla")
-      .select("id, fecha_ini, fecha_fin, estado")
-      .gte("fecha_fin", yo.fecha_ingreso ?? "2000-01-01")
-      .order("fecha_ini", { ascending: false });
-
-    if (errPer || !peris?.length) {
-      setAviso("Todavía no hay periodos de pago cargados.");
-      setCargando(false);
-      return;
-    }
-    setPeriodos(peris as Periodo[]);
-    setCargando(false);
-  }, [supabase]);
-
-  useEffect(() => { if (sesion) void cargar(); }, [sesion, cargar]);
-
-  const periodo = periodos[cual];
-
+  // ── Quién soy ─────────────────────────────────────────────────────────────
+  // POR auth_user_id, no por «la primera fila que la RLS me deje ver». Ver el
+  // comentario de arriba: esa suposición fue el error de la primera versión.
   useEffect(() => {
-    if (!periodo) return;
+    if (!sesion) return;
     void (async () => {
-      setCargando(true);
-      const [{ data: js }, { data: perd }] = await Promise.all([
-        supabase.from("jornadas")
-          .select("fecha, horas_trabajadas, minutos_tarde")
-          .gte("fecha", periodo.fecha_ini).lte("fecha", periodo.fecha_fin)
-          .order("fecha"),
-        supabase.from("tardanzas_justificadas")
-          .select("fecha")
-          .gte("fecha", periodo.fecha_ini).lte("fecha", periodo.fecha_fin),
-      ]);
-      setDias((js as Dia[]) ?? []);
-      setPerdonadas(new Set(((perd as { fecha: string }[]) ?? []).map((t) => t.fecha)));
-      setCargando(false);
+      const { data: sesionAuth } = await supabase.auth.getUser();
+      const uid = sesionAuth.user?.id;
+      if (!uid) { setAviso("No se pudo leer tu sesión. Vuelve a entrar."); return; }
+
+      const { data: p } = await supabase
+        .from("personas")
+        .select("id, nombres, apellidos, fecha_ingreso")
+        .eq("auth_user_id", uid)
+        .maybeSingle();
+
+      if (!p) {
+        setAviso("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
+        return;
+      }
+      setYo({
+        id: p.id as string,
+        nombre: `${p.nombres as string} ${p.apellidos as string}`,
+        fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
+      });
     })();
-  }, [supabase, periodo]);
+  }, [supabase, sesion]);
+
+  // ── Sus días ──────────────────────────────────────────────────────────────
+  const cargar = useCallback(async () => {
+    if (!yo) return;
+    setCargando(true);
+    const [{ data: js }, { data: perd }] = await Promise.all([
+      supabase.from("jornadas")
+        .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, estado")
+        .eq("persona_id", yo.id)          // ← explícito. La RLS es la red, no el filtro.
+        .gte("fecha", desde).lte("fecha", hasta)
+        .order("fecha"),
+      supabase.from("tardanzas_justificadas")
+        .select("fecha")
+        .eq("persona_id", yo.id)
+        .gte("fecha", desde).lte("fecha", hasta),
+    ]);
+    setDias((js as Dia[]) ?? []);
+    setPerdonadas(new Set(((perd as { fecha: string }[]) ?? []).map((t) => t.fecha)));
+    setCargando(false);
+  }, [supabase, yo, desde, hasta]);
+
+  useEffect(() => { void cargar(); }, [cargar]);
+
+  /** El periodo de pago en curso, para el botón. Del 29 al 28 — leído, no calculado. */
+  async function irAlPeriodoDePago() {
+    const hoy = hoyLima();
+    const { data } = await supabase
+      .from("periodos_planilla")
+      .select("fecha_ini, fecha_fin")
+      .lte("fecha_ini", hoy).gte("fecha_fin", hoy)
+      .maybeSingle();
+    if (!data) { setAviso("No hay un periodo de pago abierto para hoy."); return; }
+    setAviso(null);
+    setDesde(data.fecha_ini as string);
+    setHasta(data.fecha_fin as string);
+  }
 
   const resumen = useMemo(() => {
     // Un día de más de 24 h es un AGREGADO del histórico de 2025 —un mes entero
@@ -170,15 +198,14 @@ export default function MioPage() {
     // al gráfico, que si no daría una barra imposible y un promedio absurdo.
     const reales = dias.filter((d) => (d.horas_trabajadas ?? 0) <= 24);
     const trabajados = reales.filter((d) => (d.horas_trabajadas ?? 0) > 0);
-    const total = dias.reduce((s, d) => s + (d.horas_trabajadas ?? 0), 0);
     const horasReales = reales.reduce((s, d) => s + (d.horas_trabajadas ?? 0), 0);
     return {
       reales,
-      total,
+      total: dias.reduce((s, d) => s + (d.horas_trabajadas ?? 0), 0),
       trabajados: trabajados.length,
       promedio: trabajados.length ? horasReales / trabajados.length : 0,
-      // Una tardanza perdonada NO cuenta: si el sistema se la levantó, la persona
-      // no tiene por qué seguir viéndola en su marcador.
+      // Una tardanza perdonada NO cuenta: si la encargada se la levantó, no tiene
+      // por qué seguir viéndola en su marcador.
       tardanzas: dias.filter((d) => (d.minutos_tarde ?? 0) > 0 && !perdonadas.has(d.fecha)).length,
       medidos: dias.filter((d) => d.minutos_tarde !== null).length,
     };
@@ -186,7 +213,6 @@ export default function MioPage() {
 
   const maxHoras = Math.max(8, ...resumen.reales.map((d) => d.horas_trabajadas ?? 0));
 
-  // ── Pantallas ─────────────────────────────────────────────────────────────
   if (sesion === null) {
     return <main className="flex min-h-screen items-center justify-center bg-crema text-taupe">Un momento…</main>;
   }
@@ -220,12 +246,12 @@ export default function MioPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-2xl bg-crema px-5 py-8 text-tinta">
+    <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Colibri tono="rojo" className="w-8" />
           <div>
-            <h1 className="font-serif text-2xl leading-tight">{nombre || "Lo mío"}</h1>
+            <h1 className="font-serif text-2xl leading-tight">{yo?.nombre ?? "Lo mío"}</h1>
             <p className="etiqueta text-taupe">Tus días y tus horas</p>
           </div>
         </div>
@@ -233,74 +259,121 @@ export default function MioPage() {
           className="text-xs text-taupe underline">Salir</button>
       </header>
 
-      {aviso && (
-        <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>
-      )}
+      {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
 
-      {periodo && (
-        <>
-          {/* El periodo, escrito en palabras. «29 de julio al 28 de agosto» dice
-              lo que «01/08 – 31/08» no diría: que el mes de pago no es el mes del
-              calendario, que es la primera pregunta de todo el mundo. */}
-          <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-sand px-4 py-3">
-            <button onClick={() => setCual((c) => Math.min(c + 1, periodos.length - 1))}
-              disabled={cual >= periodos.length - 1}
-              className="text-sm text-taupe disabled:opacity-30" aria-label="Periodo anterior">←</button>
-            <div className="text-center">
-              <div className="text-sm font-medium">
-                Del {diaYMes(periodo.fecha_ini)} al {diaYMes(periodo.fecha_fin)}
-              </div>
-              <div className="etiqueta text-taupe">
-                {periodo.estado === "pagado" ? "ya pagado" : "en curso"}
-              </div>
-            </div>
-            <button onClick={() => setCual((c) => Math.max(c - 1, 0))} disabled={cual === 0}
-              className="text-sm text-taupe disabled:opacity-30" aria-label="Periodo siguiente">→</button>
-          </div>
+      {/* ── El filtro ────────────────────────────────────────────────────────
+          Abre en los últimos 30 días. El botón del periodo de pago está porque es
+          el tramo con el que se le paga —del 29 al 28, leído de la base y nunca
+          calculado— y es contra el que va a querer cuadrar su boleta. */}
+      <section className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
+        <label className="flex flex-col gap-1 text-xs text-taupe">Desde
+          <input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)}
+            className="rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm text-tinta" />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-taupe">Hasta
+          <input type="date" value={hasta} min={desde} max={hoyLima()} onChange={(e) => setHasta(e.target.value)}
+            className="rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm text-tinta" />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => { setDesde(haceDias(30)); setHasta(hoyLima()); }}
+            className="rounded-lg border border-sand px-3 py-1.5 text-xs">Últimos 30 días</button>
+          <button onClick={() => void irAlPeriodoDePago()}
+            className="rounded-lg border border-sand px-3 py-1.5 text-xs">Periodo de pago</button>
+        </div>
+      </section>
 
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Tarjeta titulo="Días trabajados" valor={String(resumen.trabajados)} />
-            <Tarjeta titulo="Total de horas" valor={comoReloj(resumen.total)} />
-            <Tarjeta titulo="Promedio por día" valor={comoReloj(resumen.promedio)} />
-            {/* «de N medidos» y no un número suelto: un cero puede significar
-                «llegaste puntual» o «no había horario que comparar», y no es lo
-                mismo. El panel lo dice así desde siempre. */}
-            <Tarjeta titulo="Tardanzas" valor={`${resumen.tardanzas} de ${resumen.medidos}`} />
-          </div>
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Tarjeta titulo="Días trabajados" valor={String(resumen.trabajados)} />
+        <Tarjeta titulo="Total de horas" valor={comoReloj(resumen.total)} />
+        <Tarjeta titulo="Promedio por día" valor={comoReloj(resumen.promedio)} />
+        {/* «de N medidos» y no un número suelto: un cero puede significar
+            «llegaste puntual» o «no había horario que comparar». */}
+        <Tarjeta titulo="Tardanzas" valor={`${resumen.tardanzas} de ${resumen.medidos}`} />
+      </div>
 
-          <section className="rounded-2xl border border-sand p-5">
-            <h2 className="mb-4 font-serif text-lg">Horas por día</h2>
-            {cargando ? (
-              <p className="text-sm text-taupe">Cargando…</p>
-            ) : resumen.reales.length === 0 ? (
-              <p className="text-sm text-taupe">No hay días marcados en este periodo.</p>
-            ) : (
-              <ul className="flex items-end gap-1 overflow-x-auto pb-2" style={{ height: 180 }}>
-                {resumen.reales.map((d) => {
-                  const h = d.horas_trabajadas ?? 0;
-                  const tarde = (d.minutos_tarde ?? 0) > 0 && !perdonadas.has(d.fecha);
+      <section className="mb-6 rounded-2xl border border-sand p-5">
+        <h2 className="mb-4 font-serif text-lg">Horas por día</h2>
+        {cargando ? <p className="text-sm text-taupe">Cargando…</p>
+          : resumen.reales.length === 0 ? <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
+          : (
+            <ul className="flex items-end gap-1 overflow-x-auto pb-2" style={{ height: 180 }}>
+              {resumen.reales.map((d) => {
+                const h = d.horas_trabajadas ?? 0;
+                const tarde = (d.minutos_tarde ?? 0) > 0 && !perdonadas.has(d.fecha);
+                return (
+                  <li key={d.fecha} className="flex min-w-6 flex-1 flex-col items-center justify-end gap-1"
+                    title={`${diaYMes(d.fecha)} · ${comoReloj(h)}${tarde ? " · llegaste tarde" : ""}`}>
+                    <div className={`w-full rounded-t ${tarde ? "bg-ambar" : "bg-verde"}`}
+                      style={{ height: `${Math.max(2, (h / maxHoras) * 140)}px` }} />
+                    <span className="text-[10px] text-taupe">{d.fecha.slice(8)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        <p className="mt-3 text-xs text-taupe">
+          En ámbar, los días en que llegaste tarde. Si tu encargada te levantó una tardanza, deja de contar acá.
+        </p>
+      </section>
+
+      {/* ── El desglose ──────────────────────────────────────────────────────
+          Solo los días con marcaje. Un día de descanso o un feriado no tienen por
+          qué ocupar una fila vacía en una pantalla que se mira en el teléfono. */}
+      <section className="rounded-2xl border border-sand p-5">
+        <h2 className="mb-4 font-serif text-lg">Día por día</h2>
+        {dias.length === 0 ? (
+          <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-sand text-left">
+                  <th className="etiqueta pb-2 font-normal text-taupe">Día</th>
+                  <th className="etiqueta pb-2 font-normal text-taupe">Entrada</th>
+                  <th className="etiqueta pb-2 font-normal text-taupe">Salida</th>
+                  <th className="etiqueta pb-2 font-normal text-taupe">Tardanza</th>
+                  <th className="etiqueta pb-2 text-right font-normal text-taupe">Horas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...dias].reverse().map((d) => {
+                  const tarde = (d.minutos_tarde ?? 0) > 0;
+                  const perdonada = perdonadas.has(d.fecha);
+                  const laPusoElSistema = d.estado === "auto_cerrada_pendiente";
                   return (
-                    <li key={d.fecha} className="flex min-w-6 flex-1 flex-col items-center justify-end gap-1"
-                      title={`${diaYMes(d.fecha)} · ${comoReloj(h)}${tarde ? " · llegaste tarde" : ""}`}>
-                      <div className={`w-full rounded-t ${tarde ? "bg-ambar" : "bg-verde"}`}
-                        style={{ height: `${Math.max(2, (h / maxHoras) * 140)}px` }} />
-                      <span className="text-[10px] text-taupe">{d.fecha.slice(8)}</span>
-                    </li>
+                    <tr key={d.fecha} className="border-b border-sand/60">
+                      <td className="py-2">{diaYMes(d.fecha)}</td>
+                      <td className="py-2">{hora(d.entrada_ts)}</td>
+                      <td className="py-2">
+                        {hora(d.salida_final_ts)}
+                        {/* Esa hora NO la marcó ella: la inventó el auto-cierre porque
+                            olvidó marcar. Es justo la que conviene que revise, así que
+                            se dice en vez de dejarla pasar por buena. */}
+                        {laPusoElSistema && (
+                          <span className="ml-2 rounded-full bg-ambar/15 px-2 py-0.5 text-[10px] text-ambar">
+                            la puso el sistema
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2">
+                        {!tarde ? <span className="text-taupe">—</span>
+                          : perdonada ? <span className="text-taupe line-through">{d.minutos_tarde} min</span>
+                          : <span className="text-ambar">{d.minutos_tarde} min</span>}
+                      </td>
+                      <td className="py-2 text-right">{comoReloj(d.horas_trabajadas ?? 0)}</td>
+                    </tr>
                   );
                 })}
-              </ul>
-            )}
-            <p className="mt-3 text-xs text-taupe">
-              En ámbar, los días en que llegaste tarde. Si tu encargada te levantó una tardanza, deja de contar acá.
-            </p>
-          </section>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
-          <p className="mt-6 text-xs text-taupe">
-            Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo
-            que ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
-          </p>
-        </>
-      )}
+      <p className="mt-6 text-xs text-taupe">
+        Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo que
+        ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
+      </p>
     </main>
   );
 }
