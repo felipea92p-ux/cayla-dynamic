@@ -17,10 +17,13 @@
 --       exigía seguir vigente el ÚLTIMO día del periodo. Ahora cobra el mes
 --       completo.
 --
---   D · Delia se matricula el 10 de junio, con el periodo ya empezado. Cobra
---       S/0 en junio y empieza en julio. Es el borde que la regla «vigente al
---       iniciar» deja abierto A PROPÓSITO, y esta prueba lo fija para que no
---       cambie por accidente: si mañana se decide pagarlo, hay que venir acá.
+--   D · Delia se matricula el 10 de junio, con el periodo ya empezado. Cobraba
+--       S/0 en junio y empezaba en julio: era el borde que la regla «vigente al
+--       iniciar» dejaba abierto a propósito. **La 0233 lo cerró** —ese borde
+--       resultó ser el caso normal, porque el periodo empieza el 29 del mes
+--       anterior y DO registra con fecha del día 1— y ahora Delia cobra junio.
+--       La prueba 176 fija la regla nueva entera, con el caso de la renovación
+--       que la hace distinta de «cambiar p_ini por p_fin».
 --
 -- Rango aurora en las cuatro: techo S/360, así que S/300 cabe y nada choca con
 -- el candado de la 0149.
@@ -124,12 +127,12 @@ select is(
   'CICLO CORTO · Carla termina el 15 y cobra el mes completo: ya pago esa pension');
 
 
--- ── D · El borde que se deja abierto a proposito ───────────────────────────
+-- ── D · La matricula a mitad de periodo ya cobra (CAMBIO 0233) ─────────────
 select is(
   (select (fila->>'monto_educacion')::numeric from _jun
     where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-00000000efa4'),
-  0.00::numeric,
-  'MATRICULA TARDIA · Delia empieza el 10 y NO cobra junio (regla: vigente al iniciar)');
+  150.00::numeric,
+  'MATRICULA TARDIA · Delia empieza el 10 y cobra junio completo (regla: dia de referencia)');
 
 
 -- ── Julio: la vigencia manda en los dos sentidos ───────────────────────────
@@ -147,7 +150,7 @@ select is(
   (select (fila->>'monto_educacion')::numeric from _jul
     where (fila->>'persona_id')::uuid = '00000000-0000-0000-0000-00000000efa4'),
   150.00::numeric,
-  'MATRICULA TARDIA · y empieza a cobrar en julio, el primer periodo que la encuentra vigente');
+  'MATRICULA TARDIA · y en julio sigue cobrando, con la vigencia ya cubriendo el mes entero');
 
 
 -- ── El candado no es un rechazo permanente: llega el papel y paga ──────────
