@@ -8,6 +8,7 @@ import {
   type SiguienteAccion,
 } from "@cayla-dynamic/shared";
 import { obtenerPendientes } from "./offline-db";
+import { marcasDeLaJornadaEnCurso } from "./jornada-en-curso";
 import { topeDeRed } from "./tope-de-red";
 
 /**
@@ -34,6 +35,13 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
     // final de hoy para reabrir». El servidor sí filtra por fecha exacta; era
     // esta copia la que difería.
     const { inicio: inicioDia, fin: finDia } = rangoDelDiaLima();
+    // DESDE AYER, no desde hoy (0240). Quien cierra tienda a las 00:30 sigue
+    // dentro de la jornada del día anterior, y el terminal tiene que saberlo
+    // para ofrecerle SALIR en vez de entrar. Se trae el rango ampliado y luego
+    // `marcasDeLaJornadaEnCurso` decide cuál de los dos días manda — pasarle los
+    // dos juntos a la máquina de estados le haría decir «ya registraste tu
+    // salida» a quien ayer cerró normal y hoy llega por la mañana.
+    const inicioAyer = new Date(new Date(inicioDia).getTime() - 24 * 60 * 60 * 1000).toISOString();
     // Con tope y dentro de un try: esta consulta corre en el arranque y en cada
     // refresco, y sin tope una red colgada dejaba a `cargarTodo()` esperando para
     // siempre. Aquí el respaldo es no traer nada del servidor y quedarse con lo
@@ -55,17 +63,31 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
         // La 0082 arregló esto en fn_siguiente_tipo_esperado, pero el terminal
         // decide en el navegador con determinarSiguienteAccion, y esa es otra copia.
         .is("anulada_at", null)
-        .gte("timestamp_marca", inicioDia)
+        .gte("timestamp_marca", inicioAyer)
         .lte("timestamp_marca", finDia);
       data = res.data as unknown as FilaMarcaje[];
     } catch {
       data = null;
     }
 
+    // Se separan por día ANTES de decidir. `fechaLima` y no el huso del
+    // navegador: el corte del día es el de Lima, y esa respuesta tiene un solo
+    // sitio (fecha-lima.ts).
+    const hoyStr = fechaLimaHoy();
+    const porPersonaAyer = new Map<string, MarcajeDelDia[]>();
+    const porPersonaHoy = new Map<string, MarcajeDelDia[]>();
     for (const m of data ?? []) {
-      const lista = mapa.get(m.persona_id) ?? [];
+      const destino = fechaLima(m.timestamp_marca) === hoyStr ? porPersonaHoy : porPersonaAyer;
+      const lista = destino.get(m.persona_id) ?? [];
       lista.push({ tipo: m.tipo, timestamp: m.timestamp_marca });
-      mapa.set(m.persona_id, lista);
+      destino.set(m.persona_id, lista);
+    }
+    for (const personaId of new Set([...porPersonaAyer.keys(), ...porPersonaHoy.keys()])) {
+      const enCurso = marcasDeLaJornadaEnCurso(
+        porPersonaAyer.get(personaId) ?? [],
+        porPersonaHoy.get(personaId) ?? [],
+      );
+      if (enCurso.length > 0) mapa.set(personaId, enCurso);
     }
   }
 
