@@ -1,0 +1,22 @@
+# Migraciones que están en el repo y NUNCA se van a aplicar.
+#
+# No es lo mismo que `huecos-conocidos.txt`. Allí van los NÚMEROS que faltan en
+# supabase/migrations. Aquí van los ARCHIVOS que existen y que producción no va
+# a recibir jamás, porque algo posterior los dejó imposibles o los sustituyó.
+#
+# POR QUÉ HACE FALTA ESTA LISTA. La consulta que genera
+# `./scripts/que-falta-pegar.sh` marcaría esos archivos como «❌ FALTA PEGAR»
+# en cada ejecución, para siempre. Un resumen que sale en rojo aunque todo esté
+# bien enseña a no mirarlo, y el día que falte una migración de verdad nadie la
+# va a ver. Es la misma razón por la que existe `huecos-conocidos.txt`.
+#
+# LO QUE ESTA LISTA NO HACE: no anota nada en `migraciones_aplicadas`. El
+# registro de producción tiene que seguir diciendo la verdad — que ese número no
+# se aplicó — porque es lo único que se puede consultar para saber qué hay
+# realmente en la base. Acá solo se explica por qué está bien que falte.
+#
+# PARA AGREGAR UNA: el número, y por qué no se puede o no se debe pegar. La
+# razón es el punto: un número suelto solo mueve el problema de sitio. Y si lo
+# que la sustituye es otra migración, dilo con su número.
+
+0213  Su `fn_tardanza_escalon` devuelve cinco columnas y la viva devuelve seis desde la 0232. Postgres se niega con «cannot change return type of existing function» y aborta la migración ENTERA, así que tampoco entraría su otra mitad. Forzarlo soltando la función primero devolvería la escalera de tres peldaños y desharía la 0232. La mitad que producción necesitaba —`fn_expediente_generar_falta`— llegó por la 0237. La mitad de tardanzas quedó cubierta por la 0232, que reescribió esa misma función. Nada de la 0213 falta hoy en producción; lo que falta es su FILA, y se deja faltar a propósito.

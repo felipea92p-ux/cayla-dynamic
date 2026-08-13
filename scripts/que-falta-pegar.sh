@@ -61,8 +61,25 @@ if [ -z "$(listar)" ]; then
   exit 2
 fi
 
+# Las que están en el repo y NUNCA se van a aplicar, con su razón. Sin esto,
+# la consulta las marcaría «FALTA PEGAR» en cada ejecución, para siempre — y un
+# resumen que sale en rojo aunque todo esté bien enseña a no mirarlo. Es la
+# misma razón por la que existe `huecos-conocidos.txt`.
+NO_SE_PEGAN="$(dirname "$0")/hooks/no-se-pegan.txt"
+nunca() {
+  [ -f "$NO_SE_PEGAN" ] || return 0
+  grep -E '^[0-9]+' "$NO_SE_PEGAN" | awk '{print $1 + 0}'
+}
+
 con_nombre() {
-  listar | sed -E "s/^0*([0-9]+)_(.*)\.sql$/    (\1, '\2'),/" | sed '$ s/,$//'
+  local excluidas
+  excluidas="$(nunca | tr '\n' ' ')"
+  listar | sed -E "s/^0*([0-9]+)_(.*)\.sql$/\1|\2/" | while IFS='|' read -r n nom; do
+    case " $excluidas " in
+      *" $n "*) echo "    ($n, '$nom', true)," ;;
+      *)        echo "    ($n, '$nom', false)," ;;
+    esac
+  done | sed '$ s/,$//'
 }
 
 # ── El catálogo de versiones de fn_planilla_calcular, CALCULADO ──────────────
@@ -169,13 +186,18 @@ cat <<'CAB'
 --   filas miran el cuerpo real de la función y no el registro.
 -- ============================================================================
 
-with repo(numero, nombre) as (values
+with repo(numero, nombre, nunca) as (values
 CAB
 con_nombre
 cat <<'PIE'
 ),
 diff as (
-  select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
+  -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
+  -- y no cuentan como pendientes.
+  select r.numero, r.nombre, r.nunca,
+         (a.numero is null and not r.nunca) as falta,
+         (a.numero is null and r.nunca)     as nunca_ira,
+         a.aplicada_at
   from repo r
   left join migraciones_aplicadas a on a.numero = r.numero
 )
@@ -183,7 +205,9 @@ select * from (
   -- Una fila por migración.
   select d.numero::text                        as num,
          d.nombre                              as que,
-         case when d.falta then '❌  FALTA PEGAR' else '✓   aplicada' end as estado,
+         case when d.falta     then '❌  FALTA PEGAR'
+              when d.nunca_ira then '—   no se pega (ver scripts/hooks/no-se-pegan.txt)'
+              else                  '✓   aplicada' end as estado,
          to_char(d.aplicada_at, 'DD/MM/YYYY')  as cuando,
          d.numero                              as orden
   from diff d
@@ -195,7 +219,8 @@ select * from (
   union all
   select 'RESUMEN',
          (select count(*) filter (where falta) from diff)::text || ' faltan · ' ||
-         (select count(*) filter (where not falta) from diff)::text || ' aplicadas · ' ||
+         (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
+         (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
          (select count(*) from diff)::text || ' en el repo',
          case when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
