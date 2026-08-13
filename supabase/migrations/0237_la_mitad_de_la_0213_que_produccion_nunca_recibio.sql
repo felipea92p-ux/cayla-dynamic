@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0235_la_mitad_de_la_0213_que_produccion_nunca_recibio.sql
+-- 0237_la_mitad_de_la_0213_que_produccion_nunca_recibio.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que el motor de FALTAS deje de agravar con documentos que nunca se
@@ -159,7 +159,7 @@ grant execute on function public.fn_expediente_generar_falta(uuid) to authentica
 revoke execute on function public.fn_expediente_generar_falta(uuid) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (235, 'la_mitad_de_la_0213_que_produccion_nunca_recibio')
+values (237, 'la_mitad_de_la_0213_que_produccion_nunca_recibio')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
