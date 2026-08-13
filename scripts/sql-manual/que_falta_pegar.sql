@@ -97,9 +97,9 @@ with repo(numero, nombre) as (values
     (232, 'la_escalera_de_tardanzas_recupera_su_cuarto_escalon'),
     (233, 'la_educacion_se_paga_por_el_dia_en_que_empieza'),
     (234, 'cada_quien_puede_saber_en_que_periodo_esta'),
-    (235, 'la_mitad_de_la_0213_que_produccion_nunca_recibio'),
     (235, 'la_segunda_suspension_cae_en_dias_habiles_y_no_se_pasa_del_tope'),
-    (236, 'un_concepto_en_cero_se_escribe_no_se_borra')
+    (236, 'un_concepto_en_cero_se_escribe_no_se_borra'),
+    (237, 'la_mitad_de_la_0213_que_produccion_nunca_recibio')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
