@@ -108,6 +108,22 @@ from (values
   ('00000000-0000-0000-0000-00000000e2a6', 0)
 ) as v(p, d);
 
+-- Horario para quien va a recibir una suspensión.
+--
+-- Hace falta desde la 0235: la suspensión se fija en DÍAS LABORABLES —el 54.5
+-- prohíbe ponerla sobre descansos— y sin horario no se sabe cuáles son. En
+-- producción no puede faltar, porque «sin horario» es una de las exclusiones
+-- que se aplican ANTES de contar tardanzas: quien no lo tiene no llega nunca a
+-- una suspensión. Era la semilla la que no era realista.
+insert into horarios_asignados
+  (persona_id, vigente_desde, hora_entrada, hora_salida, almuerzo_min_minutos,
+   almuerzo_max_minutos, dias_laborables, horas_semana_objetivo, horario_por_dia)
+values ('00000000-0000-0000-0000-00000000e2a3', '2020-01-01', '09:00', '18:00', 60, 60,
+        array[1,2,3,4,5,6], 45,
+        '{"1":{"e":"09:00","s":"18:00","r":60},"2":{"e":"09:00","s":"18:00","r":60},
+          "3":{"e":"09:00","s":"18:00","r":60},"4":{"e":"09:00","s":"18:00","r":60},
+          "5":{"e":"09:00","s":"18:00","r":60},"6":{"e":"09:00","s":"18:00","r":60}}'::jsonb);
+
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000e209', true);
 
 -- Atajo: el `umbral` que devuelve el semáforo para una persona en una fecha de
