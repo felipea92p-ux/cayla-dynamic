@@ -30,7 +30,7 @@
 --   usan una sola tardanza en el inicio de mes — que siempre es <= hoy.
 -- ============================================================================
 begin;
-select plan(11);
+select plan(12);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-00000000e200', 'ZZESC', 'Sede de laboratorio', true);
@@ -139,10 +139,19 @@ select is(pg_temp.umbral_de('00000000-0000-0000-0000-00000000e2a2', date_trunc('
           'suspension',
           'Tras amonestación, con 2 corresponde suspensión — y el semáforo lo dice');
 
--- ── 6 · EL CASO. Tras una suspensión, UNA tardanza es el umbral ────────────
+-- ── 6 · EL CASO. Tras UNA suspensión toca la SEGUNDA, no la imputación ─────
+--
+-- Esta prueba decía «corresponde imputación», y era el defecto escrito como si
+-- fuera la regla. El artículo 19.2 del Reglamento tiene CUATRO escalones y el
+-- literal d) es una segunda suspensión, de mayor duración que la primera.
+--
+-- No es un matiz de forma: el literal h) del artículo 25 de la LPCL exige
+-- «amonestaciones escritas y SUSPENSIONES» en plural para despedir por
+-- impuntualidad reiterada. Con una sola suspensión en el legajo, la imputación
+-- que este semáforo proponía no tenía con qué sostenerse. Corregido en la 0232.
 select is(pg_temp.umbral_de('00000000-0000-0000-0000-00000000e2a3', date_trunc('month', fn_hoy_lima())::date),
-          'imputacion',
-          'Tras suspensión, UNA tardanza corresponde imputación — antes el semáforo no lo mostraba');
+          'suspension',
+          'Tras UNA suspensión, una tardanza corresponde la SEGUNDA suspensión (19.2 d)');
 
 -- ── 7 · Con imputación vigente el sistema se aparta ────────────────────────
 select is(pg_temp.umbral_de('00000000-0000-0000-0000-00000000e2a4', date_trunc('month', fn_hoy_lima())::date),
@@ -172,8 +181,18 @@ create temp table _generado as
 
 select is(
   (select nivel from expediente_disciplinario where id = (select id from _generado)),
-  'imputacion',
-  'El generador acepta con 1 tardanza tras suspensión — el mismo umbral que ahora muestra el semáforo');
+  'suspension',
+  'El generador crea la SEGUNDA suspensión, no una imputación (19.2 d)');
+
+-- Y la crea MÁS LARGA que la primera. El generador ponía un día a toda
+-- suspensión, escrito literal, así que una segunda habría incumplido el
+-- numeral 19.2 d) en el documento que lo invoca.
+select ok(
+  (select suspension_dias from expediente_disciplinario where id = (select id from _generado))
+    > (select suspension_dias from expediente_disciplinario
+        where persona_id = '00000000-0000-0000-0000-00000000e2a3'
+          and nivel = 'suspension' and estado = 'entregado'),
+  'La segunda suspensión dura más que la primera (19.2 d), dentro del tope de tres del 54.5');
 
 select throws_ok(
   $$ select fn_expediente_generar_tardanza('00000000-0000-0000-0000-00000000e2a4') $$,
