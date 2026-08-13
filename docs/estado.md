@@ -37,6 +37,56 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-13 — el expediente de Mateo, y la 0213 que ya no se puede pegar
+
+**LO ÚNICO CON FECHA.** Hay una imputación de cargos **entregada y abierta**
+(T-03/0001-2026-CAYLA, entregada el 10-ago). Su plazo de descargo vence el
+**domingo 16**; se pidió al laboralista respuesta para el **lunes 17**.
+
+Se emitió **saltándose el escalón d) del art. 19.2 del RIT** — la segunda
+suspensión. El defecto era del generador, que tenía tres peldaños en vez de
+cuatro; lo corrigió la 0232 y ya está en producción, pero el papel entregado
+salió con la versión anterior.
+
+Y leyendo el Reglamento apareció algo mayor: el **art. 19.3** exige dos días
+hábiles de descargo **antes** de imponer la medida, con el documento retenido en
+borrador — y advierte que su omisión «invalida la medida, que en tal caso no se
+computa como antecedente ni sirve de peldaño». Si el orden importa, no afecta
+solo al último escalón.
+
+Las dos preguntas están escritas para enviarse en
+[`disciplina-tardanzas-faltas/10-consulta-al-laboralista.md`](disciplina-tardanzas-faltas/10-consulta-al-laboralista.md),
+y lo que hay que mirar cuando llegue el descargo, en el
+[`09`](disciplina-tardanzas-faltas/09-evaluar-un-descargo.md).
+
+**Lo investigado, para no repetirlo:** la ley (art. 25 h) usa el plural
+«amonestaciones escritas y suspensiones» pero **no fija un número**. Lo que
+obliga a dos es el RIT propio, que es más estricto a propósito — y el empleador
+queda obligado por el reglamento que aprobó.
+
+**⚠️ LA 0213 NO SE PUEDE PEGAR, NUNCA MÁS.** Comprobado ejecutándola: su
+`fn_tardanza_escalon` devuelve cinco columnas y la viva devuelve seis, así que
+Postgres aborta con «cannot change return type of existing function» y no entra
+nada. Su mitad útil —`fn_expediente_generar_falta`— entró por la **0237**. El
+número 213 sigue sin anotar en `migraciones_aplicadas` **a propósito**: no se
+aplicó y el registro tiene que seguir diciéndolo.
+
+**El reloj de las Mac mini ya no es un punto ciego** (0230). Medido en
+producción: **4 segundos** de desfase máximo en siete días, latencia de red
+incluida. El umbral de aviso está en 120 s, treinta veces por encima. Es seguro,
+no reparación.
+
+**Y una regla de método que costó tres errores en una sola sesión:** grepear una
+cadena en el cuerpo de una función NO mide la regla. `suspension_previa_dias`
+vive en el `returns table(...)`, que no forma parte de `prosrc`; `sueldo_fijo` se
+comprueba un nivel más abajo, en `fn_expediente_crear_borrador`; y
+`fn_auto_cierre` mira el periodo pagado a través de un helper. Las tres veces la
+respuesta correcta salió de preguntarle a la base qué hace —`pg_get_function_result`,
+llamar la función, reproducir el caso— y no de buscar un texto.
+
+
+---
+
 ## 2026-08-10 — un terminal sin dueño, y un diseño de plata que se cayó al medirlo
 
 ### El terminal ya no puede quedarse sin dueño ([`0202`](../supabase/migrations/0202_un_terminal_activo_sin_dueno_deja_de_poder_existir.sql))
@@ -171,8 +221,6 @@ cero filas). **No urge:** medido en producción, nadie está hoy en ese estado.
   comprueba que la persona esté activa». **Es falso** en la versión vigente — ni
   esa ni `fn_set_horario_semanal` miran `personas.estado`. Es justo la frase que
   haría no poner un freno creyéndolo puesto.
-
----
 
 ## 2026-08-10 — regenerar `types.ts` ya no es solo reordenar
 
