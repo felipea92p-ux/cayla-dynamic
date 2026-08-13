@@ -96,7 +96,8 @@ with repo(numero, nombre) as (values
     (231, 'marcar_despues_del_contrato_deja_de_pasar_en_silencio'),
     (232, 'la_escalera_de_tardanzas_recupera_su_cuarto_escalon'),
     (233, 'la_educacion_se_paga_por_el_dia_en_que_empieza'),
-    (234, 'cada_quien_puede_saber_en_que_periodo_esta')
+    (234, 'cada_quien_puede_saber_en_que_periodo_esta'),
+    (235, 'la_segunda_suspension_cae_en_dias_habiles_y_no_se_pasa_del_tope')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
