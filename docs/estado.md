@@ -859,28 +859,150 @@ inflado con la seguridad de una máquina.
 **Nadie cobró de menos.** Todo lo encontrado es dinero de más, de personas que ya
 no están.
 
-### A.2.c · No hay ni un CUSPP cargado, y este archivo daba a entender lo contrario
+### A.2.c · Los CUSPP ya están cargados — quedan dos, y dos falsos positivos
 
-Medido en producción el **2026-08-10**: la columna existe —la 0198 está pegada—
-y está **vacía de punta a punta**. Cero fichas. Este archivo decía que el campo
-«se está llenando ahora»; no ha empezado.
+**Resuelto el 2026-08-13.** La columna estaba vacía de punta a punta el
+2026-08-10; hoy tiene **15 códigos**, cargados desde la hoja del contador
+(«072026 Planilla CAYLA Felipe.xlsx») con
+`scripts/sql-manual/ficha_cuspp_2026-08-13.sql` — fuera de git, lleva DNI.
 
-**Por qué importa.** El CUSPP es el identificador de la persona dentro del
+**Por qué importaba.** El CUSPP es el identificador de la persona dentro del
 sistema privado de pensiones: es lo que permite que el aporte declarado llegue a
-**su** cuenta individual y no se quede sin atribuir. El aviso de la propia
-pantalla ya lo dice — *«el aporte se declara pero puede no llegar a su cuenta»*.
+**su** cuenta individual y no se quede sin atribuir.
 
-**Lo que NO se sabe todavía, y es la pregunta a Dante:** si él lleva los CUSPP
-por su lado para armar la PLAME, aquí no falta nada urgente. Si la declaración
-se construye con lo que hay en este sistema, entonces son 18 personas en AFP
-declarando sin identificador. **Es una pregunta de una línea y va antes que
-cualquier validación.**
+**Se emparejó por DNI y no por nombre**, y no es un detalle de implementación: en
+el equipo hay **dos Ramírez Gomez**, y la hoja trae el código de Sandra Melissa.
+Por nombre se le habría escrito a Lizzelott Estefany — el aporte de una a la
+cuenta individual de la otra.
 
-De paso cierra una decisión que estaba abierta: **al CUSPP no se le puede poner
-un CHECK.** No hay ni un dato con el que dimensionarlo, así que los «12
-caracteres» que circulaban seguirían siendo una suposición escrita en una
-restricción. Aviso en pantalla y nada más, que es lo que ya decidió el
-encabezado de la 0198.
+**Lo que falta, y es corto:** el CUSPP de **Carmen Sanándres** (LIM, Profuturo) y
+de **Lizzelott Estefany Ramírez Gomez** (CCO, Integra), que no venían en la hoja.
+Se piden al contador. Aparte, **Kerin Guevara** (TRU) no tiene régimen de pensión
+cargado: primero eso, y si sale ONP no lleva CUSPP.
+
+**Los dos falsos positivos de la pantalla ya están corregidos.**
+`/admin/datos-personales` le pedía «falta CUSPP» a **Catherine Pereyra** y
+**Claudia Pereyra**, que cobran por **recibo por honorarios** (ver
+[A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado)). Un
+locador no entra al T-Registro como trabajador: ese aviso no lo podía completar
+nadie, nunca — y un aviso permanente e imposible es lo que enseña a ignorar los
+avisos que sí importan.
+
+La condición vive ahora en `leCorrespondeCuspp` (`packages/shared/src/vinculo.ts`)
+y no suelta en la pantalla, porque son **dos** las que preguntan lo mismo: el
+aviso de ficha incompleta y la exportación del padrón al contador, que también
+lleva la columna CUSPP. Escrita dos veces, la exportación habría seguido pidiendo
+lo que la pantalla ya dejó de pedir. Y usa `esPrestadorDeServicios`, no un
+`!en_planilla`: si el campo no viaja en el JSON, el defecto seguro es **seguir**
+pidiendo el CUSPP a las veinte que lo necesitan, no dejar de pedírselo en
+silencio. Ese caso está en `tests/vinculo.test.ts`.
+
+Por el mismo motivo dejó de pedírsele a una locadora el **régimen de pensión**:
+CAYLA no le retiene aporte, así que ese dato no es de la empresa.
+
+De paso: que las dos locadoras **tengan un régimen de AFP asignado** es en sí un
+indicio más de los que describe A.2.b. **Decisión de Felipe (2026-08-13): se
+queda.** Después de la 0242 ese dato no alimenta ningún cálculo, y saber en qué
+AFP están es información útil. No volver a proponer borrarlo.
+
+**Sobre el CHECK que se había descartado por falta de datos:** ahora hay 16
+códigos reales y los 16 tienen la misma forma —6 dígitos · 5 letras · 1 dígito—
+y las 5 letras se derivan del nombre (inicial del nombre, inicial de cada
+apellido, 4ª letra de cada apellido). El script lo comprueba fila por fila, y es
+lo que da confianza de que ninguna se corrió al copiar la hoja. Pero **sigue sin
+ponerse un CHECK**, y ahora por una razón medida y no por falta de datos: 16
+casos no prueban que un CUSPP antiguo, o el de alguien con un solo apellido,
+tenga esa forma. La validación vive en el script que carga, donde un rechazo se
+revisa a mano; en la columna, rechazaría en silencio un código legítimo.
+
+### A.2.c.bis · La guarda que impide retenerle AFP a un locador no está escrita
+
+> **HOY NO CUESTA NADA.** Felipe confirmó el 2026-08-13 que a los tres locadores
+> **nunca se les ha retenido AFP**, y es coherente con lo medido: su base es 0
+> porque nadie les llenó `sueldo_base_legal`. Esto **no es plata mal pagada y no
+> hay nada que devolver.** Es un riesgo latente, y el valor de anotarlo es que la
+> protección que hoy funciona **no está escrita en ninguna parte**: funciona por
+> casualidad.
+>
+> **Corregido por la 0242** — escrita, auditada y con prueba (`183`). ⏳ Falta
+> pegarla en producción; antes hay que confirmar en el SQL Editor que el md5 de
+> `fn_planilla_calcular` coincide con el de partida (la consulta está en el
+> encabezado de la migración).
+
+**Qué es exactamente el riesgo.** El descuento previsional es
+`base imponible × tasa`, y hoy da cero para un locador porque su base es cero. Pero
+la base es cero **por un dato en blanco, no porque el sistema sepa que es locador**.
+El día que alguien abra su ficha en `/admin/equipo` y confirme su base legal —una
+acción normal, con buena intención, en un campo que el panel pide— empieza a
+retenérsele AFP en silencio. Nadie relacionaría las dos cosas.
+
+Y hay un segundo camino, más corto: marcarle **`con_hijos`** a una locadora le paga
+S/113 de asignación familiar y además le abre base para el descuento, incluso con
+`sueldo_base_legal` en blanco.
+
+**Medido el 2026-08-13** contra la función vigente (`fn_planilla_calcular`, md5
+`7d67ff3c1d769ebffc3de0af20ab83fe` = 0239), con cuatro locadoras idénticas salvo
+esas dos columnas. Salió de preguntarse qué hace el sistema con la AFP después de
+cargar los CUSPP. Los montos de abajo son **lo que pasaría**, no lo que pasó:
+
+A un locador no se le retiene AFP: la locación de servicios no genera retención
+previsional del pagador. El encabezado de la 0193 dice que eso ya está a salvo
+porque «su básica es 0». **Es cierto solo si alguien le puso `sueldo_base_legal`
+en NULL a mano** — y esa columna tiene `DEFAULT 1130.00` (el RMV, 0103).
+
+| `sueldo_base_legal` | `con_hijos` | básica | asig. familiar | **AFP retenida** |
+|---|---|---|---|---|
+| 1130 (el DEFAULT) | sí | 1192.09 | 113.00 | **168.62** |
+| 1130 (el DEFAULT) | no | 1192.09 | 0.00 | **154.02** |
+| NULL | sí | — | 113.00 | **14.60** |
+| NULL | no | — | 0.00 | 0.00 |
+
+**Son dos defectos y no se mezclan:**
+
+1. **La básica.** El descuento de pensión es `bri.base × tasa` y es **el único
+   concepto sin guarda de vínculo**. Todos los demás la llevan escrita: EsSalud y
+   movilidad (0117), educación (0120), sobretasas (0193). Este descansa en que la
+   base sea 0 — y lo decide el default de una columna. Que hoy funcione o no es
+   una coincidencia, no un diseño.
+2. **La asignación familiar.** Entra al pago **y** a la base sin condición de
+   vínculo, y es la única vía que inventa base incluso con `sueldo_base_legal` en
+   NULL. Aparte del descuento, cobrarla ya está mal: la Ley 25129 es para
+   trabajadores del régimen laboral privado. Y es el argumento exacto de la 0117
+   con la movilidad — **el concepto que protege a una trabajadora de planilla es
+   el que incrimina en un RxH**. Un locador que cobra asignación familiar es un
+   indicio de laboralidad más para
+   [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado).
+
+**Lo que EsSalud sí hace bien:** cero en las cuatro filas. La guarda de la 0117
+sigue en pie, y eso acota el problema — es previsional, no de aportes de la
+empresa.
+
+**Cómo lo arregla la 0242.** Guarda la base imponible COMPLETA —
+`case when pe.en_planilla is not true then 0 else …` — y no cada término suyo, para
+que un concepto que se agregue mañana quede excluido sin que nadie tenga que
+acordarse; y le pone la condición de vínculo a la asignación familiar en **los dos
+sitios** donde vive (el concepto del JSON y el término del `total`): arreglar solo
+uno dejaría la boleta mostrando 0 mientras el total lo sigue cobrando.
+
+Medido después de aplicarla en local: las cuatro locadoras quedan idénticas entre
+sí y su total es exactamente su pago por horas — ya no depende de
+`sueldo_base_legal` ni de `con_hijos`. Y **el testigo de planilla no se movió ni un
+céntimo** (AFP 195.73 · asignación 113.00 · EsSalud 136.34 · provisiones 276.71,
+iguales antes y después). Eso es la mitad del valor de la prueba `183`: apagarle el
+descuento a un locador y de paso romperle la retención a quien sí aporta habría
+sido mucho peor que el defecto original, y ninguna pantalla lo mostraría.
+
+**Lo que sigue igual, y es deliberado:** el pago por horas de un locador. Es el
+razonamiento de la 0085 que la 0117 repitió — medir horas para saber cuánto pagar
+es medir un RESULTADO; fiscalizar una CONDUCTA es la prueba de subordinación.
+
+**Para volver a medirlo en dos segundos cuando haga falta:**
+[`que_pasa_con_la_afp.sql`](../scripts/sql-manual/que_pasa_con_la_afp.sql). Su
+BLOQUE 2 no rehace la aritmética, le pregunta a `fn_planilla_calcular` por el
+periodo vigente y devuelve una fila por cada locador con retención. Lo esperado
+—y lo que Felipe ya confirmó por su lado— es **cero filas**. Queda escrito con la
+consulta al lado por la misma razón que A.2.d: un riesgo latente sin forma de
+volver a medirlo es una frase que envejece sola.
 
 ### A.2.d · Dos campos para «¿tiene hijos menores?» — uno paga y el otro declara
 
@@ -1501,10 +1623,22 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   sugiere 1960), y **Angie Chávez** cobra asignación familiar teniendo cero
   familiares registrados — S/113 al mes sin respaldo, o al revés, falta cargar al
   hijo. Sin esas fichas Dante no puede cerrar el T-Registro.
-- **Tres datos del T-Registro que el sistema no guarda:** sexo, nacionalidad y
-  CUSPP. El CUSPP se agregó el 2026-08-08 (0198) y aplica a 18 de 21 —quien está
-  en AFP—; los otros dos siguen sin campo y se llenan a mano en la hoja del
-  contador.
+- **Dos datos del T-Registro que el sistema no guarda:** sexo y nacionalidad. Se
+  llenan a mano en la hoja del contador. El tercero era el CUSPP, que ya tiene
+  campo (0198) y ya está cargado — ver
+  [A.2.c](#a2c--los-cuspp-ya-están-cargados--quedan-dos-y-dos-falsos-positivos).
+- **Pegar la 0242 en producción.** No arregla nada roto hoy —Felipe confirmó que a
+  los locadores nunca se les retuvo AFP— sino que **escribe la guarda que hoy
+  falta**: impide que confirmarle la base legal a un locador, o marcarle
+  `con_hijos`, le empiece a retener AFP en silencio. Confirmar antes el md5 de
+  partida en el SQL Editor. Detalle en
+  [A.2.c.bis](#a2cbis--la-guarda-que-impide-retenerle-afp-a-un-locador-no-está-escrita).
+- **Los campos de presentación de un locador siguen mintiendo.**
+  `basica_legal_prop`, `complemento_variable` y `base_essalud` muestran números
+  (1192.09, 73.84 y 1305.09 en la medición) para alguien que no tiene
+  remuneración básica. No mueven ni un sol —el aporte de EsSalud ya es 0— y se
+  dejaron fuera de la 0242 para que fuera auditable en una pasada. Merecen su
+  propia migración con su prueba.
 - **El candado del periodo que quedó a medias.** Se acordó el 26-07: no dejar
   cerrar un periodo con días sin resolver. Ahora que la incidencia del almuerzo
   ya se puede cerrar desde la pantalla, el candado no bloquearía a nadie.
