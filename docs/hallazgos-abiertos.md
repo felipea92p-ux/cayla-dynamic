@@ -134,13 +134,23 @@ esas dos cosas ocurrió. El par real era **28 → 31**.
 y `fn_planilla_calcular` solo anula la sobretasa cuando el estado es `OTORGADO`.
 Resultado:
 
-| | sobretasa del 28 | descansó el 31 | resultado |
+| | trabajó el 28 | descansó el 31 | resultado |
 |---|---|---|---|
-| Judith, Raquel, Joselyn | cobrada | sí | recibieron **las dos cosas**: ~S/102 de más cada una |
-| **Carmen** | cobrada | **no** | **correcto**, nada que ajustar |
+| Judith, Raquel, Joselyn | sí → cobraron sobretasa | sí | recibieron **las dos cosas**: ~S/102 de más cada una |
+| **Carmen** | **NO vino** → sin sobretasa | no | **correcto**, nada que ajustar |
+
+Lo de Carmen se comprobó día por día contra sus marcajes: el 28 y el 29 no tiene
+ni una marca —ni siquiera anuladas— y el 30 sí trabajó, 9.50 h desde el terminal.
+
+⚠ **Y ahí queda un cabo suelto**: su registro «trabajó el 28 · libre el 30» NO
+debería haberse podido crear. `fn_otorgar_descanso_sustitutorio` exige desde la
+0069 que el feriado esté laborado y rechaza con «el feriado no fue laborado». O
+ese registro entró por una vía que esquiva esa comprobación, o sus marcas del 28
+se borraron DESPUÉS de crearlo —lo segundo dejaría rastro en
+`correcciones_auditoria`—. Sin resolver al 2026-08-13.
 
 Decisión de Felipe (2026-08-13): **julio no se toca**. Son ~S/306 pagados de más
-a tres personas, por un error de papeleo de la empresa, en una planilla ya
+a TRES personas —Carmen no, porque no trabajó el feriado—, por un error de papeleo de la empresa, en una planilla ya
 depositada. Reclamarlo cuesta más de lo que se recupera.
 
 Y aunque se quisiera, **no se podría**: la 0093 bloquea cualquier cambio sobre un
@@ -150,6 +160,12 @@ seguirán saliendo en rojo. **El motivo es cierto** — ese día trabajaron.
 Tampoco hay faltas: `fn_faltas` acepta `PENDIENTE` para justificar el día
 —comprobado en su cuerpo vigente, `and d.estado in ('PENDIENTE', 'OTORGADO')`—
 así que el 31 no cuenta como falta para ninguna.
+
+**NINGUNA TIENE FALTA**, y se comprobó preguntándole a `fn_faltas` —la misma
+función que alimenta el semáforo disciplinario— por las cuatro entre el 25 de
+julio y el 10 de agosto: **cero filas**, ni justificadas ni injustificadas. Se
+sospechó que Carmen podía tener una el 31 (su registro apunta al 30, no al 31, y
+ese día no vino); la sospecha era infundada.
 
 **LO QUE SÍ SE HACE, HACIA ADELANTE.** El 6 de agosto (Batalla de Junín) también
 se trabajó, y ese feriado cae en el periodo 29-jul → 28-ago, que sigue ABIERTO.
