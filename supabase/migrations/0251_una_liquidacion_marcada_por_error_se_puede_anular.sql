@@ -77,10 +77,16 @@
 --
 -- ── POR QUÉ UNA COLUMNA Y NO «total = 0» COMO SEÑAL ─────────────────────────
 --
--- Porque una liquidación legítima de S/0.00 EXISTE y se puede congelar: se probó
--- contra el Postgres local con una persona sin salario asignado, y
--- `fn_liquidacion_pagar` no comprueba que el total sea mayor que cero. Deducir
--- «anulada» de un cero confundiría los dos casos para siempre.
+-- Porque una liquidación legítima de S/0.00 EXISTE y se puede congelar. Medido
+-- el 2026-08-14 contra el Postgres local, dentro de BEGIN … ROLLBACK: a una
+-- persona sin salario asignado y sin jornadas, `fn_liquidacion_pagar` le
+-- devuelve {"total": 0.00, "version": 1} y guarda la fila tan tranquila — no
+-- comprueba en ningún sitio que el total sea mayor que cero.
+--
+-- O sea que un cero puede significar dos cosas opuestas: «se calculó y salió
+-- cero» o «esto nunca se pagó». Deducir «anulada» de la cifra las confundiría
+-- para siempre, y encima justo en la tabla cuyo error no reclama nadie porque la
+-- persona ya no está.
 --
 -- Tampoco vale escribirlo en `nota`: la 0244 ya dejó por escrito por qué un
 -- freno atado a un texto literal deja de morder el día que alguien reescribe el
