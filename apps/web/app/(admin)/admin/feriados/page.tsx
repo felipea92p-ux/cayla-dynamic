@@ -150,7 +150,7 @@ export default function FeriadosPage() {
       supabase.from("feriados_descanso_sustitutorio")
         .select("id, persona_id, fecha_feriado, fecha_descanso_sustitutorio, estado, acta_ref")
         .order("fecha_feriado", { ascending: false }),
-      supabase.rpc("fn_actas_descanso", {}),
+      supabase.rpc("fn_actas_descanso"),
     ]);
     if (eP) {
       setMsg({ tipo: "error", texto: mensajeDeError(eP, "cargar") });

@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { TZ_LIMA } from "@cayla-dynamic/shared";
+import { TZ_LIMA, type Rol } from "@cayla-dynamic/shared";
 import { AREAS_FALLBACK, areaNombre, parseAreas, type Area } from "@/lib/areas";
 
 const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550", firmante: "Alvarez Pereyra Felipe Miguel", cargo: "Gerencia General" };
@@ -196,7 +196,10 @@ export default function MemoPage() {
       // con el NOMBRE de quien firma y sin cargo debajo. Antes caía al valor de
       // la empresa, que a una encargada le imprimía «Gerencia General»: es
       // preferible no decir el cargo que decir uno falso.
-      const { data: cargo } = await supabase.rpc("fn_cargo_de_rol", { p_rol: f.rol });
+      // `f.rol` viaja como texto desde la consulta; la RPC lo espera con el tipo
+      // del enum. El cast va contra `Rol` de shared —no contra una lista escrita
+      // acá— para que el día que se agregue un rol esto siga diciendo la verdad.
+      const { data: cargo } = await supabase.rpc("fn_cargo_de_rol", { p_rol: f.rol as Rol });
       if (typeof cargo === "string" && cargo) setCargoFirmante(cargo);
     } else if (doc.firmante_id) {
       // FIRMADO, pero su fila no vino en la consulta. El caso normal es RLS:

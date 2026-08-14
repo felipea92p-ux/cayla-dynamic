@@ -6,7 +6,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "gen-types": "supabase gen types typescript --local > src/types.ts"
+    "gen-types": "supabase gen types typescript --local > src/types.ts && node ../../scripts/tipos-args-nullables.mjs src/types.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"
