@@ -16,6 +16,7 @@ import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
 import { verificarPin } from "@/lib/terminal/pin";
+import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
 import {
@@ -118,9 +119,20 @@ export default function MarcarPage() {
     // todo el punto: «no hay sesión» manda a vincular el dispositivo, «no hubo
     // respuesta» tiene que seguir con la caché. Confundirlas mandaría a la sede a
     // una pantalla de vinculación por un corte de red, con el terminal ya vinculado.
+    //
+    // Y EL TOPE SOLO CUBRE LA MITAD, que es lo que se descubrió el 2026-08-13
+    // persiguiendo un terminal que «se deslogueaba a ratos»: cuando el refresco
+    // falla RÁPIDO —la red contesta que no hay red— `getSession()` no se cuelga,
+    // contesta enseguida `{ session: null, error }` y esta condición lo leía como
+    // «no está vinculado». Las credenciales seguían en el disco. Por eso el
+    // veredicto mira el error y no solo la sesión (`lib/terminal/sesion.ts`).
     const SIN_RESPUESTA = Symbol("sin respuesta");
     void conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
-      if (respuesta !== SIN_RESPUESTA && !respuesta.data.session) {
+      const veredicto =
+        respuesta === SIN_RESPUESTA
+          ? "no_se_pudo_saber"
+          : veredictoDeSesion({ session: respuesta.data.session, error: respuesta.error });
+      if (veredicto === "sin_vincular") {
         router.replace("/terminal/vincular");
         return;
       }
