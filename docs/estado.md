@@ -37,6 +37,88 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-14 — la retención de cuarta categoría, y diez locadores donde había tres
+
+### El sistema ya calcula el 8 % de un recibo por honorarios ([`0245`](../supabase/migrations/0245_la_retencion_de_cuarta_deja_de_hacerse_a_mano.sql))
+
+Hasta hoy no existía: la única forma de reflejarla era escribir un movimiento de
+tipo `descuento` a mano cada mes, con el 8 % calculado fuera del sistema.
+
+Dos columnas en `personas` —`retencion_4ta` y `constancia_4ta_hasta`—, los dos
+parámetros en `parametros_laborales` con su sustento, el cálculo dentro de
+`fn_planilla_calcular`, la línea en la boleta, el aviso en la pantalla de
+planilla y las dos columnas en el CSV que usa el contador. Se escribe por
+`fn_set_retencion_4ta`, que valida el vínculo y audita.
+
+**Las tres puertas, y por qué no alcanzaba un booleano.** El caso que lo pidió
+—el recibo del contador externo— es de S/652.17, o sea POR DEBAJO del tope de
+S/1,500: CAYLA no estaba obligada a retener. Retiene porque **el prestador lo
+marcó «Sí» al emitir**, que es una casilla que decide el emisor y no el pagador,
+y la marca porque factura a muchas empresas, se pasa del límite anual de la
+suspensión y prefiere adelantar el 8 %.
+
+- `NULL` → no se retiene. Es como nace todo el mundo, y por eso pegar la 0245 no
+  movió un céntimo de nadie.
+- `automatica` → la regla del art. 74 de la LIR: 8 % solo si el pago del mes
+  **supera** el tope. En S/1,500.00 exactos no se retiene; en S/1,500.01 sí.
+- `siempre` → 8 % sea cual sea el monto.
+- La constancia del F.V. 1609 manda sobre las tres mientras esté vigente. Dura el
+  año calendario: cuando vence, el modo vuelve a mandar.
+
+**Y lo que CAYLA paga de más no es la retención.** El honorario cargado es el
+BRUTO (652.17): de ahí 600 van a la persona y 52.17 a SUNAT a su nombre. Lo que
+la empresa absorbe por haber pactado un neto es el *gross-up* —S/52.17 al mes,
+S/626 al año— y ya está dentro de esa cifra. Bajar el honorario para esquivar la
+retención pierde más de lo que ahorra: la retención se le acredita a la persona
+contra su impuesto anual, el honorario recortado no vuelve.
+
+### Un locador con monto fijo cobraba S/0.00, y la boleta lo llamaba «por horas»
+
+Dos cosas distintas que salieron al configurar el primer caso real:
+
+1. **Quien cobra un monto fijo y no marca nunca sale en S/0.00.** Su pago se
+   calcula por horas registradas. La pieza que faltaba no era la retención sino
+   `sueldo_fijo`, que **no se puede marcar desde ninguna pantalla** — va por SQL,
+   igual que `en_planilla`.
+2. **Y entonces la boleta decía «Honorarios por las horas prestadas (0 h) ……
+   S/ 652.17».** Los números bien, la etiqueta mal, en un papel que se le entrega
+   a alguien externo y que además describe el acuerdo al revés. La
+   [`0250`](../supabase/migrations/0250_la_boleta_no_le_dice_por_horas_a_un_monto_fijo.sql)
+   hace que `sueldo_fijo` viaje en el JSON para poder distinguirlos. No mueve un
+   céntimo.
+
+### ⚠️ Son DIEZ los que cobran por honorarios, y este archivo decía tres
+
+La sección [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado)
+nombra a tres, confirmados el 2026-08-07. La consulta devuelve diez. No se sabe
+cuántos están activos ni cuántos pasan el tope sin mirar los datos, así que la
+lista no va acá — va la consulta que los encuentra sola:
+
+```sql
+select p.apellidos || ', ' || p.nombres as quien, p.estado, case when p.sueldo_fijo then 'monto fijo' else 'por horas' end as como_cobra, s.salario_mensual_soles as honorario, t.valor as tope, case when p.estado <> 'activo' then 'cesado — no configurar' when s.salario_mensual_soles is null then 'sin honorario asignado' when p.sueldo_fijo and s.salario_mensual_soles > t.valor then 'PASA EL TOPE todos los meses' when p.sueldo_fijo then 'no llega al tope' else 'varia mes a mes: Automatica' end as que_hacer from personas p left join lateral (select a.salario_mensual_soles from asignaciones_salario a where a.persona_id = p.id and a.vigente_desde <= fn_hoy_lima() and (a.vigente_hasta is null or a.vigente_hasta >= fn_hoy_lima()) order by a.vigente_desde desc limit 1) s on true cross join lateral (select pl.valor from parametros_laborales pl where pl.clave = 'retencion_4ta_tope' and pl.vigente_desde <= fn_hoy_lima() and (pl.vigente_hasta is null or pl.vigente_hasta >= fn_hoy_lima()) order by pl.vigente_desde desc limit 1) t where p.tipo_vinculo = 'rxh' order by p.estado, p.apellidos;
+```
+
+**PENDIENTE · decidido el 2026-08-14: no se configura a nadie más por ahora.**
+Solo está puesto el contador externo (`siempre`). El resto queda en NULL y la
+pantalla de planilla marca en ámbar a quien pase el tope sin configurar — que es
+lo que va a poner los nombres reales sobre la mesa. **Lo que hay que preguntarle
+al contador antes de tocar a nadie: quiénes tienen constancia de suspensión
+vigente.** Con S/1,800 al mes nadie llega al límite 2026 de S/48,125 anuales, así
+que la mayoría calificaría — y con la constancia cargada el sistema deja de
+retener solo, sin que nadie pierda plata.
+
+### El agujero que dejó la 0245, cerrado el mismo día por otra sesión ([`0248`](../supabase/migrations/0248_la_foto_del_pago_aprende_la_retencion_de_cuarta.sql))
+
+La 0245 le restó un término nuevo al total y no amplió `chk_foto_cuadra`, que
+exige que el total sea la suma exacta de once columnas conocidas. **En cuanto
+alguien tuviera retención configurada, «Marcar como PAGADO» habría fallado para
+las treinta personas del periodo**, no solo para el locador retenido: el cierre
+del mes se atasca entero. Estuvo abierto media hora y el periodo sigue
+provisional, así que no llegó a morder. Vale como recordatorio de que una prueba
+del cálculo no es una prueba del cierre.
+
+---
+
 ## 2026-08-14 — una marca que la base rechazaba, y las que quedaron presas
 
 ### El aviso «2 sin registrar» del terminal tenía razón, y no era grave
@@ -318,7 +400,17 @@ cero filas). **No urge:** medido en producción, nadie está hoy en ese estado.
   esa ni `fn_set_horario_semanal` miran `personas.estado`. Es justo la frase que
   haría no poner un freno creyéndolo puesto.
 
-## 2026-08-10 — regenerar `types.ts` ya no es solo reordenar
+## ~~2026-08-10 — regenerar `types.ts` ya no es solo reordenar~~ ✅ HECHO el 2026-08-14
+
+**Cerrado.** Se hizo, y la causa era más simple —y peor— de lo que decía esta
+sección: el generador declara los parámetros de cada función como NO anulables, y
+`fn_set_fin_contrato(p_fecha)` acepta null a propósito. Correr el comando dejaba
+**63 errores en diez pantallas**. `scripts/tipos-args-nullables.mjs` le agrega
+`| null` a los 491 parámetros y va encadenado al script de `gen-types`, así que
+el comando documentado ahora termina en verde. Se conserva lo de abajo por el
+registro de cómo se midió.
+
+
 
 **Medido, no supuesto.** El repositorio venía diciendo que regenerar
 `packages/database/src/types.ts` «reordena las 4.400 líneas del archivo entero»
