@@ -60,6 +60,33 @@ values ('00000000-0000-0000-0000-00000000f3d2', 'T-ZZ/0302',
         '00000000-0000-0000-0000-00000000f301', now() - interval '40 days',
         now() - interval '40 days', 'fisico', '00000000-0000-0000-0000-00000000f301');
 
+-- Y las DOS suspensiones que la escalera exige antes de imputar.
+--
+-- Sin ellas, esta semilla era una escalera imposible: una imputación sobre una
+-- amonestación y ninguna suspensión — el mismo defecto que se destapó en el
+-- expediente de Arequipa en agosto de 2026. Y sobre esa semilla, la prueba
+-- afirmaba que una imputación resuelta «no baja de la escalera», que es cierto
+-- pero no de ese caso: a esa persona el numeral 19.2 e) no la habría dejado
+-- imputar nunca.
+--
+-- Con las dos suspensiones obrantes, el principio se comprueba donde sí manda
+-- (numeral 19.6 (i), migración 0246).
+insert into expediente_disciplinario
+  (id, correlativo, persona_id, tipo_causal, nivel, estado,
+   suspension_dias, suspension_desde, suspension_hasta,
+   firmante_id, firmado_at, entregado_at, medio_entrega, creado_por)
+values
+ ('00000000-0000-0000-0000-00000000f3d3', 'T-ZZ/0303',
+  '00000000-0000-0000-0000-00000000f3a1', 'tardanza', 'suspension', 'entregado',
+  1, fn_hoy_lima() - 35, fn_hoy_lima() - 35,
+  '00000000-0000-0000-0000-00000000f301', now() - interval '36 days',
+  now() - interval '36 days', 'fisico', '00000000-0000-0000-0000-00000000f301'),
+ ('00000000-0000-0000-0000-00000000f3d4', 'T-ZZ/0304',
+  '00000000-0000-0000-0000-00000000f3a1', 'tardanza', 'suspension', 'entregado',
+  2, fn_hoy_lima() - 20, fn_hoy_lima() - 19,
+  '00000000-0000-0000-0000-00000000f301', now() - interval '21 days',
+  now() - interval '21 days', 'fisico', '00000000-0000-0000-0000-00000000f301');
+
 -- ── 1-2 · Sin resolver, la escala bloquea ──────────────────────────────────
 select ok(
   (select bloqueado from fn_tardanza_escalon('00000000-0000-0000-0000-00000000f3a1')),
