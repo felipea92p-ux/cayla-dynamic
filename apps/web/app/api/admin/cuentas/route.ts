@@ -7,7 +7,8 @@ import { puedeActuarSobre, puedeGestionarCatalogos, ROLES_CON_PANEL } from "@cay
 // Gestión de cuentas del panel — SOLO admin/lider_do. Corre en el servidor con la
 // llave de servicio; verifica que quien llama sea admin (por su sesión).
 // Acciones: listar | resetear (contraseña de otro) | crear (cuenta de una persona)
-//         | invitar (correo para que elija su clave) | reinvitar | promover.
+//         | invitar (correo para que elija su clave) | reinvitar | promover
+//         | cambiar-correo (el usuario con el que entra, en la cuenta y en la ficha).
 
 // Estas claves son la única credencial de una cuenta del panel hasta que su dueña
 // la cambia. `Math.random()` NO sirve para eso: no es criptográfico y su estado
@@ -369,17 +370,88 @@ export async function POST(req: Request) {
       }
       if (p.auth_user_id) return NextResponse.json({ error: "esa persona ya tiene cuenta" }, { status: 409 });
       const nueva = generarClave();
-      const { data: authData, error } = await admin.auth.admin.createUser({ email, password: nueva, email_confirm: true });
+      // Se normaliza igual que en `fn_set_email`: el login no distingue
+      // mayúsculas, y así la ficha y el acceso guardan exactamente el mismo texto.
+      const correo = String(email).trim().toLowerCase();
+      const { data: authData, error } = await admin.auth.admin.createUser({ email: correo, password: nueva, email_confirm: true });
       if (error) {
         Sentry.captureException(error);
         return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
       }
-      const { error: e2 } = await admin.from("personas").update({ auth_user_id: authData.user.id }).eq("id", personaId);
+      // El correo se copia A LA FICHA, no solo a la cuenta. Sin esto —así estuvo
+      // hasta el 2026-08-13— la persona quedaba con acceso pero con
+      // `personas.email` vacío, y el candado de la 0198 hacía el resto: la ficha
+      // rechaza cambiar el correo de quien ya tiene cuenta, así que ese hueco no
+      // se podía llenar nunca más desde el panel.
+      const { error: e2 } = await admin
+        .from("personas")
+        .update({ auth_user_id: authData.user.id, email: correo })
+        .eq("id", personaId);
       if (e2) {
         Sentry.captureException(e2);
         return NextResponse.json({ error: mensajeDeError(e2, "enlazar la cuenta con su ficha") }, { status: 500 });
       }
-      return NextResponse.json({ password: nueva, email });
+      return NextResponse.json({ password: nueva, email: correo });
+    }
+
+    // El destino al que apunta el error de la 0198. Existe desde el 2026-08-13:
+    // hasta entonces la ficha decía «hazlo desde Cuentas» y acá solo se podía
+    // resetear la contraseña, así que el correo de quien ya entraba al sistema
+    // no se podía corregir desde ninguna pantalla del panel. Un error que manda
+    // a un sitio donde la cosa no está enseña a no creerle a los errores.
+    //
+    // Va por acá y no por `fn_set_email` a propósito: cambiar el correo son DOS
+    // escrituras —la cuenta de acceso y la ficha— y la base no puede tocar Auth.
+    // Ese es justamente el motivo por el que la 0198 se lo prohíbe a la ficha.
+    if (accion === "cambiar-correo") {
+      const correo = String(email ?? "").trim().toLowerCase();
+      if (!correo.includes("@")) return NextResponse.json({ error: "correo inválido" }, { status: 400 });
+      const { data: p } = await admin
+        .from("personas")
+        .select("id, auth_user_id, rol, email, nombres")
+        .eq("id", personaId)
+        .maybeSingle();
+      if (!p) return NextResponse.json({ error: "persona no encontrada" }, { status: 404 });
+      // Mismo criterio que en `crear`: elegir con qué correo entra alguien es
+      // elegir quién puede entrar como esa persona.
+      if (!puedeActuarSobre(yo.rol, p.rol)) {
+        return NextResponse.json({ error: "no puedes cambiar el correo de esa persona" }, { status: 403 });
+      }
+      if (!p.auth_user_id) {
+        return NextResponse.json(
+          { error: `${p.nombres} todavía no tiene cuenta: su correo se pone desde Datos personales.` },
+          { status: 409 },
+        );
+      }
+
+      // `email_confirm: true` deja el correo nuevo válido de inmediato. Sin eso
+      // Supabase manda un correo de confirmación y mantiene el ANTERIOR como
+      // usuario hasta que alguien haga clic: si el correo viejo estaba mal
+      // escrito —que es el caso por el que se llega acá— ese clic no llega nunca
+      // y la persona se queda sin poder entrar con ninguno de los dos.
+      const { error } = await admin.auth.admin.updateUserById(p.auth_user_id, {
+        email: correo,
+        email_confirm: true,
+      });
+      if (error) {
+        Sentry.captureException(error);
+        return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
+      }
+
+      // El acceso ya cambió. Si esta segunda escritura falla queda el estado que
+      // la 0198 quiere hacer imposible —un correo en la ficha y otro en el
+      // login—, así que el mensaje dice exactamente qué pasó en vez de un «no se
+      // pudo» que dejaría a quien lo lee sin saber con cuál entra la persona.
+      // Repetir la acción lo arregla: los dos pasos son idempotentes.
+      const { error: e2 } = await admin.from("personas").update({ email: correo }).eq("id", personaId);
+      if (e2) {
+        Sentry.captureException(e2);
+        return NextResponse.json(
+          { error: `${p.nombres} YA entra con ${correo}, pero su ficha quedó con el correo anterior. Vuelve a darle a Cambiar correo con el mismo para emparejarlos.` },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({ ok: true, email: correo, anterior: p.email ?? null });
     }
 
     return NextResponse.json({ error: "acción no válida" }, { status: 400 });

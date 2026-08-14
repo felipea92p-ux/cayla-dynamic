@@ -65,6 +65,11 @@ export default function CuentasPage() {
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [cargando, setCargando] = useState(false);
   const [emailNuevo, setEmailNuevo] = useState<Record<string, string>>({});
+  // Qué fila tiene abierto el formulario de «cambiar correo». Va cerrado por
+  // defecto: es la acción que más daño hace por accidente de esta tabla —el
+  // correo ES el usuario con el que se entra— y no debe estar a un clic de
+  // distancia junto a las demás.
+  const [cambiando, setCambiando] = useState<string | null>(null);
   const [claveGenerada, setClaveGenerada] = useState<Record<string, string>>({});
   const [procesando, setProcesando] = useState<string | null>(null);
   const [tanda, setTanda] = useState(false);
@@ -182,13 +187,23 @@ export default function CuentasPage() {
     void listar();
   }
 
-  async function accion(c: Cuenta, tipo: "resetear" | "crear") {
+  async function accion(c: Cuenta, tipo: "resetear" | "crear" | "cambiar-correo") {
     setProcesando(c.id); setMsgGestion(null);
     const body: Record<string, unknown> = { accion: tipo, personaId: c.id };
-    if (tipo === "crear") body.email = emailNuevo[c.id]?.trim();
+    if (tipo !== "resetear") body.email = emailNuevo[c.id]?.trim();
     const data = await pedir(body);
     setProcesando(null);
     if (data.error) { setMsgGestion({ tipo: "error", texto: `${c.nombre}: ${data.error}` }); return; }
+    // Cambiar el correo no devuelve contraseña: no la toca. Decirlo es la mitad
+    // del mensaje — quien acaba de cambiarle el correo a alguien necesita saber
+    // si además tiene que pasarle una clave nueva.
+    if (tipo === "cambiar-correo") {
+      setCambiando(null);
+      setEmailNuevo((m) => ({ ...m, [c.id]: "" }));
+      setMsgGestion({ tipo: "ok", texto: `${c.nombre} ahora entra con ${data.email}. Su contraseña no cambió: avísale del correo nuevo, nada más.` });
+      void listar();
+      return;
+    }
     setClaveGenerada((m) => ({ ...m, [c.id]: data.password }));
     if (tipo === "crear") void listar();
   }
@@ -252,13 +267,58 @@ export default function CuentasPage() {
                     </td>
                     <td className="px-4 py-3">
                       {c.tieneCuenta ? (
-                        <button
-                          onClick={() => accion(c, "resetear")}
-                          disabled={procesando === c.id}
-                          className="rounded-lg border border-sand px-3 py-1.5 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
-                        >
-                          {procesando === c.id ? "…" : "Resetear contraseña"}
-                        </button>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => accion(c, "resetear")}
+                              disabled={procesando === c.id}
+                              className="rounded-lg border border-sand px-3 py-1.5 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
+                            >
+                              {procesando === c.id ? "…" : "Resetear contraseña"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCambiando((x) => (x === c.id ? null : c.id));
+                                setEmailNuevo((m) => ({ ...m, [c.id]: m[c.id] ?? c.email ?? "" }));
+                              }}
+                              className="rounded-lg border border-sand px-3 py-1.5 text-sm text-taupe transition-colors hover:bg-sand/40"
+                            >
+                              {cambiando === c.id ? "Cancelar" : "Cambiar correo"}
+                            </button>
+                          </div>
+                          {cambiando === c.id && (
+                            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-sand/40 p-2">
+                              <input
+                                type="email"
+                                placeholder="correo@gmail.com"
+                                value={emailNuevo[c.id] ?? ""}
+                                onChange={(e) => setEmailNuevo((m) => ({ ...m, [c.id]: e.target.value }))}
+                                className="rounded-lg border border-sand bg-crema px-2 py-1.5 text-sm"
+                              />
+                              <button
+                                onClick={() => accion(c, "cambiar-correo")}
+                                disabled={
+                                  procesando === c.id ||
+                                  !emailNuevo[c.id]?.includes("@") ||
+                                  emailNuevo[c.id]?.trim().toLowerCase() === (c.email ?? "").toLowerCase()
+                                }
+                                className="rounded-lg bg-tinta px-3 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                              >
+                                {procesando === c.id ? "…" : "Guardar correo"}
+                              </button>
+                              {/* Lo que de verdad hay que entender antes de darle:
+                                  desde ese momento el correo viejo ya no sirve
+                                  para entrar, y la contraseña sigue siendo la
+                                  misma. Se cambia en la cuenta y en la ficha a la
+                                  vez — la ficha sola no cambiaría el acceso, que
+                                  es lo que la 0198 impide. */}
+                              <span className="w-full text-xs text-taupe">
+                                Pasa a ser su usuario para entrar; con el anterior ya no podrá.
+                                Su contraseña no cambia. Se actualiza también en su ficha.
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <div className="flex flex-wrap items-center gap-2">
                           <input
