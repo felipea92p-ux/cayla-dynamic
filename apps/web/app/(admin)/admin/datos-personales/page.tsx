@@ -164,11 +164,21 @@ export default function DatosPersonalesPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  function seleccionar(id: string) {
+  // ÚNICA puerta de entrada a la ficha. Nunca `setSel` suelto: quien cambia
+  // `sel` sin pasar por acá deja el formulario con los datos de la persona
+  // ANTERIOR, y como `fn_set_datos_personales` es un upsert que reemplaza,
+  // pulsar Guardar los escribe encima de la ficha equivocada. Pasó de verdad
+  // el 2026-08-13: el atajo de «fichas incompletas» llamaba a setSel directo,
+  // la ficha se abría con el correo y el DNI en blanco, y guardar intentó
+  // borrarle el correo a alguien que sí lo tenía. Lo frenó el candado de la
+  // 0198 —que solo cuida el correo—; el resto de la ficha ya se había escrito.
+  function seleccionar(id: string, forzarScroll = false) {
     setSel(id); setMsg(null); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO }); setDhEditando(null);
     // En móvil la ficha queda debajo de la lista: la traemos a la vista
     // (respetando la preferencia de "reducir movimiento" del sistema).
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    // `forzarScroll` es para quien entra desde el bloque de arriba, donde la
+    // ficha queda fuera de vista también en pantalla grande.
+    if (typeof window !== "undefined" && (forzarScroll || window.innerWidth < 768)) {
       const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       setTimeout(() => fichaRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 60);
     }
@@ -608,7 +618,7 @@ export default function DatosPersonalesPage() {
                 <li key={p.id}>
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <button
-                      onClick={() => { setSel(p.id); fichaRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+                      onClick={() => seleccionar(p.id, true)}
                       className="font-medium underline decoration-dotted underline-offset-2"
                     >
                       {p.apellidos}, {p.nombres}
