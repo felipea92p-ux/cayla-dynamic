@@ -136,7 +136,7 @@ Resultado:
 
 | | trabajó el 28 | descansó el 31 | resultado |
 |---|---|---|---|
-| Judith, Raquel, Joselyn | sí → cobraron sobretasa | sí | recibieron **las dos cosas**: ~S/102 de más cada una |
+| Judith, Raquel, Joselyn | sí → cobraron sobretasa | sí | recibieron **las dos cosas**. Devuelto con un descuento el 2026-08-14 |
 | **Carmen** | **NO vino** → sin sobretasa | no | **correcto**, nada que ajustar |
 
 Lo de Carmen se comprobó día por día contra sus marcajes: el 28 y el 29 no tiene
@@ -149,9 +149,27 @@ ese registro entró por una vía que esquiva esa comprobación, o sus marcas del
 se borraron DESPUÉS de crearlo —lo segundo dejaría rastro en
 `correcciones_auditoria`—. Sin resolver al 2026-08-13.
 
-Decisión de Felipe (2026-08-13): **julio no se toca**. Son ~S/306 pagados de más
-a TRES personas —Carmen no, porque no trabajó el feriado—, por un error de papeleo de la empresa, en una planilla ya
-depositada. Reclamarlo cuesta más de lo que se recupera.
+**RESUELTO EL 2026-08-14 CON UN DESCUENTO, no reabriendo julio.** La planilla de
+julio no se toca: se registró un descuento en el periodo ABIERTO (29-jul → 28-ago),
+una línea por persona con su concepto, por el importe exacto de la sobretasa que
+cobraron:
+
+| | descuento |
+|---|---|
+| Joselyn Gavilan | S/ 61.77 |
+| Judith Pillaca | S/ 67.86 |
+| Raquel Ticona | S/ 67.93 |
+| **total** | **S/ 197.56** |
+
+Carmen queda fuera, y no por una lista escrita a mano: el script mira quién tiene
+horas el 28 y ella no vino. El importe sale de `fn_feriados_laborados`, la misma
+función que pinta ese número en la pantalla de Feriados — no se calculó aparte.
+
+Se deshace con `fn_quitar_movimiento` si hiciera falta.
+
+⚠ **Cifra corregida:** durante la conversación se manejó «~S/102 cada una,
+~S/306 en total». Era una estimación sacada del ejemplo de OTRA persona. El
+importe real es el de la tabla.
 
 Y aunque se quisiera, **no se podría**: la 0093 bloquea cualquier cambio sobre un
 periodo pagado, y quitar una fila es un cambio. Los siete se quedan, y los cuatro
