@@ -325,6 +325,10 @@ function BoletaContenido() {
   // sobretiempo: entra en el 'total' del SQL, así que si la boleta no la imprime
   // el total deja de cuadrar con sus líneas — y este es el peor sitio donde eso
   // podría pasar, porque un locador CONTRASTA esta hoja contra su recibo.
+  // ¿Su pago depende de las horas que registre? (0250). `?? false` para que una
+  // base sin la 0250 pegada se comporte exactamente como antes — etiquetando por
+  // horas, que es lo que hacía — en vez de afirmar un monto fijo que no sabe.
+  const sueldoFijo = f.sueldo_fijo ?? false;
   const retencion4ta = f.retencion_4ta ?? 0;
   // El importe por el que tiene que emitir el recibo. Es la base, no el total:
   // el total ya lleva la retención descontada. Sin la 0245 pegada la clave no
@@ -487,8 +491,15 @@ function BoletaContenido() {
                 distingue esa referencia de esta fila proporcional. */}
             <tr className="border-t border-sand">
               <td className="py-2">
+                {/* ⇩ CAMBIO 0250 ⇩ Un locador con monto fijo NO cobra por horas,
+                    y decirle que sí describe su contrato al revés en un papel
+                    que se le entrega. Con cero horas marcadas quedaba además
+                    «(0 h) …… S/ 652.17», que se lee como un error de cálculo
+                    aunque el número esté bien. */}
                 {esLocador
-                  ? `Honorarios por las horas prestadas (${fmtHorasHumano(f.horas_mes)})`
+                  ? sueldoFijo
+                    ? "Honorarios del mes (monto fijo pactado)"
+                    : `Honorarios por las horas prestadas (${fmtHorasHumano(f.horas_mes)})`
                   : `Remuneración Básica proporcional (${fmtHorasHumano(f.horas_mes)})`}
                 {/* La sublínea de un locador NO compara contra «el mes completo».
                     Esa comparación es la que insinúa un sueldo mensual del que
@@ -496,7 +507,9 @@ function BoletaContenido() {
                     tal cosa: tiene las horas que prestó. */}
                 {esLocador ? (
                   <span className="block text-xs text-taupe">
-                    Horas prestadas en el periodo
+                    {sueldoFijo
+                      ? "Lo pactado por el mes — no depende de las horas que registres"
+                      : "Horas prestadas en el periodo"}
                   </span>
                 ) : (
                   baseLegal !== null && (

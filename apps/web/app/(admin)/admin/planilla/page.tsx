@@ -208,6 +208,11 @@ export interface Fila {
   // `retencion_4ta_sin_configurar` es el aviso: pasa el tope y nadie eligió modo.
   // Todas opcionales, como las de la 0185 y la 0236: una base sin la 0245 pegada
   // no manda las claves y la pantalla se comporta exactamente como antes.
+  // ¿Su pago depende de las horas que registre? (0250). Es de PRESENTACIÓN: no
+  // mueve un céntimo — `pago_base` ya se calcula distinto desde la 0047. Viaja
+  // para que la boleta pueda distinguir dos locadores que cobran al revés y
+  // dejar de ponerles la misma etiqueta.
+  sueldo_fijo?: boolean;
   retencion_4ta?: number;
   retencion_4ta_base?: number;
   retencion_4ta_modo?: string | null;
