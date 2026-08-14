@@ -1503,6 +1503,24 @@ al tope.
 
 ## 🔴 Atender primero
 
+0. **El freno del SQL a producción se puede saltar sin querer, y ya pasó dos
+   veces.** El 2026-08-14 la **0243** —que cambia una liquidación por cese— quedó
+   aplicada en producción con sus tres archivos **sin commitear**: el mismo estado
+   exacto en el que se encontró la **0177** el 2026-08-07. Se rescató el mismo día.
+
+   **`dame-el-sql.sh` no lo evitó, y no puede:** solo protege a quien lo usa. Si
+   la migración se copia del editor —lo natural cuando la tienes abierta delante—
+   el script no participa, y ni el hook de numeración ni `que-falta-pegar.sh` ven
+   nada, porque los dos miran git. El agujero no está en el script: está en que
+   **el camino cómodo no pasa por él**.
+
+   Dos ideas, ninguna medida todavía: que `que_falta_pegar.sql` compare lo que
+   `migraciones_aplicadas` dice en producción contra lo que hay **en GitHub** (no
+   en el disco), de modo que una migración aplicada y no subida salga como
+   hallazgo; o un hook de `post-commit`/`pre-push` que avise cuando hay un archivo
+   sin trackear en `supabase/migrations/`. La segunda es de una tarde y atrapa el
+   caso antes de que llegue a producción.
+
 1. **Julio: nadie tuvo descuento de pensión.** Medido el 2026-08-08 sobre el
    periodo 28-jun → 28-jul: `pension_descontada` = **S/0.00 para las 23
    personas**, y `con_tasa_de_pension` = 0. En agosto ya son 20 de 22, así que
