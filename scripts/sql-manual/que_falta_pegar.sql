@@ -99,7 +99,8 @@ with repo(numero, nombre, nunca) as (values
     (234, 'cada_quien_puede_saber_en_que_periodo_esta', false),
     (235, 'la_segunda_suspension_cae_en_dias_habiles_y_no_se_pasa_del_tope', false),
     (236, 'un_concepto_en_cero_se_escribe_no_se_borra', false),
-    (237, 'la_mitad_de_la_0213_que_produccion_nunca_recibio', false)
+    (237, 'la_mitad_de_la_0213_que_produccion_nunca_recibio', false),
+    (246, 'una_imputacion_prematura_no_tapa_el_escalon_que_falta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
