@@ -119,15 +119,28 @@ c7 as (
 -- descanso médico, una maternidad o una licencia con goce pagan S/0.00 mientras
 -- la pantalla dice cuatro veces «se paga» y las provisiones sí los devengan.
 -- El RIT art. 31 f) obliga a CAYLA a asumir los primeros 20 días.
+-- ⚠️ SOLO LOS TIPOS QUE EL CATÁLOGO DICE QUE PAGAN, y esto se aprendió caro.
+-- La primera versión marcaba TODAS las ausencias del periodo y daba diez falsas
+-- alarmas de golpe: cuatro permisos personales, dos descansos por salud sin
+-- documento y un «otro» son tipos con `paga = false`, así que S/0.00 es su
+-- resultado CORRECTO. Un chequeo que grita por lo normal se desactiva a la
+-- semana, y con él se pierde el grito que sí importa.
+--
+-- Los que pagan son cuatro: descanso_medico, licencia_con_goce, maternidad y
+-- vacaciones. Y de esos se descuenta a quien no devenga —un locador no cobra
+-- vacaciones desde la 0186— para no volver a inventar una alarma.
 c8 as (
   select 8, 'AUSENCIAS QUE PAGARÁN CERO',
          case when count(*) = 0 then '✓  ninguna en el periodo'
-              else '💸 ' || count(*)::text || ' ausencia(s) — se pagarán S/0.00' end,
+              else '💸 ' || count(*)::text || ' ausencia(s) QUE DEBERÍAN PAGARSE y saldrán S/0.00' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos || ' · ' || a.tipo
                              || ' ' || a.fecha_inicio::text || '→' || a.fecha_fin::text, ' · '),
-                  'Nadie tiene descanso médico, maternidad ni licencia registrada en el periodo.')
-  from ausencias a join personas p on p.id = a.persona_id, d
+                  'Ninguna ausencia de tipo pagable en el periodo. Los permisos personales, el duelo y la salud sin documento NO pagan: S/0.00 es su resultado correcto.')
+  from ausencias a
+  join personas p on p.id = a.persona_id
+  join tipos_ausencia t on t.codigo = a.tipo and t.paga is true, d
   where a.anulada_at is null and a.fecha_inicio <= d.fin and a.fecha_fin >= d.ini
+    and p.en_planilla is true
 ),
 
 -- ── 9 · Quién entró o cesó dentro del periodo ───────────────────────────────
