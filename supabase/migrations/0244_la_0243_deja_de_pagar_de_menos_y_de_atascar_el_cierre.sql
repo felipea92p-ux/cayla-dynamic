@@ -405,7 +405,7 @@
 -- `./scripts/que-falta-pegar.sh` pide la 0243 —hace bien, le falta—, y pegarla
 -- DEVUELVE las dos funciones al cuerpo que paga S/750.00 de menos, imprime
 -- «0243 · listo» y deja las dos marcadas como aplicadas. Ni un warning en todo
--- el camino: el `do $mig$` de la 0243 comprueba su propio contenido, y su propio
+-- el camino: el bloque de comprobación de la 0243 revisa su contenido, y su propio
 -- contenido está bien — lo que no puede saber es que está pisando algo posterior.
 --
 -- Así que el freno se pone acá, que es el único sitio donde todavía se puede.
