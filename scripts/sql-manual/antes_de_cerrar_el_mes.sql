@@ -66,17 +66,49 @@ c2 as (
 -- `abierta` y `en_pausa` pagan S/0.00 ese día y NO entran en el contador de
 -- «días pendientes», que solo cuenta las auto_cerrada_pendiente. Es el único
 -- estado que se lleva plata en silencio. Medido: ~S/51 por día y persona.
+--
+-- ⚠️ EL DÍA DE HOY NO CUENTA, y eso es el 2026-08-14 aprendido a la mala. Este
+-- chequeo contaba TODO el periodo, hoy incluido, y devolvió «💸 14 día(s) que
+-- pagarán CERO» a las tres de la tarde de un jueves: eran trece personas EN SU
+-- PUESTO, con su jornada abierta porque todavía no habían salido. Se comprobó
+-- de la forma más elocuente posible — al volver a correrlo un rato después el
+-- número había bajado a 10 solo, mientras la gente se iba a casa.
+--
+-- Un aviso que grita 💸 por gente trabajando enseña a ignorarlo, y el día que
+-- cuente uno de verdad ya nadie lo va a leer. Esa es la regla de CLAUDE.md: los
+-- falsos positivos son el peor error, y las exclusiones se aplican ANTES de
+-- contar, no después.
 c4 as (
   select 4, 'JORNADAS MUDAS (abierta / en_pausa)',
-         case when count(*) = 0 then '✓  ninguna'
+         case when count(*) = 0 then '✓  ninguna de días pasados'
               else '💸 ' || count(*)::text || ' día(s) que pagarán CERO y no avisan' end,
          coalesce(string_agg(distinct p.nombres || ' ' || p.apellidos, ' · '),
-                  'Ojo el 28: quien no haya marcado salida cuando se congele pierde el día, y ya no se arregla solo.')
+                  'Los días ya cerrados están todos con su salida. El día en curso va en la línea de abajo.')
   from jornadas j join personas p on p.id = j.persona_id, d
   where j.fecha between d.ini and d.fin and j.estado in ('abierta','en_pausa')
+    and j.fecha < (now() at time zone 'America/Lima')::date
+),
+
+-- ── 3b · El día en curso, que NO es un problema… hasta el día que cierras ────
+-- Va aparte y sin 💸 a propósito: mientras el periodo siga abierto, una jornada
+-- de hoy sin salida es alguien trabajando. Pero el 28, al congelar, deja de
+-- serlo — quien no haya marcado su salida en ese momento pierde el día, y ya no
+-- se arregla solo. Por eso se informa siempre y se avisa solo cuando toca.
+c4b as (
+  select 5, 'EL DÍA EN CURSO (informativo)',
+         case when count(*) = 0 then '✓  nadie con el día abierto'
+              when (now() at time zone 'America/Lima')::date = (select fin from d)
+                then '⚠  ' || count(*)::text || ' persona(s) SIN SALIDA — hoy se congela: pierden el día'
+              else 'ℹ  ' || count(*)::text || ' persona(s) con el día en curso' end,
+         coalesce(string_agg(distinct p.nombres || ' ' || p.apellidos, ' · '),
+                  'Nadie tiene el día de hoy abierto.')
+  from jornadas j join personas p on p.id = j.persona_id, d
+  where j.fecha = (now() at time zone 'America/Lima')::date
+    and j.fecha between d.ini and d.fin
+    and j.estado in ('abierta','en_pausa')
 ),
 c5 as (
-  select 5, 'JORNADAS AUTO-CERRADAS SIN CONFIRMAR',
+  select 6, 'JORNADAS AUTO-CERRADAS SIN CONFIRMAR',
          case when count(*) = 0 then '✓  ninguna' else '⚠  ' || count(*)::text || ' por revisar' end,
          'Estas SÍ salen en el contador de pendientes. Se pagan con la hora que inventó el cron.'
   from jornadas j, d
@@ -84,14 +116,27 @@ c5 as (
 ),
 
 -- ── 6 · Lo que puede ATASCAR el cierre ──────────────────────────────────────
--- El total no aplica `cobra_movilidad`: paga una movilidad que la boleta imprime
--- en S/0.00. Ese descuadre hace que chk_foto_cuadra rechace la fila — y como
--- fn_planilla_congelar inserta las ~30 en una sola sentencia, NO SE CONGELA
--- NINGUNA. Es el mismo mecanismo que la retención de 4ta que arregló la 0248.
+-- El total no aplicaba `cobra_movilidad`: pagaba una movilidad que la boleta
+-- imprime en S/0.00. Ese descuadre hacía que chk_foto_cuadra rechazara la fila
+-- — y como fn_planilla_congelar inserta las ~30 en una sola sentencia, NO SE
+-- CONGELABA NINGUNA. Mismo mecanismo que la retención de 4ta de la 0248.
+--
+-- Lo arregló la 0252, y por eso este chequeo MIDE EL DEFECTO Y NO SU PROXY.
+-- Antes se disparaba con solo existir alguien con `cobra_movilidad = false`;
+-- con la 0252 puesta esa persona sigue existiendo y ya no hay ningún riesgo, así
+-- que el 🚫 habría quedado encendido para siempre. Un semáforo que no se apaga
+-- nunca no es un semáforo. Ahora se pregunta a la función: el filtro tiene que
+-- aparecer DOS veces —en el concepto `monto_movilidad` y en el término del
+-- `total`—, y solo si aparece una vez hay alguien en riesgo de verdad.
 c6 as (
-  select 6, 'MOVILIDAD EXCLUIDA CON TARIFA VIVA',
+  select 7, 'MOVILIDAD EXCLUIDA CON TARIFA VIVA',
          case when count(*) = 0 then '✓  nadie en riesgo'
-              else '🚫 ' || count(*)::text || ' persona(s) — el cierre puede abortar PARA TODOS' end,
+              when (select (length(prosrc) - length(replace(prosrc, 'pe.cobra_movilidad', '')))
+                           / length('pe.cobra_movilidad')
+                      from pg_proc pr join pg_namespace ns on ns.oid = pr.pronamespace
+                     where ns.nspname = 'public' and pr.proname = 'fn_planilla_calcular') >= 2
+                then '✓  ' || count(*)::text || ' persona(s), y la 0252 ya las cubre'
+              else '🚫 ' || count(*)::text || ' persona(s) — FALTA LA 0252: el cierre aborta PARA TODOS' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos || coalesce(' (' || p.movilidad_motivo || ')', ''), ' · '),
                   'Nadie tiene cobra_movilidad = false con días marcados.')
   from personas p, d
@@ -105,7 +150,7 @@ c6 as (
 -- dice. Medido: ~S/256/mes por persona. CAYLA es agente de retención: lo que no
 -- se retiene lo termina pagando la empresa. Es lo que pasó en julio con 23.
 c7 as (
-  select 7, 'SIN RÉGIMEN DE PENSIÓN',
+  select 8, 'SIN RÉGIMEN DE PENSIÓN',
          case when count(*) = 0 then '✓  todos lo tienen'
               else '💸 ' || count(*)::text || ' persona(s) sin retención previsional' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos, ' · '),
@@ -130,7 +175,7 @@ c7 as (
 -- vacaciones. Y de esos se descuenta a quien no devenga —un locador no cobra
 -- vacaciones desde la 0186— para no volver a inventar una alarma.
 c8 as (
-  select 8, 'AUSENCIAS QUE PAGARÁN CERO',
+  select 9, 'AUSENCIAS QUE PAGARÁN CERO',
          case when count(*) = 0 then '✓  ninguna en el periodo'
               else '💸 ' || count(*)::text || ' ausencia(s) QUE DEBERÍAN PAGARSE y saldrán S/0.00' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos || ' · ' || a.tipo
@@ -147,7 +192,7 @@ c8 as (
 -- Es el caso que más errores produce: prorrateos, truncas, y el sueldo fijo que
 -- cobra el mes entero por un solo día (medido: hasta S/915 de más).
 c9 as (
-  select 9, 'ENTRADAS Y CESES EN EL PERIODO',
+  select 10, 'ENTRADAS Y CESES EN EL PERIODO',
          case when count(*) = 0 then '✓  ninguno' else '⚠  ' || count(*)::text || ' movimiento(s)' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos
                    || case when p.fecha_ingreso between d.ini and d.fin then ' (entró ' || p.fecha_ingreso::text || ')' else '' end
@@ -162,7 +207,7 @@ c9 as (
 -- Sin tramo de salario que cubra el periodo se cobra S/0.00. Los RxH sin horario
 -- es correcto y deliberado desde la 0191 — por eso se separan.
 c10 as (
-  select 10, 'ACTIVOS SIN SALARIO VIGENTE',
+  select 11, 'ACTIVOS SIN SALARIO VIGENTE',
          case when count(*) = 0 then '✓  todos tienen'
               else '💸 ' || count(*)::text || ' persona(s) cobrarán CERO' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos, ' · '), 'Todo el mundo tiene su tramo abierto.')
@@ -173,7 +218,7 @@ c10 as (
                        and (a.vigente_hasta is null or a.vigente_hasta >= d.ini))
 ),
 c11 as (
-  select 11, 'EN PLANILLA SIN HORARIO VIGENTE',
+  select 12, 'EN PLANILLA SIN HORARIO VIGENTE',
          case when count(*) = 0 then '✓  todos tienen'
               else '⚠  ' || count(*)::text || ' sin horario (no se les mide falta ni tardanza)' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos, ' · '), 'Todos los de planilla tienen horario.')
@@ -188,7 +233,7 @@ c11 as (
 -- Un día de vacaciones en el que la persona ADEMÁS marca se paga dos veces.
 -- Medido: hasta S/915 de más en un mes.
 c12 as (
-  select 12, 'VACACIONES CON MARCAJE ENCIMA',
+  select 13, 'VACACIONES CON MARCAJE ENCIMA',
          case when count(*) = 0 then '✓  ninguna'
               else '💸 ' || count(*)::text || ' día(s) que se pagarán DOS veces' end,
          coalesce(string_agg(distinct p.nombres || ' ' || p.apellidos, ' · '),
@@ -203,6 +248,7 @@ c12 as (
 select chequeo, resultado, detalle
 from (
   select * from c1  union all select * from c2  union all select * from c4
+  union all select * from c4b
   union all select * from c5  union all select * from c6  union all select * from c7
   union all select * from c8  union all select * from c9  union all select * from c10
   union all select * from c11 union all select * from c12
