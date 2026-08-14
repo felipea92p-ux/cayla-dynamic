@@ -109,7 +109,8 @@ with repo(numero, nombre, nunca) as (values
     (244, 'la_0243_deja_de_pagar_de_menos_y_de_atascar_el_cierre', false),
     (245, 'la_retencion_de_cuarta_deja_de_hacerse_a_mano', false),
     (246, 'una_imputacion_prematura_no_tapa_el_escalon_que_falta', false),
-    (247, 'una_licencia_con_goce_se_puede_registrar', false)
+    (247, 'una_licencia_con_goce_se_puede_registrar', false),
+    (248, 'la_foto_del_pago_aprende_la_retencion_de_cuarta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
