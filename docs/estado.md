@@ -84,6 +84,41 @@ comprueba un nivel más abajo, en `fn_expediente_crear_borrador`; y
 respuesta correcta salió de preguntarle a la base qué hace —`pg_get_function_result`,
 llamar la función, reproducir el caso— y no de buscar un texto.
 
+### El panel ya puede volver a invitar a quien nunca entró
+
+`/admin/cuentas` daba por resuelta a una persona en cuanto GoTrue aceptaba el
+envío: `invitar` enlaza el `auth_user_id` ahí mismo, y con eso desaparecía de la
+lista de invitables **aunque el correo se hubiera perdido en spam y ella no
+hubiera hecho nada**. No había forma de reenviarle nada desde la pantalla.
+
+Ahora hay una sección **«Volver a invitar — todavía no han entrado»**, con envío
+de a una o en tanda. Quién sale ahí se lee de `auth.users.last_sign_in_at`: en
+null significa exactamente «no abrió el correo», porque aceptar la invitación
+**es** iniciar sesión — el enlace la deja adentro para que ponga su clave.
+
+**Y son dos correos distintos, medido contra el GoTrue local:**
+
+| A quién | Qué se le manda | Por qué |
+|---|---|---|
+| Invitada que no aceptó (sin confirmar) | la invitación otra vez | GoTrue reinvita sin problema: mismo usuario, `invited_at` renovado |
+| Cuenta creada a mano (confirmada) | el enlace de «recuperar acceso» | la invitación responde **422 `email_exists`**; ese camino está cerrado |
+
+La tanda va con una pausa entre correos y **se corta sola** al llegar al tope por
+hora del proyecto, diciendo quiénes quedaron pendientes. Mandarlos todos de golpe
+no llega antes y convierte un tope en veinte errores.
+
+⚠️ **Lo que hay que comprobar en el panel de Supabase antes de disparar:** que
+`https://cayla-dynamic.vercel.app/**` esté en *Authentication → URL
+Configuration → Redirect URLs*. Si no está, el enlace **no falla** — cae en el
+Site URL, o sea en la raíz, y la persona termina en el login sin clave y sin
+nada que le diga qué hacer. Se lee igual que un correo que no funcionó. En local
+pasaba exactamente eso hasta que se agregó a `additional_redirect_urls` en
+`supabase/config.toml`.
+
+*(Y un aviso para quien corra las pruebas: `scripts/seed-dev.mjs` deja
+`100_una_tienda_no_es_una_oficina` fallando en sus pruebas 8 y 9. Con
+`npx supabase db reset` antes, las 953 pasan.)*
+
 
 ---
 

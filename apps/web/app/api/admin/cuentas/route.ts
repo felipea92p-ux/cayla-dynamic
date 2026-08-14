@@ -1,4 +1,4 @@
-import { createServiceRoleClient } from "@cayla-dynamic/database";
+import { createAnonClient, createServiceRoleClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -6,7 +6,8 @@ import { puedeActuarSobre, puedeGestionarCatalogos, ROLES_CON_PANEL } from "@cay
 
 // Gestión de cuentas del panel — SOLO admin/lider_do. Corre en el servidor con la
 // llave de servicio; verifica que quien llama sea admin (por su sesión).
-// Acciones: listar | resetear (contraseña de otro) | crear (cuenta de una persona).
+// Acciones: listar | resetear (contraseña de otro) | crear (cuenta de una persona)
+//         | invitar (correo para que elija su clave) | reinvitar | promover.
 
 // Estas claves son la única credencial de una cuenta del panel hasta que su dueña
 // la cambia. `Math.random()` NO sirve para eso: no es criptográfico y su estado
@@ -34,12 +35,28 @@ function generarClave() {
 }
 
 
-async function emailsPorUsuario(admin: any): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
+// De cada cuenta de acceso interesan tres cosas, y ninguna vive en `personas`:
+// con qué correo entra, si alguna vez entró, y si su correo está confirmado.
+// Las dos últimas son las que distinguen «le mandé la invitación y la aceptó»
+// de «le mandé la invitación y sigue sin abrirla».
+interface CuentaAuth {
+  email: string;
+  ultimoAcceso: string | null;
+  confirmado: boolean;
+}
+
+async function usuariosPorId(admin: any): Promise<Record<string, CuentaAuth>> {
+  const out: Record<string, CuentaAuth> = {};
   let page = 1;
   while (true) {
     const { data } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    for (const u of data.users) out[u.id] = u.email ?? "";
+    for (const u of data.users) {
+      out[u.id] = {
+        email: u.email ?? "",
+        ultimoAcceso: u.last_sign_in_at ?? null,
+        confirmado: !!u.email_confirmed_at,
+      };
+    }
     if (data.users.length < 200) break;
     page++;
   }
@@ -51,8 +68,14 @@ async function emailsPorUsuario(admin: any): Promise<Record<string, string>> {
 // el más frecuente —el correo repetido, que sale cada vez que alguien intenta
 // crear dos veces la misma cuenta— se dice en español. El resto se registra y
 // se responde con algo honesto en vez de pegar el texto en inglés.
-function mensajeDeAuth(error: { message?: string } | null | undefined): string {
+function mensajeDeAuth(error: { message?: string; status?: number } | null | undefined): string {
   const t = (error?.message ?? "").toLowerCase();
+  // El más probable cuando se reenvían muchas invitaciones de una pasada: el
+  // proyecto tiene un tope de correos por hora. No es un fallo del envío ni un
+  // problema de esa persona — es que hay que esperar y seguir con el resto.
+  if (error?.status === 429 || t.includes("rate limit") || t.includes("only request this after")) {
+    return "Se llegó al tope de correos por hora del proyecto. Espera un rato y sigue con las que faltan; las ya enviadas no se pierden.";
+  }
   if (t.includes("already been registered") || t.includes("already registered")) {
     return "Ese correo ya está registrado en otra cuenta. Usa otro, o revisa si esa persona ya tiene acceso.";
   }
@@ -89,13 +112,13 @@ export async function POST(req: Request) {
         .in("rol", [...ROLES_CON_PANEL])
         .eq("estado", "activo")
         .order("nombres");
-      const emails = await emailsPorUsuario(admin);
+      const usuarios = await usuariosPorId(admin);
       const cuentas = (personas ?? []).map((p: any) => ({
         id: p.id,
         nombre: `${p.nombres} ${p.apellidos}`,
         rol: p.rol,
         sede: p.sedes?.codigo ?? "?",
-        email: p.auth_user_id ? emails[p.auth_user_id] ?? null : null,
+        email: p.auth_user_id ? usuarios[p.auth_user_id]?.email ?? null : null,
         tieneCuenta: !!p.auth_user_id,
       }));
       // Integrantes que se pueden promover a encargada (para darles acceso al panel de su sede)
@@ -135,7 +158,41 @@ export async function POST(req: Request) {
           sede: p.sedes?.codigo ?? "?",
           email: p.email ?? null,
         }));
-      return NextResponse.json({ cuentas, promovibles, invitables });
+      // Quien tiene cuenta y NUNCA entró. Es el hueco que dejaba el diseño
+      // anterior: `invitar` enlaza `auth_user_id` en cuanto GoTrue acepta el
+      // envío, así que la persona desaparecía de «invitables» aunque el correo
+      // se hubiera perdido en spam y ella no hubiera hecho nada. Quedaba
+      // contada como resuelta sin haber entrado nunca.
+      //
+      // «Nunca entró» se lee de `last_sign_in_at`, no de `confirmado`: aceptar
+      // la invitación ES iniciar sesión (el enlace la deja adentro para que
+      // ponga su clave), así que ese campo en null significa exactamente
+      // «no abrió el correo».
+      //
+      // Va sin filtrar por rol ni por planilla a propósito: acá no se decide a
+      // quién invitar —eso ya se decidió cuando se le creó la cuenta— sino a
+      // quién le quedó el acceso a medias.
+      const { data: conCuenta } = await admin
+        .from("personas")
+        .select("id, nombres, apellidos, rol, auth_user_id, sedes:sede_base_id(codigo)")
+        .not("auth_user_id", "is", null)
+        .eq("estado", "activo")
+        .order("apellidos");
+      const pendientes = (conCuenta ?? [])
+        .map((p: any) => ({ p, u: usuarios[p.auth_user_id] }))
+        .filter(({ u }: any) => u && !u.ultimoAcceso)
+        .map(({ p, u }: any) => ({
+          id: p.id,
+          nombre: `${p.nombres} ${p.apellidos}`,
+          rol: p.rol,
+          sede: p.sedes?.codigo ?? "?",
+          email: u.email || null,
+          // Decide qué correo se le puede mandar: a quien ya tiene clave
+          // (cuenta creada a mano) GoTrue le rechaza una segunda invitación.
+          confirmado: u.confirmado,
+        }));
+
+      return NextResponse.json({ cuentas, promovibles, invitables, pendientes });
     }
 
     if (accion === "invitar") {
@@ -185,6 +242,81 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: mensajeDeError(e2, "enlazar la cuenta con su ficha") }, { status: 500 });
       }
       return NextResponse.json({ invitado: destino });
+    }
+
+    if (accion === "reinvitar") {
+      // Vuelve a mandarle el correo a quien tiene cuenta y nunca entró.
+      //
+      // Son DOS correos distintos, y cuál toca lo decide GoTrue, no nosotros
+      // (medido contra el GoTrue local el 2026-08-13):
+      //
+      //   · sin confirmar → se puede reinvitar cuantas veces haga falta: el
+      //     usuario es el mismo, `invited_at` se renueva y sale el correo de
+      //     invitación. Es el caso de quien fue invitada y no abrió el enlace.
+      //   · confirmada → la invitación responde 422 `email_exists`. Es quien
+      //     tiene cuenta creada a mano, con `email_confirm: true` y una clave
+      //     que alguien le dictó. A ella le sirve el correo de recuperación:
+      //     el mismo de «Olvidé mi clave», que la deja poner la suya.
+      //
+      // Mandar el que no toca no es un detalle de forma: el primero fallaría
+      // con un error en inglés y el segundo llegaría hablando de recuperar una
+      // clave que la persona nunca tuvo.
+      const { data: p } = await admin
+        .from("personas")
+        .select("id, auth_user_id, rol, email, nombres, apellidos")
+        .eq("id", personaId)
+        .maybeSingle();
+      if (!p) return NextResponse.json({ error: "persona no encontrada" }, { status: 404 });
+      if (!puedeActuarSobre(yo.rol, p.rol)) {
+        return NextResponse.json({ error: "no puedes invitar a esa persona" }, { status: 403 });
+      }
+      if (!p.auth_user_id) {
+        return NextResponse.json({ error: "esa persona todavía no tiene cuenta: usa Invitar" }, { status: 409 });
+      }
+      const { data: u, error: eu } = await admin.auth.admin.getUserById(p.auth_user_id);
+      if (eu || !u?.user) {
+        Sentry.captureException(eu ?? new Error("cuenta de acceso no encontrada"));
+        return NextResponse.json({ error: mensajeDeAuth(eu) }, { status: 500 });
+      }
+      // Se relee del usuario y no de la lista: entre que la pantalla cargó y
+      // llegó este clic la persona pudo entrar, y reenviarle el correo a quien
+      // ya está adentro solo siembra dudas sobre si su clave sigue sirviendo.
+      if (u.user.last_sign_in_at) {
+        return NextResponse.json({ error: "ya entró al panel; si perdió su clave, resetéala" }, { status: 409 });
+      }
+      // El correo destino es el de la CUENTA, no el de la ficha: ese es el
+      // usuario con el que entra. Si la ficha tiene otro, cambiarlo es otra
+      // operación (y hoy se hace desde acá, no desde Datos personales).
+      const correo = (u.user.email ?? p.email ?? "").trim();
+      if (!correo.includes("@")) {
+        return NextResponse.json(
+          { error: `La cuenta de ${p.nombres} no tiene un correo válido.` },
+          { status: 400 },
+        );
+      }
+      const raiz = req.headers.get("origin") ?? new URL(req.url).origin;
+      const destinoTrasClic = `${raiz}/admin/nueva-clave`;
+
+      if (!u.user.email_confirmed_at) {
+        const { error } = await admin.auth.admin.inviteUserByEmail(correo, { redirectTo: destinoTrasClic });
+        if (error) {
+          Sentry.captureException(error);
+          return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
+        }
+        return NextResponse.json({ enviado: correo, tipo: "invitacion" });
+      }
+
+      // La recuperación NO se pide con la llave de servicio: `/recover` es un
+      // camino público y con la llave de servicio va firmado como quien puede
+      // todo. Con la llave anónima se comporta igual que «Olvidé mi clave».
+      const publico = createAnonClient();
+      if (!publico) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
+      const { error } = await publico.auth.resetPasswordForEmail(correo, { redirectTo: destinoTrasClic });
+      if (error) {
+        Sentry.captureException(error);
+        return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
+      }
+      return NextResponse.json({ enviado: correo, tipo: "recuperacion" });
     }
 
     if (accion === "promover") {

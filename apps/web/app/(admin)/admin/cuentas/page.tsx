@@ -31,6 +31,15 @@ interface Invitable {
   email: string | null;
 }
 
+interface Pendiente {
+  id: string;
+  nombre: string;
+  rol: string;
+  sede: string;
+  email: string | null;
+  confirmado: boolean;
+}
+
 const ROL_LABEL: Record<string, string> = {
   admin: "Admin",
   lider_do: "Líder DO",
@@ -53,11 +62,13 @@ export default function CuentasPage() {
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [promovibles, setPromovibles] = useState<Promovible[]>([]);
   const [invitables, setInvitables] = useState<Invitable[]>([]);
+  const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [cargando, setCargando] = useState(false);
   const [emailNuevo, setEmailNuevo] = useState<Record<string, string>>({});
   const [claveGenerada, setClaveGenerada] = useState<Record<string, string>>({});
   const [procesando, setProcesando] = useState<string | null>(null);
-  const [msgGestion, setMsgGestion] = useState<string | null>(null);
+  const [tanda, setTanda] = useState(false);
+  const [msgGestion, setMsgGestion] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const token = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -65,19 +76,27 @@ export default function CuentasPage() {
     return data.session?.access_token ?? "";
   }, []);
 
+  const pedir = useCallback(
+    async (body: Record<string, unknown>) => {
+      const res = await fetch("/api/admin/cuentas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    },
+    [token],
+  );
+
   const listar = useCallback(async () => {
     setCargando(true);
-    const res = await fetch("/api/admin/cuentas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-      body: JSON.stringify({ accion: "listar" }),
-    });
-    const data = await res.json();
+    const data = await pedir({ accion: "listar" });
     setCuentas(data.cuentas ?? []);
     setPromovibles(data.promovibles ?? []);
     setInvitables(data.invitables ?? []);
+    setPendientes(data.pendientes ?? []);
     setCargando(false);
-  }, [token]);
+  }, [pedir]);
 
   useEffect(() => {
     const supabase = createAdminSupabaseClient();
@@ -102,44 +121,74 @@ export default function CuentasPage() {
 
   async function promover(p: Promovible) {
     setProcesando(p.id); setMsgGestion(null);
-    const res = await fetch("/api/admin/cuentas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-      body: JSON.stringify({ accion: "promover", personaId: p.id }),
-    });
-    const data = await res.json();
+    const data = await pedir({ accion: "promover", personaId: p.id });
     setProcesando(null);
-    if (data.error) { setMsgGestion(`${p.nombre}: ${data.error}`); return; }
-    setMsgGestion(`${p.nombre} ahora es encargada de ${p.sede}. Ya puedes crearle su cuenta abajo.`);
+    if (data.error) { setMsgGestion({ tipo: "error", texto: `${p.nombre}: ${data.error}` }); return; }
+    setMsgGestion({ tipo: "ok", texto: `${p.nombre} ahora es encargada de ${p.sede}. Ya puedes crearle su cuenta abajo.` });
     void listar();
   }
 
   async function invitar(p: Invitable) {
     setProcesando(p.id); setMsgGestion(null);
-    const res = await fetch("/api/admin/cuentas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-      body: JSON.stringify({ accion: "invitar", personaId: p.id }),
-    });
-    const data = await res.json();
+    const data = await pedir({ accion: "invitar", personaId: p.id });
     setProcesando(null);
-    if (data.error) { setMsgGestion(`${p.nombre}: ${data.error}`); return; }
-    setMsgGestion(`Invitación enviada a ${data.invitado}. ${p.nombre} recibirá un correo para poner su propia clave.`);
+    if (data.error) { setMsgGestion({ tipo: "error", texto: `${p.nombre}: ${data.error}` }); return; }
+    setMsgGestion({ tipo: "ok", texto: `Invitación enviada a ${data.invitado}. ${p.nombre} recibirá un correo para poner su propia clave.` });
+    void listar();
+  }
+
+  async function reinvitar(p: Pendiente) {
+    setProcesando(p.id); setMsgGestion(null);
+    const data = await pedir({ accion: "reinvitar", personaId: p.id });
+    setProcesando(null);
+    if (data.error) { setMsgGestion({ tipo: "error", texto: `${p.nombre}: ${data.error}` }); return; }
+    setMsgGestion({
+      tipo: "ok",
+      texto: data.tipo === "recuperacion"
+        ? `Enlace enviado a ${data.enviado}. ${p.nombre} ya tenía clave, así que le llega el correo de «recuperar acceso» para poner la suya.`
+        : `Invitación reenviada a ${data.enviado}.`,
+    });
+    void listar();
+  }
+
+  // Envío en tanda. Va de a una y con una pausa entre correos porque el
+  // proyecto tiene un tope por hora: mandarlos todos a la vez no llega antes y
+  // convierte un tope en veinte errores. Si el tope salta, se corta ahí mismo —
+  // seguir intentando solo suma fallos y borra de la vista quién sí recibió.
+  async function enTanda(gente: { id: string; nombre: string }[], accion: "invitar" | "reinvitar") {
+    setTanda(true); setMsgGestion(null);
+    const hechas: string[] = [];
+    const fallos: string[] = [];
+    let tope = false;
+    for (const p of gente) {
+      setProcesando(p.id);
+      setMsgGestion({ tipo: "ok", texto: `Enviando ${hechas.length + fallos.length + 1} de ${gente.length}: ${p.nombre}…` });
+      const data = await pedir({ accion, personaId: p.id });
+      if (data.error) {
+        fallos.push(`${p.nombre} — ${data.error}`);
+        if (String(data.error).includes("tope de correos")) { tope = true; break; }
+      } else {
+        hechas.push(p.nombre);
+      }
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    setProcesando(null); setTanda(false);
+    const resumen = [
+      `Enviados: ${hechas.length} de ${gente.length}.`,
+      fallos.length ? `Sin enviar (${fallos.length}): ${fallos.join(" · ")}` : "",
+      tope ? "Se cortó al llegar al tope por hora — vuelve a darle en un rato y sigue por donde quedó." : "",
+    ].filter(Boolean).join(" ");
+    setMsgGestion({ tipo: fallos.length ? "error" : "ok", texto: resumen });
     void listar();
   }
 
   async function accion(c: Cuenta, tipo: "resetear" | "crear") {
     setProcesando(c.id); setMsgGestion(null);
-    const body: any = { accion: tipo, personaId: c.id };
+    const body: Record<string, unknown> = { accion: tipo, personaId: c.id };
     if (tipo === "crear") body.email = emailNuevo[c.id]?.trim();
-    const res = await fetch("/api/admin/cuentas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
+    const data = await pedir(body);
     setProcesando(null);
-    if (data.error) { setMsgGestion(`${c.nombre}: ${data.error}`); return; }
+    if (data.error) { setMsgGestion({ tipo: "error", texto: `${c.nombre}: ${data.error}` }); return; }
     setClaveGenerada((m) => ({ ...m, [c.id]: data.password }));
     if (tipo === "crear") void listar();
   }
@@ -166,7 +215,9 @@ export default function CuentasPage() {
         <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, msgMia, guardandoMia, cambiarMiClave }} />
 
         <h2 className="mb-3 mt-8 font-serif text-lg">Gestionar cuentas del equipo</h2>
-        {msgGestion && <p className="mb-3 text-sm text-rojo">{msgGestion}</p>}
+        {msgGestion && (
+          <p className={`mb-3 text-sm ${msgGestion.tipo === "ok" ? "text-verde" : "text-rojo"}`}>{msgGestion.texto}</p>
+        )}
         <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
           <table className="w-full text-sm">
             <thead className="bg-sand/70 text-left">
@@ -245,6 +296,15 @@ export default function CuentasPage() {
           <SinDatos texto="No hay integrantes por invitar." pista="Acá aparece quien está en planilla y todavía no tiene cuenta. Si está vacío, todas pueden dejar su constancia." />
         ) : (
           <div className="flex flex-wrap gap-2">
+            {invitables.some((p) => p.email) && (
+              <button
+                onClick={() => enTanda(invitables.filter((p) => p.email), "invitar")}
+                disabled={tanda || procesando !== null}
+                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+              >
+                {tanda ? "Enviando…" : `Invitar a todas (${invitables.filter((p) => p.email).length})`}
+              </button>
+            )}
             {invitables.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
@@ -257,10 +317,54 @@ export default function CuentasPage() {
                 </span>
                 <button
                   onClick={() => invitar(p)}
-                  disabled={procesando === p.id || !p.email}
+                  disabled={procesando === p.id || !p.email || tanda}
                   className="rounded-lg border border-sand px-3 py-1 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
                 >
                   {procesando === p.id ? "…" : "Invitar"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <h2 className="mb-1 mt-8 font-serif text-lg">Volver a invitar — todavía no han entrado</h2>
+        <p className="mb-3 text-sm text-taupe">
+          Tienen cuenta creada pero <strong>nunca han iniciado sesión</strong>: el correo se perdió, llegó a spam
+          o quedó pendiente. A quien fue invitada le llega otra vez la invitación; a quien ya tenía clave le llega
+          el enlace de «recuperar acceso» para poner la suya. Van de a una, con una pausa entre correos, porque el
+          proyecto tiene un tope por hora.
+        </p>
+        {pendientes.length === 0 ? (
+          <SinDatos texto="Nadie quedó a medias." pista="Acá aparece quien tiene cuenta y nunca entró. Si está vacío, todas las cuentas creadas están en uso." />
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {pendientes.some((p) => p.email) && (
+              <button
+                onClick={() => enTanda(pendientes.filter((p) => p.email), "reinvitar")}
+                disabled={tanda || procesando !== null}
+                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+              >
+                {tanda ? "Enviando…" : `Reenviar a todas (${pendientes.filter((p) => p.email).length})`}
+              </button>
+            )}
+            {pendientes.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+                <span className="text-sm text-tinta">
+                  {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABEL[p.rol] ?? p.rol}</span>
+                  {p.email ? (
+                    <span className="block text-xs text-taupe">
+                      {p.email} · {p.confirmado ? "le llega «recuperar acceso»" : "le llega la invitación"}
+                    </span>
+                  ) : (
+                    <span className="block text-xs text-ambar">su cuenta no tiene correo</span>
+                  )}
+                </span>
+                <button
+                  onClick={() => reinvitar(p)}
+                  disabled={procesando === p.id || !p.email || tanda}
+                  className="rounded-lg border border-sand px-3 py-1 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
+                >
+                  {procesando === p.id ? "…" : "Reenviar"}
                 </button>
               </div>
             ))}
