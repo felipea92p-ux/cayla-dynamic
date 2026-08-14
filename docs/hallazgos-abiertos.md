@@ -56,8 +56,53 @@ antes que las migraciones que los protegen.
 | **A19** | una tardanza perdonada sigue contando en tres pantallas | `tardanzas_justificadas` aparece **cero** veces en Horas, Reporte-sede y `/api/espejo` |
 | **A4** | trabajar un feriado genera tardanzas | `fn_tardanzas_resumen` excluye justificadas y sueldo_fijo — **no** feriados ni vacaciones |
 | ~~**A7**~~ | ✅ **cerrado el 2026-08-08** por la 0184: `fn_set_horario` y `fn_quitar_horario` ya no existen | confirmado en producción: `puertas_que_quedan: 0` |
-| **A9** | el día compensatorio puede caer sobre vacaciones u otro feriado | `fn_dcs_validar_dia_laborable` no consulta `vacaciones` ni `feriados` |
-| **C4** | salida pasada la medianoche parte el día en dos | `fn_registrar_marcaje` no contempla la jornada abierta del día anterior, y `fn_recalcular_jornada` no tiene tope de horas |
+| ~~**A9**~~ | ✅ **cerrado el 2026-08-13** por la [0238](../supabase/migrations/0238_un_dia_compensatorio_que_no_compensa_deja_de_entrar.sql). Era más ancho de lo que decía esta línea: además de vacaciones y feriados, se podía poner el día libre ANTES del feriado y —la peor— sobre un día que la persona ya había trabajado. El motivo vive ahora en una sola función que consultan el candado y la pantalla, así que un día compensatorio futuro **se delata solo** cuando llega la fecha y hay horas marcadas | prueba [`179`](../supabase/tests/179_un_dia_compensatorio_tiene_que_compensar.test.sql), 10 comprobaciones. Aplicada en producción |
+| ~~**C4**~~ | ✅ **cerrado el 2026-08-13** por la [0240](../supabase/migrations/0240_la_salida_pasada_la_medianoche_por_fin_se_puede_marcar.sql). Y no «partía el día en dos»: **RECHAZABA la salida**. Medido: 30.5 h registradas donde hubo 9.5 —el día anterior cerrado por el cron con la hora programada, más un día fantasma de 22.5 h—. Las horas van ahora al día en que entró, con tope de 16 h | prueba [`181`](../supabase/tests/181_la_salida_de_madrugada_encuentra_su_jornada.test.sql). SQL aplicado; **falta desplegar el frontend** para que el terminal ofrezca «Salir» a las 00:30 |
+
+### El caso que cerró A9 · Taller LIM, Fiestas Patrias 2026
+
+Los siete descansos sustitutorios del acta «2026-07-28 Taller LIM» son el caso
+real que hizo mirar A9, y conviene dejar escrito qué pasó — porque los cuatro del
+30 de julio **van a seguir saliendo en rojo en Feriados**, y quien los vea va a
+reabrir esta investigación.
+
+**Lo que se acordó el 28 de julio**, y estuvo bien hecho: el taller trabajaba los
+dos feriados (28 y 29) a cambio de librar el 30 y el 31. El acta se firmó ese
+mismo día, que es cuando se firma un acuerdo.
+
+**Lo que pasó después, y nadie podía preverlo:**
+
+| Día | Qué ocurrió de verdad |
+|---|---|
+| 28 (feriado) | **trabajaron** |
+| 29 (feriado) | **la galería no abrió** — no vinieron, así que no hay nada que compensar |
+| 30 (laborable) | **trabajaron** — el día libre del acta no se llegó a tomar |
+| 31 (laborable) | **no vinieron** — este fue, de hecho, el único día que descansaron |
+
+**Nadie perdió dinero, y no hay faltas.** Los siete quedaron en `PENDIENTE`, y
+`fn_planilla_calcular` solo anula la sobretasa cuando el estado es `OTORGADO`:
+se les pagó la sobretasa del 28 completa. Y `fn_faltas` acepta `PENDIENTE` en su
+lateral de descanso sustitutorio, así que el 31 tampoco cuenta como falta para
+nadie. Comprobado contra la base, las dos cosas.
+
+**Decisión (Felipe, 2026-08-13): no se corrige el pago.** Marcar el descanso como
+otorgado le quitaría ~S/102 a cada una por una compensación que el propio papel
+atribuye al 29 —un día que no trabajaron—, y exigiría reabrir una planilla ya
+depositada. El fundamento sería débil y el costo en confianza mayor que los
+S/400.
+
+**EL HUECO QUE ESTE CASO DESTAPA, Y QUE SIGUE ABIERTO.** El sistema tiene el
+estado `NO_OTORGADO` —«el descanso no se dio»— desde la 0069, y **no hay forma de
+llegar a él**: el estado se elige en el formulario de ALTA, cuando el descanso
+todavía no ha ocurrido, y en la lista el único botón es «Quitar». Para decir
+«esto se acordó y las condiciones cambiaron» hay que volver a registrar el mismo
+par, cosa que no adivina nadie.
+
+Por eso los siete se quedaron en `PENDIENTE`: no por descuido, sino porque el
+sistema deja escribir el plan y no deja actualizarlo cuando la realidad cambia.
+Falta un botón en la lista para confirmar o descartar un descanso ya registrado,
+y un aviso de los que siguen sin decidir antes de cerrar el periodo.
+
 | **A15** | la marca se encola DESPUÉS de intentar enviarla, y el envío no tiene tope de tiempo | `if (error) await encolarMarcaje(entry)` en `:307`, y ni un `AbortSignal` en todo el archivo |
 | **A14** | sin service worker, un reinicio sin internet deja la sede sin marcar | no hay `sw.js` ni manifest en `public/`, ni dependencia de PWA |
 | **A12** | la Hoja de sede se imprime en ceros si una consulta falla | una sola aparición de `error` en las ocho consultas |
@@ -65,6 +110,65 @@ antes que las migraciones que los protegen.
 | **A20** | ✅ **cerrado el 2026-08-10** por la 0200 — el semáforo pedía 3 tardanzas a quien por escala ya le tocaba 1 | la escala vive en `fn_tardanza_escalon`; prueba [`155`](../supabase/tests/155_el_semaforo_conoce_el_escalon.test.sql) |
 | ~~**A21**~~ | ❌ **REFUTADO el 2026-08-10, y era mío.** El sistema ya es coherente: a quien cobra fijo no se le arma memo por ningún camino | `fn_expediente_crear_borrador` —un nivel por debajo del generador— lleva `or v_p.sueldo_fijo = true then` y aborta. Miré el generador y no bajé un nivel más |
 | **A11** | 🟡 el borrador ya dice «BORRADOR», pero sigue firmado por Gerencia General | ver su entrada |
+
+### Los cuatro registros en rojo del Taller LIM (28/07/2026) — revisado y CERRADO
+
+En cuanto la 0238 entró en producción, Feriados empezó a mostrar **cuatro
+descansos sustitutorios en rojo** con el motivo «ese día trabajó». Se revisaron
+uno por uno con Felipe el 2026-08-13. **No hay nada que corregir en el pago**, y
+se deja escrito para que quien los vea no vuelva a abrir la investigación.
+
+**QUÉ PASÓ DE VERDAD** (confirmado por Felipe; el papel no manda y el equipo está
+de acuerdo):
+
+  · El **28 de julio** fue el ÚNICO feriado trabajado.
+  · El **31 de julio** fue su día sustitutorio, y lo tomaron **tres**: Judith,
+    Raquel y Joselyn. **Carmen no.**
+  · El 29 no se trabajó —la galería no abrió— y el 30 sí, como día normal.
+
+Las actas se habían firmado por adelantado y quedaron cruzadas: hay papeles que
+dicen «se compensa el 29 con el 31» y «se compensa el 28 con el 30», y ninguna de
+esas dos cosas ocurrió. El par real era **28 → 31**.
+
+**EL DINERO, Y POR QUÉ NO SE TOCA.** Los siete registros quedaron en `PENDIENTE`,
+y `fn_planilla_calcular` solo anula la sobretasa cuando el estado es `OTORGADO`.
+Resultado:
+
+| | sobretasa del 28 | descansó el 31 | resultado |
+|---|---|---|---|
+| Judith, Raquel, Joselyn | cobrada | sí | recibieron **las dos cosas**: ~S/102 de más cada una |
+| **Carmen** | cobrada | **no** | **correcto**, nada que ajustar |
+
+Decisión de Felipe (2026-08-13): **julio no se toca**. Son ~S/306 pagados de más
+a tres personas, por un error de papeleo de la empresa, en una planilla ya
+depositada. Reclamarlo cuesta más de lo que se recupera.
+
+Y aunque se quisiera, **no se podría**: la 0093 bloquea cualquier cambio sobre un
+periodo pagado, y quitar una fila es un cambio. Los siete se quedan, y los cuatro
+seguirán saliendo en rojo. **El motivo es cierto** — ese día trabajaron.
+
+Tampoco hay faltas: `fn_faltas` acepta `PENDIENTE` para justificar el día
+—comprobado en su cuerpo vigente, `and d.estado in ('PENDIENTE', 'OTORGADO')`—
+así que el 31 no cuenta como falta para ninguna.
+
+**LO QUE SÍ SE HACE, HACIA ADELANTE.** El 6 de agosto (Batalla de Junín) también
+se trabajó, y ese feriado cae en el periodo 29-jul → 28-ago, que sigue ABIERTO.
+Ahí sí se compensa bien: se registra el par con estado `OTORGADO` antes de que el
+periodo cierre, y el sistema deja de pagar la sobretasa solo. Será la primera vez
+que la compensación se aplique de verdad.
+
+Y no se cruzan los feriados: lo del 6 de agosto **no sirve para recuperar julio**.
+Cada feriado se compensa con un día libre suyo. No pagar la sobretasa del 6 sin
+dar día libre por el 6 sería quitarles algo que sí les corresponde.
+
+**LO QUE ESTE CASO DESTAPÓ Y SIGUE ABIERTO:** el estado se elige en el formulario
+de ALTA, cuando el descanso todavía no ha ocurrido, y no hay ningún botón en la
+lista para confirmarlo después. Por eso los siete se quedaron en `PENDIENTE` — y
+por eso la compensación, en la práctica, **nunca ha llegado a descontar una
+sobretasa**. La función existe, está probada y no se usa. Falta un «se cumplió»
+en la lista, y que los pendientes se vean antes de cerrar el periodo.
+
+---
 
 **Lo que hoy cambió el terreno:** varios de estos hallazgos se apoyan en la frase
 «todas sus hermanas sí llevan el candado». El 2026-08-08 se descubrió que **en
