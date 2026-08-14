@@ -351,6 +351,22 @@ siempre el mismo comando de una línea. Un guardián que te para para pedirte al
 que él mismo puede hacer enseña que sus avisos son trámite; el día que frene por
 un número duplicado, ya le habrá enseñado a quien lo lee a usar `--no-verify`.
 
+**Y avisa —sin bloquear— si hay una migración sin commitear**
+(`scripts/hooks/migracion-sin-guardar.sh`). Porque el descuido de la 0177 volvió
+a pasar: el 2026-08-14 la **0243**, que cambia una liquidación por cese, quedó
+aplicada en producción con sus archivos sin commitear, y hubo cuatro pushes en el
+medio que no dijeron nada. `dame-el-sql.sh` no lo evita y no puede — solo protege
+a quien lo usa, y si tienes la migración abierta delante, copiarla del editor es
+lo natural. El agujero no estaba en el script: estaba en que **el camino cómodo no
+pasa por él**.
+
+Distingue el archivo recién escrito del que **ya sobrevivió a un commit**: el
+segundo no es trabajo en curso, es trabajo olvidado, y el aviso cambia de tono.
+No bloquea a propósito, por la regla que este hook ya tenía escrita para
+`types.ts` — *lo que sale de esta máquina se bloquea; lo que solo está en el disco
+se avisa* —, porque con varias sesiones en paralelo una migración a medio escribir
+es un caso legítimo constante.
+
 **Antes de crear una migración o una prueba, pregunta qué número toca:**
 
 ```bash

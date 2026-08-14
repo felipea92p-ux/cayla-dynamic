@@ -1514,12 +1514,23 @@ al tope.
    nada, porque los dos miran git. El agujero no está en el script: está en que
    **el camino cómodo no pasa por él**.
 
-   Dos ideas, ninguna medida todavía: que `que_falta_pegar.sql` compare lo que
-   `migraciones_aplicadas` dice en producción contra lo que hay **en GitHub** (no
-   en el disco), de modo que una migración aplicada y no subida salga como
-   hallazgo; o un hook de `post-commit`/`pre-push` que avise cuando hay un archivo
-   sin trackear en `supabase/migrations/`. La segunda es de una tarde y atrapa el
-   caso antes de que llegue a producción.
+   **✅ La mitad barata ya está hecha** (2026-08-14):
+   `scripts/hooks/migracion-sin-guardar.sh` avisa en cada push si hay una
+   migración sin commitear, y distingue la recién escrita de la que **ya
+   sobrevivió a un commit** — esa segunda no es trabajo en curso, es trabajo
+   olvidado. No bloquea, por la regla que el propio hook ya tenía escrita para
+   `types.ts`: lo que sale de la máquina se bloquea, lo que solo está en el disco
+   se avisa. Con varias sesiones en paralelo, una migración a medio escribir es un
+   caso legítimo constante, y frenar ahí repetiría los dos errores ya pagados
+   (`desplegar.sh` el 2026-08-06 y `que-falta-pegar --check`, cuatro pushes en un
+   día). Cinco casos probados, incluido el que cazó un `git add` con las rutas
+   pegadas sin espacio — justo la línea que existe para copiarse.
+
+   **Queda la mitad cara, y es la que de verdad cierra el agujero:** que
+   `que_falta_pegar.sql` compare lo que `migraciones_aplicadas` dice **en
+   producción** contra lo que hay **en GitHub** —no en el disco—, de modo que una
+   migración aplicada y no subida salga como hallazgo desde el lado autoritativo.
+   El aviso del hook depende de que alguien empuje; esto no dependería de nada.
 
 1. **Julio: nadie tuvo descuento de pensión.** Medido el 2026-08-08 sobre el
    periodo 28-jun → 28-jul: `pension_descontada` = **S/0.00 para las 23
