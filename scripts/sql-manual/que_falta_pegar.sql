@@ -112,7 +112,8 @@ with repo(numero, nombre, nunca) as (values
     (247, 'una_licencia_con_goce_se_puede_registrar', false),
     (248, 'la_foto_del_pago_aprende_la_retencion_de_cuarta', false),
     (249, 'una_salida_real_siempre_se_puede_registrar', false),
-    (250, 'la_boleta_no_le_dice_por_horas_a_un_monto_fijo', false)
+    (250, 'la_boleta_no_le_dice_por_horas_a_un_monto_fijo', false),
+    (251, 'una_liquidacion_marcada_por_error_se_puede_anular', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
