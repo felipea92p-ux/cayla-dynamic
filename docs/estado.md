@@ -37,6 +37,67 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-14 — una marca que la base rechazaba, y las que quedaron presas
+
+### El aviso «2 sin registrar» del terminal tenía razón, y no era grave
+
+Salió mirando el terminal: un aviso rojo que aparecía «con frecuencia». Lo pinta
+el contador de marcas **apartadas** — las que el servidor rechazó seis veces y
+la cola dejó de reintentar, guardadas en el IndexedDB de ese navegador.
+
+**Las dos eran de Felipe, del 13-ago a las 22:02 y 22:22, las dos
+`salida_final`.** La salida entró bien a las 22:35:42 y la jornada quedó cerrada
+en 9.81 h, así que **no se perdió nada y no hubo efecto en planilla**. Y de paso
+quedó comprobada la fórmula contra producción: 12-ago 11.32 − 1.23 = 10.10 ✅ y
+13-ago 13.06 − 3.25 = 9.81 ✅.
+
+**Por qué fue negativo a las 22:02 no se puede reconstruir, y no hace falta
+intentarlo otra vez:** tres marcas de esos dos días son `admin_correccion`,
+puestas después. El estado que lo produjo ya no existe — con los datos de hoy esa
+misma salida daría +9.25 h. Casi seguro fue un estado transitorio de las pruebas
+de la 0240 esa noche.
+
+### Lo que sí era un defecto: el CHECK tumbaba el marcaje, no la jornada ([`0249`](../supabase/migrations/0249_una_salida_real_siempre_se_puede_registrar.sql))
+
+`chk_horas_no_negativas` (0095) frenaba el `insert` en `jornadas` — bien —, pero
+ese insert cuelga del trigger de `marcajes`, así que la excepción subía y
+**reventaba el insert del marcaje**. El efecto real no era «esta jornada no se
+guarda», era **«esta persona no puede marcar su salida»**: el terminal se la
+seguía ofreciendo toda la noche y cada intento acababa apartado. Basta una
+corrección con la hora mal tecleada para llegar ahí.
+
+Ahora el negativo se guarda como `null` —«no se sabe cuánto», no «trabajó
+cero»— y el día queda sellado en `pendiente_revision`. **El sello no es un
+extra:** la planilla lee `coalesce(horas_trabajadas, 0)`, así que sin él el
+arreglo habría cambiado una marca perdida a gritos por un descuento en silencio.
+El CHECK no se toca.
+
+**⚠️ Y el md5 de partida de esa función NO SE TOMÓ.** Se pegó antes de pedirlo a
+producción, y `create or replace` ya había reescrito el cuerpo cuando se fue a
+buscar. El de llegada (`c50fa2ed…`, idéntico al local) **no lo sustituye**: sale
+igual partas de donde partas, así que no prueba de qué versión se partió. Lo que
+sostiene que producción estaba en la 0240 es indicio, no garantía — el error que
+rechazaba las salidas era exactamente su comportamiento. La cabecera de la
+migración lo dice con todas sus letras.
+
+### PENDIENTE · una marca apartada no la puede ver nadie
+
+Esto sigue abierto y es la mitad que falta:
+
+- **El aviso no se apaga nunca.** Nada borra ni recupera una apartada. Las dos
+  del 13-ago van a seguir contando en ese Safari para siempre. Un aviso
+  permanente en la pantalla que mira todo el equipo deja de leerse en tres días.
+- **Dice «avisa a tu encargada» y la encargada no tiene dónde mirar.**
+  `obtenerDescartadas()` solo se usa para contar; no hay pantalla que diga de
+  quién es la marca, de qué hora ni qué error dio.
+- **Viven en un solo navegador.** Desde el panel no se ven. El día que esto le
+  pase a alguien en una sede, nadie se entera hasta que alguien mire la Mac mini.
+
+La 0249 impide que el caso se repita por esta causa; no recoge las que ya
+cayeron, ni las que caigan por otra.
+
+---
+
 ## 2026-08-13 — el expediente de Mateo, y la 0213 que ya no se puede pegar
 
 **LO ÚNICO CON FECHA.** Hay una imputación de cargos **entregada y abierta**
