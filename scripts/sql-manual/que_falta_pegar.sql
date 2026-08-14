@@ -106,7 +106,10 @@ with repo(numero, nombre, nunca) as (values
     (241, 'el_terminal_ve_el_dia_entero_de_quien_puede_marcar', false),
     (242, 'un_locador_no_tiene_base_imponible', false),
     (243, 'la_liquidacion_no_vuelve_a_cobrar_el_mes_que_ya_se_pago', false),
-    (246, 'una_imputacion_prematura_no_tapa_el_escalon_que_falta', false)
+    (244, 'la_0243_deja_de_pagar_de_menos_y_de_atascar_el_cierre', false),
+    (245, 'la_retencion_de_cuarta_deja_de_hacerse_a_mano', false),
+    (246, 'una_imputacion_prematura_no_tapa_el_escalon_que_falta', false),
+    (247, 'una_licencia_con_goce_se_puede_registrar', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -221,8 +224,10 @@ select * from (
              when '6124769053b350ff9c877b983275080a' then '✗ 0236 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '7d67ff3c1d769ebffc3de0af20ab83fe' then '⚠ se quedó en la 0239 — falta pegar lo posterior'
              when '6a920445e3fb7ca0fc4a79bf17c89374' then '✗ 0239 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'b9765d1799dc71a9363c292b62daab5e' then '0242 — al día con el repositorio'
+             when 'b9765d1799dc71a9363c292b62daab5e' then '⚠ se quedó en la 0242 — falta pegar lo posterior'
              when '8080aed645e88f7bbfa88723eb147306' then '✗ 0242 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '3fee1553db2482aa2566d54d1b67438b' then '0245 — al día con el repositorio'
+             when '7ee382b01ac1b48e1f9cf9337afc335e' then '✗ 0245 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
