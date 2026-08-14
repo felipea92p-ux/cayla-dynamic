@@ -201,7 +201,19 @@ export interface Fila {
   horas_sobretiempo?: number;
   sobretiempo_desde?: string | null;
   sobretiempo_hasta?: string | null;
-  total: number; // ya incluye + asignación + movilidad + sobretiempo − pensión + bonos − descuentos
+  // Retención de renta de cuarta categoría (0245), solo para quien cobra por
+  // recibo por honorarios. `retencion_4ta_base` es el importe por el que tiene
+  // que emitir su recibo —NO el total, que ya es el neto— y por eso viaja: sin
+  // él la boleta no puede decirle a un locador por cuánto facturar.
+  // `retencion_4ta_sin_configurar` es el aviso: pasa el tope y nadie eligió modo.
+  // Todas opcionales, como las de la 0185 y la 0236: una base sin la 0245 pegada
+  // no manda las claves y la pantalla se comporta exactamente como antes.
+  retencion_4ta?: number;
+  retencion_4ta_base?: number;
+  retencion_4ta_modo?: string | null;
+  retencion_4ta_constancia_hasta?: string | null;
+  retencion_4ta_sin_configurar?: boolean;
+  total: number; // ya incluye + asignación + movilidad + sobretiempo − pensión + bonos − descuentos − retención de 4ta
 }
 export interface FactoresProvision {
   gratificacion: number;
@@ -480,6 +492,21 @@ function TablaPlanilla(props: {
                         </p>
                       );
                     })()}
+                    {/* EL AVISO DE LA 0245. Un locador cuyo recibo del mes pasa
+                        el tope de S/1,500 y a quien nadie le eligió modo de
+                        retención. NO retiene por su cuenta —eso le cambiaría el
+                        neto a alguien sin que nadie lo decidiera— pero deja de
+                        ser invisible: CAYLA es agente de retención y no retener
+                        cuando toca es infracción del art. 177 del Código
+                        Tributario, con multa del 50 % del tributo no retenido.
+                        Se configura en Equipo, no acá: es un dato de la persona,
+                        no de este mes. */}
+                    {f.retencion_4ta_sin_configurar && (
+                      <p className="mt-0.5 text-xs text-ambar">
+                        ⚠ Su recibo pasa de S/1,500 y no tiene configurada la retención de 4ta —
+                        decídelo en Equipo (o confirma que tiene constancia de suspensión).
+                      </p>
+                    )}
                     {!simulacion && periodoId && (
                       <>
                         <br />
@@ -598,6 +625,20 @@ function TablaPlanilla(props: {
                         <span className="text-rojo">−{formatSoles(f.descuentos)}</span>
                       ) : (
                         <span className="text-taupe/50">—</span>
+                      )}
+                      {/* La retención de 4ta va SEPARADA del monto de arriba y
+                          no sumada a él: aquel son los movimientos que alguien
+                          escribió a mano y este lo calcula el sistema. Fundirlos
+                          haría que el botón ± no cuadrara con su propia columna.
+                          Sin ella el total no se explicaría desde esta tabla,
+                          que es lo que se mira antes de transferir. */}
+                      {(f.retencion_4ta ?? 0) > 0 && (
+                        <span
+                          className="rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo"
+                          title="Retención de Impuesto a la Renta de 4ta categoría (8 %). Se paga a SUNAT a nombre de la persona."
+                        >
+                          4ta −{formatSoles(f.retencion_4ta ?? 0)}
+                        </span>
                       )}
                       {editable && (
                         <button
@@ -1470,6 +1511,12 @@ export default function PlanillaPage() {
       monto_plus: f.monto_plus,
       bonos: f.bonos,
       descuentos: f.descuentos,
+      // La retención de 4ta va en el CSV porque es lo que el contador necesita
+      // para declararla: el tributo 3042 de la PLAME sale de esta columna, y
+      // hasta la 0245 había que sacarlo de los recibos uno por uno. Se exporta
+      // también la base: sin ella la retención no se puede verificar.
+      retencion_4ta_base: f.retencion_4ta_base ?? "",
+      retencion_4ta: f.retencion_4ta ?? "",
       total: f.total,
       provision_gratificacion: f.provision_gratificacion,
       provision_cts: f.provision_cts,
@@ -1493,6 +1540,8 @@ export default function PlanillaPage() {
       "monto_plus",
       "bonos",
       "descuentos",
+      "retencion_4ta_base",
+      "retencion_4ta",
       "total",
       "provision_gratificacion",
       "provision_cts",

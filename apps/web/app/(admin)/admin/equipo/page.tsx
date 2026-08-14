@@ -112,9 +112,14 @@ interface FormPersona {
   // lo normal. Se escribe por RPC fn_set_fin_contrato, y vacío la BORRA (null).
   finContrato: string;
   motivoFinContrato: string; // por qué se fijó o se quitó — va a correcciones_auditoria
+  // Retención de renta de 4ta categoría (0245). Solo tiene sentido para `rxh`:
+  // la cuarta categoría es del trabajador independiente. Vacío = no se retiene.
+  // Se escribe por RPC fn_set_retencion_4ta, que valida el vínculo y audita.
+  retencion4ta: string;   // "" | automatica | siempre
+  constancia4ta: string;  // fecha hasta la que vale su constancia del F.V. 1609
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", cargo: "", finContrato: "", motivoFinContrato: "" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "" };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -133,6 +138,13 @@ export default function EquipoPage() {
   // «contrato indefinido». Escribir sobre eso borraría una fecha real, así que
   // con la lectura en duda el campo va deshabilitado.
   const [finesOk, setFinesOk] = useState(false);
+  // Retención de 4ta por persona (0245). Se lee aparte y tolerante, por lo mismo
+  // que el fin de contrato: si la 0245 todavía no está pegada en producción,
+  // pedir columnas inexistentes haría fallar la consulta ENTERA y esta pantalla
+  // se quedaría sin nadie. Con la lectura en duda el campo va deshabilitado, para
+  // no pisar con «sin retención» una configuración real que no se pudo leer.
+  const [retenciones4ta, setRetenciones4ta] = useState<Map<string, { modo: string; hasta: string }>>(new Map());
+  const [retencionesOk, setRetencionesOk] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
@@ -243,6 +255,20 @@ export default function EquipoPage() {
       new Map(
         ((finData as { id: string; fecha_fin_contrato: string }[] | null) ?? [])
           .map((f) => [f.id, f.fecha_fin_contrato] as const),
+      ),
+    );
+    // Retención de 4ta (0245): consulta aparte y tolerante, igual que la de
+    // arriba y por la misma razón. Sin filtro: llegan también quienes la tienen
+    // en blanco, porque «en blanco» es una respuesta —no se le retiene— y no un
+    // dato que falte.
+    const { data: retData, error: retError } = await supabase
+      .from("personas")
+      .select("id, retencion_4ta, constancia_4ta_hasta");
+    setRetencionesOk(!retError);
+    setRetenciones4ta(
+      new Map(
+        ((retData as { id: string; retencion_4ta: string | null; constancia_4ta_hasta: string | null }[] | null) ?? [])
+          .map((r) => [r.id, { modo: r.retencion_4ta ?? "", hasta: r.constancia_4ta_hasta ?? "" }] as const),
       ),
     );
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
@@ -521,6 +547,33 @@ export default function EquipoPage() {
         return;
       }
     }
+    // Retención de renta de 4ta categoría (0245): mismo patrón dirty-check. Dos
+    // cosas que no son obvias leyendo la llamada:
+    //  · Si en este mismo guardado la persona DEJÓ de ser locadora, se manda
+    //    vacío a propósito. La RPC permite borrar la configuración de quien ya no
+    //    es rxh —justo para esto— y así no queda un modo de cuarta categoría
+    //    colgado de alguien en planilla, que a la vista de una inspección es la
+    //    clase de contradicción que hace sospechar del vínculo entero.
+    //  · Va DESPUÉS del cambio de vínculo, y tiene que ir después: la RPC valida
+    //    contra el vínculo que ya está escrito en la base, no contra el del form.
+    const modo4ta = form.tipoVinculo === "rxh" ? form.retencion4ta : "";
+    const constancia4ta = form.tipoVinculo === "rxh" ? form.constancia4ta : "";
+    const ret4Original = retenciones4ta.get(editandoId) ?? { modo: "", hasta: "" };
+    if (
+      puedeSalarios && retencionesOk &&
+      (modo4ta !== ret4Original.modo || constancia4ta !== ret4Original.hasta)
+    ) {
+      const { error: errorRet } = await supabase.rpc("fn_set_retencion_4ta", {
+        p_persona_id: editandoId,
+        p_modo: modo4ta || null,
+        p_constancia_hasta: constancia4ta || null,
+      });
+      if (errorRet) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero la retención de 4ta no se pudo cambiar: ${mensajeDeError(errorRet)}`);
+        return;
+      }
+    }
     setGuardando(false);
     setEditandoId(null);
     setForm(FORM_VACIO);
@@ -636,6 +689,8 @@ export default function EquipoPage() {
       visibleTodasSedes: p.visible_todas_sedes,
       finContrato: finesContrato.get(p.id) ?? "",
       motivoFinContrato: "",
+      retencion4ta: retenciones4ta.get(p.id)?.modo ?? "",
+      constancia4ta: retenciones4ta.get(p.id)?.hasta ?? "",
     });
   }
 
@@ -970,6 +1025,56 @@ export default function EquipoPage() {
                   : "Ni asistencia ni beneficios."}
           </span>
         </label>
+      )}
+      {/* ── LA RETENCIÓN DE CUARTA CATEGORÍA (0245) ─────────────────────────
+          Solo aparece para un locador, porque solo un locador emite recibo por
+          honorarios. Aparece pegada al tipo de vínculo a propósito: son la misma
+          decisión mirada desde dos lados, y quien acaba de pasar a alguien a
+          honorarios tiene que decidir esto en el mismo momento.
+
+          POR QUÉ NO LO DECIDE EL SISTEMA SOLO. La regla legal —8 % si el recibo
+          supera S/1,500— la sabe la planilla y la aplica sola en modo
+          «automática». Lo que el sistema NO puede saber es si la persona pidió
+          que se le retenga igual, ni si tiene constancia de suspensión: las dos
+          cosas viven en SUNAT y en su decisión, no en esta base. */}
+      {puedeSalarios && form.tipoVinculo === "rxh" && (
+        <>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Retención de Impuesto a la Renta de 4ta</span>
+            <select
+              value={form.retencion4ta}
+              onChange={(e) => setForm({ ...form, retencion4ta: e.target.value })}
+              disabled={modo === "edicion" && !retencionesOk}
+              className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+            >
+              <option value="">No retenerle</option>
+              <option value="automatica">Automática — 8 % solo si el recibo pasa de S/1,500</option>
+              <option value="siempre">Siempre — 8 % sea cual sea el monto</option>
+            </select>
+            <span className="text-xs text-taupe">
+              {form.retencion4ta === "automatica"
+                ? "La regla legal (art. 74 de la Ley del Impuesto a la Renta): se retiene solo cuando el recibo del mes supera el tope. Por debajo, nada."
+                : form.retencion4ta === "siempre"
+                  ? "Se retiene aunque el recibo sea chico. Es lo que pide quien factura a varias empresas: se pasa del límite anual, no califica para la suspensión y prefiere adelantar el 8 % antes que pagarlo entero en marzo."
+                  : "No se le retiene nada. Ojo: si su recibo pasa de S/1,500 y no tiene constancia de suspensión, retener es obligación de CAYLA — la planilla lo va a avisar."}
+            </span>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Constancia de suspensión — vigente hasta</span>
+            <input
+              type="date"
+              value={form.constancia4ta}
+              onChange={(e) => setForm({ ...form, constancia4ta: e.target.value })}
+              disabled={modo === "edicion" && !retencionesOk}
+              className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+            />
+            <span className="text-xs text-taupe">
+              Su constancia del Formulario Virtual 1609. Mientras esté vigente NO se le
+              retiene, diga lo que diga el campo de al lado. Dura el año calendario y hay
+              que volver a pedirla: cuando vence, manda otra vez lo elegido arriba.
+            </span>
+          </label>
+        </>
       )}
       {modo === "edicion" && puedeSalarios && (
         // Bandera para gente que rota entre locales: aparece en el terminal de CUALQUIER

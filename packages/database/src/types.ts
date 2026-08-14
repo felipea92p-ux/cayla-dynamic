@@ -680,6 +680,13 @@ export type Database = {
           // máquina. Es la fecha PREVISTA de término del contrato a plazo fijo —
           // null es lo normal (contrato indefinido) y NO es lo mismo que el cese.
           fecha_fin_contrato: string | null
+          // Las dos de la 0245, agregadas a mano por el mismo motivo que las de
+          // arriba: `supabase gen types` en esta máquina reescribe el archivo
+          // entero con otro formato y deja 63 errores de tipos en pantallas que
+          // esta migración no toca. Deciden la retención de renta de 4ta
+          // categoría de un locador — null en las dos = no se le retiene.
+          retencion_4ta: string | null
+          constancia_4ta_hasta: string | null
           fecha_ingreso: string
           funcion: string
           id: string
@@ -710,6 +717,8 @@ export type Database = {
           personal_direccion?: boolean
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
+          retencion_4ta?: string | null
+          constancia_4ta_hasta?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
@@ -735,6 +744,8 @@ export type Database = {
           personal_direccion?: boolean
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
+          retencion_4ta?: string | null
+          constancia_4ta_hasta?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
@@ -2151,6 +2162,16 @@ export type Database = {
       // así es como se BORRA la fecha cuando el contrato se renueva.
       fn_set_fin_contrato: {
         Args: { p_persona_id: string; p_fecha: string | null; p_motivo?: string }
+        Returns: undefined
+      }
+      // La de la 0245, agregada a mano igual que la de arriba. Configura la
+      // retención de renta de 4ta de un locador: valida el vínculo, escribe las
+      // dos columnas y deja el rastro en correcciones_auditoria. Los dos
+      // parámetros aceptan null porque vacío es una respuesta —«no se le
+      // retiene»— y es además la vía para limpiar la configuración de quien dejó
+      // de cobrar por honorarios.
+      fn_set_retencion_4ta: {
+        Args: { p_persona_id: string; p_modo: string | null; p_constancia_hasta?: string | null }
         Returns: undefined
       }
       // Las dos de la 0086 que ninguna pantalla llamaba hasta el 2026-08-06. El

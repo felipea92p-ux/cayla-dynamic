@@ -321,8 +321,18 @@ function BoletaContenido() {
     educacion +
     bonos.reduce((suma, m) => suma + m.monto, 0);
 
+  // La retención de renta de cuarta (0245). Mismo criterio que la pensión y el
+  // sobretiempo: entra en el 'total' del SQL, así que si la boleta no la imprime
+  // el total deja de cuadrar con sus líneas — y este es el peor sitio donde eso
+  // podría pasar, porque un locador CONTRASTA esta hoja contra su recibo.
+  const retencion4ta = f.retencion_4ta ?? 0;
+  // El importe por el que tiene que emitir el recibo. Es la base, no el total:
+  // el total ya lleva la retención descontada. Sin la 0245 pegada la clave no
+  // viene y cae al total, que es lo que esta hoja decía antes.
+  const importeDelRecibo = f.retencion_4ta_base ?? f.total;
+
   // La pensión también es una resta, así que también justifica el subtotal.
-  const hayRestas = descuentos.length > 0 || pension > 0;
+  const hayRestas = descuentos.length > 0 || pension > 0 || retencion4ta > 0;
 
   // ¿Esta boleta es definitiva o todavía se mueve? Antes no se decía en ningún
   // lado, así que alguien podía imprimirla, guardarla, y después recibir otro
@@ -697,16 +707,46 @@ function BoletaContenido() {
                 <td className="py-2 text-right text-rojo">−{formatSoles(m.monto)}</td>
               </tr>
             ))}
+            {/* LA RETENCIÓN DE CUARTA CATEGORÍA (0245).
+                Se dice que NO se queda en CAYLA por lo mismo que la pensión: es
+                lo primero que se piensa al ver una resta, y acá además es falso
+                de una forma que importa — ese dinero se declara a nombre de la
+                persona y se le acredita contra su impuesto del año. Quien no lo
+                sabe cree que le pagaron menos.
+
+                Y se imprime el porcentaje, no solo el monto, para que se pueda
+                verificar contra el recibo sin hacer cuentas. */}
+            {retencion4ta > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2 text-rojo">
+                  Retención — Impuesto a la Renta de 4ta categoría
+                  <span className="block text-xs text-rojo/70">
+                    8 % de {formatSoles(importeDelRecibo)} — CAYLA lo paga a SUNAT a tu nombre,
+                    no se queda acá
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top text-rojo">−{formatSoles(retencion4ta)}</td>
+              </tr>
+            )}
             {/* El cierre de un locador no es «lo que vas a recibir»: es la cifra
                 por la que tiene que emitir su recibo. Sin decirlo, esta hoja
                 parecía el documento del pago — y el documento del pago es el
                 recibo por honorarios que emite él, no este papel. */}
+            {/* CON RETENCIÓN, ESTE NÚMERO DEJA DE SER EL DEL RECIBO.
+                La hoja decía «emite tu recibo por honorarios por este importe»
+                apuntando al total, y eso era cierto mientras no se retenía nada.
+                Con la 0245 el total es el NETO —lo que se transfiere— y el
+                recibo se emite por el BRUTO. Seguir apuntando al total haría que
+                el locador facturara de menos justo por el monto retenido, y la
+                retención declarada no cuadraría con ningún recibo. */}
             <tr className="border-t-2 border-tinta">
               <td className="py-3 font-serif text-lg">
-                {esLocador ? "Total del periodo" : "Total a recibir este mes"}
+                {esLocador && retencion4ta === 0 ? "Total del periodo" : "Total a recibir este mes"}
                 {esLocador && (
                   <span className="block font-sans text-xs font-normal text-taupe">
-                    emite tu recibo por honorarios por este importe
+                    {retencion4ta > 0
+                      ? `emite tu recibo por honorarios por ${formatSoles(importeDelRecibo)} — con la retención marcada, te queda esto`
+                      : "emite tu recibo por honorarios por este importe"}
                   </span>
                 )}
               </td>
