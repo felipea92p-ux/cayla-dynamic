@@ -102,7 +102,8 @@ with repo(numero, nombre, nunca) as (values
     (237, 'la_mitad_de_la_0213_que_produccion_nunca_recibio', false),
     (238, 'un_dia_compensatorio_que_no_compensa_deja_de_entrar', false),
     (239, 'la_hora_vale_lo_que_vale_el_mes_no_lo_que_dura_la_consulta', false),
-    (240, 'la_salida_pasada_la_medianoche_por_fin_se_puede_marcar', false)
+    (240, 'la_salida_pasada_la_medianoche_por_fin_se_puede_marcar', false),
+    (241, 'el_terminal_ve_el_dia_entero_de_quien_puede_marcar', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
