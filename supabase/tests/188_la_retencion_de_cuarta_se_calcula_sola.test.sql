@@ -1,5 +1,5 @@
 -- ============================================================================
--- 186_la_retencion_de_cuarta_se_calcula_sola.test.sql — migración 0245
+-- 188_la_retencion_de_cuarta_se_calcula_sola.test.sql — migración 0245
 -- ============================================================================
 -- A quien cobra por recibo por honorarios se le retiene el 8 % de renta de
 -- cuarta categoría. Hasta la 0245 no se le retenía nada: había que escribirlo a
