@@ -862,9 +862,34 @@ commit:
   periodo entero no se movieron ni un céntimo; la única llamada cuyo resultado
   cambia es la de `fn_liquidacion`.
 
+Y el 2026-08-14 se cerró también el mecanismo, que era lo que quedaba vivo:
+
+- **La liquidación deja de cobrar dos veces el mes** — la
+  [`0243`](../supabase/migrations/0243_la_liquidacion_no_vuelve_a_cobrar_el_mes_que_ya_se_pago.sql)
+  le resta al sueldo del periodo lo que la foto del pago ya registra para esa
+  persona. Si el periodo no está congelado no hay nada que restar y el resultado
+  es idéntico al de antes, al céntimo.
+- **Y la 0243 deja de pagar de menos y de atascar el cierre** — la
+  [`0244`](../supabase/migrations/0244_la_0243_deja_de_pagar_de_menos_y_de_atascar_el_cierre.sql),
+  seis bordes que la anterior dejó abiertos. El grave: restaba también la foto de
+  un periodo **revertido**, donde el dinero nunca salió (S/1,393.27 donde tocaban
+  S/2,143.27). Los otros: una foto negativa inflaba, `congelar_pendientes()`
+  abortaba sobre un mes histórico, y el freno de congelar no se levantaba al
+  aplicar el descuento — podía dejar el cierre del mes sin salida.
+
+Las dos verificadas pidiendo el `md5` a producción antes y después de pegar.
+
 El botón **«💸 Ya le pagué aparte»** (`planilla/page.tsx:1268`) sigue siendo la
 vía para el periodo en curso: registra el descuento y deja el total en cero. Y
 ahora la cifra que descuenta ya es de fiar, que era la objeción para no usarlo.
+
+⚠️ **Y una trampa que costó un rechazo en producción, para quien pegue SQL acá:**
+un comentario NO es inerte. El editor de Supabase trocea el script antes de
+mandarlo y su troceador no ignora los comentarios, así que un delimitador de
+dólar citado dentro de un `--` —escribir `do $mig$` al explicar otra migración—
+parte el script por donde no es y falla con un error que apunta a otro sitio
+(`relation "v_src" does not exist`). Ninguna prueba local lo caza: psql sí lee
+comentarios.
 
 #### Lo que queda por hacer
 
