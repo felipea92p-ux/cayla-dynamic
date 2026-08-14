@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { desacuerdoAsignacionFamiliar, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -17,6 +17,16 @@ interface Persona {
   // Si tiene cuenta de acceso creada. Su correo pasa a ser su login, y la 0198
   // rechaza cambiarlo desde acá.
   auth_user_id: string | null;   // CAMBIO 0198
+  // Columna GENERADA en la base: `tipo_vinculo in ('planilla','prueba')`. Se lee
+  // en vez de derivarla acá justamente porque es una sola verdad, garantizada
+  // por Postgres. Decide qué datos previsionales tiene sentido pedirle a esta
+  // persona: a una locadora, ninguno.
+  //
+  // El tipo admite ausencia a propósito, aunque en la base sea NOT NULL: esta
+  // pantalla se despliega por Vercel y el SQL lo pega Felipe a mano, así que hay
+  // ventanas en las que el campo no viaja. Nunca se lee con `!`, siempre con
+  // `esPrestadorDeServicios` — ver packages/shared/src/vinculo.ts.
+  en_planilla: boolean | null | undefined;
 }
 interface Ficha {
   persona_id: string; nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
@@ -120,7 +130,7 @@ export default function DatosPersonalesPage() {
       { data: dp, error: eD }, { data: dh, error: eDH },
       { data: fn, error: eFN },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").order("nombres"),
       supabase.from("sedes").select("id, codigo"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
@@ -164,11 +174,21 @@ export default function DatosPersonalesPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  function seleccionar(id: string) {
+  // ÚNICA puerta de entrada a la ficha. Nunca `setSel` suelto: quien cambia
+  // `sel` sin pasar por acá deja el formulario con los datos de la persona
+  // ANTERIOR, y como `fn_set_datos_personales` es un upsert que reemplaza,
+  // pulsar Guardar los escribe encima de la ficha equivocada. Pasó de verdad
+  // el 2026-08-13: el atajo de «fichas incompletas» llamaba a setSel directo,
+  // la ficha se abría con el correo y el DNI en blanco, y guardar intentó
+  // borrarle el correo a alguien que sí lo tenía. Lo frenó el candado de la
+  // 0198 —que solo cuida el correo—; el resto de la ficha ya se había escrito.
+  function seleccionar(id: string, forzarScroll = false) {
     setSel(id); setMsg(null); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO }); setDhEditando(null);
     // En móvil la ficha queda debajo de la lista: la traemos a la vista
     // (respetando la preferencia de "reducir movimiento" del sistema).
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    // `forzarScroll` es para quien entra desde el bloque de arriba, donde la
+    // ficha queda fuera de vista también en pantalla grande.
+    if (typeof window !== "undefined" && (forzarScroll || window.innerWidth < 768)) {
       const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       setTimeout(() => fichaRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 60);
     }
@@ -210,7 +230,18 @@ export default function DatosPersonalesPage() {
   // individual, y quien ya se jubiló no aporta. Se decide por el régimen que se
   // ve en pantalla —no por el guardado— para que el campo aparezca en cuanto se
   // elige la AFP, sin tener que guardar primero.
-  const esAfp = regimen !== "" && regimen !== "onp" && regimen !== "jubilada";
+  //
+  // `en_planilla` se suma a la condición (0242): el CUSPP entra al T-Registro de
+  // un TRABAJADOR, y una locadora no está en el T-Registro. Su afiliación, si la
+  // tiene, no pasa por CAYLA.
+  //
+  // `|| form.cuspp.trim() !== ""` es el escape, y hace falta: si alguien ya le
+  // cargó un código a una locadora, esconder el campo lo dejaría guardado y
+  // fuera de la vista, imposible de leer o de borrar desde la pantalla. Un dato
+  // que existe pero no se puede ver es peor que un campo de más.
+  const esAfp = !esPrestadorDeServicios(personaSel?.en_planilla)
+    && regimen !== "" && regimen !== "onp" && regimen !== "jubilada";
+  const mostrarCuspp = esAfp || form.cuspp.trim() !== "";
 
   async function guardar() {
     if (!sel) return;
@@ -377,16 +408,28 @@ export default function DatosPersonalesPage() {
         const valor: Record<string, unknown> = { ...(f ?? {}), documento: p.documento, email: p.email, regimen_pension: p.regimen_pension };
         const faltan = FALTANTES.filter((c) => {
           const v = valor[c.clave];
-          return v === null || v === undefined || String(v).trim() === "";
+          if (v !== null && v !== undefined && String(v).trim() !== "") return false;
+          // A una locadora no se le pide el RÉGIMEN DE PENSIÓN. CAYLA no le
+          // retiene aporte previsional (0242): si ella aporta, lo hace como
+          // independiente y por su cuenta, y ese dato no es de la empresa.
+          // Pedirlo era un «falta» que nadie podía completar con sentido.
+          if (c.clave === "regimen_pension" && esPrestadorDeServicios(p.en_planilla)) return false;
+          return true;
         }).map((c) => c.etiqueta);
 
         // El CUSPP no es un campo más: solo se le pide a quien está en una
         // AFP. En ONP no hay cuenta individual y quien se jubiló no aporta, así
         // que para ellas no existe. Va acá y no en FALTANTES porque esa lista
         // es fija y esta condición depende del régimen de cada persona.
-        const enAfp = p.regimen_pension !== null && p.regimen_pension !== ""
-          && p.regimen_pension !== "onp" && p.regimen_pension !== "jubilada";
-        if (enAfp && !(f?.cuspp ?? "").trim()) faltan.push("CUSPP");
+        //
+        // ⇩ Y TAMPOCO a una locadora, por una razón distinta de la del régimen:
+        // no es que no tenga cuenta individual, es que su afiliación no pasa por
+        // CAYLA. El CUSPP entra al T-Registro de un TRABAJADOR, y un locador no
+        // está en el T-Registro. Medido el 2026-08-13: eran dos personas con un
+        // «falta CUSPP» permanente que nadie podía completar nunca — el tipo de
+        // aviso que enseña a ignorar los avisos.
+        if (leCorrespondeCuspp(p.en_planilla, p.regimen_pension)
+            && !(f?.cuspp ?? "").trim()) faltan.push("CUSPP");
 
         const avisos: string[] = [];
         // Un dato imposible se ve igual de bien que uno correcto hasta que el
@@ -608,7 +651,7 @@ export default function DatosPersonalesPage() {
                 <li key={p.id}>
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <button
-                      onClick={() => { setSel(p.id); fichaRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+                      onClick={() => seleccionar(p.id, true)}
                       className="font-medium underline decoration-dotted underline-offset-2"
                     >
                       {p.apellidos}, {p.nombres}
@@ -761,7 +804,7 @@ export default function DatosPersonalesPage() {
                           individual, y quien ya se jubiló no aporta. Pedírselo
                           a Raquel sería pedirle un código que no existe — y un
                           campo que no aplica enseña a ignorar los que sí. */}
-                      {esAfp && (
+                      {mostrarCuspp && (
                         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
                           <span className="text-taupe">
                             CUSPP · código de su cuenta en la AFP
@@ -773,8 +816,9 @@ export default function DatosPersonalesPage() {
                             className="rounded-lg border px-3 py-2 font-mono uppercase"
                           />
                           <span className="text-xs text-taupe">
-                            Obligatorio en el T-Registro. Sin él, el aporte se declara pero puede
-                            no llegar a su cuenta.
+                            {esAfp
+                              ? "Obligatorio en el T-Registro. Sin él, el aporte se declara pero puede no llegar a su cuenta."
+                              : "Esta persona no está en planilla, así que CAYLA no declara su aporte. El código queda visible para poder corregirlo o borrarlo."}
                           </span>
                         </label>
                       )}

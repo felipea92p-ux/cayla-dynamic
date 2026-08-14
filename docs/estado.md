@@ -37,6 +37,91 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-13 — el expediente de Mateo, y la 0213 que ya no se puede pegar
+
+**LO ÚNICO CON FECHA.** Hay una imputación de cargos **entregada y abierta**
+(T-03/0001-2026-CAYLA, entregada el 10-ago). Su plazo de descargo vence el
+**domingo 16**; se pidió al laboralista respuesta para el **lunes 17**.
+
+Se emitió **saltándose el escalón d) del art. 19.2 del RIT** — la segunda
+suspensión. El defecto era del generador, que tenía tres peldaños en vez de
+cuatro; lo corrigió la 0232 y ya está en producción, pero el papel entregado
+salió con la versión anterior.
+
+Y leyendo el Reglamento apareció algo mayor: el **art. 19.3** exige dos días
+hábiles de descargo **antes** de imponer la medida, con el documento retenido en
+borrador — y advierte que su omisión «invalida la medida, que en tal caso no se
+computa como antecedente ni sirve de peldaño». Si el orden importa, no afecta
+solo al último escalón.
+
+Las dos preguntas están escritas para enviarse en
+[`disciplina-tardanzas-faltas/10-consulta-al-laboralista.md`](disciplina-tardanzas-faltas/10-consulta-al-laboralista.md),
+y lo que hay que mirar cuando llegue el descargo, en el
+[`09`](disciplina-tardanzas-faltas/09-evaluar-un-descargo.md).
+
+**Lo investigado, para no repetirlo:** la ley (art. 25 h) usa el plural
+«amonestaciones escritas y suspensiones» pero **no fija un número**. Lo que
+obliga a dos es el RIT propio, que es más estricto a propósito — y el empleador
+queda obligado por el reglamento que aprobó.
+
+**⚠️ LA 0213 NO SE PUEDE PEGAR, NUNCA MÁS.** Comprobado ejecutándola: su
+`fn_tardanza_escalon` devuelve cinco columnas y la viva devuelve seis, así que
+Postgres aborta con «cannot change return type of existing function» y no entra
+nada. Su mitad útil —`fn_expediente_generar_falta`— entró por la **0237**. El
+número 213 sigue sin anotar en `migraciones_aplicadas` **a propósito**: no se
+aplicó y el registro tiene que seguir diciéndolo.
+
+**El reloj de las Mac mini ya no es un punto ciego** (0230). Medido en
+producción: **4 segundos** de desfase máximo en siete días, latencia de red
+incluida. El umbral de aviso está en 120 s, treinta veces por encima. Es seguro,
+no reparación.
+
+**Y una regla de método que costó tres errores en una sola sesión:** grepear una
+cadena en el cuerpo de una función NO mide la regla. `suspension_previa_dias`
+vive en el `returns table(...)`, que no forma parte de `prosrc`; `sueldo_fijo` se
+comprueba un nivel más abajo, en `fn_expediente_crear_borrador`; y
+`fn_auto_cierre` mira el periodo pagado a través de un helper. Las tres veces la
+respuesta correcta salió de preguntarle a la base qué hace —`pg_get_function_result`,
+llamar la función, reproducir el caso— y no de buscar un texto.
+
+### El panel ya puede volver a invitar a quien nunca entró
+
+`/admin/cuentas` daba por resuelta a una persona en cuanto GoTrue aceptaba el
+envío: `invitar` enlaza el `auth_user_id` ahí mismo, y con eso desaparecía de la
+lista de invitables **aunque el correo se hubiera perdido en spam y ella no
+hubiera hecho nada**. No había forma de reenviarle nada desde la pantalla.
+
+Ahora hay una sección **«Volver a invitar — todavía no han entrado»**, con envío
+de a una o en tanda. Quién sale ahí se lee de `auth.users.last_sign_in_at`: en
+null significa exactamente «no abrió el correo», porque aceptar la invitación
+**es** iniciar sesión — el enlace la deja adentro para que ponga su clave.
+
+**Y son dos correos distintos, medido contra el GoTrue local:**
+
+| A quién | Qué se le manda | Por qué |
+|---|---|---|
+| Invitada que no aceptó (sin confirmar) | la invitación otra vez | GoTrue reinvita sin problema: mismo usuario, `invited_at` renovado |
+| Cuenta creada a mano (confirmada) | el enlace de «recuperar acceso» | la invitación responde **422 `email_exists`**; ese camino está cerrado |
+
+La tanda va con una pausa entre correos y **se corta sola** al llegar al tope por
+hora del proyecto, diciendo quiénes quedaron pendientes. Mandarlos todos de golpe
+no llega antes y convierte un tope en veinte errores.
+
+⚠️ **Lo que hay que comprobar en el panel de Supabase antes de disparar:** que
+`https://cayla-dynamic.vercel.app/**` esté en *Authentication → URL
+Configuration → Redirect URLs*. Si no está, el enlace **no falla** — cae en el
+Site URL, o sea en la raíz, y la persona termina en el login sin clave y sin
+nada que le diga qué hacer. Se lee igual que un correo que no funcionó. En local
+pasaba exactamente eso hasta que se agregó a `additional_redirect_urls` en
+`supabase/config.toml`.
+
+*(Y un aviso para quien corra las pruebas: `scripts/seed-dev.mjs` deja
+`100_una_tienda_no_es_una_oficina` fallando en sus pruebas 8 y 9. Con
+`npx supabase db reset` antes, las 953 pasan.)*
+
+
+---
+
 ## 2026-08-10 — un terminal sin dueño, y un diseño de plata que se cayó al medirlo
 
 ### El terminal ya no puede quedarse sin dueño ([`0202`](../supabase/migrations/0202_un_terminal_activo_sin_dueno_deja_de_poder_existir.sql))
@@ -171,8 +256,6 @@ cero filas). **No urge:** medido en producción, nadie está hoy en ese estado.
   comprueba que la persona esté activa». **Es falso** en la versión vigente — ni
   esa ni `fn_set_horario_semanal` miran `personas.estado`. Es justo la frase que
   haría no poner un freno creyéndolo puesto.
-
----
 
 ## 2026-08-10 — regenerar `types.ts` ya no es solo reordenar
 
@@ -711,6 +794,12 @@ se le transfiere. **No hay provisiones indebidas ni plata de más.**
 
 ### A.2.b.bis · A quien cesa se le paga dos veces el mismo mes, y de más
 
+⚠️ **LA CAUSA YA ESTÁ CERRADA — lo que sigue abierto es dinero ya pagado.** Los
+dos arreglos de código que esta sección pedía están en producción desde el
+2026-08-13 (ver «Lo que ya está hecho», más abajo). Lo que queda no lo arregla
+ninguna migración: es una decisión por persona. Quien lea esto en una sesión
+nueva no tiene que volver a investigar el divisor.
+
 **Medido en producción el 2026-08-10, con las dos consultas que quedan en
 `scripts/sql-manual/`.** Son dos defectos distintos que se dan la mano, y
 conviene no mezclarlos.
@@ -755,49 +844,186 @@ se pagaron sus liquidaciones, que volvían a incluir ese mismo mes.
 **Si el dinero salió dos veces solo lo dice el extracto bancario.** El sistema lo
 tiene registrado dos veces; eso es lo que se puede afirmar.
 
-#### Lo que ya existe y solo le falta el aviso
+#### Lo que ya está hecho
 
-El botón **«💸 Ya le pagué aparte»** (`planilla/page.tsx:1268`) registra un
-descuento y deja el total de esa persona en cero. **La herramienta está**; lo que
-falta es que la pantalla diga que hace falta apretarla. Por eso la 0210 es un
-**cartel, no una exclusión automática**: mientras el divisor siga como está, la
-cifra de la liquidación no es de fiar, y descontar solo propagaría un número
-inflado con la seguridad de una máquina.
+Las dos cosas que esta sección esperaba **están aplicadas en producción el
+2026-08-13**, comprobadas pidiéndole el `md5` a producción y no por la fecha del
+commit:
+
+- **El cartel** — la [`0210`](../supabase/migrations/0210_la_planilla_ve_la_liquidacion_que_ya_se_pago.sql)
+  hace que la pantalla de Planilla diga, junto a quien cesó a mitad de mes, que
+  ya cobró su liquidación: cuándo y cuánto. Sigue siendo un cartel y no una
+  exclusión automática, a propósito.
+- **El divisor** — salió como la
+  [`0239`](../supabase/migrations/0239_la_hora_vale_lo_que_vale_el_mes_no_lo_que_dura_la_consulta.sql),
+  no como la «0211» que esta tabla esperaba. `fn_planilla_calcular` ya no saca el
+  divisor del rango que se le pasa: **el rango decide QUÉ entra —marcas,
+  feriados— y el periodo cuánto vale la hora**. Los siete llamadores que pasan el
+  periodo entero no se movieron ni un céntimo; la única llamada cuyo resultado
+  cambia es la de `fn_liquidacion`.
+
+El botón **«💸 Ya le pagué aparte»** (`planilla/page.tsx:1268`) sigue siendo la
+vía para el periodo en curso: registra el descuento y deja el total en cero. Y
+ahora la cifra que descuenta ya es de fiar, que era la objeción para no usarlo.
 
 #### Lo que queda por hacer
 
 | Qué | Cuándo |
 |---|---|
 | **Rufina Salvatierra: apretar «Ya le pagué aparte»** antes de cerrar el periodo en curso | **antes del 28/08** — su liquidación fue S/1,106.82, la mayor; si el periodo cierra sin eso, se repite por el monto más alto |
+| **Volver a medir** con `scripts/sql-manual/cuanto_inflo_el_rango_corto_las_liquidaciones.sql`, ya con la 0239 puesta | una vez. Con el divisor arreglado esa lista **no puede crecer**: sirve para cerrar, no para vigilar |
+| **Decidir persona por persona** qué se hace con lo pagado de más | son personas que ya no están, así que cobrar, dar por perdido o compensar es decisión de dirección y no del sistema. Hoy **no hay dónde dejar registrada esa decisión**: si se quiere rastro, es una migración que todavía no existe |
 | Revisar el extracto de finales de julio para las seis | esta semana |
-| **0210** — el cartel en la pantalla de Planilla | no toca plata |
-| **0211** — el divisor | su propia sesión, con auditoría empírica: ceses el día 1, a mitad y al final, en TRU y en LIM. Encenderá en rojo todas las liquidaciones ya congeladas |
 
 **Nadie cobró de menos.** Todo lo encontrado es dinero de más, de personas que ya
 no están.
 
-### A.2.c · No hay ni un CUSPP cargado, y este archivo daba a entender lo contrario
+### A.2.c · Los CUSPP ya están cargados — quedan dos, y dos falsos positivos
 
-Medido en producción el **2026-08-10**: la columna existe —la 0198 está pegada—
-y está **vacía de punta a punta**. Cero fichas. Este archivo decía que el campo
-«se está llenando ahora»; no ha empezado.
+**Resuelto el 2026-08-13.** La columna estaba vacía de punta a punta el
+2026-08-10; hoy tiene **15 códigos**, cargados desde la hoja del contador
+(«072026 Planilla CAYLA Felipe.xlsx») con
+`scripts/sql-manual/ficha_cuspp_2026-08-13.sql` — fuera de git, lleva DNI.
 
-**Por qué importa.** El CUSPP es el identificador de la persona dentro del
+**Por qué importaba.** El CUSPP es el identificador de la persona dentro del
 sistema privado de pensiones: es lo que permite que el aporte declarado llegue a
-**su** cuenta individual y no se quede sin atribuir. El aviso de la propia
-pantalla ya lo dice — *«el aporte se declara pero puede no llegar a su cuenta»*.
+**su** cuenta individual y no se quede sin atribuir.
 
-**Lo que NO se sabe todavía, y es la pregunta a Dante:** si él lleva los CUSPP
-por su lado para armar la PLAME, aquí no falta nada urgente. Si la declaración
-se construye con lo que hay en este sistema, entonces son 18 personas en AFP
-declarando sin identificador. **Es una pregunta de una línea y va antes que
-cualquier validación.**
+**Se emparejó por DNI y no por nombre**, y no es un detalle de implementación: en
+el equipo hay **dos Ramírez Gomez**, y la hoja trae el código de Sandra Melissa.
+Por nombre se le habría escrito a Lizzelott Estefany — el aporte de una a la
+cuenta individual de la otra.
 
-De paso cierra una decisión que estaba abierta: **al CUSPP no se le puede poner
-un CHECK.** No hay ni un dato con el que dimensionarlo, así que los «12
-caracteres» que circulaban seguirían siendo una suposición escrita en una
-restricción. Aviso en pantalla y nada más, que es lo que ya decidió el
-encabezado de la 0198.
+**Lo que falta, y es corto:** el CUSPP de **Carmen Sanándres** (LIM, Profuturo) y
+de **Lizzelott Estefany Ramírez Gomez** (CCO, Integra), que no venían en la hoja.
+Se piden al contador. Aparte, **Kerin Guevara** (TRU) no tiene régimen de pensión
+cargado: primero eso, y si sale ONP no lleva CUSPP.
+
+**Los dos falsos positivos de la pantalla ya están corregidos y desplegados**
+(2026-08-14).
+`/admin/datos-personales` le pedía «falta CUSPP» a **Catherine Pereyra** y
+**Claudia Pereyra**, que cobran por **recibo por honorarios** (ver
+[A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado)). Un
+locador no entra al T-Registro como trabajador: ese aviso no lo podía completar
+nadie, nunca — y un aviso permanente e imposible es lo que enseña a ignorar los
+avisos que sí importan.
+
+La condición vive ahora en `leCorrespondeCuspp` (`packages/shared/src/vinculo.ts`)
+y no suelta en la pantalla, porque son **dos** las que preguntan lo mismo: el
+aviso de ficha incompleta y la exportación del padrón al contador, que también
+lleva la columna CUSPP. Escrita dos veces, la exportación habría seguido pidiendo
+lo que la pantalla ya dejó de pedir. Y usa `esPrestadorDeServicios`, no un
+`!en_planilla`: si el campo no viaja en el JSON, el defecto seguro es **seguir**
+pidiendo el CUSPP a las veinte que lo necesitan, no dejar de pedírselo en
+silencio. Ese caso está en `tests/vinculo.test.ts`.
+
+Por el mismo motivo dejó de pedírsele a una locadora el **régimen de pensión**:
+CAYLA no le retiene aporte, así que ese dato no es de la empresa.
+
+De paso: que las dos locadoras **tengan un régimen de AFP asignado** es en sí un
+indicio más de los que describe A.2.b. **Decisión de Felipe (2026-08-13): se
+queda.** Después de la 0242 ese dato no alimenta ningún cálculo, y saber en qué
+AFP están es información útil. No volver a proponer borrarlo.
+
+**Sobre el CHECK que se había descartado por falta de datos:** ahora hay 16
+códigos reales y los 16 tienen la misma forma —6 dígitos · 5 letras · 1 dígito—
+y las 5 letras se derivan del nombre (inicial del nombre, inicial de cada
+apellido, 4ª letra de cada apellido). El script lo comprueba fila por fila, y es
+lo que da confianza de que ninguna se corrió al copiar la hoja. Pero **sigue sin
+ponerse un CHECK**, y ahora por una razón medida y no por falta de datos: 16
+casos no prueban que un CUSPP antiguo, o el de alguien con un solo apellido,
+tenga esa forma. La validación vive en el script que carga, donde un rechazo se
+revisa a mano; en la columna, rechazaría en silencio un código legítimo.
+
+### A.2.c.bis · La guarda que impide retenerle AFP a un locador no está escrita
+
+> **HOY NO CUESTA NADA.** Felipe confirmó el 2026-08-13 que a los tres locadores
+> **nunca se les ha retenido AFP**, y es coherente con lo medido: su base es 0
+> porque nadie les llenó `sueldo_base_legal`. Esto **no es plata mal pagada y no
+> hay nada que devolver.** Es un riesgo latente, y el valor de anotarlo es que la
+> protección que hoy funciona **no está escrita en ninguna parte**: funciona por
+> casualidad.
+>
+> **✅ CERRADO. La 0242 está aplicada en producción** (2026-08-13). El md5 de
+> partida se confirmó en el SQL Editor antes de pegarla, y las cinco
+> comprobaciones salieron en verde: las 4 marcas nuevas puestas, la guarda de la
+> base presente, y la 0239, la 0236 y la 0233 intactas. Con prueba propia
+> (`supabase/tests/183_un_locador_no_tiene_base_imponible.test.sql`).
+
+**Qué es exactamente el riesgo.** El descuento previsional es
+`base imponible × tasa`, y hoy da cero para un locador porque su base es cero. Pero
+la base es cero **por un dato en blanco, no porque el sistema sepa que es locador**.
+El día que alguien abra su ficha en `/admin/equipo` y confirme su base legal —una
+acción normal, con buena intención, en un campo que el panel pide— empieza a
+retenérsele AFP en silencio. Nadie relacionaría las dos cosas.
+
+Y hay un segundo camino, más corto: marcarle **`con_hijos`** a una locadora le paga
+S/113 de asignación familiar y además le abre base para el descuento, incluso con
+`sueldo_base_legal` en blanco.
+
+**Medido el 2026-08-13** contra la función vigente (`fn_planilla_calcular`, md5
+`7d67ff3c1d769ebffc3de0af20ab83fe` = 0239), con cuatro locadoras idénticas salvo
+esas dos columnas. Salió de preguntarse qué hace el sistema con la AFP después de
+cargar los CUSPP. Los montos de abajo son **lo que pasaría**, no lo que pasó:
+
+A un locador no se le retiene AFP: la locación de servicios no genera retención
+previsional del pagador. El encabezado de la 0193 dice que eso ya está a salvo
+porque «su básica es 0». **Es cierto solo si alguien le puso `sueldo_base_legal`
+en NULL a mano** — y esa columna tiene `DEFAULT 1130.00` (el RMV, 0103).
+
+| `sueldo_base_legal` | `con_hijos` | básica | asig. familiar | **AFP retenida** |
+|---|---|---|---|---|
+| 1130 (el DEFAULT) | sí | 1192.09 | 113.00 | **168.62** |
+| 1130 (el DEFAULT) | no | 1192.09 | 0.00 | **154.02** |
+| NULL | sí | — | 113.00 | **14.60** |
+| NULL | no | — | 0.00 | 0.00 |
+
+**Son dos defectos y no se mezclan:**
+
+1. **La básica.** El descuento de pensión es `bri.base × tasa` y es **el único
+   concepto sin guarda de vínculo**. Todos los demás la llevan escrita: EsSalud y
+   movilidad (0117), educación (0120), sobretasas (0193). Este descansa en que la
+   base sea 0 — y lo decide el default de una columna. Que hoy funcione o no es
+   una coincidencia, no un diseño.
+2. **La asignación familiar.** Entra al pago **y** a la base sin condición de
+   vínculo, y es la única vía que inventa base incluso con `sueldo_base_legal` en
+   NULL. Aparte del descuento, cobrarla ya está mal: la Ley 25129 es para
+   trabajadores del régimen laboral privado. Y es el argumento exacto de la 0117
+   con la movilidad — **el concepto que protege a una trabajadora de planilla es
+   el que incrimina en un RxH**. Un locador que cobra asignación familiar es un
+   indicio de laboralidad más para
+   [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado).
+
+**Lo que EsSalud sí hace bien:** cero en las cuatro filas. La guarda de la 0117
+sigue en pie, y eso acota el problema — es previsional, no de aportes de la
+empresa.
+
+**Cómo lo arregla la 0242.** Guarda la base imponible COMPLETA —
+`case when pe.en_planilla is not true then 0 else …` — y no cada término suyo, para
+que un concepto que se agregue mañana quede excluido sin que nadie tenga que
+acordarse; y le pone la condición de vínculo a la asignación familiar en **los dos
+sitios** donde vive (el concepto del JSON y el término del `total`): arreglar solo
+uno dejaría la boleta mostrando 0 mientras el total lo sigue cobrando.
+
+Medido después de aplicarla en local: las cuatro locadoras quedan idénticas entre
+sí y su total es exactamente su pago por horas — ya no depende de
+`sueldo_base_legal` ni de `con_hijos`. Y **el testigo de planilla no se movió ni un
+céntimo** (AFP 195.73 · asignación 113.00 · EsSalud 136.34 · provisiones 276.71,
+iguales antes y después). Eso es la mitad del valor de la prueba `183`: apagarle el
+descuento a un locador y de paso romperle la retención a quien sí aporta habría
+sido mucho peor que el defecto original, y ninguna pantalla lo mostraría.
+
+**Lo que sigue igual, y es deliberado:** el pago por horas de un locador. Es el
+razonamiento de la 0085 que la 0117 repitió — medir horas para saber cuánto pagar
+es medir un RESULTADO; fiscalizar una CONDUCTA es la prueba de subordinación.
+
+**Para volver a medirlo en dos segundos cuando haga falta:**
+[`que_pasa_con_la_afp.sql`](../scripts/sql-manual/que_pasa_con_la_afp.sql). Su
+BLOQUE 2 no rehace la aritmética, le pregunta a `fn_planilla_calcular` por el
+periodo vigente y devuelve una fila por cada locador con retención. Lo esperado
+—y lo que Felipe ya confirmó por su lado— es **cero filas**. Queda escrito con la
+consulta al lado por la misma razón que A.2.d: un riesgo latente sin forma de
+volver a medirlo es una frase que envejece sola.
 
 ### A.2.d · Dos campos para «¿tiene hijos menores?» — uno paga y el otro declara
 
@@ -1277,6 +1503,35 @@ al tope.
 
 ## 🔴 Atender primero
 
+0. **El freno del SQL a producción se puede saltar sin querer, y ya pasó dos
+   veces.** El 2026-08-14 la **0243** —que cambia una liquidación por cese— quedó
+   aplicada en producción con sus tres archivos **sin commitear**: el mismo estado
+   exacto en el que se encontró la **0177** el 2026-08-07. Se rescató el mismo día.
+
+   **`dame-el-sql.sh` no lo evitó, y no puede:** solo protege a quien lo usa. Si
+   la migración se copia del editor —lo natural cuando la tienes abierta delante—
+   el script no participa, y ni el hook de numeración ni `que-falta-pegar.sh` ven
+   nada, porque los dos miran git. El agujero no está en el script: está en que
+   **el camino cómodo no pasa por él**.
+
+   **✅ La mitad barata ya está hecha** (2026-08-14):
+   `scripts/hooks/migracion-sin-guardar.sh` avisa en cada push si hay una
+   migración sin commitear, y distingue la recién escrita de la que **ya
+   sobrevivió a un commit** — esa segunda no es trabajo en curso, es trabajo
+   olvidado. No bloquea, por la regla que el propio hook ya tenía escrita para
+   `types.ts`: lo que sale de la máquina se bloquea, lo que solo está en el disco
+   se avisa. Con varias sesiones en paralelo, una migración a medio escribir es un
+   caso legítimo constante, y frenar ahí repetiría los dos errores ya pagados
+   (`desplegar.sh` el 2026-08-06 y `que-falta-pegar --check`, cuatro pushes en un
+   día). Cinco casos probados, incluido el que cazó un `git add` con las rutas
+   pegadas sin espacio — justo la línea que existe para copiarse.
+
+   **Queda la mitad cara, y es la que de verdad cierra el agujero:** que
+   `que_falta_pegar.sql` compare lo que `migraciones_aplicadas` dice **en
+   producción** contra lo que hay **en GitHub** —no en el disco—, de modo que una
+   migración aplicada y no subida salga como hallazgo desde el lado autoritativo.
+   El aviso del hook depende de que alguien empuje; esto no dependería de nada.
+
 1. **Julio: nadie tuvo descuento de pensión.** Medido el 2026-08-08 sobre el
    periodo 28-jun → 28-jul: `pension_descontada` = **S/0.00 para las 23
    personas**, y `con_tasa_de_pension` = 0. En agosto ya son 20 de 22, así que
@@ -1418,10 +1673,26 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   sugiere 1960), y **Angie Chávez** cobra asignación familiar teniendo cero
   familiares registrados — S/113 al mes sin respaldo, o al revés, falta cargar al
   hijo. Sin esas fichas Dante no puede cerrar el T-Registro.
-- **Tres datos del T-Registro que el sistema no guarda:** sexo, nacionalidad y
-  CUSPP. El CUSPP se agregó el 2026-08-08 (0198) y aplica a 18 de 21 —quien está
-  en AFP—; los otros dos siguen sin campo y se llenan a mano en la hoja del
-  contador.
+- **Dos datos del T-Registro que el sistema no guarda:** sexo y nacionalidad. Se
+  llenan a mano en la hoja del contador. El tercero era el CUSPP, que ya tiene
+  campo (0198) y ya está cargado — ver
+  [A.2.c](#a2c--los-cuspp-ya-están-cargados--quedan-dos-y-dos-falsos-positivos).
+- **Pedirle al contador el CUSPP de Carmen Sanándres (LIM, Profuturo) y de
+  Lizzelott Estefany Ramírez Gomez (CCO, Integra).** Son las dos únicas que
+  faltan; no venían en la hoja de julio. Ver
+  [A.2.c](#a2c--los-cuspp-ya-están-cargados--quedan-dos-y-dos-falsos-positivos).
+- **Cargarle el régimen de pensión a Kerin Guevara** (TRU). Hoy cae a la tasa
+  genérica de `configuracion.tasa_afp`, que es una aproximación: un dato faltante
+  acá no se ve como un cero, se ve como un número plausible. Si sale ONP, no lleva
+  CUSPP.
+- **La ficha de Dante Ramal** (CCO) no existe: sin DNI no se le puede declarar.
+  Va antes que cualquier dato previsional.
+- **Los campos de presentación de un locador siguen mintiendo.**
+  `basica_legal_prop`, `complemento_variable` y `base_essalud` muestran números
+  (1192.09, 73.84 y 1305.09 en la medición) para alguien que no tiene
+  remuneración básica. No mueven ni un sol —el aporte de EsSalud ya es 0— y se
+  dejaron fuera de la 0242 para que fuera auditable en una pasada. Merecen su
+  propia migración con su prueba.
 - **El candado del periodo que quedó a medias.** Se acordó el 26-07: no dejar
   cerrar un periodo con días sin resolver. Ahora que la incidencia del almuerzo
   ya se puede cerrar desde la pantalla, el candado no bloquearía a nadie.

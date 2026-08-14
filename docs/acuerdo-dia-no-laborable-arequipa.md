@@ -24,60 +24,21 @@ por sí sola.
 
 ---
 
-## El texto
+## Dónde está el texto
 
-> **ACUERDO DE DESCANSO SUSTITUTORIO**
->
-> En la ciudad de Arequipa, a los ____ días del mes de agosto de 2026, entre:
->
-> **CAYLA** (en adelante, la empresa), con RUC ____________, debidamente
-> representada por ____________________, identificado con DNI ____________; y
->
-> **____________________________________**, identificada con DNI
-> ____________, quien presta servicios en la sede Tienda Arequipa (en adelante,
-> la colaboradora);
->
-> se acuerda lo siguiente:
->
-> **PRIMERO — El día.** El sábado **15 de agosto de 2026** es día cívico no
-> laborable en la provincia de Arequipa, conforme al artículo 8 de la Ley 24875,
-> aplicado según el artículo 7 del Decreto Legislativo 713. Ambas partes dejan
-> constancia de que **no se trata de un feriado nacional**.
->
-> **SEGUNDO — Lo que se acuerda.** La colaboradora prestará servicios el 15 de
-> agosto de 2026 dentro de su jornada habitual, y en compensación gozará de
-> descanso el **lunes 31 de agosto de 2026**, día que le correspondería laborar.
->
-> **TERCERO — El pago.** El día de descanso del 31 de agosto será **remunerado**.
-> Su importe se calcula en proporción a las horas efectivamente trabajadas por la
-> colaboradora en el periodo, conforme a la fórmula de cálculo que la empresa
-> aplica a la jornada diaria, y se abonará identificado como tal en su boleta.
->
-> Las partes dejan constancia de que **este pago constituye una mejora voluntaria
-> otorgada por la empresa**, y no el cumplimiento de una obligación derivada del
-> régimen de días no laborables, que no exige remuneración del descanso
-> sustitutorio.
->
-> **CUARTO — Alcance.** Este acuerdo se refiere única y exclusivamente al 15 de
-> agosto de 2026 y no genera derecho adquirido respecto de días no laborables
-> futuros, cuyo tratamiento se acordará en su oportunidad.
->
-> **QUINTO — Libre voluntad.** La colaboradora declara que suscribe el presente
-> acuerdo de manera libre e informada, habiendo comprendido su contenido, y que
-> ha tenido la posibilidad de no aceptarlo.
->
-> En señal de conformidad, ambas partes firman por duplicado.
->
-> &nbsp;
->
-> ______________________________  ______________________________
-> **Por CAYLA**                    **La colaboradora**
-> Nombre:                          Nombre:
-> DNI:                             DNI:
->
-> &nbsp;
->
-> Arequipa, ____ de agosto de 2026.
+**En [`acuerdo-dia-no-laborable-arequipa.html`](acuerdo-dia-no-laborable-arequipa.html),
+y solo ahí.** Se abre en el navegador y se imprime con ⌘P — o se guarda como PDF
+desde el mismo diálogo. Trae ya las dos copias por persona, empresa y
+colaboradora, cada una en su página.
+
+Este archivo llevaba las cinco cláusulas escritas otra vez. Estaban idénticas
+—comprobado carácter por carácter el 2026-08-12— y ese es justo el momento en
+que hay que separarlas: mientras coinciden, nadie nota que son dos. El día que
+alguien corrija una coma en el papel que se firma, este archivo seguiría diciendo
+lo anterior, y no habría forma de saber cuál de los dos se entregó.
+
+Un documento que se firma tiene UN texto. Acá queda el porqué y el cómo; el qué
+vive en el HTML.
 
 ---
 
@@ -124,6 +85,30 @@ las horas estén completas. Corrida antes, la consulta devuelve un monto corto.
 
 > `Día sustitutorio 31/08 por el 15/08 no laborable (Ley 24875) — trabajado`
 
-⚠️ **Esto no es automático y nadie lo va a recordar por ti.** El sistema no sabe
-que el 15 de agosto existe: el cálculo lo hace la consulta, pero la entrada es a
-mano, y si nadie la hace, esas personas descansan el 31 y no cobran ese día.
+⚠️ **Esto no es automático.** El sistema no sabe que el 15 de agosto existe: el
+cálculo lo hace la consulta, pero la entrada es a mano. Si nadie la hace, esas
+personas descansan el 31 y no cobran ese día — y el acuerdo que firmaron dice que
+sí les tocaba.
+
+Por eso no depende de que alguien se acuerde. Hay **dos redes**, puestas el
+2026-08-12:
+
+- El pendiente está en [`estado.md`](estado.md), en la tabla de los que tienen
+  fecha, junto a los convenios de movilidad y el Seguro Vida Ley.
+- Hay una **tarea programada para el 29/09/2026 a las 9:00** que lo recuerda con
+  la consulta lista. Corre mientras la app esté abierta; si ese día está cerrada,
+  salta en cuanto se abra.
+
+**Y se descartó la tercera red, que parecía la buena:** enseñarle a la tabla de
+feriados a tener sede, para que la planilla lo calculara sola. Se descartó por
+dos razones, y la primera pesa más que la segunda:
+
+1. **Sería el concepto equivocado.** Esto NO es un feriado. Modelarlo como
+   «feriado de una sede» haría que el sistema pagara el recargo del 100 % a quien
+   trabajara ese día, salvo que alguien se acordara de otorgar además el descanso
+   sustitutorio. Se cambiaría el trámite, no la dependencia de la memoria.
+2. **Son quince las funciones que leen `feriados`** —contadas el 2026-08-12—,
+   entre ellas el cálculo de planilla, la proyección y la detección de faltas.
+   Tocar esa última para un caso que ocurre tres o cuatro veces al año arriesga
+   marcar ausente a quien sí vino, que es el peor error que este sistema puede
+   cometer.

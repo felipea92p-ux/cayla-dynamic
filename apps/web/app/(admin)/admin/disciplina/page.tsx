@@ -657,15 +657,43 @@ export default function DisciplinaPage() {
     setMsg({ tipo: "ok", texto: "Vuelto a borrador. Arriba, en Borradores, elige el firmante correcto y fírmalo de nuevo." });
   }
 
-  async function anular(id: string) {
-    const motivo = window.prompt("Motivo de la anulación (queda registrado en el documento):");
+  /**
+   * Anular un documento.
+   *
+   * `entregado` decide el aviso, y la diferencia es real: anular un BORRADOR no
+   * lo ha visto nadie; anular algo ENTREGADO retira un papel que una persona ya
+   * tiene en la mano, y hay que decírselo. El sistema no puede hacer esa parte.
+   *
+   * Se ofrece también en «Entregados» y no solo en «Borradores» porque a veces
+   * el defecto se descubre después. Pasó el 2026-08-13: una imputación de cargos
+   * emitida saltándose el escalón d) del art. 19.2 del RIT, entregada tres días
+   * antes de que nadie lo viera. La base siempre lo permitió —
+   * `fn_expediente_anular` no mira el estado— pero la pantalla no lo ofrecía, así
+   * que el único camino visible era «archivar sin sancionar», que NO es lo mismo:
+   * archivar deja el escalón en «imputación» y perpetúa el salto; anular lo
+   * devuelve al peldaño que de verdad tocaba.
+   */
+  async function anular(id: string, entregado = false) {
+    if (entregado && !window.confirm(
+      "Este documento YA SE ENTREGÓ y la persona lo tiene.\n\n"
+      + "Anularlo lo deja sin efecto y queda el rastro con tu motivo, pero el sistema "
+      + "no puede avisarle: tendrás que comunicárselo tú por escrito.\n\n"
+      + "¿Continuar?",
+    )) return;
+    const motivo = window.prompt(
+      entregado
+        ? "Motivo de la anulación. Explica POR QUÉ se anula — si fue un defecto del documento o una decisión de la empresa, porque de eso depende que los antecedentes anteriores sigan contando:"
+        : "Motivo de la anulación (queda registrado en el documento):",
+    );
     if (!motivo || motivo.trim().length < 3) return;
     setOcupado(id); setMsg(null);
     const { error } = await supabase.rpc("fn_expediente_anular", { p_id: id, p_motivo: motivo.trim() });
     setOcupado(null);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Documento anulado." });
+    setMsg({ tipo: "ok", texto: entregado
+      ? "Documento anulado. Queda el rastro con tu motivo — ahora comunícaselo a la persona por escrito."
+      : "Documento anulado." });
   }
 
   const borradores = docs.filter((d) => d.estado === "borrador");
@@ -1050,6 +1078,15 @@ function fechasDe(h: Hecho[]): string {
                               </button>
                             </>
                           )}
+                          {/* Anular NO es lo mismo que archivar, y por eso está
+                              aparte y en texto pequeño: archivar cierra un
+                              procedimiento que se siguió bien; anular retira un
+                              documento que no debió emitirse. */}
+                          <button onClick={() => anular(d.id, true)} disabled={ocupado === d.id}
+                            title="Retira el documento por un defecto propio. Distinto de archivar: anular devuelve el escalón al peldaño anterior."
+                            className="text-xs text-taupe underline disabled:opacity-40">
+                            anular
+                          </button>
                         </div>
                       </div>
                       <p className="mt-1 text-xs text-taupe">

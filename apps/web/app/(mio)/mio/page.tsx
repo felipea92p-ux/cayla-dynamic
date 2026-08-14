@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
-import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -49,6 +51,9 @@ interface Yo {
   id: string;
   nombre: string;
   fechaIngreso: string | null;
+  /** Para saber si esta persona tiene panel al que volver. Nada más: lo que se
+   *  muestra en esta pantalla es igual para todo el mundo. */
+  rol: string | null;
 }
 
 interface Dia {
@@ -96,6 +101,7 @@ function haceDias(n: number): string {
 
 export default function MioPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
   const [dias, setDias] = useState<Dia[]>([]);
@@ -140,7 +146,7 @@ export default function MioPage() {
 
       const { data: p } = await supabase
         .from("personas")
-        .select("id, nombres, apellidos, fecha_ingreso")
+        .select("id, nombres, apellidos, fecha_ingreso, rol")
         .eq("auth_user_id", uid)
         .maybeSingle();
 
@@ -152,6 +158,7 @@ export default function MioPage() {
         id: p.id as string,
         nombre: `${p.nombres as string} ${p.apellidos as string}`,
         fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
+        rol: (p.rol as string | null) ?? null,
       });
     })();
   }, [supabase, sesion]);
@@ -255,8 +262,25 @@ export default function MioPage() {
             <p className="etiqueta text-taupe">Tus días y tus horas</p>
           </div>
         </div>
-        <button onClick={() => void supabase.auth.signOut().then(() => setSesion(false))}
-          className="text-xs text-taupe underline">Salir</button>
+        {/* ── La salida ────────────────────────────────────────────────────────
+            Esta pantalla vive FUERA de `(admin)`, así que no hereda el menú: sin
+            estos dos enlaces es un callejón sin salida. Quien tiene panel entró
+            desde «Lo mío» del menú y necesita volver; quien no lo tiene, no ve
+            un enlace que le daría error.
+
+            Y «Salir» manda a /admin/login en vez de dejar el formulario de esta
+            misma pantalla: ese formulario vuelve siempre a /mio, así que cerrar
+            sesión y entrar de nuevo devolvía aquí para siempre. El login del
+            panel sí reparte por rol. */}
+        <div className="flex items-center gap-4">
+          {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
+            <Link href="/admin/dashboard" className="text-xs text-taupe underline">
+              Volver al panel
+            </Link>
+          )}
+          <button onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
+            className="text-xs text-taupe underline">Salir</button>
+        </div>
       </header>
 
       {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}

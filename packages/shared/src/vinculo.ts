@@ -53,3 +53,37 @@ export function nombreDelDocumentoDePago(enPlanilla: boolean | null | undefined)
     ? "Detalle de servicios prestados"
     : "Boleta interna de pago";
 }
+
+/**
+ * ¿A esta persona le corresponde tener CUSPP, y por lo tanto hay que pedírselo?
+ *
+ * Tres condiciones que se descartan por razones DISTINTAS, y por eso no se
+ * funden en una:
+ *
+ *   · No está en planilla → el CUSPP identifica a un TRABAJADOR en el
+ *     T-Registro, y una locadora no está en el T-Registro. Su afiliación, si la
+ *     tiene, no pasa por CAYLA: desde la 0242 tampoco se le retiene aporte.
+ *   · ONP → el sistema nacional no lleva cuentas individuales, así que no hay
+ *     código que identificar.
+ *   · Jubilada → ya percibe pensión y no aporta (0190).
+ *   · Sin régimen cargado → todavía no se sabe. No se pide hasta saberlo, para
+ *     no pedir un código que puede no existir.
+ *
+ * Vive acá y no en la pantalla de fichas porque son dos las que preguntan lo
+ * mismo: el aviso de «ficha incompleta» y la exportación del padrón al contador.
+ * Con la condición escrita dos veces, la exportación seguiría pidiéndole a una
+ * locadora un código que la pantalla ya dejó de pedir.
+ *
+ * `enPlanilla` se lee con `esPrestadorDeServicios`, así que un campo que no
+ * llegó NO exime a nadie: el defecto seguro es seguir pidiendo el CUSPP, no
+ * dejar de pedírselo en silencio a las veinte personas que sí lo necesitan.
+ */
+export function leCorrespondeCuspp(
+  enPlanilla: boolean | null | undefined,
+  regimenPension: string | null | undefined,
+): boolean {
+  if (esPrestadorDeServicios(enPlanilla)) return false;
+  const regimen = (regimenPension ?? "").trim();
+  if (regimen === "" || regimen === "onp" || regimen === "jubilada") return false;
+  return true;
+}

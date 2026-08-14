@@ -44,6 +44,10 @@ interface Laborado {
   fecha_descanso: string | null;
   estado: string | null;
   acta_ref: string | null;
+  /** Por qué ese día NO compensa el feriado, o null si compensa bien (0238). */
+  no_compensa_porque: string | null;
+  /** Escrito solo cuando el día libre cae a más de 30 días del feriado. */
+  motivo_fuera_de_plazo: string | null;
 }
 interface Registro {
   id: string;
@@ -94,6 +98,22 @@ export default function FeriadosPage() {
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [laborados, setLaborados] = useState<Laborado[]>([]);
+  /**
+   * persona + feriado → por qué ese día compensatorio no compensa.
+   *
+   * El motivo NO se calcula aquí: lo devuelve `fn_dcs_por_que_no_compensa` a
+   * través de fn_feriados_laborados, y es LA MISMA frase con la que el candado
+   * bloquea al registrar (0238). Si la pantalla tuviera su propia copia de la
+   * regla, el día que una cambie dirían cosas distintas de la misma fila.
+   *
+   * Se cruza por (persona, feriado) porque esa es la clave 1:1 de la tabla.
+   */
+  const motivoPorFila = useMemo(
+    () => new Map(laborados
+      .filter((l) => l.no_compensa_porque)
+      .map((l) => [`${l.persona_id}|${l.fecha_feriado}`, l.no_compensa_porque as string])),
+    [laborados],
+  );
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -691,6 +711,18 @@ export default function FeriadosPage() {
                     </button>
                   </div>
                   {r.acta_ref && <p className="mt-1 text-xs text-taupe">Acta: {r.acta_ref}</p>}
+                  {/* EN ROJO, con la razón concreta. Este registro le quitó a esa
+                      persona la sobretasa del feriado —unos cien soles— a cambio
+                      de un día libre que, según lo que la base sabe hoy, no
+                      ocurrió. No se corrige solo: quitarlo le DEVUELVE la
+                      sobretasa, o sea que mueve plata, y eso lo decide una
+                      persona con el caso delante. */}
+                  {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`) && (
+                    <p className="mt-1 rounded-lg border border-rojo/30 bg-rojo/[0.06] px-2 py-1 text-xs text-rojo">
+                      Este día no compensa: {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`)}.
+                      {r.estado === "OTORGADO" && " Mientras siga en OTORGADO, se le está descontando la sobretasa del feriado."}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

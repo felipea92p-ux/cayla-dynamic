@@ -35,6 +35,24 @@ export function createAdminSupabaseClient(): SupabaseClient<Database> {
 }
 
 /**
+ * Cliente con llave ANÓNIMA para las rutas de servidor. Sirve para los caminos
+ * públicos de Auth —`/recover` es el caso— que la llave de servicio distorsiona:
+ * pedirlos firmando como quien se salta las RLS no es lo mismo que pedirlos como
+ * los pide el navegador en «Olvidé mi clave», y lo que se quiere es exactamente
+ * eso, el mismo correo por el mismo camino.
+ *
+ * No usa `crearClienteConAlmacen`: aquel guarda sesión bajo una clave de
+ * `localStorage`, que en el servidor no existe y además convertiría el cliente
+ * en un singleton compartido entre peticiones de personas distintas.
+ */
+export function createAnonClient(): SupabaseClient<Database> | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const llave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !llave) return null;
+  return createClient<Database>(url, llave, { auth: { persistSession: false } });
+}
+
+/**
  * Cliente con llave de servicio — SOLO para las rutas de servidor
  * (`app/api/*`). Nunca importar desde código que corre en el navegador: la
  * llave de servicio se salta RLS por completo.
