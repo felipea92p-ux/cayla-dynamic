@@ -794,6 +794,12 @@ se le transfiere. **No hay provisiones indebidas ni plata de más.**
 
 ### A.2.b.bis · A quien cesa se le paga dos veces el mismo mes, y de más
 
+⚠️ **LA CAUSA YA ESTÁ CERRADA — lo que sigue abierto es dinero ya pagado.** Los
+dos arreglos de código que esta sección pedía están en producción desde el
+2026-08-13 (ver «Lo que ya está hecho», más abajo). Lo que queda no lo arregla
+ninguna migración: es una decisión por persona. Quien lea esto en una sesión
+nueva no tiene que volver a investigar el divisor.
+
 **Medido en producción el 2026-08-10, con las dos consultas que quedan en
 `scripts/sql-manual/`.** Son dos defectos distintos que se dan la mano, y
 conviene no mezclarlos.
@@ -838,23 +844,36 @@ se pagaron sus liquidaciones, que volvían a incluir ese mismo mes.
 **Si el dinero salió dos veces solo lo dice el extracto bancario.** El sistema lo
 tiene registrado dos veces; eso es lo que se puede afirmar.
 
-#### Lo que ya existe y solo le falta el aviso
+#### Lo que ya está hecho
 
-El botón **«💸 Ya le pagué aparte»** (`planilla/page.tsx:1268`) registra un
-descuento y deja el total de esa persona en cero. **La herramienta está**; lo que
-falta es que la pantalla diga que hace falta apretarla. Por eso la 0210 es un
-**cartel, no una exclusión automática**: mientras el divisor siga como está, la
-cifra de la liquidación no es de fiar, y descontar solo propagaría un número
-inflado con la seguridad de una máquina.
+Las dos cosas que esta sección esperaba **están aplicadas en producción el
+2026-08-13**, comprobadas pidiéndole el `md5` a producción y no por la fecha del
+commit:
+
+- **El cartel** — la [`0210`](../supabase/migrations/0210_la_planilla_ve_la_liquidacion_que_ya_se_pago.sql)
+  hace que la pantalla de Planilla diga, junto a quien cesó a mitad de mes, que
+  ya cobró su liquidación: cuándo y cuánto. Sigue siendo un cartel y no una
+  exclusión automática, a propósito.
+- **El divisor** — salió como la
+  [`0239`](../supabase/migrations/0239_la_hora_vale_lo_que_vale_el_mes_no_lo_que_dura_la_consulta.sql),
+  no como la «0211» que esta tabla esperaba. `fn_planilla_calcular` ya no saca el
+  divisor del rango que se le pasa: **el rango decide QUÉ entra —marcas,
+  feriados— y el periodo cuánto vale la hora**. Los siete llamadores que pasan el
+  periodo entero no se movieron ni un céntimo; la única llamada cuyo resultado
+  cambia es la de `fn_liquidacion`.
+
+El botón **«💸 Ya le pagué aparte»** (`planilla/page.tsx:1268`) sigue siendo la
+vía para el periodo en curso: registra el descuento y deja el total en cero. Y
+ahora la cifra que descuenta ya es de fiar, que era la objeción para no usarlo.
 
 #### Lo que queda por hacer
 
 | Qué | Cuándo |
 |---|---|
 | **Rufina Salvatierra: apretar «Ya le pagué aparte»** antes de cerrar el periodo en curso | **antes del 28/08** — su liquidación fue S/1,106.82, la mayor; si el periodo cierra sin eso, se repite por el monto más alto |
+| **Volver a medir** con `scripts/sql-manual/cuanto_inflo_el_rango_corto_las_liquidaciones.sql`, ya con la 0239 puesta | una vez. Con el divisor arreglado esa lista **no puede crecer**: sirve para cerrar, no para vigilar |
+| **Decidir persona por persona** qué se hace con lo pagado de más | son personas que ya no están, así que cobrar, dar por perdido o compensar es decisión de dirección y no del sistema. Hoy **no hay dónde dejar registrada esa decisión**: si se quiere rastro, es una migración que todavía no existe |
 | Revisar el extracto de finales de julio para las seis | esta semana |
-| **0210** — el cartel en la pantalla de Planilla | no toca plata |
-| **0211** — el divisor | su propia sesión, con auditoría empírica: ceses el día 1, a mitad y al final, en TRU y en LIM. Encenderá en rojo todas las liquidaciones ya congeladas |
 
 **Nadie cobró de menos.** Todo lo encontrado es dinero de más, de personas que ya
 no están.
@@ -880,7 +899,8 @@ de **Lizzelott Estefany Ramírez Gomez** (CCO, Integra), que no venían en la ho
 Se piden al contador. Aparte, **Kerin Guevara** (TRU) no tiene régimen de pensión
 cargado: primero eso, y si sale ONP no lleva CUSPP.
 
-**Los dos falsos positivos de la pantalla ya están corregidos.**
+**Los dos falsos positivos de la pantalla ya están corregidos y desplegados**
+(2026-08-14).
 `/admin/datos-personales` le pedía «falta CUSPP» a **Catherine Pereyra** y
 **Claudia Pereyra**, que cobran por **recibo por honorarios** (ver
 [A.2.b](#a2b--los-tres-locadores-están-retratados-como-personal-subordinado)). Un
@@ -1628,12 +1648,16 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   llenan a mano en la hoja del contador. El tercero era el CUSPP, que ya tiene
   campo (0198) y ya está cargado — ver
   [A.2.c](#a2c--los-cuspp-ya-están-cargados--quedan-dos-y-dos-falsos-positivos).
-- **Desplegar el panel para que deje de pedirle CUSPP y régimen de pensión a los
-  locadores.** El código está commiteado y en GitHub; la base ya tiene la 0242,
-  pero **hasta que se despliegue, `/admin/datos-personales` sigue mostrándole
-  «falta CUSPP» a Catherine y a Claudia**. Es lo único que quedó a medio camino
-  entre la base y la pantalla. Detalle en
-  [A.2.c.bis](#a2cbis--la-guarda-que-impide-retenerle-afp-a-un-locador-no-está-escrita).
+- **Pedirle al contador el CUSPP de Carmen Sanándres (LIM, Profuturo) y de
+  Lizzelott Estefany Ramírez Gomez (CCO, Integra).** Son las dos únicas que
+  faltan; no venían en la hoja de julio. Ver
+  [A.2.c](#a2c--los-cuspp-ya-están-cargados--quedan-dos-y-dos-falsos-positivos).
+- **Cargarle el régimen de pensión a Kerin Guevara** (TRU). Hoy cae a la tasa
+  genérica de `configuracion.tasa_afp`, que es una aproximación: un dato faltante
+  acá no se ve como un cero, se ve como un número plausible. Si sale ONP, no lleva
+  CUSPP.
+- **La ficha de Dante Ramal** (CCO) no existe: sin DNI no se le puede declarar.
+  Va antes que cualquier dato previsional.
 - **Los campos de presentación de un locador siguen mintiendo.**
   `basica_legal_prop`, `complemento_variable` y `base_essalud` muestran números
   (1192.09, 73.84 y 1305.09 en la medición) para alguien que no tiene
