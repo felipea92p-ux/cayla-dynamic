@@ -895,13 +895,29 @@ comentarios.
 
 | Qué | Cuándo |
 |---|---|
-| **Rufina Salvatierra: apretar «Ya le pagué aparte»** antes de cerrar el periodo en curso | **antes del 28/08** — su liquidación fue S/1,106.82, la mayor; si el periodo cierra sin eso, se repite por el monto más alto |
-| **Volver a medir** con `scripts/sql-manual/cuanto_inflo_el_rango_corto_las_liquidaciones.sql`, ya con la 0239 puesta | una vez. Con el divisor arreglado esa lista **no puede crecer**: sirve para cerrar, no para vigilar |
-| **Decidir persona por persona** qué se hace con lo pagado de más | son personas que ya no están, así que cobrar, dar por perdido o compensar es decisión de dirección y no del sistema. Hoy **no hay dónde dejar registrada esa decisión**: si se quiere rastro, es una migración que todavía no existe |
-| Revisar el extracto de finales de julio para las seis | esta semana |
+| **Anular la liquidación de Rufina Salvatierra**, que figura pagada y nunca se transfirió (ver abajo) | cuando esté la migración. **No hace falta antes del 28/08**: su fila ya está en S/0.00 y el cierre pasa limpio |
+| **Revisar el extracto** de finales de julio para las seis, y el de agosto para ella | esta semana. Es lo único que distingue «registrado» de «pagado» |
+| **Decidir persona por persona** qué se hace con lo que sí haya salido de más | después del extracto: sin él, no se sabe qué hay que decidir |
 
-**Nadie cobró de menos.** Todo lo encontrado es dinero de más, de personas que ya
-no están.
+⚠️ **CUIDADO CON ESTA SECCIÓN: sus cifras son de lo REGISTRADO, no de lo
+transferido.** El 2026-08-14 se descubrió cómo se rompe esa suposición.
+
+**El caso de Rufina, que es el patrón.** Su liquidación figura pagada el 10/08
+por S/1,106.82 y **ese dinero nunca salió del banco**: estaba en periodo de
+prueba, no llegó a entrar a planilla, y lo único que se le pagó fue un adelanto
+de S/358.73 el 06/08, fuera de planilla. Alguien apretó «Liquidación pagada» y el
+sistema congeló una foto de algo que no ocurrió.
+
+Y el importe estaba mal por partida doble: se congeló **tres días antes** de que
+la [`0239`](../supabase/migrations/0239_la_hora_vale_lo_que_vale_el_mes_no_lo_que_dura_la_consulta.sql)
+llegara a producción, así que salió con el divisor viejo — inflado unas 3.1
+veces. Lo que de verdad ganó del 29/07 al 07/08 son **S/298.73**, leído en la
+pantalla ya corregida. O sea que con el adelanto cobró S/60 de más, no mil.
+
+**Nadie cobró de menos.** Y de lo que parece cobrado de más, el sistema solo
+puede afirmar lo que tiene registrado: **si el dinero salió, lo dice el extracto
+bancario y nada más**. Esa frase ya estaba escrita más arriba desde el 10-08; el
+caso de Rufina demuestra que no era una cautela retórica.
 
 ### A.2.c · Los CUSPP ya están cargados — quedan dos, y dos falsos positivos
 
