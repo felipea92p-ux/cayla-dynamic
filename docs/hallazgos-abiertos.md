@@ -134,13 +134,23 @@ esas dos cosas ocurrió. El par real era **28 → 31**.
 y `fn_planilla_calcular` solo anula la sobretasa cuando el estado es `OTORGADO`.
 Resultado:
 
-| | sobretasa del 28 | descansó el 31 | resultado |
+| | trabajó el 28 | descansó el 31 | resultado |
 |---|---|---|---|
-| Judith, Raquel, Joselyn | cobrada | sí | recibieron **las dos cosas**: ~S/102 de más cada una |
-| **Carmen** | cobrada | **no** | **correcto**, nada que ajustar |
+| Judith, Raquel, Joselyn | sí → cobraron sobretasa | sí | recibieron **las dos cosas**: ~S/102 de más cada una |
+| **Carmen** | **NO vino** → sin sobretasa | no | **correcto**, nada que ajustar |
+
+Lo de Carmen se comprobó día por día contra sus marcajes: el 28 y el 29 no tiene
+ni una marca —ni siquiera anuladas— y el 30 sí trabajó, 9.50 h desde el terminal.
+
+⚠ **Y ahí queda un cabo suelto**: su registro «trabajó el 28 · libre el 30» NO
+debería haberse podido crear. `fn_otorgar_descanso_sustitutorio` exige desde la
+0069 que el feriado esté laborado y rechaza con «el feriado no fue laborado». O
+ese registro entró por una vía que esquiva esa comprobación, o sus marcas del 28
+se borraron DESPUÉS de crearlo —lo segundo dejaría rastro en
+`correcciones_auditoria`—. Sin resolver al 2026-08-13.
 
 Decisión de Felipe (2026-08-13): **julio no se toca**. Son ~S/306 pagados de más
-a tres personas, por un error de papeleo de la empresa, en una planilla ya
+a TRES personas —Carmen no, porque no trabajó el feriado—, por un error de papeleo de la empresa, en una planilla ya
 depositada. Reclamarlo cuesta más de lo que se recupera.
 
 Y aunque se quisiera, **no se podría**: la 0093 bloquea cualquier cambio sobre un
