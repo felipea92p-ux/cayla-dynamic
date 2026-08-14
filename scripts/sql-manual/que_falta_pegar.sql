@@ -113,7 +113,8 @@ with repo(numero, nombre, nunca) as (values
     (248, 'la_foto_del_pago_aprende_la_retencion_de_cuarta', false),
     (249, 'una_salida_real_siempre_se_puede_registrar', false),
     (250, 'la_boleta_no_le_dice_por_horas_a_un_monto_fijo', false),
-    (251, 'una_liquidacion_marcada_por_error_se_puede_anular', false)
+    (251, 'una_liquidacion_marcada_por_error_se_puede_anular', false),
+    (252, 'el_cierre_deja_de_caerse_por_quien_no_cobra_movilidad', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -232,8 +233,10 @@ select * from (
              when '8080aed645e88f7bbfa88723eb147306' then '✗ 0242 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '3fee1553db2482aa2566d54d1b67438b' then '⚠ se quedó en la 0245 — falta pegar lo posterior'
              when '7ee382b01ac1b48e1f9cf9337afc335e' then '✗ 0245 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '7799d0a7ecabee450d2dd7609c50fab1' then '0250 — al día con el repositorio'
+             when '7799d0a7ecabee450d2dd7609c50fab1' then '⚠ se quedó en la 0250 — falta pegar lo posterior'
              when '31ea2d1949da27167f767dc903aecd78' then '✗ 0250 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'e8b055e5ec144e20629bdc8b7bdbd0ea' then '0252 — al día con el repositorio'
+             when '7c038d3bbbe63aba6ae0b2a09aa4196a' then '✗ 0252 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
