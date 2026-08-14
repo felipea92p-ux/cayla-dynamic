@@ -924,10 +924,11 @@ revisa a mano; en la columna, rechazaría en silencio un código legítimo.
 > protección que hoy funciona **no está escrita en ninguna parte**: funciona por
 > casualidad.
 >
-> **Corregido por la 0242** — escrita, auditada y con prueba (`183`). ⏳ Falta
-> pegarla en producción; antes hay que confirmar en el SQL Editor que el md5 de
-> `fn_planilla_calcular` coincide con el de partida (la consulta está en el
-> encabezado de la migración).
+> **✅ CERRADO. La 0242 está aplicada en producción** (2026-08-13). El md5 de
+> partida se confirmó en el SQL Editor antes de pegarla, y las cinco
+> comprobaciones salieron en verde: las 4 marcas nuevas puestas, la guarda de la
+> base presente, y la 0239, la 0236 y la 0233 intactas. Con prueba propia
+> (`supabase/tests/183_un_locador_no_tiene_base_imponible.test.sql`).
 
 **Qué es exactamente el riesgo.** El descuento previsional es
 `base imponible × tasa`, y hoy da cero para un locador porque su base es cero. Pero
@@ -1627,11 +1628,11 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   llenan a mano en la hoja del contador. El tercero era el CUSPP, que ya tiene
   campo (0198) y ya está cargado — ver
   [A.2.c](#a2c--los-cuspp-ya-están-cargados--quedan-dos-y-dos-falsos-positivos).
-- **Pegar la 0242 en producción.** No arregla nada roto hoy —Felipe confirmó que a
-  los locadores nunca se les retuvo AFP— sino que **escribe la guarda que hoy
-  falta**: impide que confirmarle la base legal a un locador, o marcarle
-  `con_hijos`, le empiece a retener AFP en silencio. Confirmar antes el md5 de
-  partida en el SQL Editor. Detalle en
+- **Desplegar el panel para que deje de pedirle CUSPP y régimen de pensión a los
+  locadores.** El código está commiteado y en GitHub; la base ya tiene la 0242,
+  pero **hasta que se despliegue, `/admin/datos-personales` sigue mostrándole
+  «falta CUSPP» a Catherine y a Claudia**. Es lo único que quedó a medio camino
+  entre la base y la pantalla. Detalle en
   [A.2.c.bis](#a2cbis--la-guarda-que-impide-retenerle-afp-a-un-locador-no-está-escrita).
 - **Los campos de presentación de un locador siguen mintiendo.**
   `basica_legal_prop`, `complemento_variable` y `base_essalud` muestran números
