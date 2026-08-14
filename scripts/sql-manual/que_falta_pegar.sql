@@ -105,7 +105,8 @@ with repo(numero, nombre, nunca) as (values
     (240, 'la_salida_pasada_la_medianoche_por_fin_se_puede_marcar', false),
     (241, 'el_terminal_ve_el_dia_entero_de_quien_puede_marcar', false),
     (242, 'un_locador_no_tiene_base_imponible', false),
-    (243, 'la_liquidacion_no_vuelve_a_cobrar_el_mes_que_ya_se_pago', false)
+    (243, 'la_liquidacion_no_vuelve_a_cobrar_el_mes_que_ya_se_pago', false),
+    (246, 'una_imputacion_prematura_no_tapa_el_escalon_que_falta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
