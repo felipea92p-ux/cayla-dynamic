@@ -45,6 +45,7 @@ antes que las migraciones que los protegen.
 
 | # | Qué | La prueba de que sigue |
 |---|---|---|
+| **V1** | 🔴 **La trunca de vacaciones cobra dos veces los mismos días** — quien gozó en este récord las vacaciones que ganó en el ANTERIOR se queda en S/0.00. **Tres personas hoy, S/905.38.** Ver su entrada completa abajo | medido en producción el 2026-08-14: Janis 9.2 días en pantalla → 0 al liquidar · Sandra 8.1 → 0 · Melany 6.3 → 0 |
 | **C12 · A16** | 🟡 `fn_registrar_marcaje` — **medido el 2026-08-10: NO cambia el pago**, el candado de la 0138 aguanta. Lo que hacía era entrar muda; lo sella la 0207 | reproducido con `BEGIN … ROLLBACK`: horas 8.00 antes y 8.00 después |
 | **A16-b** | 🔴 `fn_auto_cierre` sigue sin el candado — es la otra puerta que corre sin nadie delante | la 0207 no la toca a propósito: su arreglo es saltarse la candidata y alertar, no sellar |
 | ~~**A3**~~ | 🟡 el cron de auto-cierre — **medido el 2026-08-10: NO reescribe lo pagado.** Es cierto que no nombra `periodos_planilla`, pero solo escribe en `marcajes` y en `alertas`, nunca en `jornadas` directo: pasa por el mismo trigger que el candado de la 0138 detiene. Misma forma y mismo desenlace que C12·A16 | `insert into` en su cuerpo vigente: `marcajes` y `alertas`, y nada más. Lo que sí hacía —entrar mudo— lo sella la 0207 |
@@ -237,6 +238,82 @@ que el Alto 20 ya dio por cerrado.
 hook de pre-push avisa solo de los que **no** estén en esa lista. Un dato que un
 guardián vigila solo no necesita estar escrito en dos sitios.
 
+
+---
+
+## V1 · La trunca de vacaciones cobra dos veces los mismos días
+
+`liquidacion` · 💰 dinero · arreglo de **días** (necesita un dato que no existe)
+
+**Dónde:** `fn_vacaciones_truncas`, definición vigente en la
+`0196_tres_puertas_en_vez_de_una_para_los_beneficios.sql`
+(md5 en la base `0d411bdbc3edd858264f80d7a929ddc9`).
+
+**MEDIDO EN PRODUCCIÓN el 2026-08-14**, comparando lo que muestra la pantalla de
+Vacaciones (`fn_vacaciones_resumen`) contra lo que pagaría la liquidación
+(`fn_vacaciones_truncas`) para las 25 personas:
+
+| | ya gozó | la pantalla dice | la liquidación pagaría | pierde |
+|---|---|---|---|---|
+| **Janis Revilla** | 15 días | 9.2 días · S/387.86 | **0 días · S/0.00** | **S/387.86** |
+| **Sandra Ramirez** | 15 días | 8.1 días · S/269.17 | **0 días · S/0.00** | **S/269.17** |
+| **Melany Enrriquez** | 15 días | 6.3 días · S/248.35 | **0 días · S/0.00** | **S/248.35** |
+
+**S/905.38 entre las tres.** Quien NO ha gozado nada sale con los dos números
+casi idénticos, lo que confirma que el disparador es haber tomado vacaciones.
+
+**QUÉ PASA.** La función cuenta los días gozados por la FECHA en que se tomaron,
+no por el récord al que pertenecen:
+
+```sql
+v_aniv    := (fecha_ingreso …)                     -- el último aniversario
+v_ganados := 15 * meses/12 + 15 * dias/360         -- lo devengado en ESTE récord
+select sum(… greatest(v.fecha_inicio, v_aniv) …) into v_tomados
+  from vacaciones v
+ where v.fecha_fin >= v_aniv                       -- ⚠ TODO lo tomado desde el aniversario
+v_pend := greatest(0, v_ganados - v_tomados);      -- nunca negativo → 0
+```
+
+**Y en Perú lo normal es ganar las vacaciones en un récord y gozarlas en el
+siguiente.** Confirmado por Felipe el 2026-08-14: *«las 3 tienen acumuladas pero
+ya se les había dado del año anterior»*. Esos 15 días saldaban un récord ya
+cerrado; la función los ve caer después del aniversario y se los descuenta del
+récord NUEVO. Pagan dos veces por los mismos días: una al gozarlos, y otra
+borrándoles lo devengado.
+
+**Penaliza al revés de lo que debería:** quien se tomó sus vacaciones a tiempo
+cobra menos trunca que quien nunca las tomó.
+
+**POR QUÉ NO ES UN ARREGLO DE UNA LÍNEA.** `vacaciones` guarda `fecha_inicio`,
+`fecha_fin`, `observacion` y nada más. **No existe ningún campo que diga a qué
+récord pertenece cada periodo**, así que el sistema no puede distinguir:
+
+- días del récord ANTERIOR gozados ahora → **no deben descontarse**
+- días del récord ACTUAL gozados por adelantado → **sí deben descontarse**
+
+Los ve idénticos. Cualquier arreglo pasa por **añadir ese dato y migrar lo que ya
+está cargado**, o por cambiar la regla de conteo asumiendo un criterio — y las
+dos cosas se deciden con calma, no sobre una función que reparte dinero.
+
+**CHIARA FLORES ES EL CASO QUE FALTA ENTENDER.** También gozó 15 días y sí le
+quedan 3.79 por pagar (S/149.71). La diferencia estará en cuándo cae su
+aniversario respecto de cuándo tomó los días. **Hasta saber por qué, no se puede
+escribir el arreglo**: es la condición exacta que separa el descuento legítimo
+del que no lo es.
+
+**QUÉ HACER MIENTRAS TANTO.** Ninguna de las tres está cesando y esto solo se
+paga en una liquidación, así que no tiene fecha. **El día que alguna cese hay que
+revisar a mano antes de pagar**, con estas cifras delante.
+
+**UN SEGUNDO HALLAZGO, EN DIRECCIÓN CONTRARIA Y MENOR.** A Felipe, Danitza y
+Keyla la pantalla les muestra MENOS de lo que la liquidación pagaría (a Felipe
+S/78.43 contra S/279.00). No es plata perdida: es que el estimado de la pantalla
+usa un «factor de ritmo de trabajo» que la trunca no aplica. Informa bajo, no
+paga mal.
+
+La consulta que produce esta tabla vive en
+[`vacaciones_pantalla_vs_liquidacion.sql`](../scripts/sql-manual/vacaciones_pantalla_vs_liquidacion.sql)
+y se puede volver a correr cuando se quiera.
 
 ---
 
