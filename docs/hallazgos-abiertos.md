@@ -849,9 +849,41 @@ No pasaron por el refutador: son de gravedad media o baja y se dejaron para revi
 
 ---
 
-## Refutados — 8
+## Refutados — 9
 
 Parecían defectos y no lo son. Anotados para no volver a investigarlos.
+
+- **La base imponible de quien tiene `sueldo_fijo` sale del DEFAULT 1130 de
+  `personas.sueldo_base_legal`, así que se le retiene sobre un número que no
+  tiene relación con lo que cobra (S/221.60 de horquilla mensual)** — **FALSO
+  PARA CAYLA, medido en producción el 2026-08-14.** El mecanismo existe en el
+  código y la auditoría lo reprodujo, pero lo montó con una persona **en
+  planilla** con sueldo fijo, y ese caso aquí no existe.
+
+  Las dos únicas personas con `sueldo_fijo` son **Catherine Pereyra y Dante
+  Ramal**, y las dos son `rxh` con `en_planilla = false`. Medido sobre el
+  periodo 29/07–28/08:
+
+  | | tipo | sueldo_base_legal | base_essalud | essalud | pensión |
+  |---|---|---|---|---|---|
+  | Catherine | rxh | 1800.00 | 1130.00 | **0.00** | **0.00** |
+  | Dante | rxh | 652.17 | 1130.00 | **0.00** | **0.00** |
+
+  Tres cosas que el hallazgo daba por ciertas y no lo son: **(1)** sus
+  `sueldo_base_legal` NO están en el default —son 1800 y 652.17, cargados a
+  mano—; **(2)** no se les retiene nada, porque la **0242** les quitó la base
+  imponible al ser locadores, que es exactamente lo que esa migración vino a
+  hacer; **(3)** el `base_essalud = 1130` que queda en el JSON **no lo lee
+  nadie**: la fila de EsSalud de la boleta está dentro de
+  `{aporteEssalud > 0 && (…)}` (`planilla/boleta/page.tsx:858`), así que con
+  aporte cero no se pinta, y no sale ni en el espejo ni en ninguna exportación.
+
+  ⚠️ **La lección de método vale más que el hallazgo.** Se levantó desde una
+  medición de laboratorio sin comprobar A QUIÉN le aplicaba en producción, y la
+  primera consulta de verificación lo dio por vivo porque su veredicto metía un
+  campo informativo (`base_essalud`) en la misma condición que el dinero
+  (`essalud`, `pension`). **Un hallazgo de laboratorio no es un hallazgo hasta
+  que se sabe qué persona real cae en él.**
 
 - **Un UPDATE directo a personas.con_hijos o a configuracion.asignacion_familiar reescribe el total de periodos ya pagados** — La mecánica se reproduce, pero el hallazgo es falso en su diagnóstico y su vector principal ya es una decisión documentada. (1) DECISIÓN YA TOMADA. La migración 0037_candado_periodo_pagado.sql, líneas 24-28, registra la decisión de Felipe del 2026-07-16: «"Con hijos" (asignación familiar): a propósito SIN candado — es una bandera sin fecha; bloquearla mientras exista cualquier periodo pagado la co…
 - **La gratificación y la CTS de quien cesa desaparecen del cálculo en vez de salir en cero** — El síntoma se reproduce, pero el hallazgo se equivoca en las tres cosas que lo harían accionable: el sitio, el arreglo y el número. 1) EL ARREGLO QUE PROPONE ES INERTE. Apliqué literalmente lo que pide el hallazgo —quitar `where p.estado = 'activo'` de fn_provisiones (0048:144)— sobre una copia del estado real del repo. fn_grati_cts_periodo vuelve a traer a la persona, y la pantalla de planilla si…
