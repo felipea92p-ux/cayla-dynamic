@@ -2,6 +2,10 @@
 -- 0256 · LA LICENCIA POR MATERNIDAD DEJA DE PAGARSE EN CERO
 -- ============================================================================
 --
+-- md5 de partida de `fn_planilla_calcular`: ⚠ PENDIENTE — se pide a PRODUCCIÓN
+-- antes de pegar, nunca se copia del local. Una vez pegada esta migración el
+-- número anterior se pierde para siempre.
+--
 -- ── EL DEFECTO ──────────────────────────────────────────────────────────────
 --
 -- `tipos_ausencia` tiene `maternidad` con `paga = true` desde siempre. Nadie lo
@@ -11,114 +15,155 @@
 -- La consecuencia es que una integrante de licencia por maternidad no marca —no
 -- puede—, `pago_base` sale de las horas marcadas, y su boleta dice **S/0.00**.
 -- No hay error, no hay alerta, no hay descuadre: se lee exactamente igual que la
--- de alguien que no vino a trabajar. La propia 0254 lo dejo escrito en un
+-- de alguien que no vino a trabajar. La propia 0254 lo dejó escrito en un
 -- comentario, sabiendo que quedaba pendiente: «la maternidad sigue sin
--- modelarse, y ese es el caso que queda». Esta migracion cierra ese caso.
+-- modelarse, y ese es el caso que queda». Esta migración cierra ese caso.
 --
--- ── LO QUE MANDA, Y DE DONDE SALE ───────────────────────────────────────────
+-- ── LO QUE MANDA, Y DE DÓNDE SALE ───────────────────────────────────────────
 --
 -- El subsidio no lo paga EsSalud a la persona: lo ADELANTA el empleador y luego
 -- pide el reembolso.
 --
 --   · D.S. 013-2019-TR art. 17.1 — el empleador paga el subsidio en la MISMA
---     fecha en que pagaria la remuneracion. No es un favor ni un adelanto
---     voluntario: es la forma en que la prestacion llega.
+--     fecha en que pagaría la remuneración. No es un favor ni un adelanto
+--     voluntario: es la forma en que la prestación llega.
 --   · art. 17.2 — el reembolso EXIGE haber pagado antes. Si CAYLA no paga, no
 --     hay nada que reembolsar y la integrante se queda sin ingreso.
 --   · D. Leg. 728 (TUO) arts. 11 y 12.c — el contrato queda SUSPENDIDO. Por eso
 --     el sueldo en S/0.00 es correcto: lo que falta no es sueldo, es el subsidio.
---   · 98 dias (49 antes + 49 despues), +30 por parto multiple o hijo con
+--   · 98 días (49 antes + 49 después), +30 por parto múltiple o hijo con
 --     discapacidad. Tope absoluto 128.
 --
 -- Y el riesgo que no se ve: art. 13.3 — sin las aportaciones en regla, EsSalud
 -- DENIEGA el reembolso. El dinero sale igual; lo que no vuelve es el reintegro.
 --
--- ── POR QUE EL MONTO SE ENTRA A MANO Y NO SE CALCULA ─────────────────────────
+-- ── POR QUÉ EL MONTO SE ENTRA A MANO Y NO SE CALCULA ─────────────────────────
 --
--- Es la decision de fondo de esta migracion, y va contra el instinto.
+-- Es la decisión de fondo de esta migración, y va contra el instinto.
 --
--- El promedio diario sale de los 12 meses anteriores a la contingencia. Esos 12
--- meses pueden incluir empleadores ANTERIORES a CAYLA: una persona con ocho
--- meses de casa tiene cuatro meses de historia que esta base no contiene. Y
--- ademas hoy solo existe UNA foto de planilla congelada (periodo 2026-06-28 →
--- 2026-07-28): calcular un promedio de doce meses sobre un mes de historia da un
--- numero mas bajo que el legal con toda la apariencia de estar bien.
+-- El promedio diario sale de los 12 meses calendario anteriores al mes de inicio
+-- de la contingencia. Esos 12 meses pueden incluir empleadores ANTERIORES a
+-- CAYLA: una persona con ocho meses de casa tiene cuatro meses de historia que
+-- esta base no contiene. Y además hoy solo existe UNA foto de planilla congelada
+-- (periodo 2026-06-28 → 2026-07-28).
 --
--- Un subsidio calculado de menos no se nota en ninguna pantalla y lo descubre la
--- persona afectada. Por eso el monto lo entra DO en `ausencias.subsidio_diario`,
--- tomandolo del calculo de EsSalud, y la planilla solo multiplica por los dias.
--- El sistema hace lo que sabe hacer —no olvidarse, no equivocarse en la
--- multiplicacion, retener lo que toca— y no finge saber lo que no sabe.
+-- Hay una razón más, y la encontró la investigación del 2026-08-15: **el divisor
+-- 360 NO está en el D.S. 013-2019-TR**. La norma dice «promedio diario» y nada
+-- más; el 360 (12 × 30) es práctica operativa de EsSalud. Un cálculo automático
+-- tendría que elegir un divisor que la norma no fija, y equivocarse ahí produce
+-- un número más bajo que el legal con toda la apariencia de estar bien.
+--
+-- Por eso el monto lo entra DO en `ausencias.subsidio_diario`, tomándolo del
+-- cálculo de EsSalud, y la planilla solo multiplica por los días. El sistema hace
+-- lo que sabe hacer —no olvidarse, no equivocarse en la multiplicación, retener
+-- lo que toca— y no finge saber lo que no sabe.
 --
 -- Y para que ese «lo entra DO» no sea un cero silencioso, el JSON lleva
--- `dias_maternidad_sin_monto`: dias de licencia registrados a los que nadie les
--- puso monto. Es la unica pieza de este cambio que la pantalla TIENE que mirar.
+-- `dias_maternidad_sin_monto`: días de licencia registrados a los que nadie les
+-- puso monto. Es la única pieza de este cambio que la pantalla TIENE que mirar.
 --
--- ── TRES DECISIONES, Y POR QUE ──────────────────────────────────────────────
+-- ── CINCO DECISIONES, Y POR QUÉ ─────────────────────────────────────────────
 --
--- 1. DIAS CALENDARIO, no laborables. El subsidio cubre los 98 dias corridos,
---    domingos incluidos, porque el promedio diario ya viene dividido entre dias
---    calendario. Contarlo por dias laborables le quitaria a una integrante de
---    Lima (5 dias/semana) dos septimos de lo que le corresponde. Es la
---    diferencia de fondo con el lateral `dmd`, que si cuenta laborables porque
+-- 1. DÍAS CALENDARIO, no laborables. El subsidio cubre los 98 días corridos,
+--    domingos incluidos, porque el promedio diario ya viene dividido entre días
+--    calendario. Contarlo por días laborables le quitaría a una integrante de
+--    Lima (5 días/semana) dos séptimos de lo que le corresponde. Es la
+--    diferencia de fondo con el lateral `dmd`, que sí cuenta laborables porque
 --    aquello es SUELDO.
 --
--- 2. DENTRO DE `pago_base`, no como concepto nuevo. Es literal el argumento que
---    la 0254 escribio ocho dias antes: un concepto por fuera obliga a columna
---    nueva en la foto, a tocar `fn_planilla_congelar` y a reescribir
---    `chk_foto_cuadra`; olvidar uno de los tres aborta el cierre para las ~30
---    personas, porque el congelado es UN solo insert. Es lo que ya paso con la
---    movilidad (0252) y con la retencion de 4ta (0248). Dentro de `pago_base`
---    los dos lados se mueven juntos y no hay nada que descuadrar.
+-- 2. EL FERIADO DE DENTRO SE CUENTA — y se le quita al lateral `fer`.
 --
---    Efecto lateral BUSCADO: al entrar en `pago_base` pero NO en `pb.basica`, el
---    subsidio no llega a `bri.base` y por tanto no infla la base de EsSalud ni
---    la de renta. Que es exactamente lo que manda la ley.
+--    El primer intento de esta migración hacía lo contrario: excluía el feriado
+--    del subsidio, copiando el filtro que la 0254 escribió para el descanso
+--    médico. MEDIDO el 2026-08-15 contra el Postgres local: quien pasa el
+--    periodo entero de licencia devenga S/0.00 de feriados, porque `fer` los
+--    paga en proporción a las horas del mes y no marcó ninguna. O sea que la
+--    exclusión no evitaba una duplicación: **le quitaba el día**. Diez días de
+--    licencia le pagaban nueve — S/200 de menos con el monto de la prueba.
 --
--- 3. AFP SI, ONP NO — y por eso `bri` tiene dos bases. Es la asimetria conocida
---    del sistema peruano: el TUO de la Ley del SPP cuenta el subsidio como
---    remuneracion asegurable; el sistema nacional no. La condicion no se escribe
---    como una lista de regimenes aqui dentro (regla 3 de CLAUDE.md): vive en la
---    columna `tasas_pension.grava_subsidio`, asi que el dia que cambie el
---    criterio es un UPDATE de una fila.
+--    La duplicación se evita por el otro lado, que es donde corresponde: `fer`
+--    deja de devengar los feriados que caen dentro de una licencia subsidiada.
+--    Durante el descanso el contrato está suspendido y el feriado no genera
+--    concepto propio (D. Leg. 713 art. 8, que remite al art. 4: se abona «en
+--    forma directamente proporcional al número de días efectivamente
+--    trabajados»). Las dos mitades son una sola decisión y no se pueden separar:
+--    quitarlo de los dos lados deja el día sin pagar por nadie.
 --
---    ⚠ ESTE ES EL PUNTO A CONFIRMAR CON EL CONTADOR ANTES DE PEGAR. Todo lo
---    demas de esta migracion es obligacion sin margen; la afectacion a AFP es
---    la unica pieza con criterio tecnico detras. Si el contador dice que no, se
---    cambia con: update tasas_pension set grava_subsidio = false;
+-- 3. NO INFLA ESSALUD, Y ADEMÁS EL PISO SE PRORRATEA. El subsidio no es
+--    remuneración: no entra al 9% ni a renta de 5ta. Pero hay un segundo efecto
+--    que es fácil no ver — el art. 33 del D.S. 009-97-SA dice que la base mínima
+--    RMV se aplica «independientemente de las horas y días laborados» (de ahí el
+--    piso de la 0116) PERO agrega una excepción expresa: cuando la persona
+--    percibe SUBSIDIOS, la base mínima se determina «de forma proporcional a los
+--    días no subsidiados del mes».
 --
--- ── LO QUE ESTA MIGRACION NO HACE, A PROPOSITO ──────────────────────────────
+--    Sin eso, por alguien de licencia todo el mes CAYLA declararía la RMV entera
+--    y aportaría 9% sobre ella. No perjudica a la persona: es plata de la
+--    empresa y una declaración que no corresponde. Medido: la base baja de
+--    S/1,130.00 a S/765.48 (= 1,130 × 21/31) para quien tiene 10 días de
+--    licencia en el periodo, y NO se mueve ni un céntimo para quien no tiene
+--    licencia — que es la guarda que fija la prueba 5 de la 197.
+--
+-- 4. AFP SÍ, ONP NO — y por eso `bri` tiene dos bases. RESUELTO CON NORMA
+--    EXPRESA el 2026-08-15, ya no es criterio: el art. 16 de la Ley 26504 dice
+--    que «los subsidios de carácter temporal que perciba el trabajador,
+--    cualquiera sea su naturaleza, se encuentran afectos» al SPP, y lo reitera
+--    el último párrafo del art. 30 del TUO de la Ley del SPP (D.S. 054-97-EF).
+--    La inafectación a la ONP está resuelta por el Informe N.° 049-2014-SUNAT/
+--    5D0000: los subsidios «no se encuentran afectos a las aportaciones al SNP».
+--
+--    La condición no se escribe como una lista de regímenes aquí dentro (regla 3
+--    de CLAUDE.md): vive en la columna `tasas_pension.grava_subsidio`, así que el
+--    día que cambie el criterio es un UPDATE de una fila.
+--
+-- 5. SE RETIENE SOBRE LO QUE SE PAGÓ. El término de AFP se toma de
+--    `pb.monto_subsidio_maternidad` —lo efectivamente pagado— y no del lateral
+--    `mat` en crudo. Los dos valen lo mismo casi siempre, pero no para quien
+--    cobra monto fijo: a esa persona el subsidio no se le suma al pago, y leer
+--    `mat` le habría retenido AFP sobre dinero que nunca entró.
+--
+-- ── LO QUE ESTA MIGRACIÓN NO HACE, A PROPÓSITO ──────────────────────────────
 --
 --   · `tipos_ausencia.maternidad` se llama «Maternidad / paternidad / lactancia»
 --     y agrupa tres cosas legalmente distintas: solo la maternidad es subsidio
 --     de EsSalud. La licencia por paternidad (Ley 29409) la paga el empleador
---     como REMUNERACION, y la lactancia es tiempo pagado. Por eso el pago no se
+--     como REMUNERACIÓN, y la lactancia es tiempo pagado. Por eso el pago no se
 --     dispara por el `tipo`, sino por tener `subsidio_diario` puesto: una
 --     licencia de paternidad simplemente no lo lleva y sigue como hasta hoy.
 --
---   · El descanso medico a partir del dia 21 tambien es subsidio de EsSalud, y
---     hoy no se paga (el lateral `dmd` corta en `v_tope_dm`). Es el mismo hueco,
---     y la columna `subsidio_diario` sirve para taparlo — pero NO se toca aqui:
---     la CHECK la restringe a `maternidad` a proposito, para que nadie la use en
---     un descanso medico creyendo que se paga y descubra que no. Ampliarlo es
---     una migracion propia, con su medicion.
+--   · El descanso médico a partir del día 21 también es subsidio de EsSalud, y
+--     hoy no se paga (el lateral `dmd` corta en `v_tope_dm`). La columna
+--     `subsidio_diario` sirve para taparlo — pero NO se toca aquí: la CHECK la
+--     restringe a `maternidad` a propósito, para que nadie la use en un descanso
+--     médico creyendo que se paga y descubra que no.
 --
---   · La asignacion familiar se sigue pagando durante la licencia (depende de
---     `con_hijos`, no de dias). Si eso es correcto durante la suspension del
---     contrato es una pregunta abierta — anterior a este cambio, y no se
---     responde aqui.
+--   · ⚠ HALLAZGO SEPARADO, CONFIRMADO Y NO CORREGIDO AQUÍ: los primeros 20 días
+--     de descanso médico que asume CAYLA SÍ son remuneración afecta a EsSalud,
+--     a AFP/ONP y a renta de 5ta (D.S. 009-97-SA art. 15; Informes SUNAT
+--     259-2004 y 003-2007; el código PLAME 0916 es SOLO para el subsidio de
+--     EsSalud, no para esos 20 días). La 0254 los mete en `pago_base` pero NO en
+--     `pb.basica`, así que no llegan a `bri.base` y quedan fuera de las tres
+--     bases: hay sub-declaración. Es una migración propia, con su medición.
 --
--- ── COMO SE REVIERTE ────────────────────────────────────────────────────────
+--   · La asignación familiar se sigue pagando durante la licencia (depende de
+--     `con_hijos`, no de días), y la investigación lo respalda: ninguna norma la
+--     condiciona a labor efectiva. Queda abierta una pregunta ANTERIOR y más
+--     grande, que no es de maternidad: si CAYLA, como pequeña empresa del
+--     régimen MYPE, está obligada a pagarla. No se responde aquí.
 --
---   1. Restaurar `fn_planilla_calcular` desde la 0254, tal cual.
---   2. alter table ausencias   drop column subsidio_diario;
+-- ── CÓMO SE REVIERTE ────────────────────────────────────────────────────────
+--
+--   1. Restaurar `fn_planilla_calcular` desde la 0254, tal cual. Eso deshace de
+--      una vez el subsidio, el cambio en `fer` y el prorrateo del piso de
+--      EsSalud — los tres viven en esa función.
+--   2. alter table ausencias     drop column subsidio_diario;
 --   3. alter table tasas_pension drop column grava_subsidio;
 --
---   No borra datos de nadie: las columnas son nuevas y hoy estan vacias.
+--   No borra datos de nadie: las columnas son nuevas y hoy están vacías.
 --   Idempotente: se puede pegar dos veces sin efecto distinto.
 -- ============================================================================
 
--- ── 1 ── DONDE SE GUARDA EL MONTO ───────────────────────────────────────────
+-- ── 1 ── DÓNDE SE GUARDA EL MONTO ───────────────────────────────────────────
 
 alter table public.ausencias
   add column if not exists subsidio_diario numeric(12,2);
@@ -127,7 +172,8 @@ comment on column public.ausencias.subsidio_diario is
   'Subsidio diario de EsSalud por dia calendario de licencia por maternidad. '
   'Lo entra DO tomandolo del calculo de EsSalud: NO se deriva de la planilla, '
   'porque los 12 meses del promedio pueden incluir empleadores anteriores a '
-  'CAYLA. Null en toda ausencia que no sea un subsidio adelantado (0256).';
+  'CAYLA y porque el divisor 360 es practica de EsSalud, no texto del '
+  'D.S. 013-2019-TR. Null en toda ausencia que no sea un subsidio adelantado (0256).';
 
 -- Positivo si esta, y solo en maternidad. La restriccion al tipo es deliberada:
 -- ver «LO QUE ESTA MIGRACION NO HACE» en la cabecera.
@@ -147,22 +193,23 @@ alter table public.ausencias
     or (fecha_fin - fecha_inicio + 1) <= 128
   );
 
--- ── 2 ── QUE REGIMEN GRAVA EL SUBSIDIO ──────────────────────────────────────
+-- ── 2 ── QUÉ RÉGIMEN GRAVA EL SUBSIDIO ──────────────────────────────────────
 
 alter table public.tasas_pension
   add column if not exists grava_subsidio boolean not null default true;
 
 comment on column public.tasas_pension.grava_subsidio is
   'Si el subsidio de EsSalud entra en la base de aporte de este regimen. '
-  'AFP si, sistema nacional no. Vive aqui y no en una lista dentro de '
-  'fn_planilla_calcular para que cambiarlo sea un UPDATE (0256).';
+  'AFP si (Ley 26504 art. 16; TUO Ley SPP art. 30 ultimo parrafo), sistema '
+  'nacional no (Informe 049-2014-SUNAT/5D0000). Vive aqui y no en una lista '
+  'dentro de fn_planilla_calcular para que cambiarlo sea un UPDATE (0256).';
 
 update public.tasas_pension set grava_subsidio = false where regimen = 'onp';
 
 -- ── 3 ── LA PLANILLA ────────────────────────────────────────────────────────
 --
 -- Cuerpo extraido del archivo de la 0254 —la vigente segun ./scripts/donde-vive.sh—
--- con nueve reemplazos de cadena EXACTA y UNICA aplicados por script, que aborta
+-- con catorce reemplazos de cadena EXACTA y UNICA aplicados por script, que aborta
 -- si alguno no aparece exactamente una vez. No se copio a ojo.
 
 CREATE OR REPLACE FUNCTION public.fn_planilla_calcular(p_ini date, p_fin date, p_periodo_id uuid DEFAULT NULL::uuid)
@@ -739,9 +786,9 @@ begin
         -- personas, no el monto de la planilla. Calcularlo como «9% del total de
         -- la planilla» subestima el aporte real cuando hay gente de pocas horas.
         'base_essalud',
-          round(greatest(bri.base, v_rmv), 2),
+          round(greatest(bri.base, pb.piso_essalud), 2),
         'aporte_essalud',
-          round(greatest(bri.base, v_rmv) * v_tasa_essalud
+          round(greatest(bri.base, pb.piso_essalud) * v_tasa_essalud
                 * (case when pe.en_planilla then 1 else 0 end), 2),
         'essalud_tasa', v_tasa_essalud,
         -- ⇩⇩⇩ CAMBIO 0117 ⇩⇩⇩ Qué es esta persona para el sistema. Sin este dato
@@ -773,7 +820,7 @@ begin
         -- devengó MENOS que la RMV. Sirve para que la boleta pueda explicarlo en
         -- vez de mostrar un número que no cuadra con el sueldo del mes.
         'essalud_es_piso',
-          (bri.base) < v_rmv
+          (bri.base) < pb.piso_essalud
       )
       -- ⇩ CAMBIO 0177 ⇩ Se CONCATENA en vez de ampliar el jsonb_build_object de
       -- arriba: ese ya tiene 57 pares y Postgres corta a 100 ARGUMENTOS. Agregar
@@ -958,6 +1005,26 @@ begin
                   else round(coalesce(mat.monto, 0), 2) end as monto_subsidio_maternidad,
              coalesce(mat.dias, 0) as dias_subsidio_maternidad,
              coalesce(mat.dias_sin_monto, 0) as dias_maternidad_sin_monto,
+             -- CAMBIO 0256 · EL PISO DE ESSALUD, PRORRATEADO.
+             --
+             -- El art. 33 del D.S. 009-97-SA dice que la base minima RMV se
+             -- aplica «independientemente de las horas y dias laborados» —de ahi
+             -- el piso de la 0116— PERO agrega una excepcion expresa: cuando la
+             -- persona percibe SUBSIDIOS, la base minima «se determinara de forma
+             -- proporcional a los dias no subsidiados del mes».
+             --
+             -- Sin esto, por alguien de licencia todo el mes CAYLA declararia la
+             -- RMV entera y aportaria 9% sobre ella, cuando la ley le pide 9%
+             -- sobre la parte no subsidiada. No perjudica a la persona: es plata
+             -- de la empresa y una declaracion que no corresponde.
+             --
+             -- El divisor es el PERIODO (29 al 28), no el mes calendario, porque
+             -- es el tramo que esta planilla liquida. La norma dice «del mes»;
+             -- aqui el mes de pago es el periodo.
+             round(v_rmv * ((p_fin - p_ini + 1)
+                            - (case when pe.sueldo_fijo then 0
+                                    else coalesce(mat.dias, 0) end))::numeric
+                         / (p_fin - p_ini + 1), 2) as piso_essalud,
              case when pe.sueldo_fijo then 0
                   else coalesce(hh.pago / nullif(hh.dias_marcados, 0), 0)
                        * coalesce(vacd.dias, 0) end as monto_vacaciones,
@@ -1112,9 +1179,19 @@ begin
       -- apariencia de estar bien. Lo entra DO en `ausencias.subsidio_diario`,
       -- tomandolo del calculo de EsSalud, y aqui solo se multiplica.
       --
-      -- UN DIA QUE YA PAGA POR OTRA VIA NO SE PAGA DOS VECES — misma regla que
-      -- la 0254, y por la misma razon: las dos lineas se verian «bien» cada una
-      -- por su lado y el descuadre no lo caza nadie.
+      -- EL FERIADO DE DENTRO SI SE CUENTA, y aqui esta la diferencia con el
+      -- lateral `dmd`. Medido el 2026-08-15: quien pasa el periodo entero de
+      -- licencia devenga S/0.00 de feriados —`fer` los paga en proporcion a las
+      -- horas del mes, y no marco ninguna—, asi que excluir el feriado no evitaba
+      -- una duplicacion: le quitaba el dia. Diez dias de licencia le pagaban
+      -- nueve.
+      --
+      -- La duplicacion se evita por el OTRO lado, que es donde corresponde: el
+      -- lateral `fer` deja de devengar los feriados que caen dentro de una
+      -- licencia subsidiada. Durante el descanso el contrato esta suspendido y
+      -- el feriado no genera concepto propio (D. Leg. 713 art. 8, que remite al
+      -- art. 4: se abona «en forma directamente proporcional al numero de dias
+      -- efectivamente trabajados»). El dia lo cubre el subsidio, entero.
       left join lateral (
         select coalesce(sum(case when x.subsidio_diario is not null
                                  then x.dias else 0 end), 0)::int          as dias,
@@ -1136,7 +1213,8 @@ begin
             and a.anulada_at is null
             and pe.en_planilla
             and dd.d::date between p_ini and p_fin
-            and not exists (select 1 from feriados f where f.fecha = dd.d::date)
+            -- Las vacaciones si se descuentan: viven en otra tabla, pueden
+            -- solaparse con la licencia y `vacd` ya las paga por su cuenta.
             and not exists (select 1 from vacaciones v
                              where v.persona_id = pe.id
                                and dd.d::date between v.fecha_inicio and v.fecha_fin)
@@ -1382,6 +1460,25 @@ begin
         limit 1
       ) ds on true
       where f.fecha between p_ini and p_fin
+        -- ⇩ CAMBIO 0256 ⇩ UN FERIADO DENTRO DE UNA LICENCIA SUBSIDIADA NO SE
+        -- DEVENGA. Durante el descanso por maternidad el contrato esta
+        -- suspendido y el feriado no genera concepto propio: el art. 8 del
+        -- D. Leg. 713 remite al art. 4, que lo abona «en forma directamente
+        -- proporcional al numero de dias efectivamente trabajados». Ese dia lo
+        -- cubre el subsidio, que se paga por dias calendario.
+        --
+        -- Es la mitad que impide la duplicacion. La otra mitad es que el lateral
+        -- `mat` SI cuenta el feriado: si se quitara de los dos lados, el dia no
+        -- lo pagaria nadie — que fue el primer intento de esta migracion, medido
+        -- y descartado.
+        and not exists (
+          select 1 from ausencias a
+          where a.persona_id = pe.id
+            and a.tipo = 'maternidad'
+            and a.anulada_at is null
+            and a.subsidio_diario is not null
+            and f.fecha between a.fecha_inicio and a.fecha_fin
+        )
       -- ⇧⇧⇧ CAMBIO 0069 ⇧⇧⇧
     ) fer on true
     left join lateral (

@@ -1168,30 +1168,41 @@ propios (licencia de 10 días corridos, S/200 diarios, feriado dentro):
 
 | | días | subsidio | pago_base | base EsSalud | retiene pensión | total |
 |---|---|---|---|---|---|---|
-| AFP (integra) | 9 | 1 800.00 | 1 800.00 | 1 130.00 | 232.56 | 1 567.44 |
-| ONP | 9 | 1 800.00 | 1 800.00 | 1 130.00 | **0.00** | 1 800.00 |
-| sin monto entrado | 0 | 0.00 | 0.00 | 1 130.00 | 0.00 | **avisa: 9 días sin monto** |
+| AFP (integra) | 10 | 2 000.00 | 2 000.00 | **765.48** | 258.40 | 1 741.60 |
+| ONP | 10 | 2 000.00 | 2 000.00 | 765.48 | **0.00** | 2 000.00 |
+| sin monto entrado | 0 | 0.00 | 0.00 | 1 130.00 | 0.00 | **avisa: 10 días sin monto** |
 
-Las tres decisiones que la sostienen:
+Las cinco decisiones que la sostienen:
 
 - **Días calendario, no laborables.** El promedio diario de EsSalud ya viene
   dividido entre días corridos; contarlo por laborables le quitaría dos séptimos
   a quien trabaja cinco días. Es la diferencia de fondo con el descanso médico,
   que sí cuenta laborables porque aquello es sueldo.
+- **El feriado de dentro se cuenta, y se le quita a `fer`.** El primer intento
+  hacía lo contrario —copiaba el filtro de la 0254— y **medirlo lo tumbó**: quien
+  está de licencia todo el mes devenga S/0.00 de feriados, así que excluirlo no
+  evitaba una duplicación, le quitaba el día. Diez días le pagaban nueve. La
+  duplicación se evita por el otro lado: `fer` deja de devengar los feriados de
+  dentro de la licencia. Las dos mitades son una sola decisión.
 - **El monto lo entra DO, no lo calcula el sistema.** Los 12 meses del promedio
   pueden incluir **empleadores anteriores a CAYLA**, y esta base solo tiene una
-  foto congelada. Calcularlo acá daría un número más bajo que el legal con toda
-  la apariencia de estar bien. Va en `ausencias.subsidio_diario`.
-- **No infla EsSalud, pero sí grava AFP.** El subsidio no es remuneración (no
-  entra al 9 % ni a renta de 5ta), pero el SPP sí lo cuenta como asegurable y la
-  ONP no. Vive en `tasas_pension.grava_subsidio`, no en una lista dentro de la
-  función.
+  foto congelada. Y hay una razón más que salió de la investigación: **el divisor
+  360 no está en el D.S. 013-2019-TR** — la norma dice «promedio diario» y el 360
+  es práctica de EsSalud. Va en `ausencias.subsidio_diario`.
+- **No infla EsSalud, y el piso RMV se prorratea.** El art. 33 del D.S. 009-97-SA
+  tiene una excepción expresa: para quien percibe subsidios, la base mínima se
+  determina «de forma proporcional a los días no subsidiados del mes». Sin eso
+  CAYLA declararía la RMV entera por alguien de licencia. No perjudica a nadie:
+  es plata de la empresa y una declaración que no corresponde.
+- **AFP sí, ONP no** — y ya **no es criterio, es norma expresa**: art. 16 de la
+  Ley 26504 («los subsidios de carácter temporal … se encuentran afectos» al SPP)
+  y último párrafo del art. 30 del TUO de la Ley del SPP. La ONP la resuelve el
+  Informe N.° 049-2014-SUNAT/5D0000. Vive en `tasas_pension.grava_subsidio`.
 
 **LO QUE FALTA, en orden:**
 
-1. ⚠ **Confirmar con Dante la afectación a AFP.** Es lo único de la 0256 con
-   criterio técnico detrás; todo lo demás es obligación sin margen. Si dice que
-   no: `update tasas_pension set grava_subsidio = false;` y listo.
+1. **Pedir a producción el md5 de partida** de `fn_planilla_calcular` — antes de
+   pegar, porque después ese número se pierde para siempre.
 2. **Pegar la 0256** — *después del cierre del 28*, no antes.
 3. **El formulario todavía no tiene el campo.** `fn_registrar_ausencia` no conoce
    `subsidio_diario`, así que hasta que una migración se lo enseñe el monto se
@@ -1199,9 +1210,25 @@ Las tres decisiones que la sostienen:
    tanto la planilla **avisa** de los días sin monto en vez de pagar cero
    callando, que era el defecto original.
 
-**Y queda una pregunta abierta, anterior a este cambio:** la asignación familiar
-se sigue pagando durante la licencia (depende de `con_hijos`, no de días). Si eso
-es correcto con el contrato suspendido no lo responde la 0256.
+### A.2.a.bis · Dos hallazgos que salieron de la investigación del 2026-08-15
+
+**1 · Los primeros 20 días de descanso médico están SUB-DECLARADOS.** Confirmado
+con norma y con criterio administrativo: lo que CAYLA asume esos 20 días **es
+remuneración**, afecta a EsSalud 9 %, a AFP/ONP y a renta de 5ta (D.S. 009-97-SA
+art. 15; Informes SUNAT 259-2004 y 003-2007). El código PLAME 0916 es **solo**
+para el subsidio de EsSalud, no para esos días. La 0254 los mete en `pago_base`
+pero **no** en `pb.basica`, así que no llegan a `bri.base` y quedan fuera de las
+tres bases. **Es su propia migración, con su medición — no está hecha.**
+
+**2 · ¿CAYLA está obligada a pagar asignación familiar?** Pregunta anterior y más
+grande que la maternidad, y afecta a **todo el equipo**, no a una persona. Como
+pequeña empresa del régimen MYPE, el art. 43 de la Ley 28015 (sustituido por el
+art. 7 del D. Leg. 1086) no la lista entre los derechos del régimen especial. Hoy
+se paga. Si no correspondiera, se está pagando de más a todo el mundo; si
+correspondiera y se dejara de pagar, es un adeudo. **No tocar sin el contador.**
+
+Durante la licencia por maternidad sí se sigue pagando, y eso la investigación lo
+respalda: ninguna norma la condiciona a labor efectiva.
 
 ### A.2.b · Los tres locadores están retratados como personal subordinado
 
