@@ -329,7 +329,47 @@ decisión, no descuido: la maternidad tiene reglas propias —98 días, subsidio
 EsSalud desde el día uno— que hay que decidir antes de escribirlas. La prueba 187
 lo fija por escrito.
 
-### PENDIENTE · Chiara: seis días que dependen de un papel, no del código
+### Le vaciaron el horario por estar enferma, y eso le anuló el pago de la baja
+
+**RESUELTO el 2026-08-14** con
+[`restituir_horario_de_chiara.sql`](../scripts/sql-manual/restituir_horario_de_chiara.sql).
+Aplicado y comprobado: su descanso médico pasó de **1 día pagado a 4** (~S/30 →
+~S/122). Hay respaldo en `respaldo_horarios_chiara_20260814`.
+
+El círculo, que es lo que hay que recordar: se enfermó, **le vaciaron el horario
+mientras estaba de baja** (45 h/semana → 28.5 el 26/07 → 6 h, solo sábado, el
+27/07), y `fn_planilla_calcular` mira ese horario para saber qué días le tocaba
+trabajar. Respondía «solo el sábado». **La ausencia provocó el cambio de horario
+y el cambio de horario anuló el pago de la ausencia.**
+
+⚠️ **REGLA: una baja se registra como AUSENCIA, nunca tocando el horario.**
+Vaciarlo hace tres cosas a la vez y ninguna se ve — le quita el pago de la baja,
+apaga sus faltas y apaga sus tardanzas.
+
+Dos cosas medidas que no son evidentes:
+
+- **La corrección empieza el 29 aunque el vaciado empiece el 26.** Los días 26,
+  27 y 28 de julio no tienen ausencia que los justifique y caen en el periodo
+  ANTERIOR: devolverle el horario desde el 26 le abriría tres faltas dentro de un
+  periodo cerrado.
+- **Cerrar un tramo no lo saca del cálculo.** El horario se elige con
+  `vigente_desde <= el_dia order by vigente_desde desc limit 1`, e **ignora
+  `vigente_hasta`**. Hay que cambiar el contenido del tramo, no cerrarlo. Quien
+  lo cierre creyendo que basta va a dar por hecha una corrección que no ocurrió.
+
+**El barrido encontró un segundo caso** —Melany Enrriquez, de 35 h a 6 durante un
+permiso personal de un mes— que **no cuesta dinero**, porque el permiso personal
+no paga en ningún caso, pero confirma que el hábito no es de una sola persona. La
+consulta que los encuentra está en el commit del script.
+
+**PENDIENTE, decidido y sin escribir:** que un día de baja valga la **jornada
+pactada** (7.5 h para Chiara, de sus propios datos: 45 h / 6 días) en vez del
+promedio de lo que alcanzó a marcar enferma. La llevaría de ~S/122 a ~S/176 y
+aplicaría a todos. Y una columna `motivo` en `horarios_asignados`, que hoy no
+tiene dónde decir por qué existe un tramo. md5 de partida de
+`fn_planilla_calcular` el 14-ago: `19eb593a757e0b7480b6a1dc99d7f8c9`.
+
+### PENDIENTE · Chiara: seis días más que dependen de un papel, no del código
 
 Su `descanso_medico` del 29/07→03/08 (dengue, **con certificado**) ya lo paga la
 0254: cuatro días, ~S/122.
