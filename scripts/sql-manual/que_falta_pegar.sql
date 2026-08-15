@@ -118,7 +118,8 @@ with repo(numero, nombre, nunca) as (values
     (253, 'anular_deja_de_perder_el_descuento_que_el_freno_obligo_a_poner', false),
     (254, 'el_descanso_medico_deja_de_pagarse_en_cero', false),
     (255, 'marcar_una_liquidacion_pagada_no_revienta_por_una_nota_corta', false),
-    (256, 'una_persona_puede_ver_sus_propias_faltas', false)
+    (256, 'una_persona_puede_ver_sus_propias_faltas', false),
+    (257, 'una_persona_puede_pedir_que_se_revise_un_dia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
