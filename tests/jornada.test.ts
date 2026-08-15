@@ -137,4 +137,46 @@ describe("ventanaMasCargada", () => {
     expect(ventanaMasCargada([], "2026-08-03", "2026-08-09")).not.toBeNull();
     expect(ventanaMasCargada([], "2026-08-03", "2026-08-09")?.horas).toBe(0);
   });
+
+  // ── El exceso que caducó antes de que nadie lo viera ──────────────────────
+  // Incidencias evaluaba SOLO ventanas que terminaran en los últimos 7 días. Un
+  // exceso cuya ventana cerró antes desaparecía de la pantalla para siempre: no
+  // se degradaba a aviso menor, no quedaba registro, simplemente dejaba de
+  // existir. El caso real: 58.96 h del 31/07 al 06/08/2026 —el exceso más
+  // grande del periodo— invisible desde el 13 de agosto.
+  //
+  // Los datos son los de ese caso: siete días seguidos que suman 58.96 h,
+  // descanso el 07, y después jornadas cortas que NO pasan de 48 en ninguna
+  // ventana reciente. Por eso la pantalla se quedaba muda.
+  describe("un exceso viejo sigue siendo visible", () => {
+    const HOY_SIMULADO = "2026-08-15";
+    const dias = [
+      d("2026-07-31", 8.5), d("2026-08-01", 8.5), d("2026-08-02", 8.5),
+      d("2026-08-03", 8.5), d("2026-08-04", 8.5), d("2026-08-05", 8.5),
+      d("2026-08-06", 7.96),
+      // 07-08: descanso, sin fila
+      d("2026-08-08", 6), d("2026-08-09", 6), d("2026-08-10", 6), d("2026-08-11", 6),
+      d("2026-08-12", 6), d("2026-08-13", 6), d("2026-08-14", 6), d("2026-08-15", 6),
+    ];
+
+    it("la ventana de los últimos 7 días no lo ve — por eso hacía falta la segunda", () => {
+      const viva = ventanaMasCargada(dias, "2026-08-09", HOY_SIMULADO);
+      expect(viva!.horas).toBeLessThanOrEqual(MAXIMO_LEGAL_SEMANAL);
+    });
+
+    it("la ventana de 30 días sí lo ve, y lo fecha en el día que cerró", () => {
+      const vieja = ventanaMasCargada(dias, "2026-07-17", "2026-08-08");
+      expect(vieja!.horas).toBeCloseTo(58.96, 2);
+      expect(vieja!.horas).toBeGreaterThan(MAXIMO_LEGAL_SEMANAL);
+      expect(vieja!.fin).toBe("2026-08-06");
+    });
+
+    it("las dos ventanas no se solapan: ningún exceso se cuenta dos veces", () => {
+      // El corte es 08 / 09 de agosto. Si se solaparan, quien arrastra una racha
+      // larga vería la misma infracción dos veces con dos fechas distintas.
+      const viva = ventanaMasCargada(dias, "2026-08-09", HOY_SIMULADO);
+      const vieja = ventanaMasCargada(dias, "2026-07-17", "2026-08-08");
+      expect(vieja!.fin < viva!.fin).toBe(true);
+    });
+  });
 });
