@@ -10,7 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import {
   TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
-  MAXIMO_DIAS_SIN_DESCANSO, diasSeguidosTrabajados, ventanaMasCargada,
+  MAXIMO_DIAS_SIN_DESCANSO, avisoDeRacha, ventanaMasCargada,
 } from "@cayla-dynamic/shared";
 
 function haceDias(n: number): string {
@@ -63,6 +63,11 @@ const MOTIVOS: { valor: string; label: string }[] = [
   { valor: "descanso_medico", label: "Descanso médico" },
   { valor: "otro", label: "Otro" },
 ];
+interface RevisionPedida {
+  id: string; persona_id: string; nombre: string; sede: string;
+  fecha: string; comentario: string; pedida_at: string;
+}
+
 const MOTIVO_LABEL = (m: string | null | undefined) => MOTIVOS.find((x) => x.valor === m)?.label ?? m ?? "";
 
 // Qué dice el botón de visto bueno en cada incidencia. El texto no es decoración:
@@ -80,6 +85,25 @@ const ACEPTAR_UI: Record<string, { boton: string; ayuda: string }> = {
       "Si sí almorzó, no uses este botón — registra en Correcciones la hora en que salió y la hora en que " +
       "volvió, y las horas se recalculan solas.",
   },
+  racha_sin_descanso: {
+    boton: "Revisado",
+    ayuda:
+      "Dejar constancia de que viste esta racha y la sacaste de la lista. No la borra: queda registrado " +
+      "quién la revisó y cuándo. La racha ya pasó y no se puede deshacer — esto solo dice que no se te escapó. " +
+      "Si la racha sigue creciendo, el aviso vuelve a salir mañana con el día nuevo.",
+  },
+  // Mismo trato que la racha, y por la misma razón: la infracción ya ocurrió, no
+  // se puede deshacer, y desaparecer sola por antigüedad sería borrarla sin que
+  // nadie la mirara. Solo lo lleva la variante «ya ocurrió»: el exceso VIVO pide
+  // mover un turno, y darle un botón de «visto» sería ofrecer callar el aviso en
+  // vez de atenderlo.
+  jornada_excedida: {
+    boton: "Revisado",
+    ayuda:
+      "Dejar constancia de que viste este exceso y sacarlo de la lista. No lo borra: queda registrado quién " +
+      "lo revisó y cuándo. El exceso ya ocurrió y no se puede deshacer — esto solo dice que no se te escapó. " +
+      "Pasar de 48 h no se arregla pagando el recargo: es un tope, y el recargo ya se pagó aparte.",
+  },
 };
 const ACEPTAR_BOTON = (t: string | undefined) => (t && ACEPTAR_UI[t]?.boton) || "Aceptar";
 const ACEPTAR_AYUDA = (t: string | undefined) =>
@@ -95,6 +119,25 @@ const HOY = hoyLima();
 // umbral que Felipe eligió para que Dynamic avise y arranque ese proceso.
 const VENTANA_PATRON_DIAS = 30;
 const UMBRAL_PATRON_TARDANZAS = 3;
+// Exceso de jornada: cuántos días hacia atrás se buscan ventanas de 7 días que
+// pasen de 48 h. Antes eran 7 —solo ventanas que TERMINABAN en la última
+// semana— y eso hacía desaparecer excesos reales sin que nadie los viera nunca.
+// El caso que lo destapó: 58.96 h en 7 días seguidos (31 jul → 6 ago 2026), el
+// exceso más grande del periodo, invisible en esta pantalla desde el 13 de
+// agosto porque su ventana había terminado hacía más de 7 días.
+//
+// 30 días es la misma ventana que ya usa el patrón de tardanzas, y cubre de
+// sobra el periodo de planilla (29 → 28) que es donde se cierra la cuenta.
+const VENTANA_EXCESO_DIAS = 30;
+// A partir de cuántos días atrás el exceso deja de ser evitable y pasa a ser
+// solo documentable. Siete: mientras la ventana toque la semana en curso,
+// todavía se puede mover un turno y que no siga creciendo.
+const EXCESO_AUN_EVITABLE_DIAS = 6;
+// Cuántos días de marcaje se traen para medir la racha en curso. Tres semanas
+// alcanzan: la racha más larga medida en CAYLA fue de 20 días. Tiene nombre
+// porque lo usan DOS consultas —los días marcados y los vistos buenos ya
+// dados— y si se separan, un aviso que diste por revisado reaparece.
+const VENTANA_RACHA_DIAS = 20;
 
 function IncidenciasContenido() {
   const router = useRouter();
@@ -107,6 +150,13 @@ function IncidenciasContenido() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Lo que la gente pidió revisar desde «Lo mío» (0257). Va PRIMERO en esta
+  // pantalla y no al final: es la única lista de acá que no la generó el
+  // sistema mirando datos, sino una persona que sabe qué pasó ese día.
+  const [revisiones, setRevisiones] = useState<RevisionPedida[]>([]);
+  const [respuestas, setRespuestas] = useState<Record<string, string>>({});
+  const [atendiendo, setAtendiendo] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -129,6 +179,7 @@ function IncidenciasContenido() {
       { data: turnosData, error: errTurnos },
       { data: aceptadasData },
       { data: faltasData },
+      { data: revisionesData },
       { data: levTardData },
       { data: horasSemanaData },
       { data: diasRachaData },
@@ -165,20 +216,41 @@ function IncidenciasContenido() {
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
       // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
-      supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo").gte("fecha", desde).lte("fecha", hasta),
+      // Se pide desde el filtro O desde la ventana fija más profunda, lo que sea
+      // más atrás: los avisos de racha y de exceso NO respetan Desde/Hasta —se
+      // miden sobre ventanas fijas—, así que con el filtro estrecho su aceptación
+      // no se cargaría y el aviso que ya diste por revisado volvería a aparecer
+      // solo por haber movido una fecha.
+      //
+      // El `min` de las tres es a propósito y no un adorno: cuando la 0185 trajo
+      // el exceso «ya ocurrió» con 30 días de ventana, esta línea seguía mirando
+      // los 20 de la racha y un exceso revisado hace tres semanas reaparecía.
+      supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo")
+        .gte("fecha", [desde, haceDias(VENTANA_RACHA_DIAS), haceDias(VENTANA_EXCESO_DIAS)]
+          .reduce((a, b) => (a < b ? a : b)))
+        .lte("fecha", hasta > HOY ? hasta : HOY),
       // Faltas del rango (le tocaba y no marcó). Falla suave: si no llega, no se muestran.
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
+      // Pendientes de la 0257. Falla suave: mientras la migración no esté
+      // pegada, PostgREST devuelve error, `data` viene null y la sección
+      // simplemente no aparece. El resto de Incidencias no se entera.
+      supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }),
       // Tardanzas levantadas (perdonadas): no cuentan para el patrón. Ventana del patrón.
       supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", desdePatron).lte("fecha", HOY),
-      // Horas de los últimos 20 días, para el tope de jornada. NO se piden por
-      // semana de calendario: el tope de 48 h se mide sobre CUALQUIER ventana de
-      // siete días consecutivos (Informe 027-2021-MTPE/14), y para evaluar una
-      // ventana que termina hoy hacen falta los seis días anteriores.
+      // Horas para el tope de jornada. NO se piden por semana de calendario: el
+      // tope de 48 h se mide sobre CUALQUIER ventana de siete días consecutivos
+      // (Informe 027-2021-MTPE/14), y para evaluar una ventana que termina hoy
+      // hacen falta los seis días anteriores.
+      //
+      // El rango cubre la ventana de aviso (VENTANA_EXCESO_DIAS) MÁS seis días
+      // de arrastre, porque la ventana más vieja que se evalúa también necesita
+      // sus seis días previos. Antes se pedían 20 días y se evaluaban 7: los
+      // otros 13 se descargaban para nada.
       traerTodo<any>((ini, fin) =>
         supabase
           .from("jornadas")
           .select("persona_id, fecha, horas_trabajadas, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
-          .gte("fecha", haceDias(20)).lte("fecha", HOY)
+          .gte("fecha", haceDias(VENTANA_EXCESO_DIAS + 5)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
@@ -192,7 +264,7 @@ function IncidenciasContenido() {
         supabase
           .from("jornadas")
           .select("persona_id, fecha, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
-          .gte("fecha", haceDias(20)).lte("fecha", HOY)
+          .gte("fecha", haceDias(VENTANA_RACHA_DIAS)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
           .range(ini, fin),
@@ -275,7 +347,18 @@ function IncidenciasContenido() {
         nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
         sede: j.personas?.sedes?.codigo ?? "?",
         fecha: j.fecha,
-        tipo: `Patrón de tardanzas (${count} en ${VENTANA_PATRON_DIAS} días)`,
+        // «días corridos» y no «días» a secas: el umbral que arma el memo se
+        // cuenta por MES CALENDARIO (art. 19.2-b del RIT) y vive en Disciplina.
+        // Los dos números difieren cuando hay una tardanza del mes pasado
+        // todavía dentro de la ventana, y sin nombrar el periodo esa diferencia
+        // se lee como que una de las dos pantallas está rota.
+        //
+        // Acá NO se pone además el conteo del mes. Esta pantalla no conoce el
+        // corte del expediente (non bis in idem) ni descarta las tardanzas de
+        // más de tres horas, así que el número que calculara podría salir más
+        // alto que el de Disciplina — y sería el falso positivo de siempre,
+        // ahora con dos cifras propias en vez de una prestada.
+        tipo: `Patrón de tardanzas (${count} en ${VENTANA_PATRON_DIAS} días corridos)`,
         entrada: j.entrada_ts,
         salida: null,
       });
@@ -304,18 +387,46 @@ function IncidenciasContenido() {
       else porPersonaHoras.set(j.persona_id, { dias: [dia], fila: j });
     }
     for (const { dias, fila: j } of porPersonaHoras.values()) {
-      // Solo ventanas que terminan en los últimos 7 días: interesa lo que está
-      // pasando ahora, no un exceso de hace tres semanas que ya no se puede evitar.
-      const v = ventanaMasCargada(dias, haceDias(6), HOY);
-      if (v === null || v.horas <= MAXIMO_LEGAL_SEMANAL) continue;
-      out.push({
+      const quien = {
         personaId: j.persona_id,
         nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
         sede: j.personas?.sedes?.codigo ?? "?",
-        fecha: v.fin,
-        tipo: `Jornada excedida: ${v.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
         entrada: null,
         salida: null,
+      };
+      // Dos preguntas distintas, y por eso dos ventanas.
+      //
+      // La primera: ¿se está pasando AHORA? Ventana que termina en los últimos
+      // siete días — todavía se puede mover un turno y frenarlo.
+      const v = ventanaMasCargada(dias, haceDias(EXCESO_AUN_EVITABLE_DIAS), HOY);
+      const hayExcesoVivo = v !== null && v.horas > MAXIMO_LEGAL_SEMANAL;
+      if (hayExcesoVivo) {
+        out.push({
+          ...quien,
+          fecha: v!.fin,
+          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
+        });
+      }
+      // La segunda: ¿se pasó ANTES y nadie lo vio? Ya no se puede evitar, pero
+      // sigue siendo infracción del art. 25 y tiene que quedar registro — y si
+      // generó sobretiempo, la boleta ya lo está pagando. Que el aviso caducara
+      // no borra el hecho.
+      //
+      // Solo si no hay uno vivo: con los dos, quien tiene una racha larga vería
+      // dos filas que dicen lo mismo y la de arriba ya pide la acción.
+      if (hayExcesoVivo) continue;
+      const vieja = ventanaMasCargada(
+        dias,
+        haceDias(VENTANA_EXCESO_DIAS - 1),
+        haceDias(EXCESO_AUN_EVITABLE_DIAS + 1),
+      );
+      if (vieja === null || vieja.horas <= MAXIMO_LEGAL_SEMANAL) continue;
+      if (aceptadas.has(`${j.persona_id}|${vieja.fin}|jornada_excedida`)) continue;
+      out.push({
+        ...quien,
+        fecha: vieja.fin,
+        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
+        aceptable: "jornada_excedida",
       });
     }
 
@@ -336,21 +447,30 @@ function IncidenciasContenido() {
       else porPersonaDias.set(j.persona_id, { fechas: [j.fecha], fila: j });
     }
     for (const { fechas, fila: j } of porPersonaDias.values()) {
-      // La racha que importa es la que sigue viva: se mide desde el último día
-      // con marcaje. Si fue hace tres días, ya descansó y no hay nada que avisar.
-      const ultimo = fechas.reduce((a, b) => (a > b ? a : b));
-      const seguidos = diasSeguidosTrabajados(fechas, ultimo);
-      if (seguidos < MAXIMO_DIAS_SIN_DESCANSO) continue;
+      // Cuándo se avisa y cuándo el aviso ya caducó vive en `avisoDeRacha`, con
+      // sus pruebas: la regla decide si esta pantalla dice una verdad o una
+      // mentira, y el 2026-08-15 dijo una mentira por no tener dónde probarse.
+      const aviso = avisoDeRacha(fechas, HOY);
+      if (aviso === null) continue;
+
+      // El aviso de 7+ se saca con visto bueno, no por antigüedad: la infracción
+      // ya ocurrió y desaparecer sola sería borrarla sin que nadie la mirara. Si
+      // la racha sigue creciendo, `ultimo` cambia y vuelve a salir — aceptar el
+      // día 7 no tapa el día 8, que es justo lo que se quiere.
+      const aceptable = aviso.excedida ? "racha_sin_descanso" : undefined;
+      if (aceptable && aceptadas.has(`${j.persona_id}|${aviso.ultimo}|${aceptable}`)) continue;
+
       out.push({
         personaId: j.persona_id,
         nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
         sede: j.personas?.sedes?.codigo ?? "?",
-        fecha: ultimo,
-        tipo: seguidos === MAXIMO_DIAS_SIN_DESCANSO
-          ? `Lleva ${seguidos} días seguidos — el próximo le toca descansar`
-          : `${seguidos} días seguidos sin descanso semanal`,
+        fecha: aviso.ultimo,
+        tipo: aviso.excedida
+          ? `${aviso.seguidos} días seguidos sin descanso semanal`
+          : `Lleva ${aviso.seguidos} días seguidos — el próximo le toca descansar`,
         entrada: null,
         salida: null,
+        aceptable,
       });
     }
 
@@ -403,6 +523,8 @@ function IncidenciasContenido() {
 
     // Faltas: le tocaba y no marcó. Injustificadas en rojo (cuentan), justificadas
     // atenuadas (no cuentan, con su motivo). Vienen de fn_faltas (ya scopeada por rol).
+    setRevisiones(((revisionesData as unknown as RevisionPedida[] | null) ?? []));
+
     for (const f of (faltasData as { persona_id: string; nombre: string; sede: string; fecha: string; justificada: boolean; motivo: string | null }[] | null) ?? []) {
       out.push({
         personaId: f.persona_id,
@@ -446,9 +568,25 @@ function IncidenciasContenido() {
     setFilas((prev) => prev.filter((x) => !(x.personaId === f.personaId && x.fecha === f.fecha && x.aceptable === f.aceptable)));
   }
 
+  /** Cerrar una revisión pedida desde «Lo mío». La respuesta es opcional pero
+   *  vale la pena: al otro lado hay alguien esperando saber en qué quedó. */
+  async function atenderRevision(id: string) {
+    setAtendiendo(id);
+    const supabase = createAdminSupabaseClient();
+    const { error: e } = await supabase.rpc("fn_atender_revision", {
+      p_id: id, p_respuesta: (respuestas[id] ?? "").trim() || null,
+    });
+    setAtendiendo(null);
+    if (e) { setError(e.message); return; }
+    setError(null);
+    setRespuestas((r) => ({ ...r, [id]: "" }));
+    await cargar();
+  }
+
   // ── Justificar una falta ─────────────────────────────────────────────────
   const [justif, setJustif] = useState<{ personaId: string; fecha: string; nombre: string } | null>(null);
   const [motivoSel, setMotivoSel] = useState("permiso_concedido");
+
   const [observ, setObserv] = useState("");
   const [guardandoJustif, setGuardandoJustif] = useState(false);
 
@@ -502,7 +640,7 @@ function IncidenciasContenido() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Los dos avisos llegan mientras todavía se puede mover el turno: ninguno de los dos se arregla pagando después. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde
@@ -512,6 +650,45 @@ function IncidenciasContenido() {
             <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" />
           </label>
         </div>
+
+        {/* ── Lo que tu equipo pidió revisar ──────────────────────────────────
+            Va PRIMERO, y no es orden alfabético: es la única lista de esta
+            pantalla que no la generó el sistema mirando datos, sino una persona
+            que estuvo ahí ese día. Un aviso automático puede esperar; alguien
+            que escribió «ese día sí vine» no. */}
+        {revisiones.length > 0 && (
+          <section className="mb-6 rounded-2xl border border-tinta/25 bg-papel p-5">
+            <h2 className="mb-1 font-serif text-lg">Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</h2>
+            <p className="mb-4 text-sm text-taupe">
+              Lo escribieron desde «Lo mío». Corrige el día en Correcciones si hace falta y cierra acá diciendo
+              en qué quedó — esa respuesta la va a leer la persona.
+            </p>
+            <ul className="space-y-3">
+              {revisiones.map((r) => (
+                <li key={r.id} className="rounded-xl border border-sand p-3 text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span><strong>{r.nombre}</strong> <span className="text-taupe">· {r.sede} · {r.fecha}</span></span>
+                    <Link href={`/admin/correcciones?persona=${r.persona_id}&fecha=${r.fecha}`}
+                      className="text-rojo hover:underline">Abrir ese día en Correcciones →</Link>
+                  </div>
+                  <p className="mt-1.5">«{r.comentario}»</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <input
+                      value={respuestas[r.id] ?? ""}
+                      onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
+                      placeholder="En qué quedó (lo va a leer ella)"
+                      className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
+                    />
+                    <button onClick={() => void atenderRevision(r.id)} disabled={atendiendo === r.id}
+                      className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
+                      {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {personaFiltro && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rojo/30 bg-rojo/5 px-4 py-2.5 text-sm">

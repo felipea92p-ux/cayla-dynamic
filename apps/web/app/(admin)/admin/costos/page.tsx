@@ -8,11 +8,21 @@
 // propósito: su número aún se mueve, y un costo que se mueve no es un costo.
 // La proyección del periodo en curso vive donde siempre, en Planilla.
 //
-// Dos cifras distintas, y la pantalla no las mezcla nunca:
-//   · «Se transfirió» — lo que recibió la gente.
-//   · «Costo real»    — eso más las provisiones (gratificación, CTS y
-//                       vacaciones que se devengan aunque se paguen después).
+// TRES cifras distintas, y la pantalla no las mezcla nunca:
+//   · «Se transfirió»   — lo que recibió la gente.
+//   · «Costo real»      — eso más las provisiones (gratificación, CTS y
+//                         vacaciones que se devengan aunque se paguen después).
+//   · «Salió del banco» — lo que recibió la gente MÁS lo que CAYLA remite por
+//                         ella: pensión a la AFP o la ONP, el 9 % de EsSalud y
+//                         la retención de renta de 4ta (mig. 0260).
 // Mirar solo la primera subestima el costo del equipo en torno a un 16,7 %.
+//
+// LAS DOS ÚLTIMAS RESPONDEN PREGUNTAS DISTINTAS y ninguna reemplaza a la otra.
+// «Costo real» es la vista DEVENGADA, la que usa el contador: incluye lo que se
+// pagará después y excluye lo que se remite por la persona. «Salió del banco»
+// es la de CAJA: lo contrario en las dos mitades. Medido sobre un periodo
+// cerrado de prueba, en alguien de planilla la diferencia entre las dos es de
+// S/205.44 sobre S/839.04 — un 24 %.
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -45,6 +55,10 @@ interface Totales {
   neto: number;
   provisiones: number;
   costo: number;
+  // Lo que salió de la cuenta (0260): el neto más lo que CAYLA remite por la
+  // persona — pensión, EsSalud y retención de 4ta. Opcional: sin la 0260
+  // pegada no viene, y la pantalla no dibuja la cifra en vez de decir NaN.
+  salio_del_banco?: number;
 }
 interface PorPeriodo {
   periodo_id: string;
@@ -60,6 +74,7 @@ interface PorPeriodo {
   neto: number;
   provisiones: number;
   costo: number;
+  salio_del_banco?: number;
 }
 interface PorGrupo {
   nombre: string;
@@ -67,6 +82,7 @@ interface PorGrupo {
   neto: number;
   provisiones: number;
   costo: number;
+  salio_del_banco?: number;
 }
 interface PorSede extends PorGrupo {
   sede: string;
@@ -85,6 +101,7 @@ interface PorTipo {
   costo: number;
   costo_por_persona: number | null;
   costo_por_hora: number | null;
+  salio_del_banco?: number;
 }
 interface PorArea extends PorGrupo { area: string | null; operativa: boolean }
 interface PorPersona {
@@ -97,6 +114,7 @@ interface PorPersona {
   neto: number;
   provisiones: number;
   costo: number;
+  salio_del_banco?: number;
 }
 interface Costos {
   desde: string;
@@ -200,10 +218,11 @@ export default function CostosPage() {
       se_transfirio: p.neto,
       provisiones: p.provisiones,
       costo_real: p.costo,
+      salio_del_banco: p.salio_del_banco ?? "",
     }));
     const csv = generarCsv(filas, [
       "nombre", "sede", "tipo_de_sede", "area", "periodos_pagados", "horas",
-      "se_transfirio", "provisiones", "costo_real",
+      "se_transfirio", "provisiones", "costo_real", "salio_del_banco",
     ]);
     descargarCsv(`costos-${anio}.csv`, csv);
   }
@@ -304,7 +323,7 @@ export default function CostosPage() {
         )}
 
         {t && (
-          <div className="mb-6 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mb-6 grid max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <div className="rounded-lg bg-tinta px-4 py-3 text-crema">
               <div className="text-xs opacity-70">Costo real del año</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.costo)}</div>
@@ -317,6 +336,13 @@ export default function CostosPage() {
               <div className="text-xs text-taupe">Provisiones devengadas</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.provisiones)}</div>
             </div>
+            {t.salio_del_banco !== undefined && (
+              <div className="rounded-lg bg-sand/40 px-4 py-3">
+                <div className="text-xs text-taupe">Salió del banco</div>
+                <div className="text-xl font-medium tabular-nums">{formatSoles(t.salio_del_banco)}</div>
+                <div className="text-xs text-taupe">+ pensión, EsSalud y 4ta</div>
+              </div>
+            )}
             <div className="rounded-lg bg-sand/40 px-4 py-3">
               <div className="text-xs text-taupe">Periodos cerrados</div>
               <div className="text-xl font-medium tabular-nums">{t.periodos}</div>
@@ -336,6 +362,7 @@ export default function CostosPage() {
                   <th className={THN}>Se transfirió</th>
                   <th className={THN}>Provisiones</th>
                   <th className={THN}>Costo real</th>
+                  <th className={THN}>Salió del banco</th>
                 </tr>
               </thead>
               <tbody>
@@ -359,6 +386,7 @@ export default function CostosPage() {
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
+                    <td className={NUM}>{p.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(p.salio_del_banco)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -371,6 +399,7 @@ export default function CostosPage() {
                   <th className={THN}>Sedes</th>
                   <th className={THN}>Personas</th>
                   <th className={THN}>Costo real</th>
+                  <th className={THN}>Salió del banco</th>
                   <th className={THN}>Por persona</th>
                   <th className={THN}>Por hora</th>
                 </tr>
@@ -382,6 +411,7 @@ export default function CostosPage() {
                     <td className={NUM}>{t.sedes}</td>
                     <td className={NUM}>{t.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(t.costo)}</td>
+                    <td className={NUM}>{t.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(t.salio_del_banco)}</td>
                     <td className={NUM}>{t.costo_por_persona === null ? "—" : formatSoles(t.costo_por_persona)}</td>
                     <td className={NUM}>{t.costo_por_hora === null ? "—" : formatSoles(t.costo_por_hora)}</td>
                   </tr>
@@ -396,6 +426,7 @@ export default function CostosPage() {
                   <th className={TH}>Qué es</th>
                   <th className={THN}>Personas</th>
                   <th className={THN}>Costo real</th>
+                  <th className={THN}>Salió del banco</th>
                   <th className={THN}>Por persona</th>
                   <th className={THN}>Por hora</th>
                 </tr>
@@ -407,6 +438,7 @@ export default function CostosPage() {
                     <td className="px-3 py-2 text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                     <td className={NUM}>{s.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(s.costo)}</td>
+                    <td className={NUM}>{s.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(s.salio_del_banco)}</td>
                     <td className={NUM}>{s.costo_por_persona === null ? "—" : formatSoles(s.costo_por_persona)}</td>
                     <td className={NUM}>{s.costo_por_hora === null ? "—" : formatSoles(s.costo_por_hora)}</td>
                   </tr>
@@ -429,6 +461,7 @@ export default function CostosPage() {
                   <th className={THN}>Se transfirió</th>
                   <th className={THN}>Provisiones</th>
                   <th className={THN}>Costo real</th>
+                  <th className={THN}>Salió del banco</th>
                 </tr>
               </thead>
               <tbody>
@@ -446,6 +479,7 @@ export default function CostosPage() {
                     <td className={NUM}>{formatSoles(a.neto)}</td>
                     <td className={NUM}>{formatSoles(a.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(a.costo)}</td>
+                    <td className={NUM}>{a.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(a.salio_del_banco)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -461,6 +495,7 @@ export default function CostosPage() {
                   <th className={THN}>Se transfirió</th>
                   <th className={THN}>Provisiones</th>
                   <th className={THN}>Costo real</th>
+                  <th className={THN}>Salió del banco</th>
                 </tr>
               </thead>
               <tbody>
@@ -473,6 +508,7 @@ export default function CostosPage() {
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
+                    <td className={NUM}>{p.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(p.salio_del_banco)}</td>
                   </tr>
                 ))}
               </tbody>
