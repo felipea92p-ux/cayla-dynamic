@@ -5,8 +5,15 @@
 -- SE PEGA DESPUÉS DE LA 0256. Su cuerpo parte del archivo de la 0256, no del de
 -- la 0254: pegarla antes revertiría el subsidio por maternidad.
 --
--- md5 de partida de `fn_planilla_calcular`: ⚠ PENDIENTE — se pide a PRODUCCIÓN
--- después de aplicar la 0256 y antes de aplicar esta.
+-- md5 de `fn_planilla_calcular`, medidos encadenando las dos migraciones sobre
+-- el estado REAL de producción (19eb593a…, pedido el 2026-08-15):
+--
+--   antes   9022a365902803332fbc8a5da09957e2   85 711 caracteres  ← tras la 0256
+--   después c150eccadca07ace88723ee7ef790f9b   87 523 caracteres
+--
+-- Si al ir a pegar esta el md5 NO es el «antes», la 0256 no está aplicada o se
+-- copió mal. Para eso está el número: esta migración parte de aquella, y sobre
+-- la 0254 revertiría el subsidio por maternidad sin avisar.
 --
 -- POR QUÉ EL NÚMERO ES 0259 Y NO 0257. El 0257 y el 0258 están tomados por otra
 -- sesión que trabaja en paralelo en la carpeta principal (ver sus propias faltas

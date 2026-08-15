@@ -2,9 +2,19 @@
 -- 0256 · LA LICENCIA POR MATERNIDAD DEJA DE PAGARSE EN CERO
 -- ============================================================================
 --
--- md5 de partida de `fn_planilla_calcular`: ⚠ PENDIENTE — se pide a PRODUCCIÓN
--- antes de pegar, nunca se copia del local. Una vez pegada esta migración el
--- número anterior se pierde para siempre.
+-- md5 de partida de `fn_planilla_calcular`, PEDIDO A PRODUCCIÓN el 2026-08-15
+-- (no copiado del local):
+--
+--   antes  19eb593a757e0b7480b6a1dc99d7f8c9   75 882 caracteres
+--   después 9022a365902803332fbc8a5da09957e2   85 711 caracteres
+--
+-- El «antes» es exactamente el de la 0254, que es de donde se extrajo este
+-- cuerpo: producción estaba en esa versión y la partida es la correcta. Si al
+-- pegar esto el md5 no queda en el «después», algo se copió mal — no sigas.
+--
+-- Y un dato que de paso descarta el problema de la 0185: producción devolvió
+-- 77 211 BYTES contra 75 882 caracteres. Esa diferencia son los acentos, vivos.
+-- Si `pbcopy` los hubiera roto, bytes y caracteres coincidirían.
 --
 -- ── EL DEFECTO ──────────────────────────────────────────────────────────────
 --
