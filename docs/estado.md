@@ -268,6 +268,78 @@ Esto sigue abierto y es la mitad que falta:
 La 0249 impide que el caso se repita por esta causa; no recoge las que ya
 cayeron, ni las que caigan por otra.
 
+### El cierre del 28 estaba bloqueado, y por una línea ([`0252`](../supabase/migrations/0252_el_cierre_deja_de_caerse_por_quien_no_cobra_movilidad.sql))
+
+El término de movilidad del `total` no aplicaba `cobra_movilidad`; el concepto
+`monto_movilidad` sí, desde la 0166. La boleta imprimía S/0.00 y el pago la
+cobraba igual. Medido: **descuadre de 16.00** con tarifa de S/8 y dos días.
+
+Y no era «una boleta descuadrada». `fn_planilla_congelar` inserta las ~30 filas
+en UNA sentencia, así que la que rebota tumba la sentencia entera: **una persona
+bastaba para que el 28 no cerrara para nadie**, con un error de CHECK que no la
+nombra. Aplicada y confirmada en producción.
+
+Es el tercer caso idéntico en una semana —0242 asignación familiar, 0245
+retención de cuarta, 0252 movilidad— y el patrón ya no admite duda: **un
+concepto vive en DOS sitios del JSON, el suyo y el término del `total`, y tocar
+uno solo deja la boleta diciendo una cosa y el pago haciendo otra.** Antes de
+tocar cualquier concepto, buscar sus dos apariciones.
+
+### El descanso médico se pagaba en cero ([`0254`](../supabase/migrations/0254_el_descanso_medico_deja_de_pagarse_en_cero.sql))
+
+**`fn_planilla_calcular` no leía la tabla `ausencias`.** Ni una vez. Las
+vacaciones que sí se pagan (0177) salen de una tabla distinta, `vacaciones`. De
+los cuatro tipos que `tipos_ausencia` declara pagables, la planilla pagaba uno.
+
+La 0254 conecta **solo `descanso_medico`**, con el tope de 20 días del RIT
+art. 31 f). Tres decisiones que se rompen fácil y ahora tienen prueba (195):
+
+- el **tope** se cuenta en días CALENDARIO (así los cuenta EsSalud) y lo que se
+  **paga** son días LABORABLES (pagar un domingo sería pagar de más);
+- un día vale el promedio de lo pagado por día trabajado, **con respaldo**: sin
+  días marcados el promedio sería 0/0 y quien pasó el mes entero enfermo cobraría
+  cero — el mismo defecto con otra cara y en el caso más grave;
+- **un día que ya paga por otra vía no se paga dos veces**. Salió solo: el
+  descanso empezaba en Fiestas Patrias.
+
+Va DENTRO de `pago_base`, como las vacaciones, y por eso NO toca
+`chk_foto_cuadra` ni `fn_planilla_congelar`.
+
+**PENDIENTE · `licencia_con_goce` y `maternidad` siguen pagando cero.** Es
+decisión, no descuido: la maternidad tiene reglas propias —98 días, subsidio de
+EsSalud desde el día uno— que hay que decidir antes de escribirlas. La prueba 187
+lo fija por escrito.
+
+### PENDIENTE · Chiara: seis días que dependen de un papel, no del código
+
+Su `descanso_medico` del 29/07→03/08 (dengue, **con certificado**) ya lo paga la
+0254: cuatro días, ~S/122.
+
+Lo que queda es **`salud` 04/08→09/08, vigente y SIN documento**. El sistema paga
+cero y **eso es correcto** — no hay defecto que arreglar. Pero el bloque anulado
+que ocupaba esas fechas decía «en reposo médico» y el certificado del dengue
+termina el 03/08, justo el día antes. **Falta mirar hasta qué fecha llega el
+certificado ya subido**: si cubre hasta el 09, la ausencia está mal clasificada y
+son otros ~S/122 suyos; si solo llega al 03, se queda como está y no se vuelve a
+levantar.
+
+### Dos avisos del cierre que gritaban por lo normal
+
+El chequeo devolvió `💸 14 día(s) que pagarán CERO` un jueves a las tres de la
+tarde: **eran trece personas en su puesto**. Contaba las jornadas abiertas de
+HOY. Se comprobó de la forma más elocuente — al recorrerlo un rato después el
+número había bajado a 10 solo, mientras la gente se iba a casa. Ninguna era de
+un día pasado.
+
+Y el de movilidad se disparaba con solo existir alguien con
+`cobra_movilidad = false`: con la 0252 puesta esa persona sigue existiendo y ya
+no hay riesgo, así que **el 🚫 habría quedado encendido para siempre**. Ahora
+mide el defecto —que el filtro aparezca dos veces en la función— y no su proxy.
+
+**La regla que sale de las dos:** un semáforo que no se apaga nunca no es un
+semáforo, y un aviso que grita por lo normal se desactiva a la semana. Las
+exclusiones se aplican ANTES de contar.
+
 ---
 
 ## 2026-08-13 — el expediente de Mateo, y la 0213 que ya no se puede pegar
