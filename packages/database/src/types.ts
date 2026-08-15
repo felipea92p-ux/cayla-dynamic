@@ -2384,6 +2384,54 @@ export type Database = {
           },
         ]
       }
+      revisiones_pedidas: {
+        Row: {
+          atendida_at: string | null
+          atendida_por: string | null
+          comentario: string
+          fecha: string
+          id: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+        }
+        Insert: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          comentario: string
+          fecha: string
+          id?: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+        }
+        Update: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          comentario?: string
+          fecha?: string
+          id?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sedes: {
         Row: {
           activa: boolean
@@ -3001,6 +3049,10 @@ export type Database = {
         Returns: undefined
       }
       fn_areas: { Args: never; Returns: Json }
+      fn_atender_revision: {
+        Args: { p_id: string | null; p_respuesta: string | null }
+        Returns: undefined
+      }
       fn_ausencia_adjuntar_certificado: {
         Args: { p_ausencia_id: string | null; p_storage_path: string | null }
         Returns: undefined
@@ -3809,6 +3861,10 @@ export type Database = {
         }
         Returns: string
       }
+      fn_pedir_revision: {
+        Args: { p_comentario: string | null; p_fecha: string | null }
+        Returns: undefined
+      }
       fn_periodo_pagado: {
         Args: { p_pagado: boolean | null; p_periodo_id: string | null }
         Returns: undefined
@@ -3889,6 +3945,7 @@ export type Database = {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_quitar_revision: { Args: { p_fecha: string | null }; Returns: undefined }
       fn_quitar_turno: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
@@ -4013,6 +4070,10 @@ export type Database = {
       fn_revertir_pago: {
         Args: { p_motivo: string | null; p_periodo_id: string | null }
         Returns: undefined
+      }
+      fn_revisiones_pedidas: {
+        Args: { p_solo_pendientes?: boolean | null }
+        Returns: Json
       }
       fn_rol_actual: {
         Args: never

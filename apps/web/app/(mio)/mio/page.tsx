@@ -100,7 +100,15 @@ interface Ausencia {
   aprobada_at: string | null;
 }
 
-interface TipoAusencia { codigo: string; nombre: string; requiere_documento: boolean }
+interface TipoAusencia { codigo: string; nombre: string; requiere_documento: boolean; paga: boolean }
+
+/** Una petición suya de que se revise un día. La escribe `fn_pedir_revision`. */
+interface Revision {
+  fecha: string;
+  comentario: string;
+  atendida_at: string | null;
+  respuesta: string | null;
+}
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -203,8 +211,23 @@ export default function MioPage() {
   const [objetivos, setObjetivos] = useState<ObjetivoItem[]>([]);
   const [ausencias, setAusencias] = useState<Ausencia[]>([]);
   const [tiposAusencia, setTiposAusencia] = useState<TipoAusencia[]>([]);
+  const [periodo, setPeriodo] = useState<{ fecha_ini: string; fecha_fin: string } | null>(null);
+  const [feriados, setFeriados] = useState<{ fecha: string; nombre: string }[]>([]);
+  const [revisiones, setRevisiones] = useState<Map<string, Revision>>(new Map());
+  // ¿Existe ya la tabla de la 0257? Mientras la migración no esté pegada,
+  // PostgREST responde con error y pedir una revisión fallaría con un mensaje
+  // que no significa nada para quien lo lee. Sin la tabla, ese trozo no sale.
+  const [puedePedirRevision, setPuedePedirRevision] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+
+  // El día abierto desde la cuadrícula. En un teléfono no hay `hover`, así que
+  // sin esto los cuadritos de colores son decoración: se ve que el 12 está en
+  // ámbar y no hay forma de saber por qué.
+  const [diaAbierto, setDiaAbierto] = useState<string | null>(null);
+  const [comentario, setComentario] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [avisoRevision, setAvisoRevision] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   // El rango. Por defecto los últimos 30 días: es lo que se entiende por «el
   // último mes» dicho en voz alta, y siempre incluye lo de esta semana — que es
@@ -271,6 +294,7 @@ export default function MioPage() {
     const [
       { data: js }, { data: perd }, { data: hs }, { data: ts },
       { data: fl }, { data: objs }, { data: aus }, { data: tipos },
+      { data: per }, { data: fer }, { data: revs, error: errRevs },
     ] = await Promise.all([
       supabase.from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, estado")
@@ -307,7 +331,17 @@ export default function MioPage() {
         .is("anulada_at", null)
         .lte("fecha_inicio", hasta).gte("fecha_fin", desde)
         .order("fecha_inicio", { ascending: false }),
-      supabase.from("tipos_ausencia").select("codigo, nombre, requiere_documento"),
+      supabase.from("tipos_ausencia").select("codigo, nombre, requiere_documento, paga"),
+      // El periodo de pago en curso. Es el tramo con el que se le paga —del 29
+      // al 28, LEÍDO y nunca calculado— y contra el que va a querer cuadrar.
+      supabase.from("periodos_planilla").select("fecha_ini, fecha_fin")
+        .lte("fecha_ini", hoyLima()).gte("fecha_fin", hoyLima()).maybeSingle(),
+      supabase.from("feriados").select("fecha, nombre")
+        .gte("fecha", hoyLima()).order("fecha").limit(3),
+      supabase.from("revisiones_pedidas")
+        .select("fecha, comentario, atendida_at, respuesta")
+        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
+        .gte("fecha", desde).lte("fecha", hasta),
     ]);
 
     setJornadas((js as Jornada[]) ?? []);
@@ -322,6 +356,13 @@ export default function MioPage() {
     setObjetivos(((objs as unknown as ObjetivoItem[] | null) ?? []).filter((o) => o.persona_id === yo.id));
     setAusencias((aus as Ausencia[]) ?? []);
     setTiposAusencia((tipos as TipoAusencia[]) ?? []);
+    setPeriodo((per as { fecha_ini: string; fecha_fin: string } | null) ?? null);
+    setFeriados((fer as { fecha: string; nombre: string }[]) ?? []);
+    // La tabla es de la 0257. Mientras no esté pegada, PostgREST responde con
+    // error y `revs` viene null: la pantalla se queda sin el botón de pedir
+    // revisión y todo lo demás sigue igual. Se degrada, no se cae.
+    setRevisiones(new Map(((revs as Revision[] | null) ?? []).map((r) => [r.fecha, r])));
+    setPuedePedirRevision(!errRevs);
     setCargando(false);
   }, [supabase, yo, desde, hasta]);
 
@@ -339,6 +380,31 @@ export default function MioPage() {
     setAviso(null);
     setDesde(data.fecha_ini as string);
     setHasta(data.fecha_fin as string);
+  }
+
+  /** Pedir que se revise un día. No corrige nada: deja constancia y le llega a
+   *  su encargada. Reabrir borra la respuesta anterior — eso lo hace la RPC. */
+  async function pedirRevision(fecha: string) {
+    if (comentario.trim().length < 5) {
+      setAvisoRevision({ tipo: "error", texto: "Cuéntanos qué pasó ese día, aunque sea en una línea." });
+      return;
+    }
+    setEnviando(true);
+    const { error } = await supabase.rpc("fn_pedir_revision", { p_fecha: fecha, p_comentario: comentario.trim() });
+    setEnviando(false);
+    if (error) { setAvisoRevision({ tipo: "error", texto: error.message }); return; }
+    setAvisoRevision({ tipo: "ok", texto: "Listo. Tu encargada lo va a ver." });
+    setComentario("");
+    await cargar();
+  }
+
+  async function quitarRevision(fecha: string) {
+    setEnviando(true);
+    const { error } = await supabase.rpc("fn_quitar_revision", { p_fecha: fecha });
+    setEnviando(false);
+    if (error) { setAvisoRevision({ tipo: "error", texto: error.message }); return; }
+    setAvisoRevision({ tipo: "ok", texto: "Retirado." });
+    await cargar();
   }
 
   // ── Cada día del rango, con lo que le tocaba al lado ───────────────────────
@@ -409,10 +475,42 @@ export default function MioPage() {
       .slice(0, 7);
   }, [yo, turnos, tramos]);
 
+  // Cuatro filas de «Permiso personal» seguidas son cuatro días que ella vivió
+  // como un episodio. Se juntan los consecutivos del mismo tipo.
+  const ausenciasAgrupadas = useMemo(() => {
+    const orden = [...ausencias].sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio));
+    const out: (Ausencia & { hasta: string })[] = [];
+    for (const a of orden) {
+      const ult = out[out.length - 1];
+      const siguienteAlAnterior =
+        ult && ult.tipo === a.tipo &&
+        fechasDelRango(ult.hasta, a.fecha_inicio).length === 2;   // un día de diferencia
+      if (siguienteAlAnterior) ult.hasta = a.fecha_fin > ult.hasta ? a.fecha_fin : ult.hasta;
+      else out.push({ ...a, hasta: a.fecha_fin });
+    }
+    return out.reverse();
+  }, [ausencias]);
+
+  // Cuántos días le faltan al periodo de pago para cerrar, y si lo suyo está
+  // completo. Es la traducción de «¿voy a cobrar bien?» a algo que el sistema
+  // puede afirmar sin decir una cifra.
+  const estadoDelPeriodo = useMemo(() => {
+    if (!periodo) return null;
+    const cierra = fechasDelRango(hoyLima(), periodo.fecha_fin).length - 1;
+    const mios = dias.filter((d) => d.fecha >= periodo.fecha_ini && d.fecha <= periodo.fecha_fin);
+    const pendientes = mios.filter((d) => d.estado === "revisar" || d.estado === "falta").length;
+    // `cubre` dice si el rango que está mirando abarca el periodo entero: si no,
+    // el «todo completo» sería una afirmación sobre días que no se consultaron.
+    const cubre = desde <= periodo.fecha_ini && hasta >= hoyLima();
+    return { cierra, pendientes, cubre };
+  }, [periodo, dias, desde, hasta]);
+
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
   const nombreTipo = (c: string) => tiposAusencia.find((t) => t.codigo === c)?.nombre ?? c;
   const exigeDoc = (c: string) => tiposAusencia.find((t) => t.codigo === c)?.requiere_documento === true;
+  const noPaga = (c: string) => tiposAusencia.find((t) => t.codigo === c)?.paga === false;
+  const hayCumpleanos = tiposAusencia.some((t) => t.codigo === "cumpleanos");
 
   if (sesion === null) {
     return <main className="flex min-h-screen items-center justify-center bg-crema text-taupe">Un momento…</main>;
@@ -453,7 +551,7 @@ export default function MioPage() {
           <Colibri tono="rojo" className="w-8" />
           <div>
             <h1 className="font-serif text-2xl leading-tight">{yo?.nombre ?? "Lo mío"}</h1>
-            <p className="etiqueta text-taupe">Tus días y tus horas</p>
+            <p className="etiqueta text-taupe">Tus días, tus turnos y tus objetivos</p>
           </div>
         </div>
         {/* ── La salida ────────────────────────────────────────────────────────
@@ -486,6 +584,31 @@ export default function MioPage() {
       <AcusesPendientes />
 
       {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
+
+      {/* ── El periodo de pago ───────────────────────────────────────────────
+          La pregunta que de verdad se hace al abrir esto es «¿voy a cobrar
+          bien?». Sin cifras, eso se traduce en «¿están todos mis días bien
+          registrados antes de que cierre?». Esto responde eso y nada más — no
+          dice un sol, y no puede: en esta pantalla no hay dinero. */}
+      {periodo && estadoDelPeriodo && (
+        <section className={`mb-6 rounded-2xl border p-4 text-sm ${
+          estadoDelPeriodo.pendientes > 0 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}`}>
+          <p>
+            Tu periodo de pago va del <strong>{diaYMes(periodo.fecha_ini)}</strong> al{" "}
+            <strong>{diaYMes(periodo.fecha_fin)}</strong>
+            {estadoDelPeriodo.cierra > 0
+              ? <> · cierra en {estadoDelPeriodo.cierra} día{estadoDelPeriodo.cierra === 1 ? "" : "s"}</>
+              : <> · cierra hoy</>}.
+          </p>
+          <p className="mt-1 text-taupe">
+            {!estadoDelPeriodo.cubre
+              ? "Estás mirando otro rango de fechas: toca «Periodo de pago» para revisar el que se te va a pagar."
+              : estadoDelPeriodo.pendientes > 0
+                ? `Tienes ${estadoDelPeriodo.pendientes} día${estadoDelPeriodo.pendientes === 1 ? "" : "s"} por revisar dentro de este periodo. Míralos abajo antes de que cierre.`
+                : "Todos tus días de este periodo están completos."}
+          </p>
+        </section>
+      )}
 
       {/* ── Lo que necesita su atención ──────────────────────────────────────
           Arriba y con un verbo, no como una etiqueta pequeña dentro de la tabla.
@@ -533,6 +656,11 @@ export default function MioPage() {
             ))}
           </ul>
         )}
+        {feriados.length > 0 && (
+          <p className="mt-3 text-xs text-taupe">
+            Próximo feriado: <strong>{diaYMes(feriados[0].fecha)}</strong>, {feriados[0].nombre}.
+          </p>
+        )}
       </section>
 
       {/* ── El filtro ────────────────────────────────────────────────────────
@@ -567,7 +695,7 @@ export default function MioPage() {
           pie={resumen.jornadaDiaria > 0 ? `tu jornada son ${comoReloj(resumen.jornadaDiaria)}` : undefined} />
         {/* «de N medidos» y no un número suelto: un cero puede significar
             «llegaste puntual» o «no había horario que comparar». */}
-        <Tarjeta titulo="Tardanzas" valor={String(resumen.tardanzas)} pie={`de ${resumen.medidos} días medidos`} />
+        <Tarjeta titulo="Tardanzas" valor={String(resumen.tardanzas)} pie={`de ${resumen.medidos} días con horario que comparar`} />
       </div>
 
       {/* ── El mes de un vistazo ─────────────────────────────────────────────
@@ -583,26 +711,138 @@ export default function MioPage() {
               <div className="overflow-x-auto pb-1">
                 <div className="flex">
                   {dias.map((d) => (
-                    <div key={d.fecha} className="w-[18px] shrink-0 px-[1px] text-center">
+                    <div key={d.fecha} className="w-[22px] shrink-0 px-[1px] text-center">
                       <div className={`text-[9px] leading-tight ${dowDe(d.fecha) === 0 ? "text-rojo/60" : "text-taupe"}`}>
                         {LETRA_DIA[dowDe(d.fecha)]}
                       </div>
-                      <div className={`h-5 w-full rounded-[3px] ${colorDia(d)}`} title={explicaDia(d)} />
+                      {/* Un <button> y no un <div> con `title`: en un teléfono no
+                          existe el hover, así que el tooltip nunca aparece y la
+                          fila de colores se vuelve decoración. Se toca y se abre. */}
+                      <button
+                        onClick={() => { setDiaAbierto((f) => (f === d.fecha ? null : d.fecha)); setComentario(""); setAvisoRevision(null); }}
+                        title={explicaDia(d)}
+                        aria-label={explicaDia(d)}
+                        className={`h-7 w-full rounded-[3px] ${colorDia(d)} ${
+                          diaAbierto === d.fecha ? "ring-2 ring-tinta ring-offset-1" : ""} ${
+                          revisiones.has(d.fecha) ? "outline outline-1 outline-offset-1 outline-tinta/40" : ""}`}
+                      />
                       <div className="text-[9px] leading-tight text-taupe">{Number(d.fecha.slice(8, 10))}</div>
                     </div>
                   ))}
                 </div>
               </div>
+              {/* ── El día que tocó ─────────────────────────────────────────
+                  Va DEBAJO de la cuadrícula y no en un panel que tape la
+                  pantalla: en un teléfono un modal a pantalla completa hace
+                  perder de vista dónde estabas. */}
+              {diaAbierto && (() => {
+                const d = dias.find((x) => x.fecha === diaAbierto);
+                if (!d) return null;
+                const rev = revisiones.get(d.fecha);
+                return (
+                  <div className="mt-4 rounded-2xl border border-tinta/20 bg-papel p-4 text-sm">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <h3 className="font-serif text-lg capitalize">{diaYMes(d.fecha)}</h3>
+                      <button onClick={() => setDiaAbierto(null)} className="text-xs text-taupe underline">cerrar</button>
+                    </div>
+                    <dl className="space-y-1">
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-taupe">Te tocaba</dt>
+                        <dd className="text-right">
+                          {d.esperado.trabaja
+                            ? <>{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</>
+                            : d.estado === "sin_horario" ? "no hay horario cargado" : "descansar"}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-taupe">Entraste</dt>
+                        <dd className={(d.jornada?.minutos_tarde ?? 0) > 0 && !d.perdonada ? "text-ambar" : ""}>
+                          {hora(d.jornada?.entrada_ts ?? null)}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-taupe">Saliste</dt>
+                        <dd>{d.jornada?.salida_final_ts ? hora(d.jornada.salida_final_ts) : <span className="text-ambar">no quedó marcada</span>}</dd>
+                      </div>
+                      {d.jornada?.horas_trabajadas != null && (
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-taupe">Trabajaste</dt>
+                          <dd>{comoReloj(d.jornada.horas_trabajadas)}</dd>
+                        </div>
+                      )}
+                      {(d.jornada?.minutos_tarde ?? 0) > 0 && (
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-taupe">Llegaste tarde</dt>
+                          <dd className={d.perdonada ? "text-taupe" : "text-ambar"}>
+                            {comoMinutos(d.jornada!.minutos_tarde!)}{d.perdonada && " · justificada"}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+
+                    {d.estado === "falta" && (
+                      <p className="mt-3 rounded-lg bg-rojo/10 px-3 py-2 text-rojo">
+                        Te tocaba trabajar y no hay ningún marcaje tuyo de ese día.
+                      </p>
+                    )}
+                    {d.estado === "justificada" && (
+                      <p className="mt-3 rounded-lg bg-sand/60 px-3 py-2">No marcaste, y está justificado.</p>
+                    )}
+
+                    {/* ── Decir que algo no cuadra ──────────────────────────
+                        Lo que convierte esta pantalla de informativa en útil.
+                        Antes todo terminaba en «avísale a tu encargada», que en
+                        un teléfono es un callejón: lo ve, cierra el navegador y
+                        se acuerda cuando llega la boleta. */}
+                    {rev ? (
+                      <div className="mt-3 rounded-lg border border-tinta/20 px-3 py-2">
+                        <p className="text-taupe">Pediste que se revise este día:</p>
+                        <p className="mt-1">«{rev.comentario}»</p>
+                        {rev.atendida_at ? (
+                          <p className="mt-2 rounded bg-verde/10 px-2 py-1.5 text-verde">
+                            Respondido: {rev.respuesta ?? "sin comentario"}
+                          </p>
+                        ) : (
+                          <div className="mt-2 flex items-center gap-3">
+                            <span className="text-taupe">Todavía sin responder.</span>
+                            <button onClick={() => void quitarRevision(d.fecha)} disabled={enviando}
+                              className="text-xs text-rojo underline disabled:opacity-50">retirar</button>
+                          </div>
+                        )}
+                      </div>
+                    ) : puedePedirRevision ? (
+                      <div className="mt-3">
+                        <label className="flex flex-col gap-1 text-xs text-taupe">
+                          ¿Algo de este día no cuadra? Cuéntalo y le llega a tu encargada.
+                          <textarea value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2}
+                            placeholder="Ese día sí vine, marqué la entrada y la salida no me tomó."
+                            className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm text-tinta" />
+                        </label>
+                        <button onClick={() => void pedirRevision(d.fecha)} disabled={enviando}
+                          className="mt-2 rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                          {enviando ? "Enviando…" : "Pedir que se revise"}
+                        </button>
+                      </div>
+                    ) : null}
+                    {avisoRevision && (
+                      <p className={`mt-2 text-xs ${avisoRevision.tipo === "ok" ? "text-verde" : "text-rojo"}`}>
+                        {avisoRevision.texto}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-taupe">
                 <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-verde" /> trabajaste</span>
                 <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-ambar" /> llegaste tarde</span>
-                <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> sin marcaje</span>
+                <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo" /> no marcaste</span>
                 <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-rojo/20" /> con motivo</span>
-                <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-crema" /> incompleto</span>
+                <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] border border-dashed border-taupe bg-crema" /> falta una marca</span>
                 <span className="flex items-center gap-1.5"><i className="inline-block size-3 rounded-[3px] bg-sand" /> descanso</span>
               </div>
               <p className="mt-3 text-xs text-taupe">
-                Si tu encargada te levantó una tardanza, deja de contar acá.
+                Si tu encargada justificó una tardanza, deja de contar acá.
               </p>
             </>
           )}
@@ -655,14 +895,21 @@ export default function MioPage() {
               aparte traería las mismas filas dos veces. */}
           <h2 className="mb-3 font-serif text-lg">Tus permisos, descansos y vacaciones</h2>
           <ul className="space-y-2 text-sm">
-            {ausencias.map((a) => {
+            {ausenciasAgrupadas.map((a) => {
               const faltaDoc = exigeDoc(a.tipo) && !a.doc_profesional;
               return (
                 <li key={`${a.tipo}-${a.fecha_inicio}`} className="flex flex-wrap items-baseline gap-x-2">
                   <span className="font-medium">{nombreTipo(a.tipo)}</span>
                   <span className="text-taupe">
-                    {a.fecha_inicio === a.fecha_fin ? diaYMes(a.fecha_inicio) : `del ${diaYMes(a.fecha_inicio)} al ${diaYMes(a.fecha_fin)}`}
+                    {a.fecha_inicio === a.hasta ? diaYMes(a.fecha_inicio) : `del ${diaYMes(a.fecha_inicio)} al ${diaYMes(a.hasta)}`}
                   </span>
+                  {/* La condición, no la cifra. Que un permiso no se pague es
+                      algo que debería haber sabido al pedirlo, y callarlo deja
+                      la sorpresa para el día de la boleta. Ningún monto: en esta
+                      pantalla no hay dinero. */}
+                  {noPaga(a.tipo) && (
+                    <span className="rounded-full bg-sand px-2 py-0.5 text-[11px] text-taupe">no remunerado</span>
+                  )}
                   {faltaDoc && (
                     <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-[11px] text-ambar">
                       falta el documento
@@ -674,6 +921,7 @@ export default function MioPage() {
           </ul>
           <p className="mt-3 text-xs text-taupe">
             Si presentaste algo que no aparece acá, todavía se puede registrar — avísale a tu encargada.
+            {hayCumpleanos && " Y recuerda que tienes permiso por tu cumpleaños: se pide, no se descuenta solo."}
           </p>
         </section>
       )}
