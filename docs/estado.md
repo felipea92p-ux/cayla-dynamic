@@ -37,7 +37,106 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-08-14 — Desempeño del equipo, y lo que destapó: gente sin horario y turnos sin cargar
+## 2026-08-15 — «Lo mío» deja de ser un marcador, y dos migraciones para que lo sea
+
+La pantalla que ve cada colaboradora pasó de mostrar sus horas a poder usarse:
+sus turnos, sus objetivos del mes, sus permisos, lo que le tocaba contra lo que
+hizo, y —lo que la cambia— **un botón para decir que un día no cuadra**.
+
+### ⚠️ El aviso de firmas no le llegaba a quien es
+
+`AcusesPendientes` —el banner que pide firmar la política salarial y el RIT— se
+pintaba **solo dentro de `AdminNav`**, y el login manda a `/mio` a quien no tiene
+panel. O sea que **la integrante, que es exactamente para quien se escribió, no
+lo vio nunca.** Su propio comentario dice «una integrante que entra por primera
+vez cae en el Dashboard», y eso dejó de ser cierto cuando existió `/mio`.
+
+No es estética: la Ley 30709 obliga a informar la política salarial **y a poder
+probarlo**, y el reglamento interno igual. Un acuse que no le llega a su
+destinataria no prueba nada. Ya se pinta en `/mio`, lo primero de la pantalla.
+
+### Lo aplicado en producción, con su md5 confirmado
+
+| | |
+|---|---|
+| **0256** | `fn_faltas` gana la rama `pe.id = fn_persona_actual_id()`. Cada quien ve SUS faltas. Partió de `8887c5d1…` (la 0079) y quedó en **`c6a9ddc9ac8e1e8434c58b19ab71ebda`** |
+| **0257** | `revisiones_pedidas` + cuatro funciones: pedir, retirar, atender y leer. Las cuatro con el md5 del repositorio, confirmado |
+
+**Por qué la 0256 importa más de lo que parece:** una integrante se enteraba de
+que el sistema le contó una falta cuando ya había una conversación encima — que
+es justo cuando el marcaje ya no se puede arreglar. Y buena parte de las faltas
+que este sistema detecta **no son faltas**: son días sin turno cargado. La
+persona es la única que sabe qué pasó ese día. Dejarla verlo es el canal de
+corrección más barato que tiene CAYLA.
+
+Efecto medible el mismo día: un «18 de 23 días que te tocaban» era falso —cuatro
+de esos cinco días eran permisos concedidos que `fn_faltas` no le devolvía—, y
+con la 0256 el denominador baja a lo que de verdad debía.
+
+### Lo que NO se abrió, y son decisiones
+
+- **El expediente disciplinario.** `exp_select_propia` ya se lo permite, pero esa
+  policy **no filtra por estado**: incluiría los BORRADORES. Avisarle a alguien
+  de una sanción que nadie decidió entregar es peor que no avisarle de nada. Si
+  algún día se abre, va filtrado a `firmado`/`entregado`.
+- **El saldo de vacaciones.** Sale de un cálculo que acaba de tener un defecto de
+  doble cobro en la trunca. **Lo registrado es un hecho; el saldo es una
+  promesa.** Las vacaciones ya registradas sí se ven.
+- **Dinero, en ninguna forma.** Se mantiene la decisión del 11-ago. Lo único que
+  se añadió es la etiqueta «no remunerado» en un permiso — que es una condición
+  que debería haber sabido al pedirlo, no una cifra.
+
+### Un hallazgo que ahorró una migración
+
+**`vacaciones` no es una tabla: es una VISTA** sobre `ausencias` (tipo
+`'vacaciones'`, no anuladas) declarada con `security_invoker=true`. La RLS que
+manda es la de `ausencias`, y `ausencias_select_propia` ya existía — cada quien
+ya podía leer las suyas. Se iba a escribir una policy que no hacía falta.
+
+Y el defecto que eso destapó: **una consulta directa a `ausencias` tiene que
+llevar `anulada_at is null`**. La vista lo lleva dentro desde siempre; quien
+consulte la tabla y lo olvide le dirá a alguien que su permiso está registrado
+cuando ya lo dieron de baja — y es justo en lo que se fiaría para no volver a
+presentarlo.
+
+### ⚠️ DOS REGLAS DE MÉTODO, las dos aprendidas hoy y a golpes
+
+**1 · El SQL para pegar NO se transcribe al chat. Nunca.** Se entrega con
+`./scripts/dame-el-sql.sh <NNN>` y punto. Hoy, al pasar la 0257 por el chat,
+acorté comentarios de cabecera para que cupiera en pantalla — y dos de ellos
+vivían **dentro** del cuerpo de una función. Los comentarios dentro de `$$…$$`
+**viajan al `prosrc`**: la migración entró, funcionó, y dejó dos md5 de
+producción distintos a los del repositorio. Es la misma deriva que el 2026-08-08
+dejó 22 funciones sin coincidir. Costó tres rondas cerrarla.
+
+**Y no poner NADA MÁS COPIABLE en el mismo mensaje.** Dos veces seguidas, darle
+la migración en el portapapeles y una consulta de verificación en el texto hizo
+que copiara la segunda y perdiera la primera: pegó la consulta creyendo pegar la
+migración. Para verificar: que vuelva a correr la consulta que ya tiene en el
+editor, o mandarla en un mensaje aparte — o dejarla en el portapapeles con
+`pbcopy` **cuando ya no haya nada más que pegar**, que fue lo que por fin
+funcionó.
+
+**2 · pgTAP corre como `postgres`, que SE SALTA LA RLS.** Una prueba que
+consulte una tabla directamente para comprobar una policy no está comprobando
+nada: hay que `set local role authenticated` antes y `reset role` después. La
+prueba 198 falló por esto y **el fallo era del banco de pruebas, no del código**
+— pero podría igual de fácil haber PASADO por el motivo equivocado, que es el
+caso peligroso. Está escrito dentro del archivo.
+
+### PENDIENTE de esta tanda
+
+- **Objetivos de septiembre**: la pantalla ya los ofrece cargar con un enlace que
+  llega con la persona y el mes puestos, pero **hoy casi nadie tiene checklist**.
+  Es lo que Felipe decidió empezar.
+- **Que alguien atienda las revisiones.** Salen primero en Incidencias, antes que
+  cualquier aviso automático — a propósito: un aviso puede esperar, alguien que
+  escribió «ese día sí vine» no. Si se dejan sin responder, la pantalla enseña
+  que escribir no sirve, y eso no se recupera.
+
+---
+
+## 2026-08-15 — Desempeño del equipo, y lo que destapó: gente sin horario y turnos sin cargar
 
 `/admin/horas` dejó de llamarse «Horas» y es **Desempeño del equipo**. La ruta no
 cambió —hay enlaces vivos y romper una URL para cambiar un nombre no lo vale—
