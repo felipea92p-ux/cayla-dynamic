@@ -58,11 +58,26 @@ select set_config('request.jwt.claim.sub',
   true);
 
 with ultima as (
-  -- Una liquidación puede tener varias versiones; manda la última.
-  select distinct on (persona_id)
-         persona_id, persona, fecha_cese, monto_periodo, total, version, congelada_at
-  from liquidacion_pagada
-  order by persona_id, version desc
+  -- Una liquidación puede tener varias versiones; manda la última. Y si esa
+  -- última es una ANULACIÓN (0251), la persona se descarta: sus cinco montos
+  -- están en cero por CHECK, así que entraba con `pagado_por_el_periodo = 0` y
+  -- metía una diferencia NEGATIVA —medido: −483.87— en un informe cuyo único
+  -- oficio es medir cuánto INFLÓ el divisor viejo. No acusaba a nadie (el
+  -- `order by … desc` la manda al fondo), pero es ruido dentro de una suma.
+  --
+  -- El filtro va DESPUÉS del `distinct on`, nunca dentro: metido en el `where`
+  -- de adentro elegiría la última versión NO anulada, o sea la fila errónea que
+  -- la anulación vino a apagar, que es justo la que no hay que medir.
+  select u.persona_id, u.persona, u.fecha_cese, u.monto_periodo,
+         u.total, u.version, u.congelada_at
+  from (
+    select distinct on (persona_id)
+           persona_id, persona, fecha_cese, monto_periodo, total, version,
+           congelada_at, anulada
+    from liquidacion_pagada
+    order by persona_id, version desc
+  ) u
+  where u.anulada is not true
 ),
 con_periodo as (
   select u.*,

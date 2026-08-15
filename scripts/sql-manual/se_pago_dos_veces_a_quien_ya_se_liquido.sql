@@ -38,11 +38,36 @@
 -- ============================================================================
 
 with liq as (
-  select distinct on (persona_id)
-         persona_id, persona, fecha_cese, monto_periodo, total as total_liquidacion,
-         congelada_at as liquidacion_congelada_at
-  from liquidacion_pagada
-  order by persona_id, version desc
+  -- La ÚLTIMA versión de cada persona. Y si esa última versión es una ANULACIÓN
+  -- (0251), la persona se descarta entera: ya no hay liquidación que cruzar
+  -- contra la foto del periodo.
+  --
+  -- Sin este filtro la consulta ACUSABA JUSTO A QUIEN SE SALVÓ. Medido el
+  -- 2026-08-14 sobre el camino feliz completo —congelar, anular, cerrar el mes,
+  -- que es exactamente para lo que existe la 0251—: la fila de anulación tiene
+  -- `monto_periodo = 0`, la foto del periodo tiene el sueldo del mes, y el
+  -- veredicto salía «⚠ DOS REGISTROS del mismo mes» habiendo UNO SOLO. Encima
+  -- el `order by` del final la ponía la primera de la lista.
+  --
+  -- El filtro va DESPUÉS del `distinct on`, nunca dentro. Metido en el `where`
+  -- de adentro elegiría la última versión NO anulada —o sea, precisamente la
+  -- fila errónea que la anulación vino a apagar— y el cruce seguiría acusando.
+  -- Es la misma trampa que la 0251 dejó documentada en
+  -- `fn_liquidaciones_del_periodo`.
+  --
+  -- Y no rompe el caso legítimo: si después de anular se congela la liquidación
+  -- correcta, la última versión vuelve a ser un pago de verdad y la persona
+  -- reaparece con sus cifras reales.
+  select u.persona_id, u.persona, u.fecha_cese, u.monto_periodo,
+         u.total_liquidacion, u.liquidacion_congelada_at
+  from (
+    select distinct on (persona_id)
+           persona_id, persona, fecha_cese, monto_periodo, total as total_liquidacion,
+           congelada_at as liquidacion_congelada_at, anulada
+    from liquidacion_pagada
+    order by persona_id, version desc
+  ) u
+  where u.anulada is not true
 ),
 foto as (
   select distinct on (persona_id, periodo_id)
@@ -58,6 +83,24 @@ select
   case
     when f.persona_id is null      then 'el periodo no se congeló — nada que cruzar'
     when f.total_en_la_foto = 0    then '✅ cero en la foto: no se duplicó'
+    -- Esta rama la añadió la revisión del 2026-08-14, y es la otra mitad de la
+    -- pregunta. Duplicar exige que el mes esté registrado DOS veces: en la foto
+    -- del periodo Y en la liquidación. Mirar solo la foto acusaba a quien cobró
+    -- el mes por planilla y cuya liquidación, correctamente, no volvió a
+    -- cobrarlo.
+    --
+    -- Antes de la 0243 eso no podía pasar —`monto_periodo` siempre traía el mes
+    -- entero, que es justo lo que este informe vino a cazar— y por eso la
+    -- cabecera dice «cualquier cifra por encima de cero es un segundo
+    -- registro». Desde la 0243/0244 `fn_liquidacion` resta lo que la foto ya
+    -- pagó, así que un `monto_periodo` en cero es la PRUEBA de que no se
+    -- duplicó, no un dato que se pueda ignorar. Medido el 2026-08-14: cerrar el
+    -- mes y congelar después la liquidación daba «⚠ DOS REGISTROS» con
+    -- `cobro_al_irse = 0.00`, y la persona había cobrado exactamente lo suyo.
+    --
+    -- Las filas viejas, anteriores a la 0243, siguen saliendo: son las que
+    -- tienen `monto_periodo > 0`, que son las que este informe busca.
+    when l.monto_periodo = 0       then '✅ la liquidación no cobró este mes: no se duplicó'
     else '⚠ DOS REGISTROS del mismo mes'
   end                            as veredicto,
   case
