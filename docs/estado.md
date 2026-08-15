@@ -420,7 +420,7 @@ Va DENTRO de `pago_base`, como las vacaciones, y por eso NO toca
 
 **`licencia_con_goce` sigue pagando cero, y es decisión** (va por
 `movimientos_planilla`, la 0247 lo dice en su cabecera). **La maternidad ya no:**
-la conectó la **0256** — escrita y probada el 2026-08-15, todavía sin pegar. La
+la conectó la **0258** — escrita y probada el 2026-08-15, todavía sin pegar. La
 prueba 187 fija por escrito que las dos reglas son distintas y no se pueden
 igualar: el descanso médico cuenta días laborables porque es sueldo, la
 maternidad cuenta días calendario porque es subsidio.
@@ -1149,7 +1149,7 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
-### A.2.a · La maternidad: **construida, sin pegar** (0256)
+### A.2.a · La maternidad: **construida, sin pegar** (0258)
 
 **Nadie ha estado de maternidad todavía, y por eso hubo tiempo de hacerlo bien.**
 La duda de si el subsidio va por planilla o por fuera **quedó resuelta por la
@@ -1161,7 +1161,7 @@ Lo que sí es correcto es que el **sueldo** salga en S/0.00: durante la licencia
 contrato está suspendido (D. Leg. 728, arts. 11 y 12.c). Lo que faltaba no era
 sueldo — era el subsidio, que no entraba por ningún lado.
 
-**La 0256 lo conecta**, con la misma forma que la 0254 usó para el descanso
+**La 0258 lo conecta**, con la misma forma que la 0254 usó para el descanso
 médico: dentro de `pago_base`, así que no toca `chk_foto_cuadra` ni
 `fn_planilla_congelar` y no puede atascar un cierre. Medido en local con datos
 propios (licencia de 10 días corridos, S/200 diarios, feriado dentro):
@@ -1203,7 +1203,7 @@ Las cinco decisiones que la sostienen:
 
 1. **Pedir a producción el md5 de partida** de `fn_planilla_calcular` — antes de
    pegar, porque después ese número se pierde para siempre.
-2. **Pegar la 0256** — *después del cierre del 28*, no antes.
+2. **Pegar la 0258** — *después del cierre del 28*, no antes.
 3. **El formulario todavía no tiene el campo.** `fn_registrar_ausencia` no conoce
    `subsidio_diario`, así que hasta que una migración se lo enseñe el monto se
    pone con `scripts/sql-manual/poner_el_subsidio_de_maternidad.sql`. Mientras
@@ -1221,7 +1221,7 @@ pero **no** en `pb.basica`, así que no llegaban a `bri.base`: se pagaban y no s
 declaraban.
 
 **La 0259 lo corrige** — un solo término en `bri.base`, con la misma guarda de
-vínculo que el feriado y el sobretiempo. Se pega **después de la 0256**, porque
+vínculo que el feriado y el sobretiempo. Se pega **después de la 0258**, porque
 su cuerpo parte de ella. Medido con una persona con S/870.97 de descanso médico:
 
 | | hoy | con la 0259 |

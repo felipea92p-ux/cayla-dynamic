@@ -2,16 +2,16 @@
 -- 0259 · LOS 20 DÍAS DE DESCANSO MÉDICO SE PAGABAN SIN DECLARARSE
 -- ============================================================================
 --
--- SE PEGA DESPUÉS DE LA 0256. Su cuerpo parte del archivo de la 0256, no del de
+-- SE PEGA DESPUÉS DE LA 0258. Su cuerpo parte del archivo de la 0258, no del de
 -- la 0254: pegarla antes revertiría el subsidio por maternidad.
 --
 -- md5 de `fn_planilla_calcular`, medidos encadenando las dos migraciones sobre
 -- el estado REAL de producción (19eb593a…, pedido el 2026-08-15):
 --
---   antes   9022a365902803332fbc8a5da09957e2   85 711 caracteres  ← tras la 0256
---   después c150eccadca07ace88723ee7ef790f9b   87 523 caracteres
+--   antes   9bc07407879028b71ba7136d9fae053a   85 711 caracteres  ← tras la 0258
+--   después eba43764c0bd1bcacce51a477ea23ea8   87 523 caracteres
 --
--- Si al ir a pegar esta el md5 NO es el «antes», la 0256 no está aplicada o se
+-- Si al ir a pegar esta el md5 NO es el «antes», la 0258 no está aplicada o se
 -- copió mal. Para eso está el número: esta migración parte de aquella, y sobre
 -- la 0254 revertiría el subsidio por maternidad sin avisar.
 --
@@ -51,12 +51,12 @@
 --     20 corresponden al empleador. Declarar esos días con el 0916 —o no
 --     declararlos— es el error exacto.
 --
--- ── LO CONTRARIO DE LA 0256, Y ESO NO ES CASUALIDAD ─────────────────────────
+-- ── LO CONTRARIO DE LA 0258, Y ESO NO ES CASUALIDAD ─────────────────────────
 --
 -- Estas dos migraciones tratan dos cosas que en la pantalla se parecen mucho y
 -- en la ley son opuestas. Vale la pena tenerlo escrito:
 --
---   | | descanso médico 1-20 (0259) | subsidio maternidad (0256) |
+--   | | descanso médico 1-20 (0259) | subsidio maternidad (0258) |
 --   |---|---|---|
 --   | qué es | remuneración de CAYLA | prestación de EsSalud |
 --   | base EsSalud | **entra** | no entra |
@@ -85,11 +85,11 @@
 --
 -- NO toca los días 21 en adelante: hoy el lateral `dmd` corta en `v_tope_dm` y
 -- esos días no se pagan. Cuando se paguen —serán subsidio— tendrán que seguir la
--- regla de la 0256, no la de esta.
+-- regla de la 0258, no la de esta.
 --
 -- ── CÓMO SE REVIERTE ────────────────────────────────────────────────────────
 --
---   Restaurar `fn_planilla_calcular` desde la 0256, tal cual. No toca tablas, ni
+--   Restaurar `fn_planilla_calcular` desde la 0258, tal cual. No toca tablas, ni
 --   datos, ni permisos, ni la restricción de la foto.
 -- ============================================================================
 
@@ -658,7 +658,7 @@ begin
         -- expresamente prohibido, salvo el caso de subsidios (descanso médico,
         -- maternidad). CAMBIO 0254: el descanso médico SÍ se modela desde
         -- entonces —los 20 días del RIT art. 31 f) entran en pago_base—.
-        -- CAMBIO 0256: la maternidad también, y por eso el piso RMV de esta
+        -- CAMBIO 0258: la maternidad también, y por eso el piso RMV de esta
         -- línea NO se le aplica: el subsidio entra en `pago_base` pero no en
         -- `pb.basica`, así que no llega a `bri.base` y no infla la base de
         -- EsSalud. Es exactamente lo que manda el reglamento.
@@ -716,7 +716,7 @@ begin
         -- pago_base, asi que no se suma otra vez en ningun sitio.
         'monto_descanso_medico', round(pb.monto_descanso_medico, 2),
         'dias_descanso_medico_pagados', pb.dias_descanso_medico_pagados,
-        -- CAMBIO 0256 · el subsidio, con su nombre. Informativos: el monto YA
+        -- CAMBIO 0258 · el subsidio, con su nombre. Informativos: el monto YA
         -- esta dentro de pago_base, asi que no se suma otra vez en ningun sitio.
         'monto_subsidio_maternidad', round(pb.monto_subsidio_maternidad, 2),
         'dias_subsidio_maternidad', pb.dias_subsidio_maternidad,
@@ -864,7 +864,7 @@ begin
                            coalesce(sf.salario, 0) / nullif(labp.dias, 0),
                            0
                          ) * coalesce(dmd.dias, 0)
-                       -- CAMBIO 0256 · el subsidio por maternidad, DENTRO de
+                       -- CAMBIO 0258 · el subsidio por maternidad, DENTRO de
                        -- pago_base por el mismo argumento que la 0254 escribio
                        -- para el descanso medico: un concepto por fuera obliga a
                        -- columna nueva, a tocar fn_planilla_congelar y a
@@ -881,12 +881,12 @@ begin
                          0
                        ) * coalesce(dmd.dias, 0) end as monto_descanso_medico,
              coalesce(dmd.dias, 0) as dias_descanso_medico_pagados,
-             -- CAMBIO 0256 · informativos. El monto YA esta en pago_base.
+             -- CAMBIO 0258 · informativos. El monto YA esta en pago_base.
              case when pe.sueldo_fijo then 0
                   else round(coalesce(mat.monto, 0), 2) end as monto_subsidio_maternidad,
              coalesce(mat.dias, 0) as dias_subsidio_maternidad,
              coalesce(mat.dias_sin_monto, 0) as dias_maternidad_sin_monto,
-             -- CAMBIO 0256 · EL PISO DE ESSALUD, PRORRATEADO.
+             -- CAMBIO 0258 · EL PISO DE ESSALUD, PRORRATEADO.
              --
              -- El art. 33 del D.S. 009-97-SA dice que la base minima RMV se
              -- aplica «independientemente de las horas y dias laborados» —de ahi
@@ -1042,7 +1042,7 @@ begin
               end
       ) dmd on true
 
-      -- ⇩⇩⇩ CAMBIO 0256 ⇩⇩⇩ EL SUBSIDIO POR MATERNIDAD.
+      -- ⇩⇩⇩ CAMBIO 0258 ⇩⇩⇩ EL SUBSIDIO POR MATERNIDAD.
       --
       -- CUENTA DIAS CALENDARIO, no dias laborables, y esa es la diferencia de
       -- fondo con el lateral `dmd` de arriba. El descanso medico que asume CAYLA
@@ -1185,7 +1185,7 @@ begin
     -- clasificar.
     left join lateral (
       select tp.aporte + tp.comision + tp.prima as tasa,
-             -- CAMBIO 0256 · si este regimen grava el subsidio de EsSalud.
+             -- CAMBIO 0258 · si este regimen grava el subsidio de EsSalud.
              tp.grava_subsidio
       from tasas_pension tp
       where tp.regimen = pe.regimen_pension
@@ -1341,7 +1341,7 @@ begin
         limit 1
       ) ds on true
       where f.fecha between p_ini and p_fin
-        -- ⇩ CAMBIO 0256 ⇩ UN FERIADO DENTRO DE UNA LICENCIA SUBSIDIADA NO SE
+        -- ⇩ CAMBIO 0258 ⇩ UN FERIADO DENTRO DE UNA LICENCIA SUBSIDIADA NO SE
         -- DEVENGA. Durante el descanso por maternidad el contrato esta
         -- suspendido y el feriado no genera concepto propio: el art. 8 del
         -- D. Leg. 713 remite al art. 4, que lo abona «en forma directamente
@@ -1482,7 +1482,7 @@ begin
       -- que alguien agregue un concepto nuevo a la base, queda excluido sin que
       -- tenga que acordarse. Es la lección de los tres términos que sí llevaban
       -- su condición y del que no.
-      -- ⇩⇩⇩ CAMBIO 0256 ⇩⇩⇩ DOS BASES, PORQUE LA LEY LAS SEPARA.
+      -- ⇩⇩⇩ CAMBIO 0258 ⇩⇩⇩ DOS BASES, PORQUE LA LEY LAS SEPARA.
       --
       -- El subsidio por maternidad NO es remuneracion: no entra a EsSalud (el
       -- 9% de la Ley 26790 grava remuneracion, y por eso mismo el propio
@@ -1561,13 +1561,13 @@ begin
              -- paga EsSalud desde el dia 21. Estos 20 dias no van ahi.
              --
              -- OJO CON LA CONFUSION FACIL: esto es lo CONTRARIO del subsidio por
-             -- maternidad de la 0256. Aquel NO entra a EsSalud (no es
+             -- maternidad de la 0258. Aquel NO entra a EsSalud (no es
              -- remuneracion) y ademas prorratea el piso RMV; este entra a las
              -- dos bases y no toca el piso. Se parecen en la pantalla y son
              -- opuestos en la ley. Por eso el termino va aparte y con su nombre.
              --
              -- Se lee de `pb.monto_descanso_medico` —lo efectivamente pagado— y
-             -- no del lateral `dmd`, por la misma razon que la 0256: `pb` ya
+             -- no del lateral `dmd`, por la misma razon que la 0258: `pb` ya
              -- lleva dentro la guarda de sueldo fijo, y una sola fuente para
              -- «cuanto cobro» y para «sobre cuanto se declara» es lo que impide
              -- que se separen.

@@ -4,14 +4,14 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 197_el_subsidio_por_maternidad_se_paga.test.sql
+-- 199_el_subsidio_por_maternidad_se_paga.test.sql
 -- ============================================================================
 -- Una integrante de licencia por maternidad no marca —no puede—, y hasta la
--- 0256 `pago_base` salía de las horas marcadas: su boleta decía **S/0.00** y se
+-- 0258 `pago_base` salía de las horas marcadas: su boleta decía **S/0.00** y se
 -- leía exactamente igual que la de alguien que no vino. La 0254 ya lo había
 -- dejado anotado: «la maternidad sigue sin modelarse».
 --
--- Esto fija lo que arregló la 0256, y sobre todo las cinco decisiones que más
+-- Esto fija lo que arregló la 0258, y sobre todo las cinco decisiones que más
 -- fácil se rompen sin que nadie lo note:
 --
 --   · que cuente días CALENDARIO —domingos y feriados incluidos—, porque el
@@ -106,7 +106,7 @@ select is(
   (pg_temp.fila('MatAfp Lab')->>'dias_subsidio_maternidad')::int, 10,
   'el subsidio cuenta días calendario: domingos y feriados incluidos');
 
--- 2 · 10 × S/200.00. Antes de la 0256 esto era 0.00.
+-- 2 · 10 × S/200.00. Antes de la 0258 esto era 0.00.
 select is(
   (pg_temp.fila('MatAfp Lab')->>'monto_subsidio_maternidad')::numeric, 2000.00,
   'el subsidio vale días × monto diario, en vez de salir en cero');
@@ -187,7 +187,7 @@ select is(
 
 -- 13 · El monto solo se puede poner en una maternidad. La licencia por
 --      paternidad la paga el empleador como REMUNERACIÓN y viaja por otra vía;
---      el descanso médico desde el día 21 también es subsidio pero la 0256 no lo
+--      el descanso médico desde el día 21 también es subsidio pero la 0258 no lo
 --      paga todavía. Dejar que se entre ahí sería prometer un pago que no ocurre.
 select throws_ok($$
   insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, subsidio_diario)

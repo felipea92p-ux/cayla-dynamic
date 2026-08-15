@@ -8,7 +8,7 @@
 -- este es el camino: la licencia se registra en la pantalla como siempre, y el
 -- monto se pone acá.
 --
--- SIN ESTO LA LICENCIA SE PAGA 0.00. La 0256 no se inventa el monto a propósito:
+-- SIN ESTO LA LICENCIA SE PAGA 0.00. La 0258 no se inventa el monto a propósito:
 -- el promedio diario sale de los 12 meses anteriores a la contingencia, y esos
 -- meses pueden incluir empleadores anteriores a CAYLA. Calcularlo con lo que hay
 -- en esta base daría un número más bajo que el legal con toda la apariencia de

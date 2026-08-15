@@ -109,7 +109,7 @@ select ok(
 --     el empleador adelanta (D.S. 013-2019-TR art. 17.1) y cuyo promedio diario
 --     ya viene dividido entre días corridos. Contarlo por laborables le quitaría
 --     dos séptimos a quien trabaja cinco días.
--- Si alguien las unifica «para simplificar», la 197 se cae.
+-- Si alguien las unifica «para simplificar», la 199 se cae.
 --
 -- Se mira el FILTRO y no la palabra suelta, y eso lo enseñó esta misma prueba:
 -- escrita como `prosrc not like '%maternidad%'` salió en rojo por un COMENTARIO
