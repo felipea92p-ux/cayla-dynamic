@@ -137,6 +137,9 @@ export default function NormasPage() {
   const [tipoNuevo, setTipoNuevo] = useState({ nombre: "", acuse: true });
   const [tipoElegido, setTipoElegido] = useState("rit");
   const [archivoDoc, setArchivoDoc] = useState<{ nombre: string; texto: string } | null>(null);
+  // Pegar el texto en vez de subir un archivo. Ver `PEGAR` más abajo.
+  const [pegando, setPegando] = useState(false);
+  const [textoPegado, setTextoPegado] = useState("");
   const [tituloDoc, setTituloDoc] = useState("");
   const [vigenteDesde, setVigenteDesde] = useState("");
   const [notasDoc, setNotasDoc] = useState("");
@@ -238,6 +241,39 @@ export default function NormasPage() {
     setMsg(null);
   }
 
+  /**
+   * PEGAR: la segunda vía para traer el texto, y por qué existe.
+   *
+   * Hasta hoy solo se podía subir un archivo, con este argumento escrito en la
+   * pantalla: «el texto vive versionado en el repositorio y así no hay dos
+   * verdades». Es cierto para el Reglamento y sus anexos —viven en `docs/`— y
+   * es falso para todo lo demás. La misión, la visión y los valores no están en
+   * el repositorio ni tienen por qué estarlo: están en un Word o en un Canva, y
+   * exigir un `.md` obligaba a fabricar un archivo intermedio cuyo único
+   * propósito era pasar por este formulario.
+   *
+   * Lo que se guarda es idéntico por las dos vías —el texto, congelado en
+   * `documentos_institucionales.documento`—, así que la prueba no cambia: un
+   * acuse sigue apuntando a las palabras exactas que se mostraron. Lo que
+   * cambia es de dónde salieron esas palabras, y eso nunca se guardó.
+   *
+   * Se mantiene el tope de tamaño: pegar el manual equivocado es tan posible
+   * como subirlo.
+   */
+  function pegarTexto(t: string) {
+    setTextoPegado(t);
+    if (!t.trim()) { setArchivoDoc(null); return; }
+    if (t.length > MAX_BYTES_DOC) {
+      setMsg({ tipo: "error", texto: `El texto pegado es enorme (${(t.length / 1048576).toFixed(1)} MB). ¿Seguro que es el documento?` });
+      setArchivoDoc(null);
+      return;
+    }
+    setArchivoDoc({ nombre: "Texto pegado", texto: t });
+    const h1 = t.split("\n").find((l) => l.trim().startsWith("# "));
+    if (h1 && !tituloDoc) setTituloDoc(h1.replace(/^#\s*/, "").trim());
+    setMsg(null);
+  }
+
   /** El código a partir del nombre: la tabla exige `^[a-z0-9_]{2,40}$`, así que
    *  se pide UNA cosa —el nombre— y el código se deriva. Pedir los dos obliga a
    *  explicar qué es un código y deja que alguien escriba «Política HS» en el
@@ -281,7 +317,7 @@ export default function NormasPage() {
   }
 
   async function publicar() {
-    if (!archivoDoc) { setMsg({ tipo: "error", texto: "Elige el archivo del documento." }); return; }
+    if (!archivoDoc) { setMsg({ tipo: "error", texto: "Falta el documento: sube el archivo o pega el texto." }); return; }
     if (!tituloDoc.trim()) { setMsg({ tipo: "error", texto: "Falta el título con el que se va a mostrar." }); return; }
     setOcupado(true); setMsg(null);
     const { data, error } = await supabase.rpc("fn_publicar_documento", {
@@ -301,11 +337,25 @@ export default function NormasPage() {
     // lleno y no lo actualizaba: el 12-08-2026 la Resolución de designación se
     // publicó con el título de la Política de Prevención, y en la lista salían
     // dos documentos con el mismo nombre.
-    setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc("");
+    // `textoPegado` se limpia por la misma razón que el título: si se quedara
+    // puesto, la siguiente publicación arrancaría con el documento anterior en
+    // el cuadro y bastaría no mirarlo para publicarlo otra vez.
+    // Qué prometía este mensaje, y por qué ahora pregunta.
+    //
+    // Decía siempre «desde ahora cada integrante deja su constancia», y para un
+    // documento con `requiere_acuse = false` eso es falso: no se le va a pedir
+    // constancia a nadie. Se veía poco mientras publicar un documento sin acuse
+    // costaba una migración; se ve al primer intento desde que el catálogo se
+    // administra en pantalla. Y un mensaje de éxito que anuncia un trámite que
+    // no va a ocurrir deja esperando una lista de pendientes que nunca aparece.
+    const pideAcuse = tipos.find((t) => t.codigo === tipoElegido)?.requiere_acuse ?? true;
+    setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc(""); setTextoPegado("");
     await cargar();
     setMsg({
       tipo: "ok",
-      texto: `Publicada la versión ${String(data)}. Desde ahora cada integrante deja su constancia, y quien no tenga cuenta la deja en papel.`,
+      texto: pideAcuse
+        ? `Publicada la versión ${String(data)}. Desde ahora cada integrante deja su constancia, y quien no tenga cuenta la deja en papel.`
+        : `Publicada la versión ${String(data)}. Queda publicada para consulta: este documento no pide constancia a nadie.`,
     });
   }
 
@@ -580,9 +630,10 @@ export default function NormasPage() {
             {publicando && (
               <div className="px-4 py-3">
                 <p className="mb-3 text-xs text-taupe">
-                  El documento se sube desde su archivo, no se escribe aquí: el texto vive versionado
-                  en el repositorio y así no hay dos verdades. Publicar el <strong>mismo</strong> texto no
-                  crea versión nueva — pedir constancia sin que nada cambie enseña que la constancia es trámite.
+                  El texto puede venir de un archivo o pegarse aquí — se guarda igual, y congelado:
+                  un acuse de hoy seguirá apuntando dentro de cinco años a las palabras que se
+                  mostraron hoy. Publicar el <strong>mismo</strong> texto no crea versión nueva —
+                  pedir constancia sin que nada cambie enseña que la constancia es trámite.
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <label className="flex flex-col gap-1 text-xs">
@@ -601,12 +652,32 @@ export default function NormasPage() {
                         </option>
                       ))}
                     </select>
+                    {/* Esta lista no viene de fábrica: sale de `documentos_tipos`, que se
+                        administra desde aquí. Sin decirlo, el desplegable se lee como un
+                        catálogo cerrado y quien tiene un documento que no está en él cree
+                        que no cabe — pasó, y por eso está escrito. */}
+                    <span className="text-taupe">
+                      Esta lista la haces tú. Si tu documento no está, «añadir uno».
+                    </span>
                   </label>
                   <label className="flex flex-col gap-1 text-xs">
-                    Archivo (.md o .txt)
-                    <input type="file" accept=".md,.txt,text/markdown,text/plain"
-                      onChange={(e) => void elegirArchivo(e.target.files?.[0] ?? null)}
-                      className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+                    <span className="flex items-baseline justify-between gap-2">
+                      {pegando ? "Texto del documento" : "Archivo (.md o .txt)"}
+                      <button type="button"
+                        onClick={() => { setPegando((v) => !v); setArchivoDoc(null); setTextoPegado(""); }}
+                        className="text-[11px] font-normal text-taupe underline underline-offset-2 hover:text-tinta">
+                        {pegando ? "subir un archivo" : "o pegar el texto"}
+                      </button>
+                    </span>
+                    {pegando ? (
+                      <textarea value={textoPegado} onChange={(e) => pegarTexto(e.target.value)}
+                        rows={4} placeholder="Pega aquí el texto — desde Word, Canva, donde esté."
+                        className="rounded border bg-crema px-2 py-1 font-mono text-[11px] leading-relaxed" />
+                    ) : (
+                      <input type="file" accept=".md,.txt,text/markdown,text/plain"
+                        onChange={(e) => void elegirArchivo(e.target.files?.[0] ?? null)}
+                        className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+                    )}
                   </label>
                   <label className="flex flex-col gap-1 text-xs">
                     Título con el que se muestra
@@ -669,9 +740,15 @@ export default function NormasPage() {
 
                 {archivoDoc && (
                   <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">
+                    {/* El recuento de artículos solo sale si hay alguno: «0 artículos
+                        detectados» en unos valores institucionales parece un fallo del
+                        lector, y no lo es — ese documento no tiene artículos. */}
                     <p className="text-xs text-taupe">
-                      <strong>{archivoDoc.nombre}</strong> · {archivoDoc.texto.length.toLocaleString("es-PE")} caracteres ·{" "}
-                      {archivoDoc.texto.split("\n").filter((l) => /^#{1,4}\s*ART[IÍ]CULO/i.test(l.trim())).length} artículos detectados
+                      <strong>{archivoDoc.nombre}</strong> · {archivoDoc.texto.length.toLocaleString("es-PE")} caracteres
+                      {(() => {
+                        const n = archivoDoc.texto.split("\n").filter((l) => /^#{1,4}\s*ART[IÍ]CULO/i.test(l.trim())).length;
+                        return n > 0 ? ` · ${n} artículos detectados` : "";
+                      })()}
                     </p>
                     <div className="mt-2 max-h-40 overflow-y-auto text-[11px] leading-relaxed text-tinta">
                       <Documento texto={archivoDoc.texto.slice(0, 1200)} />
@@ -685,7 +762,7 @@ export default function NormasPage() {
                     className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
                     Publicar
                   </button>
-                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); setTituloDoc(""); }}
+                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); setTituloDoc(""); setTextoPegado(""); }}
                     className="rounded-lg border px-3 py-1.5 text-xs">Cancelar</button>
                 </div>
               </div>
