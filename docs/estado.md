@@ -420,7 +420,7 @@ Va DENTRO de `pago_base`, como las vacaciones, y por eso NO toca
 
 **`licencia_con_goce` sigue pagando cero, y es decisión** (va por
 `movimientos_planilla`, la 0247 lo dice en su cabecera). **La maternidad ya no:**
-la conectó la **0258** — escrita y probada el 2026-08-15, todavía sin pegar. La
+la conectó la **0262** — escrita y probada el 2026-08-15, todavía sin pegar. La
 prueba 187 fija por escrito que las dos reglas son distintas y no se pueden
 igualar: el descanso médico cuenta días laborables porque es sueldo, la
 maternidad cuenta días calendario porque es subsidio.
@@ -1149,7 +1149,7 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
-### A.2.a · La maternidad: **construida, sin pegar** (0258)
+### A.2.a · La maternidad: **construida, sin pegar** (0262)
 
 **Nadie ha estado de maternidad todavía, y por eso hubo tiempo de hacerlo bien.**
 La duda de si el subsidio va por planilla o por fuera **quedó resuelta por la
@@ -1161,7 +1161,7 @@ Lo que sí es correcto es que el **sueldo** salga en S/0.00: durante la licencia
 contrato está suspendido (D. Leg. 728, arts. 11 y 12.c). Lo que faltaba no era
 sueldo — era el subsidio, que no entraba por ningún lado.
 
-**La 0258 lo conecta**, con la misma forma que la 0254 usó para el descanso
+**La 0262 lo conecta**, con la misma forma que la 0254 usó para el descanso
 médico: dentro de `pago_base`, así que no toca `chk_foto_cuadra` ni
 `fn_planilla_congelar` y no puede atascar un cierre. Medido en local con datos
 propios (licencia de 10 días corridos, S/200 diarios, feriado dentro):
@@ -1199,11 +1199,32 @@ Las cinco decisiones que la sostienen:
   y último párrafo del art. 30 del TUO de la Ley del SPP. La ONP la resuelve el
   Informe N.° 049-2014-SUNAT/5D0000. Vive en `tasas_pension.grava_subsidio`.
 
+**EL ACCIDENTE QUE CASI PASA, y por qué el número es 0262.** Esto se escribió
+como **0256**, con el cuerpo sacado de la 0254 —la vigente entonces—. Mientras
+se escribía, otra sesión fusionó a `main` la **0261**, que reescribe la MISMA
+función y que también había partido de la 0254. Dos migraciones sobre la misma
+base: **la última en aplicarse borra a la otra en silencio**, y como 0261 > 0256
+el orden de pegado habría hecho desaparecer todo esto sin un solo error.
+
+Lo cazó `./scripts/donde-vive.sh` al ir a fusionar. Por eso la migración se
+renumeró a 0262 y su cuerpo se volvió a extraer de la 0261. La regla, otra vez:
+**el cuerpo se copia de la VIGENTE, y la vigente se pregunta, no se supone** —
+y se vuelve a preguntar justo antes de fusionar, porque main se mueve.
+
+**LA CADENA DE md5, para verificar cada pegada:**
+
+| paso | md5 | caracteres |
+|---|---|---|
+| producción hoy (0254) | `19eb593a757e0b7480b6a1dc99d7f8c9` | 75 882 |
+| tras lo pendiente hasta la **0261** | `0d0f5fdd5f53d29fb316be50c794cec6` | 77 493 |
+| tras la **0262** | `261329fc2a8045ece063cfb0e5d38eca` | 87 322 |
+| tras la **0263** | `f6b4f2649f4132dd2db5711b391b1f54` | 89 134 |
+
 **LO QUE FALTA, en orden:**
 
-1. **Pedir a producción el md5 de partida** de `fn_planilla_calcular` — antes de
-   pegar, porque después ese número se pierde para siempre.
-2. **Pegar la 0258** — *después del cierre del 28*, no antes.
+1. **Pegar todo lo pendiente hasta la 0261** y comprobar que el md5 quede en
+   `0d0f5fdd…`. Si no queda ahí, la 0262 no se pega.
+2. **Pegar la 0262 y luego la 0263** — *después del cierre del 28*, no antes.
 3. **El formulario todavía no tiene el campo.** `fn_registrar_ausencia` no conoce
    `subsidio_diario`, así que hasta que una migración se lo enseñe el monto se
    pone con `scripts/sql-manual/poner_el_subsidio_de_maternidad.sql`. Mientras
@@ -1212,7 +1233,7 @@ Las cinco decisiones que la sostienen:
 
 ### A.2.a.bis · Dos hallazgos que salieron de la investigación del 2026-08-15
 
-**1 · Los primeros 20 días de descanso médico estaban SUB-DECLARADOS → 0259.**
+**1 · Los primeros 20 días de descanso médico estaban SUB-DECLARADOS → 0263.**
 Confirmado con norma y con criterio administrativo: lo que CAYLA asume esos 20
 días **es remuneración**, afecta a EsSalud y a la base de pensión (D.S. 009-97-SA
 art. 15; Informes SUNAT 259-2004 y 003-2007). El código PLAME 0916 es **solo**
@@ -1220,11 +1241,11 @@ para el subsidio de EsSalud, que nace el día 21. La 0254 los metía en `pago_ba
 pero **no** en `pb.basica`, así que no llegaban a `bri.base`: se pagaban y no se
 declaraban.
 
-**La 0259 lo corrige** — un solo término en `bri.base`, con la misma guarda de
-vínculo que el feriado y el sobretiempo. Se pega **después de la 0258**, porque
+**La 0263 lo corrige** — un solo término en `bri.base`, con la misma guarda de
+vínculo que el feriado y el sobretiempo. Se pega **después de la 0262**, porque
 su cuerpo parte de ella. Medido con una persona con S/870.97 de descanso médico:
 
-| | hoy | con la 0259 |
+| | hoy | con la 0263 |
 |---|---|---|
 | base EsSalud | 1 130.00 | 1 182.90 |
 | aporte de CAYLA | 101.70 | 106.46 |
@@ -1234,7 +1255,7 @@ Nadie más se mueve. **Pero esos +S/112.53 salen del sueldo de quien tuvo descan
 médico** — es lo correcto, porque esos días ahora sí le cuentan para su pensión,
 y hay que avisarle antes de que le aparezca en la boleta.
 
-La prueba 200 lo fija, y se verificó que **falla sin la 0259**: sin el arreglo,
+La prueba 200 lo fija, y se verificó que **falla sin la 0263**: sin el arreglo,
 las bases de la enferma y de la de control salían idénticas.
 
 **2 · La asignación familiar: NO es exigible, y aun así NO se puede quitar.**

@@ -11,7 +11,7 @@
 -- `pago_base`. Esos días se pagaban y NO se declaraban: fuera de la base de
 -- EsSalud y fuera de la de pensión. Nadie cobraba de menos; se aportaba de menos.
 --
--- La 0259 lo corrige, y esto lo fija. Lo que más fácil se rompe:
+-- La 0263 lo corrige, y esto lo fija. Lo que más fácil se rompe:
 --
 --   · que el descanso médico SÍ entre a las dos bases — porque los primeros 20
 --     días son REMUNERACIÓN de CAYLA, no subsidio (el subsidio nace el día 21);
@@ -93,7 +93,7 @@ select cmp_ok(
   'el descanso médico se paga — la 0254 sigue en pie');
 
 -- 2 · Y AHORA SE DECLARA. Las dos marcan lo mismo; la única diferencia es el
---     descanso. Antes de la 0259 estas dos bases eran IDÉNTICAS: se pagaba y no
+--     descanso. Antes de la 0263 estas dos bases eran IDÉNTICAS: se pagaba y no
 --     se declaraba.
 select cmp_ok(
   (pg_temp.fila('DbEnferma Lab')->>'base_essalud')::numeric, '>',
@@ -107,13 +107,13 @@ select cmp_ok(
   (pg_temp.fila('DbControl Lab')->>'descuento_afp')::numeric,
   'los 20 días entran también a la base de pensión');
 
--- 4 · PERO NO CAMBIA LO QUE COBRA. La 0259 mueve la base, no el pago. Si esto se
+-- 4 · PERO NO CAMBIA LO QUE COBRA. La 0263 mueve la base, no el pago. Si esto se
 --     rompe, alguien metió el descanso médico dos veces en pago_base.
 select is(
   (pg_temp.fila('DbEnferma Lab')->>'pago_base')::numeric,
   round( (pg_temp.fila('DbControl Lab')->>'pago_base')::numeric
        + (pg_temp.fila('DbEnferma Lab')->>'monto_descanso_medico')::numeric, 2),
-  'el pago no se mueve: la 0259 cambia la base declarada, no lo que se cobra');
+  'el pago no se mueve: la 0263 cambia la base declarada, no lo que se cobra');
 
 -- 5 · Quien cobra monto fijo queda fuera, como en el feriado (0193) y en el
 --     sobretiempo (0185). Su pago no depende de días, así que no hay días que

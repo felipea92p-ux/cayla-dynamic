@@ -1,20 +1,36 @@
 -- ============================================================================
--- 0258 · LA LICENCIA POR MATERNIDAD DEJA DE PAGARSE EN CERO
+-- 0262 · LA LICENCIA POR MATERNIDAD DEJA DE PAGARSE EN CERO
 -- ============================================================================
 --
--- md5 de partida de `fn_planilla_calcular`, PEDIDO A PRODUCCIÓN el 2026-08-15
--- (no copiado del local):
+-- ── ANTES DE PEGAR: EL md5 ──────────────────────────────────────────────────
 --
---   antes  19eb593a757e0b7480b6a1dc99d7f8c9   75 882 caracteres
---   después 9bc07407879028b71ba7136d9fae053a   85 711 caracteres
+--   estado de PRODUCCIÓN el 2026-08-15, pedido al SQL Editor:
+--     19eb593a757e0b7480b6a1dc99d7f8c9   75 882 caracteres  ← es la 0254
 --
--- El «antes» es exactamente el de la 0254, que es de donde se extrajo este
--- cuerpo: producción estaba en esa versión y la partida es la correcta. Si al
--- pegar esto el md5 no queda en el «después», algo se copió mal — no sigas.
+--   esta migración parte de la 0261, no de la 0254. O sea que ANTES hay que
+--   pegar todo lo pendiente hasta la 0261 inclusive, y comprobar que quede en:
+--     0d0f5fdd5f53d29fb316be50c794cec6   77 493 caracteres  ← la 0261
 --
--- Y un dato que de paso descarta el problema de la 0185: producción devolvió
--- 77 211 BYTES contra 75 882 caracteres. Esa diferencia son los acentos, vivos.
--- Si `pbcopy` los hubiera roto, bytes y caracteres coincidirían.
+--   y al pegar ESTA, tiene que quedar en:
+--     261329fc2a8045ece063cfb0e5d38eca   87 322 caracteres
+--
+-- Si el md5 de partida no es el de la 0261, PARA. No es un trámite: ver abajo.
+--
+-- ── EL ACCIDENTE QUE ESTA CABECERA EVITA ────────────────────────────────────
+--
+-- Esta migración se escribió primero con el número 0256 y con el cuerpo sacado
+-- de la 0254, que entonces era la vigente. Mientras se escribía, otra sesión
+-- fusionó a `main` la **0261**, que reescribe la MISMA función y que también
+-- había partido de la 0254.
+--
+-- Dos migraciones reescribiendo `fn_planilla_calcular` desde la misma base: la
+-- última en aplicarse gana y borra a la otra EN SILENCIO. Como 0261 > 0256, el
+-- orden de pegado habría dejado la 0261 encima y todo esto habría desaparecido
+-- sin un solo error. Es exactamente el accidente de la 0081 que
+-- `./scripts/donde-vive.sh` existe para prevenir, y lo cazó `donde-vive.sh`.
+--
+-- Por eso el número es 0262 y el cuerpo sale de la 0261. La regla, otra vez:
+-- **el cuerpo se copia de la VIGENTE, y la vigente se pregunta, no se supone.**
 --
 -- ── EL DEFECTO ──────────────────────────────────────────────────────────────
 --
@@ -124,7 +140,11 @@
 --
 --    La condición no se escribe como una lista de regímenes aquí dentro (regla 3
 --    de CLAUDE.md): vive en la columna `tasas_pension.grava_subsidio`, así que el
---    día que cambie el criterio es un UPDATE de una fila.
+--    día que cambie el criterio es un UPDATE de una fila. Y sigue funcionando
+--    con la 0261: aquella cambió de dónde sale `regimen_pension` —ahora tiene
+--    historia, en `asignaciones_regimen_pension`— pero el lateral `tpen` sigue
+--    resolviendo la tasa contra `tasas_pension`, así que esta columna se lee
+--    igual y encima hereda la vigencia.
 --
 -- 5. SE RETIENE SOBRE LO QUE SE PAGÓ. El término de AFP se toma de
 --    `pb.monto_subsidio_maternidad` —lo efectivamente pagado— y no del lateral
@@ -147,13 +167,8 @@
 --     restringe a `maternidad` a propósito, para que nadie la use en un descanso
 --     médico creyendo que se paga y descubra que no.
 --
---   · ⚠ HALLAZGO SEPARADO, CONFIRMADO Y NO CORREGIDO AQUÍ: los primeros 20 días
---     de descanso médico que asume CAYLA SÍ son remuneración afecta a EsSalud,
---     a AFP/ONP y a renta de 5ta (D.S. 009-97-SA art. 15; Informes SUNAT
---     259-2004 y 003-2007; el código PLAME 0916 es SOLO para el subsidio de
---     EsSalud, no para esos 20 días). La 0254 los mete en `pago_base` pero NO en
---     `pb.basica`, así que no llegan a `bri.base` y quedan fuera de las tres
---     bases: hay sub-declaración. Es una migración propia, con su medición.
+--   · Los primeros 20 días de descanso médico están sub-declarados: eso lo
+--     corrige la 0263, que va justo detrás de esta.
 --
 --   · La asignación familiar se sigue pagando durante la licencia (depende de
 --     `con_hijos`, no de días), y la investigación lo respalda: ninguna norma la
@@ -163,8 +178,8 @@
 --
 -- ── CÓMO SE REVIERTE ────────────────────────────────────────────────────────
 --
---   1. Restaurar `fn_planilla_calcular` desde la 0254, tal cual. Eso deshace de
---      una vez el subsidio, el cambio en `fer` y el prorrateo del piso de
+--   1. Restaurar `fn_planilla_calcular` desde la **0261**, tal cual. Eso deshace
+--      de una vez el subsidio, el cambio en `fer` y el prorrateo del piso de
 --      EsSalud — los tres viven en esa función.
 --   2. alter table ausencias     drop column subsidio_diario;
 --   3. alter table tasas_pension drop column grava_subsidio;
@@ -183,7 +198,7 @@ comment on column public.ausencias.subsidio_diario is
   'Lo entra DO tomandolo del calculo de EsSalud: NO se deriva de la planilla, '
   'porque los 12 meses del promedio pueden incluir empleadores anteriores a '
   'CAYLA y porque el divisor 360 es practica de EsSalud, no texto del '
-  'D.S. 013-2019-TR. Null en toda ausencia que no sea un subsidio adelantado (0258).';
+  'D.S. 013-2019-TR. Null en toda ausencia que no sea un subsidio adelantado (0262).';
 
 -- Positivo si esta, y solo en maternidad. La restriccion al tipo es deliberada:
 -- ver «LO QUE ESTA MIGRACION NO HACE» en la cabecera.
@@ -212,15 +227,16 @@ comment on column public.tasas_pension.grava_subsidio is
   'Si el subsidio de EsSalud entra en la base de aporte de este regimen. '
   'AFP si (Ley 26504 art. 16; TUO Ley SPP art. 30 ultimo parrafo), sistema '
   'nacional no (Informe 049-2014-SUNAT/5D0000). Vive aqui y no en una lista '
-  'dentro de fn_planilla_calcular para que cambiarlo sea un UPDATE (0258).';
+  'dentro de fn_planilla_calcular para que cambiarlo sea un UPDATE (0262).';
 
 update public.tasas_pension set grava_subsidio = false where regimen = 'onp';
 
 -- ── 3 ── LA PLANILLA ────────────────────────────────────────────────────────
 --
--- Cuerpo extraido del archivo de la 0254 —la vigente segun ./scripts/donde-vive.sh—
--- con catorce reemplazos de cadena EXACTA y UNICA aplicados por script, que aborta
--- si alguno no aparece exactamente una vez. No se copio a ojo.
+-- Cuerpo extraido del archivo de la 0261 —la VIGENTE segun ./scripts/donde-vive.sh,
+-- comprobado despues de que esa migracion entrara a main— con catorce reemplazos
+-- de cadena EXACTA y UNICA aplicados por script, que aborta si alguno no aparece
+-- exactamente una vez. No se copio a ojo.
 
 CREATE OR REPLACE FUNCTION public.fn_planilla_calcular(p_ini date, p_fin date, p_periodo_id uuid DEFAULT NULL::uuid)
  RETURNS jsonb
@@ -484,7 +500,35 @@ begin
   with pers as (
     select p.id, p.nombres, p.apellidos, p.estado, p.con_hijos, p.fecha_ingreso, p.sueldo_fijo,
            p.sueldo_base_legal,   -- CAMBIO 0105
-           p.regimen_pension,     -- CAMBIO 0114
+           -- ⇩⇩⇩ CAMBIO 0261 ⇩⇩⇩ EL RÉGIMEN QUE TENÍA EN **ESE** PERIODO.
+           --
+           -- Antes decía `p.regimen_pension` a secas: el valor de HOY aplicado a
+           -- cualquier periodo. La TASA sí estaba versionada por fecha desde la
+           -- 0114/0115; la PERTENENCIA de la persona a un régimen, no. Así que
+           -- recalcular un mes viejo mezclaba el régimen de hoy con la tasa de
+           -- entonces, y el resultado no era ninguno de los dos.
+           --
+           -- Es el mismo defecto que la 0116 evitó para la RMV y la 0118 para la
+           -- movilidad, una capa más arriba: allá el valor global no tenía fecha,
+           -- aquí la tenía el valor y no la pertenencia.
+           --
+           -- SE ANCLA AL CIERRE DEL PERIODO, exactamente igual que la tasa mil
+           -- líneas más abajo, y eso es a propósito: leer el régimen en una fecha
+           -- y su tasa en otra puede emparejar un régimen con una tasa que nunca
+           -- coexistieron.
+           --
+           -- EL COALESCE ES EL RESPALDO Y NO SOBRA: quien no tenga historial se
+           -- comporta EXACTAMENTE igual que antes de esta migración. Por eso
+           -- aplicarla no mueve un céntimo de nadie el día que se pega.
+           coalesce(
+             (select h.regimen
+                from asignaciones_regimen_pension h
+               where h.persona_id = p.id
+                 and h.vigente_desde <= p_fin
+                 and (h.vigente_hasta is null or h.vigente_hasta >= p_fin)
+               order by h.vigente_desde desc
+               limit 1),
+             p.regimen_pension) as regimen_pension,   -- CAMBIO 0114 · 0261
            p.tipo_vinculo, p.en_planilla,   -- CAMBIO 0117
            p.personal_direccion,  -- CAMBIO 0187 · art. 5 D.S. 007-2002-TR
            p.retencion_4ta, p.constancia_4ta_hasta,   -- CAMBIO 0245
@@ -787,7 +831,7 @@ begin
         -- expresamente prohibido, salvo el caso de subsidios (descanso médico,
         -- maternidad). CAMBIO 0254: el descanso médico SÍ se modela desde
         -- entonces —los 20 días del RIT art. 31 f) entran en pago_base—.
-        -- CAMBIO 0258: la maternidad también, y por eso el piso RMV de esta
+        -- CAMBIO 0262: la maternidad también, y por eso el piso RMV de esta
         -- línea NO se le aplica: el subsidio entra en `pago_base` pero no en
         -- `pb.basica`, así que no llega a `bri.base` y no infla la base de
         -- EsSalud. Es exactamente lo que manda el reglamento.
@@ -845,7 +889,7 @@ begin
         -- pago_base, asi que no se suma otra vez en ningun sitio.
         'monto_descanso_medico', round(pb.monto_descanso_medico, 2),
         'dias_descanso_medico_pagados', pb.dias_descanso_medico_pagados,
-        -- CAMBIO 0258 · el subsidio, con su nombre. Informativos: el monto YA
+        -- CAMBIO 0262 · el subsidio, con su nombre. Informativos: el monto YA
         -- esta dentro de pago_base, asi que no se suma otra vez en ningun sitio.
         'monto_subsidio_maternidad', round(pb.monto_subsidio_maternidad, 2),
         'dias_subsidio_maternidad', pb.dias_subsidio_maternidad,
@@ -993,7 +1037,7 @@ begin
                            coalesce(sf.salario, 0) / nullif(labp.dias, 0),
                            0
                          ) * coalesce(dmd.dias, 0)
-                       -- CAMBIO 0258 · el subsidio por maternidad, DENTRO de
+                       -- CAMBIO 0262 · el subsidio por maternidad, DENTRO de
                        -- pago_base por el mismo argumento que la 0254 escribio
                        -- para el descanso medico: un concepto por fuera obliga a
                        -- columna nueva, a tocar fn_planilla_congelar y a
@@ -1010,12 +1054,12 @@ begin
                          0
                        ) * coalesce(dmd.dias, 0) end as monto_descanso_medico,
              coalesce(dmd.dias, 0) as dias_descanso_medico_pagados,
-             -- CAMBIO 0258 · informativos. El monto YA esta en pago_base.
+             -- CAMBIO 0262 · informativos. El monto YA esta en pago_base.
              case when pe.sueldo_fijo then 0
                   else round(coalesce(mat.monto, 0), 2) end as monto_subsidio_maternidad,
              coalesce(mat.dias, 0) as dias_subsidio_maternidad,
              coalesce(mat.dias_sin_monto, 0) as dias_maternidad_sin_monto,
-             -- CAMBIO 0258 · EL PISO DE ESSALUD, PRORRATEADO.
+             -- CAMBIO 0262 · EL PISO DE ESSALUD, PRORRATEADO.
              --
              -- El art. 33 del D.S. 009-97-SA dice que la base minima RMV se
              -- aplica «independientemente de las horas y dias laborados» —de ahi
@@ -1171,7 +1215,7 @@ begin
               end
       ) dmd on true
 
-      -- ⇩⇩⇩ CAMBIO 0258 ⇩⇩⇩ EL SUBSIDIO POR MATERNIDAD.
+      -- ⇩⇩⇩ CAMBIO 0262 ⇩⇩⇩ EL SUBSIDIO POR MATERNIDAD.
       --
       -- CUENTA DIAS CALENDARIO, no dias laborables, y esa es la diferencia de
       -- fondo con el lateral `dmd` de arriba. El descanso medico que asume CAYLA
@@ -1314,7 +1358,7 @@ begin
     -- clasificar.
     left join lateral (
       select tp.aporte + tp.comision + tp.prima as tasa,
-             -- CAMBIO 0258 · si este regimen grava el subsidio de EsSalud.
+             -- CAMBIO 0262 · si este regimen grava el subsidio de EsSalud.
              tp.grava_subsidio
       from tasas_pension tp
       where tp.regimen = pe.regimen_pension
@@ -1470,7 +1514,7 @@ begin
         limit 1
       ) ds on true
       where f.fecha between p_ini and p_fin
-        -- ⇩ CAMBIO 0258 ⇩ UN FERIADO DENTRO DE UNA LICENCIA SUBSIDIADA NO SE
+        -- ⇩ CAMBIO 0262 ⇩ UN FERIADO DENTRO DE UNA LICENCIA SUBSIDIADA NO SE
         -- DEVENGA. Durante el descanso por maternidad el contrato esta
         -- suspendido y el feriado no genera concepto propio: el art. 8 del
         -- D. Leg. 713 remite al art. 4, que lo abona «en forma directamente
@@ -1611,7 +1655,7 @@ begin
       -- que alguien agregue un concepto nuevo a la base, queda excluido sin que
       -- tenga que acordarse. Es la lección de los tres términos que sí llevaban
       -- su condición y del que no.
-      -- ⇩⇩⇩ CAMBIO 0258 ⇩⇩⇩ DOS BASES, PORQUE LA LEY LAS SEPARA.
+      -- ⇩⇩⇩ CAMBIO 0262 ⇩⇩⇩ DOS BASES, PORQUE LA LEY LAS SEPARA.
       --
       -- El subsidio por maternidad NO es remuneracion: no entra a EsSalud (el
       -- 9% de la Ley 26790 grava remuneracion, y por eso mismo el propio
@@ -1748,7 +1792,7 @@ end;
 $function$;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (258, '0258_la_licencia_por_maternidad_deja_de_pagarse_en_cero')
+values (262, '0262_la_licencia_por_maternidad_deja_de_pagarse_en_cero')
 on conflict (numero) do nothing;
 
 -- ── COMPROBACION ────────────────────────────────────────────────────────────
