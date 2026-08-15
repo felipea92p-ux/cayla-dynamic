@@ -97,9 +97,19 @@ select ok(
   'la planilla NO paga licencia_con_goce: el tipo se registra y tapa la falta, pero no paga sola'
 );
 
--- Y la maternidad tampoco, por la misma razón y con más motivo: tiene reglas
--- propias —98 días, subsidio de EsSalud desde el día uno— que hay que decidir
--- antes de escribirlas. La 0254 la dejó fuera a propósito.
+-- Y la maternidad SÍ, desde la **0256**. Esta prueba se puso en rojo por segunda
+-- vez para avisarlo, que es exactamente para lo que está: afirmaba «la maternidad
+-- sigue fuera a propósito» y eso fue verdad hasta el 2026-08-15.
+--
+-- La verdad de hoy: la planilla paga DOS tipos de ausencia, y cada uno con una
+-- regla distinta que NO se puede igualar.
+--   · `descanso_medico` cuenta días LABORABLES, porque es sueldo que CAYLA asume
+--     (RIT art. 31 f) y el sueldo se paga por los días que tocaba trabajar.
+--   · `maternidad` cuenta días CALENDARIO, porque es un subsidio de EsSalud que
+--     el empleador adelanta (D.S. 013-2019-TR art. 17.1) y cuyo promedio diario
+--     ya viene dividido entre días corridos. Contarlo por laborables le quitaría
+--     dos séptimos a quien trabaja cinco días.
+-- Si alguien las unifica «para simplificar», la 197 se cae.
 --
 -- Se mira el FILTRO y no la palabra suelta, y eso lo enseñó esta misma prueba:
 -- escrita como `prosrc not like '%maternidad%'` salió en rojo por un COMENTARIO
@@ -107,10 +117,10 @@ select ok(
 -- la regla — la lección que `docs/estado.md` ya tenía escrita del 13 de agosto.
 select ok(
   (select prosrc like '%a.tipo = ''descanso_medico''%'
-      and prosrc not like '%a.tipo = ''maternidad''%'
+      and prosrc like '%a.tipo = ''maternidad''%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
-  'la planilla lee ausencias SOLO para descanso_medico: la maternidad sigue fuera a propósito'
+  'la planilla lee ausencias para descanso_medico y para maternidad, cada una con su regla'
 );
 
 select ok(

@@ -418,10 +418,12 @@ art. 31 f). Tres decisiones que se rompen fácil y ahora tienen prueba (195):
 Va DENTRO de `pago_base`, como las vacaciones, y por eso NO toca
 `chk_foto_cuadra` ni `fn_planilla_congelar`.
 
-**PENDIENTE · `licencia_con_goce` y `maternidad` siguen pagando cero.** Es
-decisión, no descuido: la maternidad tiene reglas propias —98 días, subsidio de
-EsSalud desde el día uno— que hay que decidir antes de escribirlas. La prueba 187
-lo fija por escrito.
+**`licencia_con_goce` sigue pagando cero, y es decisión** (va por
+`movimientos_planilla`, la 0247 lo dice en su cabecera). **La maternidad ya no:**
+la conectó la **0256** — escrita y probada el 2026-08-15, todavía sin pegar. La
+prueba 187 fija por escrito que las dos reglas son distintas y no se pueden
+igualar: el descanso médico cuenta días laborables porque es sueldo, la
+maternidad cuenta días calendario porque es subsidio.
 
 ### Le vaciaron el horario por estar enferma, y eso le anuló el pago de la baja
 
@@ -1147,39 +1149,59 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
-### A.2.a · La maternidad: ¿se paga por planilla o va aparte?
+### A.2.a · La maternidad: **construida, sin pegar** (0256)
 
-**Nadie ha estado de maternidad todavía, y por eso hay tiempo de decidirlo bien.**
-Hoy la planilla le daría **S/0.00** a quien lo esté.
+**Nadie ha estado de maternidad todavía, y por eso hubo tiempo de hacerlo bien.**
+La duda de si el subsidio va por planilla o por fuera **quedó resuelta por la
+norma, no por criterio**: el D.S. 013-2019-TR art. 17.1 obliga al empleador a
+pagarlo **en la misma fecha en que pagaría la remuneración**, y el art. 17.2 hace
+que el reembolso **exija haber pagado antes**. No es opcional y no va por fuera.
 
-`fn_planilla_calcular` lee la tabla `ausencias` **solo para `descanso_medico`**
-—lo conectó la 0254, con el tope de 20 días del art. 31 f) del RIT—. De los
-cuatro tipos que el catálogo marca `paga = true`, los otros tres quedan así:
+Lo que sí es correcto es que el **sueldo** salga en S/0.00: durante la licencia el
+contrato está suspendido (D. Leg. 728, arts. 11 y 12.c). Lo que faltaba no era
+sueldo — era el subsidio, que no entraba por ningún lado.
 
-| tipo | qué pasa hoy | ¿está decidido? |
-|---|---|---|
-| `descanso_medico` | lo paga la planilla, hasta 20 días al año | ✅ sí, la 0254 |
-| `licencia_con_goce` | no paga sola; va por `movimientos_planilla` | ✅ sí, la 0247 lo dice en su cabecera |
-| `vacaciones` | se pagan como días trabajados | ✅ sí, la 0177 |
-| **`maternidad`** | **S/0.00** | ❌ **nadie lo decidió** |
+**La 0256 lo conecta**, con la misma forma que la 0254 usó para el descanso
+médico: dentro de `pago_base`, así que no toca `chk_foto_cuadra` ni
+`fn_planilla_congelar` y no puede atascar un cierre. Medido en local con datos
+propios (licencia de 10 días corridos, S/200 diarios, feriado dentro):
 
-**Por qué puede estar bien y por qué hay que preguntarlo igual.** El subsidio por
-maternidad lo paga **EsSalud**, no el empleador: la empresa lo adelanta y luego
-pide el reembolso. Si el flujo real es ese, que la planilla no lo pague es
-correcto — pero entonces hay que saber **por dónde entra el adelanto**, porque
-hoy no entra por ningún lado y la pantalla de Ausencias sí dice «se paga».
+| | días | subsidio | pago_base | base EsSalud | retiene pensión | total |
+|---|---|---|---|---|---|---|
+| AFP (integra) | 9 | 1 800.00 | 1 800.00 | 1 130.00 | 232.56 | 1 567.44 |
+| ONP | 9 | 1 800.00 | 1 800.00 | 1 130.00 | **0.00** | 1 800.00 |
+| sin monto entrado | 0 | 0.00 | 0.00 | 1 130.00 | 0.00 | **avisa: 9 días sin monto** |
 
-Y hay un detalle que lo hace más urgente de lo que parece: el **art. 33 y el
-1319 del propio Reglamento** prohíben expresamente que el cálculo por horas
-produzca una remuneración menor por maternidad. Si alguien está de licencia y su
-boleta sale en cero, ese papel contradice al Reglamento que CAYLA acaba de
-entregar firmado.
+Las tres decisiones que la sostienen:
 
-**Qué preguntarle a Dante, en una línea:** ¿el adelanto del subsidio de
-maternidad se registra en la planilla como concepto propio, o se paga por fuera y
-se declara solo en la PLAME? Según su respuesta, o se conecta `maternidad` a la
-planilla como se hizo con `descanso_medico`, o se documenta que va aparte y se
-corrige el texto de la pantalla, que hoy promete lo que no cumple.
+- **Días calendario, no laborables.** El promedio diario de EsSalud ya viene
+  dividido entre días corridos; contarlo por laborables le quitaría dos séptimos
+  a quien trabaja cinco días. Es la diferencia de fondo con el descanso médico,
+  que sí cuenta laborables porque aquello es sueldo.
+- **El monto lo entra DO, no lo calcula el sistema.** Los 12 meses del promedio
+  pueden incluir **empleadores anteriores a CAYLA**, y esta base solo tiene una
+  foto congelada. Calcularlo acá daría un número más bajo que el legal con toda
+  la apariencia de estar bien. Va en `ausencias.subsidio_diario`.
+- **No infla EsSalud, pero sí grava AFP.** El subsidio no es remuneración (no
+  entra al 9 % ni a renta de 5ta), pero el SPP sí lo cuenta como asegurable y la
+  ONP no. Vive en `tasas_pension.grava_subsidio`, no en una lista dentro de la
+  función.
+
+**LO QUE FALTA, en orden:**
+
+1. ⚠ **Confirmar con Dante la afectación a AFP.** Es lo único de la 0256 con
+   criterio técnico detrás; todo lo demás es obligación sin margen. Si dice que
+   no: `update tasas_pension set grava_subsidio = false;` y listo.
+2. **Pegar la 0256** — *después del cierre del 28*, no antes.
+3. **El formulario todavía no tiene el campo.** `fn_registrar_ausencia` no conoce
+   `subsidio_diario`, así que hasta que una migración se lo enseñe el monto se
+   pone con `scripts/sql-manual/poner_el_subsidio_de_maternidad.sql`. Mientras
+   tanto la planilla **avisa** de los días sin monto en vez de pagar cero
+   callando, que era el defecto original.
+
+**Y queda una pregunta abierta, anterior a este cambio:** la asignación familiar
+se sigue pagando durante la licencia (depende de `con_hijos`, no de días). Si eso
+es correcto con el contrato suspendido no lo responde la 0256.
 
 ### A.2.b · Los tres locadores están retratados como personal subordinado
 
