@@ -114,7 +114,9 @@ with repo(numero, nombre, nunca) as (values
     (249, 'una_salida_real_siempre_se_puede_registrar', false),
     (250, 'la_boleta_no_le_dice_por_horas_a_un_monto_fijo', false),
     (251, 'una_liquidacion_marcada_por_error_se_puede_anular', false),
-    (252, 'el_cierre_deja_de_caerse_por_quien_no_cobra_movilidad', false)
+    (252, 'el_cierre_deja_de_caerse_por_quien_no_cobra_movilidad', false),
+    (253, 'anular_deja_de_perder_el_descuento_que_el_freno_obligo_a_poner', false),
+    (254, 'el_descanso_medico_deja_de_pagarse_en_cero', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -235,8 +237,10 @@ select * from (
              when '7ee382b01ac1b48e1f9cf9337afc335e' then '✗ 0245 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '7799d0a7ecabee450d2dd7609c50fab1' then '⚠ se quedó en la 0250 — falta pegar lo posterior'
              when '31ea2d1949da27167f767dc903aecd78' then '✗ 0250 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'e8b055e5ec144e20629bdc8b7bdbd0ea' then '0252 — al día con el repositorio'
+             when 'e8b055e5ec144e20629bdc8b7bdbd0ea' then '⚠ se quedó en la 0252 — falta pegar lo posterior'
              when '7c038d3bbbe63aba6ae0b2a09aa4196a' then '✗ 0252 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '19eb593a757e0b7480b6a1dc99d7f8c9' then '0254 — al día con el repositorio'
+             when '76b07847407ae03f1d24bb15096179fc' then '✗ 0254 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
