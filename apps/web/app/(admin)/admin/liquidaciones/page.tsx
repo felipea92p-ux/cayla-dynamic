@@ -14,15 +14,16 @@ import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 // D.S. 001-97-TR), así que esta pantalla existe para que ese plazo no dependa de
 // que alguien arme la cuenta a mano un viernes por la tarde.
 //
-// QUÉ MUESTRA Y QUÉ NO. Solo a quien tiene algo que pagar. Con los datos de
-// agosto de 2026 eso deja fuera a siete personas que cesaron en julio: seis
-// locadoras y una de un día de prueba, ninguna de las cuales devenga CTS,
-// gratificación ni vacaciones por su vínculo. Listarlas daría siete filas de
-// cero desde el primer día, y un tablero que nace lleno de ruido se deja de
-// mirar — incluido el reloj, que es lo único que aquí importa.
+// QUÉ MUESTRA Y QUÉ NO. Todas las cesadas con liquidación por resolver, sin
+// filtrar por vínculo ni por importe: `fn_liquidaciones_pendientes` no mira
+// `tipo_vinculo` ni descarta los totales en cero — comprobado contra `pg_proc`
+// el 2026-08-14. Una locadora o alguien de un día de prueba aparece igual, con
+// su cero, y eso es correcto: el plazo de 48 horas corre para todas.
 //
-// El contador de "cesadas sin nada que pagar" queda igual a la vista, porque
-// esconder gente no es lo mismo que decir por qué no está.
+// ⚠️ Este comentario decía lo contrario —que solo salía quien tiene algo que
+// pagar, y que había un contador de «cesadas sin nada que pagar»—. Ninguna de
+// las dos cosas existe en el código. Se corrige porque es el mapa que lee quien
+// venga a tocar esta pantalla, y un mapa equivocado cuesta más que ninguno.
 
 // Por string, nunca `new Date()`: construir una fecha desde el navegador puede
 // correrla un día por zona horaria, y acá una fecha decide un plazo legal.

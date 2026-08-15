@@ -484,7 +484,17 @@ function TablaPlanilla(props: {
                     {(() => {
                       const liq = liquidadas[f.persona_id];
                       if (!liq) return null;
-                      const resuelto = f.total <= 0;
+                      // CAMBIO 0244 · La condición de «resuelto» es la MISMA que usa el
+                      // freno del cierre, y hasta hoy no lo era. Este cartel nació con la
+                      // 0243, cuando bastaba con que la fila quedara en cero; la 0244
+                      // cambió la regla en la base a «los descuentos cubren lo que la
+                      // liquidación pagó de este mes», y esta línea se quedó atrás.
+                      //
+                      // La diferencia no es teórica: si después de congelar entra algo al
+                      // periodo —un feriado posterior al cese, una jornada corregida— la
+                      // fila vuelve a tener total, la base ya deja cerrar, y esta pantalla
+                      // seguía pidiendo en ámbar que se descontara un saldo que SÍ es suyo.
+                      const resuelto = f.total <= 0 || f.descuentos >= liq.cobro_del_periodo;
                       return (
                         <p className={`mt-0.5 text-xs ${resuelto ? "text-taupe" : "text-ambar"}`}>
                           {resuelto ? "✓ " : "⚠ "}
@@ -1376,12 +1386,32 @@ export default function PlanillaPage() {
   // descontó S/850 porque ya se le había pagado el 14/07» sí.
   async function marcarYaPagado(f: Fila) {
     if (!proy?.periodo_id) return;
-    const sugerido = Math.max(0, Math.round(f.total * 100) / 100);
+    // CAMBIO 0244 · Qué importe se propone. Si esta persona ya cobró su
+    // liquidación, lo que hay que descontar es lo que ESA liquidación pagó de
+    // este mes menos lo ya descontado — no el total de su fila. Proponer el
+    // total le quitaba de paso cualquier saldo que sí hubiera ganado después de
+    // congelar, y encima el freno del cierre no pide tanto: se levanta en cuanto
+    // los descuentos cubren el monto de la liquidación.
+    //
+    // Sigue siendo una PROPUESTA: el campo se puede editar, porque el único que
+    // sabe cuánto salió del banco es quien lo transfirió.
+    const liq = liquidadas[f.persona_id];
+    const porCubrir = liq ? liq.cobro_del_periodo - f.descuentos : f.total;
+    const sugerido = Math.max(0, Math.round(porCubrir * 100) / 100);
     const montoTxt = window.prompt(
       `${f.nombre} — ¿cuánto le pagaste ya, fuera de la planilla?\n\n` +
         `Este periodo le calcula ${formatSoles(f.total)}. Se registrará como un descuento por lo ` +
         `que ya recibió, así su total queda en cero (o en la diferencia) y en su boleta queda ` +
-        `escrito por qué.`,
+        `escrito por qué.` +
+        // De dónde sale el número que viene puesto. Sin esta línea, quien lo lee
+        // no sabe si el importe propuesto es lo que la planilla le calcula o lo
+        // que su liquidación ya le pagó — y son cosas distintas.
+        (liq
+          ? `\n\nSu liquidación del ${fechaCorta(liq.pagada_el)} ya le pagó ` +
+            `${formatSoles(liq.cobro_del_periodo)} de este mes` +
+            (f.descuentos > 0 ? `, y aquí ya hay ${formatSoles(f.descuentos)} descontados` : "") +
+            `. Por eso viene propuesto ${formatSoles(sugerido)}.`
+          : ""),
       String(sugerido),
     );
     if (montoTxt === null) return;

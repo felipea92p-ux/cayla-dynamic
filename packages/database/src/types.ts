@@ -1483,6 +1483,8 @@ export type Database = {
       }
       liquidacion_pagada: {
         Row: {
+          anula_version: number | null
+          anulada: boolean
           congelada_at: string
           congelada_por: string
           detalle: Json
@@ -1492,6 +1494,7 @@ export type Database = {
           monto_grati: number
           monto_periodo: number
           monto_vacaciones: number
+          motivo_anulacion: string | null
           nota: string | null
           persona: string
           persona_id: string
@@ -1499,6 +1502,8 @@ export type Database = {
           version: number
         }
         Insert: {
+          anula_version?: number | null
+          anulada?: boolean
           congelada_at?: string
           congelada_por: string
           detalle: Json
@@ -1508,6 +1513,7 @@ export type Database = {
           monto_grati?: number
           monto_periodo?: number
           monto_vacaciones?: number
+          motivo_anulacion?: string | null
           nota?: string | null
           persona: string
           persona_id: string
@@ -1515,6 +1521,8 @@ export type Database = {
           version: number
         }
         Update: {
+          anula_version?: number | null
+          anulada?: boolean
           congelada_at?: string
           congelada_por?: string
           detalle?: Json
@@ -1524,6 +1532,7 @@ export type Database = {
           monto_grati?: number
           monto_periodo?: number
           monto_vacaciones?: number
+          motivo_anulacion?: string | null
           nota?: string | null
           persona?: string
           persona_id?: string
@@ -3697,6 +3706,22 @@ export type Database = {
       fn_liquidacion: {
         Args: { p_fecha_cese?: string | null; p_persona_id: string | null }
         Returns: Json
+      }
+      fn_liquidacion_anular: {
+        Args: { p_motivo: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_liquidacion_descuentos_del_cese: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          concepto: string
+          monto: number
+          periodo_estado: string
+          periodo_fin: string
+          periodo_id: string
+          periodo_ini: string
+          registrado_el: string
+        }[]
       }
       fn_liquidacion_diferencias: {
         Args: { p_persona_id: string | null }

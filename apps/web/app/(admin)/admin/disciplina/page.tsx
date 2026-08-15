@@ -527,17 +527,18 @@ export default function DisciplinaPage() {
     );
     if (!motivo || motivo.trim().length < 10) return;
     setOcupado(d.id); setMsg(null);
-    // El casteo no es pereza, y esta vez se midió. `packages/database/src/types.ts`
-    // es un archivo GENERADO y todavía no conoce `fn_expediente_resolver`, que es
-    // de la 0206. Se intentó regenerarlo: el CLI de hoy produce 4.217 líneas en
-    // vez de 2.535, gana 65 nombres y suelta los dos que borró la 0184 —hasta ahí
-    // bien— pero además cambia la convención de los argumentos opcionales de
-    // `string | null` a `string | undefined`, y eso rompe Ausencias, Correcciones
-    // y Datos personales de golpe. Es una migración de tipos por su cuenta, no un
-    // paso de esta. Queda anotado en docs/estado.md.
-    const { error } = await supabase.rpc("fn_expediente_resolver" as never, {
+    // ⚠️ ESTE COMENTARIO YA NO ERA VERDAD, y se corrige el 2026-08-14. Decía que
+    // `packages/database/src/types.ts` no conocía `fn_expediente_resolver` y que
+    // regenerarlo rompía Ausencias, Correcciones y Datos personales. Lo primero
+    // es falso desde que alguien regeneró: está en `types.ts:3531`, con la
+    // convención correcta. Lo segundo pudo ser cierto entonces y hoy no se puede
+    // comprobar sin volver a medirlo.
+    //
+    // Importa porque este comentario es el manual que va a leer quien choque con
+    // el siguiente error de tipos, y le estaba diciendo que no regenerara.
+    const { error } = await supabase.rpc("fn_expediente_resolver", {
       p_id: d.id, p_resultado: resultado, p_motivo: motivo.trim(),
-    } as never);
+    });
     setOcupado(null);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
