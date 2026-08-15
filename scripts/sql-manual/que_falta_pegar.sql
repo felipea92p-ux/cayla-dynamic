@@ -123,7 +123,8 @@ with repo(numero, nombre, nunca) as (values
     (260, 'la_pantalla_de_costos_dice_cuanto_salio_del_banco', false),
     (261, 'el_regimen_de_pension_recuerda_desde_cuando', false),
     (262, 'la_licencia_por_maternidad_deja_de_pagarse_en_cero', false),
-    (263, 'los_veinte_dias_de_descanso_medico_entran_a_la_base', false)
+    (263, 'los_veinte_dias_de_descanso_medico_entran_a_la_base', false),
+    (264, 'el_risst_si_pide_constancia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
