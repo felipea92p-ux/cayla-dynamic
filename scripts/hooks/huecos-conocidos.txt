@@ -56,3 +56,27 @@
 0225  Integración retail: el buzón de fotos de producto. Rama claude/retail-al-historial.
 0226  Integración retail: el material del modelo y las seis etapas. Rama claude/retail-al-historial.
 0227  Integración retail: las once de retail entran al registro. Rama claude/retail-al-historial.
+
+# ── 0258 y 0259 · NÚMEROS ABANDONADOS A PROPÓSITO (2026-08-15) ──────────────
+#
+# No son algo aplicado en producción que no llegó al repo: son dos números que
+# se reservaron y se soltaron, y conviene que quede escrito por qué.
+#
+# El subsidio por maternidad se escribió primero como 0256 (con su cuerpo
+# sacado de la 0254, la vigente entonces) y el arreglo del descanso médico como
+# 0259. Chocaron con la 0256 de otra sesión, así que se renumeraron a 0258/0259.
+#
+# Y entonces apareció el problema de fondo: la **0261** —ya fusionada a main—
+# también reescribe fn_planilla_calcular y también había partido de la 0254.
+# Dos migraciones sobre la misma base: la última en aplicarse borra a la otra
+# en silencio. Como 0261 > 0259, el orden de pegado habría hecho desaparecer
+# todo el subsidio por maternidad sin un solo error.
+#
+# La única salida correcta era ir DESPUÉS de la 0261 y volver a extraer el
+# cuerpo de ella. De ahí 0262 y 0263, y de ahí estos dos huecos.
+#
+# NO se reutilizan: cualquier migración futura que tome el 0258 o el 0259
+# quedaría, por número, antes de la 0261 y con la misma trampa esperando.
+
+0258  Abandonado. Fue el subsidio por maternidad; se movió a 0262 para ir después de la 0261, que reescribe la misma función.
+0259  Abandonado. Fue el descanso médico en la base; se movió a 0263 por la misma razón.
