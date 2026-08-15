@@ -1220,9 +1220,15 @@ y se vuelve a preguntar justo antes de fusionar, porque main se mueve.
 | tras la **0262** | `261329fc2a8045ece063cfb0e5d38eca` | 87 322 |
 | tras la **0263** | `f6b4f2649f4132dd2db5711b391b1f54` | 89 134 |
 
+**ESTADO DE PRODUCCIÓN, comprobado el 2026-08-15 con `que-falta-pegar.sh`:**
+96 aplicadas de 100, sin acentos rotos. La 0256, la 0257 y la 0260 ya entraron.
+**Faltan exactamente tres, y son las tres que tocan la planilla:** 0261, 0262 y
+0263. Por eso `fn_planilla_calcular` sigue en la versión 0254 — que es lo
+correcto mientras no se peguen.
+
 **LO QUE FALTA, en orden:**
 
-1. **Pegar todo lo pendiente hasta la 0261** y comprobar que el md5 quede en
+1. **Pegar la 0261** (es de otra sesión) y comprobar que el md5 quede en
    `0d0f5fdd…`. Si no queda ahí, la 0262 no se pega.
 2. **Pegar la 0262 y luego la 0263** — *después del cierre del 28*, no antes.
 3. **El formulario todavía no tiene el campo.** `fn_registrar_ausencia` no conoce
