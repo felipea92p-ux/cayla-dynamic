@@ -41,7 +41,10 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/correcciones", label: "Correcciones", Icon: PencilLine, roles: SEDE },
     { href: "/admin/turnos", label: "Turnos", Icon: CalendarClock, roles: SEDE },
     { href: "/admin/horarios", label: "Horarios", Icon: Clock, roles: SEDE },
-    { href: "/admin/horas", label: "Horas", Icon: Hourglass, roles: SEDE },
+    // La ruta sigue siendo /admin/horas —hay enlaces vivos— pero el nombre no
+    // decía lo que hay ahí: el desempeño de TODO el equipo, sin entrar a nadie.
+    // Con «Horas» el camino que se usaba era Equipo → persona → ficha → pestaña.
+    { href: "/admin/horas", label: "Desempeño", Icon: Hourglass, roles: SEDE },
   ] },
   { label: "Personas", items: [
     { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },

@@ -484,7 +484,11 @@ export default function PerfilPersonaPage() {
                     abre YA filtrado por esta persona (si no filtrara, el enlace mentiría). */}
                 <div className="no-print mt-6 flex flex-wrap items-center gap-2 text-sm">
                   <span className="py-1 text-taupe">Registro de {persona.nombres}:</span>
-                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Horas y tardanzas</Link>
+                  {/* Desde hoy /admin/horas es la tabla de TODO el equipo y
+                      ?persona= abre su panel encima, no recorta la tabla. El
+                      enlace ya no promete «solo esta persona» — promete verla
+                      al lado de las demás, que es para lo que se usa. */}
+                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Junto al equipo</Link>
                   <Link href={`/admin/incidencias?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Incidencias</Link>
                 </div>
               </>
