@@ -37,6 +37,100 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-14 — Desempeño del equipo, y lo que destapó: gente sin horario y turnos sin cargar
+
+`/admin/horas` dejó de llamarse «Horas» y es **Desempeño del equipo**. La ruta no
+cambió —hay enlaces vivos y romper una URL para cambiar un nombre no lo vale—
+pero la pantalla sí: era una tabla de totales por persona y ahora es una
+cuadrícula de **personas × días**, con el desempeño de cada una desplegable
+debajo de su fila.
+
+Lo que la motivó, en una frase de Felipe: *«dice Sandra 135 min tarde pero no
+puedo ver los días en que pasó esa tardanza»*. Antes, para eso había que ir a
+Equipo → persona → ficha → pestaña Desempeño. **Un resumen que no se puede abrir
+hasta el día que lo produjo no sirve para conversar con nadie.**
+
+### Las decisiones, para no reabrirlas
+
+- **El día es la unidad, no la persona.** Cada fila termina en una franja de
+  cuadritos, uno por día. Los patrones —siempre los lunes, siempre después de un
+  descanso— aparecen solos porque los días están alineados en columnas.
+- **Todo número lleva su denominador.** «50 h» no es bueno ni malo; «50 de 72 h»
+  sí. Lo que le tocaba sale de `horarios_asignados` + `turnos`.
+- **Los días con motivo NO entran en el denominador.** Salió midiendo: una
+  integrante aparecía con «50.0 / 90.0 h» y cero faltas porque cuatro de sus doce
+  días esperados eran ausencias justificadas. Parecía deber cuarenta horas que
+  nadie le debe. **Un número que hace quedar mal a quien tenía permiso es el
+  falso positivo que este sistema existe para no cometer.**
+- **El orden mide gravedad, no cantidad.** Manda la PEOR tardanza del periodo, no
+  cuántas: dos de siete minutos no valen lo que una de dos horas y cuarto. Las
+  faltas siguen primero.
+- **Las dos escrituras van por las RPC de Incidencias** (`fn_levantar_tardanza`,
+  `fn_set_justificacion`). No hay una segunda forma de perdonar un día.
+
+⚠️ **REGLA NUEVA: la cascada «qué le tocaba» vive en un solo sitio.**
+`apps/web/lib/admin/jornada-esperada.ts` —turno del día → `horario_por_dia` →
+`dias_laborables`—, con 26 pruebas en `tests/jornada-esperada.test.ts`. Ya había
+una copia parcial y más vieja en `admin/correcciones/page.tsx`
+(`calcularEsperado`, solo la hora de entrada); **unificarlas queda pendiente y no
+se escribe una tercera.** Es el mismo patrón que produjo 35 copias de una
+condición de permiso y 32 del huso horario de Lima.
+
+### ⚠️ LO QUE LA PANTALLA DESTAPÓ, Y SON DATOS, NO CÓDIGO
+
+Ninguna interfaz arregla esto. Son las dos cosas que hay que resolver para que
+las cifras de asistencia signifiquen algo:
+
+**1 · Hay gente activa sin horario ni turnos cargados.** En Central, **2 de 3**.
+Para ellas el sistema no mide faltas, ni tardanzas, ni horas esperadas: sus horas
+suman al total y aportan cero al denominador. El recuadro llegó a decir
+«163 h de 90 h que tocaban» —el equipo trabajando el doble de lo debido— porque
+el 90 era el horario de una sola. Ya se dice «de 90 h que tocaban a 1 de 3», pero
+**eso describe el problema, no lo resuelve**. Quiénes son:
+
+```sql
+select s.codigo as sede, p.apellidos || ', ' || p.nombres as quien, p.fecha_ingreso, p.tipo_vinculo from personas p join sedes s on s.id = p.sede_base_id where p.estado = 'activo' and not exists (select 1 from horarios_asignados h where h.persona_id = p.id and h.vigente_desde <= fn_hoy_lima() and (h.vigente_hasta is null or h.vigente_hasta >= fn_hoy_lima())) order by s.codigo, p.apellidos;
+```
+
+**2 · Los turnos rotativos no se están cargando, y eso convierte las tardanzas en
+ruido.** Los datos de una integrante de AQP en agosto: entró 11:10, 11:02, 16:30,
+13:50, 14:15, 14:01, 14:01 y 12:13. El sistema marcó 130 min de salida
+anticipada, 174, 49, y 135 de tardanza. **Los cuatro cuadran con un horario base
+de 14:00–22:00 y 15 min de tolerancia** — o sea que están bien calculados. Pero
+los días que entró 11:02 y 12:13 no son días en que se fue temprano: **son días
+en que hizo otro turno, y ese turno no está en `turnos`.**
+
+**Cuando todos los días medidos dan anomalía, lo que está mal no es la persona:
+es la referencia.** La pantalla ya lo dice —columna «medido contra», ⚠ en cada
+día medido contra el horario base, y un aviso que enlaza a Turnos en la semana de
+ese día— pero **no se puede usar una de esas tardanzas en una conversación
+disciplinaria hasta que los turnos se carguen.** Los días afectados:
+
+```sql
+select s.codigo as sede, p.apellidos || ', ' || p.nombres as quien, j.fecha, to_char(j.entrada_ts at time zone 'America/Lima', 'HH24:MI') as entro, j.minutos_tarde from jornadas j join personas p on p.id = j.persona_id join sedes s on s.id = p.sede_base_id where j.fecha >= '2026-08-01' and j.fecha <= fn_hoy_lima() and coalesce(j.minutos_tarde, 0) > 0 and not exists (select 1 from turnos t where t.persona_id = j.persona_id and t.fecha = j.fecha) order by j.minutos_tarde desc, j.fecha;
+```
+
+### PENDIENTE · los objetivos arrancan en septiembre
+
+**Decisión de Felipe el 2026-08-14: empezar a aplicar los objetivos mensuales
+desde el próximo mes.** El bloque de objetivos está en el desempeño de cada
+persona, de solo lectura, y cuando no hay checklist cargado lo dice y ofrece
+cargarlo — una sección ausente no enseña que falta algo. `/admin/objetivos`
+aprendió a recibir `?persona=&anio=&mes=` para que el enlace «preparar los de
+septiembre» llegue con la persona y el mes ya elegidos.
+
+Hoy casi nadie tiene checklist. Eso es lo esperado, no un defecto.
+
+### Un contador de la ficha que nunca dijo nada
+
+`/admin/personas/[id]` muestra «Salidas anticipadas: **3 de 3 medidos**», y no
+puede dar otra cosa: `fn_jornadas_extra` **solo devuelve las filas con minutos >
+0**, así que «medidos» y «marcados» son siempre el mismo número. Se ve como una
+proporción y es una tautología. **Pendiente de arreglar en la ficha** — la
+pantalla nueva no muestra ese denominador falso.
+
+---
+
 ## 2026-08-14 — el barrido del pago del 28, y cuatro alarmas que no eran
 
 **El cierre del 28/08 NO está bloqueado.** Comprobado contra producción, no
@@ -1052,6 +1146,40 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
+
+### A.2.a · La maternidad: ¿se paga por planilla o va aparte?
+
+**Nadie ha estado de maternidad todavía, y por eso hay tiempo de decidirlo bien.**
+Hoy la planilla le daría **S/0.00** a quien lo esté.
+
+`fn_planilla_calcular` lee la tabla `ausencias` **solo para `descanso_medico`**
+—lo conectó la 0254, con el tope de 20 días del art. 31 f) del RIT—. De los
+cuatro tipos que el catálogo marca `paga = true`, los otros tres quedan así:
+
+| tipo | qué pasa hoy | ¿está decidido? |
+|---|---|---|
+| `descanso_medico` | lo paga la planilla, hasta 20 días al año | ✅ sí, la 0254 |
+| `licencia_con_goce` | no paga sola; va por `movimientos_planilla` | ✅ sí, la 0247 lo dice en su cabecera |
+| `vacaciones` | se pagan como días trabajados | ✅ sí, la 0177 |
+| **`maternidad`** | **S/0.00** | ❌ **nadie lo decidió** |
+
+**Por qué puede estar bien y por qué hay que preguntarlo igual.** El subsidio por
+maternidad lo paga **EsSalud**, no el empleador: la empresa lo adelanta y luego
+pide el reembolso. Si el flujo real es ese, que la planilla no lo pague es
+correcto — pero entonces hay que saber **por dónde entra el adelanto**, porque
+hoy no entra por ningún lado y la pantalla de Ausencias sí dice «se paga».
+
+Y hay un detalle que lo hace más urgente de lo que parece: el **art. 33 y el
+1319 del propio Reglamento** prohíben expresamente que el cálculo por horas
+produzca una remuneración menor por maternidad. Si alguien está de licencia y su
+boleta sale en cero, ese papel contradice al Reglamento que CAYLA acaba de
+entregar firmado.
+
+**Qué preguntarle a Dante, en una línea:** ¿el adelanto del subsidio de
+maternidad se registra en la planilla como concepto propio, o se paga por fuera y
+se declara solo en la PLAME? Según su respuesta, o se conecta `maternidad` a la
+planilla como se hizo con `descanso_medico`, o se documenta que va aparte y se
+corrige el texto de la pantalla, que hoy promete lo que no cumple.
 
 ### A.2.b · Los tres locadores están retratados como personal subordinado
 
