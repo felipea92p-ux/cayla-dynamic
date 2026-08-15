@@ -86,8 +86,25 @@ proyecto con el nombre de la carpeta. El 2026-08-10 eso mandó un despliegue a u
 proyecto vacío llamado `tardanzas-memos-issue-7f4e44`: falló por no tener
 variables de entorno, y si hubiera compilado habría publicado la app en una URL
 que nadie mira mientras alguien anunciaba «desplegado». Antes de desplegar desde
-un worktree: `cp ../../.vercel/project.json .vercel/` y comprobar con
-`npx vercel env ls` que salen las variables de **cayla-dynamic**.
+un worktree hay que copiar el enlace y comprobarlo:
+
+```bash
+mkdir -p .vercel && cp "$(git rev-parse --path-format=absolute --git-common-dir)/../.vercel/project.json" .vercel/
+npx vercel env ls          # tienen que salir las variables de cayla-dynamic
+```
+
+**La ruta se pregunta, no se cuenta a mano.** Este archivo decía
+`cp ../../.vercel/project.json .vercel/`, y esos dos niveles solo valen si el
+worktree cuelga justo debajo del repo. Los que crea Claude Code viven en
+`.claude/worktrees/<nombre>/`, o sea **tres** niveles: el 2026-08-15 la ruta no
+existía y el `cp` falló. Falló ruidoso y no pasó nada, pero el modo en que ese
+`cp` hace daño es al revés — copiando algo que no es el enlace bueno, o no
+copiando nada mientras alguien cree que sí. `--git-common-dir` devuelve el `.git`
+del repo principal desde cualquier worktree y desde el repo mismo, así que la
+línea es una sola y no hay que saber a qué profundidad estás.
+
+Y el `npx vercel env ls` no es adorno: es lo único que distingue «copié el
+enlace» de «copié el enlace CORRECTO». Tiene que decir `cayla/cayla-dynamic`.
 
 **Datos personales fuera de git.** Correos, DNI, sueldos por persona y fechas de
 ingreso reales no se commitean. Hay dos scripts explícitamente ignorados en
