@@ -296,9 +296,15 @@ export default function MioPage() {
       supabase.rpc("fn_objetivos_checklist", {
         p_anio: Number(hasta.slice(0, 4)), p_mes: Number(hasta.slice(5, 7)), p_persona_id: yo.id,
       }),
+      // `is("anulada_at", null)` no es opcional: una ausencia anulada existe
+      // en la tabla y NO cuenta. Sin ese filtro la pantalla le diría que su
+      // permiso está registrado cuando alguien ya lo dio de baja — y es justo
+      // en lo que se fiaría para no volver a presentarlo. La vista
+      // `vacaciones` lleva ese mismo filtro dentro desde siempre.
       supabase.from("ausencias")
         .select("tipo, fecha_inicio, fecha_fin, doc_profesional, aprobada_at")
         .eq("persona_id", yo.id)
+        .is("anulada_at", null)
         .lte("fecha_inicio", hasta).gte("fecha_fin", desde)
         .order("fecha_inicio", { ascending: false }),
       supabase.from("tipos_ausencia").select("codigo, nombre, requiere_documento"),
@@ -644,7 +650,10 @@ export default function MioPage() {
           protege a ella: sin documento, ese permiso no cuenta igual. */}
       {ausencias.length > 0 && (
         <section className="mb-6 rounded-2xl border border-sand p-5">
-          <h2 className="mb-3 font-serif text-lg">Tus permisos y descansos registrados</h2>
+          {/* Incluye las vacaciones: la vista `vacaciones` no es otra tabla,
+              es un SELECT sobre `ausencias` con tipo='vacaciones'. Consultarla
+              aparte traería las mismas filas dos veces. */}
+          <h2 className="mb-3 font-serif text-lg">Tus permisos, descansos y vacaciones</h2>
           <ul className="space-y-2 text-sm">
             {ausencias.map((a) => {
               const faltaDoc = exigeDoc(a.tipo) && !a.doc_profesional;
