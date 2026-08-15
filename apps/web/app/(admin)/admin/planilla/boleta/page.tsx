@@ -329,6 +329,22 @@ function BoletaContenido() {
   // base sin la 0250 pegada se comporte exactamente como antes — etiquetando por
   // horas, que es lo que hacía — en vez de afirmar un monto fijo que no sabe.
   const sueldoFijo = f.sueldo_fijo ?? false;
+  // ⇩ CAMBIO 0254 ⇩ Los días de descanso médico que asume CAYLA van DENTRO de
+  // `pago_base` —igual que los de vacaciones desde la 0177— porque sacarlos a un
+  // concepto propio obligaría a tocar la tabla congelada y `chk_foto_cuadra`.
+  // Pero dentro no se pueden quedar CALLADOS: la línea de arriba dice «por tus
+  // horas del periodo» y traía un importe que incluye días que no trabajó. Medido
+  // en producción con un caso real: 25 h 55 min y S/274.27, donde S/121.90 eran
+  // cuatro días de baja. Quien lee su boleta no puede cuadrar eso.
+  //
+  // Así que la fila de básica se queda con lo trabajado y el descanso médico sale
+  // aparte. La suma es idéntica al céntimo: solo se reparte en dos líneas.
+  //
+  // `?? 0` para que una base sin la 0254 pegada se comporte exactamente como
+  // antes — sin fila y sin restar nada.
+  const descansoMedico = num(f.monto_descanso_medico) ?? 0;
+  const diasDescansoMedico = num(f.dias_descanso_medico_pagados) ?? 0;
+  const pagoTrabajado = (num(f.pago_base) ?? 0) - descansoMedico;
   const retencion4ta = f.retencion_4ta ?? 0;
   // El importe por el que tiene que emitir el recibo. Es la base, no el total:
   // el total ya lleva la retención descontada. Sin la 0245 pegada la clave no
@@ -526,8 +542,29 @@ function BoletaContenido() {
                   <span className="block text-xs text-rojo">{avisoPendientes}</span>
                 )}
               </td>
-              <td className="py-2 text-right align-top">{formatSoles(f.pago_base)}</td>
+              <td className="py-2 text-right align-top">{formatSoles(pagoTrabajado)}</td>
             </tr>
+
+            {/* ⇩ CAMBIO 0254 ⇩ El descanso médico, con su nombre.
+                No es un concepto nuevo del cálculo: es la parte de `pago_base`
+                que no se trabajó, sacada a su propia línea para que la de arriba
+                deje de prometer «por tus horas» sobre un importe que incluye
+                días de baja. La suma de las dos es exactamente `pago_base`. */}
+            {descansoMedico > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Descanso médico
+                  <span className="block text-xs text-taupe">
+                    {diasDescansoMedico}{" "}
+                    {diasDescansoMedico === 1 ? "día" : "días"} con certificado ·
+                    CAYLA asume los primeros 20 días de incapacidad del año
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top">
+                  {formatSoles(descansoMedico)}
+                </td>
+              </tr>
+            )}
             {f.monto_feriados > 0 && (
               <tr className="border-t border-sand">
                 <td className="py-2">Feriados</td>

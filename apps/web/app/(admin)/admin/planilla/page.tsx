@@ -213,6 +213,14 @@ export interface Fila {
   // para que la boleta pueda distinguir dos locadores que cobran al revés y
   // dejar de ponerles la misma etiqueta.
   sueldo_fijo?: boolean;
+  // Los días de descanso médico que asume CAYLA (0254). Son de PRESENTACIÓN:
+  // el importe YA está dentro de `pago_base` —igual que los de vacaciones desde
+  // la 0177— y no se suma otra vez en ningún sitio. Viajan para que la boleta
+  // pueda sacarlos a su propia línea, porque si no, la de básica promete «por
+  // tus horas del periodo» sobre un importe que incluye días que no se
+  // trabajaron. Opcionales: sin la 0254 pegada, la boleta se comporta como antes.
+  monto_descanso_medico?: number;
+  dias_descanso_medico_pagados?: number;
   retencion_4ta?: number;
   retencion_4ta_base?: number;
   retencion_4ta_modo?: string | null;
