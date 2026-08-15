@@ -42,7 +42,7 @@
 // no debía cuesta más que dejar pasar una falta real.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -52,6 +52,7 @@ import { traerTodo } from "@/lib/admin/traer-todo";
 import { hoyLima, TZ_LIMA } from "@cayla-dynamic/shared";
 import { type Area, AREAS_FALLBACK, parseAreas, areaCorto, areaNombre } from "@/lib/areas";
 import { MESES, type ObjetivoItem } from "@/lib/objetivos";
+import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
@@ -138,6 +139,7 @@ interface Dia {
   horas: number | null;
   minutosTarde: number | null;
   minutosSalidaTemprana: number | null;
+  horasExtra: number;
   jornadaEstado: string | null;
   levantada: string | null;      // motivo del levantamiento de la tardanza
   faltaMotivo: string | null;    // motivo por el que ese día no cuenta como falta
@@ -151,9 +153,14 @@ interface Fila {
   area: string;
   activa: boolean;
   dias: Dia[];
-  diasEsperados: number;
+  diasEsperados: number;      // los que le tocaban Y no tenían motivo para faltar
   diasTrabajados: number;
+  diasConMotivo: number;      // vacaciones, permiso, descanso médico, suspensión…
   horasEsperadas: number;
+  horasConMotivo: number;
+  // Días medidos contra el HORARIO BASE por no haber turno cargado. No es un
+  // dato sobre la persona: es un dato sobre lo que el sistema sabe de ese día.
+  diasSinTurno: number;
   horasTotales: number;
   horasReales: number;
   horasAgregadas: number;
@@ -271,6 +278,157 @@ function Th({ col, orden, setOrden, num = false, children, title }: {
   );
 }
 
+// Contra qué se midió ese día. No es adorno: una tardanza medida contra el
+// horario base cuando la persona en realidad rotó de turno no es un dato sobre
+// ella, es un dato sobre lo que falta en /admin/turnos. La columna existe para
+// que no se confundan las dos cosas.
+function medidoContra(d: Dia): { texto: string; sospechoso: boolean } {
+  const hayNovedad = (d.minutosTarde ?? 0) > 0 || (d.minutosSalidaTemprana ?? 0) > 0;
+  switch (d.esperado.origen) {
+    case "turno": return { texto: "turno del día", sospechoso: false };
+    case "horario":
+    case "legacy": return { texto: "horario base", sospechoso: hayNovedad };
+    case "sin_horario": return { texto: "sin horario", sospechoso: false };
+  }
+}
+
+// El desempeño de una persona, abierto DEBAJO de su fila. Va debajo y no en
+// otra pantalla ni tapando la tabla: así siguen a la vista las demás filas para
+// comparar, y no se pierden ni los filtros ni el periodo.
+function DetallePersona({ f, meta, sel, onDia }: {
+  f: Fila; meta: number;
+  sel: { personaId: string; fecha: string } | null;
+  onDia: (personaId: string, fecha: string) => void;
+}) {
+  const conMarcaje = f.dias.filter((d) => d.entradaTs !== null || d.horas !== null);
+  const grafico: DiaGrafico[] = conMarcaje
+    .filter((d) => !d.agregado)
+    .map((d) => ({
+      fecha: d.fecha,
+      horas: d.horas ?? 0,
+      problema: d.estado === "tarde" || d.estado === "revisar",
+    }));
+  const promedio = f.diasTrabajados > 0 ? f.horasReales / f.diasTrabajados : 0;
+  const diasSospechosos = conMarcaje.filter((d) => medidoContra(d).sospechoso);
+  const sinTurnoConNovedad = diasSospechosos.length;
+
+  return (
+    <div className="space-y-4 border-t-2 border-tinta/15 bg-crema/60 px-4 py-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        {[
+          { label: "Total del periodo", valor: fmtHoras(f.horasReales) },
+          { label: "Días trabajados", valor: `${f.diasTrabajados}${f.diasEsperados ? ` de ${f.diasEsperados}` : ""}` },
+          { label: "Promedio por día", valor: promedio > 0 ? fmtHoras(promedio) : "—" },
+          { label: "Días con tardanza", valor: String(f.tardanzas) },
+          { label: "Salidas anticipadas", valor: String(f.salidasTempranas) },
+          { label: "Tiempo adicional", valor: f.horasExtra > 0 ? fmtHoras(f.horasExtra) : "—" },
+        ].map((c) => (
+          <div key={c.label} className="rounded-2xl border border-sand bg-papel px-4 py-3">
+            <div className="text-xs uppercase tracking-wide text-taupe">{c.label}</div>
+            <div className="mt-1 font-serif text-xl">{c.valor}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Los dos avisos que separan «problema de la persona» de «problema de
+          datos». El segundo es el que evita conversaciones injustas. */}
+      {f.diasConMotivo > 0 && (
+        <p className="rounded-lg bg-sand/50 px-3 py-2 text-xs">
+          Además tuvo <strong>{f.diasConMotivo} día{f.diasConMotivo === 1 ? "" : "s"} con motivo registrado</strong>{" "}
+          ({fmtHoras(f.horasConMotivo)}): vacaciones, permiso, descanso médico, suspensión o descanso sustitutorio.
+          No cuentan como falta y <strong>tampoco entran en las horas que le tocaban</strong>.
+        </p>
+      )}
+      {sinTurnoConNovedad > 0 && (
+        <p className="rounded-lg bg-ambar/10 px-3 py-2 text-xs">
+          <strong>{sinTurnoConNovedad} de sus días con tardanza o salida anticipada se midieron contra su horario
+          base</strong>, porque ese día no había turno cargado en Turnos. Si en la práctica rotó de turno, esos
+          minutos dicen más de lo que falta registrar que de la persona — mira la columna «medido contra» antes
+          de conversarlo.{" "}
+          <Link href={`/admin/turnos?fecha=${diasSospechosos[0].fecha}`} className="text-rojo underline">
+            Ir a Turnos, en la semana del {fechaLarga(diasSospechosos[0].fecha)} →
+          </Link>
+        </p>
+      )}
+
+      <div className="rounded-2xl border border-sand bg-papel p-4">
+        <h3 className="mb-3 font-serif text-lg">
+          Horas por día
+          {meta > 0 && <span className="ml-2 text-sm font-normal text-taupe">· su jornada son {fmtHoras(meta)}</span>}
+        </h3>
+        <GraficoHoras dias={grafico} meta={meta} />
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
+        <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
+          <thead className="bg-sand/70 text-left text-taupe">
+            <tr>
+              <th className="px-4 py-2 font-normal">Fecha</th>
+              <th className="px-4 py-2 font-normal">Entrada</th>
+              <th className="px-4 py-2 font-normal">Salida</th>
+              <th className="px-4 py-2 font-normal">Horas</th>
+              <th className="px-4 py-2 font-normal">Tardanza</th>
+              <th className="px-4 py-2 font-normal">Sal. antic.</th>
+              <th className="px-4 py-2 font-normal">T. adicional</th>
+              <th className="px-4 py-2 font-normal">Medido contra</th>
+              <th className="px-4 py-2 font-normal">Incidencia</th>
+            </tr>
+          </thead>
+          <tbody>
+            {conMarcaje.length === 0 ? (
+              <tr><td colSpan={9} className="px-4 py-6 text-center text-taupe">Sin jornadas en el periodo.</td></tr>
+            ) : conMarcaje.map((d) => {
+              const mc = medidoContra(d);
+              const activa = sel?.personaId === f.personaId && sel?.fecha === d.fecha;
+              return (
+                <tr key={d.fecha}
+                  onClick={() => onDia(f.personaId, d.fecha)}
+                  className={`cursor-pointer border-t border-sand transition-colors hover:bg-crema ${activa ? "bg-crema" : ""}`}
+                  title="Abrir este día">
+                  <td className="px-4 py-2 capitalize">{fechaLarga(d.fecha)}</td>
+                  <td className="px-4 py-2">{horaLima(d.entradaTs)}</td>
+                  <td className="px-4 py-2">{d.salidaTs ? horaLima(d.salidaTs) : <span className="text-ambar">—</span>}</td>
+                  <td className="px-4 py-2">{d.horas !== null ? fmtHoras(d.horas) : "—"}</td>
+                  <td className="px-4 py-2">
+                    {(d.minutosTarde ?? 0) > 0
+                      ? d.levantada
+                        ? <span className="text-taupe"><s>{fmtMinutos(d.minutosTarde!)}</s> · levantada</span>
+                        : <span className="text-rojo">{fmtMinutos(d.minutosTarde!)}</span>
+                      : <span className="text-taupe/50">—</span>}
+                  </td>
+                  <td className="px-4 py-2">
+                    {(d.minutosSalidaTemprana ?? 0) > 0
+                      ? <span className="text-ambar">{fmtMinutos(d.minutosSalidaTemprana!)}</span>
+                      : <span className="text-taupe/50">—</span>}
+                  </td>
+                  <td className="px-4 py-2">{d.horasExtra > 0 ? <span className="text-verde">{fmtHoras(d.horasExtra)}</span> : <span className="text-taupe/50">—</span>}</td>
+                  <td className={`px-4 py-2 text-xs ${mc.sospechoso ? "text-ambar" : "text-taupe"}`}>
+                    {mc.texto}
+                    {d.esperado.trabaja && <span className="text-taupe/60"> · {d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</span>}
+                    {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
+                  </td>
+                  <td className="px-4 py-2 text-xs">
+                    {d.estado === "revisar" && <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-ambar">
+                      {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</span>}
+                    {d.estado === "extra" && <span className="rounded-full bg-verde/15 px-2 py-0.5 text-verde">en su descanso</span>}
+                    {d.agregado && <span className="rounded-full bg-taupe/15 px-2 py-0.5 text-taupe">histórico 2025</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+        <p className="text-taupe">Toca cualquier día para abrirlo, justificarlo o mandarlo a Correcciones.</p>
+        <div className="flex gap-4">
+          <Link href={`/admin/personas/${f.personaId}`} className="text-rojo hover:underline">Abrir su ficha →</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Tile({ label, valor, pie, tono = "neutral" }: { label: string; valor: string; pie?: string; tono?: "neutral" | "alerta" }) {
   return (
     <div className="rounded-xl border border-sand bg-papel px-4 py-3">
@@ -303,6 +461,8 @@ function DesempenoContenido() {
 
   // El día abierto. Es lo único que esta pantalla «selecciona».
   const [sel, setSel] = useState<{ personaId: string; fecha: string } | null>(null);
+  // Qué persona tiene su desempeño abierto debajo de su fila.
+  const [abierta, setAbierta] = useState<string | null>(null);
   const enlaceUsado = useRef(false);
   const [motivo, setMotivo] = useState("");
   const [obs, setObs] = useState("");
@@ -411,8 +571,9 @@ function DesempenoContenido() {
         sede: (p as unknown as { sedes?: { codigo: string } }).sedes?.codigo ?? "?",
         area: (p as unknown as { funcion: string }).funcion ?? "",
         activa: (p as unknown as { estado: string }).estado === "activo",
-        dias: [], diasEsperados: 0, diasTrabajados: 0,
-        horasEsperadas: 0, horasTotales: 0, horasReales: 0, horasAgregadas: 0, agregados: 0,
+        dias: [], diasEsperados: 0, diasTrabajados: 0, diasConMotivo: 0,
+        horasEsperadas: 0, horasConMotivo: 0, diasSinTurno: 0,
+        horasTotales: 0, horasReales: 0, horasAgregadas: 0, agregados: 0,
         tardanzas: 0, tardanzasLevantadas: 0, minutosTarde: 0, peorTardanza: 0,
         salidasTempranas: 0, horasExtra: 0,
         faltas: 0, faltasJustificadas: 0, incompletas: 0, pendientes: 0,
@@ -445,6 +606,7 @@ function DesempenoContenido() {
           horas,
           minutosTarde: j?.minutos_tarde ?? null,
           minutosSalidaTemprana: extraPor.get(clave) ?? null,
+          horasExtra: Number(j?.horas_extra_detectadas ?? 0),
           jornadaEstado: j?.estado ?? null,
           levantada,
           faltaMotivo: falta?.motivo ?? null,
@@ -454,7 +616,16 @@ function DesempenoContenido() {
         // ── Acumulados ─────────────────────────────────────────────────────
         // Lo esperado solo cuenta hasta hoy: sumar los días que todavía no
         // llegaron pintaría a todo el mundo en deuda a principio de mes.
-        if (esperado.trabaja && fecha <= hoy) { f.diasEsperados++; f.horasEsperadas += esperado.horas; }
+        // Lo esperado solo cuenta hasta hoy —sumar los días que no llegaron
+        // pintaría a todo el mundo en deuda a principio de mes— y NO cuenta los
+        // días con motivo registrado. Sin esa segunda resta, quien estuvo de
+        // vacaciones aparece debiendo las horas de sus vacaciones: un número que
+        // hace quedar mal a quien tenía permiso.
+        if (esperado.trabaja && fecha <= hoy) {
+          if (falta?.justificada) { f.diasConMotivo++; f.horasConMotivo += esperado.horas; }
+          else { f.diasEsperados++; f.horasEsperadas += esperado.horas; }
+          if (esperado.origen !== "turno") f.diasSinTurno++;
+        }
         if (horas !== null) {
           f.horasTotales += horas;
           if (agregado) { f.horasAgregadas += horas; f.agregados++; }
@@ -500,6 +671,7 @@ function DesempenoContenido() {
           ? cand.reduce((a, b) => ((a.minutosTarde ?? 0) >= (b.minutosTarde ?? 0) ? a : b))
           : cand[0];
         setSel({ personaId: f!.personaId, fecha: peor.fecha });
+        setAbierta(f!.personaId);
         break;
       }
     }
@@ -549,6 +721,9 @@ function DesempenoContenido() {
   // una cascada de renders y una regla que el linter marca con razón.
   const abrirDia = useCallback((personaId: string, fecha: string) => {
     setSel({ personaId, fecha });
+    // Abrir un día desde la cuadrícula despliega también su desempeño: el día
+    // se entiende mirando los de alrededor, no solo.
+    setAbierta(personaId);
     setMotivo(""); setObs(""); setAvisoPanel(null);
   }, []);
   const cerrarDia = useCallback(() => {
@@ -605,7 +780,7 @@ function DesempenoContenido() {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="font-serif text-2xl">Desempeño del equipo</h1>
-            <p className="mt-0.5 text-sm text-taupe">Cada cuadrito es un día. Toca uno para ver qué pasó y resolverlo ahí mismo.</p>
+            <p className="mt-0.5 text-sm text-taupe">Toca una fila y su desempeño se abre debajo. Cada cuadrito es un día: tócalo para ver qué pasó y resolverlo ahí mismo.</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex gap-1 rounded-lg border p-1 text-sm">
@@ -718,11 +893,14 @@ function DesempenoContenido() {
                 </thead>
                 <tbody>
                   {vista.map((f) => (
-                    <tr key={f.personaId} className="border-t align-middle hover:bg-crema/60">
+                    <Fragment key={f.personaId}>
+                    <tr
+                      onClick={() => setAbierta((a) => (a === f.personaId ? null : f.personaId))}
+                      className={`cursor-pointer border-t align-middle hover:bg-crema/60 ${abierta === f.personaId ? "bg-crema" : ""}`}
+                      title={abierta === f.personaId ? "Cerrar su desempeño" : "Ver su desempeño"}>
                       <td className="px-3 py-1.5">
-                        <Link href={`/admin/personas/${f.personaId}`} className="hover:underline" title="Abrir su ficha">
-                          {f.nombre}
-                        </Link>
+                        <span aria-hidden className="mr-1.5 inline-block w-2 text-taupe">{abierta === f.personaId ? "▾" : "▸"}</span>
+                        {f.nombre}
                         {!f.activa && <span className="ml-2 rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] text-taupe">inactiva</span>}
                         <div className="text-[11px] text-taupe">{f.area ? areaCorto(areas, f.area) : "sin área"}</div>
                       </td>
@@ -772,6 +950,19 @@ function DesempenoContenido() {
                         </td>
                       )}
                     </tr>
+                    {abierta === f.personaId && (
+                      <tr>
+                        <td colSpan={7 + (hayObjetivos ? 1 : 0) + (hayCuadricula ? 1 : 0)} className="p-0">
+                          <DetallePersona
+                            f={f}
+                            meta={f.diasEsperados > 0 ? f.horasEsperadas / f.diasEsperados : 0}
+                            sel={sel}
+                            onDia={abrirDia}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -802,7 +993,8 @@ function DesempenoContenido() {
         <p className="mt-4 max-w-3xl text-xs text-taupe">
           Ordenado por lo que necesita atención: faltas, después la <strong>peor</strong> tardanza del periodo
           (no cuántas), después los marcajes por revisar. «Días» y «horas» van contra lo que le tocaba según su
-          horario y sus turnos, contando solo hasta hoy. Las tardanzas con motivo registrado no cuentan, y las
+          horario y sus turnos, contando solo hasta hoy y <strong>sin los días con motivo registrado</strong>:
+          quien estuvo de vacaciones no debe las horas de sus vacaciones. Las tardanzas con motivo registrado no cuentan, y las
           faltas las calcula la base: no es falta el día de vacaciones, el de descanso sustitutorio por feriado,
           el de suspensión ni el que tiene justificación.
           {hayObjetivos && <> Los objetivos son los de <strong>{mesObjetivos.toLowerCase()}</strong>: son mensuales, no siguen al rango.</>}

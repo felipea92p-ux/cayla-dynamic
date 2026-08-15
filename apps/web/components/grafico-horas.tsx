@@ -19,7 +19,11 @@ export function GraficoHoras({ dias, meta = 7.5 }: { dias: DiaGrafico[]; meta?: 
     return <p className="text-sm text-taupe">Sin datos en el periodo elegido.</p>;
   }
 
-  const maxDato = Math.max(meta, ...dias.map((d) => d.horas));
+  // Sin meta (<= 0) no se dibuja la línea. Pasa cuando la persona no tiene
+  // horario cargado: una meta inventada sería peor que ninguna, porque se lee
+  // como si el sistema supiera cuánto le tocaba.
+  const hayMeta = meta > 0;
+  const maxDato = Math.max(hayMeta ? meta : 0, ...dias.map((d) => d.horas));
   const maxY = Math.ceil(maxDato / 2) * 2 || 2; // redondea a par superior
   const H = 240;
   const PAD_TOP = 12;
@@ -47,18 +51,22 @@ export function GraficoHoras({ dias, meta = 7.5 }: { dias: DiaGrafico[]; meta?: 
         ))}
 
         {/* línea de meta */}
-        <line
-          x1={PAD_LEFT}
-          x2={W - 4}
-          y1={y(meta)}
-          y2={y(meta)}
-          stroke="var(--color-rojo)"
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-        />
-        <text x={W - 6} y={y(meta) - 4} textAnchor="end" fontSize={9} fill="var(--color-rojo)">
-          meta {meta}h
-        </text>
+        {hayMeta && (
+          <>
+            <line
+              x1={PAD_LEFT}
+              x2={W - 4}
+              y1={y(meta)}
+              y2={y(meta)}
+              stroke="var(--color-rojo)"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+            />
+            <text x={W - 6} y={y(meta) - 4} textAnchor="end" fontSize={9} fill="var(--color-rojo)">
+              meta {Number(meta.toFixed(2))}h
+            </text>
+          </>
+        )}
 
         {/* barras */}
         {dias.map((d, i) => {
