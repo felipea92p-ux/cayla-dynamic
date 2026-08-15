@@ -362,6 +362,19 @@ siempre el mismo comando de una línea. Un guardián que te para para pedirte al
 que él mismo puede hacer enseña que sus avisos son trámite; el día que frene por
 un número duplicado, ya le habrá enseñado a quien lo lee a usar `--no-verify`.
 
+**Y por lo mismo: `git commit --amend` NO se usa en este árbol.** Aquí trabajan
+varias sesiones a la vez —el 2026-08-14 eran cuatro— compartiendo directorio e
+índice, así que **HEAD puede moverse entre que commiteas y que amendas**. Ese día
+pasó: una sesión commiteó, otra commiteó encima en los segundos siguientes, y el
+`--amend` de la primera reescribió el commit de la segunda — le dejó su cambio de
+`CLAUDE.md` con un mensaje sobre la maternidad, que no tenía nada que ver.
+
+El contenido no se perdió: lo que se pierde es el mensaje del otro, y con él la
+única explicación de por qué existe ese cambio. **Si un mensaje sale mal, se
+arregla con un commit nuevo que lo explique, nunca reescribiendo el anterior.**
+Es la misma razón por la que se commitea con `git commit -o <ruta>`: en un árbol
+compartido, toda operación de git tiene que ser explícita sobre qué toca.
+
 **Y avisa —sin bloquear— si hay una migración sin commitear**
 (`scripts/hooks/migracion-sin-guardar.sh`). Porque el descuido de la 0177 volvió
 a pasar: el 2026-08-14 la **0243**, que cambia una liquidación por cese, quedó
