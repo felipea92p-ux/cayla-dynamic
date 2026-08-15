@@ -120,7 +120,10 @@ with repo(numero, nombre, nunca) as (values
     (255, 'marcar_una_liquidacion_pagada_no_revienta_por_una_nota_corta', false),
     (256, 'una_persona_puede_ver_sus_propias_faltas', false),
     (257, 'una_persona_puede_pedir_que_se_revise_un_dia', false),
-    (260, 'la_pantalla_de_costos_dice_cuanto_salio_del_banco', false)
+    (260, 'la_pantalla_de_costos_dice_cuanto_salio_del_banco', false),
+    (261, 'el_regimen_de_pension_recuerda_desde_cuando', false),
+    (262, 'la_licencia_por_maternidad_deja_de_pagarse_en_cero', false),
+    (263, 'los_veinte_dias_de_descanso_medico_entran_a_la_base', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -243,8 +246,14 @@ select * from (
              when '31ea2d1949da27167f767dc903aecd78' then '✗ 0250 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'e8b055e5ec144e20629bdc8b7bdbd0ea' then '⚠ se quedó en la 0252 — falta pegar lo posterior'
              when '7c038d3bbbe63aba6ae0b2a09aa4196a' then '✗ 0252 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '19eb593a757e0b7480b6a1dc99d7f8c9' then '0254 — al día con el repositorio'
+             when '19eb593a757e0b7480b6a1dc99d7f8c9' then '⚠ se quedó en la 0254 — falta pegar lo posterior'
              when '76b07847407ae03f1d24bb15096179fc' then '✗ 0254 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '0d0f5fdd5f53d29fb316be50c794cec6' then '⚠ se quedó en la 0261 — falta pegar lo posterior'
+             when '3b690e4e66251589066edfe85a009a0a' then '✗ 0261 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '261329fc2a8045ece063cfb0e5d38eca' then '⚠ se quedó en la 0262 — falta pegar lo posterior'
+             when '172b8aa710b3b06f89a53c3cf7ae6ff8' then '✗ 0262 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'f6b4f2649f4132dd2db5711b391b1f54' then '0263 — al día con el repositorio'
+             when 'ea201e37d15fbd3ef34d0c5bf8d722fd' then '✗ 0263 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
