@@ -1229,9 +1229,10 @@ comentarios.
 
 | Qué | Cuándo |
 |---|---|
-| **Anular la liquidación de Rufina Salvatierra**, que figura pagada y nunca se transfirió (ver abajo) | cuando esté la migración. **No hace falta antes del 28/08**: su fila ya está en S/0.00 y el cierre pasa limpio |
+| ~~**Anular la liquidación de Rufina Salvatierra**~~ | ✅ **anulada el 2026-08-14**. Versión 2 anulando la 1, con el motivo escrito; la v1 sigue visible. La anulación nombró el descuento de S/358.73 que queda vivo y **se queda**: ese es el adelanto que sí se le pagó, no un descuento dictado por el freno |
 | **Revisar el extracto** de finales de julio para las seis, y el de agosto para ella | esta semana. Es lo único que distingue «registrado» de «pagado» |
 | **Decidir persona por persona** qué se hace con lo que sí haya salido de más | después del extracto: sin él, no se sabe qué hay que decidir |
+| **Decisión pendiente de Felipe:** la rama que falta en el aviso de `fn_liquidacion` | sin fecha. Es donde la frase «quedan descuentos vivos» llegaría a los ojos que deciden, pero son 12.821 caracteres que se pegan a mano para reescribir algo que funciona. Hoy el aviso llega igual, porque el único camino para anular es el SQL Editor |
 
 ⚠️ **CUIDADO CON ESTA SECCIÓN: sus cifras son de lo REGISTRADO, no de lo
 transferido.** El 2026-08-14 se descubrió cómo se rompe esa suposición.
