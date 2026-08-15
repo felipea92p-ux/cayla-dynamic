@@ -118,7 +118,8 @@ with repo(numero, nombre, nunca) as (values
     (253, 'anular_deja_de_perder_el_descuento_que_el_freno_obligo_a_poner', false),
     (254, 'el_descanso_medico_deja_de_pagarse_en_cero', false),
     (255, 'marcar_una_liquidacion_pagada_no_revienta_por_una_nota_corta', false),
-    (256, 'la_licencia_por_maternidad_deja_de_pagarse_en_cero', false)
+    (256, 'la_licencia_por_maternidad_deja_de_pagarse_en_cero', false),
+    (259, 'los_veinte_dias_de_descanso_medico_entran_a_la_base', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -243,8 +244,10 @@ select * from (
              when '7c038d3bbbe63aba6ae0b2a09aa4196a' then '✗ 0252 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '19eb593a757e0b7480b6a1dc99d7f8c9' then '⚠ se quedó en la 0254 — falta pegar lo posterior'
              when '76b07847407ae03f1d24bb15096179fc' then '✗ 0254 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '9022a365902803332fbc8a5da09957e2' then '0256 — al día con el repositorio'
+             when '9022a365902803332fbc8a5da09957e2' then '⚠ se quedó en la 0256 — falta pegar lo posterior'
              when '93b0f8f0c1dab1bbcfea77bf79e26d7f' then '✗ 0256 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'c150eccadca07ace88723ee7ef790f9b' then '0259 — al día con el repositorio'
+             when 'd48c68c61dd70c1c5e746a15a76b3949' then '✗ 0259 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
