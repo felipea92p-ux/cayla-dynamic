@@ -1237,15 +1237,51 @@ y hay que avisarle antes de que le aparezca en la boleta.
 La prueba 200 lo fija, y se verificó que **falla sin la 0259**: sin el arreglo,
 las bases de la enferma y de la de control salían idénticas.
 
-**2 · ¿CAYLA está obligada a pagar asignación familiar?** Pregunta anterior y más
-grande que la maternidad, y afecta a **todo el equipo**, no a una persona. Como
-pequeña empresa del régimen MYPE, el art. 43 de la Ley 28015 (sustituido por el
-art. 7 del D. Leg. 1086) no la lista entre los derechos del régimen especial. Hoy
-se paga. Si no correspondiera, se está pagando de más a todo el mundo; si
-correspondiera y se dejara de pagar, es un adeudo. **No tocar sin el contador.**
+**2 · La asignación familiar: NO es exigible, y aun así NO se puede quitar.**
+Investigado el 2026-08-15 con ocho agentes contra fuentes primarias. Las dos
+mitades de la respuesta van juntas o se entiende al revés.
 
-Durante la licencia por maternidad sí se sigue pagando, y eso la investigación lo
-respalda: ninguna norma la condiciona a labor efectiva.
+**No es exigible.** El art. 43 de la Ley 28015 (sustituido por el art. 7 del
+D. Leg. 1086, hoy art. 50 del TUO D.S. 013-2013-PRODUCE) no la lista entre los
+derechos del régimen especial. Lo que convierte esa ausencia en exclusión —y no
+en silencio— es el art. 29 del reglamento (D.S. 008-2008-TR): el régimen «está
+constituido por los beneficios laborales contemplados en la Ley». Y la técnica
+legislativa lo confirma: cuando el legislador quiso que un derecho del régimen
+general siguiera corriendo, lo dijo con nombre (utilidades, CTS, derechos
+colectivos). Para la asignación familiar no hay remisión. **El Tribunal
+Constitucional ya lo dio por sentado**: en la STC Exp. 00021-2014-PI/TC (Pleno,
+13/03/2020) su propio cuadro comparativo dice «Asignación familiar — pequeña
+empresa: No», y la demanda de inconstitucionalidad se declaró **infundada**. Los
+dos refutadores independientes no pudieron tumbarlo.
+
+**Pero no se puede suprimir.** Al venir pagándose, es una mejora del régimen
+especial (art. 35 del D.S. 008-2008-TR) incorporada al contrato. Quitarla por
+circular es **reducción inmotivada de remuneración = acto de hostilidad
+equiparable al despido** (art. 30.b de la LPCL). Solo se puede suprimir hacia el
+futuro, por acuerdo escrito, libre y con contraprestación, **persona por
+persona**. Y lo ya pagado no se recupera ni se descuenta jamás.
+
+**La vía de riesgo cero es congelarla**: dejar de subirla cuando suba la RMV, sin
+tocar lo que hoy cobra nadie.
+
+⚠ **Antes de cualquier cosa hay que verificar dos hechos**, y cualquiera de los
+dos invierte el resultado:
+
+1. **¿CAYLA está inscrita y vigente en el REMYPE?** El art. 29 condiciona todo el
+   régimen especial a esa inscripción. Sin ella corre el régimen general y la
+   asignación familiar **sí** es obligatoria. Revisar también el tope de 1700 UIT
+   y las causales de exclusión del art. 31 (grupo económico, vinculación).
+2. **Quién entró antes del D. Leg. 1086 o bajo régimen general** — el art. 30 les
+   conserva sus derechos.
+
+**Esto no es una decisión de código y no hay migración.** Es para el contador y,
+por el tipo de exposición, probablemente para un abogado laboralista. Dato para
+esa conversación: se declara en PLAME con el código **0201**, es computable para
+gratificaciones, CTS y vacaciones, y afecta base de EsSalud, AFP/ONP y renta de
+5ta — o sea que congelarla o quitarla arrastra más de una línea.
+
+Durante la licencia por maternidad se sigue pagando: ninguna norma la condiciona
+a labor efectiva.
 
 ### A.2.b · Los tres locadores están retratados como personal subordinado
 
