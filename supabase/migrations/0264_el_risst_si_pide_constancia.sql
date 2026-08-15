@@ -61,6 +61,19 @@ update documentos_tipos
  where nombre = 'Reglamento Interno de Seguridad y Salud en el Trabajo'
    and requiere_acuse is distinct from true;
 
+-- El registro, que en la primera pasada faltó.
+--
+-- Esta migración se pegó el 2026-08-15 SIN esta línea, y el `update` de arriba
+-- quedó aplicado. Sin el registro, `que_falta_pegar.sql` seguiría contando la
+-- 0264 como pendiente para siempre — un pendiente falso que enseña a ignorar
+-- esa lista, que es justo lo que la lista no puede permitirse.
+--
+-- Volver a pegar el archivo entero es seguro: el `update` de arriba ya no
+-- encuentra nada que cambiar y este `insert` no pisa nada.
+insert into migraciones_aplicadas (numero, nombre)
+values (264, '0264_el_risst_si_pide_constancia')
+on conflict (numero) do nothing;
+
 -- Comprobación. Tiene que devolver UNA fila con `pide_constancia = true`.
 -- Si devuelve cero filas, el nombre no coincide —una tilde, un espacio de más—
 -- y el `update` de arriba no tocó nada.
