@@ -51,7 +51,7 @@ import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { hoyLima, TZ_LIMA } from "@cayla-dynamic/shared";
 import { type Area, AREAS_FALLBACK, parseAreas, areaCorto, areaNombre } from "@/lib/areas";
-import { MESES, type ObjetivoItem } from "@/lib/objetivos";
+import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
@@ -177,6 +177,10 @@ interface Fila {
   pendientes: number;
   objCumplidos: number;
   objTotal: number;
+  objetivos: ObjetivoItem[];
+  // ¿Hay contra qué medirla? Sin horario ni turnos, sus horas no se comparan
+  // con nada — y mezclarlas en un total «de X h que tocaban» lo vuelve falso.
+  tieneHorario: boolean;
 }
 
 const porRevisar = (f: Fila) => f.incompletas + f.pendientes;
@@ -295,11 +299,18 @@ function medidoContra(d: Dia): { texto: string; sospechoso: boolean } {
 // El desempeño de una persona, abierto DEBAJO de su fila. Va debajo y no en
 // otra pantalla ni tapando la tabla: así siguen a la vista las demás filas para
 // comparar, y no se pierden ni los filtros ni el periodo.
-function DetallePersona({ f, meta, sel, onDia }: {
+function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
   f: Fila; meta: number;
+  anio: number; mes: number;   // el mes de «hasta»: los objetivos son mensuales
   sel: { personaId: string; fecha: string } | null;
   onDia: (personaId: string, fecha: string) => void;
 }) {
+  const mesLabel = `${MESES[mes - 1].toLowerCase()} ${anio}`;
+  const sig = mes === 12 ? { anio: anio + 1, mes: 1 } : { anio, mes: mes + 1 };
+  const sigLabel = `${MESES[sig.mes - 1].toLowerCase()} ${sig.anio}`;
+  const objUrl = (a: number, m: number) => `/admin/objetivos?persona=${f.personaId}&anio=${a}&mes=${m}`;
+  const objPorcentaje = f.objTotal > 0 ? Math.round((f.objCumplidos / f.objTotal) * 100) : 0;
+  const nivel = lecturaObjetivos(f.objCumplidos, f.objTotal);
   const conMarcaje = f.dias.filter((d) => d.entradaTs !== null || d.horas !== null);
   const grafico: DiaGrafico[] = conMarcaje
     .filter((d) => !d.agregado)
@@ -357,6 +368,50 @@ function DetallePersona({ f, meta, sel, onDia }: {
           {meta > 0 && <span className="ml-2 text-sm font-normal text-taupe">· su jornada son {fmtHoras(meta)}</span>}
         </h3>
         <GraficoHoras dias={grafico} meta={meta} />
+      </div>
+
+      {/* Los objetivos son MENSUALES: no siguen al rango de fechas, y por eso
+          el título lleva el mes escrito. Acá van de solo lectura —marcarlos
+          cumplidos es de /admin/objetivos, que además re-valida quién puede—
+          pero los dos enlaces llegan con la persona y el mes ya elegidos. */}
+      <div className="rounded-2xl border border-sand bg-papel p-4">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-serif text-lg">Objetivos de {mesLabel}</h3>
+          {f.objTotal > 0 && (
+            <span className="flex items-center gap-2 text-sm">
+              <span className="text-taupe">{f.objCumplidos}/{f.objTotal} cumplidos</span>
+              {/* Sin color que premie: desde la 0171 los objetivos no pagan. */}
+              <span className="rounded-full bg-sand px-3 py-0.5 text-taupe">{nivel.etiqueta}</span>
+            </span>
+          )}
+        </div>
+
+        {f.objTotal === 0 ? (
+          <p className="text-sm text-taupe">
+            Todavía no tiene objetivos cargados para {mesLabel}.{" "}
+            <Link href={objUrl(anio, mes)} className="text-rojo hover:underline">Cargárselos ahora →</Link>
+          </p>
+        ) : (
+          <>
+            <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
+              <div className={`h-full rounded-full ${objPorcentaje >= 60 ? "bg-verde" : objPorcentaje >= 30 ? "bg-ambar" : "bg-rojo"}`}
+                style={{ width: `${objPorcentaje}%` }} />
+            </div>
+            <ul className="space-y-1 text-sm">
+              {f.objetivos.map((o) => (
+                <li key={o.id} className="flex items-start gap-2">
+                  <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
+                  <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        <div className="mt-3 flex flex-wrap gap-4 text-xs">
+          <Link href={objUrl(anio, mes)} className="text-rojo hover:underline">Editar los de {mesLabel} →</Link>
+          <Link href={objUrl(sig.anio, sig.mes)} className="text-rojo hover:underline">Preparar los de {sigLabel} →</Link>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
@@ -550,10 +605,11 @@ function DesempenoContenido() {
     for (const f of ((faltasData as { persona_id: string; fecha: string; justificada: boolean; motivo: string | null }[] | null) ?? [])) {
       faltaPor.set(`${f.persona_id}|${f.fecha}`, { justificada: f.justificada, motivo: f.motivo });
     }
-    const objPor = new Map<string, { cumplidos: number; total: number }>();
+    const objPor = new Map<string, { cumplidos: number; total: number; items: ObjetivoItem[] }>();
     for (const o of ((objetivosData as unknown as ObjetivoItem[] | null) ?? [])) {
-      const a = objPor.get(o.persona_id) ?? { cumplidos: 0, total: 0 };
+      const a = objPor.get(o.persona_id) ?? { cumplidos: 0, total: 0, items: [] };
       a.total++;
+      a.items.push(o);
       if (o.cumplido) a.cumplidos++;
       objPor.set(o.persona_id, a);
     }
@@ -578,6 +634,7 @@ function DesempenoContenido() {
         salidasTempranas: 0, horasExtra: 0,
         faltas: 0, faltasJustificadas: 0, incompletas: 0, pendientes: 0,
         objCumplidos: objPor.get(pid)?.cumplidos ?? 0, objTotal: objPor.get(pid)?.total ?? 0,
+        objetivos: objPor.get(pid)?.items ?? [], tieneHorario: false,
       };
 
       for (const fecha of listaFechas) {
@@ -626,6 +683,7 @@ function DesempenoContenido() {
           else { f.diasEsperados++; f.horasEsperadas += esperado.horas; }
           if (esperado.origen !== "turno") f.diasSinTurno++;
         }
+        if (esperado.origen !== "sin_horario") f.tieneHorario = true;
         if (horas !== null) {
           f.horasTotales += horas;
           if (agregado) { f.horasAgregadas += horas; f.agregados++; }
@@ -707,6 +765,11 @@ function DesempenoContenido() {
     horas: vista.reduce((s, f) => s + f.horasReales, 0),
     agregadas: vista.reduce((s, f) => s + f.horasAgregadas, 0),
     esperadas: vista.reduce((s, f) => s + f.horasEsperadas, 0),
+    // Cuánta gente de la vista NO tiene horario ni turnos cargados. Sin esto el
+    // recuadro decía «163 h de 90 h que tocaban» —trabajaron casi el doble de
+    // lo que les tocaba— cuando lo que pasaba es que el 90 era el horario de
+    // UNA de las tres. Un total que suma manzanas comparadas con nada.
+    sinHorario: vista.filter((f) => !f.tieneHorario).length,
     tardanzas: vista.reduce((s, f) => s + f.tardanzas, 0),
     peor: vista.reduce((m, f) => Math.max(m, f.peorTardanza), 0),
     faltas: vista.reduce((s, f) => s + f.faltas, 0),
@@ -839,7 +902,13 @@ function DesempenoContenido() {
 
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
           <Tile label="Horas del periodo" valor={`${totales.horas.toFixed(0)} h`}
-            pie={totales.esperadas > 0 ? `de ${totales.esperadas.toFixed(0)} h que tocaban` : "sin horario cargado"} />
+            pie={
+              totales.esperadas === 0
+                ? "nadie tiene horario cargado: no hay con qué comparar"
+                : totales.sinHorario > 0
+                  ? `de ${totales.esperadas.toFixed(0)} h que tocaban a ${vista.length - totales.sinHorario} de ${vista.length}`
+                  : `de ${totales.esperadas.toFixed(0)} h que tocaban`
+            } />
           <Tile label="Faltas" valor={String(totales.faltas)} tono="alerta" pie="le tocaba y no marcó" />
           <Tile label="Tardanzas" valor={String(totales.tardanzas)} tono="alerta"
             pie={totales.peor > 0 ? `la peor, ${fmtMinutos(totales.peor)}` : undefined} />
@@ -907,11 +976,13 @@ function DesempenoContenido() {
                       <td className="px-3 py-1.5 text-taupe">{f.sede}</td>
                       <td className="px-3 py-1.5 text-right">
                         {f.diasTrabajados}
-                        <span className="text-taupe/60"> / {f.diasEsperados || "?"}</span>
+                        {f.tieneHorario
+                          ? <span className="text-taupe/60"> / {f.diasEsperados}</span>
+                          : <span className="text-ambar" title="No tiene horario ni turnos cargados: no hay contra qué medirla."> · sin horario</span>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         <span className="font-medium">{f.horasReales.toFixed(1)}</span>
-                        <span className="text-taupe/60"> / {f.horasEsperadas > 0 ? f.horasEsperadas.toFixed(1) : "?"}</span>
+                        {f.tieneHorario && <span className="text-taupe/60"> / {f.horasEsperadas.toFixed(1)}</span>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         {f.tardanzas === 0
@@ -956,6 +1027,8 @@ function DesempenoContenido() {
                           <DetallePersona
                             f={f}
                             meta={f.diasEsperados > 0 ? f.horasEsperadas / f.diasEsperados : 0}
+                            anio={Number(hasta.slice(0, 4))}
+                            mes={Number(hasta.slice(5, 7))}
                             sel={sel}
                             onDia={abrirDia}
                           />

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -30,16 +30,26 @@ interface ResumenMes {
   con_checklist: boolean;
 }
 
-export default function ObjetivosPage() {
+function ObjetivosContenido() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const hoy = useMemo(hoyLima, []);
 
+  // Enlace directo: /admin/objetivos?persona=<uuid>&anio=2026&mes=9 llega con
+  // la persona y el mes ya elegidos. Lo usa Desempeño, donde ves que a alguien
+  // le faltan los objetivos del mes y quieres cargárselos sin volver a buscarla.
+  // Se lee con useSearchParams —no con window.location— porque esto también se
+  // renderiza en el servidor, donde `window` no existe.
+  const sp = useSearchParams();
+  const personaEnlace = sp.get("persona");
+  const anioEnlace = Number(sp.get("anio"));
+  const mesEnlace = Number(sp.get("mes"));
+
   const [personas, setPersonas] = useState<Persona[]>([]);
-  const [personaId, setPersonaId] = useState("");
-  const [anio, setAnio] = useState(hoy.anio);
-  const [mes, setMes] = useState(hoy.mes);
+  const [personaId, setPersonaId] = useState(personaEnlace ?? "");
+  const [anio, setAnio] = useState(Number.isInteger(anioEnlace) && anioEnlace > 2000 ? anioEnlace : hoy.anio);
+  const [mes, setMes] = useState(Number.isInteger(mesEnlace) && mesEnlace >= 1 && mesEnlace <= 12 ? mesEnlace : hoy.mes);
   const [items, setItems] = useState<ObjetivoItem[]>([]);
   const [resumen, setResumen] = useState<ResumenMes[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -420,5 +430,13 @@ export default function ObjetivosPage() {
         ) : null}
       </main>
     </div>
+  );
+}
+
+export default function ObjetivosPage() {
+  return (
+    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+      <ObjetivosContenido />
+    </Suspense>
   );
 }
