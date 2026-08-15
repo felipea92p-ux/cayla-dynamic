@@ -37,6 +37,96 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-14 — el barrido del pago del 28, y cuatro alarmas que no eran
+
+**El cierre del 28/08 NO está bloqueado.** Comprobado contra producción, no
+deducido: las **29 personas cuadran** contra `chk_foto_cuadra`, y el periodo
+suma **S/ 15,917.11**.
+
+Salió de una auditoría de 13 agentes en dos fases —nueve recalculando cada
+concepto desde la norma sin mirar el código, cuatro intentando refutar lo que
+los primeros encontraran—. 53 hallazgos, 45 reproducidos con cifras. Y de ahí,
+lo que sobrevivió al contraste con los datos reales cabe en media página.
+
+### Lo que se arregló y ya está en producción
+
+| | |
+|---|---|
+| **0248** | La foto del pago aprende la retención de 4ta. La 0245 le restó un término al total sin ampliar `chk_foto_cuadra`: el día que se configurara una retención, `fn_planilla_congelar` abortaba y **no se congelaba nadie**. Estaba armado y sin estallar — cero personas la tenían configurada |
+| **0244** | Los cuatro defectos de la 0243, que llevaba desde el 14/08 corriendo con ellos. El peor atascaba el cierre con un solo cese a mitad de periodo |
+| **0209** | La versión corregida reemplazó al borrador: el cese del mismo día que dejaba a la persona en S/0.00, y el sueldo fijo que cobraba el periodo completo |
+
+⚠️ **La 0248 es la TERCERA vez que pasa lo mismo** — 0127 con movilidad,
+educación y pensión; 0201 con el sobretiempo; esta con la retención. El término
+del total y la columna de la foto viven en dos sitios y nada obliga a tocarlos
+juntos. Por eso la prueba **189** no vigila la retención sino **el patrón**:
+falla si aparece cualquier columna `monto_*` fuera del candado, en el `db reset`
+y no un 28 por la noche.
+
+### Lo que queda, y son datos, no código
+
+- **Dante Ramal** — sueldo fijo S/652.17, ingresó el 13/08. Cobrará el **mes
+  completo por 16 de 31 días**: ~S/315 de más. La rama de sueldo fijo de
+  `fn_planilla_calcular` nunca prorrateó —es el Crítico 1 del catálogo, que ya
+  se evaluó una vez— y este mes es la primera vez que hay alguien a quien le
+  aplica. Se ajusta con un movimiento o se deja: es decisión, no defecto.
+- **Kerin Guevara** — ingresó el 12/08 sin **régimen de pensión** (no se le
+  retiene nada, y CAYLA es agente de retención) y **sin horario vigente** (no se
+  le miden faltas ni tardanzas). Las dos se cargan desde las pantallas.
+
+### ⚠️ UN CABO SUELTO QUE HAY QUE VOLVER A MEDIR EL 28
+
+**Felipe apareció con un descuadre de +S/110.00 —exactamente 11 días × S/10 de
+movilidad— en dos consultas consecutivas, y desapareció solo minutos después**
+sin que nadie tocara nada conocido. Tiene `cobra_movilidad = false` por la 0166,
+y la tarifa general de producción vale **S/10** (en el repositorio vale 0.00).
+
+No hay explicación: `fn_planilla_calcular` aplica `cobra_movilidad` **en los dos
+sitios**, el concepto (línea 376) y el total (línea 514). Se verificó leyendo el
+cuerpo vivo.
+
+**Instrucción concreta: correr `va_a_poder_cerrarse.sql` el 28, justo antes de
+congelar.** Es una sola sentencia y responde en dos segundos. Si el descuadre va
+y viene, ese es el único momento en que importa — una vez congelado, la foto se
+queda con lo que hubiera.
+
+### Dos scripts nuevos, para volver a usarlos cada mes
+
+| Ruta | Qué responde |
+|---|---|
+| [`antes_de_cerrar_el_mes.sql`](../scripts/sql-manual/antes_de_cerrar_el_mes.sql) | Once chequeos en una tabla: si existe el periodo, si faltan feriados, jornadas mudas, movilidad excluida, quién no tiene pensión, ausencias pagables en cero, entradas y ceses, salarios y horarios vigentes |
+| [`va_a_poder_cerrarse.sql`](../scripts/sql-manual/va_a_poder_cerrarse.sql) | Si el cierre va a poder completarse. **Una sola sentencia que SIEMPRE devuelve una fila**, porque cero filas se lee igual que «todo bien» |
+
+**Ninguno de los dos llama a una función de diagnóstico, y es deliberado.**
+`fn_liquidaciones_pendientes`, `fn_contratos_desnaturalizados`,
+`fn_dias_por_revisar`, `fn_ausencias_subsidio` y `fn_contratos_por_vencer`
+llevan dentro `fn_es_admin_o_lider()`, y en el SQL Editor la sesión es
+`postgres`, que no tiene fila en `personas`. **Devuelven cero filas, no un
+error.** Van contra las tablas para no poder caer en eso.
+
+### Las cuatro alarmas que no eran, y qué enseñan
+
+Ninguna llegó a aplicarse porque todas se intentaron reproducir antes. Quedan
+escritas para no volver a levantarlas:
+
+| Se dijo | La verdad |
+|---|---|
+| «Diez ausencias se pagarán en S/0.00» | Todas de tipos con `paga = false` —permiso personal, salud sin documento, otro— más unas vacaciones de un locador, que no las cobra desde la 0186. **S/0.00 es su resultado correcto** |
+| «Diez jornadas mudas pagarán cero» | Eran todas **del día en curso**: gente trabajando con su jornada abierta. Al volver a correrlo un rato después el número bajaba solo, mientras la gente se iba a casa |
+| «La movilidad excluida atasca el cierre» | El código **sí** aplica `cobra_movilidad` en los dos sitios. Reproducido: el cierre pasa |
+| «Veinte personas descuadran» | La consulta buscaba `descuento_pension` —el nombre de la COLUMNA— cuando la clave del JSON es **`descuento_afp`**. Restaba cero, y descuadraba todo el que tuviera AFP, en ~10 % |
+
+**El patrón de las cuatro es el mismo: afirmar por la forma en vez de medir.** Y
+las cuatro se cazaron igual — intentando reproducirlas. La regla que ya estaba
+escrita en este archivo, otra vez: *medir contra la base antes de proponer*.
+
+Y una que vale por sí sola: **la fórmula de un candado no se escribe de memoria,
+se copia del sitio donde es verdad.** La de `chk_foto_cuadra` se saca del
+`insert` de `fn_planilla_congelar`, que es quien mapea cada clave del JSON a su
+columna. Ahí se ve que `descuento_pension` se llena con `descuento_afp`.
+
+---
+
 ## 2026-08-14 — la retención de cuarta categoría, y diez locadores donde había tres
 
 ### El sistema ya calcula el 8 % de un recibo por honorarios ([`0245`](../supabase/migrations/0245_la_retencion_de_cuarta_deja_de_hacerse_a_mano.sql))
