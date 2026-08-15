@@ -92,6 +92,18 @@ const ACEPTAR_UI: Record<string, { boton: string; ayuda: string }> = {
       "quién la revisó y cuándo. La racha ya pasó y no se puede deshacer — esto solo dice que no se te escapó. " +
       "Si la racha sigue creciendo, el aviso vuelve a salir mañana con el día nuevo.",
   },
+  // Mismo trato que la racha, y por la misma razón: la infracción ya ocurrió, no
+  // se puede deshacer, y desaparecer sola por antigüedad sería borrarla sin que
+  // nadie la mirara. Solo lo lleva la variante «ya ocurrió»: el exceso VIVO pide
+  // mover un turno, y darle un botón de «visto» sería ofrecer callar el aviso en
+  // vez de atenderlo.
+  jornada_excedida: {
+    boton: "Revisado",
+    ayuda:
+      "Dejar constancia de que viste este exceso y sacarlo de la lista. No lo borra: queda registrado quién " +
+      "lo revisó y cuándo. El exceso ya ocurrió y no se puede deshacer — esto solo dice que no se te escapó. " +
+      "Pasar de 48 h no se arregla pagando el recargo: es un tope, y el recargo ya se pagó aparte.",
+  },
 };
 const ACEPTAR_BOTON = (t: string | undefined) => (t && ACEPTAR_UI[t]?.boton) || "Aceptar";
 const ACEPTAR_AYUDA = (t: string | undefined) =>
@@ -204,12 +216,18 @@ function IncidenciasContenido() {
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
       // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
-      // Se pide desde el filtro O desde la ventana de la racha, lo que sea más
-      // atrás: la racha no respeta Desde/Hasta —se mide sobre una ventana fija—,
-      // así que con el filtro estrecho su aceptación no se cargaría y el aviso que
-      // ya diste por revisado volvería a aparecer solo por haber movido una fecha.
+      // Se pide desde el filtro O desde la ventana fija más profunda, lo que sea
+      // más atrás: los avisos de racha y de exceso NO respetan Desde/Hasta —se
+      // miden sobre ventanas fijas—, así que con el filtro estrecho su aceptación
+      // no se cargaría y el aviso que ya diste por revisado volvería a aparecer
+      // solo por haber movido una fecha.
+      //
+      // El `min` de las tres es a propósito y no un adorno: cuando la 0185 trajo
+      // el exceso «ya ocurrió» con 30 días de ventana, esta línea seguía mirando
+      // los 20 de la racha y un exceso revisado hace tres semanas reaparecía.
       supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo")
-        .gte("fecha", desde < haceDias(VENTANA_RACHA_DIAS) ? desde : haceDias(VENTANA_RACHA_DIAS))
+        .gte("fecha", [desde, haceDias(VENTANA_RACHA_DIAS), haceDias(VENTANA_EXCESO_DIAS)]
+          .reduce((a, b) => (a < b ? a : b)))
         .lte("fecha", hasta > HOY ? hasta : HOY),
       // Faltas del rango (le tocaba y no marcó). Falla suave: si no llega, no se muestran.
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
@@ -403,10 +421,12 @@ function IncidenciasContenido() {
         haceDias(EXCESO_AUN_EVITABLE_DIAS + 1),
       );
       if (vieja === null || vieja.horas <= MAXIMO_LEGAL_SEMANAL) continue;
+      if (aceptadas.has(`${j.persona_id}|${vieja.fin}|jornada_excedida`)) continue;
       out.push({
         ...quien,
         fecha: vieja.fin,
         tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
+        aceptable: "jornada_excedida",
       });
     }
 
@@ -620,7 +640,7 @@ function IncidenciasContenido() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Los dos avisos llegan mientras todavía se puede mover el turno: ninguno de los dos se arregla pagando después. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde
