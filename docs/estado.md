@@ -65,11 +65,30 @@ y no un 28 por la noche.
 
 ### Lo que queda, y son datos, no código
 
-- **Dante Ramal** — sueldo fijo S/652.17, ingresó el 13/08. Cobrará el **mes
-  completo por 16 de 31 días**: ~S/315 de más. La rama de sueldo fijo de
-  `fn_planilla_calcular` nunca prorrateó —es el Crítico 1 del catálogo, que ya
-  se evaluó una vez— y este mes es la primera vez que hay alguien a quien le
-  aplica. Se ajusta con un movimiento o se deja: es decisión, no defecto.
+- ~~**Dante Ramal** — cobraría el mes completo por 16 de 31 días~~ — ✅ **no era
+  un problema, y la aclaración de Felipe lo invirtió entero.** El sistema decía
+  `fecha_ingreso = 13/08` con un tramo de salario que arrancaba el **29/07**, y
+  yo propuse corregir el tramo. Estaba al revés: **Dante ya trabajaba desde
+  antes; el 13/08 es el día en que Felipe lo dio de alta en el sistema.** El dato
+  malo era la fecha de ingreso.
+
+  Con `fecha_ingreso = 2026-07-29` —ya corregida en Equipo— estuvo el periodo
+  completo, así que **el mes completo es lo correcto y los ~S/315 no existen**.
+  Verificado además: no tiene horario asignado, así que el motor de faltas no le
+  cuenta ni un día ausente pese a no marcar nunca. Es `rxh` con `sueldo_fijo`.
+
+  ⚠️ **DECISIÓN DE FELIPE, PARA QUE NADIE LA «ARREGLE» DESPUÉS:** a Dante se le
+  pagó por fuera antes de entrar al sistema, y **eso no se carga — se cuenta
+  desde ahora**. El sistema es nuevo y no vale la pena complicarlo hacia atrás.
+  De `fecha_ingreso` cuelga el reloj de su CTS, su gratificación y sus
+  vacaciones: quien mire su devengado dentro de unos meses va a ver una
+  antigüedad más corta de la real y va a querer corregirla. **No es un dato mal
+  cargado: es una decisión.**
+
+  Y una nota para cuando se revise el vínculo de los locadores con el contador:
+  **Dante es locador con monto fijo mensual**, que es exactamente el indicio de
+  laboralidad que ya está señalado para Carlos, Catherine y Claudia. Entra en esa
+  misma lista; no se quedó fuera por haberse dado de alta después.
 - **Kerin Guevara** — ingresó el 12/08 sin **régimen de pensión** (no se le
   retiene nada, y CAYLA es agente de retención) y **sin horario vigente** (no se
   le miden faltas ni tardanzas). Las dos se cargan desde las pantallas.
