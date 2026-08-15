@@ -17,6 +17,7 @@ import { describe, it, expect } from "vitest";
 import {
   MAXIMO_LEGAL_SEMANAL,
   HORARIO_PROGRAMADO_SEMANAL,
+  avisoDeRacha,
   RECARGO_SOBRETIEMPO,
   excesoSobreJornada,
   MAXIMO_DIAS_SIN_DESCANSO,
@@ -102,6 +103,79 @@ describe("diasSeguidosTrabajados", () => {
     expect(diasSeguidosTrabajados(seis, "2026-08-08")).toBe(MAXIMO_DIAS_SIN_DESCANSO);
     expect(diasSeguidosTrabajados([...seis, "2026-08-09"], "2026-08-09"))
       .toBeGreaterThan(MAXIMO_DIAS_SIN_DESCANSO);
+  });
+});
+
+describe("avisoDeRacha", () => {
+  // Seis días seguidos: del viernes 8 al jueves 13 de agosto de 2026.
+  const SEIS = ["2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13"];
+
+  it("el caso de Dayana: descansó al día siguiente y el aviso ya no aplica", () => {
+    // El aviso decía «el próximo le toca descansar» anclado al jueves 13. El
+    // viernes 14 descansó — y un descanso no deja fila en `jornadas`, así que lo
+    // único que lo delata es que el 13 se quedó atrás. El sábado 15 ese aviso
+    // pedía algo que ya había ocurrido.
+    expect(avisoDeRacha(SEIS, "2026-08-15")).toBeNull();
+  });
+
+  it("no se apoya en que la persona vuelva a marcar para callarse", () => {
+    // Antes se arreglaba solo cuando ella volvía a trabajar (la racha se reinicia
+    // en 1). Con vacaciones o dos días libres seguidos, no volvía a marcar y el
+    // aviso se quedaba pegado toda la semana.
+    expect(avisoDeRacha(SEIS, "2026-08-20")).toBeNull();
+    expect(avisoDeRacha(SEIS, "2026-08-27")).toBeNull();
+  });
+
+  it("el mismo día en que cierra la racha sí avisa: mañana le toca descansar", () => {
+    const a = avisoDeRacha(SEIS, "2026-08-13");
+    expect(a).not.toBeNull();
+    expect(a!.seguidos).toBe(MAXIMO_DIAS_SIN_DESCANSO);
+    expect(a!.excedida).toBe(false);
+    expect(a!.ultimo).toBe("2026-08-13");
+  });
+
+  it("al día siguiente todavía avisa: puede que trabaje y aún no haya marcado", () => {
+    // Es el momento en que mover el turno todavía sirve. Ante la duda se avisa:
+    // equivocarse hacia el aviso cuesta una fila de más; hacia el silencio, una
+    // infracción del D. Leg. 713.
+    expect(avisoDeRacha(SEIS, "2026-08-14")).not.toBeNull();
+  });
+
+  it("la racha de 7+ NO caduca: la infracción ya ocurrió y alguien tiene que verla", () => {
+    // Este es el contraste con el caso de Dayana. Con 6 el aviso pide algo que
+    // todavía se puede hacer, y si ya se hizo sobra. Con 7 la infracción está
+    // consumada: se saca con visto bueno, que deja constancia de quién la
+    // revisó, nunca sola por antigüedad.
+    const siete = [...SEIS, "2026-08-14"];
+    const a = avisoDeRacha(siete, "2026-08-30");
+    expect(a).not.toBeNull();
+    expect(a!.seguidos).toBe(7);
+    expect(a!.excedida).toBe(true);
+  });
+
+  it("aceptar un día no tapa el siguiente: la racha que crece vuelve a salir", () => {
+    // El visto bueno se guarda por `persona|ultimo|tipo`. Si mañana sigue sin
+    // descansar, `ultimo` cambia y el aviso reaparece con el día nuevo.
+    const siete = [...SEIS, "2026-08-14"];
+    const ocho = [...siete, "2026-08-15"];
+    expect(avisoDeRacha(siete, "2026-08-15")!.ultimo).toBe("2026-08-14");
+    expect(avisoDeRacha(ocho, "2026-08-15")!.ultimo).toBe("2026-08-15");
+  });
+
+  it("cinco días seguidos no dicen nada", () => {
+    expect(avisoDeRacha(SEIS.slice(1), "2026-08-13")).toBeNull();
+  });
+
+  it("sin días marcados no revienta", () => {
+    expect(avisoDeRacha([], "2026-08-15")).toBeNull();
+  });
+
+  it("cruza el fin de mes sin romperse", () => {
+    const f = ["2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01"];
+    const a = avisoDeRacha(f, "2026-08-02");
+    expect(a).not.toBeNull();
+    expect(a!.seguidos).toBe(MAXIMO_DIAS_SIN_DESCANSO);
+    expect(avisoDeRacha(f, "2026-08-03")).toBeNull();
   });
 });
 

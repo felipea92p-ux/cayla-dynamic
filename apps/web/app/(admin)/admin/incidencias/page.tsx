@@ -10,7 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import {
   TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
-  MAXIMO_DIAS_SIN_DESCANSO, diasSeguidosTrabajados, ventanaMasCargada,
+  MAXIMO_DIAS_SIN_DESCANSO, avisoDeRacha, ventanaMasCargada,
 } from "@cayla-dynamic/shared";
 
 function haceDias(n: number): string {
@@ -79,6 +79,13 @@ const ACEPTAR_UI: Record<string, { boton: string; ayuda: string }> = {
       "Confirmar que no tomó refrigerio y siguió trabajando: el día se paga tal como está calculado. " +
       "Si sí almorzó, no uses este botón — registra en Correcciones la hora en que salió y la hora en que " +
       "volvió, y las horas se recalculan solas.",
+  },
+  racha_sin_descanso: {
+    boton: "Revisado",
+    ayuda:
+      "Dejar constancia de que viste esta racha y la sacaste de la lista. No la borra: queda registrado " +
+      "quién la revisó y cuándo. La racha ya pasó y no se puede deshacer — esto solo dice que no se te escapó. " +
+      "Si la racha sigue creciendo, el aviso vuelve a salir mañana con el día nuevo.",
   },
 };
 const ACEPTAR_BOTON = (t: string | undefined) => (t && ACEPTAR_UI[t]?.boton) || "Aceptar";
@@ -165,7 +172,12 @@ function IncidenciasContenido() {
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
       // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
-      supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo").gte("fecha", desde).lte("fecha", hasta),
+      // Se pide desde el filtro O desde la ventana de la racha, lo que sea más
+      // atrás: la racha no respeta Desde/Hasta —se mide sobre 20 días fijos—, así
+      // que con el filtro estrecho su aceptación no se cargaría y el aviso que ya
+      // diste por revisado volvería a aparecer solo por haber movido una fecha.
+      supabase.from("incidencias_aceptadas").select("persona_id, fecha, tipo")
+        .gte("fecha", desde < haceDias(20) ? desde : haceDias(20)).lte("fecha", hasta > HOY ? hasta : HOY),
       // Faltas del rango (le tocaba y no marcó). Falla suave: si no llega, no se muestran.
       supabase.rpc("fn_faltas", { p_desde: desde, p_hasta: hasta }),
       // Tardanzas levantadas (perdonadas): no cuentan para el patrón. Ventana del patrón.
@@ -336,21 +348,30 @@ function IncidenciasContenido() {
       else porPersonaDias.set(j.persona_id, { fechas: [j.fecha], fila: j });
     }
     for (const { fechas, fila: j } of porPersonaDias.values()) {
-      // La racha que importa es la que sigue viva: se mide desde el último día
-      // con marcaje. Si fue hace tres días, ya descansó y no hay nada que avisar.
-      const ultimo = fechas.reduce((a, b) => (a > b ? a : b));
-      const seguidos = diasSeguidosTrabajados(fechas, ultimo);
-      if (seguidos < MAXIMO_DIAS_SIN_DESCANSO) continue;
+      // Cuándo se avisa y cuándo el aviso ya caducó vive en `avisoDeRacha`, con
+      // sus pruebas: la regla decide si esta pantalla dice una verdad o una
+      // mentira, y el 2026-08-15 dijo una mentira por no tener dónde probarse.
+      const aviso = avisoDeRacha(fechas, HOY);
+      if (aviso === null) continue;
+
+      // El aviso de 7+ se saca con visto bueno, no por antigüedad: la infracción
+      // ya ocurrió y desaparecer sola sería borrarla sin que nadie la mirara. Si
+      // la racha sigue creciendo, `ultimo` cambia y vuelve a salir — aceptar el
+      // día 7 no tapa el día 8, que es justo lo que se quiere.
+      const aceptable = aviso.excedida ? "racha_sin_descanso" : undefined;
+      if (aceptable && aceptadas.has(`${j.persona_id}|${aviso.ultimo}|${aceptable}`)) continue;
+
       out.push({
         personaId: j.persona_id,
         nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
         sede: j.personas?.sedes?.codigo ?? "?",
-        fecha: ultimo,
-        tipo: seguidos === MAXIMO_DIAS_SIN_DESCANSO
-          ? `Lleva ${seguidos} días seguidos — el próximo le toca descansar`
-          : `${seguidos} días seguidos sin descanso semanal`,
+        fecha: aviso.ultimo,
+        tipo: aviso.excedida
+          ? `${aviso.seguidos} días seguidos sin descanso semanal`
+          : `Lleva ${aviso.seguidos} días seguidos — el próximo le toca descansar`,
         entrada: null,
         salida: null,
+        aceptable,
       });
     }
 
@@ -502,7 +523,7 @@ function IncidenciasContenido() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Los dos avisos llegan mientras todavía se puede mover el turno: ninguno de los dos se arregla pagando después. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} días — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Los dos avisos llegan mientras todavía se puede mover el turno: ninguno de los dos se arregla pagando después. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde

@@ -95,6 +95,55 @@ export function diasSeguidosTrabajados(fechas: readonly string[], hasta: string)
   return dias;
 }
 
+/** Lo que hay que avisar sobre la racha de alguien, o `null` si no hay nada. */
+export interface AvisoRacha {
+  /** Días seguidos trabajados hasta `ultimo`. */
+  seguidos: number;
+  /** Último día con marcas: la fecha a la que se ancla el aviso. */
+  ultimo: string;
+  /** Ya pasó del tope — la infracción ocurrió y no se puede deshacer. */
+  excedida: boolean;
+}
+
+/**
+ * Qué avisar sobre los días seguidos de una persona, a partir de sus días CON
+ * marcas. Devuelve `null` cuando no hay nada que decir.
+ *
+ * Lo que esta función agrega sobre `diasSeguidosTrabajados` es CUÁNDO callarse, y
+ * es la parte que se aprendió tarde:
+ *
+ * Un descanso no deja rastro en `jornadas` — simplemente no hay fila ese día. Así
+ * que lo único que distingue «lleva 6 seguidos y mañana le toca descansar» de
+ * «llevó 6 seguidos y ya descansó» es si su último día marcado se quedó atrás.
+ * Contar hacia atrás desde el último día marcado, sin mirar qué tan viejo es, da
+ * el mismo 6 en los dos casos — y el aviso pide un descanso que ya ocurrió.
+ *
+ * Por eso el aviso de 6 caduca: con `ultimo` de anteayer o antes, ya sabemos qué
+ * pasó al día siguiente —no trabajó— y sobra decir nada. Con `ultimo` de AYER se
+ * avisa igual, porque puede que hoy trabaje y aún no haya marcado, y ese es justo
+ * el momento en que mover el turno todavía sirve.
+ *
+ * El de 7+ NO caduca, y es a propósito: esa infracción ya ocurrió, y hacerla
+ * desaparecer sola sería borrarla sin que nadie la mirara. Se saca de la pantalla
+ * con visto bueno, que deja constancia de quién la revisó.
+ */
+export function avisoDeRacha(fechas: readonly string[], hoy: string): AvisoRacha | null {
+  if (fechas.length === 0) return null;
+  const ultimo = fechas.reduce((a, b) => (a > b ? a : b));
+  const seguidos = diasSeguidosTrabajados(fechas, ultimo);
+  if (seguidos < MAXIMO_DIAS_SIN_DESCANSO) return null;
+
+  const excedida = seguidos > MAXIMO_DIAS_SIN_DESCANSO;
+  if (!excedida) {
+    // Ayer, en fechas civiles: restar sobre una fecha local cruzaría mal el
+    // cambio de día en Lima, igual que en `diasSeguidosTrabajados`.
+    const ayer = new Date(`${hoy}T00:00:00Z`);
+    ayer.setUTCDate(ayer.getUTCDate() - 1);
+    if (ultimo < ayer.toISOString().slice(0, 10)) return null;
+  }
+  return { seguidos, ultimo, excedida };
+}
+
 /**
  * Las horas de la ventana de 7 días consecutivos MÁS CARGADA que termina dentro
  * del rango mirado. Devuelve la ventana y sus horas, o `null` si no hay datos.
