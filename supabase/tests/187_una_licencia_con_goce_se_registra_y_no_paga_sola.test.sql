@@ -7,10 +7,16 @@
 --
 -- EL MALENTENDIDO. El tipo se llama «con goce» y tiene `paga = true`. Cualquiera
 -- —incluida una sesión futura leyendo esto— asume que registrar la ausencia hace
--- que la planilla le pague esos días. NO LO HACE: `fn_planilla_calcular` no lee
--- la tabla `ausencias` en absoluto. Si nadie fija eso por escrito, el día que
--- alguien registre una licencia y cierre el mes, la persona cobra de menos y el
--- sistema se ve correcto en pantalla.
+-- que la planilla le pague esos días. NO LO HACE. Si nadie fija eso por escrito,
+-- el día que alguien registre una licencia y cierre el mes, la persona cobra de
+-- menos y el sistema se ve correcto en pantalla.
+--
+-- ⚠️ Y OJO, QUE ESTO CAMBIÓ. Hasta la 0254 el argumento era fuerte y simple:
+-- `fn_planilla_calcular` no leía `ausencias` en absoluto. Ya no es cierto — la
+-- 0254 conectó `descanso_medico`, porque el RIT art. 31 f) obliga a CAYLA a
+-- asumir los primeros 20 días de incapacidad del año. Así que hoy la planilla
+-- SÍ lee esa tabla, y lo que sostiene el párrafo de arriba es más estrecho:
+-- lee UN tipo, y `licencia_con_goce` no es ese tipo.
 --
 -- Por eso la prueba central no es «el tipo existe» sino las dos que van detrás:
 -- qué mueve `paga` (las provisiones) y qué NO mueve (el sueldo del periodo).
@@ -20,9 +26,10 @@
 --   1. El tipo existe y sus cuatro interruptores son los que la 0247 declara.
 --      `descuenta_vacaciones = false` es el caro: si se pone mal, una decisión
 --      de la empresa le gasta a la persona su saldo de vacaciones.
---   2. `fn_planilla_calcular` NO lee `ausencias`. Es la prueba que sostiene todo
---      el párrafo de arriba, y se hace contra `prosrc` porque es la única forma
---      de comprobar una AUSENCIA de lectura sin montar una planilla entera.
+--   2. `fn_planilla_calcular` NO paga `licencia_con_goce` ni `maternidad`, y sí
+--      paga `descanso_medico` desde la 0254. Es la prueba que sostiene todo el
+--      párrafo de arriba, y se hace contra `prosrc` porque es la única forma de
+--      comprobar una AUSENCIA de lectura sin montar una planilla entera.
 --   3. Registrar la licencia SÍ tapa la falta: la vista
 --      `justificaciones_asistencia` la ve, y es la que leen las faltas.
 --   4. La licencia entra por la vista con su tipo, no con otro. Si mañana
@@ -33,7 +40,7 @@
 -- para verificar un `join ... and ta.paga` que ya está cubierto.
 -- ============================================================================
 begin;
-select plan(12);
+select plan(13);
 
 -- ── 1 · El tipo existe, y con los interruptores declarados ──────────────────
 select is(
@@ -73,14 +80,37 @@ select is(
 );
 
 -- ── 2 · Lo que el nombre promete y la planilla no cumple ────────────────────
--- Si alguna vez alguien conecta `ausencias` a la planilla, esta prueba se cae —
--- y caerse es lo correcto: significa que el comentario de la 0247 y el de
--- `tipos_ausencia` quedaron mintiendo y hay que reescribirlos.
+-- ESTA PRUEBA YA SE CAYÓ UNA VEZ, y era su trabajo. Decía que
+-- `fn_planilla_calcular` no leía `ausencias` en absoluto — cierto hasta la
+-- **0254**, que conectó `descanso_medico` porque el RIT art. 31 f) obliga a
+-- CAYLA a asumir los primeros 20 días de incapacidad del año. Al conectarla,
+-- esta prueba se puso en rojo y avisó de que la afirmación había caducado.
+--
+-- Así que ahora dice la verdad de hoy, que es más estrecha y más útil: la
+-- planilla paga UN tipo de ausencia, y `licencia_con_goce` no es ese tipo. Si
+-- alguien la conecta, esto se cae otra vez — y volverá a ser lo correcto,
+-- porque el nombre del tipo promete un pago que nadie decidió todavía.
 select ok(
-  (select prosrc not like '%ausencias%'
+  (select prosrc not like '%licencia_con_goce%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
-  'fn_planilla_calcular NO lee ausencias: ningun tipo de ausencia paga el sueldo del periodo por si solo'
+  'la planilla NO paga licencia_con_goce: el tipo se registra y tapa la falta, pero no paga sola'
+);
+
+-- Y la maternidad tampoco, por la misma razón y con más motivo: tiene reglas
+-- propias —98 días, subsidio de EsSalud desde el día uno— que hay que decidir
+-- antes de escribirlas. La 0254 la dejó fuera a propósito.
+--
+-- Se mira el FILTRO y no la palabra suelta, y eso lo enseñó esta misma prueba:
+-- escrita como `prosrc not like '%maternidad%'` salió en rojo por un COMENTARIO
+-- que solo la nombraba. Grepear una cadena en el cuerpo de una función no mide
+-- la regla — la lección que `docs/estado.md` ya tenía escrita del 13 de agosto.
+select ok(
+  (select prosrc like '%a.tipo = ''descanso_medico''%'
+      and prosrc not like '%a.tipo = ''maternidad''%'
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+  'la planilla lee ausencias SOLO para descanso_medico: la maternidad sigue fuera a propósito'
 );
 
 select ok(
