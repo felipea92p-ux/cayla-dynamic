@@ -1212,13 +1212,30 @@ Las cinco decisiones que la sostienen:
 
 ### A.2.a.bis · Dos hallazgos que salieron de la investigación del 2026-08-15
 
-**1 · Los primeros 20 días de descanso médico están SUB-DECLARADOS.** Confirmado
-con norma y con criterio administrativo: lo que CAYLA asume esos 20 días **es
-remuneración**, afecta a EsSalud 9 %, a AFP/ONP y a renta de 5ta (D.S. 009-97-SA
+**1 · Los primeros 20 días de descanso médico estaban SUB-DECLARADOS → 0259.**
+Confirmado con norma y con criterio administrativo: lo que CAYLA asume esos 20
+días **es remuneración**, afecta a EsSalud y a la base de pensión (D.S. 009-97-SA
 art. 15; Informes SUNAT 259-2004 y 003-2007). El código PLAME 0916 es **solo**
-para el subsidio de EsSalud, no para esos días. La 0254 los mete en `pago_base`
-pero **no** en `pb.basica`, así que no llegan a `bri.base` y quedan fuera de las
-tres bases. **Es su propia migración, con su medición — no está hecha.**
+para el subsidio de EsSalud, que nace el día 21. La 0254 los metía en `pago_base`
+pero **no** en `pb.basica`, así que no llegaban a `bri.base`: se pagaban y no se
+declaraban.
+
+**La 0259 lo corrige** — un solo término en `bri.base`, con la misma guarda de
+vínculo que el feriado y el sobretiempo. Se pega **después de la 0256**, porque
+su cuerpo parte de ella. Medido con una persona con S/870.97 de descanso médico:
+
+| | hoy | con la 0259 |
+|---|---|---|
+| base EsSalud | 1 130.00 | 1 182.90 |
+| aporte de CAYLA | 101.70 | 106.46 |
+| **retención de pensión** | 40.30 | **152.83** |
+
+Nadie más se mueve. **Pero esos +S/112.53 salen del sueldo de quien tuvo descanso
+médico** — es lo correcto, porque esos días ahora sí le cuentan para su pensión,
+y hay que avisarle antes de que le aparezca en la boleta.
+
+La prueba 200 lo fija, y se verificó que **falla sin la 0259**: sin el arreglo,
+las bases de la enferma y de la de control salían idénticas.
 
 **2 · ¿CAYLA está obligada a pagar asignación familiar?** Pregunta anterior y más
 grande que la maternidad, y afecta a **todo el equipo**, no a una persona. Como
