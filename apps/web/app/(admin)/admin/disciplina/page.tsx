@@ -30,6 +30,23 @@ function selloLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
+// El mes que este semáforo está contando, escrito una sola vez. Sale de
+// `hoyLima()` y no de `new Date()` porque es el mismo corte del día que usa
+// `fn_tardanzas_resumen` (`date_trunc('month', fn_hoy_lima())`): el 1 de mes,
+// entre medianoche de Lima y medianoche del navegador, las dos formas no dicen
+// el mismo mes.
+// Se normaliza a minúscula a mano: `Intl` devuelve «Agosto» en Node y en los
+// navegadores de hoy, pero el mes va en minúscula dentro de una frase («lleva 2
+// en agosto») y con mayúscula al abrir el título. Fijar las dos formas acá evita
+// además depender de que todos los navegadores capitalicen igual.
+const MES_ACTUAL = (() => {
+  const [y, m] = hoyLima().split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, 1)))
+    .toLocaleLowerCase("es-PE");
+})();
+const MES_ACTUAL_TITULO = MES_ACTUAL.charAt(0).toLocaleUpperCase("es-PE") + MES_ACTUAL.slice(1);
+
 // Las etiquetas de la escala viven en packages/shared desde la 0200: las
 // necesitan también el Dashboard y el Reporte por sede.
 /** Los niveles que pasan por el descargo previo del art. 55.2 del RIT. La
@@ -743,16 +760,26 @@ function fechasDe(h: Hecho[]): string {
         {/* Semáforo de tardanzas */}
         <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
-            <h2 className="text-sm font-medium">Tardanzas — {new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: TZ_LIMA }).format(new Date())}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
+            <h2 className="text-sm font-medium">Tardanzas — {MES_ACTUAL_TITULO}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
             {/* El umbral NO es el mismo para todas: depende del escalón en el
                 que esté cada quien (RIT art. 7 b/c/d). Decir «3» aquí, como
                 decía hasta la 0200, era falso para quien arrastra un
                 antecedente vigente — y esa es justamente la gente por la que
                 hay que actuar antes. */}
+            {/* «El mes» tenía que decir MES CALENDARIO. Incidencias cuenta el
+                patrón de tardanzas sobre 30 días corridos, así que las dos
+                pantallas dan números distintos para la misma persona el mismo
+                día —una tardanza del mes pasado entra en una y no en la otra— y
+                el que gobierna el papel es este: el art. 19.2-b del RIT dice
+                «en un mismo mes calendario» y la carta cita ese texto. Sin
+                nombrar el periodo, la diferencia se lee como que una de las dos
+                está rota. */}
             <p className="mt-0.5 text-xs text-taupe">
-              Umbral RIT art. 7: <strong>3</strong> en el mes sin antecedente ·
-              {" "}<strong>2</strong> tras una amonestación · <strong>1</strong> tras una suspensión.
-              Cada fila dice el suyo.
+              Umbral RIT art. 19.2: <strong>3</strong> en el <strong>mes calendario</strong> sin
+              antecedente · <strong>2</strong> tras una amonestación · <strong>1</strong> tras una
+              suspensión. Cada fila dice el suyo.
+              {" "}El conteo arranca de cero el día 1; Incidencias avisa sobre los últimos 30 días
+              corridos, así que ahí el número puede ser mayor que acá.
             </p>
           </div>
           {cargando ? (
@@ -774,7 +801,7 @@ function fechasDe(h: Hecho[]): string {
                       <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "aviso" ? "bg-amber-100 text-amber-800" : "bg-rojo/10 text-rojo"}`}>
                         {t.tardanzas_mes}
                         {t.umbral === "aviso"
-                          ? ` de ${t.minimo} · aviso`
+                          ? ` de ${t.minimo} en ${MES_ACTUAL} · aviso`
                           : t.umbral === "bloqueado"
                             ? " · imputación vigente, decide Gerencia"
                             : ` · corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral}`}
@@ -803,7 +830,7 @@ function fechasDe(h: Hecho[]): string {
                       : t.umbral === "bloqueado"
                         ? "Ya tiene una imputación de cargos vigente. El siguiente paso es evaluar sus descargos (art. 31) y lo decide Gerencia, no el sistema."
                         : t.umbral === "aviso"
-                          ? `Aún no llega a su umbral: lleva ${t.tardanzas_mes} y su escalón exige ${t.minimo}.`
+                          ? `Aún no llega a su umbral: lleva ${t.tardanzas_mes} en ${MES_ACTUAL} y su escalón exige ${t.minimo}. El conteo arranca de cero el día 1.`
                           : undefined}
                     className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
                     {ocupado === t.persona_id ? "Generando…" : "Generar borrador"}

@@ -155,12 +155,21 @@ julio no se toca: se registró un descuento en el periodo ABIERTO (29-jul → 28
 una línea por persona con su concepto, por el importe exacto de la sobretasa que
 cobraron:
 
-| | descuento |
-|---|---|
-| Joselyn Gavilan | S/ 61.77 |
-| Judith Pillaca | S/ 67.86 |
-| Raquel Ticona | S/ 67.93 |
-| **total** | **S/ 197.56** |
+| | régimen | descuento | por qué ese importe |
+|---|---|---|---|
+| Joselyn Gavilan | PROFUTURO | S/ 61.77 | bruto — su retención de julio está en su cuenta AFP |
+| Judith Pillaca | JUBILADA | S/ 67.86 | bruto — en julio aún tenía AFP (la 0190 rige desde el periodo del 28/08) |
+| Raquel Ticona | ONP | S/ 59.10 | **neto** — el 13 % de ONP se fue al Estado y no vuelve |
+| **total** | | **S/ 188.73** | |
+
+**El régimen decide el importe, y esa es toda la regla.** A las tres se les
+descontó primero el bruto. Después se midió qué les había llegado de verdad: la
+sobretasa entró a la base de pensión en julio, así que sobre ella se retuvo
+aporte. Con AFP esa retención está en su cuenta individual —cambió de sitio, no
+se perdió— y recuperar el bruto deja el valor total parejo. Con ONP no hay
+cuenta: el Sistema Nacional de Pensiones es de reparto y esa plata se fue a una
+bolsa común del Estado. Cobrarle el bruto a Raquel le quitaba S/8.83 que nunca
+vio, por un papeleo que hizo mal CAYLA. Se le devolvieron.
 
 Carmen queda fuera, y no por una lista escrita a mano: el script mira quién tiene
 horas el 28 y ella no vino. El importe sale de `fn_feriados_laborados`, la misma
@@ -970,3 +979,63 @@ Parecían defectos y no lo son. Anotados para no volver a investigarlos.
 - **El terminal lee marcas ANULADAS como si estuvieran vivas: ofrece la acción equivocada y la marca real se pierde en silencio** — El hallazgo describe un bug REAL pero YA CORREGIDO: es una lectura de código anterior al commit b7d624b ("El terminal, el espejo y reabrir-dia tampoco cuentan las marcas anuladas"), que está en HEAD. La premisa central — "estado-dia.ts:16-25 (select sin filtro de anulada_at)" — es falsa contra el código actual. Esas líneas exactas SON el filtro: `/Users/ArchiCaylo/Developer/cayla-dynamic/apps/web/…
 - **/api/reabrir-dia hace dos escrituras sin transacción: si la segunda no corre, un día cerrado de 10 h queda con horas = NULL** — El MECANISMO es cierto (dos escrituras HTTP separadas vía PostgREST, sin transacción, y el trigger `trg_marcajes_recalcular_jornada` recalcula ya en el UPDATE), y el estado intermedio se reproduce tal cual: horas NULL / en_pausa. Pero las dos afirmaciones que convierten eso en daño son FALSAS, y sin ellas no queda ni un número equivocado ni un flujo bloqueado. (1) "Desde el terminal el día ya no e…
 - **/api/reabrir-dia parte la operación en tres transacciones y puede dejar la jornada con horas NULL** — El mecanismo intermedio se reproduce, pero las dos afirmaciones que le dan peso al hallazgo son falsas: (1) el escenario que dispara el estado roto es imposible tal como se describe, y (2) el estado roto no persiste ni llega a planilla — se cura solo por dos caminos independientes. 1) "La Mac mini pierde red justo ahí, que es exactamente el escenario de la cola offline" — FALSO. Los tres pasos (up…
+
+---
+
+## El régimen de pensión no tiene historia (abierto, hoy no cuesta plata)
+
+**Hoy no hay un sol mal pagado por esto, y julio está pagado y congelado.** Lo
+que hay es que **la boleta de julio de Judith y lo que el sistema calcula hoy
+para julio ya no dicen lo mismo**, y nada avisa de la diferencia.
+
+Salió el 2026-08-15 al revisar por qué Judith figuraba como JUBILADA.
+
+### Qué pasa
+
+`fn_planilla_calcular` busca la tasa así (0242, el join `tpen`):
+
+```sql
+where t.regimen = pe.regimen_pension       -- ← el régimen de HOY
+  and t.vigente_desde <= p_fin             -- ← la tasa, sí, versionada por fecha
+```
+
+**La TASA está versionada por fecha. La PERTENENCIA de la persona a un régimen,
+no.** `personas.regimen_pension` es un solo valor actual; no hay tabla de
+historia (comprobado: el nombre `regimen` solo aparece en `personas` y en
+`tasas_pension`).
+
+Así que al calcular un periodo pasado se mezcla el régimen de hoy con la tasa de
+entonces. Medido contra la base local:
+
+| se pregunta la tasa de `jubilada` al cierre… | encuentra |
+|---|---|
+| 2026-07-28 (julio) | ninguna → cae a `configuracion.tasa_afp` = **0** |
+| 2026-08-28 (agosto) | 0.00000 |
+
+Julio recalculado le da **0 % de pensión** a Judith. Su boleta de julio real le
+cobró su AFP, porque la 0190 rige «desde el periodo que se paga el 28/08/2026».
+
+### Y no es un caso de jubilación
+
+Es la forma general: **cualquier cambio de régimen reescribe el pasado.** Si
+alguien pasa de ONP a Integra, todos sus periodos anteriores se recalculan con
+Integra. Judith solo lo hizo visible porque `jubilada` no tiene tasa antes del
+29/07 y la caída a la tasa global es del 0 %, que salta a la vista.
+
+### Por qué hoy no duele y cuándo dolería
+
+La 0190 fue explícita —«ningún periodo pagado se toca»— y la 0203 congela los
+periodos pagados. Pero eso es una decisión escrita, no un mecanismo: el número
+distinto aparece en cuanto alguien **mira** la planilla de un periodo viejo, sin
+reabrir nada. Dolería de verdad al cuadrar una PLAME pasada o cualquier reporte
+anual construido sobre `fn_planilla_calcular`.
+
+### El arreglo, cuando toque
+
+Versionar la pertenencia como ya se versiona la tasa: `vigente_desde` /
+`vigente_hasta` por persona y régimen, y que el cálculo pregunte «¿en qué
+régimen estaba ESTA persona al cierre de ESE periodo?». Es el mismo patrón que
+`tasas_pension` ya usa bien — solo que aplicado una capa más arriba.
+
+**No está hecho. No se toca sin decisión de Felipe:** cambia cómo se calcula un
+periodo pasado, que es exactamente lo que la 0190 prometió no tocar.
