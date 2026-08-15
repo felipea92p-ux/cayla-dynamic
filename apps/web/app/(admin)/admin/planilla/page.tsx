@@ -409,11 +409,33 @@ function TablaPlanilla(props: {
           bonos: acc.bonos + f.bonos,
           descuentos: acc.descuentos + f.descuentos,
           total: acc.total + f.total,
+          // ── LO QUE SALE DEL BANCO, que no es el total ────────────────────
+          // El total es lo que se le TRANSFIERE a la gente. Además de eso salen
+          // de la cuenta de CAYLA tres pagos que se hacen a nombre de la persona
+          // o por ella, y que no aparecían sumados en ninguna pantalla:
+          //
+          //   · el descuento de pensión, que va a la AFP o a la ONP (0110)
+          //   · el 9 % de EsSalud, que es de cargo del empleador (0116)
+          //   · la retención de renta de 4ta, que va a SUNAT (0245)
+          //
+          // Y NO se suman las provisiones: ésas se devengan este mes pero se
+          // pagan después. Mezclarlas convertiría esta cifra en un híbrido de
+          // caja y devengado, que es justo lo que hace difícil de leer el
+          // «costo real» de la pantalla de Costos.
+          //
+          // Los tres llegan opcionales (`?? 0`): una base sin la 0110, la 0116 o
+          // la 0245 pegadas no manda la clave, y entonces esta cifra vale lo
+          // mismo que el total en vez de decir «NaN».
+          pension: acc.pension + (f.descuento_afp ?? 0),
+          essalud: acc.essalud + (f.aporte_essalud ?? 0),
+          retencion_4ta: acc.retencion_4ta + (f.retencion_4ta ?? 0),
         }),
-        { pago_base: 0, feriados: 0, asignacion: 0, plus: 0, bonos: 0, descuentos: 0, total: 0 },
+        { pago_base: 0, feriados: 0, asignacion: 0, plus: 0, bonos: 0, descuentos: 0, total: 0,
+          pension: 0, essalud: 0, retencion_4ta: 0 },
       ),
     [filas],
   );
+  const saleDelBanco = totales.total + totales.pension + totales.essalud + totales.retencion_4ta;
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
@@ -792,6 +814,32 @@ function TablaPlanilla(props: {
               </td>
               <td className="px-4 py-2 text-right font-bold">{formatSoles(totales.total)}</td>
             </tr>
+            {/* ── LA SEGUNDA FILA: LO QUE HAY QUE TENER EN LA CUENTA ──────────
+                Va como fila aparte y no como columna nueva porque no es del
+                mismo tipo que las de arriba: aquéllas son conceptos POR PERSONA
+                y ésta es una suma de la empresa.
+
+                Se muestra solo cuando hay algo que agregar. Si no hay pensión,
+                EsSalud ni retención —una simulación, o un periodo de puros
+                locadores sin configurar— esta cifra sería idéntica al total y
+                una fila que repite el número de arriba es ruido.
+
+                Y no reemplaza al total: son dos preguntas distintas. Arriba,
+                cuánto le llega a la gente. Abajo, cuánto sale de la cuenta. */}
+            {saleDelBanco > totales.total && (
+              <tr className="border-t bg-sand/50">
+                <td className="px-4 py-2 text-taupe" colSpan={COLS - 1}>
+                  Sale de la cuenta de CAYLA
+                  <span className="block text-xs">
+                    el total de arriba + {formatSoles(totales.pension)} de pensión +{" "}
+                    {formatSoles(totales.essalud)} de EsSalud
+                    {totales.retencion_4ta > 0 && <> + {formatSoles(totales.retencion_4ta)} de retención de 4ta</>}
+                    {" "}· no incluye provisiones, que se pagan después
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-right font-bold">{formatSoles(saleDelBanco)}</td>
+              </tr>
+            )}
           </tfoot>
         )}
       </table>
