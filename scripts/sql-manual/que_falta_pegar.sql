@@ -116,7 +116,8 @@ with repo(numero, nombre, nunca) as (values
     (251, 'una_liquidacion_marcada_por_error_se_puede_anular', false),
     (252, 'el_cierre_deja_de_caerse_por_quien_no_cobra_movilidad', false),
     (253, 'anular_deja_de_perder_el_descuento_que_el_freno_obligo_a_poner', false),
-    (254, 'el_descanso_medico_deja_de_pagarse_en_cero', false)
+    (254, 'el_descanso_medico_deja_de_pagarse_en_cero', false),
+    (255, 'marcar_una_liquidacion_pagada_no_revienta_por_una_nota_corta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
