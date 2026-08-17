@@ -33,30 +33,61 @@ export function Marcado({ marcas }: { marcas: Marca[] }) {
   );
 }
 
+/**
+ * La MEDIDA de lectura, dicha una sola vez.
+ *
+ * Antes no la decidía nadie: `max-w-none` neutralizaba una clase `prose-cayla`
+ * que no existe en ningún CSS de este repositorio, así que el ancho lo heredaba
+ * la tarjeta —828 px, unos 127 caracteres a 13 px— y el mismo componente se
+ * pintaba con cuatro medidas distintas entre la pantalla, los anexos, la hoja de
+ * impresión y la vista previa de publicación. El intervalo cómodo para prosa es
+ * de 45 a 75 caracteres; `62ch` aterriza en unos 68 y escala solo si algún día
+ * cambia el cuerpo.
+ *
+ * NO se le pone a la tabla: esa necesita todo el ancho y ya se contiene sola.
+ */
+const MEDIDA = "max-w-[62ch]";
+
+/**
+ * `whitespace-pre-wrap` en los bloques de texto seguido.
+ *
+ * Conserva las RACHAS de espacios, que en estos documentos son contenido: en los
+ * modelos de carta del Manual, `____________     ____________` son las dos
+ * casillas de firma —quien emite y quien recibe— y el navegador las colapsaba en
+ * una sola raya continua, con sus dos rótulos pegados. En una hoja que se imprime
+ * en blanco para firmarse a mano, dejaban de leerse dos casillas.
+ *
+ * Recupera la separación, no la alineación: la letra es proporcional y el
+ * documento contó caracteres suponiendo ancho fijo, así que cada rótulo queda
+ * junto a su raya y no exactamente debajo. Alinear pediría tocar el texto
+ * congelado, o sea la versión que ya se acusó.
+ */
+const TEXTO_SEGUIDO = `${MEDIDA} whitespace-pre-wrap`;
+
 const CLASE_ENCABEZADO: Record<number, string> = {
-  1: "mt-2 font-serif text-2xl",
-  2: "mt-6 border-b border-sand pb-1 font-serif text-lg",
-  3: "mt-5 font-serif text-base font-medium",
-  4: "mt-4 font-serif text-sm font-medium",
+  1: `${MEDIDA} mt-2 font-serif text-2xl`,
+  2: `${MEDIDA} mt-6 border-b border-sand pb-1 font-serif text-lg`,
+  3: `${MEDIDA} mt-5 font-serif text-base font-medium`,
+  4: `${MEDIDA} mt-4 font-serif text-sm font-medium`,
 };
 
 export function Documento({ texto }: { texto: string }) {
   const bloques = useMemo(() => bloquesDe(texto), [texto]);
   return (
-    <div className="prose-cayla max-w-none text-[13px] leading-relaxed text-tinta">
+    <div className="text-[13px] leading-relaxed text-tinta">
       {bloques.map((b, i) => {
         switch (b.tipo) {
           case "espacio":
             return <div key={i} className="h-2" />;
           case "regla":
-            return <hr key={i} className="my-4 border-sand" />;
+            return <hr key={i} className={`${MEDIDA} my-4 border-sand`} />;
           case "encabezado": {
             const H = (["h1", "h2", "h3", "h4"] as const)[b.nivel - 1];
             return <H key={i} className={CLASE_ENCABEZADO[b.nivel]}><Marcado marcas={b.marcas} /></H>;
           }
           case "cita":
             return (
-              <p key={i} className="my-2 border-l-2 border-sand pl-3 text-xs text-taupe">
+              <p key={i} className={`${TEXTO_SEGUIDO} my-2 border-l-2 border-sand pl-3 text-xs text-taupe`}>
                 <Marcado marcas={b.marcas} />
               </p>
             );
@@ -65,8 +96,13 @@ export function Documento({ texto }: { texto: string }) {
             // `enCita` mantiene el filete a la izquierda: dentro de un modelo de
             // carta, una lista sin él se lee como texto del Manual y no como
             // parte de la carta que se va a firmar.
+            //
+            // `start` es obligatorio y no un detalle: sin él el navegador renumera
+            // desde 1, y en un documento normativo eso publica un número de
+            // artículo que el texto no dice.
             return (
-              <L key={i} className={`my-2 space-y-0.5 pl-6 ${b.ordenada ? "list-decimal" : "list-disc"}`
+              <L key={i} start={b.ordenada ? b.inicio : undefined}
+                className={`${MEDIDA} my-2 space-y-0.5 pl-6 ${b.ordenada ? "list-decimal" : "list-disc"}`
                 + (b.enCita ? " ml-3 border-l-2 border-sand pl-8 text-xs text-taupe" : "")}>
                 {b.items.map((it, j) => <li key={j} className="my-1"><Marcado marcas={it} /></li>)}
               </L>
@@ -102,7 +138,7 @@ export function Documento({ texto }: { texto: string }) {
               </div>
             );
           default:
-            return <p key={i} className="my-2"><Marcado marcas={b.marcas} /></p>;
+            return <p key={i} className={`${TEXTO_SEGUIDO} my-2`}><Marcado marcas={b.marcas} /></p>;
         }
       })}
     </div>

@@ -69,6 +69,140 @@ describe("marcas de línea", () => {
     const m = marcasDe("**a** entre **b**");
     expect(m.filter((x) => x.estilo === "negrita").map((x) => x.texto)).toEqual(["a", "b"]);
   });
+
+  it("un guion bajo escapado se pinta como guion bajo, no como «\\_»", () => {
+    // 1221 apariciones entre el Reglamento, la resolución de designación y el
+    // cargo de recepción: son las rayas donde se firma a mano. Se leía
+    // «Nombre: \_\_\_\_\_\_» en la pantalla donde se deja la constancia mientras
+    // el PDF que se entrega en mano decía «Nombre: ______».
+    expect(marcasDe("Nombre: \\_\\_\\_\\_")).toEqual([
+      { estilo: "plano", texto: "Nombre: ____" },
+    ]);
+  });
+
+  it("un asterisco escapado no abre cursiva", () => {
+    expect(marcasDe("\\*no es cursiva\\*")).toEqual([
+      { estilo: "plano", texto: "*no es cursiva*" },
+    ]);
+  });
+
+  it("dos asteriscos de multiplicación no se comen el texto de en medio", () => {
+    // La fórmula de pago de este repositorio. Antes devolvía una cursiva y
+    // BORRABA los dos asteriscos: «pago = salario  horas / (6.5  días)». Ninguna
+    // prueba lo cazaba: la de suciedad busca «**» y la de líneas perdidas quita
+    // los asteriscos antes de comparar.
+    expect(marcasDe("pago = salario * horas / (6.5 * días)")).toEqual([
+      { estilo: "plano", texto: "pago = salario * horas / (6.5 * días)" },
+    ]);
+  });
+
+  it("la cursiva de verdad sigue funcionando", () => {
+    expect(marcasDe("una *palabra* suelta")).toEqual([
+      { estilo: "plano", texto: "una " },
+      { estilo: "cursiva", texto: "palabra" },
+      { estilo: "plano", texto: " suelta" },
+    ]);
+  });
+});
+
+// ── El párrafo partido en varias líneas ────────────────────────────────────
+//
+// El 2026-08-17 se publicó «Misión, visión y valores» y salió en pantalla como
+// una lista de frases sueltas, con los asteriscos de una negrita a la vista.
+// Ninguna de las dos cosas era del documento: cada línea del markdown se
+// convertía en un párrafo, así que un archivo escrito con márgenes —lo normal—
+// se pintaba renglón a renglón y una negrita partida por el salto nunca cerraba.
+describe("párrafos partidos en varias líneas", () => {
+  it("une la frase que sigue en minúscula", () => {
+    const b = bloquesDe("El inciso h) nombra\nla impuntualidad reiterada.");
+    const ps = b.filter((x) => x.tipo === "parrafo");
+    expect(ps).toHaveLength(1);
+    expect(textoDe(ps[0])).toBe("El inciso h) nombra la impuntualidad reiterada.");
+  });
+
+  it("cierra la negrita que abre en una línea y cierra en la siguiente", () => {
+    const b = bloquesDe("**lo apenas aceptable hace más daño que un error\ngrande.** Un error se conversa.");
+    const ps = b.filter((x) => x.tipo === "parrafo");
+    expect(ps).toHaveLength(1);
+    if (ps[0].tipo !== "parrafo") throw new Error("no es párrafo");
+    expect(ps[0].marcas[0]).toEqual({
+      estilo: "negrita", texto: "lo apenas aceptable hace más daño que un error grande.",
+    });
+    expect(textoDe(ps[0])).not.toContain("**");
+  });
+
+  it("une la línea que abre con una raya, que no empieza nada sino que cierra", () => {
+    // El inciso con rayas es la figura favorita de la prosa de este repositorio.
+    // Sin esta regla, la segunda mitad quedaba en su propio párrafo empezando por
+    // un guion largo.
+    const b = bloquesDe("Cuando una decisión no esté escrita en ningún manual\n—y muchas no lo estarán— la respuesta se busca aquí.");
+    expect(b.filter((x) => x.tipo === "parrafo")).toHaveLength(1);
+  });
+
+  it("NO une lo que el documento puso aparte a propósito", () => {
+    // La cabecera del Reglamento son cinco renglones sueltos que unidos quedarían
+    // en un párrafo corrido. Y los incisos «a)» de los centros de trabajo.
+    expect(bloquesDe("**CAYLA S.A.C.** · RUC N.° 20605964550\n**Versión 4.0** — 10 de agosto de 2026")
+      .filter((x) => x.tipo === "parrafo")).toHaveLength(2);
+    expect(bloquesDe("a) Central (CCO)\nb) Taller Lima (LIM)")
+      .filter((x) => x.tipo === "parrafo")).toHaveLength(2);
+  });
+
+  it("el salto forzado de dos espacios sigue separando", () => {
+    // Los doce títulos del Índice del Reglamento lo usan. Si se pierde, cada
+    // título se pega a su lista de artículos.
+    const b = bloquesDe("**TÍTULO I — DISPOSICIONES GENERALES**  \nartículos 1 al 4");
+    expect(b.filter((x) => x.tipo === "parrafo")).toHaveLength(2);
+  });
+
+  it("una frase que sigue en mayúscula se queda donde estaba", () => {
+    expect(bloquesDe("Primera frase.\nSegunda frase.")
+      .filter((x) => x.tipo === "parrafo")).toHaveLength(2);
+  });
+
+  it("una línea vacía siempre separa, aunque lo que siga vaya en minúscula", () => {
+    expect(bloquesDe("primera línea\n\nsegunda línea")
+      .filter((x) => x.tipo === "parrafo")).toHaveLength(2);
+  });
+
+  it("las líneas de una cita también se unen, y el filete no se parte en tres", () => {
+    // La cita de apertura del Reglamento: es lo primero que ve quien va a pulsar
+    // «dejar constancia», y salía como tres párrafos con el filete cortado.
+    const b = bloquesDe("> conservan su validez y su\n> plazo de doce meses como antecedente.");
+    expect(b.filter((x) => x.tipo === "cita")).toHaveLength(1);
+  });
+
+  it("un párrafo no se une con una cita ni al contrario", () => {
+    const b = bloquesDe("texto de fuera\n> texto citado");
+    expect(b.filter((x) => x.tipo === "parrafo")).toHaveLength(1);
+    expect(b.filter((x) => x.tipo === "cita")).toHaveLength(1);
+  });
+});
+
+// ── Los números de una lista ordenada ──────────────────────────────────────
+describe("números de lista", () => {
+  it("una línea numerada suelta NO es una lista y conserva su número", () => {
+    // El Índice del Reglamento son doce líneas así. Como lista de un solo ítem, el
+    // navegador las renumeraba todas a «1.»: once números de artículo que el
+    // documento no dice, en el índice que firman veintiuna personas.
+    const b = bloquesDe("5. SELECCIÓN E IGUALDAD DE OPORTUNIDADES");
+    expect(b.filter((x) => x.tipo === "lista")).toHaveLength(0);
+    const p = b.find((x) => x.tipo === "parrafo");
+    expect(p && textoDe(p)).toBe("5. SELECCIÓN E IGUALDAD DE OPORTUNIDADES");
+  });
+
+  it("una lista numerada de verdad arranca en su propio número", () => {
+    const b = bloquesDe("5. quinto\n6. sexto");
+    const l = b.find((x) => x.tipo === "lista");
+    if (l?.tipo !== "lista") throw new Error("no es lista");
+    expect(l.inicio).toBe(5);
+    expect(l.items).toHaveLength(2);
+  });
+
+  it("un año al principio de línea no convierte la frase en lista", () => {
+    expect(bloquesDe("2026) fue el año en que se publicó.")
+      .filter((x) => x.tipo === "lista")).toHaveLength(0);
+  });
 });
 
 describe("bloques", () => {
@@ -169,9 +303,11 @@ describe("los seis documentos que se publican", () => {
 
     it(`${nombre} no deja marcas de markdown a la vista`, () => {
       const bloques = bloquesDe(readFileSync(ruta, "utf8"));
+      // El escape entra en el filtro: buscar solo «**» y barras es el colador que
+      // dejó pasar 1221 «\_» hasta la pantalla donde se deja la constancia.
       const sucios = bloques
         .map(textoDe)
-        .filter((t) => t.includes("**") || /^\s*\|/.test(t));
+        .filter((t) => t.includes("**") || /^\s*\|/.test(t) || /\\[_*]/.test(t));
       expect(sucios.slice(0, 3)).toEqual([]);
     });
 
@@ -191,6 +327,11 @@ describe("los seis documentos que se publican", () => {
         .filter((l) => l && l !== "---" && !l.startsWith("|"))
         .map((l) => l.replace(/^#{1,4}\s+/, "")
                      .replace(/^[-*+]\s+/, "").replace(/^\d+[.)]\s+/, ""))
+        // El escape se deshace también acá, porque el analizador lo deshace: el
+        // documento escribe «Nombre: \_\_\_» y la pantalla pinta «Nombre: ___».
+        // Comparar el crudo contra lo pintado sin esto acusa de pérdida justo lo
+        // que se arregló.
+        .map((l) => l.replace(/\\([\\_*`])/g, "$1"))
         .filter((l) => l && !todo.includes(l.replace(/[*`]/g, "")));
       expect(perdidas.slice(0, 3)).toEqual([]);
     });
