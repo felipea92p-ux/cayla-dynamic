@@ -264,6 +264,11 @@ export default function DisciplinaPage() {
   // Se avisa ANTES de empezar el procedimiento: citar a alguien a descargo y
   // después no poder firmar es hacerle pasar el mal rato para nada.
   const [sinConstancia, setSinConstancia] = useState<Map<string, string>>(new Map());
+  /** Si la empresa exige el descargo previo del art. 55.2 antes de firmar
+   *  (mig. 0268). Arranca en `true` y solo baja a `false` si la configuración
+   *  lo dice: una lectura fallida no puede hacer aparecer un botón de firmar
+   *  que la base va a rechazar. */
+  const [exigeDescargo, setExigeDescargo] = useState(true);
   const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
   const borradoresRef = useRef<HTMLDivElement>(null);
 
@@ -341,6 +346,12 @@ export default function DisciplinaPage() {
       }),
     );
     setFirmantes(Object.fromEntries(pares));
+
+    // La política del descargo previo (mig. 0268). Misma forma que la base:
+    // solo `false` exacto releva del trámite; ausente o raro, se exige.
+    const { data: cfg } = await supabase
+      .from("configuracion").select("valor").eq("clave", "disciplina_descargo_previo").maybeSingle();
+    setExigeDescargo((cfg as { valor: unknown } | null)?.valor !== false);
 
     // Consulta aparte y tolerante: si fallara, la pantalla sigue funcionando
     // sin el aviso — la base frena igual, que es donde tiene que frenar.
@@ -652,9 +663,13 @@ export default function DisciplinaPage() {
    * diciendo en voz alta que el rango puede incluir descansos. Sin esa red, una
    * base sin la 0075 dejaría la suspensión sin poder editarse.
    */
-  async function guardarDias(d: Doc, dias: number) {
+  async function guardarDias(d: Doc, dias: number, desdeElegido?: string) {
     if (dias < 1) return;
-    const desde = d.suspension_desde ?? addDias(hoyLima(), 1);
+    // La fecha la puede fijar quien tramita. Antes solo se podía cambiar el
+    // NÚMERO de días: el día de inicio quedaba como lo dejó el generador del
+    // borrador, y si la firma se retrasaba, la suspensión caía en días ya
+    // trabajados. Es el defecto que obligó a anular la T-02/0001 en julio.
+    const desde = desdeElegido ?? d.suspension_desde ?? addDias(hoyLima(), 1);
     setOcupado(d.id); setMsg(null);
 
     const { data, error } = await supabase.rpc("fn_expediente_set_suspension", {
@@ -970,7 +985,7 @@ function fechasDe(h: Hecho[]): string {
                           La imputación y el despido no pasan por esta cascada —
                           siguen el procedimiento del art. 57, con el plazo del
                           art. 31 de la LPCL, que es otro y más largo. */}
-                      {esGradual(d.nivel) && d.cargos_comunicados_at === null ? (
+                      {exigeDescargo && esGradual(d.nivel) && d.cargos_comunicados_at === null ? (
                         <>
                           <button onClick={() => void comunicarCargos(d)} disabled={ocupado === d.id}
                             title="Art. 55.2 del RIT: antes de una amonestación o una suspensión hay que comunicarle los cargos y darle su plazo de descargo."
@@ -985,9 +1000,9 @@ function fechasDe(h: Hecho[]): string {
                             title="Registrar una comunicación que ya ocurrió, con la fecha en que ocurrió. El plazo se cuenta desde esa fecha, no desde hoy."
                             className="text-xs text-taupe underline disabled:opacity-40">ya se lo comuniqué</button>
                         </>
-                      ) : esGradual(d.nivel) && plazoAbierto(d) ? (
+                      ) : exigeDescargo && esGradual(d.nivel) && plazoAbierto(d) ? (
                         <span className="text-xs text-taupe">Esperando su descargo</span>
-                      ) : esGradual(d.nivel) && d.descargo_acogido === null ? (
+                      ) : exigeDescargo && esGradual(d.nivel) && d.descargo_acogido === null ? (
                         /* Las cuatro salidas salen de ETIQUETA_DESCARGO y no de
                            una lista escrita acá: son las mismas que acepta
                            fn_expediente_valorar_descargo. */
@@ -1037,7 +1052,7 @@ function fechasDe(h: Hecho[]): string {
                       la fila. Sin esta línea, uno que hoy no se puede firmar se
                       ve igual que uno que sí, y el porqué solo aparecía al
                       pulsar Firmar — cuando ya no había nada que hacer. */}
-                  {esGradual(d.nivel) && (
+                  {exigeDescargo && esGradual(d.nivel) && (
                     <p className={`mt-1 text-xs ${d.descargo_acogido === null ? "text-rojo" : "text-taupe"}`}>
                       {d.cargos_comunicados_at === null
                         ? "Falta comunicarle los cargos por escrito —los hechos con sus fechas, la norma que se le imputa y el detalle de la medición— y darle dos días hábiles para su descargo (art. 55.2 del RIT). Hasta entonces no se puede firmar."
@@ -1092,12 +1107,29 @@ function fechasDe(h: Hecho[]): string {
                       <input type="number" min={1} max={15} defaultValue={d.suspension_dias ?? 1}
                         onBlur={(e) => guardarDias(d, Number(e.target.value))}
                         className="w-16 rounded border px-2 py-1" />
+                      {/* Desde cuándo. El sistema propone, pero la fecha la
+                          decide quien tramita: entre generar el borrador y
+                          firmarlo pueden pasar días, y una suspensión fijada
+                          para una fecha ya trabajada no sanciona nada. */}
+                      desde:
+                      <input type="date" defaultValue={d.suspension_desde ?? ""} min={hoyLima()}
+                        onBlur={(e) => e.target.value && e.target.value !== d.suspension_desde
+                          && guardarDias(d, d.suspension_dias ?? 1, e.target.value)}
+                        className="rounded border px-2 py-1" />
                       {/* Las fechas una por una cuando se saltan un descanso:
                           «del 23 al 27» sobre días no contiguos mete en la
                           sanción dos días que la persona sí tenía libres. */}
                       {d.suspension_fechas?.length
                         ? <span>{d.suspension_fechas.map(fechaCorta).join(", ")}</span>
                         : d.suspension_desde && <span>del {fechaCorta(d.suspension_desde)}{d.suspension_hasta ? ` al ${fechaCorta(d.suspension_hasta)}` : ""}</span>}
+                      {/* La suspensión que ya pasó no suspende. Se avisa en el
+                          borrador porque después de firmar el documento ya no
+                          se edita, y corregirlo cuesta una anulación. */}
+                      {(d.suspension_fechas?.[0] ?? d.suspension_desde ?? "9999-12-31") <= hoyLima() && (
+                        <span className="text-rojo">
+                          esos días ya empezaron: si firmas hoy, la sanción no tendría efecto real
+                        </span>
+                      )}
                     </label>
                   )}
                   {subiendoCargo?.id === d.id && (
