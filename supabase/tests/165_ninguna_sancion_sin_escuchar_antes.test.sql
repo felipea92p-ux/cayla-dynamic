@@ -22,6 +22,13 @@
 begin;
 select plan(10);
 
+-- Desde la 0267, exigir el descargo previo es una política de la empresa y su
+-- valor de fábrica es `false` (Gerencia General, 17-08-2026). Este archivo fija
+-- cómo se comporta la base CON la política activa, así que la declara: si no,
+-- todas sus afirmaciones se caerían por el motivo equivocado —la política, no
+-- un defecto— y esa distinción es justo la que hay que poder ver.
+update configuracion set valor = 'true'::jsonb where clave = 'disciplina_descargo_previo';
+
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-00000000e300', 'ZZDES', 'Sede de laboratorio', true);
 

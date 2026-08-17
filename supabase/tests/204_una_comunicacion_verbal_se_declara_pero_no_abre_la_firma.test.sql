@@ -22,6 +22,12 @@
 begin;
 select plan(9);
 
+-- Desde la 0267, el descargo previo se exige o no según `configuracion` y su
+-- valor de fábrica es `false`. Lo que este archivo fija —que declarar una
+-- comunicación pasada NO adelanta el plazo— solo tiene sentido con la política
+-- activa, así que la declara en vez de heredarla.
+update configuracion set valor = 'true'::jsonb where clave = 'disciplina_descargo_previo';
+
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000006c1', 'ZZDC', 'Sede de laboratorio DC', true);
 
