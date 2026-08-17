@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -61,6 +61,18 @@ interface FilaAcuse {
   tiene_cuenta: boolean;
   acusado_at: string | null;
   via: string | null;
+  /**
+   * La ruta REAL del cargo escaneado, tal como la guardó el registro.
+   *
+   * No viene de `fn_acuses_documento` —que no la devuelve— sino de una consulta
+   * aparte a `documentos_acuses`. Antes se reconstruía a mano como
+   * «documento/persona» y eso NUNCA podía funcionar: al subir, la clave lleva
+   * sello de tiempo y extensión, y `createSignedUrl` exige la clave exacta. O
+   * sea que todos los cargos archivados fallaban con «Object not found»,
+   * incluidos los subidos un minuto antes. Es la única prueba que tienen las
+   * integrantes sin cuenta: se guardaba bien y no se podía recuperar.
+   */
+  storage_path: string | null;
 }
 
 interface Tipo {
@@ -114,8 +126,29 @@ export default function NormasPage() {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  /**
+   * Los errores de constancia se avisan DONDE se produjeron, no arriba.
+   *
+   * `msg` es un aviso de página y se pinta debajo del subtítulo. Para lo que es
+   * de la pantalla —cargar, publicar, crear un tipo— está bien; para la
+   * constancia era el sitio equivocado. El caso que lo demuestra: el formulario
+   * del cargo en papel se abre desde una fila del seguimiento y se dibuja DESPUÉS
+   * de esa lista, que con el equipo completo son ~24 filas — unos 700 px entre el
+   * aviso y el botón que lo provocó. El error más probable, olvidar adjuntar el
+   * escaneo, se pintaba fuera de la vista y sin atenuar el botón.
+   *
+   * Y la asimetría era lo que hacía daño: el ÉXITO sí tenía señal local —el
+   * formulario se sustituye por «Dejaste constancia el …»— y el fallo ninguna. En
+   * la acción de la que depende la prueba legal, se veía cuando funcionaba y no
+   * se veía cuando no.
+   */
+  const [msgConstancia, setMsgConstancia] = useState<string | null>(null);
+  const [msgPapel, setMsgPapel] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [nombreDeclarado, setNombreDeclarado] = useState("");
+  // Para llevar el foco al campo que falta, no solo nombrarlo.
+  const refNombre = useRef<HTMLInputElement | null>(null);
+  const refCargo = useRef<HTMLInputElement | null>(null);
 
   // El seguimiento de quién falta, sólo para quien puede verlo.
   const [acuses, setAcuses] = useState<Map<string, FilaAcuse[]>>(new Map());
@@ -199,6 +232,30 @@ export default function NormasPage() {
   }, [supabase, abierto]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  /**
+   * Un aviso de constancia se trae a la vista y se lleva el foco al campo.
+   *
+   * En un efecto y no junto al `setMsg…` por dos razones medidas en el navegador:
+   * `BloqueConstancia` se define dentro de esta pantalla, así que cada render le
+   * da identidad nueva y React REMONTA el campo — enfocar en el mismo tick apunta
+   * al nodo que se va, y con `requestAnimationFrame` tampoco llega. Y el aviso
+   * puede nacer fuera de la pantalla: el documento abierto ocupa hasta 60vh, así
+   * que el bloque de constancia queda por debajo del pliegue mientras no te
+   * desplaces. Un error que no se ve es un error que no existe para quien lo
+   * provocó.
+   */
+  useEffect(() => {
+    if (!msgConstancia) return;
+    refNombre.current?.scrollIntoView({ block: "center" });
+    refNombre.current?.focus({ preventScroll: true });
+  }, [msgConstancia]);
+
+  useEffect(() => {
+    if (!msgPapel) return;
+    refCargo.current?.scrollIntoView({ block: "center" });
+    refCargo.current?.focus({ preventScroll: true });
+  }, [msgPapel]);
 
   // El nombre viene puesto, pero es EDITABLE: lo que prueba no es el dato de la
   // base, es que la persona lo escriba. Eso convierte un clic en un acto
@@ -361,7 +418,19 @@ export default function NormasPage() {
 
   async function cargarAcuses(documentoId: string) {
     const { data } = await supabase.rpc("fn_acuses_documento", { p_documento_id: documentoId });
-    setAcuses((m) => new Map(m).set(documentoId, (data as unknown as FilaAcuse[]) ?? []));
+    const filas = (data as unknown as FilaAcuse[]) ?? [];
+    // La ruta del cargo se pide APARTE, porque la función no la devuelve. La
+    // política `documentos_acuses_lectura` ya deja leer la tabla a administración
+    // y a los líderes, que son quienes ven este panel.
+    const { data: rutas } = await supabase
+      .from("documentos_acuses")
+      .select("persona_id, storage_path")
+      .eq("documento_id", documentoId);
+    const porPersona = new Map((rutas ?? []).map((r) => [r.persona_id as string, r.storage_path as string | null]));
+    setAcuses((m) => new Map(m).set(
+      documentoId,
+      filas.map((f) => ({ ...f, storage_path: porPersona.get(f.persona_id) ?? null })),
+    ));
   }
 
   async function acusar(d: Doc) {
@@ -370,16 +439,16 @@ export default function NormasPage() {
     // pone solo el nombre de pila, y una constancia que dice «Ana» no identifica
     // a nadie el día que hay dos Anas en la misma sede.
     if (nombreDeclarado.trim().split(/\s+/).filter(Boolean).length < 2) {
-      setMsg({ tipo: "error", texto: "Escribe tu nombre y tu apellido para dejar constancia." });
+      setMsgConstancia("Escribe tu nombre y tu apellido para dejar constancia.");
       return;
     }
-    setOcupado(true); setMsg(null);
+    setOcupado(true); setMsg(null); setMsgConstancia(null);
     const { error } = await supabase.rpc("fn_acusar_documento", {
       p_documento_id: d.documento_id,
       p_nombre_declarado: nombreDeclarado.trim(),
     });
     setOcupado(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { setMsgConstancia(mensajeDeError(error)); return; }
     await cargar();
     setMsg({ tipo: "ok", texto: "Constancia registrada. No hace falta hacer nada más hasta que se publique una versión nueva." });
   }
@@ -387,14 +456,14 @@ export default function NormasPage() {
   async function guardarPapel() {
     if (!papelPara) return;
     if (!archivo) {
-      setMsg({ tipo: "error", texto: "Falta el cargo firmado escaneado. Sin el papel no hay constancia que registrar." });
+      setMsgPapel("Falta el cargo firmado escaneado. Sin el papel no hay constancia que registrar.");
       return;
     }
     if (archivo.size > MAX_BYTES_CARGO) {
-      setMsg({ tipo: "error", texto: `“${archivo.name}” pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
+      setMsgPapel(`“${archivo.name}” pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
     }
-    setOcupado(true); setMsg(null);
+    setOcupado(true); setMsg(null); setMsgPapel(null);
     // La ruta cuelga del documento y de la persona: así no hay forma de
     // archivar el cargo contra la versión equivocada.
     const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
@@ -405,7 +474,7 @@ export default function NormasPage() {
     setProgreso(null);
     if (fallo) {
       setOcupado(false);
-      setMsg({ tipo: "error", texto: `El archivo no subió (${fallo}). Vuelve a intentarlo.` });
+      setMsgPapel(`El archivo no subió (${fallo}). Vuelve a intentarlo.`);
       return;
     }
 
@@ -419,9 +488,9 @@ export default function NormasPage() {
       p_nota: notaPapel.trim() || null,
     });
     setOcupado(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { setMsgPapel(mensajeDeError(error)); return; }
     const doc = papelPara.doc;
-    setPapelPara(null); setArchivo(null); setNotaPapel("");
+    setPapelPara(null); setArchivo(null); setNotaPapel(""); setMsgPapel(null);
     await cargar();
     await cargarAcuses(doc);
     setMsg({ tipo: "ok", texto: "Constancia en papel registrada, con su cargo archivado." });
@@ -430,7 +499,7 @@ export default function NormasPage() {
   async function verCargo(path: string) {
     // URL firmada de vida corta: el almacén es privado y son papeles firmados.
     const { data, error } = await supabase.storage.from("acuses").createSignedUrl(path, 60);
-    if (error || !data) { setMsg({ tipo: "error", texto: `No se pudo abrir: ${error?.message ?? "sin URL"}` }); return; }
+    if (error || !data) { setMsgPapel(`No se pudo abrir el cargo: ${error?.message ?? "sin URL"}`); return; }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
@@ -469,13 +538,22 @@ export default function NormasPage() {
                   Dejar constancia significa que recibiste este documento y fuiste informada de su
                   contenido. No es una firma de conformidad ni renuncia a nada.
                 </p>
+                {msgConstancia && (
+                  <p role="alert" id="error-constancia"
+                    className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">
+                    {msgConstancia}
+                  </p>
+                )}
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="flex flex-col gap-1 text-xs">
                     Tu nombre y apellido
-                    <input value={nombreDeclarado} onChange={(e) => setNombreDeclarado(e.target.value)}
+                    <input ref={refNombre} value={nombreDeclarado}
+                      onChange={(e) => { setNombreDeclarado(e.target.value); setMsgConstancia(null); }}
                       placeholder="como lo escribirías a mano"
                       autoComplete="name"
-                      className="w-64 rounded border px-2 py-1 text-xs" />
+                      aria-invalid={msgConstancia !== null}
+                      aria-describedby={msgConstancia ? "error-constancia" : undefined}
+                      className={`w-64 rounded border px-2 py-1 text-xs ${msgConstancia ? "border-rojo" : ""}`} />
                   </label>
                   <button onClick={() => void acusar(d)} disabled={ocupado}
                     className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
@@ -518,7 +596,8 @@ export default function NormasPage() {
                       <button
                         onClick={() => {
                           setPapelPara({ doc: d.documento_id, persona: f.persona_id, nombre: f.nombre });
-                          setArchivo(null); setFechaPapel(hoyLima()); setNotaPapel(""); setMsg(null);
+                          setArchivo(null); setFechaPapel(hoyLima()); setNotaPapel("");
+                          setMsg(null); setMsgPapel(null);
                         }}
                         className="rounded border border-tinta/30 px-2 py-0.5 text-tinta hover:bg-sand/40">
                         registrar su cargo en papel
@@ -546,12 +625,20 @@ export default function NormasPage() {
               Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo
               firmado no se registra: aquí la constancia es la prueba.
             </p>
+            {msgPapel && (
+              <p role="alert" id="error-papel"
+                className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">
+                {msgPapel}
+              </p>
+            )}
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs">
                 Cargo firmado
-                <input type="file" accept={TIPOS_CARGO}
-                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                  className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
+                <input ref={refCargo} type="file" accept={TIPOS_CARGO}
+                  onChange={(e) => { setArchivo(e.target.files?.[0] ?? null); setMsgPapel(null); }}
+                  aria-invalid={msgPapel !== null}
+                  aria-describedby={msgPapel ? "error-papel" : undefined}
+                  className={`rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs ${msgPapel ? "border-rojo" : ""}`} />
               </label>
               <label className="flex flex-col gap-1 text-xs">
                 Fecha de recepción
@@ -592,10 +679,19 @@ export default function NormasPage() {
         {puedeGestionar && verSeguimiento === d.documento_id && filas.some((f) => f.via === "papel") && (
           <p className="mt-3 text-xs text-taupe">
             Cargos archivados:{" "}
+            {/* Sin ruta no hay enlace: un botón que promete abrir y falla es peor
+                que un nombre en texto plano. Que el cargo existe sigue siendo un
+                dato que el seguimiento necesita ver. */}
             {filas.filter((f) => f.via === "papel").map((f) => (
-              <button key={f.persona_id}
-                onClick={() => void verCargo(`${d.documento_id}/${f.persona_id}`)}
-                className="mr-2 font-medium underline">{f.nombre}</button>
+              f.storage_path ? (
+                <button key={f.persona_id}
+                  onClick={() => void verCargo(f.storage_path!)}
+                  className="mr-2 font-medium underline">{f.nombre}</button>
+              ) : (
+                <span key={f.persona_id} className="mr-2" title="El cargo está registrado pero no se encontró su archivo.">
+                  {f.nombre}
+                </span>
+              )
             ))}
           </p>
         )}
@@ -785,20 +881,26 @@ export default function NormasPage() {
                   className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
                   <button
                     onClick={() => setAbierto(abierto === d.documento_id ? null : d.documento_id)}
-                    className="flex w-full items-center justify-between gap-3 border-b bg-sand/50 px-4 py-3 text-left">
+                    className="flex w-full flex-wrap items-center justify-between gap-3 border-b bg-sand/50 px-4 py-3 text-left">
                     <span>
                       <span className="font-medium">{d.titulo}</span>
                       <span className="ml-2 text-xs text-taupe">
                         versión {d.version} · rige desde {fechaCorta(d.vigente_desde)}
                       </span>
                     </span>
+                    {/* `flex-wrap` arriba y `whitespace-nowrap` en la píldora: con
+                        los títulos reales de los anexos —«Política de Prevención del
+                        Hostigamiento Sexual Laboral»— en los 295 px útiles de un
+                        móvil, «falta tu constancia» se partía en dos líneas DENTRO
+                        de su cápsula. Una etiqueta de estado partida se lee como
+                        pantalla rota, justo en el aviso que empuja a firmar. */}
                     <span className="flex items-center gap-2 text-xs">
                       {!d.requiere_acuse ? (
-                        <span className="text-taupe">solo lectura</span>
+                        <span className="whitespace-nowrap text-taupe">solo lectura</span>
                       ) : d.mi_acuse_at ? (
-                        <span className="rounded-full bg-sand px-2 py-0.5 text-tinta">tu constancia está</span>
+                        <span className="whitespace-nowrap rounded-full bg-sand px-2 py-0.5 text-tinta">tu constancia está</span>
                       ) : (
-                        <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">falta tu constancia</span>
+                        <span className="whitespace-nowrap rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">falta tu constancia</span>
                       )}
                       <span className="text-taupe">{abierto === d.documento_id ? "ocultar" : "leer"}</span>
                     </span>
@@ -815,7 +917,18 @@ export default function NormasPage() {
                           imprimir
                         </a>
                       </div>
-                      <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
+                      {/* La altura de la caja, y por qué 60vh y no 28rem.
+                          `PRINCIPALES = ["rit"]`, así que esta caja envuelve el
+                          ÚNICO documento principal y el más largo del sistema: 61
+                          artículos dentro de 448 px fijos, con el botón de dejar
+                          constancia pegado justo debajo del recorte. En móvil el
+                          scroll anidado obliga a agotar la caja antes de que la
+                          página se mueva. Se acota a la pantalla en vez de a una
+                          medida fija, y se conserva el tope en escritorio para que
+                          el panel de seguimiento —el que usa DO— no acabe 61
+                          artículos más abajo. `overscroll-contain` evita que el
+                          gesto se le escape a la página al llegar al final. */}
+                      <div className="max-h-[60vh] overscroll-contain overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3 sm:max-h-[28rem]">
                         <Documento texto={d.documento} />
                       </div>
 
@@ -855,15 +968,15 @@ export default function NormasPage() {
                   {anexosVisibles.map((a) => (
                     <li key={a.documento_id} id={`doc-${a.documento_id}`} className="py-2">
                       <button onClick={() => setAbierto(abierto === a.documento_id ? null : a.documento_id)}
-                        className="flex w-full items-center justify-between gap-3 text-left text-sm">
+                        className="flex w-full flex-wrap items-center justify-between gap-3 text-left text-sm">
                         <span>
                           {a.titulo}
                           <span className="ml-2 text-xs text-taupe">versión {a.version}</span>
                         </span>
                         <span className="flex items-center gap-2 text-xs">
                           {a.requiere_acuse && (a.mi_acuse_at
-                            ? <span className="rounded-full bg-sand px-2 py-0.5 text-tinta">tu constancia está</span>
-                            : <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">falta tu constancia</span>)}
+                            ? <span className="whitespace-nowrap rounded-full bg-sand px-2 py-0.5 text-tinta">tu constancia está</span>
+                            : <span className="whitespace-nowrap rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">falta tu constancia</span>)}
                           <span className="text-taupe">{abierto === a.documento_id ? "ocultar" : "leer"}</span>
                         </span>
                       </button>
