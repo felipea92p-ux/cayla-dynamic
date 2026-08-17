@@ -37,6 +37,99 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-17 — Disciplina no podía firmar nada, y el descargo previo pasó a ser política
+
+Firmar una amonestación o una suspensión devolvía «Antes de firmar hay que
+comunicar los cargos y dar el plazo de descargo (art. 55.2 del RIT)» **sin que
+existiera forma de cumplirlo desde ninguna pantalla**. Tres memos parados —
+Sasha, Mateo y Paola— con una persona trabajando un día en que debía estar
+suspendida.
+
+### La causa: media función sin cablear, seis días en producción
+
+El commit `ae501ca` (11-ago) escribió `comunicarCargos()`, `valorarDescargo()`,
+`plazoAbierto()` y `esGradual()` en `admin/disciplina/page.tsx` y **nunca las
+llamó desde el JSX**. Su propio mensaje describía la cascada de botones que
+nunca llegó a existir. La base empezó a exigir el trámite con la [`0212`](../supabase/migrations/0212_ninguna_sancion_sin_escuchar_antes.sql)
+y la pantalla siguió mostrando «Firmar» siempre.
+
+⚠️ **`typecheck` no dice nada de una función que nadie llama.** Cuatro funciones
+muertas convivieron seis días con las pruebas en verde. Es el modo de fallo que
+este repo no tiene cubierto: no hay pruebas de render, así que una pantalla que
+compila puede no hacer nada. Cuando un cambio promete un botón, **hay que abrir
+la pantalla y verlo** — se comprobó así, contra el Postgres local, y ahí saltó.
+
+### Lo aplicado en producción hoy
+
+| | |
+|---|---|
+| [`0266`](../supabase/migrations/0266_una_comunicacion_de_cargos_ya_ocurrida_se_puede_declarar.sql) | Registrar una comunicación de cargos **ya ocurrida** con su fecha real, motivo obligatorio y nombre de quien la declara. No adelanta el plazo: el de esa fecha sigue mandando. |
+| [`0267`](../supabase/migrations/0267_el_descargo_previo_pasa_a_ser_una_politica_de_la_empresa.sql) | El descargo previo pasa de estar clavado en el código a `configuracion.disciplina_descargo_previo`. **Aplicada en `false`** por decisión de Gerencia General. |
+
+Los memos: `T-01/0003` (Sasha) y `T-02/0004` (Mateo, suspensión el 18-ago),
+firmados y entregados el 17-ago.
+
+### La decisión de la política, y qué se expuso antes de tomarla
+
+Gerencia General decidió firmar sin esperar el plazo, con el descargo recogido
+verbalmente. Se expuso por escrito, con fuentes, y se sostuvo:
+
+- **Res. 568-2021-SUNAFIL/TFL** extendió el debido proceso a las sanciones
+  distintas del despido — el caso era exactamente una amonestación y una
+  suspensión sin plazo de descargo.
+- **Res. 810-2022-SUNAFIL/TFL**: sancionar sin plazo de descargos es **acto de
+  hostilidad**, infracción muy grave del art. 25.14 del RLGIT. Pequeña empresa,
+  tope 2026: 7.65 UIT ≈ **S/ 42,075**.
+- El propio RIT (art. 55.2) anuncia que la omisión **invalida** la medida y la
+  deja sin contar como antecedente para el inciso h) — el peldaño de un despido
+  futuro queda discutible.
+
+Se implementó como política y **no** borrando el candado: la regla sigue
+escrita, revertir es `update configuracion set valor = 'true'` sin migración, y
+**cada documento firmado así lo dice en su propio expediente**. Con la política
+en `true` la función se comporta igual que la [`0228`](../supabase/migrations/0228_no_se_sanciona_con_un_reglamento_que_no_se_entrego.sql).
+
+Lo que **no** cambió: el numeral 60.5 sigue frenando sin constancia del
+Reglamento, y los guardas de firmante del art. 54.4 quedan igual. Si la clave de
+configuración falta o trae un valor inesperado, **se exige**: una configuración
+perdida no puede relajar una garantía en silencio (prueba `205`).
+
+### La suspensión ya elige su día
+
+La pantalla solo dejaba cambiar el **número** de días; la fecha la fijaba el
+generador del borrador y no había dónde tocarla — `fn_expediente_set_suspension`
+siempre aceptó la fecha, el panel no la exponía. Si la firma se retrasaba, la
+sanción caía en días ya trabajados. Es lo que obligó a anular la `T-02/0001` en
+julio y volvió a pasar hoy: la de Mateo estaba puesta para el 17, el día que
+estaba trabajando. Ahora hay campo de fecha y un aviso en rojo cuando los días
+ya empezaron.
+
+### PENDIENTE
+
+- **Paola Cahuana**: su amonestación sigue en borrador porque no consta la
+  entrega del Reglamento. Se destraba entregándoselo y registrando la constancia
+  en Normas — también vale el cargo en papel escaneado.
+- **La comunicación de cargos no se genera sola.** Si algún día la política
+  vuelve a `true`, entregarla sigue siendo trabajo a mano. Lo que evitaría el
+  papeleo es que el sistema la imprima con los hechos ya medidos.
+- **`fn_expediente_declarar_cargos_comunicados` (0266) quedó sin usarse hoy**,
+  porque la política la dejó sin caso. Sigue siendo la salida buena si alguna
+  vez se vuelve a exigir el plazo y una comunicación ya ocurrió.
+
+### ⚠️ Una sesión paralela borró trabajo sin commitear, mientras se trabajaba en él
+
+Se escribió, probó y verificó una migración `0267` distinta —cerrar el plazo de
+un expediente concreto con motivo— y **otra sesión de este mismo worktree la
+borró junto con su prueba, y renumeró la siguiente para ocupar su hueco**. No se
+perdió nada porque se detectó en el acto, pero el archivo no estaba commiteado y
+no había forma de recuperarlo del disco.
+
+Es el riesgo que `CLAUDE.md` ya describe para el índice de git, ahora visto
+sobre archivos: **lo que no está commiteado, otra sesión se lo puede llevar**.
+La misma sesión reinició la base local dos veces en medio de una verificación.
+
+---
+
 ## 2026-08-15 — «Lo mío» deja de ser un marcador, y dos migraciones para que lo sea
 
 La pantalla que ve cada colaboradora pasó de mostrar sus horas a poder usarse:
