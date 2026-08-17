@@ -306,7 +306,23 @@ export function bloquesDe(texto: string): Bloque[] {
     cerrarLista();
 
     // ── Lo demás ───────────────────────────────────────────────────────────
-    if (!t) { cerrarParrafo(); salida.push({ tipo: "espacio" }); continue; }
+    // Una línea vacía JUSTO DESPUÉS de un encabezado no deja bloque.
+    //
+    // No es aseo: el visor pinta cada «espacio» como un div de 8 px, y el
+    // markdown siempre deja una línea en blanco entre el «### ARTÍCULO 34» y su
+    // primer párrafo. Con ese div en medio, el `break-after-avoid` de la hoja
+    // impresa pega el título al div vacío y el salto de página SIGUE cabiendo
+    // detrás: el artículo se queda solo al pie de una cara con su texto en la
+    // siguiente, que en papel se lee como si faltara algo. El Reglamento tiene 68
+    // encabezados de artículo y se imprime para el cargo que se firma.
+    //
+    // El hueco no se pierde: el encabezado ya trae su `mt-*` y el párrafo su
+    // `my-2`.
+    if (!t) {
+      cerrarParrafo();
+      if (salida[salida.length - 1]?.tipo !== "encabezado") salida.push({ tipo: "espacio" });
+      continue;
+    }
     if (t === "---") { cerrarParrafo(); salida.push({ tipo: "regla" }); continue; }
     const enc = /^(#{1,4})\s+(.*)$/.exec(t);
     if (enc && !enCita) {

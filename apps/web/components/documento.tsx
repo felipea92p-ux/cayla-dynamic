@@ -64,11 +64,26 @@ const MEDIDA = "max-w-[62ch]";
  */
 const TEXTO_SEGUIDO = `${MEDIDA} whitespace-pre-wrap`;
 
+/**
+ * `print:break-after-avoid` en los cuatro niveles.
+ *
+ * Un título que se queda solo al pie de una hoja manda a la siguiente página el
+ * texto que anuncia, y en papel eso se lee como si faltara algo. El Reglamento
+ * tiene 68 encabezados de artículo y se imprime entero para el cargo que se
+ * firma. La regla no es nueva en el repositorio —la política salarial y el
+ * generador del PDF oficial ya la aplican con ese mismo motivo escrito—: esta
+ * ruta del panel era la única que se había quedado sin ella, y es la única que
+ * una encargada puede usar, porque el generador pide terminal.
+ *
+ * Depende de que la línea vacía tras un encabezado NO deje bloque; si lo dejara,
+ * el título se pegaría al div de 8 px y el salto seguiría cabiendo detrás. Eso se
+ * decide en `markdown-documento.ts`, con su porqué.
+ */
 const CLASE_ENCABEZADO: Record<number, string> = {
-  1: `${MEDIDA} mt-2 font-serif text-2xl`,
-  2: `${MEDIDA} mt-6 border-b border-sand pb-1 font-serif text-lg`,
-  3: `${MEDIDA} mt-5 font-serif text-base font-medium`,
-  4: `${MEDIDA} mt-4 font-serif text-sm font-medium`,
+  1: `${MEDIDA} mt-2 font-serif text-2xl print:break-after-avoid`,
+  2: `${MEDIDA} mt-6 border-b border-sand pb-1 font-serif text-lg print:break-after-avoid`,
+  3: `${MEDIDA} mt-5 font-serif text-base font-medium print:break-after-avoid`,
+  4: `${MEDIDA} mt-4 font-serif text-sm font-medium print:break-after-avoid`,
 };
 
 export function Documento({ texto }: { texto: string }) {

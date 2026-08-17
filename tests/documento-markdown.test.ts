@@ -199,6 +199,22 @@ describe("números de lista", () => {
     expect(l.items).toHaveLength(2);
   });
 
+  it("la línea vacía tras un encabezado no deja bloque, para que el título no se quede solo al pie", () => {
+    // El visor pinta cada «espacio» como un div de 8 px, y con ese div en medio
+    // el break-after-avoid de la hoja impresa pega el título al div y el salto de
+    // página sigue cabiendo detrás. El Reglamento tiene 68 encabezados de
+    // artículo y se imprime para el cargo que se firma.
+    const b = bloquesDe("### ARTÍCULO 34.- Tardanza\n\nSe considera tardanza…");
+    const i = b.findIndex((x) => x.tipo === "encabezado");
+    expect(b[i + 1].tipo).toBe("parrafo");
+    expect(b.filter((x) => x.tipo === "espacio")).toHaveLength(0);
+  });
+
+  it("pero una línea vacía entre dos párrafos sigue separando", () => {
+    const b = bloquesDe("Primero.\n\nSegundo.");
+    expect(b.some((x) => x.tipo === "espacio")).toBe(true);
+  });
+
   it("un año al principio de línea no convierte la frase en lista", () => {
     expect(bloquesDe("2026) fue el año en que se publicó.")
       .filter((x) => x.tipo === "lista")).toHaveLength(0);
