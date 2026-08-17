@@ -403,7 +403,9 @@ export default function DisciplinaPage() {
     setOcupado(null);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `Cargos comunicados. El plazo vence el ${selloLima(String(data))}.` });
+    // Sin punto final: `selloLima` ya termina en «p. m.» y el punto detrás se
+    // lee «p. m..».
+    setMsg({ tipo: "ok", texto: `Cargos comunicados · su plazo de descargo vence el ${selloLima(String(data))}` });
   }
 
   /**
@@ -908,24 +910,93 @@ function fechasDe(h: Hecho[]): string {
                       )}
                       <button onClick={() => router.push(`/admin/disciplina/memo/${d.id}`)}
                         className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">Ver memo</button>
-                      {/* Sin nadie a quien ofrecer, firmar solo produciría un
-                          error de la base. Es el caso del art. 54.4 c): DO ve
-                          el borrador del despido porque lo instruye, pero la
-                          carta la suscribe la Gerencia General en persona.
-                          Se compara con `=== 0` y no con `?? []` a propósito:
-                          la clave ausente es «todavía no se preguntó», y ahí el
-                          botón se deja pasar para que decida la base. */}
-                      <button onClick={() => firmar(d.id)}
-                        disabled={ocupado === d.id || firmantes[d.id]?.length === 0}
-                        title={firmantes[d.id]?.length === 0
-                          ? `Un documento de nivel ${NIVEL_LABEL[d.nivel].toLowerCase()} no lo puedes suscribir tú (art. 54.4 del Reglamento).`
-                          : "Firmar este documento"}
-                        className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">Firmar</button>
+                      {/* El botón que sale es el del paso que toca, y en una
+                          amonestación o una suspensión los tres primeros NO son
+                          Firmar: comunicar los cargos, esperar el plazo y
+                          valorar el descargo (arts. 55.2 y 19.3 del RIT).
+
+                          Esto faltaba. La base lo exige desde la 0212 y las dos
+                          funciones de pantalla se escribieron entonces, pero el
+                          JSX no: «Firmar» salía siempre y la base lo rechazaba
+                          con un error que no tenía cómo cumplirse desde acá.
+
+                          La imputación y el despido no pasan por esta cascada —
+                          siguen el procedimiento del art. 57, con el plazo del
+                          art. 31 de la LPCL, que es otro y más largo. */}
+                      {esGradual(d.nivel) && d.cargos_comunicados_at === null ? (
+                        <button onClick={() => void comunicarCargos(d)} disabled={ocupado === d.id}
+                          title="Art. 55.2 del RIT: antes de una amonestación o una suspensión hay que comunicarle los cargos y darle su plazo de descargo."
+                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                          {ocupado === d.id ? "Comunicando…" : "Comunicar cargos"}
+                        </button>
+                      ) : esGradual(d.nivel) && plazoAbierto(d) ? (
+                        <span className="text-xs text-taupe">Esperando su descargo</span>
+                      ) : esGradual(d.nivel) && d.descargo_acogido === null ? (
+                        /* Las cuatro salidas salen de ETIQUETA_DESCARGO y no de
+                           una lista escrita acá: son las mismas que acepta
+                           fn_expediente_valorar_descargo. */
+                        <select value="" disabled={ocupado === d.id}
+                          onChange={(e) => { if (e.target.value) void valorarDescargo(d, e.target.value); }}
+                          title="Art. 19.3 del RIT: hay que dejar por escrito si el descargo se acoge, aunque no se haya presentado ninguno."
+                          className="rounded-lg border border-tinta/30 bg-papel px-2 py-1 text-xs text-tinta disabled:opacity-40">
+                          <option value="">Valorar el descargo…</option>
+                          {Object.entries(ETIQUETA_DESCARGO).map(([valor, etiqueta]) => (
+                            <option key={valor} value={valor}>{etiqueta}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        /* Sin nadie a quien ofrecer, firmar solo produciría un
+                           error de la base. Es el caso del art. 54.4 c): DO ve
+                           el borrador del despido porque lo instruye, pero la
+                           carta la suscribe la Gerencia General en persona.
+                           Se compara con `=== 0` y no con `?? []` a propósito:
+                           la clave ausente es «todavía no se preguntó», y ahí el
+                           botón se deja pasar para que decida la base. */
+                        <button onClick={() => firmar(d.id)}
+                          disabled={ocupado === d.id || firmantes[d.id]?.length === 0}
+                          title={firmantes[d.id]?.length === 0
+                            ? `Un documento de nivel ${NIVEL_LABEL[d.nivel].toLowerCase()} no lo puedes suscribir tú (art. 54.4 del Reglamento).`
+                            : "Firmar este documento"}
+                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">Firmar</button>
+                      )}
+                      {/* El descargo previo también se archiva, y contra el
+                          borrador: la 0212 abrió esa puerta en
+                          fn_expediente_puede_recibir_descargo y hasta ahora solo
+                          la imputación entregada tenía dónde subirlo. */}
+                      {esGradual(d.nivel) && d.cargos_comunicados_at !== null
+                        && !(adjuntos.get(d.id) ?? []).some((a) => a.tipo === "descargo") && (
+                        <button onClick={() => void abrirCargo(d.id, "descargo")} disabled={ocupado === d.id}
+                          className="text-xs text-taupe underline disabled:opacity-40">subir su descargo</button>
+                      )}
+                      {(adjuntos.get(d.id) ?? []).filter((a) => a.tipo === "descargo").map((a) => (
+                        <button key={a.id} onClick={() => void verAdjunto(a.storage_path)}
+                          className="text-xs font-medium underline">Ver descargo</button>
+                      ))}
                       <button onClick={() => anular(d.id)} disabled={ocupado === d.id}
                         className="rounded border border-rojo/30 px-2 py-0.5 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">Anular</button>
                     </div>
                   </div>
                   <p className="mt-1 text-xs text-taupe">Hechos: {fechasDe(d.hechos)}</p>
+                  {/* En qué punto del art. 55.2 está este borrador, escrito en
+                      la fila. Sin esta línea, uno que hoy no se puede firmar se
+                      ve igual que uno que sí, y el porqué solo aparecía al
+                      pulsar Firmar — cuando ya no había nada que hacer. */}
+                  {esGradual(d.nivel) && (
+                    <p className={`mt-1 text-xs ${d.descargo_acogido === null ? "text-rojo" : "text-taupe"}`}>
+                      {d.cargos_comunicados_at === null
+                        ? "Falta comunicarle los cargos por escrito —los hechos con sus fechas, la norma que se le imputa y el detalle de la medición— y darle dos días hábiles para su descargo (art. 55.2 del RIT). Hasta entonces no se puede firmar."
+                        /* Los sellos nunca cierran la frase: `selloLima`
+                           termina en «p. m.» y un punto detrás se lee «p. m..». */
+                        : plazoAbierto(d)
+                          ? `Cargos comunicados el ${selloLima(d.cargos_comunicados_at)} · su plazo de descargo vence el ${d.descargo_vence_at ? selloLima(d.descargo_vence_at) : "—"} — firmar antes invalidaría la sanción.`
+                          : d.descargo_acogido === null
+                            ? `El plazo venció el ${d.descargo_vence_at ? selloLima(d.descargo_vence_at) : "—"} · falta dejar por escrito si su descargo se acoge, y hacerlo constar también si no presentó ninguno (art. 19.3 del RIT).`
+                            /* «descargo» no se antepone a `sin_descargo`: su
+                               etiqueta ya es una frase entera y saldría
+                               «descargo no presentó descargo». */
+                            : `Cargos comunicados el ${selloLima(d.cargos_comunicados_at)} · ${d.descargo_acogido === "sin_descargo" ? "" : "descargo "}${ETIQUETA_DESCARGO[d.descargo_acogido] ?? d.descargo_acogido}${d.descargo_valoracion ? `: ${d.descargo_valoracion}` : ""}`}
+                    </p>
+                  )}
                   {/* Numeral 60.5: sin constancia del Reglamento no se puede
                       fundar una amonestación ni una suspensión. Se avisa acá,
                       en el borrador, y no al pulsar Firmar: lo que no se puede
@@ -965,6 +1036,22 @@ function fechasDe(h: Hecho[]): string {
                         ? <span>{d.suspension_fechas.map(fechaCorta).join(", ")}</span>
                         : d.suspension_desde && <span>del {fechaCorta(d.suspension_desde)}{d.suspension_hasta ? ` al ${fechaCorta(d.suspension_hasta)}` : ""}</span>}
                     </label>
+                  )}
+                  {subiendoCargo?.id === d.id && (
+                    <FormularioCargo
+                      tipo={subiendoCargo.tipo}
+                      /* Un borrador no tiene entrega que fechar: lo que se
+                         archiva acá es el descargo previo, no el cargo. */
+                      pideFecha={false}
+                      entregadoEl={null}
+                      fecha={fechaEntrega} nota={notaCargo}
+                      progreso={progresoCargo} ocupado={ocupado === d.id}
+                      alElegirArchivo={setArchivoCargo}
+                      alCambiarFecha={setFechaEntrega}
+                      alCambiarNota={setNotaCargo}
+                      alGuardar={() => void guardarCargo()}
+                      alCancelar={() => setSubiendoCargo(null)}
+                    />
                   )}
                 </li>
               ))}
