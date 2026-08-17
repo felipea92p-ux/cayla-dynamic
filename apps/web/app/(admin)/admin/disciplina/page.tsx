@@ -693,7 +693,9 @@ export default function DisciplinaPage() {
       if (fechas.length) {
         setMsg({ tipo: "ok", texto: salta
           ? `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")} — se saltan sus días de descanso, que no cuentan como sanción.`
-          : `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")}.` });
+          // Sin punto final: `fechaCorta` ya termina en punto («18-ago.») y el
+          // segundo se lee como una errata.
+          : `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")}` });
       }
       return;
     }
