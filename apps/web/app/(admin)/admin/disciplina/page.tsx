@@ -129,6 +129,10 @@ interface Doc {
   descargo_acogido: string | null; descargo_valoracion: string | null;
   correlativo: string | null; creado_at: string; firmado_at: string | null;
   entregado_at: string | null; medio_entrega: string | null;
+  /** El rastro del trámite: cuándo se comunicaron los cargos y —si se
+   *  declararon después (mig. 0266)— quién lo declaró y cómo consta. Se lee en
+   *  la fila del borrador porque es lo que hay que mirar ANTES de firmar. */
+  observacion: string | null;
 }
 
 /**
@@ -273,7 +277,7 @@ export default function DisciplinaPage() {
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion")
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion")
         // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
         //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
         //   papel de una entrega de hace dos meses.
@@ -406,6 +410,49 @@ export default function DisciplinaPage() {
     // Sin punto final: `selloLima` ya termina en «p. m.» y el punto detrás se
     // lee «p. m..».
     setMsg({ tipo: "ok", texto: `Cargos comunicados · su plazo de descargo vence el ${selloLima(String(data))}` });
+  }
+
+  /**
+   * Registrar una comunicación de cargos que YA OCURRIÓ, con su fecha real
+   * (mig. 0266).
+   *
+   * Existe por los borradores que quedaron atrapados mientras esta pantalla no
+   * tuvo el botón de arriba: sus cargos se comunicaron de verdad, pero el
+   * sistema no tenía dónde anotarlo. Volver a comunicarlos daría dos días de
+   * plazo para un descargo que la persona ya tuvo ocasión de dar.
+   *
+   * No adelanta nada: la base sigue exigiendo que el plazo de ESA fecha haya
+   * vencido y que el descargo esté valorado. Lo único que cambia es de dónde
+   * sale la fecha — del reloj, o de alguien que declara y firma con su nombre.
+   */
+  async function declararCargos(d: Doc) {
+    const dia = window.prompt(
+      "¿Qué día se le comunicaron los cargos? (AAAA-MM-DD)\n\n" +
+      "Desde ese día corren los dos días hábiles de descargo. Si todavía no han " +
+      "pasado, el documento seguirá sin poder firmarse.",
+      hoyLima(),
+    );
+    if (!dia) return;
+    const constancia = window.prompt(
+      "¿Cómo consta esa comunicación? Quién se la hizo, dónde y quién más estaba delante.\n\n" +
+      "Queda escrito en el expediente con tu nombre y la fecha de hoy. Si fue verbal, " +
+      "dilo: es más débil que un cargo firmado y el expediente tiene que decirlo así.",
+    );
+    if (!constancia || constancia.trim().length < 15) {
+      setMsg({ tipo: "error", texto: "Falta decir cómo consta, y con detalle: va a ser la única prueba de que esa comunicación existió." });
+      return;
+    }
+    setOcupado(d.id); setMsg(null);
+    // `instanteEntrega` fija el mediodía de Lima para un día pasado y nunca
+    // devuelve un instante futuro — el mismo problema que ya resolvía al
+    // archivar un cargo.
+    const { data, error } = await supabase.rpc("fn_expediente_declarar_cargos_comunicados", {
+      p_id: d.id, p_fecha: instanteEntrega(dia, null), p_constancia: constancia.trim(), p_dias: 2,
+    });
+    setOcupado(null);
+    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(String(data))}` });
   }
 
   /**
@@ -924,11 +971,20 @@ function fechasDe(h: Hecho[]): string {
                           siguen el procedimiento del art. 57, con el plazo del
                           art. 31 de la LPCL, que es otro y más largo. */}
                       {esGradual(d.nivel) && d.cargos_comunicados_at === null ? (
-                        <button onClick={() => void comunicarCargos(d)} disabled={ocupado === d.id}
-                          title="Art. 55.2 del RIT: antes de una amonestación o una suspensión hay que comunicarle los cargos y darle su plazo de descargo."
-                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
-                          {ocupado === d.id ? "Comunicando…" : "Comunicar cargos"}
-                        </button>
+                        <>
+                          <button onClick={() => void comunicarCargos(d)} disabled={ocupado === d.id}
+                            title="Art. 55.2 del RIT: antes de una amonestación o una suspensión hay que comunicarle los cargos y darle su plazo de descargo."
+                            className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                            {ocupado === d.id ? "Comunicando…" : "Comunicar cargos"}
+                          </button>
+                          {/* Para lo que ya ocurrió. En texto pequeño y al lado,
+                              no como botón: el camino normal es comunicar hoy;
+                              este es la excepción de quien ya lo hizo y no tuvo
+                              dónde anotarlo. */}
+                          <button onClick={() => void declararCargos(d)} disabled={ocupado === d.id}
+                            title="Registrar una comunicación que ya ocurrió, con la fecha en que ocurrió. El plazo se cuenta desde esa fecha, no desde hoy."
+                            className="text-xs text-taupe underline disabled:opacity-40">ya se lo comuniqué</button>
+                        </>
                       ) : esGradual(d.nivel) && plazoAbierto(d) ? (
                         <span className="text-xs text-taupe">Esperando su descargo</span>
                       ) : esGradual(d.nivel) && d.descargo_acogido === null ? (
@@ -996,6 +1052,13 @@ function fechasDe(h: Hecho[]): string {
                                «descargo no presentó descargo». */
                             : `Cargos comunicados el ${selloLima(d.cargos_comunicados_at)} · ${d.descargo_acogido === "sin_descargo" ? "" : "descargo "}${ETIQUETA_DESCARGO[d.descargo_acogido] ?? d.descargo_acogido}${d.descargo_valoracion ? `: ${d.descargo_valoracion}` : ""}`}
                     </p>
+                  )}
+                  {/* Lo que se declaró, a la vista de quien va a firmar. Una
+                      comunicación declarada dice de quién es la palabra que la
+                      sostiene, y eso hay que poder leerlo ANTES de la firma, no
+                      encontrarlo en la base el día que alguien la discuta. */}
+                  {d.observacion && (
+                    <p className="mt-1 whitespace-pre-line text-xs text-taupe">{d.observacion}</p>
                   )}
                   {/* Numeral 60.5: sin constancia del Reglamento no se puede
                       fundar una amonestación ni una suspensión. Se avisa acá,

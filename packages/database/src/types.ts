@@ -3598,6 +3598,15 @@ export type Database = {
         }
         Returns: string
       }
+      fn_expediente_declarar_cargos_comunicados: {
+        Args: {
+          p_constancia: string | null
+          p_dias?: number | null
+          p_fecha: string | null
+          p_id: string | null
+        }
+        Returns: string
+      }
       fn_expediente_doc_code: {
         Args: { p_nivel: string | null; p_tipo: string | null }
         Returns: string
