@@ -212,6 +212,54 @@ export type Database = {
           },
         ]
       }
+      asignaciones_regimen_pension: {
+        Row: {
+          asignado_por: string | null
+          created_at: string
+          id: string
+          nota: string | null
+          persona_id: string
+          regimen: string
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          asignado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          regimen: string
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          asignado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          regimen?: string
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignaciones_regimen_pension_asignado_por_fkey"
+            columns: ["asignado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_regimen_pension_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asignaciones_salario: {
         Row: {
           asignado_por: string | null
@@ -285,6 +333,7 @@ export type Database = {
           registrada_at: string
           registrada_por: string
           registrada_tarde: boolean
+          subsidio_diario: number | null
           tipo: string
         }
         Insert: {
@@ -305,6 +354,7 @@ export type Database = {
           registrada_at?: string
           registrada_por: string
           registrada_tarde?: boolean
+          subsidio_diario?: number | null
           tipo: string
         }
         Update: {
@@ -325,6 +375,7 @@ export type Database = {
           registrada_at?: string
           registrada_por?: string
           registrada_tarde?: boolean
+          subsidio_diario?: number | null
           tipo?: string
         }
         Relationships: [
@@ -826,6 +877,7 @@ export type Database = {
       documentos_institucionales: {
         Row: {
           documento: string
+          etiqueta_version: string | null
           id: string
           notas: string | null
           publicado_at: string
@@ -837,6 +889,7 @@ export type Database = {
         }
         Insert: {
           documento: string
+          etiqueta_version?: string | null
           id?: string
           notas?: string | null
           publicado_at?: string
@@ -848,6 +901,7 @@ export type Database = {
         }
         Update: {
           documento?: string
+          etiqueta_version?: string | null
           id?: string
           notas?: string | null
           publicado_at?: string
@@ -2554,6 +2608,7 @@ export type Database = {
           aporte: number
           comision: number
           created_at: string
+          grava_subsidio: boolean
           id: string
           nombre: string
           nota: string | null
@@ -2566,6 +2621,7 @@ export type Database = {
           aporte: number
           comision?: number
           created_at?: string
+          grava_subsidio?: boolean
           id?: string
           nombre: string
           nota?: string | null
@@ -2578,6 +2634,7 @@ export type Database = {
           aporte?: number
           comision?: number
           created_at?: string
+          grava_subsidio?: boolean
           id?: string
           nombre?: string
           nota?: string | null
@@ -3132,6 +3189,15 @@ export type Database = {
         Args: { p_periodo_id: string | null }
         Returns: Json
       }
+      fn_cambiar_regimen_pension: {
+        Args: {
+          p_desde: string | null
+          p_nota?: string | null
+          p_persona_id: string | null
+          p_regimen: string | null
+        }
+        Returns: Json
+      }
       fn_cargo_de_rol: {
         Args: { p_rol: Database["public"]["Enums"]["rol_usuario"] | null }
         Returns: string
@@ -3395,6 +3461,7 @@ export type Database = {
         Returns: {
           documento: string
           documento_id: string
+          etiqueta_version: string
           mi_acuse_at: string
           poblacion: number
           publicado_at: string
@@ -3895,6 +3962,7 @@ export type Database = {
           total_foto: number
         }[]
       }
+      fn_poblacion_obligada: { Args: never; Returns: string[] }
       fn_politica_salarial_vigente: { Args: never; Returns: Json }
       fn_provisiones: { Args: { p_as_of?: string | null }; Returns: Json }
       fn_proyeccion_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
@@ -3905,6 +3973,7 @@ export type Database = {
       fn_publicar_documento: {
         Args: {
           p_documento: string | null
+          p_etiqueta?: string | null
           p_notas?: string | null
           p_tipo: string | null
           p_titulo: string | null

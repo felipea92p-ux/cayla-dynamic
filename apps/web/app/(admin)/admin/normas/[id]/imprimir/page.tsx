@@ -28,10 +28,25 @@ const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550" };
 interface Doc {
   id: string;
   version: number;
+  /** La versión que declara el propio documento. Ver `comoSeLlamaLaVersion` en la
+   *  pantalla de Normas: manda esta, y el correlativo dice cuántas veces se ha
+   *  publicado. En el papel importa el doble, porque este es el que se firma. */
+  etiqueta_version: string | null;
   titulo: string;
   documento: string;
   vigente_desde: string;
   tipo: string;
+}
+
+/**
+ * ¿El documento trae su propio título en la primera línea?
+ *
+ * Solo MIRA el texto; no lo modifica ni le quita nada. Se usa para decidir si la
+ * cabecera de la hoja tiene que poner un título o si sería el segundo.
+ */
+function abreConTitulo(texto: string): boolean {
+  const primera = texto.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? "";
+  return /^#\s+\S/.test(primera);
 }
 
 function fechaLarga(iso: string): string {
@@ -56,7 +71,7 @@ export default function ImprimirDocumentoPage() {
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const { data, error: e } = await supabase
       .from("documentos_institucionales")
-      .select("id, version, titulo, documento, vigente_desde, tipo")
+      .select("id, version, etiqueta_version, titulo, documento, vigente_desde, tipo")
       .eq("id", id)
       .maybeSingle();
     setCargando(false);
@@ -102,14 +117,35 @@ export default function ImprimirDocumentoPage() {
 
       {/* La cabecera SÍ se imprime, y en cada hoja no: va una vez, arriba. Lleva
           la versión y la fecha de vigencia porque un papel sin versión no dice
-          cuál de los textos es — que es justo lo que este sistema arregla. */}
+          cuál de los textos es — que es justo lo que este sistema arregla.
+
+          Y APORTA SOLO LO QUE EL TEXTO NO PUEDE APORTAR. Los seis documentos
+          publicados abren con su propio «# TÍTULO», su razón social y su RUC, así
+          que la cabecera imprimía una copia de las tres líneas que se pintan
+          justo debajo: dos títulos del mismo tamaño, dos veces el RUC y dos
+          versiones seguidas. Peor todavía, el título de la cabecera se DERIVA de
+          esa primera línea `# ` al publicar, o sea que era literalmente la misma
+          cadena dos veces.
+
+          El título solo se imprime cuando el texto no lo trae — que es el caso de
+          un documento PEGADO desde un Word o un Canva, la vía que existe para la
+          misión y los valores. Y se comprueba sin tocar el texto: filtrar líneas
+          de lo que se pinta haría que el acuse apuntara a un documento con partes
+          que nadie vio, y eso es justo lo que le da valor a la constancia. */}
       <header className="mb-6 border-b border-sand pb-4">
-        <p className="font-serif text-[11px] uppercase tracking-[0.2em] text-taupe">
-          {EMPRESA.nombre} · RUC N.° {EMPRESA.ruc}
-        </p>
-        <h1 className="mt-2 font-serif text-2xl text-tinta">{doc.titulo}</h1>
-        <p className="mt-1 text-xs text-taupe">
-          Versión {doc.version} · vigente desde el {fechaLarga(doc.vigente_desde)}
+        {!abreConTitulo(doc.documento) && (
+          <>
+            <p className="font-serif text-[11px] uppercase tracking-[0.2em] text-taupe">
+              {EMPRESA.nombre} · RUC N.° {EMPRESA.ruc}
+            </p>
+            <h1 className="mt-2 font-serif text-2xl text-tinta">{doc.titulo}</h1>
+          </>
+        )}
+        <p className="text-xs text-taupe">
+          {doc.etiqueta_version
+            ? `Versión ${doc.etiqueta_version} · ${doc.version}.ª publicación en el sistema`
+            : `${doc.version}.ª publicación en el sistema`}
+          {" "}· vigente desde el {fechaLarga(doc.vigente_desde)}
         </p>
       </header>
 

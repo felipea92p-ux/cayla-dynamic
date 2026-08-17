@@ -43,7 +43,18 @@ interface Doc {
   documento_id: string;
   tipo: string;
   tipo_nombre: string;
+  /** Cuántas veces se ha publicado este tipo en el sistema. Dato técnico. */
   version: number;
+  /**
+   * La versión que el DOCUMENTO declara en su propio texto — «4.0».
+   *
+   * Es la que aparece en el cargo que la integrante firma, y por eso es la que
+   * manda en pantalla. Antes solo existía el correlativo, y con el Reglamento
+   * 4.0 publicado como `version = 1` el legajo de papel y la base no se podían
+   * cruzar sin abrir el texto congelado y leerlo. Es opcional: un documento sin
+   * versión editorial es legítimo, y entonces se muestra solo el correlativo.
+   */
+  etiqueta_version: string | null;
   titulo: string;
   documento: string;
   vigente_desde: string;
@@ -117,6 +128,19 @@ function fechaCorta(iso: string): string {
     .format(new Date(Date.UTC(y, m - 1, d)));
 }
 
+/**
+ * Cómo se nombra una versión en pantalla.
+ *
+ * Manda la del documento, y el correlativo baja a decir lo que de verdad es:
+ * cuántas veces se ha publicado esto aquí. Antes se leía «versión 1» junto a un
+ * texto que se titula «Versión 4.0», dos números que solo coincidirían por
+ * casualidad — y el cargo que la integrante firma dice 4.0.
+ */
+function comoSeLlamaLaVersion(d: Doc): string {
+  const publicacion = `${d.version}.ª publicación en el sistema`;
+  return d.etiqueta_version ? `versión ${d.etiqueta_version} · ${publicacion}` : publicacion;
+}
+
 export default function NormasPage() {
   useTituloDocumento("Normas");
   const yo = usePersonaActual();
@@ -176,6 +200,7 @@ export default function NormasPage() {
   const [tituloDoc, setTituloDoc] = useState("");
   const [vigenteDesde, setVigenteDesde] = useState("");
   const [notasDoc, setNotasDoc] = useState("");
+  const [etiquetaDoc, setEtiquetaDoc] = useState("");
 
   // La constancia en papel de quien no tiene cuenta.
   const [papelPara, setPapelPara] = useState<{ doc: string; persona: string; nombre: string } | null>(null);
@@ -383,6 +408,7 @@ export default function NormasPage() {
       p_documento: archivoDoc.texto,
       p_vigente_desde: vigenteDesde || null,
       p_notas: notasDoc.trim() || null,
+      p_etiqueta: etiquetaDoc.trim() || null,
     });
     setOcupado(false);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "publicar el documento") }); return; }
@@ -406,7 +432,7 @@ export default function NormasPage() {
     // administra en pantalla. Y un mensaje de éxito que anuncia un trámite que
     // no va a ocurrir deja esperando una lista de pendientes que nunca aparece.
     const pideAcuse = tipos.find((t) => t.codigo === tipoElegido)?.requiere_acuse ?? true;
-    setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc(""); setTextoPegado("");
+    setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc(""); setTextoPegado(""); setEtiquetaDoc("");
     await cargar();
     setMsg({
       tipo: "ok",
@@ -787,6 +813,22 @@ export default function NormasPage() {
                       className="rounded border px-2 py-1 text-xs" />
                     <span className="text-taupe">Si lo dejas vacío, rige desde hoy.</span>
                   </label>
+                  {/* La versión que DICE el documento, que es la que va en el cargo
+                      que se firma. No se deduce del texto a propósito: solo el
+                      Reglamento la lleva en un sitio predecible, los anexos la
+                      tienen embutida en prosa y un texto pegado desde un Word
+                      puede no traerla. Un analizador acertaría en uno y fallaría
+                      en silencio en el resto. */}
+                  <label className="flex flex-col gap-1 text-xs">
+                    Versión que dice el documento (opcional)
+                    <input value={etiquetaDoc} onChange={(e) => setEtiquetaDoc(e.target.value)}
+                      placeholder="ej. 4.0"
+                      className="rounded border px-2 py-1 text-xs" />
+                    <span className="text-taupe">
+                      La que aparece en el cargo que se firma. Si la dejas vacía, se muestra
+                      solo el número de publicación.
+                    </span>
+                  </label>
                   <label className="flex flex-col gap-1 text-xs sm:col-span-2">
                     Nota de la versión (opcional)
                     <input value={notasDoc} onChange={(e) => setNotasDoc(e.target.value)}
@@ -885,7 +927,7 @@ export default function NormasPage() {
                     <span>
                       <span className="font-medium">{d.titulo}</span>
                       <span className="ml-2 text-xs text-taupe">
-                        versión {d.version} · rige desde {fechaCorta(d.vigente_desde)}
+                        {comoSeLlamaLaVersion(d)} · rige desde {fechaCorta(d.vigente_desde)}
                       </span>
                     </span>
                     {/* `flex-wrap` arriba y `whitespace-nowrap` en la píldora: con
@@ -971,7 +1013,7 @@ export default function NormasPage() {
                         className="flex w-full flex-wrap items-center justify-between gap-3 text-left text-sm">
                         <span>
                           {a.titulo}
-                          <span className="ml-2 text-xs text-taupe">versión {a.version}</span>
+                          <span className="ml-2 text-xs text-taupe">{comoSeLlamaLaVersion(a)}</span>
                         </span>
                         <span className="flex items-center gap-2 text-xs">
                           {a.requiere_acuse && (a.mi_acuse_at
