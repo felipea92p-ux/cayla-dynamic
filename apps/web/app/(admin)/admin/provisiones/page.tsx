@@ -41,6 +41,14 @@ function fmtDias(n: number): string {
  *
  * `pagada` es opcional a propósito: sin la 0123 aplicada llega `undefined`, la
  * función cae al monto de siempre y la pantalla se ve exactamente como antes.
+ *
+ * Y SI QUEDA SALDO, EL SALDO MANDA. Desde la 0158 «pagada» dejó de significar
+ * «liquidada del todo»: un depósito directo PARCIAL de CTS la marca pagada y aun
+ * así deja un pendiente, que es el número que entra al total. Mostrando solo lo
+ * pagado, la fila no cuadraba a la vista —se leía «pagado S/94.17» junto a un
+ * total que contaba otros S/146.77 que no aparecían por ningún lado—. La
+ * gratificación sigue siendo todo-o-nada, así que ahí el pendiente es 0 y la
+ * celda se ve igual que siempre.
  */
 function celdaVentana(
   monto: number,
@@ -50,11 +58,12 @@ function celdaVentana(
 ) {
   if (!pagada) return <>{formatSoles(monto)}</>;
   return (
-    <span className="text-taupe">
-      pagado {fechaDiaMes(fechaPago)}
-      {typeof montoPagado === "number" && (
-        <span className="block text-xs">{formatSoles(montoPagado)}</span>
-      )}
+    <span className={monto === 0 ? "text-taupe" : undefined}>
+      {monto !== 0 && <span className="block">{formatSoles(monto)}</span>}
+      <span className={monto !== 0 ? "block text-xs text-taupe" : undefined}>
+        pagado {fechaDiaMes(fechaPago)}
+        {typeof montoPagado === "number" && ` · ${formatSoles(montoPagado)}`}
+      </span>
     </span>
   );
 }
