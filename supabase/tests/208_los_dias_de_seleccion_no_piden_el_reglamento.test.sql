@@ -4,9 +4,9 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 206_los_dias_de_seleccion_no_piden_el_reglamento.test.sql
+-- 208_los_dias_de_seleccion_no_piden_el_reglamento.test.sql
 -- ============================================================================
--- Defiende la 0269: quien está en días de selección pagados (tipo_vinculo =
+-- Defiende la 0270: quien está en días de selección pagados (tipo_vinculo =
 -- 'prueba') deja de contar en la población obligada del RIT/RISST/política
 -- salarial/hostigamiento y de aparecer en la alerta de Disciplina — en las
 -- CUATRO funciones que responden esa pregunta, no en una sola.
@@ -54,7 +54,7 @@ select is(
 
 -- ── 2 · fn_acuses_documento — la hoja de Normas ─────────────────────────────
 select fn_publicar_documento('rit', 'Reglamento de laboratorio selección',
-  'Texto del Reglamento para la prueba 206.', fn_hoy_lima(), null);
+  'Texto del Reglamento para la prueba 208.', fn_hoy_lima(), null);
 
 select is(
   (select count(*)::int from fn_acuses_documento(
@@ -64,7 +64,7 @@ select is(
 
 -- ── 3 · fn_acuses_politica_salarial — la hoja de Política salarial ──────────
 insert into politica_salarial (version, documento, huella_cuadro)
-values (1, 'Politica de laboratorio para la prueba 206', 'huella-206');
+values (1, 'Politica de laboratorio para la prueba 208', 'huella-208');
 
 select ok(
   not exists (

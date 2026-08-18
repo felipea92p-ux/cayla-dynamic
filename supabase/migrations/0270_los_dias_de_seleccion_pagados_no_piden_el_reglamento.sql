@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0269 — Los días de selección pagados no piden el Reglamento
+-- 0270 — Los días de selección pagados no piden el Reglamento
 -- ----------------------------------------------------------------------------
 -- PROMETE: que `tipo_vinculo = 'prueba'` deje de contar en la población que
 --   debe recibir el RIT, el RISST, la política de hostigamiento y la política
@@ -159,7 +159,7 @@ comment on function fn_sin_constancia_del_reglamento() is
   'Quien tiene contrato de trabajo (fn_poblacion_obligada) y no tiene constancia del Reglamento vigente hoy, para avisar en Disciplina antes de empezar un procedimiento (numeral 60.5).';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (269, 'los_dias_de_seleccion_pagados_no_piden_el_reglamento')
+values (270, 'los_dias_de_seleccion_pagados_no_piden_el_reglamento')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
