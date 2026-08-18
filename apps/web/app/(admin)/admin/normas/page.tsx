@@ -953,11 +953,22 @@ export default function NormasPage() {
                       {/* La hoja se compone del MISMO texto que se lee acá, no
                           de un PDF guardado aparte: dos archivos del mismo
                           documento se desincronizan el día que uno cambia. */}
-                      <div className="mb-2 flex justify-end">
+                      <div className="mb-2 flex justify-end gap-3">
                         <a href={`/admin/normas/${d.documento_id}/imprimir`} target="_blank" rel="noopener"
                           className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
                           imprimir
                         </a>
+                        {/* La hoja de constancias es la otra mitad de la prueba:
+                            `imprimir` acredita QUÉ se comunicó y esta A QUIÉN. Va
+                            al lado y no dentro del seguimiento porque se busca el
+                            día que hay que adjuntar un papel, no el día que se
+                            persigue una firma. */}
+                        {d.requiere_acuse && puedeGestionar && (
+                          <a href={`/admin/normas/${d.documento_id}/constancias`} target="_blank" rel="noopener"
+                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
+                            hoja de constancias
+                          </a>
+                        )}
                       </div>
                       {/* La altura de la caja, y por qué 60vh y no 28rem.
                           `PRINCIPALES = ["rit"]`, así que esta caja envuelve el
