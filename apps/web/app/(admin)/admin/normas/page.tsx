@@ -1035,11 +1035,17 @@ export default function NormasPage() {
                       </button>
                       {abierto === a.documento_id && (
                         <>
-                        <div className="mt-2 flex justify-end">
+                        <div className="mt-2 flex justify-end gap-3">
                           <a href={`/admin/normas/${a.documento_id}/imprimir`} target="_blank" rel="noopener"
                             className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
                             imprimir
                           </a>
+                          {a.requiere_acuse && puedeGestionar && (
+                            <a href={`/admin/normas/${a.documento_id}/constancias`} target="_blank" rel="noopener"
+                              className="text-xs text-taupe underline underline-offset-2 hover:text-tinta">
+                              hoja de constancias
+                            </a>
+                          )}
                         </div>
                         <div className="mt-1 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
                           <Documento texto={a.documento} />
