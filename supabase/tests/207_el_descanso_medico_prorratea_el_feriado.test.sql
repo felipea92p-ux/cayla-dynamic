@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 206_el_descanso_medico_prorratea_el_feriado.test.sql
+-- 207_el_descanso_medico_prorratea_el_feriado.test.sql
 -- ============================================================================
 -- La 0177 hizo que un día de VACACIONES sumara sus horas al prorrateo del
 -- feriado. La 0254 hizo que un día de DESCANSO MÉDICO se pagara. Nadie unió
