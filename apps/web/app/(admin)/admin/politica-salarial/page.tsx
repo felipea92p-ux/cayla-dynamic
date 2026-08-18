@@ -391,7 +391,11 @@ export default function PoliticaSalarialPage() {
                   Versión <strong>{vigente.version}</strong>, publicada el{" "}
                   {vigente.publicada_at !== undefined ? fechaLarga(vigente.publicada_at) : "—"}.{" "}
                   Constancias: <strong>{vigente.total_acuses ?? 0}</strong> de{" "}
-                  {vigente.total_personas ?? 0}.
+                  {vigente.total_personas ?? 0}.{" "}
+                  <a href="/admin/politica-salarial/constancias" target="_blank" rel="noopener"
+                    className="underline underline-offset-2 hover:text-slate-950">
+                    hoja de constancias
+                  </a>
                 </p>
                 {vigente.desactualizada && (
                   <p className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
