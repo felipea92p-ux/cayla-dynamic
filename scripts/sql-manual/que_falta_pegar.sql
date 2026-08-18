@@ -127,7 +127,8 @@ with repo(numero, nombre, nunca) as (values
     (264, 'el_risst_si_pide_constancia', false),
     (265, 'el_contador_de_constancias_cuenta_a_la_misma_gente', false),
     (266, 'una_comunicacion_de_cargos_ya_ocurrida_se_puede_declarar', false),
-    (267, 'el_descargo_previo_pasa_a_ser_una_politica_de_la_empresa', false)
+    (267, 'el_descargo_previo_pasa_a_ser_una_politica_de_la_empresa', false),
+    (269, 'los_dias_de_seleccion_pagados_no_piden_el_reglamento', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
