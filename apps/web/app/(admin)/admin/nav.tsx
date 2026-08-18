@@ -11,7 +11,7 @@ import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound,
+  BookText, UserRound, ScrollText,
   LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
@@ -52,6 +52,7 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
     { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },
+    { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
     // Sin `roles` a propósito: la Ley 30709 obliga a INFORMAR la política salarial
     // a todo el equipo, y un menú que solo ve la gerencia no informa a nadie.
     { href: "/admin/politica-salarial", label: "Política salarial", Icon: Scale },
