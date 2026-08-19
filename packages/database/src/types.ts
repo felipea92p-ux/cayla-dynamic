@@ -478,6 +478,105 @@ export type Database = {
         }
         Relationships: []
       }
+      contratos_generados: {
+        Row: {
+          anulado_at: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          cargo: string
+          documento_html: string
+          fecha_fin: string
+          fecha_firma: string | null
+          fecha_inicio: string
+          generado_at: string
+          generado_por: string
+          horas_semanales: number | null
+          id: string
+          persona_id: string
+          registrado_por: string | null
+          remuneracion_mensual: number
+          sede_id: string
+          storage_path: string | null
+          tipo: string
+        }
+        Insert: {
+          anulado_at?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          cargo: string
+          documento_html: string
+          fecha_fin: string
+          fecha_firma?: string | null
+          fecha_inicio: string
+          generado_at?: string
+          generado_por: string
+          horas_semanales?: number | null
+          id?: string
+          persona_id: string
+          registrado_por?: string | null
+          remuneracion_mensual: number
+          sede_id: string
+          storage_path?: string | null
+          tipo: string
+        }
+        Update: {
+          anulado_at?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          cargo?: string
+          documento_html?: string
+          fecha_fin?: string
+          fecha_firma?: string | null
+          fecha_inicio?: string
+          generado_at?: string
+          generado_por?: string
+          horas_semanales?: number | null
+          id?: string
+          persona_id?: string
+          registrado_por?: string | null
+          remuneracion_mensual?: number
+          sede_id?: string
+          storage_path?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratos_generados_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_generado_por_fkey"
+            columns: ["generado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       correcciones_auditoria: {
         Row: {
           campo_modificado: string
@@ -3241,6 +3340,28 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_contrato_anular: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_contrato_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_contrato_registrar: {
+        Args: {
+          p_cargo?: string | null
+          p_documento_html?: string | null
+          p_fecha_fin?: string | null
+          p_fecha_firma?: string | null
+          p_fecha_inicio?: string | null
+          p_horas_semanales?: number | null
+          p_id?: string | null
+          p_persona_id?: string | null
+          p_remuneracion_mensual?: number | null
+          p_sede_id?: string | null
+          p_storage_path?: string | null
+          p_tipo?: string | null
+        }
+        Returns: string
+      }
       fn_contratos_desnaturalizados: {
         Args: never
         Returns: {
@@ -3251,6 +3372,27 @@ export type Database = {
           primer_dia_despues: string
           sede: string
           ultimo_dia_marcado: string
+        }[]
+      }
+      fn_contratos_listar: {
+        Args: { p_persona_id?: string | null }
+        Returns: {
+          anulado_at: string
+          anulado_motivo: string
+          cargo: string
+          fecha_fin: string
+          fecha_firma: string
+          fecha_inicio: string
+          generado_at: string
+          horas_semanales: number
+          id: string
+          persona: string
+          persona_id: string
+          remuneracion_mensual: number
+          sede: string
+          storage_path: string
+          tipo: string
+          vigente: boolean
         }[]
       }
       fn_contratos_por_vencer: {
