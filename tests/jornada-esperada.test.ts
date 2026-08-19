@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   dowDe, horarioVigente, esperadoDelDia, fechasDelRango, estadoDelDia,
+  horasSemanalesDe,
   type HorarioTramo, type Esperado,
 } from "@/lib/admin/jornada-esperada";
 
@@ -113,6 +114,27 @@ describe("esperadoDelDia — la cascada", () => {
       { hora_entrada: "21:00", hora_salida: "05:00", es_descanso: false },
       { ...AQP, horario_por_dia: { "1": { e: "09:00", s: "19:00", r: 0 } } });
     expect(noche.horas).toBe(8);
+  });
+});
+
+describe("horasSemanalesDe — para el contrato de trabajo", () => {
+  it("AQP suma 45, no 37.5 (cinco días de 9 h, no 7.5)", () => {
+    expect(horasSemanalesDe(AQP, "2026-08-10")).toBe(45);
+  });
+
+  it("Trujillo suma 45 con el domingo incluido", () => {
+    expect(horasSemanalesDe(TRU, "2026-08-09")).toBe(45);
+  });
+
+  it("no importa en qué día de la semana ancle la fecha de referencia", () => {
+    // Cualquier tramo de 7 días consecutivos cubre los mismos 7 días de la
+    // semana una vez cada uno — el resultado no depende de dónde se empiece.
+    expect(horasSemanalesDe(AQP, "2026-08-12")).toBe(45); // miércoles
+    expect(horasSemanalesDe(AQP, "2026-08-15")).toBe(45); // sábado
+  });
+
+  it("sin horario vigente, cero — nunca una jornada en blanco como en el contrato de Angie", () => {
+    expect(horasSemanalesDe(null, "2026-08-10")).toBe(0);
   });
 });
 

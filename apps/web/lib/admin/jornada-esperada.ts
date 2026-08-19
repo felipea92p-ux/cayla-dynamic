@@ -194,3 +194,19 @@ export function fechasDelRango(desde: string, hasta: string): string[] {
   }
   return out;
 }
+
+/**
+ * Horas semanales que le tocan a alguien según su horario pactado — la regla,
+ * no la excepción de un día puntual, por eso `turno` siempre va null. Suma
+ * `esperadoDelDia` sobre 7 días consecutivos cualesquiera: cualquier tramo de
+ * 7 días cubre los 7 `dow` una sola vez cada uno.
+ */
+export function horasSemanalesDe(horario: HorarioTramo | null, fecha: string): number {
+  if (!horario) return 0;
+  const [y, m, d] = fecha.split("-").map(Number);
+  const hasta = new Date(Date.UTC(y, m - 1, d + 6)).toISOString().slice(0, 10);
+  return fechasDelRango(fecha, hasta).reduce(
+    (total, iso) => total + esperadoDelDia(iso, null, horario).horas,
+    0,
+  );
+}
