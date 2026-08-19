@@ -37,6 +37,78 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-19 — Un archivo suelto revirtió `fn_provisiones`, y el registro no lo vio
+
+La pantalla Provisiones mostraba un «CTS total» que no era la suma de sus dos
+ventanas: contaba otra vez la CTS ya depositada al banco por PLAME. En la fila
+de Paola Cahuana eran **S/94.17 de más**.
+
+**No tocaba ningún pago**, y eso se verificó antes de alarmar a nadie:
+`cts_total` y `gran_total` solo los usa `provisiones/page.tsx`; el camino que
+paga (`fn_grati_cts_periodo`) usa `cts_may`/`cts_nov`, que sí descuentan desde
+la [`0158`](../supabase/migrations/0158_las_provisiones_descuentan_lo_depositado.sql).
+Lo que se ensuciaba era la reserva y su CSV — el número que ve el contador.
+
+### Lo que apareció al pedir el md5 de partida
+
+Producción devolvió `9b6be5fa…` para `fn_provisiones`. **No era la 0196**, que
+es la vigente en el repositorio: era, byte por byte, el cuerpo de la 0158 — dos
+versiones atrás. Y `migraciones_aplicadas` decía que la 0160 (05/08) y la 0196
+(08/08) estaban aplicadas.
+
+Se midió en vez de explicarlo: se aplicó en el Postgres local el cuerpo de
+**cada** versión histórica dentro de `BEGIN…ROLLBACK` y se comparó su md5. Solo
+la 0158 coincide; ninguna otra se acerca.
+
+Después se midió qué más de la 0196 seguía en pie. Las tres funciones del
+cálculo por cese —`fn_grati_trunca_bruta`, `fn_cts_trunca`,
+`fn_vacaciones_truncas`— estaban **correctas**, en su versión de la 0196. O sea:
+la 0196 corrió entera, y después algo pisó **solo** `fn_provisiones`.
+
+### La causa: `aplicar_0158.sql`, que llevaba la función entera dentro
+
+`scripts/sql-manual/aplicar_0158.sql` contenía `fn_provisiones` con md5
+`9b6be5fa…` — exactamente el que se encontró en producción. Pegarlo para rehacer
+el libro de desembolsos revertía la función sin un error y sin un aviso, y no
+tocaba las de cese, que es justo lo que se observó.
+
+**Es la segunda vez con este mecanismo.** La primera fue `fn_planilla_calcular`
+en agosto, y está contada en la cabecera de `dame-el-sql.sh`. Aquel día se
+borraron cuatro `aplicar_*.sql` obsoletos; estos dos quedaron. Ya no:
+`aplicar_0158.sql` y `aplicar_0160.sql` **se borraron**. Sus migraciones siguen
+en `supabase/migrations`, así que no se perdió historia — solo la copia armada.
+
+### Lo que se pegó
+
+La [`0271`](../supabase/migrations/0271_el_total_de_cts_descuenta_lo_mismo_que_sus_ventanas.sql)
+hace que `cts_total` reste lo mismo que sus ventanas, y **lleva sus cimientos
+dentro** (las tres columnas y `fn_devenga`/`fn_devenga_algo`, idempotentes,
+copiadas de la 0196 sin cambiarles un byte). Sin eso, pegar solo la función
+sobre una base sin ellas la habría creado sin quejarse y la pantalla habría
+reventado **al abrirla, no al pegarla**.
+
+Aplicada y confirmada contra producción el 2026-08-19: las ocho comprobaciones
+de md5 en verde. Al aplicarse, producción recibió además lo que la 0160 le hacía
+a esta pantalla y no tenía — Catherine Pereyra deja de figurar con ~S/2.841 de
+beneficios que no devenga.
+
+### Lo que queda pendiente de esto
+
+- **El hueco sin explicar en la 0268.** El hook lo avisa en cada push. Con lo de
+  hoy, merece mirarse: es la misma forma de «algo pasó en producción y no llegó
+  al repositorio». Si resulta explicado, va a `scripts/hooks/huecos-conocidos.txt`.
+- **`celdaVentana` esconde el saldo cuando una ventana está pagada**
+  (`provisiones/page.tsx`). Viene de cuando «pagada» significaba «liquidada del
+  todo», antes de la 0158. Ahora una CTS puede estar pagada **en parte** y esa
+  celda no dice cuánto falta — es lo que hacía imposible ver el error a ojo.
+- **El «Gran total» de la pantalla se recalcula en el cliente**
+  (`grati_total + cts_total + vac`) en vez de leer el `gran_total` que ya viene
+  de `fn_provisiones` — que además incluye la bonificación extraordinaria, que
+  esa pantalla no muestra en ninguna columna. Unificarlo es un cambio de alcance
+  propio y no se hizo aquí.
+
+---
+
 ## 2026-08-17 — Disciplina no podía firmar nada, y el descargo previo pasó a ser política
 
 Firmar una amonestación o una suspensión devolvía «Antes de firmar hay que
