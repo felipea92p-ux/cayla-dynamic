@@ -128,6 +128,9 @@ with repo(numero, nombre, nunca) as (values
     (265, 'el_contador_de_constancias_cuenta_a_la_misma_gente', false),
     (266, 'una_comunicacion_de_cargos_ya_ocurrida_se_puede_declarar', false),
     (267, 'el_descargo_previo_pasa_a_ser_una_politica_de_la_empresa', false),
+    (269, 'el_descanso_medico_tambien_prorratea_el_feriado', false),
+    (270, 'los_dias_de_seleccion_pagados_no_piden_el_reglamento', false),
+    (271, 'el_total_de_cts_descuenta_lo_mismo_que_sus_ventanas', false),
     (272, 'los_contratos_generados_entran_al_sistema', false)
 ),
 diff as (
@@ -257,8 +260,10 @@ select * from (
              when '3b690e4e66251589066edfe85a009a0a' then '✗ 0261 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '261329fc2a8045ece063cfb0e5d38eca' then '⚠ se quedó en la 0262 — falta pegar lo posterior'
              when '172b8aa710b3b06f89a53c3cf7ae6ff8' then '✗ 0262 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'f6b4f2649f4132dd2db5711b391b1f54' then '0263 — al día con el repositorio'
+             when 'f6b4f2649f4132dd2db5711b391b1f54' then '⚠ se quedó en la 0263 — falta pegar lo posterior'
              when 'ea201e37d15fbd3ef34d0c5bf8d722fd' then '✗ 0263 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '5e755bdedd964d289104e824eb2925ec' then '0269 — al día con el repositorio'
+             when '4f24030bdce39bd665a13f503a2e7d7e' then '✗ 0269 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
