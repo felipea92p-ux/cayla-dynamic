@@ -66,6 +66,27 @@ describe("lo que Excel destruiría si se le deja al crudo", () => {
   it("un celular con prefijo de país conserva el +", () => {
     expect(celda("+51987654321")).toBe('"=""+51987654321"""');
   });
+
+  it("el cero pelado sale como número, no como texto", () => {
+    // El caso real, encontrado el 2026-08-19 auditando Provisiones: «0» empieza
+    // por cero, así que caía en la rama de los identificadores y salía ="0".
+    //
+    // Y el cero es el valor MÁS común de estas exportaciones: tras pagar la
+    // gratificación, `grati_s1` vale 0 para todo el equipo. Ningún total salía
+    // mal —SUMA ignora el texto— pero PROMEDIO y CONTAR sí saltaban esas
+    // celdas, que es la clase de error que nadie ve.
+    //
+    // La diferencia con el DNI de arriba: «007» pierde algo al perder los
+    // ceros, «0» no tiene nada detrás que perder.
+    expect(celda(0)).toBe("0");
+    expect(celda("0")).toBe("0");
+  });
+
+  it("pero un identificador de ceros sí se blinda", () => {
+    // La frontera está en si hay algo detrás del cero, no en el cero.
+    expect(celda("00")).toBe('"=""00"""');
+    expect(celda("007")).toBe('"=""007"""');
+  });
 });
 
 describe("fórmulas: lo que entrecomillar NO resuelve", () => {
