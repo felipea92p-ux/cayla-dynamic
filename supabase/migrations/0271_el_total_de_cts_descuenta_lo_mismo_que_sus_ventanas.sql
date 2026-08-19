@@ -9,12 +9,22 @@
 --   —que se arma sumando `grati_total + cts_total + vac`— hereda el error.
 --
 -- QUÉ ASUME
---   md5 de partida, pedido al SQL Editor de PRODUCCIÓN el PENDIENTE: fn_provisiones
---   PENDIENTE — NO PEGAR hasta completar esta línea con la respuesta de Felipe.
---   La versión de partida es la 0196, confirmada con
---   `./scripts/donde-vive.sh fn_provisiones` (md5 local: fad142f69ea100b55a15a98b631f9e9c).
---   El cuerpo se copió íntegro de ahí y se le cambió UN bloque —el de
---   `cts_total`— dejando todo lo demás carácter por carácter igual.
+--   md5 de partida, pedido al SQL Editor de PRODUCCIÓN el 2026-08-19:
+--     fn_provisiones   9b6be5fae9b82d5d1da3d7b8d1f82252   (20786 caracteres)
+--
+--   ⚠️ ESE md5 NO ES EL QUE DEBERÍA SER, y esta migración existe sabiéndolo.
+--   Es, byte por byte, el cuerpo que escribe la **0158**. El repositorio dice
+--   que la versión vigente es la 0196, y `migraciones_aplicadas` en producción
+--   dice que la 0160 (05/08) y la 0196 (08/08) SÍ se aplicaron. Las dos cosas
+--   no pueden ser ciertas: algo devolvió `fn_provisiones` a la 0158 después.
+--   Ver la sección «EL DESVÍO» más abajo — no es una nota al margen, cambia lo
+--   que esta migración tiene que hacer.
+--
+--   Cómo se midió, para que se pueda repetir: se aplicó en el Postgres local,
+--   dentro de BEGIN…ROLLBACK, el cuerpo de CADA versión histórica de
+--   `fn_provisiones` (0091, 0112, 0113, 0122, 0123, 0134, 0135, 0158, 0160,
+--   0196) y se comparó su md5 contra el de producción. La 0158 coincide exacta;
+--   ninguna otra se acerca. No se dedujo: se midió.
 --
 -- ── EL DEFECTO, ENCONTRADO A PARTIR DE UN CASO REAL ─────────────────────────
 --
@@ -64,10 +74,95 @@
 -- No toca `desembolsos_beneficios` ni ningún dato histórico: el cambio es solo
 -- de fórmula, no de datos, y no mueve un céntimo de lo que ya se pagó.
 --
+-- ── EL DESVÍO · POR QUÉ ESTA MIGRACIÓN LLEVA PRERREQUISITOS DENTRO ──────────
+--
+-- El cuerpo que sigue es el de la 0196 (más el arreglo de `cts_total`), y ese
+-- cuerpo LLAMA a `fn_devenga()` y `fn_devenga_algo()`, que nacen en la 0196.
+-- Si en producción esas funciones no existen —porque lo que allí corre es la
+-- 0158—, pegar solo `fn_provisiones` la crearía sin una queja y la pantalla
+-- Provisiones reventaría al ABRIRLA, no al pegarla. Un error que no aparece
+-- cuando lo causas es el peor de repartir.
+--
+-- Por eso esta migración se asegura primero de sus propios cimientos: las tres
+-- columnas y las dos funciones que necesita, copiadas de la 0196 sin cambiarles
+-- una coma. Las tres formas son idempotentes a propósito (`add column if not
+-- exists`, `create or replace`), así que en la base que YA las tiene no cambia
+-- nada y en la que no, quedan puestas. Se pega igual en los dos mundos, y ese
+-- es exactamente el punto: no hizo falta averiguar en cuál estamos.
+--
+-- LO QUE ESTO IMPLICA, DICHO SIN ADORNO. Al pegarla, producción recibe también
+-- lo que la 0160 y la 0196 le hacían a `fn_provisiones` y que hoy no tiene:
+--
+--   · 0160 — quien no devenga deja de provisionar. Medido el 2026-08-05:
+--     Catherine Pereyra, que trabaja por recibos por honorarios, figuraba con
+--     S/2.841,70 acumulados, el monto más alto de la empresa, sin devengar
+--     ninguno. Ese número desaparece, y es una corrección, no una pérdida: la
+--     liquidación nunca se los habría pagado.
+--   · 0196 — la excepción por persona y beneficio. No mueve un céntimo por sí
+--     sola: las tres banderas nacen en blanco y en blanco significa «decide el
+--     tipo de vínculo», que es lo de hoy.
+--
+-- Las dos son correcciones ya decididas, escritas y probadas; producción
+-- debería tenerlas desde el 5 y el 8 de agosto. Esto no las inventa: las pone
+-- donde el registro ya dice que están.
+--
+-- LO QUE ESTA MIGRACIÓN NO ARREGLA, Y HAY QUE MIRAR APARTE. La 0196 también
+-- reescribe `fn_grati_trunca_bruta`, `fn_cts_trunca` y `fn_vacaciones_truncas`
+-- —las tres del cálculo por cese—. Si lo que pisó `fn_provisiones` pisó también
+-- alguna de esas, esta migración NO lo ve ni lo corrige: solo toca la suya. Sus
+-- md5 esperados son 78cb6ac1…, 84e62261… y 0d411bdb…; conviene compararlos
+-- contra producción antes de la próxima liquidación por cese. Queda dicho aquí
+-- para que se lea como pendiente y no como descuido.
+--
 -- CÓMO SE REVIERTE
---   Restaurar `fn_provisiones` desde la 0196, tal cual. No toca tablas, ni
---   datos, ni permisos.
+--   Restaurar `fn_provisiones` desde la 0196, tal cual. Las columnas y las dos
+--   funciones auxiliares se pueden dejar: son las de la 0196 y no estorban a
+--   nadie. No toca datos ni permisos.
 -- ============================================================================
+
+-- ── CIMIENTOS · lo que el cuerpo de abajo necesita para no reventar ─────────
+-- Copiado de la 0196 sin cambios. Idempotente: si ya están, esto no hace nada.
+
+alter table personas add column if not exists devenga_grati      boolean;
+alter table personas add column if not exists devenga_cts        boolean;
+alter table personas add column if not exists devenga_vacaciones boolean;
+
+create or replace function public.fn_devenga(p_persona_id uuid, p_beneficio text)
+returns boolean
+language plpgsql stable security definer
+set search_path to 'public'
+as $function$
+declare v_p personas%rowtype; v_flag boolean;
+begin
+  -- Se rechaza un beneficio desconocido en vez de devolver el defecto. Si
+  -- alguien escribe 'vacacion' en singular, tiene que enterarse en el momento y
+  -- no descubrir dentro de un año que esa llamada nunca filtró nada.
+  if p_beneficio not in ('grati', 'cts', 'vacaciones') then
+    raise exception 'Beneficio desconocido: %. Son grati, cts o vacaciones.', p_beneficio;
+  end if;
+
+  select * into v_p from personas where id = p_persona_id;
+  if not found then return false; end if;
+
+  v_flag := case p_beneficio
+              when 'grati'      then v_p.devenga_grati
+              when 'cts'        then v_p.devenga_cts
+              when 'vacaciones' then v_p.devenga_vacaciones
+            end;
+
+  return coalesce(v_flag, fn_devenga_beneficios(v_p.tipo_vinculo));
+end;
+$function$;
+
+create or replace function public.fn_devenga_algo(p_persona_id uuid)
+returns boolean
+language sql stable security definer
+set search_path to 'public'
+as $function$
+  select fn_devenga(p_persona_id, 'grati')
+      or fn_devenga(p_persona_id, 'cts')
+      or fn_devenga(p_persona_id, 'vacaciones');
+$function$;
 
 CREATE OR REPLACE FUNCTION public.fn_provisiones(p_as_of date DEFAULT NULL::date)
  RETURNS jsonb
