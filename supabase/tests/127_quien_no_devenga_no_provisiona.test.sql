@@ -77,28 +77,47 @@ select cmp_ok((select gran_total from _prov where nombre like 'DevPlanilla%'), '
 -- ── 2 · El locador no provisiona NADA. Los cinco campos, uno por uno ────────
 -- Se comprueban por separado a propósito: el gran total podría dar cero con
 -- alguno de los campos distinto de cero y compensándose.
-select is((select cts_may    from _prov where nombre like 'DevLocador%'), 0::numeric,
+--
+-- POR QUÉ EL `coalesce` (0274). Desde la 0274 el locador ya no sale en la lista
+-- —ver la sección 4—, así que la subconsulta no devuelve cero: no devuelve
+-- fila. «No está» y «está en cero» son las dos formas de no provisionar, y las
+-- dos valen. Lo que estas seis líneas siguen cazando es la única forma de
+-- fallar: que vuelva a salir CON monto, que es exactamente lo que se vio en
+-- producción el 2026-08-05 y por lo que existe este archivo.
+select is(coalesce((select cts_may    from _prov where nombre like 'DevLocador%'), 0), 0::numeric,
   'LOCADOR · no provisiona CTS de mayo');
-select is((select cts_nov    from _prov where nombre like 'DevLocador%'), 0::numeric,
+select is(coalesce((select cts_nov    from _prov where nombre like 'DevLocador%'), 0), 0::numeric,
   'LOCADOR · ni CTS de noviembre');
-select is((select grati_s2   from _prov where nombre like 'DevLocador%'), 0::numeric,
+select is(coalesce((select grati_s2   from _prov where nombre like 'DevLocador%'), 0), 0::numeric,
   'LOCADOR · ni gratificación');
-select is((select be_s2      from _prov where nombre like 'DevLocador%'), 0::numeric,
+select is(coalesce((select be_s2      from _prov where nombre like 'DevLocador%'), 0), 0::numeric,
   'LOCADOR · ni la bonificación del 9%');
-select is((select vac        from _prov where nombre like 'DevLocador%'), 0::numeric,
+select is(coalesce((select vac        from _prov where nombre like 'DevLocador%'), 0), 0::numeric,
   'LOCADOR · ni vacaciones');
-select is((select gran_total from _prov where nombre like 'DevLocador%'), 0::numeric,
+select is(coalesce((select gran_total from _prov where nombre like 'DevLocador%'), 0), 0::numeric,
   'LOCADOR · y su gran total es cero');
 
 -- ── 3 · Un no trabajador, igual ─────────────────────────────────────────────
-select is((select gran_total from _prov where nombre like 'DevSocio%'), 0::numeric,
+select is(coalesce((select gran_total from _prov where nombre like 'DevSocio%'), 0), 0::numeric,
   'NO TRABAJADOR · tampoco provisiona nada');
 
--- ── 4 · Y sigue apareciendo en la lista ─────────────────────────────────────
--- No se le saca: verlo en cero es una respuesta, que falte obliga a preguntarse
--- si se perdió por error. Mismo criterio que la 0117 en fn_planilla_calcular.
-select is((select count(*)::int from _prov where nombre like 'DevLocador%'), 1,
-  'VISIBLE · el locador no desaparece de la lista, sale en cero');
+-- ── 4 · Y NO aparece en la lista ────────────────────────────────────────────
+-- CAMBIO 0274, Y ES LA VUELTA ATRÁS DE UNA DECISIÓN QUE ESTUVO ESCRITA AQUÍ.
+--
+-- Hasta hoy esta misma línea exigía lo contrario —que el locador saliera, en
+-- cero— con este argumento: «verlo en cero es una respuesta, que falte obliga a
+-- preguntarse si se perdió por error». Se queda escrito porque era un buen
+-- argumento; lo que lo tumbó fue la pantalla real, el 2026-08-19: con la mitad
+-- de las filas en cero, el cero dejó de ser una respuesta y pasó a ser ruido —
+-- y el cero de quien SÍ devenga y aún no acumuló (alguien que entró esta
+-- semana) quedaba indistinguible del de quien no devengará nunca.
+--
+-- La preocupación de entonces sigue siendo válida y se contesta en otro sitio:
+-- una fila solo desaparece cuando `fn_devenga_algo` dice que no devenga nada, o
+-- sea cuando sus cinco columnas ya valen cero. Nunca se cae una fila con plata
+-- dentro. Eso lo defiende la prueba 211.
+select is((select count(*)::int from _prov where nombre like 'DevLocador%'), 0,
+  'FUERA · el locador ya no ocupa una fila para decir cero');
 
 select * from finish();
 rollback;
