@@ -80,3 +80,4 @@
 
 0258  Abandonado. Fue el subsidio por maternidad; se movió a 0262 para ir después de la 0261, que reescribe la misma función.
 0259  Abandonado. Fue el descanso médico en la base; se movió a 0263 por la misma razón.
+0268  Número reservado y nunca commiteado. Iba a ser 0268_un_descanso_medico_sin_firma_de_do_deja_de_pagarse.sql, escrito por otra sesión el 2026-08-18 y aún sin commitear cuando otra sesión empujó la 0269 — el commit d632333 lo cuenta al renumerar la prueba de la 0269 de 206 a 207. Comprobado el 2026-08-19: el archivo no existe en ninguna rama, ninguna rama lo tuvo nunca, y no está en el disco de ninguno de los diez worktrees. Y contra producción, en el mismo registro que trajo el resultado de que falta la 0271: `migraciones_aplicadas` salta de la 267 a la 269, así que nunca se aplicó. No hay nada que recuperar. Si esa idea vuelve, toma un número nuevo con ./scripts/siguiente-numero.sh.

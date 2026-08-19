@@ -1,99 +1,76 @@
--- ############################################################################
--- ####  ESTE ES EL ARCHIVO QUE SE PEGA EN EL SQL EDITOR DE SUPABASE.      ####
--- ############################################################################
---
--- aplicar_0160.sql — Quien no devenga beneficios deja de provisionarlos
---
--- QUÉ HACE, en dos partes
---   1. La migración: Provisiones deja de acumular CTS, gratificación,
---      vacaciones y el 9% para quien no los devenga.
---   2. Marca a CATHERINE como `rxh` (recibos por honorarios), que es su vínculo
---      real. Va por `fn_set_tipo_vinculo`, la función que ya existe para esto:
---      valida, exige sesión de admin y deja rastro en auditoría. Un `update` a
---      pelo se saltaría las tres cosas.
---
---      CARLOS QUEDA FUERA A PROPÓSITO. Felipe quiere seguir considerándole
---      gratificación y CTS, y eso no se puede expresar con el tipo de vínculo:
---      es un sí/no para los tres conceptos a la vez. Mientras no exista la
---      excepción por persona, no se le toca el vínculo — así sigue acumulando
---      exactamente como hoy. Cambiárselo ahora le pondría los tres en cero, que
---      es lo contrario de lo que se decidió.
---
--- QUÉ **NO** HACE
---   No toca boletas, ni periodos pagados, ni salarios. `fn_provisiones` solo
---   lee y calcula.
---
--- OJO CON LO QUE VAS A VER DESPUÉS
---   La provisión de Catherine pasa de S/2.841,70 a CERO. No se le quita nada:
---   nunca le correspondió. Lo que cambia es que el número que va al contador
---   deja de incluirlo. Carlos no cambia.
---
--- SE PUEDE CORRER DOS VECES SIN PROBLEMA.
---
--- Fuente: supabase/migrations/0160_quien_no_devenga_no_provisiona.sql
--- Probada con 9 comprobaciones; 4 fallan contra el esquema anterior.
--- ############################################################################
-
-begin;
-
 -- ============================================================================
--- 0160 — Quien no devenga beneficios deja de provisionarlos
+-- 0273 — El libro de desembolsos vale para los cinco beneficios
 -- ============================================================================
 --
 -- QUÉ PROMETE
---   Provisiones deja de acumular CTS, gratificación, vacaciones y bonificación
---   del 9% para quien no los devenga: locadores (`rxh`) y no trabajadores. Su
---   fila sigue apareciendo, con todo en cero.
+--   Que una gratificación o unas vacaciones pagadas POR FUERA de la planilla
+--   —anotadas en `desembolsos_beneficios`— dejen de mostrarse como pendientes.
+--   Hasta hoy solo se descontaban las dos ventanas de CTS.
 --
 -- QUÉ ASUME
---   · `fn_devenga_beneficios(tipo_vinculo)` es la respuesta a «¿esta persona
---     devenga beneficios?». Devuelve verdadero solo para 'planilla'.
---   · `tipo_vinculo` está bien puesto en cada ficha. La función no adivina.
+--   md5 de partida, pedido al SQL Editor de PRODUCCIÓN el 2026-08-19 y
+--   confirmado por Felipe tras pegar la 0271:
+--     fn_provisiones   86d01fa3ab543865f7245912377d92d9
+--   El cuerpo se copió de la 0271 y se cambió solo lo que dice esta cabecera.
+--   Asume además que `fn_beneficio_ya_depositado` existe: la crea la 0163, que
+--   figura aplicada en producción el 06/08/2026.
 --
--- EL FALLO, ENCONTRADO EL 2026-08-05
+-- ── EL DEFECTO ──────────────────────────────────────────────────────────────
 --
---   La misma pregunta se contestaba de dos formas distintas en dos partes del
---   sistema:
+-- El libro admite CINCO ventanas —su `check` lista grati_s1, grati_s2,
+-- cts_may, cts_nov y vacaciones— y `fn_provisiones` solo leía las dos de CTS.
+-- Las otras tres se podían anotar y no las restaba nadie.
 --
---     fn_cts_trunca          consulta fn_devenga_beneficios   ✔ desde la 0085
---     fn_grati_trunca        consulta fn_devenga_beneficios   ✔
---     fn_vacaciones_truncas  consulta fn_devenga_beneficios   ✔
---     fn_provisiones         NO consultaba nada               ✘
+-- Medido el 2026-08-19 contra el Postgres local, con una persona de S/1.500 y
+-- un depósito de S/700 registrado en `grati_s1`:
 --
---   Resultado medido en producción: Catherine Pereyra, que trabaja por recibos
---   por honorarios, figuraba con S/2.841,70 de beneficios acumulados — el monto
---   más alto de la empresa. No los devenga y nunca los devengó.
+--     grati_s1        749.97  →  749.97   (no se movió)
+--     grati_s1_pagada false   →  false    (siguió diciendo que no se pagó)
 --
---   Y la incoherencia es la peor forma de este error: la provisión decía que
---   CAYLA debía ese dinero, mientras la liquidación —el día que esa persona
---   cesara— no le habría pagado ni un sol. Se guarda plata para algo que jamás
---   va a salir, y el número que va al contador queda inflado.
+-- Y NO SE QUEDA EN LA RESERVA, que es lo que lo separa del defecto de la 0271.
+-- `fn_grati_cts_periodo` lee `grati_s1`/`grati_s2` para proponer el bono al
+-- cerrar el mes: con una grati ya pagada por transferencia, proponía pagarla
+-- otra vez. La 0271 tocaba solo un número de pantalla; esta toca una propuesta
+-- de pago.
 --
--- POR QUÉ SE FILTRA EN LA BASE Y NO EN CADA CAMPO
---   El objeto de salida tiene ONCE campos con monto (grati_s1, grati_s2,
---   grati_total, be_s1, be_s2, be_total, cts_may, cts_nov, cts_total, vac y
---   gran_total). Multiplicar los once por un factor es once oportunidades de
---   olvidarse de uno, y el que se olvide va a ser el que nadie mire.
+-- La 0158 dejó dicho en su propia cabecera que gratificación y vacaciones
+-- «siguen con la regla vieja de todo-o-nada». Era deuda conocida y anotada.
+-- Esta migración la paga.
 --
---   Los once nacen del mismo sitio: el CTE `base`, que reparte el pago por día.
---   Filtrando ahí —tres ramas— los once quedan en cero solos y por construcción.
+-- ── CÓMO, Y POR QUÉ ASÍ ─────────────────────────────────────────────────────
 --
--- LA PERSONA NO DESAPARECE DE LA LISTA
---   Se queda con todo en cero, que es como resolvió la 0117 el mismo problema en
---   `fn_planilla_calcular`: `* (case when en_planilla then 1 else 0 end)`. Sacar
---   a alguien de la lista obliga a preguntarse si falta por error; verlo en cero
---   es una respuesta.
+-- SE PREGUNTA CON `fn_beneficio_ya_depositado`, la función de la 0163, en vez
+-- del `sum` propio que la 0158 escribió aquí dentro. Ya era la respuesta a esta
+-- misma pregunta para `fn_cts_trunca` y `fn_grati_trunca`; tener una segunda
+-- copia equivalente es exactamente el mecanismo que produjo el defecto de la
+-- 0271 —dos escrituras de una regla, una se corrige y la otra se queda vieja—.
 --
--- POR QUÉ `fn_devenga_beneficios` Y NO `en_planilla`
---   Se parecen y no son lo mismo: `en_planilla` incluye a quien está en periodo
---   de prueba y `fn_devenga_beneficios` no. Se usa el segundo porque es el que
---   usan las tres funciones de liquidación, y la provisión tiene que coincidir
---   con lo que la liquidación pagaría. Provisionar lo que no se va a liquidar es
---   exactamente el error que esta migración viene a cerrar.
+-- Y CADA REGLA SE DICE UNA SOLA VEZ. Dos laterales nuevos, `devengado` y
+-- `cobrado`, calculan las dos mitades por ventana; las veintitantas líneas de
+-- arriba pasan a ser una resta. Antes la misma expresión aparecía hasta cinco
+-- veces por ventana (celda, bandera, monto pagado, total, gran total), que es
+-- lo que hizo invisible durante meses que `cts_total` se había quedado atrás.
+--
+-- LA BONIFICACIÓN AHORA ES PROPORCIONAL. Era todo-o-nada: «si la ventana se
+-- pagó, la bonificación se fue con ella». Con un depósito PARCIAL eso deja de
+-- ser cierto — sobre media gratificación pendiente queda media bonificación
+-- pendiente. Sigue saliendo del mismo número que la gratificación, que es lo
+-- que la 0134 decidió.
+--
+-- SE TOMA LA MAYOR DE LAS DOS FUENTES, NUNCA LA SUMA. Es la decisión de la
+-- 0158 y la prueba 124 la defiende: un pago anotado en la planilla Y en el
+-- libro se descontaría dos veces. Se conserva intacta.
+--
+-- ── LO QUE NO CAMBIA ────────────────────────────────────────────────────────
+--
+-- Sin ningún desembolso anotado, esta migración no mueve un céntimo: las cinco
+-- restas valen cero y todo da lo mismo que antes. Solo cambia el resultado de
+-- quien tenga algo escrito en el libro, y en ese caso el número viejo era el
+-- equivocado.
 --
 -- CÓMO SE REVIERTE
---   Volver a aplicar la definición de `fn_provisiones` de la migración 0158.
---   No hay datos que deshacer: esta función solo lee.
+--   Restaurar `fn_provisiones` desde la 0271, tal cual. No toca tablas, ni
+--   datos, ni permisos.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_provisiones(p_as_of date DEFAULT NULL::date)
@@ -214,7 +191,7 @@ begin
     from jornadas j
     -- ⇩ CAMBIO 0160 ⇩ Quien no devenga beneficios no aporta días a la base.
     join personas pp on pp.id = j.persona_id and not pp.sueldo_fijo
-                    and fn_devenga_beneficios(pp.tipo_vinculo)
+                    and fn_devenga_algo(pp.id)   -- CAMBIO 0196
     join lateral (
       select a.salario_mensual_soles as salario
       from asignaciones_salario a
@@ -312,7 +289,7 @@ begin
     join tipos_ausencia ta on ta.codigo = au.tipo and ta.paga
     -- ⇩ CAMBIO 0160 ⇩
     join personas p on p.id = au.persona_id and not p.sueldo_fijo
-                   and fn_devenga_beneficios(p.tipo_vinculo)
+                   and fn_devenga_algo(p.id)   -- CAMBIO 0196
     cross join lateral generate_series(
       greatest(au.fecha_inicio, p.fecha_ingreso)::timestamp,
       least(au.fecha_fin, v_as_of)::timestamp,
@@ -356,7 +333,7 @@ begin
     ) sal on true
     -- ⇩ CAMBIO 0160 ⇩ También el sueldo fijo: un socio con sueldo fijo que no
     -- está en planilla tampoco devenga CTS, gratificación ni vacaciones.
-    where p.sueldo_fijo and fn_devenga_beneficios(p.tipo_vinculo)
+    where p.sueldo_fijo and fn_devenga_algo(p.id)   -- CAMBIO 0196
   )
   select coalesce(jsonb_agg(sub.fila order by sub.nombre), '[]'::jsonb) into v_out
   from (
@@ -366,75 +343,125 @@ begin
         'nombre', p.nombres || ' ' || p.apellidos,
         'sede', s.codigo,
         'fecha_ingreso', p.fecha_ingreso,
-        -- ⇩ CAMBIO 0123 ⇩ Una ventana ya desembolsada vale 0: seguir sumándola
-        -- contaba dos veces la misma plata. El monto original viaja aparte para
-        -- que la pantalla pueda escribir «pagado el 15/07» en vez de un cero mudo.
-        'grati_s1', case when pag.g1 then 0 else round(v_f_grati * coalesce(g1.pago,0), 2) end,
-        'grati_s1_pagada', pag.g1,
-        'grati_s1_monto_pagado', case when pag.g1 then round(v_f_grati * coalesce(g1.pago,0), 2) end,
-        'grati_s2', case when pag.g2 then 0 else round(v_f_grati * coalesce(g2.pago,0), 2) end,
-        'grati_s2_pagada', pag.g2,
-        'grati_s2_monto_pagado', case when pag.g2 then round(v_f_grati * coalesce(g2.pago,0), 2) end,
-        'grati_total', round(
-            (case when pag.g1 then 0 else v_f_grati * coalesce(g1.pago,0) end)
-          + (case when pag.g2 then 0 else v_f_grati * coalesce(g2.pago,0) end), 2),
-        -- ⇩ CAMBIO 0134 ⇩ La bonificacion extraordinaria sale del MISMO numero
-        -- que la gratificacion y se apaga con la misma bandera: si la ventana ya
-        -- se desembolso, la bonificacion se fue con ella.
-        'be_s1', case when pag.g1 then 0 else round(v_f_grati * coalesce(g1.pago,0) * v_f_be, 2) end,
-        'be_s2', case when pag.g2 then 0 else round(v_f_grati * coalesce(g2.pago,0) * v_f_be, 2) end,
-        'be_total', round(
-            ((case when pag.g1 then 0 else v_f_grati * coalesce(g1.pago,0) end)
-           + (case when pag.g2 then 0 else v_f_grati * coalesce(g2.pago,0) end)) * v_f_be, 2),
+        -- ⇩ CAMBIO 0123 · REESCRITO POR LA 0273 ⇩ Lo que FALTA, no un sí/no.
+        --
+        -- Cada celda es la misma resta: lo devengado menos lo ya cobrado. Las
+        -- dos mitades se calculan una sola vez, abajo, en `devengado` y
+        -- `cobrado`. Antes cada una de estas líneas repetía la fórmula entera y
+        -- la gratificación se quedó sin la resta del libro durante meses.
+        --
+        -- El negativo SE MUESTRA. Si se depositó de más, aparece en negativo en
+        -- vez de esconderse en un cero: decisión de la 0158, defendida por la
+        -- prueba 124.
+        'grati_s1', round(devengado.g1 - cobrado.g1, 2),
+        'grati_s1_pagada', (cobrado.g1 > 0),
+        'grati_s1_monto_pagado', nullif(round(cobrado.g1, 2), 0),
+        'grati_s2', round(devengado.g2 - cobrado.g2, 2),
+        'grati_s2_pagada', (cobrado.g2 > 0),
+        'grati_s2_monto_pagado', nullif(round(cobrado.g2, 2), 0),
+        'grati_total', col.grati_total,
+        -- ⇩ CAMBIO 0134 · AJUSTADO POR LA 0273 ⇩ La bonificación extraordinaria
+        -- sale del MISMO número que la gratificación, así que sigue lo que
+        -- quede de ella. Antes era todo-o-nada («si la ventana se pagó, la
+        -- bonificación se fue con ella»), y con un depósito PARCIAL eso dejaba
+        -- de ser cierto: sobre media gratificación pendiente queda media
+        -- bonificación pendiente, no la entera ni cero.
+        'be_s1', round((devengado.g1 - cobrado.g1) * v_f_be, 2),
+        'be_s2', round((devengado.g2 - cobrado.g2) * v_f_be, 2),
+        'be_total', col.be_total,
         'tasa_be', v_f_be,
         -- ⇩ CAMBIO 0158 ⇩ Lo que FALTA, no un sí/no. Ver la cabecera.
-        'cts_may', round(v_f_cts * (1 + v_sexto_cts) * coalesce(cm.pago,0)
-                         - greatest(case when pag.cm then v_f_cts * (1 + v_sexto_cts) * coalesce(cm.pago,0) else 0 end,
-                                    lib.cts_may), 2),
-        'cts_may_pagada', (greatest(case when pag.cm then v_f_cts * (1 + v_sexto_cts) * coalesce(cm.pago,0) else 0 end,
-                                    lib.cts_may) > 0),
-        'cts_may_monto_pagado', nullif(round(greatest(case when pag.cm then v_f_cts * (1 + v_sexto_cts) * coalesce(cm.pago,0) else 0 end,
-                                    lib.cts_may), 2), 0),
-        'cts_nov', round(v_f_cts * (1 + v_sexto_cts) * coalesce(cn.pago,0)
-                         - greatest(case when pag.cn then v_f_cts * (1 + v_sexto_cts) * coalesce(cn.pago,0) else 0 end,
-                                    lib.cts_nov), 2),
-        'cts_nov_pagada', (greatest(case when pag.cn then v_f_cts * (1 + v_sexto_cts) * coalesce(cn.pago,0) else 0 end,
-                                    lib.cts_nov) > 0),
-        'cts_nov_monto_pagado', nullif(round(greatest(case when pag.cn then v_f_cts * (1 + v_sexto_cts) * coalesce(cn.pago,0) else 0 end,
-                                    lib.cts_nov), 2), 0),
-        'cts_total', round(
-            (case when pag.cm then 0 else v_f_cts * (1 + v_sexto_cts) * coalesce(cm.pago,0) end)
-          + (case when pag.cn then 0 else v_f_cts * (1 + v_sexto_cts) * coalesce(cn.pago,0) end), 2),
+        'cts_may', round(devengado.cm - cobrado.cm, 2),
+        'cts_may_pagada', (cobrado.cm > 0),
+        'cts_may_monto_pagado', nullif(round(cobrado.cm, 2), 0),
+        'cts_nov', round(devengado.cn - cobrado.cn, 2),
+        'cts_nov_pagada', (cobrado.cn > 0),
+        'cts_nov_monto_pagado', nullif(round(cobrado.cn, 2), 0),
+        -- ⇩ CAMBIO 0271 ⇩ El total resta EXACTAMENTE lo mismo que sus dos
+        -- ventanas. Ahora eso ya no hay que cuidarlo a mano: las tres líneas
+        -- leen las mismas dos columnas.
+        'cts_total', col.cts_total,
         -- para que la pantalla pueda mostrar qué multiplicador se usó
         'sexto_cts', v_sexto_cts,
-        'vac', round(v_f_vac * coalesce(vv.pago,0), 2),
-        'vac_dias', round(15.0 * (v_as_of - va.aniv_ini)::numeric / 365.0, 1),
+        -- ⇩ CAMBIO 0273 ⇩ Las vacaciones también descuentan lo depositado. Es la
+        -- quinta ventana del libro y era la única que nunca se restaba.
+        'vac', col.vac,
+        'vac_pagada', (cobrado.vac > 0),
+        'vac_monto_pagado', nullif(round(cobrado.vac, 2), 0),
+        -- Los días también, no solo el monto: mostrarle «12.4 días acumulados» a
+        -- quien no devenga vacaciones es prometer por escrito algo que no
+        -- existe, y esa pantalla la lee una persona.
+        'vac_dias', case when dev.hay_vac
+                         then round(15.0 * (v_as_of - va.aniv_ini)::numeric / 365.0, 1)
+                         else 0 end,
         'proximo_aniversario', va.aniv_next,
-        'gran_total', round(
-            (case when pag.g1 then 0 else v_f_grati * coalesce(g1.pago,0) * (1 + v_f_be) end)   -- CAMBIO 0134
-          + (case when pag.g2 then 0 else v_f_grati * coalesce(g2.pago,0) * (1 + v_f_be) end)   -- CAMBIO 0134
-          + (v_f_cts * (1 + v_sexto_cts) * coalesce(cm.pago,0)
-             - greatest(case when pag.cm then v_f_cts * (1 + v_sexto_cts) * coalesce(cm.pago,0) else 0 end, lib.cts_may))
-          + (v_f_cts * (1 + v_sexto_cts) * coalesce(cn.pago,0)
-             - greatest(case when pag.cn then v_f_cts * (1 + v_sexto_cts) * coalesce(cn.pago,0) else 0 end, lib.cts_nov))
-          + v_f_vac * coalesce(vv.pago,0), 2)
+        -- El gran total es la suma de las cuatro columnas que la pantalla
+        -- muestra —grati + bonificación + CTS + vacaciones— y nada más. Desde
+        -- el 2026-08-19 la pantalla lo LEE de aquí en vez de rehacerlo, así que
+        -- esta línea es la única definición que existe del número.
+        --
+        -- Suma las columnas YA REDONDEADAS, a propósito: así el total cuadra
+        -- con lo que se ve, hasta el céntimo. Ver el comentario del lateral
+        -- `col` para por qué eso importa más de lo que parece.
+        'gran_total', col.grati_total + col.be_total + col.cts_total + col.vac
       ) as fila
     from personas p
     join sedes s on s.id = p.sede_base_id
+    -- ⇩⇩⇩ CAMBIO 0196 ⇩⇩⇩ EL FACTOR SE APAGA EN ORIGEN.
+    --
+    -- Los tres factores se leen una vez arriba y se usan QUINCE veces en el
+    -- bloque de la fila: en cada ventana, en cada total y en el gran total.
+    -- Poner un `case when devenga…` en cada una de las quince es pedir un
+    -- olvido — y el olvido no daría error: daría un número.
+    --
+    -- Acá el factor de quien no devenga ese beneficio vale CERO, y las quince
+    -- expresiones dan cero solas. Una regla, un sitio, nada que sincronizar.
+    cross join lateral (
+      select case when fn_devenga(p.id, 'grati')      then v_f_grati else 0 end as f_grati,
+             case when fn_devenga(p.id, 'cts')        then v_f_cts   else 0 end as f_cts,
+             case when fn_devenga(p.id, 'vacaciones') then v_f_vac   else 0 end as f_vac,
+             fn_devenga(p.id, 'vacaciones')                                     as hay_vac
+    ) dev
     cross join lateral (
       select (p.fecha_ingreso + make_interval(years => extract(year from age(v_as_of, p.fecha_ingreso))::int))::date as aniv_ini,
              (p.fecha_ingreso + make_interval(years => extract(year from age(v_as_of, p.fecha_ingreso))::int + 1))::date as aniv_next
     ) va
-    -- ⇩ CAMBIO 0158 ⇩ Lo que dice el LIBRO de desembolsos.
+    -- ⇩ CAMBIO 0158 · AMPLIADO POR LA 0273 ⇩ Lo que dice el LIBRO de desembolsos.
     -- La 0123 pregunta si hubo movimiento de planilla; eso solo ve lo que pasó
     -- POR la planilla. La CTS de mayo 2026 salió por PLAME —al banco, a la
     -- cuenta CTS de cada persona— y de eso la planilla no sabe nada.
+    --
+    -- ⇩⇩⇩ CAMBIO 0273 ⇩⇩⇩ LAS CINCO VENTANAS, Y POR LA PUERTA DE LA 0163.
+    --
+    -- La 0158 solo leyó las dos de CTS. El libro admite cinco —su `check` lista
+    -- grati_s1, grati_s2, cts_may, cts_nov y vacaciones— así que una grati
+    -- pagada por transferencia se anotaba y NADIE la restaba: la pantalla la
+    -- seguía mostrando pendiente. Medido el 2026-08-19 con un depósito de S/700
+    -- de grati_s1: `grati_s1` no se movió de S/749.97 y `pagada` siguió en
+    -- false.
+    --
+    -- Y eso no se quedaba en la reserva: `fn_grati_cts_periodo` lee estos
+    -- mismos campos para proponer el bono al cerrar el mes, así que proponía
+    -- pagar otra vez lo ya pagado. La CTS no tenía el problema desde la 0158;
+    -- la gratificación y las vacaciones sí.
+    --
+    -- SE PREGUNTA CON `fn_beneficio_ya_depositado`, no con un `sum` propio.
+    -- Esa función es de la 0163 y ya era la respuesta a esta misma pregunta
+    -- para `fn_cts_trunca` y `fn_grati_trunca`. Tener aquí un segundo `sum`
+    -- equivalente es exactamente la forma en que nació el defecto que arregló
+    -- la 0271: dos copias de una regla, una se corrige y la otra no.
+    --
+    -- EL AÑO ES EL DEL DEPÓSITO, no el del devengo. Lo dice el comentario de la
+    -- 0163 y vale para las cuatro ventanas fijas: grati_s1 se paga el 15/07 de
+    -- v_y, grati_s2 el 15/12 de v_y, cts_may el 15/05 de v_y (cubriendo desde
+    -- noviembre anterior) y cts_nov el 15/11 de v_y.
     cross join lateral (
       select
-        coalesce(sum(d.monto) filter (where d.ventana = 'cts_may' and d.anio = v_y), 0) as cts_may,
-        coalesce(sum(d.monto) filter (where d.ventana = 'cts_nov' and d.anio = v_y), 0) as cts_nov
-      from desembolsos_beneficios d
-      where d.persona_id = p.id
+        fn_beneficio_ya_depositado(p.id, 'grati_s1',   v_y) as grati_s1,
+        fn_beneficio_ya_depositado(p.id, 'grati_s2',   v_y) as grati_s2,
+        fn_beneficio_ya_depositado(p.id, 'cts_may',    v_y) as cts_may,
+        fn_beneficio_ya_depositado(p.id, 'cts_nov',    v_y) as cts_nov,
+        fn_beneficio_ya_depositado(p.id, 'vacaciones', v_y) as vacaciones
     ) lib
     -- ⇩ CAMBIO 0123 ⇩ ¿Ya se desembolsó cada ventana?
     cross join lateral (
@@ -461,6 +488,59 @@ begin
     left join lateral (select sum(b.pago_dia) as pago from base b where b.persona_id=p.id and b.fecha between greatest(c1_ini,p.fecha_ingreso) and least(v_as_of,c1_fin)) cm on true
     left join lateral (select sum(b.pago_dia) as pago from base b where b.persona_id=p.id and b.fecha between greatest(c2_ini,p.fecha_ingreso) and least(v_as_of,c2_fin)) cn on true
     left join lateral (select sum(b.pago_dia) as pago from base b where b.persona_id=p.id and b.fecha between va.aniv_ini and v_as_of) vv on true
+    -- ⇩⇩⇩ CAMBIO 0273 ⇩⇩⇩ CADA REGLA, UNA SOLA VEZ.
+    --
+    -- El bloque de arriba usaba la misma expresión hasta CINCO veces por
+    -- ventana: en la celda, en la bandera `pagada`, en el monto pagado, en el
+    -- total y en el gran total. Así nació el defecto de la 0271 — `cts_total`
+    -- se quedó con la fórmula anterior a la 0158 mientras sus celdas ya
+    -- restaban, y durante meses nadie pudo verlo porque había que comparar dos
+    -- expresiones largas escritas en sitios distintos.
+    --
+    -- Acá se calcula UNA vez lo devengado y UNA vez lo ya cobrado, y todo lo de
+    -- arriba es una resta. Si mañana cambia la regla, cambia en un solo sitio y
+    -- no hay una segunda copia que se pueda quedar vieja.
+    cross join lateral (
+      select dev.f_grati * coalesce(g1.pago, 0)                     as g1,
+             dev.f_grati * coalesce(g2.pago, 0)                     as g2,
+             dev.f_cts * (1 + v_sexto_cts) * coalesce(cm.pago, 0)   as cm,
+             dev.f_cts * (1 + v_sexto_cts) * coalesce(cn.pago, 0)   as cn,
+             dev.f_vac * coalesce(vv.pago, 0)                       as vac
+    ) devengado
+    -- Lo YA COBRADO por cada ventana, por cualquiera de las dos vías.
+    --
+    -- SE TOMA LA MAYOR, NUNCA LA SUMA. Es la decisión de la 0158 y su prueba
+    -- 124 la defiende: si un pago quedó anotado en los dos sitios —la planilla
+    -- y el libro— sumarlos descontaría el doble y dejaría la provisión corta.
+    -- La planilla, cuando detecta el pago, asume la ventana COMPLETA; el libro
+    -- sabe el monto exacto. La mayor de las dos es la respuesta prudente.
+    --
+    -- Las vacaciones no tienen vía de planilla que mirar (`pag` no las trae),
+    -- así que su única fuente es el libro.
+    cross join lateral (
+      select greatest(case when pag.g1 then devengado.g1 else 0 end, lib.grati_s1) as g1,
+             greatest(case when pag.g2 then devengado.g2 else 0 end, lib.grati_s2) as g2,
+             greatest(case when pag.cm then devengado.cm else 0 end, lib.cts_may)  as cm,
+             greatest(case when pag.cn then devengado.cn else 0 end, lib.cts_nov)  as cn,
+             lib.vacaciones                                                        as vac
+    ) cobrado
+    -- ⇩⇩⇩ CAMBIO 0273 ⇩⇩⇩ LAS CUATRO COLUMNAS QUE SE VEN, REDONDEADAS UNA VEZ.
+    --
+    -- El gran total se arma sumando ESTAS, no repitiendo el cálculo con más
+    -- decimales. Parece un detalle y es la queja con la que empezó todo esto:
+    -- redondear la suma da un resultado distinto de sumar los redondeos, y la
+    -- diferencia —un céntimo— cae justo en la celda que la persona compara con
+    -- las de al lado. Medido: columnas 1232.76 contra un total de 1232.77.
+    --
+    -- Un céntimo no es plata, pero un total que no cuadra con lo que se ve
+    -- enseña a desconfiar de la pantalla entera. Y esta pantalla existe para
+    -- que alguien pueda revisarla.
+    cross join lateral (
+      select round((devengado.g1 - cobrado.g1) + (devengado.g2 - cobrado.g2), 2)            as grati_total,
+             round(((devengado.g1 - cobrado.g1) + (devengado.g2 - cobrado.g2)) * v_f_be, 2) as be_total,
+             round((devengado.cm - cobrado.cm) + (devengado.cn - cobrado.cn), 2)            as cts_total,
+             round(devengado.vac - cobrado.vac, 2)                                          as vac
+    ) col
     where p.estado = 'activo'
   ) sub;
 
@@ -477,81 +557,8 @@ begin
 end;
 
 
-
 $function$;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (160, 'quien_no_devenga_no_provisiona')
+values (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios')
 on conflict (numero) do nothing;
-
--- ── Los dos vínculos, por la puerta que corresponde ─────────────────────────
--- `fn_set_tipo_vinculo` exige sesión de admin para saber quién hace el cambio y
--- poder auditarlo. El SQL Editor no la trae, así que se le presta una.
-select set_config('request.jwt.claim.sub',
-  (select auth_user_id::text from personas
-    where rol = 'admin' and auth_user_id is not null limit 1), true) as _sesion_prestada;
-
-do $vinc$
-declare
-  r record;
-begin
-  for r in
-    select p.id, p.apellidos || ', ' || p.nombres as quien, p.tipo_vinculo
-    from personas p
-    where p.nombres ilike '%catherine%'
-      and p.estado = 'activo'
-  loop
-    if r.tipo_vinculo = 'rxh' then
-      raise notice '· % ya estaba como rxh. No se toca.', r.quien;
-    else
-      perform fn_set_tipo_vinculo(r.id, 'rxh');
-      raise notice '· % pasó de % a rxh.', r.quien, r.tipo_vinculo;
-    end if;
-  end loop;
-end
-$vinc$;
-
--- ── COMPROBACIÓN ────────────────────────────────────────────────────────────
-select 'La función ya respeta el tipo de vínculo' as comprobacion,
-       case when (select prosrc from pg_proc where proname='fn_provisiones' limit 1)
-                 ilike '%CAMBIO 0160%'
-            then 'OK' else 'REVISAR' end as resultado
-union all
-select 'Quedó anotada como aplicada',
-       case when exists (select 1 from migraciones_aplicadas where numero = 160)
-            then 'OK' else 'REVISAR' end
-union all
-select 'Catherine figura como rxh',
-       case when (select count(*) from personas
-                   where nombres ilike '%catherine%'
-                     and estado = 'activo' and tipo_vinculo <> 'rxh') = 0
-            then 'OK' else 'REVISAR — mira el detalle de abajo' end
-union all
--- Informativo, no una afirmación: el objetivo es NO haberlo tocado, y afirmar
--- «debe ser planilla» convertiría cualquier otro valor legítimo en una falsa
--- alarma. Se muestra lo que hay para que se pueda mirar.
-select 'Carlos quedó como (no se tocó)',
-       coalesce((select tipo_vinculo from personas
-                  where nombres ilike '%carlos%' and estado = 'activo' limit 1),
-                'no encontrado en esta base');
-
-commit;
-
--- ############################################################################
--- Después del commit: cómo quedaron. Si algo fallara al leer, ya no puede
--- deshacer el cambio.
--- ############################################################################
-select set_config('request.jwt.claim.sub',
-  (select auth_user_id::text from personas
-    where rol='admin' and auth_user_id is not null limit 1), true) as _sesion_prestada;
-
-select prov.fila ->> 'nombre'                                      as persona,
-       p.tipo_vinculo                                              as vinculo,
-       to_char((prov.fila -> 'gran_total')::numeric, 'FM999999.00') as provision_ahora
-from personas p
-join lateral (
-  select e as fila from jsonb_array_elements(fn_provisiones(current_date) -> 'personas') e
-  where (e ->> 'persona_id')::uuid = p.id limit 1
-) prov on true
-where p.estado = 'activo' and p.tipo_vinculo <> 'planilla'
-order by 1;

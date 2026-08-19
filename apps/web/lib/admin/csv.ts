@@ -66,7 +66,22 @@ function excelLoDestruiria(texto: string): boolean {
   // Ocho o nueve dígitos sin cero adelante —un DNI normal, un celular— Excel
   // los muestra enteros, así que no se tocan: menos ruido en el archivo.
   if (SOLO_DIGITOS.test(texto)) {
-    return texto.startsWith("0") || texto.length >= 12;
+    // ⇩ CAMBIO 2026-08-19 ⇩ El cero pelado es una CANTIDAD, no un identificador.
+    //
+    // «0» empieza por cero, así que caía en esta rama y salía blindado como
+    // texto ="0". Y el cero es el valor más común de estas exportaciones: tras
+    // pagar la gratificación, `grati_s1` vale 0 para todo el equipo (regla de la
+    // 0123); en el CSV de planilla lo son casi siempre descuentos, bonos,
+    // monto_feriados y retencion_4ta.
+    //
+    // Ningún TOTAL salía mal —SUMA ignora el texto, y el cero no aportaba—,
+    // pero PROMEDIO, CONTAR, los gráficos y el orden numérico sí saltaban esas
+    // celdas: un promedio de vacaciones sobre 30 personas con 8 en cero se
+    // calculaba sobre 22. Silencioso, que es lo que lo hace caro.
+    //
+    // El cero adelante solo importa cuando HAY algo detrás que perder: «007»
+    // pierde los ceros, «0» no tiene nada que perder.
+    return (texto.startsWith("0") && texto.length > 1) || texto.length >= 12;
   }
 
   // Un número de verdad se respeta aunque empiece por «-».

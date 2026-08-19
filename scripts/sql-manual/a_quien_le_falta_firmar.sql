@@ -26,7 +26,7 @@
 
 -- `fn_documentos_tablero` exige sesión de admin —solo Desarrollo Organizacional
 -- ve quién debe papeles— y el SQL Editor no la trae. Se le presta una, igual que
--- hacen `aplicar_0160.sql` y `comparar_movilidad_0166.sql`.
+-- hace `comparar_movilidad_0166.sql`.
 select set_config('request.jwt.claim.sub',
   (select auth_user_id::text from personas
     where rol = 'admin' and auth_user_id is not null limit 1), false) as _sesion_prestada;

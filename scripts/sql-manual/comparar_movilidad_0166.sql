@@ -36,7 +36,8 @@
 
 -- `fn_planilla_calcular` exige sesión de admin para saber quién calcula, y el
 -- SQL Editor no la trae: sin esto responde «Solo un administrador o líder puede
--- calcular la planilla». Se le presta una, igual que hace `aplicar_0160.sql`.
+-- calcular la planilla». Se le presta una, igual que hace
+-- `a_quien_le_falta_firmar.sql`.
 -- Solo lee: la planilla no escribe nada cuando se la llama sin periodo.
 select set_config('request.jwt.claim.sub',
   (select auth_user_id::text from personas

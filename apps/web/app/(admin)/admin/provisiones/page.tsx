@@ -94,6 +94,15 @@ interface ProvPersona {
   grati_s1: number;
   grati_s2: number;
   grati_total: number;
+  // ⇩ 0134 ⇩ La bonificación extraordinaria de la Ley 30334: el 9% que, en vez
+  // de ir a EsSalud, se le paga a la persona junto con la gratificación. Sale
+  // del mismo número que la grati y se apaga con la misma bandera.
+  //
+  // Viaja desde la 0134 y la pantalla la ignoró hasta el 2026-08-19: el «Gran
+  // total» se sumaba acá sin ella y la reserva salía corta. Ahora tiene columna
+  // propia, para que el total que muestra `gran_total` cuadre con lo que se ve.
+  be_total: number;
+  tasa_be: number;
   cts_may: number;
   cts_nov: number;
   cts_total: number;
@@ -111,6 +120,12 @@ interface ProvPersona {
   cts_may_monto_pagado?: number | null;
   cts_nov_monto_pagado?: number | null;
   vac: number;
+  // ⇩ 0273 ⇩ Las vacaciones son la quinta ventana del libro de desembolsos y
+  // eran la única que nunca se descontaba. Opcionales por la misma razón que
+  // las de arriba: sin la 0273 pegada llegan `undefined` y la celda se ve igual
+  // que siempre.
+  vac_pagada?: boolean;
+  vac_monto_pagado?: number | null;
   vac_dias: number;
   proximo_aniversario: string;
   gran_total: number;
@@ -130,7 +145,7 @@ interface ProvData {
   personas: ProvPersona[];
 }
 
-const COLS = 13; // 2 + 3 grati + 3 cts + 3 vac + gran total + próximo pago
+const COLS = 14; // 2 + 3 grati + bonif + 3 cts + 3 vac + gran total + próximo pago
 
 export default function ProvisionesPage() {
   const router = useRouter();
@@ -187,6 +202,19 @@ export default function ProvisionesPage() {
     () => (data?.personas ?? []).filter((p) => sedeFiltro === "todas" || p.sede === sedeFiltro),
     [data, sedeFiltro],
   );
+  // El pie suma lo que manda la base, campo por campo — incluido `gran_total`.
+  //
+  // POR QUÉ NO SE RECALCULA ACÁ. Hasta hoy el «Gran total» de la fila y el del
+  // pie se armaban como `grati_total + cts_total + vac`, y esa suma OMITE la
+  // bonificación extraordinaria de la Ley 30334 (`be_total`, ~9% de la
+  // gratificación) que `fn_provisiones` sí incluye en su `gran_total`. La
+  // reserva salía corta en esa cifra, y el CSV que va al contador también.
+  // Medido el 2026-08-19 con una persona de S/1.500: la pantalla decía
+  // S/2.010,12 y la base S/2.095,77 — los S/85,65 que faltaban eran la bonif.
+  //
+  // La regla que queda: un total que la base ya calcula NO se vuelve a calcular
+  // acá. Si hace falta que cuadre a la vista, se agrega la columna que falta
+  // —que es lo que se hizo con «Bonif. extr.»— no se cambia el total.
   const totales = useMemo(
     () =>
       visibles.reduce(
@@ -194,6 +222,7 @@ export default function ProvisionesPage() {
           grati_s1: acc.grati_s1 + p.grati_s1,
           grati_s2: acc.grati_s2 + p.grati_s2,
           grati_total: acc.grati_total + p.grati_total,
+          be_total: acc.be_total + p.be_total,
           cts_may: acc.cts_may + p.cts_may,
           cts_nov: acc.cts_nov + p.cts_nov,
           cts_total: acc.cts_total + p.cts_total,
@@ -201,7 +230,7 @@ export default function ProvisionesPage() {
           gran_total: acc.gran_total + p.gran_total,
         }),
         {
-          grati_s1: 0, grati_s2: 0, grati_total: 0,
+          grati_s1: 0, grati_s2: 0, grati_total: 0, be_total: 0,
           cts_may: 0, cts_nov: 0, cts_total: 0,
           vac: 0, gran_total: 0,
         },
@@ -226,13 +255,14 @@ export default function ProvisionesPage() {
       grati_julio_ene_jun: p.grati_s1,
       grati_diciembre_jul_dic: p.grati_s2,
       grati_total: p.grati_total,
+      bonificacion_extraordinaria: p.be_total,
       cts_mayo_nov_abr: p.cts_may,
       cts_noviembre_may_oct: p.cts_nov,
       cts_total: p.cts_total,
       vacaciones: p.vac,
       vacaciones_dias: p.vac_dias,
       proximo_aniversario: p.proximo_aniversario,
-      gran_total: p.grati_total + p.cts_total + p.vac,
+      gran_total: p.gran_total,
       proximo_pago_monto: montoProximo(p) ?? "",
       proximo_pago_fecha: data.proximo?.fecha ?? "",
     }));
@@ -243,6 +273,7 @@ export default function ProvisionesPage() {
       "grati_julio_ene_jun",
       "grati_diciembre_jul_dic",
       "grati_total",
+      "bonificacion_extraordinaria",
       "cts_mayo_nov_abr",
       "cts_noviembre_may_oct",
       "cts_total",
@@ -367,6 +398,9 @@ export default function ProvisionesPage() {
                       Gratificación · paga {fechaDiaMes(data.grati_s1_pago)} y{" "}
                       {fechaDiaMes(data.grati_s2_pago)}
                     </th>
+                    <th className="border-l px-4 py-2 text-center font-normal">
+                      Bonif. extr.
+                    </th>
                     <th className="border-l px-4 py-2 text-center font-normal" colSpan={3}>
                       CTS · deposita {fechaDiaMes(data.cts_may_pago)} y {fechaDiaMes(data.cts_nov_pago)}
                     </th>
@@ -389,6 +423,12 @@ export default function ProvisionesPage() {
                       <span className="text-taupe">({data.grati_s2_periodo})</span>
                     </th>
                     <th className="px-4 py-2 text-right font-normal">Total</th>
+                    <th className="border-l px-4 py-2 text-right font-normal">
+                      Ley 30334{" "}
+                      <span className="text-taupe">
+                        ({(data.personas[0]?.tasa_be ?? 0.09) * 100}%)
+                      </span>
+                    </th>
                     <th className="border-l px-4 py-2 text-right font-normal">
                       {mesDePago(data.cts_may_pago)}{" "}
                       <span className="text-taupe">({data.cts_may_periodo})</span>
@@ -427,6 +467,8 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.grati_s2, p.grati_s2_pagada, p.grati_s2_monto_pagado, data.grati_s2_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.grati_total)}</td>
+                        {/* Bonificación extraordinaria (Ley 30334) — sale de la grati */}
+                        <td className="border-l px-4 py-2 text-right">{formatSoles(p.be_total)}</td>
                         {/* CTS */}
                         <td className="border-l px-4 py-2 text-right">
                           {celdaVentana(p.cts_may, p.cts_may_pagada, p.cts_may_monto_pagado, data.cts_may_pago)}
@@ -435,17 +477,28 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.cts_nov, p.cts_nov_pagada, p.cts_nov_monto_pagado, data.cts_nov_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.cts_total)}</td>
-                        {/* Vacaciones */}
-                        <td className="border-l px-4 py-2 text-right">{formatSoles(p.vac)}</td>
+                        {/* Vacaciones — desde la 0273 también pueden estar pagadas
+                            por fuera de planilla, así que se dice igual que en las
+                            otras ventanas: el saldo arriba y lo pagado debajo. */}
+                        <td className="border-l px-4 py-2 text-right">
+                          {formatSoles(p.vac)}
+                          {p.vac_pagada && typeof p.vac_monto_pagado === "number" && (
+                            <span className="block text-xs text-taupe">
+                              pagado · {formatSoles(p.vac_monto_pagado)}
+                            </span>
+                          )}
+                        </td>
                         <td className="whitespace-nowrap px-4 py-2 text-right text-xs text-taupe">
                           {fmtDias(p.vac_dias)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2 text-xs text-taupe">
                           aniversario {fechaLarga(p.proximo_aniversario)}
                         </td>
-                        {/* Gran total */}
+                        {/* Gran total — el que calcula fn_provisiones, no una suma de acá.
+                            Ver el comentario de `totales`: sumarlo en el cliente omitía la
+                            bonificación extraordinaria y dejaba la reserva corta. */}
                         <td className="border-l bg-ambar/10 px-4 py-2 text-right font-bold">
-                          {formatSoles(p.grati_total + p.cts_total + p.vac)}
+                          {formatSoles(p.gran_total)}
                         </td>
                         {/* Próximo pago */}
                         <td className="whitespace-nowrap border-l px-4 py-2 text-right">
@@ -477,6 +530,9 @@ export default function ProvisionesPage() {
                       <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.grati_s2)}</td>
                       <td className="px-4 py-2 text-right font-bold">{formatSoles(totales.grati_total)}</td>
                       <td className="border-l px-4 py-2 text-right font-medium">
+                        {formatSoles(totales.be_total)}
+                      </td>
+                      <td className="border-l px-4 py-2 text-right font-medium">
                         {formatSoles(totales.cts_may)}
                       </td>
                       <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.cts_nov)}</td>
@@ -485,7 +541,7 @@ export default function ProvisionesPage() {
                       <td className="px-4 py-2" />
                       <td className="px-4 py-2" />
                       <td className="border-l bg-ambar/10 px-4 py-2 text-right font-bold">
-                        {formatSoles(totales.grati_total + totales.cts_total + totales.vac)}
+                        {formatSoles(totales.gran_total)}
                       </td>
                       <td className="border-l px-4 py-2" />
                     </tr>
