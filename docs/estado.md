@@ -799,9 +799,18 @@ exclusiones se aplican ANTES de contar.
 
 ## 2026-08-13 — el expediente de Mateo, y la 0213 que ya no se puede pegar
 
-**LO ÚNICO CON FECHA.** Hay una imputación de cargos **entregada y abierta**
-(T-03/0001-2026-CAYLA, entregada el 10-ago). Su plazo de descargo vence el
-**domingo 16**; se pidió al laboralista respuesta para el **lunes 17**.
+**LO QUE TENÍA FECHA, Y YA PASÓ.** Hubo una imputación de cargos entregada y
+abierta (T-03/0001-2026-CAYLA, entregada el 10-ago), con descargo venciendo el
+domingo 16 y consulta al laboralista pedida para el lunes 17.
+
+✅ **Las dos preguntas están resueltas y no hay que volver a enviarlas.** Las
+contestan dos migraciones, y ahí es donde vive el razonamiento completo:
+
+- el escalón saltado → [`0246`](../supabase/migrations/0246_una_imputacion_prematura_no_tapa_el_escalon_que_falta.sql)
+- el descargo previo del art. 19.3 → [`0267`](../supabase/migrations/0267_el_descargo_previo_pasa_a_ser_una_politica_de_la_empresa.sql)
+
+Lo que queda vivo de esta sección es el relato de POR QUÉ pasó, que es lo que
+impide repetirlo. El expediente en sí ya no tiene plazo corriendo.
 
 Se emitió **saltándose el escalón d) del art. 19.2 del RIT** — la segunda
 suspensión. El defecto era del generador, que tenía tres peldaños en vez de
@@ -2070,7 +2079,7 @@ hoy**; valen por lo que impiden mañana, no por lo que haya guardado.
 **a) Quiénes estudian y cuánto cuesta su curso** (del tipo `aurora 1 →
 universidad S/520`). Con el nombre y el monto alcanza; se cargan de a uno en
 `/admin/educacion` o con
-`cargar_educacion_v2.sql`, que pide el nombre y no un UUID. **Es la única de las
+la pantalla `/admin/educacion`. **Es la única de las
 tres compensaciones que se puede destrabar hoy sin escribir una línea de
 código** — `asignaciones_educacion` sigue vacía.
 
@@ -2279,9 +2288,6 @@ Sin esos dos papeles se cobra el nominal.
 
 | Archivo | Para qué |
 |---|---|
-| `revision_completa.sql` | 15 comprobaciones de las migraciones 0115–0122 |
-| `encender_movilidad.sql` | Encender la tarifa, en transacción y con verificación |
-| `cargar_educacion_v2.sql` | Cargar una asignación por nombre, sin copiar UUID |
 | `huella_del_esquema.sql` | **¿Producción dice lo mismo que el repositorio?** Una fila: funciones, candados, columnas, y si queda texto con acentos rotos. Empieza siempre por aquí |
 | `que_funcion_cambio.sql` | Solo si la anterior dice que las funciones difieren **con el mismo conteo**: manda las 199 huellas y señala cuál |
 | `rescatar_lo_que_solo_vive_en_produccion.sql` | ⚠️ **Léelo antes de tocar cualquiera de las nueve que lista.** Trae su código para traerlo al repositorio |
@@ -2716,6 +2722,22 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
 ## Decisiones tomadas (no reabrir)
 
 - **Planilla**: régimen MYPE pequeña empresa, base 6.5 h, pago = salario × horas/(6.5 × días).
+- **A Dante Ramal se le pagó por fuera antes de entrar al sistema, y eso NO se
+  carga hacia atrás — se cuenta desde ahora.** Decisión de Felipe: el sistema es
+  nuevo y no vale la pena complicarlo con historia previa.
+
+  ⚠️ **Por qué está escrito aquí y no solo donde se investigó:** de
+  `fecha_ingreso` cuelga el reloj de su CTS, su gratificación y sus vacaciones.
+  Quien mire su devengado dentro de unos meses va a ver una antigüedad más corta
+  de la real y va a querer corregirla. **No es un dato mal cargado: es una
+  decisión.** El relato completo vive en la sección del 2026-08-14, dentro de un
+  bloque que empieza tachado —y por eso esta línea existe: ahí nadie la iba a
+  leer.
+
+  Y un cabo que va con el vínculo de los locadores: **Dante es locador con monto
+  fijo mensual**, el mismo indicio de laboralidad ya señalado para Carlos,
+  Catherine y Claudia. Entra en esa lista; no se quedó fuera por haberse dado de
+  alta después.
 - **La CTS incluye el sexto de la gratificación** — encendido en producción el
   2026-08-05. La base pasa de sueldo pelado a sueldo × 13/12 (Art. 16 del
   D.S. 001-97-TR; en pequeña empresa la grati es media remuneración, así que el
@@ -2724,8 +2746,12 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   TUO de la Ley de CTS y del documento del MTPE. Se eligió la lectura prudente
   —provisionar de más no es infracción, de menos sí—. Se apaga con una línea, y
   la prueba `126` blinda que el sexto no se cuele en la gratificación ni en las
-  vacaciones. **Falta contárselo al contador antes del depósito de mayo**: si él
-  calcula sobre el sueldo pelado, la discrepancia aparece el día del depósito.
+  vacaciones. **Falta contárselo al contador antes del depósito del 15 de
+  NOVIEMBRE de 2026**: si él calcula sobre el sueldo pelado, la discrepancia
+  aparece el día del depósito. (Este párrafo decía «antes del depósito de mayo»
+  y erraba por seis meses en contra: la CTS se deposita el 15 de mayo y el 15 de
+  noviembre, y el sexto se encendió el 05/08, dentro de la ventana mayo–octubre,
+  que es la que se deposita en noviembre.)
 - ~~**A Carlos Espejo no se le toca el tipo de vínculo**~~ — **REVISADA Y
   REVERTIDA el 2026-08-08.** La decisión decía «se revisa el día que exista la
   excepción por persona»: ese día llegó con la 0196, que parte el sí/no en tres
