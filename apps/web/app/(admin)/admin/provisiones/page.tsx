@@ -120,6 +120,12 @@ interface ProvPersona {
   cts_may_monto_pagado?: number | null;
   cts_nov_monto_pagado?: number | null;
   vac: number;
+  // ⇩ 0273 ⇩ Las vacaciones son la quinta ventana del libro de desembolsos y
+  // eran la única que nunca se descontaba. Opcionales por la misma razón que
+  // las de arriba: sin la 0273 pegada llegan `undefined` y la celda se ve igual
+  // que siempre.
+  vac_pagada?: boolean;
+  vac_monto_pagado?: number | null;
   vac_dias: number;
   proximo_aniversario: string;
   gran_total: number;
@@ -471,8 +477,17 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.cts_nov, p.cts_nov_pagada, p.cts_nov_monto_pagado, data.cts_nov_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.cts_total)}</td>
-                        {/* Vacaciones */}
-                        <td className="border-l px-4 py-2 text-right">{formatSoles(p.vac)}</td>
+                        {/* Vacaciones — desde la 0273 también pueden estar pagadas
+                            por fuera de planilla, así que se dice igual que en las
+                            otras ventanas: el saldo arriba y lo pagado debajo. */}
+                        <td className="border-l px-4 py-2 text-right">
+                          {formatSoles(p.vac)}
+                          {p.vac_pagada && typeof p.vac_monto_pagado === "number" && (
+                            <span className="block text-xs text-taupe">
+                              pagado · {formatSoles(p.vac_monto_pagado)}
+                            </span>
+                          )}
+                        </td>
                         <td className="whitespace-nowrap px-4 py-2 text-right text-xs text-taupe">
                           {fmtDias(p.vac_dias)}
                         </td>

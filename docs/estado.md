@@ -92,20 +92,56 @@ de md5 en verde. Al aplicarse, producción recibió además lo que la 0160 le ha
 a esta pantalla y no tenía — Catherine Pereyra deja de figurar con ~S/2.841 de
 beneficios que no devenga.
 
-### Lo que queda pendiente de esto
+### Lo que salió de tirar del hilo, el mismo día
 
-- **El hueco sin explicar en la 0268.** El hook lo avisa en cada push. Con lo de
-  hoy, merece mirarse: es la misma forma de «algo pasó en producción y no llegó
-  al repositorio». Si resulta explicado, va a `scripts/hooks/huecos-conocidos.txt`.
-- **`celdaVentana` esconde el saldo cuando una ventana está pagada**
-  (`provisiones/page.tsx`). Viene de cuando «pagada» significaba «liquidada del
-  todo», antes de la 0158. Ahora una CTS puede estar pagada **en parte** y esa
-  celda no dice cuánto falta — es lo que hacía imposible ver el error a ojo.
-- **El «Gran total» de la pantalla se recalcula en el cliente**
-  (`grati_total + cts_total + vac`) en vez de leer el `gran_total` que ya viene
-  de `fn_provisiones` — que además incluye la bonificación extraordinaria, que
-  esa pantalla no muestra en ninguna columna. Unificarlo es un cambio de alcance
-  propio y no se hizo aquí.
+Una auditoría en paralelo de la pantalla y de `fn_provisiones` (tres lentes, cada
+hallazgo verificado por refutación) devolvió **nueve defectos confirmados**. Se
+arreglaron los de arriba y estos:
+
+- **`fn_provisiones` solo leía DOS de las cinco ventanas del libro.** Una
+  gratificación o unas vacaciones pagadas por transferencia se anotaban en
+  `desembolsos_beneficios` y no las restaba nadie. Medido: con S/700 anotados en
+  `grati_s1`, la provisión no se movía de S/749.97 y seguía diciendo `pagada:
+  false`. **Y esto sí llegaba al pago** —`fn_grati_cts_periodo` lee esos campos
+  para proponer el bono al cerrar—, a diferencia del defecto de `cts_total`. La
+  0158 lo dejó anotado como deuda conocida; la
+  [`0273`](../supabase/migrations/0273_el_libro_de_desembolsos_vale_para_los_cinco_beneficios.sql)
+  la paga, preguntando con `fn_beneficio_ya_depositado` (la de la 0163) en vez de
+  con un `sum` propio.
+- **El «Gran total» omitía la bonificación extraordinaria.** Se sumaba en el
+  cliente como `grati_total + cts_total + vac`, sin `be_total`. Medido con una
+  persona de S/1.500: pantalla S/2.010,12 contra base S/2.095,77. La reserva
+  salía **corta**. Ahora la bonificación tiene columna propia y el total se lee
+  de `gran_total`.
+- **Un importe de exactamente 0 salía del CSV como texto `="0"`.** `SUMA` lo
+  ignoraba sin daño, pero `PROMEDIO`, `CONTAR` y el orden numérico saltaban esas
+  celdas. Afecta a las cinco pantallas que exportan, incluida la de planilla.
+- **El céntimo del redondeo.** `gran_total` redondeaba la suma mientras las
+  columnas redondeaban por separado, así que la fila no cuadraba por S/0.01 —
+  justo la celda que alguien compara con las de al lado. Ahora el total suma las
+  columnas **ya redondeadas**.
+- **El hueco de la 0268** queda explicado en `scripts/hooks/huecos-conocidos.txt`:
+  número reservado por otra sesión el 18/08 y nunca commiteado.
+
+### Lo que la auditoría encontró y NO se arregló
+
+Cuatro hallazgos confirmados que quedan pendientes, con su medición hecha:
+
+- **Del 16 al 31 de diciembre, «Próximo pago» miente.** Pasado el pago del 15/12,
+  el próximo desembolso cae en el año siguiente, pero el campo que la pantalla
+  lee (`cts_may`) sigue siendo el de la ventana de ESTE año. Medido: el 20/12
+  anuncia «S/325.03 · 15/05» cuando ese monto es de una ventana ya depositada. En
+  el caso normal —CTS pagada entera— muestra «S/0.00» para todo el equipo esas
+  dos semanas. Son 16 días al año, en pleno cierre de la reserva anual.
+- **Sin asignación de salario vigente, la fila entera sale en S/0.00** junto a
+  «12.0 días» de vacaciones acumuladas. Se lee igual que alguien a quien no le
+  toca nada. Reproducido con tres personas idénticas salvo la fecha de vigencia
+  del salario: S/1.686,66 · S/120,63 · S/0,00.
+- **En noviembre y diciembre la CTS que se está devengando no aparece.** Las dos
+  ventanas del año ya pasaron y la nueva (nov→abr) no tiene celda.
+- **`fn_provisiones` ignora `asignaciones_salario.base_provision`,** que
+  `fn_planilla_calcular` sí honra. La boleta reserva sobre una base y la
+  provisión sobre otra.
 
 ---
 
