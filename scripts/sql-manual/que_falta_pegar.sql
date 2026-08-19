@@ -131,6 +131,7 @@ with repo(numero, nombre, nunca) as (values
     (269, 'el_descanso_medico_tambien_prorratea_el_feriado', false),
     (270, 'los_dias_de_seleccion_pagados_no_piden_el_reglamento', false),
     (271, 'el_total_de_cts_descuenta_lo_mismo_que_sus_ventanas', false),
+    (272, 'los_contratos_generados_entran_al_sistema', false),
     (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios', false)
 ),
 diff as (

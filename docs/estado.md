@@ -2183,18 +2183,31 @@ campos que intervienen en el pago al mismo monto, versionando el salario vía
 `fn_set_salario`. La migración **crea la función y no la llama**: crearla no mueve
 ningún pago, llamarla sí.
 
-**Las bases acordadas:** colibrí y cayla/caylo 1,130 · support 1,290 · aurora
-1,500 · oráculo 1,810 · archicaylo 2,670. Dos excepciones nominales viven en
-`scripts/sql-manual/aplicar_0128.sql` (ignorado en git por PII).
+**Los montos por rango no están decididos.** La cifra que circulaba acá
+—colibrí/cayla 1,130 · support 1,290 · aurora 1,500 · oráculo 1,810 · archicaylo
+2,670— fue un ejemplo ilustrativo de cuando se diseñó el sistema, no una
+decisión de Felipe (aclarado el 2026-08-18); se retira para que nadie la lea
+como acordada. Los montos reales, cuando se fijen, y las excepciones nominales
+van en `scripts/sql-manual/aplicar_0128.sql` (ignorado en git por PII) — nunca
+en este archivo.
 
-**Por qué no se ha llamado.** La baja de salario la compensan movilidad +
-educación + bono, y van **1 de 3**: movilidad ✅ encendida · educación 🟡 la
-pantalla está, falta el dato · bono ❌ decidido en S/180, sin implementar.
+**Por qué no se ha llamado — actualizado 2026-08-18, verificado contra el
+código vigente (no solo contra este párrafo):** movilidad ✅ encendida ·
+educación ✅ implementada y sumándose en `fn_planilla_calcular`
+(`monto_educacion`, vigente en la 0263) · bono de onomástico ✅ implementado
+(`0165`, S/180 desde el 29/07/2026, entra al pago por el bucket `bonos`). Los
+tres conceptos SÍ están en el cálculo de planilla — lo que este documento tenía
+mal. Lo que sigue sin confirmarse es si cada persona tiene sus datos cargados
+(p. ej. la asignación de educación es por persona y contra comprobante). Y
+`fn_fijar_base_declarada` **sigue sin llamarse**: nadie ha bajado ningún sueldo
+base todavía, así que hoy la base sigue siendo la de antes.
 
-Medido contra Postgres local: bajar cayla de 1,450 a 1,130 le quita **S/367.37**
-en el periodo 29/07–28/08. Y como la educación es **por persona y contra
-comprobante**, a quien no estudia bajarle la base le recorta el sueldo sin nada
-que lo reponga — para esa persona se usa `p_omitir`, o una base propia más alta.
+El método para decidir esto sigue siendo medir contra Postgres local, en
+`BEGIN … ROLLBACK`, con casos reales — no se repite acá con una cifra concreta
+porque la que había era la misma que se retiró arriba por no ser una decisión.
+Y como la educación es **por persona y contra comprobante**, a quien no estudia
+bajarle la base le recorta el sueldo sin nada que lo reponga — para esa persona
+se usa `p_omitir`, o una base propia más alta.
 
 ### El indicador del umbral de 20, y por qué vale construirlo
 

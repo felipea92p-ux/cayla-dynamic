@@ -64,6 +64,20 @@ export function puedeGestionarCatalogos(rol: RolPosible): boolean {
 }
 
 /**
+ * Generar y ver los contratos de trabajo: junta identidad (DNI, dirección) y
+ * plata (sueldo) en un solo documento, así que no es ni `puedeVerIdentidad`
+ * ni `puedeVerPlanilla` por separado ni `puedeGestionarCatalogos` (esa es
+ * para sedes/áreas/feriados/documentación, no para datos personales). Hoy
+ * equivale a DO — igual que las dos que junta — pero se nombra por lo que
+ * autoriza, no por copiar esa lista: si el día de mañana `puedeVerIdentidad`
+ * se abre a otro rol para otra pantalla, esta no debe abrirse con ella sin
+ * que alguien lo haya decidido a propósito acá.
+ */
+export function puedeGestionarContratos(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * El día a día del equipo: correcciones de marcaje, horarios, turnos,
  * ausencias, disciplina, ficha (sin identidad). DO y la encargada de sede.
  *

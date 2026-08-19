@@ -77,7 +77,7 @@ function minutosDe(hhmm: string): number {
  * Si la salida no es posterior a la entrada se asume que cruza medianoche: un
  * turno 21:00–05:00 son ocho horas, no menos dieciséis.
  */
-function horasEntre(entrada: string, salida: string, refrigerioMin: number): number {
+export function horasEntre(entrada: string, salida: string, refrigerioMin: number): number {
   let mins = minutosDe(salida) - minutosDe(entrada);
   if (mins <= 0) mins += 24 * 60;
   return Math.max(0, (mins - Math.max(0, refrigerioMin)) / 60);
@@ -125,6 +125,51 @@ export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: H
   }
 
   return NADA;
+}
+
+export interface HorasSemanales {
+  /** Horas semanales pactadas, o null si no se pudo determinar desde el horario. */
+  horas: number | null;
+  origen: "horario" | "legacy" | "sin_horario";
+}
+
+/**
+ * Las horas semanales del horario PACTADO de una persona — para un contrato,
+ * no para un día concreto. A diferencia de `esperadoDelDia`, no mira ningún
+ * turno puntual: un cambio de turno excepcional de una fecha no debe alterar
+ * lo que un contrato declara como jornada semanal.
+ *
+ * `horas: null` (nunca `0`) cuando no se puede determinar — imprimir «0 horas
+ * semanales» en una cláusula legal es peor que dejar el campo pendiente de
+ * completar a mano, que es lo que pasa hoy sin esto.
+ */
+export function horasSemanalesVigentes(horario: HorarioTramo | null): HorasSemanales {
+  if (!horario) return { horas: null, origen: "sin_horario" };
+
+  if (horario.horario_por_dia) {
+    let total = 0;
+    let huboDia = false;
+    for (let dow = 0; dow <= 6; dow++) {
+      const dia = horario.horario_por_dia[String(dow)];
+      if (!dia?.e || !dia?.s) continue;
+      huboDia = true;
+      const refrigerio = dia.r ?? horario.almuerzo_min_minutos ?? 0;
+      total += horasEntre(dia.e.slice(0, 5), dia.s.slice(0, 5), refrigerio);
+    }
+    return huboDia ? { horas: total, origen: "horario" } : { horas: null, origen: "sin_horario" };
+  }
+
+  // El resumen legacy, para los horarios que nunca se migraron al jsonb.
+  if (horario.dias_laborables && horario.dias_laborables.length > 0 && horario.hora_entrada && horario.hora_salida) {
+    const horasDia = horasEntre(
+      horario.hora_entrada.slice(0, 5),
+      horario.hora_salida.slice(0, 5),
+      horario.almuerzo_min_minutos ?? 0
+    );
+    return { horas: horario.dias_laborables.length * horasDia, origen: "legacy" };
+  }
+
+  return { horas: null, origen: "sin_horario" };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
