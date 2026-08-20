@@ -61,6 +61,12 @@ Cerrado el mismo día:
   la 0243/0244.
 - **La boleta** se contradecía sobre la AFP —«no se descuenta de tu sueldo» en la
   misma hoja que imprime el descuento— y no identificaba al empleador.
+- **El RUC y la razón social**, que estaban escritos a mano en ocho documentos,
+  se leen de `packages/shared/src/empresa.ts`. Lo que NO se unificó es el
+  formato: los ocho escriben el RUC distinto y dos están congelados con firmas
+  encima (la política salarial por la 0141, el contrato en `documento_html`).
+  `tests/empresa.test.ts` vigila las dos mitades — que no aparezca una novena
+  copia, y que ningún documento cambie de forma.
 
 Decidido con Felipe y pendiente de construir: **la sobretasa del 100 % por
 trabajar el día de descanso semanal** (art. 3 del D. Leg. 713), que hoy no
@@ -69,6 +75,15 @@ sustitutorio cuando lo hubo, y pagar la sobretasa cuando no. Golpea sobre todo a
 TRU, que es el régimen de 6 días con descanso rotativo.
 
 Pendiente de mirar renderizado, dos minutos: la boleta y el memo.
+
+**Y una pregunta que solo Felipe puede responder: ¿cuál es el domicilio legal?**
+Al unificar la identidad de la empresa había dos direcciones distintas en el
+código. La que declaran los contratos firmados dice «Urb. San Andrés **V Etapa**,
+distrito de Trujillo, provincia de Trujillo, departamento de La Libertad»; la
+otra, más corta, no salía de ningún documento y no la usaba nadie. Se tomó la de
+los contratos, así que **hoy no hay ningún papel que haya cambiado de texto** —
+queda comprobar contra la ficha RUC que esa sea la buena, porque desde ahora la
+dice un solo sitio.
 
 ---
 
