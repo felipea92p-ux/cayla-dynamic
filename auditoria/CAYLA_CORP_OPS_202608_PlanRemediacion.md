@@ -136,3 +136,67 @@ así que el orden entre las dos piezas no deja a nadie sin cobrar.
 `fn_planilla_calcular` no la paga por ningún lado: solo menciona `descanso_medico` y `maternidad`.
 Es el error contrario al de este lote —alguien deja de cobrar lo que le toca— y no se investigó.
 Queda anotado, sin lote asignado.
+
+---
+
+# Hallazgos nuevos del 2026-08-18, encontrados al medir
+
+Los tres salieron de verificar el md5 antes de escribir una migración. Ninguno estaba en el
+informe: la auditoría no los buscó.
+
+## A · La mitad de las funciones de producción no tienen comentarios · P2
+
+Medido en el SQL Editor: **119 de 243 funciones `fn_` (49 %)** no tienen ni una línea de
+comentario en producción. El caso que lo destapó fue `fn_tardanzas_resumen`, cuyo md5 de
+producción (`49b3cf99…`) no coincidía con el del repositorio (`16f4991a…`).
+
+**No es la 0177 ni son los acentos rotos.** Se comprobó quitándole al cuerpo local todos los
+comentarios —líneas enteras y los de final de línea—: el resultado es **1818 caracteres y md5
+`49b3cf99111e44a62bbb8b59dde44f3e`**, idéntico a producción al byte. Mismo código, sin una línea
+distinta.
+
+Dos consecuencias, y la primera es de método:
+
+1. **Rompe el mecanismo de verificación del propio `CLAUDE.md`.** «Pide el md5 a producción y
+   compáralo» no puede funcionar para la mitad de las funciones. Y lo peor no es que no sirva: es
+   que el día que de verdad haya una versión distinta, el síntoma será idéntico a este y se va a
+   descartar como «serán los comentarios».
+2. **La documentación del negocio no está donde se lee.** Este repositorio escribe migraciones que
+   se leen como explicación del porqué; en producción la mitad de eso no existe.
+
+**Lo que se propone NO es repegar 119 funciones.** Es arreglar el método: que `donde-vive.sh`
+compare el md5 **ignorando comentarios**, y entonces vuelva a servir para las 243. Cuesta unas
+líneas en un script y no toca producción.
+
+## B · Cuatro sobrecargas huérfanas, todas alcanzables desde el navegador · P2
+
+| Función | Vieja | Nueva | Qué se salta quien llame a la vieja |
+|---|---|---|---|
+| `fn_agregar_movimiento` | 5 args | 6 (`p_categoria`) | la categoría del movimiento. **Deliberada**: la 0044 dice que se agregó como sobrecarga a propósito |
+| `fn_educacion_cerrar` | 2 args | 3 (`p_motivo`) | el motivo del cierre — el rastro de por qué se cerró |
+| `fn_set_datos_personales` | 18 args | 19 (`p_cuspp`) | el CUSPP. **Y es un upsert que reemplaza**, así que llamarla lo borraría |
+| `fn_set_meta_cobertura` | 3 args | 4 (mañana/tarde) | la distinción de turno en la meta |
+
+**Nadie las llama.** Medido: cinco llamadas en todo el código y las cinco van a la firma nueva.
+El riesgo no es accidental — requiere invocar la RPC vieja a propósito.
+
+Y el repositorio ya conoce el patrón y lo maneja caso por caso: la 0044 la creó a propósito, la
+**0204 decidió expresamente no soltar** la de 18 argumentos de `fn_set_datos_personales`, y la
+0205 sí soltó la suya *«para no dejar dos sobrecargas conviviendo»*.
+
+Queda como P2 y sin urgencia. Si se cierra, la de `fn_set_datos_personales` es la que más
+mordería, y la de `fn_agregar_movimiento` no se toca: es deliberada.
+
+## C · La tardanza falsa no está contando hoy · cierra un P0 del informe
+
+El detector de tardanzas se corrió el 2026-08-18. **Cero filas en la capa B: ningún memo
+disciplinario salió con tardanzas falsas.** Dos jornadas mal contadas, las dos por el mismo
+motivo —feriado trabajado sin turno explícito—:
+
+- **Rufina Salvatierra**, 06/08, 2 minutos. Ya cesó: no le afecta a nada.
+- **Janis Revilla**, 28/07 (Fiestas Patrias), 53 minutos. Vino a trabajar un feriado y entró 53
+  minutos después de su hora habitual, cuando en un feriado no hay hora que cumplir.
+
+**Y hoy no le cuenta a nadie**: `fn_tardanzas_resumen` mira el mes en curso, y la de Janis es del
+mes pasado — comprobado, no aparece en el resumen. El arreglo sigue haciendo falta, pero el P0 del
+informe baja: no hay papel emitido ni escalón movido.

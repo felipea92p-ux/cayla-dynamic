@@ -131,8 +131,14 @@ c5 as (
            else 'ingresa el ' || to_char(g.fecha_ingreso,'DD/MM') end || ')', ' · '), '')
   from gente g, per
   where g.sueldo_fijo is true
-    and (g.fecha_cese    between per.fecha_ini and per.fecha_fin
-      or g.fecha_ingreso between per.fecha_ini and per.fecha_fin)
+    -- FALSO POSITIVO CORREGIDO el 2026-08-19, en su primera corrida contra
+    -- producción: `between` incluye los bordes, y quien INGRESA el primer día
+    -- del periodo —o CESA el último— estuvo vinculada el periodo entero. Ahí
+    -- cobrar el mes completo es lo correcto y no hay nada que prorratear.
+    -- Marcó a Dante Ramal, que ingresó justo el 29/07. En este sistema un falso
+    -- positivo cuesta más que un falso negativo: entrena a ignorar la alerta.
+    and (   (g.fecha_cese    >  per.fecha_ini and g.fecha_cese    <  per.fecha_fin)
+         or (g.fecha_ingreso >  per.fecha_ini and g.fecha_ingreso <= per.fecha_fin))
 ),
 -- 6 · CESA SIN NINGUNA MARCA  (desaparece de la planilla y cobra S/0 del mes)
 c6 as (
