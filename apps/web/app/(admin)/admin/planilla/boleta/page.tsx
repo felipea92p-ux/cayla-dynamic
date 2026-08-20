@@ -18,6 +18,7 @@ import {
   type Proyeccion,
 } from "../page";
 import {
+  EMPRESA,
   TZ_LIMA,
   esPrestadorDeServicios,
   nombreDelDocumentoDePago,
@@ -138,6 +139,8 @@ function BoletaContenido() {
 
   const [proy, setProy] = useState<Proyeccion | null>(null);
   const [baseLegal, setBaseLegal] = useState<number | null>(null);
+  const [documento, setDocumento] = useState<string | null>(null);
+  const [fechaIngreso, setFechaIngreso] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,10 +170,16 @@ function BoletaContenido() {
     // añadida, no un requisito para mostrar el pago.
     const { data: persona } = await supabase
       .from("personas")
-      .select("sueldo_base_legal")
+      .select("sueldo_base_legal, documento, fecha_ingreso")
       .eq("id", personaId)
       .maybeSingle();
     setBaseLegal(persona?.sueldo_base_legal ?? null);
+    // CAMBIO del 2026-08-19 · el documento y la fecha de ingreso, por el mismo
+    // camino y por el mismo argumento que la base legal: son atributos de la
+    // PERSONA y no del cálculo. Si esta lectura falla, la boleta sigue saliendo
+    // sin ellos — es identificación añadida, no un requisito para ver el pago.
+    setDocumento(persona?.documento ?? null);
+    setFechaIngreso(persona?.fecha_ingreso ?? null);
   }, [periodoId, personaId, router]);
 
   useEffect(() => {
@@ -422,7 +431,20 @@ function BoletaContenido() {
           los rellenos de las celdas sin repetir quince variantes print: aquí. */}
       <div className="hoja rounded-lg border border-sand p-8 print:rounded-none print:border-0 print:p-0">
         <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3">
-          <Marca tono="tinta" isotipo="rojo" />
+          {/* ── QUIÉN EMITE ESTE PAPEL (auditoría del 2026-08-19) ──────────────
+              La cabecera imprimía el lockup de producto «Dynamic / CAYLA» y
+              nada más: ni razón social ni RUC. Un documento de pago que no
+              identifica al empleador no acredita nada por sí solo — y para un
+              locador pesa doble, porque su «Detalle de servicios prestados» es
+              el único comprobante que tiene de para quién trabajó.
+              El RUC sale de `packages/shared/src/empresa.ts`, que existe para
+              que no haya una novena copia escrita a mano. */}
+          <div>
+            <Marca tono="tinta" isotipo="rojo" />
+            <p className="mt-2 text-xs text-taupe">
+              {EMPRESA.nombre} · RUC {EMPRESA.ruc}
+            </p>
+          </div>
           <div className="text-right">
             <p className="etiqueta text-taupe">{nombreDelDocumentoDePago(f.en_planilla)}</p>
             <p className="font-serif text-lg">
@@ -456,6 +478,18 @@ function BoletaContenido() {
               parecen distintas y nada las conecta.
               El rango se sigue usando para saber cuánto se le transfiere; lo que
               no se hace es escribírselo encima. */}
+          {/* A QUIÉN SE LE PAGA. Faltaba el documento de identidad: sin él, dos
+              personas con nombres parecidos producen dos papeles indistinguibles
+              y ninguno de los dos prueba nada. La fecha de ingreso va al lado
+              porque es el dato del que cuelgan la antigüedad y los beneficios, y
+              porque es lo primero que se mira en un reclamo. */}
+          {(documento || fechaIngreso) && (
+            <p className="text-sm text-taupe">
+              {documento ? `Doc. ${documento}` : null}
+              {documento && fechaIngreso ? " · " : null}
+              {fechaIngreso ? `Ingreso ${fechaCorta(fechaIngreso)}` : null}
+            </p>
+          )}
           <p className="text-sm text-taupe">
             {esLocador
               ? f.sede
@@ -713,8 +747,19 @@ function BoletaContenido() {
                       ? `AFP ${f.regimen_pension.charAt(0).toUpperCase()}${f.regimen_pension.slice(1)}`
                       : "Pensión"}
                   {f.tasa_afp ? ` (${(f.tasa_afp * 100).toFixed(2)}%)` : ""}
+                  {/* CAMBIO del 2026-08-19 · antes decía «va a tu fondo de
+                      pensión». De ese porcentaje solo el 10 % entra a la cuenta
+                      individual: el resto es comisión de la AFP y prima del
+                      seguro de invalidez y sobrevivencia. De cada S/100
+                      retenidos a alguien en AFP, unos S/77 van a su fondo. Decir
+                      que va entero al fondo no era un matiz: era el número con
+                      el que la persona calcula lo que tendrá al jubilarse.
+                      En ONP no hay cuenta individual —es un fondo común—, así
+                      que la frase tampoco valía ahí. */}
                   <span className="block text-xs text-rojo/70">
-                    va a tu fondo de pensión — no se queda en CAYLA
+                    {f.regimen_pension === "onp"
+                      ? "se remite a la ONP — no se queda en CAYLA"
+                      : "se remite a tu AFP — no se queda en CAYLA. Incluye tu aporte al fondo, la comisión y la prima del seguro"}
                   </span>
                 </td>
                 <td className="py-2 text-right align-top text-rojo">−{formatSoles(pension)}</td>
@@ -1056,11 +1101,35 @@ function BoletaContenido() {
               tal en el desglose de arriba. Decir «no se descuenta de tu sueldo»
               insinuaba que podría descontarse, que no tiene sentido. Ya figura
               donde le toca: en el punto de los derechos de ley. */}
+          {/* ── LA CONTRADICCIÓN QUE ESTO QUITA (auditoría del 2026-08-19) ──────
+              Esta línea decía «EsSalud y AFP: los cubre CAYLA, no se descuentan
+              de tu sueldo» en la MISMA hoja que imprime el descuento de pensión
+              con su monto en rojo, unas líneas más arriba. Dos afirmaciones
+              opuestas sobre la misma plata, en el documento que la persona se
+              lleva a casa.
+
+              Y las dos mitades no eran igual de falsas: EsSalud SÍ lo paga
+              CAYLA —es aporte del empleador, 9 %, y no toca el sueldo—, pero la
+              pensión SÍ se le descuenta a la persona, entre 12.84 % y 13.06 %
+              según la AFP. Juntarlas en una frase hacía que la parte cierta
+              avalara la falsa.
+
+              Se separan, y la de pensión se dice como es: no se queda en CAYLA,
+              pero tampoco va entera a su fondo. */}
           <p className="mb-1">
             <span className="text-verde">✓</span>{" "}
-            <span className="font-medium">EsSalud y AFP:</span> los cubre CAYLA, no se descuentan de
-            tu sueldo.
+            <span className="font-medium">EsSalud:</span> lo paga CAYLA aparte de tu sueldo — son 9 %
+            sobre tu remuneración y no se te descuentan.
           </p>
+          {pension > 0 && (
+            <p className="mb-1">
+              <span className="text-verde">✓</span>{" "}
+              <span className="font-medium">Pensión:</span> esto sí sale de tu sueldo, y lo verás
+              arriba en rojo. No se queda en CAYLA: se remite al sistema de pensiones. La mayor parte
+              va a tu cuenta individual; el resto es la comisión de la administradora y la prima del
+              seguro.
+            </p>
+          )}
           <p>
             <span className="text-verde">✓</span>{" "}
             <span className="font-medium">Gratificación, CTS y vacaciones:</span> se siguen acumulando

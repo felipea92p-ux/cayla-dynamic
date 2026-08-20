@@ -134,6 +134,7 @@ with repo(numero, nombre, nunca) as (values
     (272, 'los_contratos_generados_entran_al_sistema', false),
     (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios', false),
     (274, 'las_provisiones_solo_listan_a_quien_devenga', false),
+    (275, 'las_vacaciones_dejan_de_pagarse_en_cero', false),
     (276, 'una_sola_base_para_la_reserva', false)
 ),
 diff as (
@@ -267,6 +268,8 @@ select * from (
              when 'ea201e37d15fbd3ef34d0c5bf8d722fd' then '✗ 0263 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '5e755bdedd964d289104e824eb2925ec' then '⚠ se quedó en la 0269 — falta pegar lo posterior'
              when '4f24030bdce39bd665a13f503a2e7d7e' then '✗ 0269 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'b132c828fde4aa5fedd6cf946fee7f08' then '⚠ se quedó en la 0275 — falta pegar lo posterior'
+             when '3af7cdc468be355687ad53a4af446222' then '✗ 0275 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'ffaa2dd62e1c36257556cca52d8cfc00' then '0276 — al día con el repositorio'
              when '1a86f39572dc3140b99b0abf39769fc5' then '✗ 0276 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)

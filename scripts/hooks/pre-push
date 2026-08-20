@@ -52,6 +52,21 @@ echo "→ la consulta de qué falta pegar…"
 echo "→ migraciones sin guardar…"
 "$(dirname "$0")/migracion-sin-guardar.sh" || true
 
+# ── Las reglas del CLAUDE.md, preguntadas en vez de recordadas ──────────────
+#
+# La auditoría de agosto de 2026 encontró diez comparaciones de `rol` contra un
+# literal fuera de `permisos.ts` y tres `"America/Lima"` fuera de
+# `fecha-lima.ts` — las dos reglas están escritas, y las dos se escribieron
+# DESPUÉS de juntar 35 y 32 copias respectivamente. El documento no falló por
+# estar mal escrito: falló porque un documento es memoria, y aquí trabajan
+# varias sesiones a la vez.
+#
+# Va acá, con los instantáneos y antes del typecheck, porque tarda un parpadeo.
+# BLOQUEA, a diferencia de los dos de arriba, y la distinción es la que este
+# hook ya tenía escrita: esto habla de lo que SALE hacia GitHub, no del disco.
+echo "→ las reglas de la casa…"
+"$(dirname "$0")/reglas-de-la-casa.sh" || exit 1
+
 # ── Los tipos generados, que no pueden viajar vacíos ────────────────────────
 #
 # `packages/database/src/types.ts` lo escribe `gen-types` de un tirón: si el
