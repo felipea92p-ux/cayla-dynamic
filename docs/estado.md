@@ -201,7 +201,8 @@ Cuatro hallazgos confirmados que quedan pendientes, con su medición hecha:
 
 Felipe, mirando la pantalla: las locadoras y la gente en días de prueba no
 tenían que estar ahí. La [`0274`](../supabase/migrations/0274_las_provisiones_solo_listan_a_quien_devenga.sql)
-las saca. **Pendiente de pegar en producción.**
+las saca. **Aplicada en producción el 2026-08-20** (comprobado contra
+`migraciones_aplicadas` el 2026-08-20).
 
 **Es la vuelta atrás de una decisión que estaba escrita**, con su argumento, en
 la prueba 127: «verlo en cero es una respuesta, que falte obliga a preguntarse si
@@ -800,7 +801,8 @@ Va DENTRO de `pago_base`, como las vacaciones, y por eso NO toca
 
 **`licencia_con_goce` sigue pagando cero, y es decisión** (va por
 `movimientos_planilla`, la 0247 lo dice en su cabecera). **La maternidad ya no:**
-la conectó la **0262** — escrita y probada el 2026-08-15, todavía sin pegar. La
+la conectó la **0262** — escrita y probada el 2026-08-15, **aplicada en
+producción el 2026-08-17**. La
 prueba 187 fija por escrito que las dos reglas son distintas y no se pueden
 igualar: el descanso médico cuenta días laborables porque es sueldo, la
 maternidad cuenta días calendario porque es subsidio.
@@ -1538,7 +1540,7 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
-### A.2.a · La maternidad: **construida, sin pegar** (0262)
+### A.2.a · La maternidad: **construida y aplicada** (0262, en producción el 2026-08-17)
 
 **Nadie ha estado de maternidad todavía, y por eso hubo tiempo de hacerlo bien.**
 La duda de si el subsidio va por planilla o por fuera **quedó resuelta por la
