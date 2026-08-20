@@ -55,6 +55,27 @@ marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
 del principio— en vez de proponer explicaciones. Ese día se probaron tres
 hipótesis falsas antes de que el primer `substring` lo resolviera de un vistazo.
 
+**Y que no coincidan es LO NORMAL, no la excepción.** Medido el 2026-08-18 en el
+SQL Editor: **119 de las 243 funciones de producción —el 49 %— no tienen ni una
+línea de comentario**. Se pegaron sin ellos. Así que su md5 nunca va a ser el del
+repositorio, y el síntoma es idéntico al del accidente grave: «producción tiene
+otra versión».
+
+Ese día se fue media hora en distinguirlos a mano con `fn_tardanzas_resumen`
+(producción `49b3cf99…`, local `16f4991a…`). La respuesta era benigna: mismo
+código, sin los comentarios — se comprobó quitándoselos al cuerpo local, que da
+1818 caracteres y el md5 de producción exacto.
+
+`donde-vive.sh` ya no te deja en esa duda: da **los dos md5** —tal cual y sin
+comentarios— y te imprime la consulta lista para pegar en producción, con los
+tres desenlaces escritos. Si coincide el primero, seguir. Si coincide el segundo,
+seguir pero declarando en la migración el md5 de PRODUCCIÓN. Si no coincide
+ninguno, parar.
+
+Lo que **no** se propone es repegar 119 funciones. Pero conviene saber lo que
+cuesta: estas migraciones se leen como documentación del negocio, y en producción
+la mitad de esa explicación no está.
+
 **Antes de dar cualquier SQL que toque plata, se audita empíricamente.**
 Contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con casos reales. No se
 entrega un cálculo de planilla, provisiones, bonos o CTS "revisado a ojo".
