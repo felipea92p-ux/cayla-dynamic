@@ -1052,40 +1052,6 @@ cero filas). **No urge:** medido en producción, nadie está hoy en ese estado.
   esa ni `fn_set_horario_semanal` miran `personas.estado`. Es justo la frase que
   haría no poner un freno creyéndolo puesto.
 
-## ~~2026-08-10 — regenerar `types.ts` ya no es solo reordenar~~ ✅ HECHO el 2026-08-14
-
-**Cerrado.** Se hizo, y la causa era más simple —y peor— de lo que decía esta
-sección: el generador declara los parámetros de cada función como NO anulables, y
-`fn_set_fin_contrato(p_fecha)` acepta null a propósito. Correr el comando dejaba
-**63 errores en diez pantallas**. `scripts/tipos-args-nullables.mjs` le agrega
-`| null` a los 491 parámetros y va encadenado al script de `gen-types`, así que
-el comando documentado ahora termina en verde. Se conserva lo de abajo por el
-registro de cómo se midió.
-
-
-
-**Medido, no supuesto.** El repositorio venía diciendo que regenerar
-`packages/database/src/types.ts` «reordena las 4.400 líneas del archivo entero»
-y por eso se aplazaba, resolviendo cada función nueva con un doble casteo. Se
-probó de verdad al añadir `fn_expediente_resolver` (0206):
-
-- Genera **4.217 líneas** contra las 2.535 de hoy.
-- **Gana 65 nombres** y suelta exactamente dos: `fn_set_horario` y
-  `fn_quitar_horario`, que la 0184 borró. Hasta ahí, estrictamente correcto.
-- **Pero cambia la convención de los argumentos opcionales**, de
-  `string | null` a `string | undefined`. Eso rompe de golpe Ausencias,
-  Correcciones y Datos personales, que pasan `null` a propósito.
-
-O sea: **no es un reordenamiento, es una migración de tipos.** Aplazarla sigue
-siendo razonable, pero por un motivo distinto al que estaba escrito, y el coste
-de aplazarla crece — ya son tres las funciones que el archivo no conoce
-(`fn_expediente_resolver`, `fn_tardanza_escalon`, y las columnas nuevas de
-`fn_tardanzas_resumen`).
-
-Cuando se haga, va sola en su propia rama y con las tres pantallas revisadas.
-
----
-
 ## 2026-08-10 — un `drop function` se llevó el permiso y la pantalla se calló
 
 **Dos pantallas llevaban días caídas en producción y ninguna lo dijo.** Se
@@ -1292,155 +1258,7 @@ tiene que volver a hacerlo sobre la 4.
 
 ---
 
-## 2026-08-08 — seis puertas dejaban cambiar una planilla ya pagada
 
-**El repositorio y producción llevaban semanas diciendo cosas distintas, y no
-había manera de enterarse.** Se compararon los dos esquemas enteros —199
-funciones, 261 candados, 467 columnas— y el resultado ordena todo lo de abajo:
-
-| | |
-|---|---|
-| **candados** | idénticos, byte a byte. Es lo que volvió inofensivo casi todo lo demás |
-| **columnas** | idénticas, salvo dos que solo existen en producción |
-| **funciones** | **22 distintas** |
-
-### Lo único que era grave
-
-Seis funciones de producción no tenían el candado de periodo pagado que el
-repositorio les puso en julio con la 0026 y la 0037: `fn_set_feriado`,
-`fn_quitar_feriado`, `fn_set_turno`, `fn_quitar_turno`, `fn_set_horario_semanal`
-y `fn_set_descanso`.
-
-Reproducido en local el estado exacto de producción y llamadas las seis sobre una
-fecha de un mes ya pagado, **las seis dejaron pasar el cambio y una borró un
-feriado de un mes pagado sin decir una palabra.** El daño no se ve: la jornada se
-recalcula sola con el trigger, las horas del mes cambian, y la planilla
-depositada deja de cuadrar con lo que el sistema dice hoy. Se descubre cuando
-alguien reclama.
-
-La [`0180`](../supabase/migrations/0180_el_candado_de_pagado_vuelve_a_las_seis_que_lo_perdieron.sql)
-lo repone —aplicada y confirmada, 6 de 6— y la prueba
-[`141`](../supabase/tests/141_las_seis_puertas_a_una_planilla_pagada.test.sql)
-exige **las dos mitades**: que dentro de lo pagado lancen, y que fuera de lo
-pagado sigan funcionando. Un candado que cierra siempre lo quita cualquiera en la
-primera urgencia.
-
-Antes de sobrescribirlas se pidieron sus cuerpos y se compararon línea a línea:
-producción era el repositorio **menos** el bloque, ni una línea de más. Mirar
-antes de escribir no era ceremonia — siete funciones de las 22 tienen código que
-el repositorio no conoce (ver abajo).
-
-### El resto era texto roto
-
-Seis funciones decían `l√≠der` donde debía decir `líder`: UTF-8 leído como **Mac
-OS Roman**, que parte cada acento en dos. Se confirmó simulando esa conversión
-sobre el cuerpo del repositorio — los md5 salen exactos, así que se identificaron
-sin gastar consultas. Lo arreglan la **0181** (cuatro) y la **0183** (las dos que
-la comprobación de la 0181 destapó, que además corrían la versión de julio de
-`fn_crear_periodo` y `fn_eliminar_periodo`). Las dos aplicadas y confirmadas.
-
-⚠️ **Y ese mismo día se demostró que el daño SIGUE ENTRANDO.** Horas después de
-limpiar las seis, la consulta «qué falta pegar» devolvió `⚠ md5 SIN CATALOGAR`
-para `fn_planilla_calcular` — la función que decide lo que cobra cada persona.
-Medido: era el cuerpo de la **0185 pasado por Mac OS Roman**, y la 0185 se había
-pegado ese mismo día.
-
-O sea que el razonamiento de arriba —«si el canal fuera el culpable estarían
-rotas las 199»— **era falso**: el daño no entra de una vez, entra **por pegada**.
-
-✅ **Y la causa se encontró el mismo día: era `pbcopy` con el locale en `C`**
-dentro del propio `dame-el-sql.sh`. Con `LC_CTYPE=C` el portapapeles interpreta
-el UTF-8 como MacRoman y cada acento se parte en dos. O sea que la ruta culpable
-no era «otra vía»: era la nuestra, en las sesiones cuyo entorno tenía ese locale
-—por eso cuatro migraciones del mismo día salieron limpias y una no—. Ya está
-arreglado: el script compara el portapapeles byte por byte contra el archivo y se
-niega si no coinciden. Ver la regla en `CLAUDE.md`.
-
-**Quedan dos detectores permanentes, y ninguno depende de una lista a mano:** la
-fila **ACENTOS** de `que_falta_pegar.sql`, que barre el esquema entero buscando
-el signo «√», y la columna `tiene_acentos_rotos` de
-`en_que_version_esta_la_planilla.sql`. El catálogo de md5 de esa consulta
-**también se calcula solo** desde las migraciones, con `iconv -f MAC` para
-generar la variante rota de cada versión: llegó a mentir tres veces en un día
-mientras se escribía a mano.
-
-### El agujero que casi se anuncia y no existía
-
-La 0026 le añadió a `fn_crear_periodo` un candado contra dos periodos que cierren
-el mismo mes, con su motivo escrito en julio: «el plus de objetivos se pagaría
-doble». Producción no lo tenía. La conclusión saltaba sola.
-
-**Se probó antes de afirmarlo y es falsa.** El segundo periodo falla igual: lo
-frena el índice único `periodos_etiqueta_unica` sobre (año, mes) de la fecha de
-cierre. Y los 261 candados de producción son idénticos a los del repositorio.
-Igual con el `advisory lock` que falta: `periodos_sin_solape` impide el solape de
-todos modos.
-
-**Aquí lo que protege el dinero es el candado de la BASE, no el de la función.**
-Las seis puertas eran un agujero real porque detrás no había ningún constraint;
-esta no lo era porque sí lo hay. Misma forma, conclusiones opuestas, y solo
-medirlo las distingue.
-
-### La lección de método, que costó medio día
-
-**Un dato de referencia nunca viaja guardado — ni en un archivo ni en un
-mensaje.** El comparador viejo llevaba las huellas del repositorio dentro y
-acusó a 25 funciones que estaban bien. Se sacaron del archivo… y entonces
-caducaron en el mensaje que las transportaba: se calcularon a las 10:28, entraron
-cinco migraciones a las 10:55 y 11:14, y la comparación de las 11:30 ya no valía.
-
-`huella_del_esquema.sql` calcula las dos mitades en el mismo minuto y trae
-`hasta_migracion`, para que comparar dos generaciones distintas se delate en vez
-de asustar. Los tres comparadores que mentían —`comparar_funciones.sql`,
-`comparar_solo_funciones.sql`, `huellas_produccion.sql`— quedan **vaciados, no
-borrados**: su contenido está en git y su ruta sigue avisando por qué no usarlos.
-
-**Y una comprobación que barre gana a una que pregunta por una lista.** La de la
-0181 no preguntaba por sus cuatro funciones: buscaba el signo «√» en el esquema
-entero. Devolvió dos que nadie había señalado.
-
----
-
-## 2026-08-06 — ningún papel firmado se podía subir, y nunca se pudo
-
-**Lo que parecía un módulo terminado desde julio no funcionaba ni una vez.** El
-cargo firmado de un memo disciplinario no se podía archivar desde que existe el
-módulo (0074). Los tres memos entregados de producción llevaban semanas con «sin
-el papel archivado» al lado y no era descuido de nadie: la base los rechazaba.
-
-**La causa, que no se veía leyendo el código.** Supabase Storage no escribe el
-objeto con un `INSERT`. Escribe `INSERT … ON CONFLICT DO UPDATE … RETURNING *`, y
-esa forma necesita **tres** permisos, no uno: INSERT por la fila, SELECT por el
-`RETURNING`, y UPDATE por el `ON CONFLICT`. Ningún bucket tenía política de
-UPDATE. Y la de SELECT de `expedientes` exigía que el adjunto ya estuviera
-registrado en `expediente_adjuntos`… registro que se crea DESPUÉS de subir el
-archivo. Un círculo cerrado: no se podía escribir sin poder leer, ni leer sin
-haber registrado, ni registrar sin haber escrito.
-
-Lo que más costó: `fn_expediente_puede_adjuntar` devolvía **`true`** mientras la
-fila se rechazaba, así que el fallo se leía como un problema de permisos de la
-persona. El mensaje de Postgres nombra la tabla pero **no dice cuál de las
-políticas faltó**. Se resolvió leyendo el log del contenedor de storage.
-
-| # | Qué |
-|---|---|
-| **0170** | El acta de descanso acepta **HEIC/HEIF** — el formato en que un iPhone guarda sus fotos. Sin esto salían en gris en el diálogo de archivos: no se podían ni seleccionar, y la pantalla no daba ningún error |
-| **0172** | Las políticas que faltaban en los tres buckets. Abre exactamente el hueco medido y nada más: quien subió un archivo puede leer **lo suyo** mientras lo registra (`owner_id = auth.uid()`), y quien puede crearlo puede reemplazarlo |
-| **0175** | El acta de descanso **deja de guardarse como texto en una columna** y pasa al almacén, con los mismos 50 MB que los demás papeles. Los 3 MB de antes no eran una decisión sobre las actas: eran el precio de dónde vivían |
-
-**Tres fallos más de pantalla, cada uno con causa distinta:** el formulario para
-subir el cargo estaba escrito **solo** en «Firmados — por entregar», y los tres
-memos de producción están entregados · Chrome **no reconoce el `.HEIC`** y
-entrega la foto sin tipo, que el almacén rechaza con `415` (el tipo se deduce
-ahora de la extensión, en `lib/tipos-archivo.ts`) · «Ver acta» abría un
-`<iframe src="data:…">` que Chrome **bloquea**, dejando la pestaña en blanco.
-
-**Por qué ninguna prueba lo cazó.** No había una sola que tocara
-`storage.objects`, y un `INSERT` simple pasaba mientras el sistema no
-funcionaba. La prueba **136** ejecuta ahora la sentencia real de Storage,
-copiada de su log; la **137** cubre las dos ubicaciones posibles del acta.
-
----
 
 # 📌 QUÉ FALTA — repartido por quién lo hace
 
@@ -1457,7 +1275,7 @@ copiada de su log; la **137** cubre las dos ubicaciones posibles del acta.
 | **Registrar la póliza en el MTPE** | 30 días desde que se firma | No registrarla es la misma infracción que no tenerla |
 | ~~**Pegar la [`0176`](../supabase/migrations/0176_quien_ya_se_fue_deja_de_tener_sueldo_vigente.sql)**~~ | ✅ **pegada el 2026-08-06** | Las seis de julio dejaron de tener sueldo vigente. No movió plata: su liquidación es S/ 0.00 antes y después (RxH, de 0 a 3 días). Comprobado con cuatro ceros: sin tramos abiertos, sin tramos pasados de largo, sin tramos posteriores al cese, sin motivos por revisar |
 | ~~**Pegar la [`0179`](../supabase/migrations/0179_la_pantalla_de_equipo_dice_cuando_y_por_que_se_fue.sql)**~~ | ✅ **pegada** — figura en `migraciones_aplicadas` de producción | La pantalla de Equipo ya dice cuándo y por qué se fue cada quien. El motivo viaja solo a admin y líder DO |
-| ~~**Pegar la 0180, la 0181 y la 0183**~~ | ✅ **pegadas el 2026-08-08** | Ver la sección del 08-08 arriba. Confirmadas por lo que devolvió el SQL Editor: `las_seis_con_candado: 6` y `funciones_con_texto_roto: 0` |
+| ~~**Pegar la 0180, la 0181 y la 0183**~~ | ✅ **pegadas el 2026-08-08** | Ver [«seis puertas» en el histórico](historico.md). Confirmadas por lo que devolvió el SQL Editor: `las_seis_con_candado: 6` y `funciones_con_texto_roto: 0` |
 | ~~**Pegar la [`0201`](../supabase/migrations/0201_la_foto_del_pago_aprende_el_sobretiempo.sql)**~~ | ✅ **pegada el 2026-08-10** | Sin ella, «Marcar como PAGADO» fallaba **para todo el periodo** —no solo para quien hiciera sobretiempo— en cuanto alguien pasara de 48 h en un ciclo de siete días. El candado de la foto era de julio (0127) y no conocía el sobretiempo que la 0185 empezó a pagar en agosto. Confirmada con cinco comprobaciones en verde, incluida la que recorre las 96 fotos ya guardadas con la fórmula nueva: ninguna se rompió |
 
 **Del Seguro de Vida Ley:** cotizado en **La Positiva, S/170/mes por 19
