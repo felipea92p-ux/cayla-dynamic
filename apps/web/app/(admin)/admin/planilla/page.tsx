@@ -94,6 +94,9 @@ export interface FeriadoDetalle {
   horas_trabajadas: number;
   proporcional_horas: number;
   antes_ingreso: boolean;
+  /** Desde la 0276 · lo que ese feriado devengó, SIN redondear. Quien lo
+   *  muestre redondea: la boleta lo mete crudo en la base de provisión. */
+  monto?: number;
 }
 export interface Movimiento {
   id: string;
