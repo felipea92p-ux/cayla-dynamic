@@ -408,6 +408,26 @@ No bloquea a propósito, por la regla que este hook ya tenía escrita para
 se avisa* —, porque con varias sesiones en paralelo una migración a medio escribir
 es un caso legítimo constante.
 
+**Y ese aviso solo mira migraciones. Todo lo demás se protege solo con el
+hábito: se commitea ANTES de pasar a lo siguiente, no al terminar la jornada.**
+El 2026-08-18 se perdieron los tres informes de la auditoría de agosto —116
+agentes, dos horas— y una migración ya escrita, auditada contra la base y con su
+prueba en verde. No los borró nadie a propósito: otra sesión movió el árbol
+compartido y se llevó por delante lo que estaba sin guardar. El trabajo
+intelectual se pudo rehacer porque los datos de los agentes vivían fuera del
+repo; el resto se escribió dos veces.
+
+Con cuatro sesiones compartiendo directorio, un archivo sin commitear no es
+«trabajo en curso»: es trabajo que solo existe mientras nadie toque el árbol. Y
+la ventana no es de horas — basta con que otra sesión haga un `checkout` en el
+minuto siguiente.
+
+Lo caro no fue rehacerlo. Fue que **la migración quedó obsoleta antes de poder
+entregarla**: partía de la 0263 y, mientras se rehacía el trabajo, la función
+vigente pasó a ser la 0269. Pegada tal cual habría revertido esa migración en
+silencio — exactamente el accidente que `donde-vive.sh` existe para evitar, por
+el camino de haber tardado demasiado en guardar.
+
 **Antes de crear una migración o una prueba, pregunta qué número toca:**
 
 ```bash
