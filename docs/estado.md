@@ -55,7 +55,11 @@ Cerrado el mismo día:
 
 - **0275** · las vacaciones dejan de pagarse en cero. Quien pasaba el periodo
   entero de vacaciones cobraba S/0.00 por el 0/0 de `hh.pago / dias_marcados`.
-  Pendiente de pegar en producción.
+  **Aplicada en producción el 2026-08-20**, y comprobada como se comprueban
+  estas: el md5 que devolvió el SQL Editor se comparó contra el que da aplicar
+  la migración sola en el Postgres local dentro de `BEGIN…ROLLBACK`, en el mismo
+  minuto. Coincide, y con la misma longitud — los comentarios llegaron enteros,
+  que es lo que se pierde cuando el portapapeles rompe los acentos.
 - **`va_a_poder_cerrarse.sql`** conocía solo uno de los dos frenos del cierre:
   daba «✓ TODOS CUADRAN» y `fn_planilla_congelar` abortaba igual por el freno de
   la 0243/0244.
