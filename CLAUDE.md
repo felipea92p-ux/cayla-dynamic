@@ -363,8 +363,35 @@ archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
 ## La red de seguridad (jul-2026)
 
 **Antes de subir a GitHub** corre solo un hook (`scripts/hooks/pre-push`) que
-verifica la **numeración**, el `typecheck` y las pruebas de interfaz. Si algo está
-en rojo, el push no se hace. Toma unos 10 segundos.
+verifica la **numeración**, **las dos reglas de abajo que se cumplían de memoria**,
+el `typecheck` y las pruebas de interfaz. Si algo está en rojo, el push no se
+hace. Toma unos 10 segundos.
+
+**Dos de las reglas de este archivo ya no dependen de que alguien las recuerde**
+(`scripts/hooks/reglas-de-la-casa.sh`, ago-2026): comparar `rol` contra un
+literal fuera de `permisos.ts`, y escribir `"America/Lima"` fuera de
+`fecha-lima.ts`. Las dos estaban escritas aquí y las dos se habían vuelto a
+romper — la auditoría de agosto encontró **diez** de la primera y **tres** de la
+segunda. Y las dos reglas se habían escrito DESPUÉS de juntar 35 y 32 copias
+respectivamente, así que el problema nunca fue la redacción: era que un
+documento es memoria, y aquí trabajan varias sesiones a la vez.
+
+Solo mira **lo que el push agrega**, igual que la verificación de numeración y
+por el mismo motivo: comparar el árbol entero encontraría las trece que ya están
+y fallaría en todos los push. La deuda vieja no molesta, y una regla nueva no
+puede entrar; la deuda se paga en su propio lote, no a costa de que este freno
+mienta. Ignora comentarios a propósito — este archivo cita `rol === "admin"`
+para explicar la regla, y castigar a quien la explica sería absurdo.
+
+Bloquea en vez de avisar, y ahí la distinción es la que el hook ya tenía
+escrita: esto habla de lo que **sale** hacia GitHub, no de lo que hay a medio
+escribir en el disco.
+
+No verifica una tercera que se probó y se descartó: buscar `horario_por_dia`
+fuera de `jornada-esperada.ts` para cazar las copias de «qué le tocaba trabajar
+ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
+todo el derecho. Un guardián con ese ruido se desactiva a la semana, así que esa
+regla sigue dependiendo de que alguien la recuerde.
 
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
