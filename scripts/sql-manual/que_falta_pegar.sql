@@ -132,7 +132,8 @@ with repo(numero, nombre, nunca) as (values
     (270, 'los_dias_de_seleccion_pagados_no_piden_el_reglamento', false),
     (271, 'el_total_de_cts_descuenta_lo_mismo_que_sus_ventanas', false),
     (272, 'los_contratos_generados_entran_al_sistema', false),
-    (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios', false)
+    (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios', false),
+    (274, 'las_provisiones_solo_listan_a_quien_devenga', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
