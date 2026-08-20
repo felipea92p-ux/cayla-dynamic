@@ -346,6 +346,22 @@ export default function ProvisionesPage() {
           </p>
         )}
 
+        {/* QUIÉN SALE Y QUIÉN NO — dicho aquí a propósito (CAMBIO 0274).
+            La tabla ya no lista a quien no devenga ningún beneficio: locadoras,
+            días de prueba y quien no es trabajadora. Antes salían con las cinco
+            columnas en cero y llenaban media pantalla de filas que no reservan
+            nada. Pero una fila que falta no se ve, y quien conoce al equipo
+            puede echar de menos un nombre y no saber si se perdió por error;
+            esta línea es la que contesta esa pregunta sin tener que abrir la
+            base. Sigue apareciendo quien devenga y hoy suma cero —alguien que
+            entró esta semana—, porque ese cero significa «aún no». */}
+        {data && (
+          <p className="mb-4 max-w-3xl text-xs text-taupe">
+            Aparece quien devenga beneficios. Quien no devenga ninguno —recibo por honorarios, días de
+            prueba— no ocupa una fila: no hay nada que reservarle.
+          </p>
+        )}
+
         {/* Error de carga */}
         {error && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">

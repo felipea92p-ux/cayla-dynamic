@@ -143,6 +143,32 @@ Cuatro hallazgos confirmados que quedan pendientes, con su medición hecha:
   `fn_planilla_calcular` sí honra. La boleta reserva sobre una base y la
   provisión sobre otra.
 
+### Y esa misma tarde: la tabla dejó de listar a quien no reserva nada
+
+Felipe, mirando la pantalla: las locadoras y la gente en días de prueba no
+tenían que estar ahí. La [`0274`](../supabase/migrations/0274_las_provisiones_solo_listan_a_quien_devenga.sql)
+las saca. **Pendiente de pegar en producción.**
+
+**Es la vuelta atrás de una decisión que estaba escrita**, con su argumento, en
+la prueba 127: «verlo en cero es una respuesta, que falte obliga a preguntarse si
+se perdió por error». Lo que la tumbó fue la pantalla real: con media tabla en
+cero, el cero dejó de ser una respuesta, y el cero de quien SÍ devenga y aún no
+acumuló —alguien que entró esta semana— quedaba indistinguible del de quien no
+devengará nunca. La preocupación de entonces se contesta en dos sitios: una línea
+en la pantalla que dice a quién lista, y la prueba 211.
+
+**El filtro pregunta por el devengo, no por el tipo de vínculo**, y esa es la
+única parte delicada. `tipo_vinculo = 'planilla'` habría sido más corto y habría
+borrado a la locadora con la gratificación encendida a mano —el caso que la 0196
+existe para poder expresar—, dejando de reservar plata que sí se le debe. Una
+fila solo desaparece cuando `fn_devenga_algo` dice que no devenga nada, o sea
+cuando sus cinco columnas ya valen cero.
+
+Medido antes de darlo por bueno, en local y dentro de `BEGIN … ROLLBACK`: las
+filas que se quedan salieron idénticas campo por campo, la suma de la tabla no se
+movió (S/ 2.137,84 antes y después, 16 filas → 13), y las tres que se fueron
+valían 0.00 en las cinco columnas.
+
 ---
 
 ## 2026-08-17 — Disciplina no podía firmar nada, y el descargo previo pasó a ser política

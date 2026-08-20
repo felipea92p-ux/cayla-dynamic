@@ -84,7 +84,12 @@ select cmp_ok(_prov('00000000-0000-0000-0000-00000000ab02', 'grati_total'), '>',
   'INERCIA · la persona de planilla sigue provisionando gratificación');
 select cmp_ok(_prov('00000000-0000-0000-0000-00000000ab02', 'vac'), '>', 0::numeric,
   'INERCIA · y vacaciones');
-select is(_prov('00000000-0000-0000-0000-00000000ab03', 'gran_total'), 0::numeric,
+-- CAMBIO 0274: quien no devenga nada ya no ocupa una fila para decir cero, así
+-- que `_prov` no devuelve 0 — no devuelve fila. La promesa es la misma y algo
+-- más fuerte: no provisiona Y no se lista.
+select is((select count(*)::int
+             from jsonb_array_elements(fn_provisiones('2026-08-05') -> 'personas') e
+            where (e ->> 'persona_id')::uuid = '00000000-0000-0000-0000-00000000ab03'), 0,
   'INERCIA · quien cobra por honorarios sigue sin provisionar nada');
 
 -- ── 3 · SEPARACIÓN · apagar vacaciones apaga SOLO vacaciones ────────────────
