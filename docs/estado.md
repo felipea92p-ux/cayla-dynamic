@@ -37,6 +37,41 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-19 — Auditoría de 22 agentes contra la ley peruana
+
+93 hallazgos. Los cinco escépticos tumbaron **46 por no tener población en
+CAYLA**, 9 por decisiones ya tomadas, 3 por no reproducirse, 3 por estar
+arreglados. Quedan 47 mecanismos confirmados contra el cuerpo VIVO de las
+funciones. El catálogo entero, agrupado por dónde muerde, está en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-del-2026-08-19--22-agentes-contra-la-ley-peruana).
+
+**Lo único que hace falta decidir antes del 28 es esto:** correr
+`scripts/sql-manual/a_quien_le_pega.sql` en el SQL Editor. Nueve preguntas, un
+solo `select`. Hasta que se corra, esos 47 son mecanismo confirmado con
+población DESCONOCIDA — que no es lo mismo que plata perdida, y confundirlos es
+exactamente lo que costó cinco falsas alarmas el 2026-08-18.
+
+Cerrado el mismo día:
+
+- **0275** · las vacaciones dejan de pagarse en cero. Quien pasaba el periodo
+  entero de vacaciones cobraba S/0.00 por el 0/0 de `hh.pago / dias_marcados`.
+  Pendiente de pegar en producción.
+- **`va_a_poder_cerrarse.sql`** conocía solo uno de los dos frenos del cierre:
+  daba «✓ TODOS CUADRAN» y `fn_planilla_congelar` abortaba igual por el freno de
+  la 0243/0244.
+- **La boleta** se contradecía sobre la AFP —«no se descuenta de tu sueldo» en la
+  misma hoja que imprime el descuento— y no identificaba al empleador.
+
+Decidido con Felipe y pendiente de construir: **la sobretasa del 100 % por
+trabajar el día de descanso semanal** (art. 3 del D. Leg. 713), que hoy no
+existe en el sistema. Se hacen **las dos cosas**: registrar el descanso
+sustitutorio cuando lo hubo, y pagar la sobretasa cuando no. Golpea sobre todo a
+TRU, que es el régimen de 6 días con descanso rotativo.
+
+Pendiente de mirar renderizado, dos minutos: la boleta y el memo.
+
+---
+
 ## 2026-08-19 — Un archivo suelto revirtió `fn_provisiones`, y el registro no lo vio
 
 La pantalla Provisiones mostraba un «CTS total» que no era la suma de sus dos
