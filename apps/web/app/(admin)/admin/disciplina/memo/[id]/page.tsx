@@ -6,10 +6,27 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { TZ_LIMA, type Rol } from "@cayla-dynamic/shared";
+import { EMPRESA, TZ_LIMA, type Rol } from "@cayla-dynamic/shared";
 import { AREAS_FALLBACK, areaNombre, parseAreas, type Area } from "@/lib/areas";
 
-const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550", firmante: "Alvarez Pereyra Felipe Miguel", cargo: "Gerencia General" };
+/**
+ * El representante legal de CAYLA. NO vive en `EMPRESA` (packages/shared) y esa
+ * separación es la misma que ordena todo este archivo.
+ *
+ * La razón social y el RUC son IDENTIDAD de la empresa: dicen lo mismo en
+ * cualquier papel que CAYLA emita, así que se unificaron el 2026-08-19. Quién
+ * SUSCRIBE, en cambio, depende del documento: `fn_expediente_puede_actuar` deja
+ * a una encargada firmar un memo verbal o de amonestación de su sede. Una
+ * constante compartida que se llamara «el firmante» invitaría a imprimir
+ * gerencia encima de esa firma — el defecto que este archivo ya corrigió dos
+ * veces, y que en un documento disciplinario se paga el día que alguien lo
+ * discute.
+ *
+ * Se usa en UN solo caso, y no es un valor por defecto: cuando el memo consta
+ * firmado pero RLS impide leer la ficha de quien lo firmó (ver el bloque de
+ * carga). En un borrador sin firmar no se rellena nada.
+ */
+const REPRESENTANTE_LEGAL = { nombre: "Alvarez Pereyra Felipe Miguel", cargo: "Gerencia General" };
 
 function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
@@ -125,7 +142,7 @@ export default function MemoPage() {
   // ⚠️ ARRANCAN EN null, NO en la constante de la empresa, y es el punto entero.
   //
   // Un BORRADOR tiene `firmante_id` en null por definición: nadie lo ha firmado
-  // todavía. Con el valor por defecto puesto en EMPRESA, el papel salía
+  // todavía. Con el representante legal puesto por defecto, el papel salía
   // impreso «De: Alvarez Pereyra Felipe Miguel · Gerencia General» y con la
   // misma línea bajo la firma — un documento disciplinario afirmando que lo
   // suscribió Gerencia General cuando no lo suscribió nadie. Eso no es un
@@ -212,8 +229,8 @@ export default function MemoPage() {
       // en un borrador: consta que el documento está firmado, solo no podemos
       // nombrar a quien lo firmó. Se avisa en pantalla (no en el papel) para
       // que quien imprime pueda comprobarlo si el memo no era de gerencia.
-      setFirmante(EMPRESA.firmante);
-      setCargoFirmante(EMPRESA.cargo);
+      setFirmante(REPRESENTANTE_LEGAL.nombre);
+      setCargoFirmante(REPRESENTANTE_LEGAL.cargo);
       setFirmanteIlegible(true);
     }
     // Firma escaneada de quien suscribe ESTE documento. Se pide por documento y

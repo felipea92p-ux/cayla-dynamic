@@ -27,6 +27,8 @@
 // una vez generado para una persona real. Esta pieza construye la
 // herramienta; no reemplaza esa revisión.
 
+import { EMPRESA } from "@cayla-dynamic/shared";
+
 export interface DatosContrato {
   tipo: "nuevo" | "renovacion" | "adendum";
 
@@ -393,8 +395,8 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
   return `
   <article class="contrato">
     <header>
-      <p class="empresa">CAYLA S.A.C.</p>
-      <p class="ruc">RUC N.° 20605964550 · Sede ${d.sedeNombre}</p>
+      <p class="empresa">${EMPRESA.nombre}</p>
+      <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
       <h1>${titulo}</h1>
       <p class="norma">(TUO del Decreto Legislativo N.° 728 — Ley de Productividad y Competitividad Laboral, Art. 57)</p>
       <p class="norma">Régimen Laboral Especial de la Pequeña Empresa — Texto Único Ordenado de la Ley de Impulso al
@@ -406,10 +408,9 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     Trabajo Sujeto a Modalidad Temporal entre:</p>
 
     <h3>I. DATOS DEL EMPLEADOR</h3>
-    <p>CAYLA S.A.C., identificada con R.U.C. N.° 20605964550, con domicilio legal en Mza. Q, Lote 26, Urb. San Andrés
-    V Etapa, distrito de Trujillo, provincia de Trujillo, departamento de La Libertad, debidamente representada por
-    su representante legal, Sr(a). ${d.firmanteNombre}, identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en
-    adelante se denominará LA EMPRESA.</p>
+    <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
+    ${EMPRESA.domicilio}, debidamente representada por su representante legal, Sr(a). ${d.firmanteNombre},
+    identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA.</p>
 
     <h3>II. DATOS DE LA COLABORADORA</h3>
     <p>${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}${
@@ -524,7 +525,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     <div class="firmas">
       <div>
         <p class="linea">&nbsp;</p>
-        <p><strong>GERENTE GENERAL</strong><br/>${d.firmanteNombre}<br/>DNI N.° ${d.firmanteDni}<br/>CAYLA S.A.C.</p>
+        <p><strong>GERENTE GENERAL</strong><br/>${d.firmanteNombre}<br/>DNI N.° ${d.firmanteDni}<br/>${EMPRESA.nombre}</p>
       </div>
       <div>
         <p class="linea">&nbsp;</p>

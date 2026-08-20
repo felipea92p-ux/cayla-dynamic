@@ -27,6 +27,8 @@
 // mañana cambia un sueldo o un pasaje, cambia el documento — y el sistema avisa
 // que hay que publicarlo de nuevo.
 
+import { EMPRESA } from "@cayla-dynamic/shared";
+
 export interface FactorCategoria {
   factor: string;
   nivel: string;
@@ -902,9 +904,20 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
 
   return {
     titulo: "Cuadro de categorías y funciones · Política salarial",
+    // ESTO ES UNA FOTO, no una referencia. Se copia dentro del documento a
+    // propósito: al publicar, la 0141 congela el documento entero y las
+    // versiones ya acusadas tienen que seguir diciendo lo que decían el día que
+    // cada integrante firmó. Por eso los renderizadores leen `doc.empresa` y no
+    // `EMPRESA` — si leyeran la constante, cambiar la razón social reescribiría
+    // hacia atrás documentos que ya están firmados.
+    //
+    // Lo que se unificó el 2026-08-19 es de dónde sale la foto: el nombre y el
+    // RUC ya no se escriben a mano acá. El firmante y su cargo sí siguen
+    // escritos, porque quién suscribe depende del documento y no es identidad
+    // de la empresa.
     empresa: {
-      nombre: "CAYLA S.A.C.",
-      ruc: "20605964550",
+      nombre: EMPRESA.nombre,
+      ruc: EMPRESA.ruc,
       firmante: "Alvarez Pereyra Felipe Miguel",
       cargo: "Gerencia General",
     },

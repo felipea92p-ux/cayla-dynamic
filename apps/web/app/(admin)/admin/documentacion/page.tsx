@@ -10,7 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
-import { hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
 // imprimir y firmar con sus datos ya puestos.
@@ -24,10 +24,18 @@ import { hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynami
 //
 // El sustento no puede vivir en la cabeza de Felipe ni en un Word suelto. Vive
 // aquí, sale con los datos de la persona y con fecha, y se archiva firmado.
-const EMPRESA = {
-  nombre: "CAYLA S.A.C.",
-  ruc: "20605964550",
-  firmante: "Alvarez Pereyra Felipe Miguel",
+// La razón social y el RUC ya no se escriben acá: viven en `EMPRESA`
+// (packages/shared/src/empresa.ts) desde el 2026-08-19, porque eran el mismo
+// dato copiado a mano en ocho documentos distintos.
+//
+// El firmante NO se fue con ellos, y la distinción es la que importa: la
+// identidad de la empresa es igual en cualquier papel, mientras que quién lo
+// suscribe depende del documento. Estos dos valores solo son el arranque de un
+// estado editable —el nombre y el cargo reales salen de la ficha de quien firma
+// (0147)— y compartirlos habría convertido «por si la 0147 no está pegada» en
+// «el firmante de CAYLA», que es otra cosa.
+const FIRMANTE_POR_DEFECTO = {
+  nombre: "Alvarez Pereyra Felipe Miguel",
   cargo: "Gerencia General",
 };
 
@@ -323,8 +331,8 @@ export default function DocumentacionPage() {
   // (0147) y no de un texto escrito acá: así el nombre impreso y la firma
   // estampada no pueden ser de dos personas distintas. Arrancan con la
   // constante de siempre por si la 0147 aún no está pegada en producción.
-  const [firmanteNombre, setFirmanteNombre] = useState(EMPRESA.firmante);
-  const [firmanteCargo, setFirmanteCargo] = useState(EMPRESA.cargo);
+  const [firmanteNombre, setFirmanteNombre] = useState(FIRMANTE_POR_DEFECTO.nombre);
+  const [firmanteCargo, setFirmanteCargo] = useState(FIRMANTE_POR_DEFECTO.cargo);
   const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
   // El monto del bono, leído de `parametros_laborales` (0165). `null` mientras no
   // haya fila vigente — y `null` significa «no hay monto», nunca «pon el de
@@ -1042,13 +1050,13 @@ export default function DocumentacionPage() {
                 por semana.
               </li>
               <li>
-                Declaro que la información consignada es veraz, y me comprometo a informar a
-                CAYLA S.A.C. si cambio de domicilio o de ruta habitual.
+                Declaro que la información consignada es veraz, y me comprometo a informar a{" "}
+                {EMPRESA.nombre} si cambio de domicilio o de ruta habitual.
               </li>
             </ol>
 
             <p className="mb-6">
-              Tomo conocimiento de que CAYLA S.A.C. me otorga una asignación por movilidad de{" "}
+              Tomo conocimiento de que {EMPRESA.nombre} me otorga una asignación por movilidad de{" "}
               {/* LA TARIFA DE SU SEDE, no la general. Acá decía `tarifa` a
                   secas y por eso Taller LIM firmaba S/ 10.00 mientras la
                   planilla le pagaba los S/ 12.00 de la 0142. */}
