@@ -91,6 +91,82 @@ dice un solo sitio.
 
 ---
 
+## 2026-08-20 — El feriado entra en la reserva, y una migración que casi revierte un sueldo
+
+La [`0276`](../supabase/migrations/0276_una_sola_base_para_la_reserva.sql) está
+**pegada en producción el 2026-08-20**, confirmada por sus tres md5:
+`fn_planilla_calcular` `b132c828…` → `2f38e5ce…`, `fn_provisiones` `84aae8bf…` →
+`93531851…`, y `fn_feriado_devengado` nueva en `f6bbe9ab…`.
+
+**Qué arregla.** La boleta calculaba las provisiones sobre `pago_base + feriados
++ asignación familiar` y `fn_provisiones` las calculaba **sin el feriado** — la
+palabra no aparecía ni una vez en sus 610 líneas. Y esa función es la que
+autocompleta el monto del depósito el 15/05, 15/07, 15/11 y 15/12, así que se
+depositaba corto: **~S/ 2.400 al año, siempre en contra del equipo**. Ahora el
+feriado se calcula en `fn_feriado_devengado` y lo preguntan las dos. De paso
+llega a la reserva el factor de la 0111.
+
+**La decisión legal, para no reabrirla.** Las dos mitades del feriado entran en
+la base: el día prorrateado (art. 8 del D. Leg. 713, remuneración ordinaria) y
+la sobretasa por trabajarlo (art. 9). Sin `if` de regularidad, y medido: las 27
+ventanas de pago de 2026 a 2032 tienen feriados en **4 o 5 meses distintos**,
+nunca menos de 4, y el umbral del art. 16 del D.S. 001-97-TR son 3. El
+calendario peruano no hace fallar ese test.
+
+### Lo que casi sale mal, que es lo que hay que recordar de este día
+
+La primera versión copió el cuerpo de la boleta de la **0269** porque
+`donde-vive.sh` decía que esa era la vigente — y **lo era, en esa rama**,
+mientras otra sesión ya había fusionado la **0275** a `main` y Felipe la había
+pegado. Pegarla habría revertido la 0275 en silencio: **quien pasa el periodo
+entero de vacaciones habría vuelto a cobrar S/ 0.00 su mes.** No da error;
+devuelve otro número.
+
+No fue descuido de método: se hicieron las dos comprobaciones que este repo
+manda, y las dos miran el worktree. `db reset` reconstruyó un esquema entero sin
+un solo error, sin la 0275, que no estaba en el árbol. Lo cazó **el md5 de
+producción** —90.707 caracteres allá contra 89.527 acá— o sea el último freno de
+la cadena, con el trabajo hecho, verificado y commiteado. Lo confirmó la prueba
+212, que es de la otra sesión: falló en sus tres aserciones de vacaciones.
+
+Y llevaba la misma trampa enterrada dos veces: `fn_feriado_devengado` copió
+también el `horas_vacaciones` de antes del arreglo, mientras el de al lado
+—descanso médico— sí tenía su respaldo desde la 0254. Ahora las dos están juntas
+y con la misma forma, a propósito.
+
+**De ahí salen las dos defensas nuevas:**
+`scripts/hooks/main-tiene-migraciones-que-no-tienes.sh` avisa al empujar cuando
+`main` trae migraciones que tu rama no tiene, y **sube el tono si tocan tus
+mismas funciones** (probado contra el commit del accidente: detecta la 0275 y el
+choque en `fn_planilla_calcular`). Y CLAUDE.md pasa a decir que el md5 de
+producción se pide **antes de escribir**, no antes de entregar.
+
+### Lo que la 0276 NO cierra, declarado en su encabezado
+
+1. **El divisor del sueldo** — la boleta divide entre los días del periodo
+   (29→28) y las ramas viejas de `fn_provisiones` entre los del mes calendario.
+2. **El día de ausencia pagada** — la boleta paga días laborables a tarifa
+   promedio; la rama 4 paga días calendario. S/ 178,93 en un mes para quien tuvo
+   19 días de vacaciones. Lo único que la 0276 arregla de aquí es el feriado
+   duplicado dentro del descanso médico, que rompía ella misma.
+3. **El factor de la 0111 en el borde** — por día en la reserva, por último
+   tramo en la boleta. Se separan un −6,2 % / +13,1 % si `base_provision` cambia
+   a mitad de periodo.
+4. **La liquidación por cese usa una TERCERA base**, `fn_remuneracion_computable`
+   (0129), a la que el feriado no puede llegar. Para el sueldo fijo cambia el
+   signo de la brecha: de S/ −0,04 a S/ +26,52.
+
+### Pendiente medido, para su propia migración
+
+**Un adelanto quincenal le SUBE la liquidación a la persona.**
+`fn_remuneracion_computable` suma los `movimientos_planilla` con `monto > 0` sin
+filtrar categoría ni tipo, así que la gratificación depositada y **los
+descuentos** entran como «variables» en la base de la liquidación siguiente.
+Dinero que la persona debe, contado a su favor. Es anterior a todo esto. Felipe
+pidió medirlo primero y arreglarlo aparte.
+
+---
+
 ## 2026-08-19 — Un archivo suelto revirtió `fn_provisiones`, y el registro no lo vio
 
 La pantalla Provisiones mostraba un «CTS total» que no era la suma de sus dos
