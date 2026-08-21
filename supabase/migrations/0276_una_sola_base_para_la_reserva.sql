@@ -50,7 +50,7 @@
 -- ── CÓMO ESTÁ HECHO, Y POR QUÉ ASÍ ──────────────────────────────────────────
 --
 -- LA FUNCIÓN NUEVA ES UN TRASLADO, NO UNA REESCRITURA. El cuerpo de
--- `fn_feriado_devengado` es el lateral `fer` de la 0269 movido de sitio: las
+-- `fn_feriado_devengado` es el lateral `fer` de la 0275 movido de sitio: las
 -- mismas condiciones, en el mismo orden, con los mismos comentarios. Por eso el
 -- riesgo para la boleta es el más bajo posible — la boleta pasa de calcular a
 -- preguntar, y el jsonb que recibe tiene los mismos campos que construía. La
@@ -110,7 +110,7 @@
 -- raro de marzo de 2026.
 --
 --   · LA BOLETA NO SE MOVIÓ. Se capturó la fila jsonb ENTERA de las 180 boletas
---     con la 0269 y con esta, y se comparó campo por campo:
+--     con la 0275 y con esta, y se comparó campo por campo:
 --     **0 campos distintos**. El ÚNICO cambio observable en la salida es una
 --     clave NUEVA dentro de cada elemento de `feriados_detalle`:
 --
@@ -151,7 +151,7 @@
 --
 --   · LAS PRUEBAS. `npx supabase db reset` seguido de `npx supabase test db`:
 --     137 archivos, 1.339 pruebas, todo en verde. Y al revés — con
---     `fn_provisiones` devuelta a la 0274 y `fn_planilla_calcular` a la 0269,
+--     `fn_provisiones` devuelta a la 0274 y `fn_planilla_calcular` a la 0275,
 --     la prueba 213 se pone roja en 9 de sus 24 aserciones. Un freno que no se
 --     rompe cuando lo que vigila se rompe no es un freno.
 --
@@ -235,8 +235,25 @@
 --     sesión— (`select md5(prosrc), length(prosrc) from pg_proc where
 --     proname = …`):
 --
---       fn_planilla_calcular  5e755bdedd964d289104e824eb2925ec   89 527 chars
+--       fn_planilla_calcular  b132c828fde4aa5fedd6cf946fee7f08   90 707 chars
 --       fn_provisiones        84aae8bf6905f372d08a49b2056c3c3b   28 118 chars
+--
+--     ⚠ ESTOS DOS NÚMEROS SON LA SEGUNDA VERSIÓN, Y LA PRIMERA CASI CUESTA UN
+--     SUELDO. El 2026-08-20 esta migración se escribió declarando
+--     `5e755bdedd964d289104e824eb2925ec` / 89 527 para la boleta, que era lo
+--     que devolvía el Postgres local — construido sin la **0275**, que otra
+--     sesión ya había fusionado a `main` y Felipe ya había pegado. El cuerpo
+--     de partida era el de la 0269, dos versiones atrás.
+--
+--     Pegarla así habría revertido la 0275 EN SILENCIO: quien pasa el periodo
+--     entero de vacaciones habría vuelto a cobrar **S/ 0.00** su mes. No da
+--     error: corre y devuelve otro número. Lo cazó pedirle el md5 a
+--     producción —90 707 caracteres allá contra 89 527 acá— y lo confirmó la
+--     prueba 212, que falló en sus tres aserciones de vacaciones.
+--
+--     Ni `donde-vive.sh` ni `db reset` podían verlo: los dos miran el
+--     worktree. Desde entonces avisa
+--     `scripts/hooks/main-tiene-migraciones-que-no-tienes.sh`.
 --
 --     ⚠ SON DEL LOCAL, NO DE PRODUCCIÓN. La regla de la casa es que el md5 de
 --     partida se le pide a producción en el SQL Editor y se espera la respuesta
@@ -251,8 +268,8 @@
 --
 --   · md5 DESPUÉS, para comprobar que quedó lo que se quería (mismo local):
 --
---       fn_feriado_devengado  312c48ecd5c4bd0dc20e87352f4cd2c4   11 309 chars
---       fn_planilla_calcular  ffaa2dd62e1c36257556cca52d8cfc00   85 068 chars
+--       fn_feriado_devengado  f6bbe9ab3b4ce9d6e449a0068ea771ec   12 355 chars
+--       fn_planilla_calcular  2f38e5ce76bcb22164cd0794671b349f   86 490 chars
 --       fn_provisiones        93531851f35abcdd295fd8fb4aa77922   33 892 chars
 --
 --     (Este último cambió el 2026-08-20 respecto a la primera versión de esta
@@ -260,7 +277,8 @@
 --      feriado dentro del descanso médico. Ver el apartado de más abajo.)
 --
 -- CÓMO SE REVIERTE
---   Restaurar `fn_planilla_calcular` desde la 0269 y `fn_provisiones` desde la
+--   Restaurar `fn_planilla_calcular` desde la **0275** —NO desde la 0269, que
+--   es la trampa que casi se traga esta migración— y `fn_provisiones` desde la
 --   0274, tal cual, y `drop function fn_feriado_devengado(uuid,date,date,int)`.
 --   No toca tablas, ni datos, ni permisos de tabla. Revertir devuelve la
 --   reserva al número corto de hoy — y hace que la prueba 213 se ponga roja,
@@ -348,9 +366,25 @@ begin
   horas_bloque as (
     select bq.b_ini, bq.b_fin, bq.b_dias, bq.v_base,
            coalesce(hh.horas_totales, 0) as horas_mes,
+           -- ⇩⇩⇩ EL RESPALDO DE LA 0275, Y POR QUÉ ESTÁ ESCRITO ACÁ ⇩⇩⇩
+           --
+           -- Las dos expresiones de abajo se ven casi iguales y durante unas
+           -- horas NO lo fueron: la de descanso médico tenía su respaldo desde
+           -- la 0254 y la de vacaciones no, porque el de vacaciones nació el
+           -- 2026-08-19 con la 0275 y esta función se copió de un cuerpo
+           -- anterior. Sin él, quien pasa el periodo ENTERO de vacaciones no
+           -- tiene días marcados, el promedio es 0/0, y el prorrateo de su
+           -- feriado sale en cero. Lo cazó la prueba 212 —«el feriado de quien
+           -- está de vacaciones se prorratea: las horas también tienen
+           -- respaldo»—, que es de la otra sesión, no de esta.
+           --
+           -- Que las dos estén juntas y con la misma forma es a propósito: la
+           -- próxima vez que alguien toque una, la de al lado le recuerda que
+           -- son la misma regla.
            case when pe.sueldo_fijo then 0
-                else coalesce(hh.horas_totales / nullif(hh.dias_marcados, 0), 0)
-                     * coalesce(vacd.dias, 0) end as horas_vacaciones,
+                else coalesce(hh.horas_totales / nullif(hh.dias_marcados, 0),
+                              bq.v_base / nullif(labp.dias, 0),
+                              0) * coalesce(vacd.dias, 0) end as horas_vacaciones,
            case when pe.sueldo_fijo then 0
                 else coalesce(hh.horas_totales / nullif(hh.dias_marcados, 0),
                               bq.v_base / nullif(labp.dias, 0),
@@ -513,6 +547,7 @@ $function$;
 revoke execute on function public.fn_feriado_devengado(uuid, date, date, int) from public;
 
 -- ── La boleta: el lateral `fer` sustituido por la llamada ───────────────────
+
 CREATE OR REPLACE FUNCTION public.fn_planilla_calcular(p_ini date, p_fin date, p_periodo_id uuid DEFAULT NULL::uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1290,8 +1325,20 @@ begin
       -- mismo día sea «trabajado» en una línea y «no trabajado» en la de al lado.
       select case when pe.sueldo_fijo then coalesce(sf.salario, 0)
                   else coalesce(hh.pago, 0)
-                       + coalesce(hh.pago / nullif(hh.dias_marcados, 0), 0)
-                         * coalesce(vacd.dias, 0)
+                       -- CAMBIO 0275 · LA MISMA TARIFA DE RESPALDO QUE LA 0254.
+                       -- Lo normal sigue siendo el promedio de lo que se le pago
+                       -- por dia trabajado (art. 15 del D. Leg. 713, la 0177).
+                       -- Pero quien pasa el periodo ENTERO de vacaciones no tiene
+                       -- dias marcados: el promedio es 0/0 y cobra CERO el mes de
+                       -- su descanso. La 0254 ya resolvio exactamente esto para el
+                       -- descanso medico y la 0262 para la maternidad; vacaciones
+                       -- —que es el caso MAS probable de los tres, porque son 30
+                       -- dias calendario contra un periodo de 31— se quedo sin el.
+                       + coalesce(
+                           hh.pago / nullif(hh.dias_marcados, 0),
+                           coalesce(sf.salario, 0) / nullif(labp.dias, 0),
+                           0
+                         ) * coalesce(vacd.dias, 0)
                        -- CAMBIO 0254 · los dias de descanso medico que asume CAYLA.
                        -- Van DENTRO de pago_base, igual que los de vacaciones desde
                        -- la 0177, y por la misma razon practica: chk_foto_cuadra
@@ -1355,8 +1402,16 @@ begin
                                     else coalesce(mat.dias, 0) end))::numeric
                          / (p_fin - p_ini + 1), 2) as piso_essalud,
              case when pe.sueldo_fijo then 0
-                  else coalesce(hh.pago / nullif(hh.dias_marcados, 0), 0)
-                       * coalesce(vacd.dias, 0) end as monto_vacaciones,
+                  else coalesce(                       -- CAMBIO 0275
+                         hh.pago / nullif(hh.dias_marcados, 0),
+                         coalesce(sf.salario, 0) / nullif(labp.dias, 0),
+                         0
+                       ) * coalesce(vacd.dias, 0) end as monto_vacaciones,
+             -- ⇩ CAMBIO 0276 ⇩ `horas_vacaciones` y `horas_descanso_medico`
+             -- vivían acá y las usaba UN solo consumidor: el prorrateo del
+             -- feriado. Ese se mudó a `fn_feriado_devengado`, que las calcula
+             -- con la MISMA fórmula —respaldo de la 0275 incluido— y por eso
+             -- estas dos columnas se retiran en vez de quedarse sin lector.
              coalesce(vacd.dias, 0) as dias_vacaciones_pagados,
              coalesce(hh.basica, 0) as basica,   -- CAMBIO 0105
              coalesce(hh.sin_sal, 0) as horas_sin_salario
