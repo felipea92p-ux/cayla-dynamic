@@ -201,8 +201,10 @@ Cuatro hallazgos confirmados que quedan pendientes, con su medición hecha:
 
 Felipe, mirando la pantalla: las locadoras y la gente en días de prueba no
 tenían que estar ahí. La [`0274`](../supabase/migrations/0274_las_provisiones_solo_listan_a_quien_devenga.sql)
-las saca. **Aplicada en producción el 2026-08-20** (comprobado contra
-`migraciones_aplicadas` el 2026-08-20).
+las saca. ✅ **Pegada el 2026-08-19**, y vuelta a comprobar contra
+`migraciones_aplicadas` el 2026-08-20. El md5 de `fn_provisiones` pasó de
+`e057765c…` (el cuerpo de la 0273, verificado ANTES de entregar el SQL) a
+`84aae8bf…`, y de **25 personas activas la pantalla pasa a listar 20**.
 
 **Es la vuelta atrás de una decisión que estaba escrita**, con su argumento, en
 la prueba 127: «verlo en cero es una respuesta, que falte obliga a preguntarse si

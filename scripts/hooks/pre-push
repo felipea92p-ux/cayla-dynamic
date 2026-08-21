@@ -52,6 +52,20 @@ echo "→ la consulta de qué falta pegar…"
 echo "→ migraciones sin guardar…"
 "$(dirname "$0")/migracion-sin-guardar.sh" || true
 
+# ── Lo que `main` tiene y esta rama no ──────────────────────────────────────
+#
+# El 2026-08-20 la 0276 se construyó sobre un cuerpo de `fn_planilla_calcular`
+# que ya no era el vigente: otra sesión había fusionado la 0275 a `main` y
+# Felipe la había pegado. `donde-vive.sh` y `db reset` no lo vieron porque los
+# dos miran el worktree, y el worktree no la tenía. Lo cazó el md5 de
+# producción, o sea el último freno, con el trabajo ya hecho y commiteado.
+#
+# AVISA, no bloquea: ir por detrás de `main` es un estado legítimo y constante
+# con varias sesiones en paralelo. Sube el tono solo cuando las migraciones que
+# faltan tocan las MISMAS funciones que las tuyas, que es el caso que hace daño.
+echo "→ lo que main tiene y tú no…"
+"$(dirname "$0")/main-tiene-migraciones-que-no-tienes.sh" || true
+
 # ── Las reglas del CLAUDE.md, preguntadas en vez de recordadas ──────────────
 #
 # La auditoría de agosto de 2026 encontró diez comparaciones de `rol` contra un
