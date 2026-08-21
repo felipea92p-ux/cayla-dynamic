@@ -84,6 +84,19 @@ y S/374.61 del de julio ya pagado— y la decisión es que la política empieza
 cuando empieza. **El periodo cerrado no se reabre**, así que esa segunda cifra
 no es una deuda: es la medición de por qué conviene construirlo pronto.
 
+**La 0276 también está en producción**, entera y anotada (20/08 21:03). Se
+comprobó antes de entregarla y por eso no se entregó: sus tres piezas
+—`fn_planilla_calcular`, `fn_provisiones` y la nueva `fn_feriado_devengado`—
+devuelven los md5 que produce esa migración, medidos aplicándola sola en local
+dentro de `BEGIN…ROLLBACK`.
+
+El susto valió la pena igual: el md5 de `fn_provisiones` no coincidía con el que
+la 0276 declara como punto de partida, y el primer impulso fue leerlo como «otra
+versión desconocida». Lo que era, medido contra las siete versiones históricas,
+es la 0276 **ya aplicada**. Con `migraciones_aplicadas` no habría bastado — es
+el registro que el 2026-08-19 dijo que la 0196 estaba puesta mientras el cuerpo
+vivo era el de la 0158.
+
 ### Tres cosas que se persiguieron el 2026-08-20 y no eran
 
 Se anotan porque las tres son creíbles y las tres cuestan una tarde:
