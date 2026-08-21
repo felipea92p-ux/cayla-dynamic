@@ -77,7 +77,7 @@ vuelvan a perseguir.**
 | *"El feriado debería valer un día de la jornada de cada quien"* | No. Se paga **proporcional al tiempo laborado del mes**: quien vino la mitad cobra la mitad. Decisión de Felipe, confirmada. Que un part-time cobre menos feriado **no es un bug**. |
 | *"El factor debería ser 45/7 = 6,4286 en vez de 6,5"* | Asumía 7,5 h/día. Se marcan ~7,9. Cambiarlo subiría la planilla 1,11 % (S/ 228/mes) corrigiendo algo que no está roto. |
 | *"Hay un efecto calendario del 9,5 %"* | Artefacto de contar días laborables enteros (25/26/27). La gente trabaja por ritmo semanal, no por cupo mensual de días. |
-| *"Quien gana la RMV cae por debajo del mínimo legal"* | No. La escala arranca en S/ 1 320 y el salario mínimo seguro es S/ 1 176. Hay 12 % de colchón. |
+| *"Quien gana la RMV cae por debajo del mínimo legal"* | ⚠️ **ESTE DEJÓ DE ESTAR DESCARTADO EL 29/07/2026.** Se descartaba porque la escala arrancaba en S/ 1 320, con 12 % de colchón sobre el piso seguro de S/ 1 176. Ese día las bases bajaron a la base declarada por rango (0128) y colibri quedó exactamente en la RMV: el colchón se acabó. Ver la sección propia más abajo. |
 | *"El equipo trabaja 4,4 días por semana"* | Promedio contaminado: mezclaba a 6 personas con menos de 8 semanas de antigüedad. Quien lleva tiempo y cumple hace 6 días. |
 
 **La lección de método:** medir antes de proponer. Cada uno de esos cinco salió
@@ -120,9 +120,42 @@ semanal no compensa nada y la sobretasa se sigue debiendo. La validación de la
 - **Base 6,5 h × días del periodo.** Verificado 2026-08-07.
 - **Factores de provisión** (grati 8,33 % · CTS 4,17 % · vacaciones 4,17 %) en
   `configuracion.planilla_provisiones`.
-- **Ningún rango por debajo de S/ 1 176**, que es el piso que garantiza no caer
-  bajo la RMV en el peor periodo del año. Hoy la escala arranca en 1 320.
-  **Revisar esta regla cuando la RMV suba por encima de S/ 1 269.**
+- ~~**Ningún rango por debajo de S/ 1 176**, que es el piso que garantiza no caer
+  bajo la RMV en el peor periodo del año.~~ **La escala ya no la cumple.** Decía
+  «hoy la escala arranca en 1 320» y desde el 29/07/2026 arranca en **1 130**,
+  que es la RMV exacta — el rediseño remunerativo lo decidió así a propósito
+  (0128: la base declarada por rango, compensada con movilidad, educación y
+  bono). La regla no se rompió por descuido; la decisión la superó. Lo que sí
+  queda abierto es su consecuencia, abajo.
+
+---
+
+## La RMV en los periodos de 31 días — abierto desde el 29/07/2026
+
+**No es un hallazgo nuevo.** `analisis-estructura-remunerativa-2026-07-30.md`
+lo dejó anotado el 30 de julio, con estas palabras: «el divisor 6.5 × días
+calendario hace que una base de 1,130 se declare por debajo de la RMV en meses
+de 31 días … es un bug. **Vale arreglarlo antes que cualquier otra cosa de esta
+lista**».
+
+Ese día era hipotético: la escala arrancaba en 1 320. El 29/07 dejó de serlo.
+
+| | |
+|---|---|
+| La jornada pactada, completa | 45 h/semana × 31 días ÷ 7 = **199.3 h** |
+| Lo que paga | 199.3 × 1 130 ÷ (6.5 × 31) = **S/ 1 117.58** |
+| RMV | **S/ 1 130.00** |
+| | **faltan S/ 12.42** |
+
+**Nadie trabaja de menos.** El divisor `6.5 × días` crece con el calendario y la
+jornada real no: la misma jornada completa paga menos en un periodo de 31 días
+que en uno de 30. Por eso el problema aparece y desaparece solo, según el mes,
+que es justo lo que lo hace difícil de ver.
+
+**Quién cae de verdad se mide, no se supone:**
+[`quien_queda_bajo_la_rmv.sql`](../scripts/sql-manual/quien_queda_bajo_la_rmv.sql)
+— solo lee, y aparta a quien cobra menos por buenas razones (entró a mitad,
+cesó, vacaciones, descanso médico) para no acusar a nadie de más.
 
 ---
 
