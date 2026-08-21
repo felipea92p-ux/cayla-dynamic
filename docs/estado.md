@@ -78,6 +78,30 @@ existe en el sistema. Se hacen **las dos cosas**: registrar el descanso
 sustitutorio cuando lo hubo, y pagar la sobretasa cuando no. Golpea sobre todo a
 TRU, que es el régimen de 6 días con descanso rotativo.
 
+**Y RIGE DESDE AHORA, NO HACIA ATRÁS** (Felipe, 2026-08-20). Se midió lo que
+costaría —`cuanto_cuesta_el_descanso_semanal.sql`, S/163.19 del periodo en curso
+y S/374.61 del de julio ya pagado— y la decisión es que la política empieza
+cuando empieza. **El periodo cerrado no se reabre**, así que esa segunda cifra
+no es una deuda: es la medición de por qué conviene construirlo pronto.
+
+### Tres cosas que se persiguieron el 2026-08-20 y no eran
+
+Se anotan porque las tres son creíbles y las tres cuestan una tarde:
+
+1. **«A veinte personas les bajó el sueldo el 29/07».** Es el rediseño
+   remunerativo: la base declarada por rango (0128), compensada con movilidad,
+   educación y bono. **Todo el equipo lo aceptó.** Las notas de
+   `asignaciones_salario` lo dicen con todas sus letras — se leen antes de
+   alarmarse.
+2. **«Quien cumple su jornada queda bajo la RMV en meses de 31 días».** No: el
+   piso vive en el cálculo. `fn_planilla_calcular` declara
+   `greatest(bri.base, piso_essalud)` y ese piso es la RMV entera. Declarar y
+   pagar por horas no son lo mismo. Es el quinto defecto de la tabla de
+   descartados del anexo, perseguido otra vez.
+3. **«Cinco personas marcan mucho menos de 45 h/semana».** Son **turnos
+   reducidos**, confirmado por Felipe. El pago por horas es correcto y no se
+   reabre.
+
 Pendiente de mirar renderizado, dos minutos: la boleta y el memo.
 
 **Y una pregunta que solo Felipe puede responder: ¿cuál es el domicilio legal?**
