@@ -128,6 +128,74 @@ dice un solo sitio.
 
 ---
 
+## 2026-08-22 — Un bono de S/50 costaba S/318 al cesar, y ya no
+
+La [`0278`](../supabase/migrations/0278_ni_los_descuentos_ni_los_beneficios_inflan_la_liquidacion.sql)
+está **pegada en producción el 2026-08-22**, confirmada por sus seis md5.
+
+**El defecto era una línea.** `fn_remuneracion_computable` buscaba los conceptos
+variables con `where mp.monto > 0`, y la tabla tiene `CHECK (monto > 0)`: la
+condición es siempre verdad. No filtraba nada. Entraban los descuentos —un
+adelanto es dinero que la persona DEBE—, la gratificación y la CTS que el propio
+sistema deposita.
+
+Y la puerta la abría el sistema solo: hacen falta 3 meses distintos con
+movimientos, y el depósito del 15/07 y el del 15/11 ya ponen dos. Medido, sueldo
+S/1.950, cese al 30/11:
+
+| | antes | después |
+|---|---|---|
+| Solo grati + CTS (la correcta) | 1.867,40 | **1.867,40** |
+| + un bono de S/50 | 2.185,46 | **1.867,40** |
+| + un adelanto de S/500 | 2.257,01 | **1.867,40** |
+
+**Cuatro piezas:** el filtro (solo `tipo='bono'` con categoría nula u «otros»);
+la ventana por beneficio (la CTS mira nov-abr, no el semestre de la grati); la
+regularidad **por concepto** y no por el saco (art. 16: «siempre que **las** haya
+percibido tres meses» — el sujeto es cada remuneración); y el candado, que
+RECHAZA el bono que sería el tercer mes del mismo concepto, con salida
+autorizada de un solo uso y motivo obligatorio (decisión de Felipe).
+
+**Lo que se cuidó, y es la mitad que nadie pide:** un bono genuinamente regular
+SIGUE entrando. Excluirlo sería pagar por debajo del art. 16, que es infracción,
+no ahorro. La prueba 215 lo defiende con una aserción propia.
+
+### Tres cosas que solo aparecieron al ejecutarlo
+
+- **`create or replace` con un parámetro nuevo no reemplaza: crea una
+  SOBRECARGA.** Convivían la firma de dos argumentos y la de tres, y toda
+  llamada existente quedaba ambigua. No falla al aplicar la migración: **falla
+  al abrir la hoja de liquidación**. Va con su `drop function`.
+- **El aviso de la propia migración gritaba «ATENCIÓN» estando todo bien**,
+  porque buscaba en el código una línea que el arreglo cita dentro de un
+  comentario. Un aviso que salta cuando todo está bien es peor que no tenerlo.
+  Ahora quita los comentarios antes de mirar.
+- El `sed` del renumerado (el 0277 lo tenía otra rama) se llevó por delante los
+  UUID de la prueba, que llevan «0277» dentro. Cuidado con los reemplazos
+  globales sobre archivos con identificadores.
+
+### Lo que la 0278 NO cierra, y va en la dirección contraria
+
+**La hoja de liquidación paga de menos las vacaciones al cesar.** Medido el
+2026-08-22 con dos personas idénticas, mismo sueldo, misma antigüedad, cese el
+mismo día:
+
+| | vacaciones que paga |
+|---|---|
+| Nunca gozó | S/812,50 |
+| **Gozó sus 15 días cuando la ley manda** | **S/0,00** |
+
+Los días gozados del récord ANTERIOR se restan del récord en curso. Y quien
+nunca gozó cobra solo el año en curso: sus récords completos —30 días en el caso
+medido— no aparecen en ninguna línea de la hoja.
+
+Va **en contra de la persona**, y cae en el único camino sin campo editable: la
+liquidación recalcula, congela y paga. **Sin cifra global verificada**: la que
+circuló (S/1.896 sobre una «persona corriente») venía de un laboratorio de un
+agente y no se comprobó. Lo que sí está medido es la tabla de arriba.
+
+---
+
 ## 2026-08-20 — El feriado entra en la reserva, y una migración que casi revierte un sueldo
 
 La [`0276`](../supabase/migrations/0276_una_sola_base_para_la_reserva.sql) está
