@@ -1108,7 +1108,7 @@ export default function PlanillaPage() {
   async function marcarPagado(pagar: boolean) {
     if (!periodoActual) return;
     if (pagar) {
-      // CAMBIO 0283 — Se avisa ANTES de intentarlo. La base lo frena igual
+      // CAMBIO 0284 — Se avisa ANTES de intentarlo. La base lo frena igual
       // (fn_planilla_congelar), pero llegar hasta el error con el diálogo ya
       // aceptado se lee como que el sistema falló, y no es eso: es que faltan
       // horas por confirmar. Decirlo acá convierte un error en una instrucción.
@@ -1596,12 +1596,12 @@ export default function PlanillaPage() {
     return { n: ocultos.length, monto: ocultos.reduce((a, f) => a + f.total, 0) };
   }, [proy, estadoFiltro, sedeFiltro]);
 
-  // CAMBIO 0283 — Días con la salida puesta por el sistema y sin confirmar.
+  // CAMBIO 0284 — Días con la salida puesta por el sistema y sin confirmar.
   // Sobre TODAS las filas del periodo y NUNCA sobre `filasVisibles`, por la
   // misma razón que el aviso de arriba: si el filtro esconde justo a esa
   // persona, el aviso desaparecería y el freno de la base saltaría igual —
   // avisando de alguien que la pantalla no está mostrando.
-  // El freno de verdad vive en `fn_planilla_congelar` (0283); esto solo evita
+  // El freno de verdad vive en `fn_planilla_congelar` (0284); esto solo evita
   // llegar hasta ahí a ciegas.
   const diasPendientes = useMemo(() => {
     const conPendientes = (proy?.filas ?? []).filter((f) => f.dias_pendientes > 0);

@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0283 — No se cierra el mes con una hora que nadie marcó
+-- 0284 — No se cierra el mes con una hora que nadie marcó
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -90,7 +90,7 @@ declare
   v_ver int;
   v_n int;
   v_cobradas text;   -- CAMBIO 0243
-  v_pendientes text;   -- CAMBIO 0283
+  v_pendientes text;   -- CAMBIO 0284
 begin
   -- `for update` sobre el periodo: dos personas pulsando «Pagado» a la vez no
   -- pueden calcular ambas la versión 1 y chocar contra la llave primaria.
@@ -203,7 +203,7 @@ begin
   end if;
   -- ── fin CAMBIO 0243 ─────────────────────────────────────────────────────────
 
-  -- ── CAMBIO 0283 · el freno de la hora que nadie marcó ───────────────────────
+  -- ── CAMBIO 0284 · el freno de la hora que nadie marcó ───────────────────────
   --
   -- Cuando alguien olvida marcar su salida, `fn_auto_cierre` cierra el día con
   -- una hora que calcula el sistema, y la jornada queda en
@@ -267,14 +267,14 @@ begin
       -- `fn_planilla_congelar_pendientes` (0096) documenta meses transferidos
       -- hace años. Abortar ahí dejaría los periodos históricos sin foto para
       -- siempre — está medido en la cabecera de la 0244.
-      raise warning '0283 · foto retroactiva con días auto-cerrados sin revisar: %. No se frena —ese mes se pagó hace tiempo— pero conviene mirarlo.', v_pendientes;
+      raise warning '0284 · foto retroactiva con días auto-cerrados sin revisar: %. No se frena —ese mes se pagó hace tiempo— pero conviene mirarlo.', v_pendientes;
     elsif v_per.estado = 'abierto' then
       raise exception 'Hay días cuya hora de salida la puso el sistema y todavía nadie la confirmó: %. Esa hora no la marcó ninguna persona, y si cruza las 48 h de la semana se paga recargo sobre ella. Entra a Correcciones, confirma o corrige esas salidas, y vuelve a cerrar. El periodo sigue ABIERTO: no se congeló nada.', v_pendientes;
     else
       raise exception 'Hay días cuya hora de salida la puso el sistema y nadie la confirmó: %. Este periodo ya está PAGADO, así que para arreglarlo hay que usar «Revertir pago» con su motivo (ojo, eso levanta los candados de los marcajes de este periodo mientras esté abierto), confirmar esas salidas en Correcciones, y volver a marcarlo como pagado. Nada se congeló: la foto anterior sigue intacta.', v_pendientes;
     end if;
   end if;
-  -- ── fin CAMBIO 0283 ─────────────────────────────────────────────────────────
+  -- ── fin CAMBIO 0284 ─────────────────────────────────────────────────────────
 
   select coalesce(max(version), 0) + 1 into v_ver
   from planilla_pagada_detalle where periodo_id = p_periodo_id;
@@ -337,5 +337,5 @@ end;
 $function$;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (283, 'no_se_cierra_el_mes_con_una_hora_que_nadie_marco')
+values (284, 'no_se_cierra_el_mes_con_una_hora_que_nadie_marco')
 on conflict (numero) do nothing;

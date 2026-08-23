@@ -249,7 +249,7 @@ function IncidenciasContenido() {
       traerTodo<any>((ini, fin) =>
         supabase
           .from("jornadas")
-          // CAMBIO 0283 — `estado` viaja para poder decir cuándo el exceso se
+          // CAMBIO 0284 — `estado` viaja para poder decir cuándo el exceso se
           // apoya en una hora que puso el sistema y nadie confirmó.
           .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
           .gte("fecha", haceDias(VENTANA_EXCESO_DIAS + 5)).lte("fecha", HOY)
@@ -381,7 +381,7 @@ function IncidenciasContenido() {
     // 48 la jornada ordinaria pactada. Avisar a las 45 llenaría la pantalla de
     // gente que está dentro de su contrato, y un aviso que salta siempre se
     // ignora a la semana.
-    // CAMBIO 0283 — `sinConfirmar` guarda los días cuya salida la puso el
+    // CAMBIO 0284 — `sinConfirmar` guarda los días cuya salida la puso el
     // sistema y nadie confirmó todavía. NO se excluyen del cálculo a propósito:
     // el objetivo de este aviso es no perderse ningún tramo cargado, y sacar el
     // día podría esconder una sobrecarga real. Lo que se corrige es la

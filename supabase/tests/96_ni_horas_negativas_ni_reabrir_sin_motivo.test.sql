@@ -69,7 +69,7 @@ select throws_ok($$ update jornadas set horas_trabajadas = -3.00
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
 values ('dddddddd-0000-0000-0000-000000000001', '2026-07-01', '2026-07-31', 'abierto');
 
--- CAMBIO 0283 — Desde la 0283 un periodo no se cierra mientras tenga días con la
+-- CAMBIO 0284 — Desde la 0284 un periodo no se cierra mientras tenga días con la
 -- salida puesta por el sistema y sin confirmar, y la primera mitad de esta misma
 -- prueba crea uno justo dentro de este periodo (20/07). No es un estorbo del
 -- freno: es el freno funcionando. Se confirma por la puerta real —la que usa

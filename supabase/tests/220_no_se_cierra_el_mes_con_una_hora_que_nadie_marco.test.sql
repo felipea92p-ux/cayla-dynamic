@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 219_no_se_cierra_el_mes_con_una_hora_que_nadie_marco.test.sql
+-- 220_no_se_cierra_el_mes_con_una_hora_que_nadie_marco.test.sql
 -- ============================================================================
 -- Cuando alguien olvida marcar su salida, el proceso automático cierra el día
 -- con una hora que calcula el sistema. `fn_recalcular_jornada` se niega a medir
