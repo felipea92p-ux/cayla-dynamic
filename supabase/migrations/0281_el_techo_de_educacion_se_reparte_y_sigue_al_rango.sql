@@ -244,6 +244,20 @@ declare
   v_otros  numeric;
   v_previo numeric;
 begin
+  -- La realineación (sección F) mueve VARIAS filas para llegar a un estado final
+  -- que sí respeta el techo, y en el camino pasa por estados intermedios que no
+  -- lo respetan — bajar la primera fila mientras la segunda todavía está alta.
+  -- Este candado juzga una fila contra una foto, así que no puede juzgar eso:
+  -- rechazaría el arreglo a mitad de camino. Le cede el paso, y a cambio la
+  -- realineación comprueba el estado final ELLA MISMA, día por día, que es una
+  -- comprobación más estricta que ésta.
+  --
+  -- La marca es de transacción (`is_local` = true en set_config): no sobrevive a
+  -- la llamada, así que nadie puede dejarla puesta para saltarse el techo.
+  if current_setting('cayla.educacion_realineando', true) is not distinct from '1' then
+    return new;
+  end if;
+
   select a.rango into v_rango
     from asignaciones_salario a
    where a.persona_id = new.persona_id
@@ -513,9 +527,13 @@ grant execute on function fn_educacion_registrar(uuid,text,numeric,text,date,dat
 --     nueva. Es el mismo movimiento que hace una corrección a mano (0149), y por
 --     eso la foto del pago (0096) sigue cuadrando con lo que se pagó.
 --
---   · Baja primero y sube después. Si el techo cayó, subir una fila antes de
---     haber bajado la otra chocaría contra el candado en un estado intermedio
---     que no es el final. Dos pasadas y el problema no existe.
+--   · Baja primero y sube después, y con el candado de la sección D en pausa.
+--     Mover varias filas obliga a pasar por estados intermedios que no respetan
+--     el techo —bajar una mientras la otra sigue alta—, y ese candado juzga una
+--     fila contra una foto. A cambio, acá se comprueba el estado FINAL día por
+--     día, que es más estricto que él: el techo es mensual y se comparte, así
+--     que lo que no puede pasar es que en un día cualquiera la suma lo supere.
+--     La pausa es una marca de transacción: no sobrevive a la llamada.
 --
 --   · Solapamiento, no calendario. El saldo que consume cada fila solo cuenta
 --     las ANTERIORES que comparten fechas con ella: dos cursos en meses
@@ -581,6 +599,7 @@ begin
   v_actor := coalesce(p_actor, fn_persona_actual_id(), p_persona_id);
 
   -- 2 · Aplicar: primero las bajadas, después las subidas.
+  perform set_config('cayla.educacion_realineando', '1', true);
   for v_pasada in 1..2 loop
     for r in
       select (y->>'id')::uuid       as id,
@@ -626,6 +645,36 @@ begin
 
       v_movidas := v_movidas + 1;
     end loop;
+  end loop;
+
+  perform set_config('cayla.educacion_realineando', '0', true);
+
+  -- 3 · La comprobación que sustituye al candado, y es más estricta que él.
+  --     El techo es MENSUAL y se comparte: lo que no puede pasar es que en un
+  --     día cualquiera la suma de lo vigente supere el techo. Se mira en cada
+  --     fecha en que algo empieza, que son los únicos días en que la suma puede
+  --     subir. Si algo no cuadra, revienta acá y se cae la transacción entera
+  --     —incluido el cambio de rango que la disparó—, que es el desenlace
+  --     correcto: nadie debería quedarse con un reparto que no cierra.
+  for r in
+    select x.vigente_desde as dia
+      from asignaciones_educacion x
+     where x.persona_id = p_persona_id
+       and x.vigente_hasta >= v_desde
+     group by x.vigente_desde
+  loop
+    select coalesce(sum(x.monto), 0) into v_usado
+      from asignaciones_educacion x
+     where x.persona_id = p_persona_id
+       and x.vigente_desde <= r.dia
+       and x.vigente_hasta >= r.dia;
+
+    if v_usado > fn_educacion_tope(p_persona_id, r.dia) then
+      raise exception
+        'La realineación de educación dejó S/% vigentes el % para esta persona, por '
+        'encima del techo de su rango. No se aplica nada.',
+        to_char(v_usado, 'FM999999.00'), r.dia;
+    end if;
   end loop;
 
   return v_movidas;
