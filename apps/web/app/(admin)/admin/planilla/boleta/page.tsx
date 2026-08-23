@@ -307,6 +307,20 @@ function BoletaContenido() {
   // cuadrar con sus líneas. `?? 0` para que una base sin la 0185 pegada no dibuje
   // la fila en vez de escribir «S/ NaN».
   const sobretiempo = f.monto_sobretiempo ?? 0;
+  // ⇩ CAMBIO 0280 ⇩ El recargo por trabajar el día de descanso semanal (art. 3
+  // del D. Leg. 713). Va aquí y no dentro del sobretiempo aunque los dos se
+  // midan sobre la misma racha de días: aquél paga por pasar de 48 horas, este
+  // por no haber descansado. Se pueden dar juntos o por separado.
+  //
+  // `?? 0` por lo mismo que arriba: una base sin la 0280 pegada no dibuja la
+  // fila, en vez de escribir «S/ NaN».
+  const descansoSemanal = f.monto_descanso_semanal ?? 0;
+  const diasDescansoSemanal =
+    f.descanso_semanal_desde && f.descanso_semanal_hasta
+      ? f.descanso_semanal_desde === f.descanso_semanal_hasta
+        ? fechaCorta(f.descanso_semanal_desde)
+        : `${fechaCorta(f.descanso_semanal_desde)} y ${fechaCorta(f.descanso_semanal_hasta)}`
+      : null;
   const diasSobretiempo =
     f.sobretiempo_desde && f.sobretiempo_hasta
       ? f.sobretiempo_desde === f.sobretiempo_hasta
@@ -324,6 +338,7 @@ function BoletaContenido() {
     f.pago_base +
     f.monto_feriados +
     sobretiempo +
+    descansoSemanal +
     f.asignacion_familiar +
     f.monto_plus +
     movilidad +
@@ -623,6 +638,28 @@ function BoletaContenido() {
                   </span>
                 </td>
                 <td className="py-2 text-right align-top">{formatSoles(sobretiempo)}</td>
+              </tr>
+            )}
+            {/* Descanso semanal trabajado (0280). Se dice QUÉ DÍA, y no es
+                cosmético: la persona tiene que poder mirar su calendario y
+                reconocer que ese día no descansó. Un recargo del 100 % sin
+                fecha es un número que nadie puede comprobar.
+                Y se imprime el RECARGO, igual que el sobretiempo: las horas de
+                ese día ya están cobradas dentro del pago base. */}
+            {descansoSemanal > 0 && (
+              <tr className="border-t border-sand">
+                <td className="py-2">
+                  Descanso semanal trabajado
+                  <span className="block text-xs text-taupe">
+                    {(f.descanso_semanal_dias ?? 0) === 1
+                      ? "trabajaste 7 días seguidos sin descansar"
+                      : `${f.descanso_semanal_dias} veces trabajaste 7 días seguidos sin descansar`}
+                    {diasDescansoSemanal && ` · ${diasDescansoSemanal}`} · la ley manda pagar
+                    ese día con un recargo del 100 % (art. 3 del D. Leg. 713); las horas
+                    mismas ya están en el pago base
+                  </span>
+                </td>
+                <td className="py-2 text-right align-top">{formatSoles(descansoSemanal)}</td>
               </tr>
             )}
             {f.asignacion_familiar > 0 && (
