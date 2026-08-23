@@ -42,6 +42,13 @@ export interface DatosContrato {
   // El puesto
   sedeNombre: string;
   sedeCodigo: string;
+  /**
+   * La ciudad donde se celebra el contrato — de `sedes.ciudad` (migración
+   * 0279), NO del nombre de la sede. Antes se usaba `sedeNombre` y el
+   * documento imprimía «En la ciudad de Tienda TRU». `null` cuando esa sede
+   * todavía no tiene ciudad cargada: el contrato lo dice, no la inventa.
+   */
+  ciudad: string | null;
   causaObjetivaTexto: string;
   funcionesTexto: string;
 
@@ -67,10 +74,21 @@ export interface DatosContrato {
   activosPrincipales: string;
   activosLibre: string;
 
-  // Firmante por la empresa (siempre Gerencia General, literal en la firma —
-  // igual que en el modelo original y en EMPRESA de /admin/documentacion)
+  /**
+   * Solo para `tipo: "adendum"`: qué se modifica del contrato vigente. Un
+   * adendum NO repite el contrato entero — declara el cambio y deja todo lo
+   * demás en pie. Antes el tipo «adendum» solo cambiaba el título y volvía a
+   * imprimir el contrato completo debajo, con su plazo y su período de prueba:
+   * dos documentos que dicen ser el mismo vínculo con condiciones distintas.
+   */
+  adendumTexto: string;
+
+  // Quién firma por CAYLA. Sale de `configuracion.firmante_empresa` (0147) más
+  // la ficha de esa persona — no escrito a mano acá: la 0147 existe justamente
+  // para que quién firma sea un dato administrable y validado.
   firmanteNombre: string;
   firmanteDni: string;
+  firmanteCargo: string;
 }
 
 /**
@@ -107,6 +125,17 @@ const CENTENAS = [
   "seiscientos", "setecientos", "ochocientos", "novecientos",
 ];
 
+/**
+ * El 21 al 29 se escriben en UNA palabra —«veinticinco»— y no «veinte y cinco».
+ * Estaba mal, y no era cosmético: este número es el monto en letras del sueldo,
+ * y en un contrato el monto en letras es el que manda si discrepa del que va en
+ * cifras. Un sueldo de S/ 1,125.00 salía como «Mil ciento veinte y cinco».
+ */
+const VEINTIS = [
+  "veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro",
+  "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve",
+];
+
 function tresDigitos(n: number): string {
   if (n === 0) return "";
   if (n === 100) return "cien";
@@ -117,6 +146,7 @@ function tresDigitos(n: number): string {
     if (out) out += " ";
     if (resto < 10) out += UNIDADES[resto];
     else if (resto < 20) out += DIECIS[resto - 10];
+    else if (resto < 30) out += VEINTIS[resto - 20];
     else {
       const d = Math.floor(resto / 10);
       const u = resto % 10;
@@ -124,6 +154,18 @@ function tresDigitos(n: number): string {
     }
   }
   return out;
+}
+
+/**
+ * Delante de «mil», el uno se apocopa: «veintiún mil», «treinta y un mil» —
+ * nunca «veintiuno mil». Solo aplica cuando el uno es la última palabra del
+ * bloque de millares; «treinta y un mil quinientos uno» conserva el último.
+ */
+function apocopeAnteMil(texto: string): string {
+  if (texto === "uno") return "un";
+  if (texto.endsWith("veintiuno")) return `${texto.slice(0, -"veintiuno".length)}veintiún`;
+  if (texto.endsWith(" uno")) return `${texto.slice(0, -" uno".length)} un`;
+  return texto;
 }
 
 /** "1,130.00" → "Mil ciento treinta y 00/100". Soporta hasta 999,999.99. */
@@ -134,7 +176,7 @@ export function numeroALetras(monto: number): string {
   const resto = entero % 1000;
   let out = "";
   if (miles > 0) {
-    out += miles === 1 ? "mil" : `${tresDigitos(miles)} mil`;
+    out += miles === 1 ? "mil" : `${apocopeAnteMil(tresDigitos(miles))} mil`;
     if (resto > 0) out += " ";
   }
   if (resto > 0 || entero === 0) out += tresDigitos(resto) || "cero";
@@ -181,15 +223,126 @@ function escapado(d: DatosContrato): DatosContrato {
     cargo: escapeHtml(d.cargo),
     email: d.email ? escapeHtml(d.email) : null,
     sedeNombre: escapeHtml(d.sedeNombre),
+    ciudad: d.ciudad ? escapeHtml(d.ciudad) : null,
     causaObjetivaTexto: escapeHtml(d.causaObjetivaTexto),
     funcionesTexto: escapeHtml(d.funcionesTexto),
     activosPrincipales: escapeHtml(d.activosPrincipales),
     activosLibre: escapeHtml(d.activosLibre),
+    adendumTexto: escapeHtml(d.adendumTexto),
     firmanteNombre: escapeHtml(d.firmanteNombre),
     firmanteDni: escapeHtml(d.firmanteDni),
+    firmanteCargo: escapeHtml(d.firmanteCargo),
     ritVersion: escapeHtml(d.ritVersion),
     ritFecha: escapeHtml(d.ritFecha),
   };
+}
+
+/**
+ * Una lista escrita a mano en el textarea, una función por línea, se imprime
+ * NUMERADA — no como un párrafo corrido ni con viñetas. Numerada porque un
+ * anexo de funciones se cita ("la función 14 del Anexo I") cuando hay que
+ * sustentar un incumplimiento, y una viñeta no se puede citar.
+ *
+ * La numera el HTML (`<ol>`), no quien escribe: si alguien numerara a mano,
+ * insertar una función en el medio obligaría a renumerar el resto, y basta
+ * que se olvide una para que el anexo tenga dos "12".
+ *
+ * Una línea que TERMINA EN DOS PUNTOS es un título de sección — la
+ * numeración sigue corrida por debajo, igual que el Anexo I del contrato
+ * modelo, que agrupaba las funciones por bloque.
+ *
+ * El texto ya llega escapado (ver `escapado`), así que partir por salto de
+ * línea es seguro: `escapeHtml` no toca `\n`. Una sola línea se queda como
+ * párrafo, para no cambiar el caso corto que ya existía.
+ */
+function listaDesdeTexto(texto: string): string {
+  const lineas = texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lineas.length <= 1) return `<p>${texto}</p>`;
+
+  const partes: string[] = [];
+  let abierta = false;
+  let contados = 0;
+  for (const linea of lineas) {
+    if (linea.endsWith(":")) {
+      if (abierta) {
+        partes.push("</ol>");
+        abierta = false;
+      }
+      partes.push(`<p><strong>${linea}</strong></p>`);
+      continue;
+    }
+    if (!abierta) {
+      // `start` mantiene la numeración corrida entre secciones: la primera
+      // función después de un título no vuelve a empezar en 1.
+      partes.push(`<ol start="${contados + 1}">`);
+      abierta = true;
+    }
+    partes.push(`<li>${linea}</li>`);
+    contados += 1;
+  }
+  if (abierta) partes.push("</ol>");
+  return partes.join("");
+}
+
+/**
+ * El marcador donde la pantalla estampa la firma escaneada justo antes de
+ * imprimir. NO viaja dentro de `documento_html`: la 0272 congela el borrador
+ * SIN firma a propósito, y meter la imagen en lo congelado convertiría un
+ * borrador en algo que parece firmado.
+ */
+export const MARCADOR_FIRMA_EMPRESA = "<!--FIRMA_EMPRESA-->";
+
+/**
+ * «en la ciudad de Trujillo» — o, si esa sede todavía no tiene ciudad cargada
+ * (0279), lo dice en vez de inventarla. Es la misma regla que la tarifa de
+ * movilidad en `/admin/documentacion`: un dato que falta se ve, no se rellena.
+ */
+function enLaCiudadDe(d: DatosContrato): string {
+  return d.ciudad
+    ? `la ciudad de ${d.ciudad}`
+    : `la ciudad de <strong>[FALTA LA CIUDAD DE LA SEDE ${d.sedeNombre} — cargarla en /admin/sedes]</strong>`;
+}
+
+/**
+ * Un bloque de firma. Va al pie del contrato Y al pie de cada anexo, como el
+ * contrato modelo en papel: un anexo que se separa de su contrato y no lleva
+ * firma no se puede atribuir a nadie, y el Anexo IV —el que sostiene el
+ * reclamo de devolución de los equipos— es justo el que más se separa.
+ */
+function bloqueFirmas(d: DatosContrato): string {
+  return `
+    <div class="firmas">
+      <div>
+        <p class="linea">${MARCADOR_FIRMA_EMPRESA}</p>
+        <p><strong>${d.firmanteCargo.toUpperCase()}</strong><br/>${d.firmanteNombre}<br/>DNI N.° ${d.firmanteDni}<br/>${EMPRESA.nombre}</p>
+      </div>
+      <div>
+        <p class="linea">&nbsp;</p>
+        <p><strong>LA COLABORADORA</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento}</p>
+      </div>
+    </div>`;
+}
+
+/**
+ * El encabezado de un anexo. Lleva SIEMPRE de quién es y de qué fecha: si las
+ * hojas se separan —y se separan, se firman por separado— un anexo anónimo no
+ * se puede devolver a su contrato. Antes solo el Anexo IV lo llevaba.
+ */
+function encabezadoAnexo(d: DatosContrato, titulo: string, subtitulo: string): string {
+  return `
+    <h2>${titulo}</h2>
+    <p class="norma"><em>${subtitulo}</em></p>
+    <p class="norma"><em>${d.nombreDni} · DNI N.° ${d.documento} · ${formatearFecha(d.fechaInicio)}</em></p>`;
+}
+
+/** El pie que cierra cada anexo: su bloque de firma y el sello de la empresa. */
+function pieAnexo(d: DatosContrato): string {
+  return `
+    ${bloqueFirmas(d)}
+    <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>`;
 }
 
 function clausulaJornada(d: DatosContrato): string {
@@ -366,31 +519,89 @@ function clausulaDisciplina(d: DatosContrato): string {
 
 function anexoIV(d: DatosContrato): string {
   return `
-    <h2>CONSTANCIA DE RECEPCIÓN Y RESPONSABILIDAD DE ACTIVOS</h2>
-    <p><em>Anexo IV — Contrato de Trabajo Sujeto a Modalidad · ${d.nombreDni} ·
-    ${formatearFecha(d.fechaInicio)}</em></p>
+    <section class="anexo">
+    ${encabezadoAnexo(
+      d,
+      "ANEXO IV — CONSTANCIA DE RECEPCIÓN Y RESPONSABILIDAD DE ACTIVOS",
+      "Cláusula Octava del presente contrato",
+    )}
     <p>Conforme a la Cláusula Octava del presente contrato, LA COLABORADORA deja
     constancia de la recepción de los bienes de propiedad de LA EMPRESA que se
     detallan a continuación, correspondientes a la sede ${d.sedeNombre} y
     asignados para el ejercicio de sus funciones y bajo su custodia:</p>
     <p><strong>Activos principales de la sede:</strong> ${d.activosPrincipales}</p>
-    <p><strong>Ajuste específico para esta persona:</strong>
-    ${d.activosLibre || "LA COLABORADORA no tiene activos adicionales bajo su custodia, más allá de los generales de la sede detallados líneas arriba."}</p>
+    <p><strong>Ajuste específico para esta persona:</strong></p>
+    ${
+      d.activosLibre
+        ? // Mismo tratamiento que el Anexo I, y por la misma razón: una lista
+          // de equipos con su número de serie se cita («el bien 3 del Anexo
+          // IV») cuando hay que reclamar la devolución de uno.
+          listaDesdeTexto(d.activosLibre)
+        : "<p>LA COLABORADORA no tiene activos adicionales bajo su custodia, más allá de los generales de la sede detallados líneas arriba.</p>"
+    }
     <p>Todos los bienes detallados son de propiedad exclusiva de LA EMPRESA y se
     entregan únicamente para el desempeño de las funciones de LA COLABORADORA. LA
     COLABORADORA se obliga a custodiarlos y conservarlos con la diligencia
     debida, y a devolverlos al extinguirse el vínculo laboral por cualquier
     causa, en buen estado de conservación salvo el desgaste natural por uso
-    normal.</p>`;
+    normal.</p>
+    ${pieAnexo(d)}
+    </section>`;
+}
+
+/**
+ * El adendum: un documento CORTO que modifica el contrato vigente y deja todo
+ * lo demás en pie. No repite el contrato ni sus anexos — repetirlos crearía dos
+ * documentos que dicen ser el mismo vínculo, y el segundo, al llevar su propio
+ * plazo y su propio período de prueba, contradiría al primero.
+ */
+function documentoAdendum(d: DatosContrato): string {
+  return `
+  <article class="contrato">
+    <header>
+      <p class="empresa">${EMPRESA.nombre}</p>
+      <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
+      <h1>ADENDUM AL CONTRATO DE TRABAJO</h1>
+    </header>
+
+    <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, comparecen de una parte
+    ${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
+    ${EMPRESA.domicilio}, debidamente representada por ${d.firmanteNombre}, identificado(a) con
+    D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA; y de la otra parte
+    ${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}, a quien en adelante se denominará
+    LA COLABORADORA.</p>
+
+    <h3>PRIMERA. ANTECEDENTE</h3>
+    <p>Ambas partes mantienen vigente un contrato de trabajo por el cual LA COLABORADORA se
+    desempeña como ${d.cargo} en la sede ${d.sedeNombre}, cuyo vínculo laboral se inició el
+    ${formatearFecha(d.fechaIngresoOriginal)}.</p>
+
+    <h3>SEGUNDA. OBJETO DEL ADENDUM</h3>
+    <p>Por el presente documento, las partes acuerdan modificar el contrato indicado en la
+    cláusula precedente en los siguientes términos:</p>
+    ${listaDesdeTexto(d.adendumTexto)}
+
+    <h3>TERCERA. VIGENCIA</h3>
+    <p>Lo acordado en el presente adendum rige desde el ${formatearFecha(d.fechaInicio)}.</p>
+
+    <h3>CUARTA. SUBSISTENCIA DE LO NO MODIFICADO</h3>
+    <p>Todas las demás cláusulas del contrato de trabajo y de sus anexos que no hayan sido
+    expresamente modificadas por el presente adendum mantienen plena vigencia y continúan
+    obligando a las partes en sus mismos términos.</p>
+
+    <p>En señal de conformidad, las partes suscriben el presente adendum en ${enLaCiudadDe(d)}, el
+    ${formatearFecha(d.fechaInicio)}, en tres (3) ejemplares de igual tenor.</p>
+
+    ${bloqueFirmas(d)}
+    <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>
+  </article>`;
 }
 
 /** Arma el HTML completo del contrato — el texto que se congela en `contratos_generados.documento_html`. */
 export function construirContrato(datosSinEscapar: DatosContrato): string {
   const d = escapado(datosSinEscapar);
-  const titulo =
-    d.tipo === "adendum"
-      ? "ADENDUM AL CONTRATO DE TRABAJO"
-      : "CONTRATO DE TRABAJO SUJETO A MODALIDAD TEMPORAL POR INICIO O INCREMENTO DE ACTIVIDAD";
+  if (d.tipo === "adendum") return documentoAdendum(d);
+  const titulo = "CONTRATO DE TRABAJO SUJETO A MODALIDAD TEMPORAL POR INICIO O INCREMENTO DE ACTIVIDAD";
 
   return `
   <article class="contrato">
@@ -404,7 +615,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
       y su Reglamento aprobado por Decreto Supremo N.° 008-2008-TR</p>
     </header>
 
-    <p>En la ciudad de ${d.sedeNombre}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Contrato de
+    <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Contrato de
     Trabajo Sujeto a Modalidad Temporal entre:</p>
 
     <h3>I. DATOS DEL EMPLEADOR</h3>
@@ -452,6 +663,8 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     la legislación vigente, en particular al límite del treinta por ciento (30%) de la remuneración neta mensual
     previsto en el artículo 648 del Código Procesal Civil, y requerirá la autorización escrita de LA COLABORADORA o
     resolución judicial.</p>
+    <p>Los bienes que LA EMPRESA entrega a LA COLABORADORA bajo su custodia se detallan en el ANEXO IV —
+    Constancia de Recepción y Responsabilidad de Activos, el cual forma parte integrante del presente contrato.</p>
 
     <h3>NOVENA. USO DE IMAGEN</h3>
     <p>LA COLABORADORA autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías
@@ -519,48 +732,47 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     contrato, con el límite de doce (12) remuneraciones, conforme al artículo 76 del TUO del Decreto Legislativo
     N.° 728.</p>
 
-    <p>En señal de conformidad, las partes firman el presente contrato en la ciudad de ${d.sedeNombre}, el
+    <p>En señal de conformidad, las partes firman el presente contrato en ${enLaCiudadDe(d)}, el
     ${formatearFecha(d.fechaInicio)}, en tres (3) ejemplares de igual tenor.</p>
 
-    <div class="firmas">
-      <div>
-        <p class="linea">&nbsp;</p>
-        <p><strong>GERENTE GENERAL</strong><br/>${d.firmanteNombre}<br/>DNI N.° ${d.firmanteDni}<br/>${EMPRESA.nombre}</p>
-      </div>
-      <div>
-        <p class="linea">&nbsp;</p>
-        <p><strong>LA COLABORADORA</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento}</p>
-      </div>
-    </div>
+    ${bloqueFirmas(d)}
+    <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>
 
-    <h2>ANEXO I — FUNCIONES DEL CARGO</h2>
-    <p><em>${d.cargo} — Sede ${d.sedeNombre}</em></p>
-    <p>${d.funcionesTexto}</p>
+    <section class="anexo">
+      ${encabezadoAnexo(d, "ANEXO I — FUNCIONES DEL CARGO", `${d.cargo} — Sede ${d.sedeNombre}`)}
+      ${listaDesdeTexto(d.funcionesTexto)}
+      ${pieAnexo(d)}
+    </section>
 
-    <h2>ANEXO II — FALTAS GRAVES</h2>
-    <p><em>(Artículo 25 — TUO Decreto Legislativo N.° 728)</em></p>
-    <ul>
-      <li>Incumplimiento reiterado de obligaciones laborales.</li>
-      <li>Desobediencia grave a las instrucciones del empleador.</li>
-      <li>Falta de honradez, hurto o apropiación indebida de bienes de la empresa o de terceros.</li>
-      <li>Ofensas graves verbales o físicas contra el empleador, sus representantes, compañeros o terceros.</li>
-      <li>Negligencia grave en el desempeño de funciones o daño intencional a bienes de la empresa.</li>
-      <li>Abandono de puesto sin justificación.</li>
-      <li>Divulgación de información confidencial de la empresa a terceros.</li>
-      <li>Presentación al centro de trabajo bajo los efectos del alcohol o sustancias psicoactivas.</li>
-      <li>Prestar servicios a competidores directos o indirectos de LA EMPRESA, incumpliendo el deber de lealtad y
-      fidelidad establecido en la Cláusula Décima Primera del presente contrato.</li>
-      <li>Todo acto que, por su gravedad, haga irrazonable la continuidad del vínculo laboral conforme al artículo
-      25 del TUO del Decreto Legislativo N.° 728.</li>
-    </ul>
+    <section class="anexo">
+      ${encabezadoAnexo(d, "ANEXO II — FALTAS GRAVES", "Artículo 25 — TUO Decreto Legislativo N.° 728")}
+      <ul>
+        <li>Incumplimiento reiterado de obligaciones laborales.</li>
+        <li>Desobediencia grave a las instrucciones del empleador.</li>
+        <li>Falta de honradez, hurto o apropiación indebida de bienes de la empresa o de terceros.</li>
+        <li>Ofensas graves verbales o físicas contra el empleador, sus representantes, compañeros o terceros.</li>
+        <li>Negligencia grave en el desempeño de funciones o daño intencional a bienes de la empresa.</li>
+        <li>Abandono de puesto sin justificación.</li>
+        <li>Divulgación de información confidencial de la empresa a terceros.</li>
+        <li>Presentación al centro de trabajo bajo los efectos del alcohol o sustancias psicoactivas.</li>
+        <li>Prestar servicios a competidores directos o indirectos de LA EMPRESA, incumpliendo el deber de lealtad y
+        fidelidad establecido en la Cláusula Décima Primera del presente contrato.</li>
+        <li>Todo acto que, por su gravedad, haga irrazonable la continuidad del vínculo laboral conforme al artículo
+        25 del TUO del Decreto Legislativo N.° 728.</li>
+      </ul>
+      ${pieAnexo(d)}
+    </section>
 
-    <h2>ANEXO III — DOMICILIO ELECTRÓNICO Y COMUNICACIONES</h2>
-    <p>LA EMPRESA: info@cayla.pe · LA COLABORADORA: ${d.email ?? "[completar]"}</p>
-    <p>Las direcciones consignadas constituyen los domicilios electrónicos válidos para todos los efectos de la
-    relación laboral, incluida la entrega del Reglamento Interno de Trabajo y demás documentos internos. Se
-    exceptúan de esta vía la carta de preaviso de despido y la carta de despido, que se cursan por conducto notarial
-    o por vía física con cargo de recepción, conforme a los artículos 31 y 32 del TUO del Decreto Legislativo N.°
-    728.</p>
+    <section class="anexo">
+      ${encabezadoAnexo(d, "ANEXO III — DOMICILIO ELECTRÓNICO Y COMUNICACIONES", "Cláusula Décima Novena del presente contrato")}
+      <p>LA EMPRESA: info@cayla.pe · LA COLABORADORA: ${d.email ?? "[completar]"}</p>
+      <p>Las direcciones consignadas constituyen los domicilios electrónicos válidos para todos los efectos de la
+      relación laboral, incluida la entrega del Reglamento Interno de Trabajo y demás documentos internos. Se
+      exceptúan de esta vía la carta de preaviso de despido y la carta de despido, que se cursan por conducto notarial
+      o por vía física con cargo de recepción, conforme a los artículos 31 y 32 del TUO del Decreto Legislativo N.°
+      728.</p>
+      ${pieAnexo(d)}
+    </section>
 
     ${anexoIV(d)}
   </article>`;
