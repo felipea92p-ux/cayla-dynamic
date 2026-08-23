@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 // La hoja de constancias de un documento: quién lo recibió, cuándo y por qué vía.
 //
@@ -33,8 +33,6 @@ import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 // como descuido. «Contrato hasta el 31/08/2026» o «cese previsto el 31/08/2026»
 // —datos que la base ya tiene, no una nota escrita a mano— convierten el hueco
 // en un hecho fechado. Eso sostiene mejor el cumplimiento que esconder las filas.
-
-const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550" };
 
 /**
  * La norma que obliga a entregar cada clase de documento.

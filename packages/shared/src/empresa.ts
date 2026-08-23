@@ -31,10 +31,34 @@
 export const EMPRESA = {
   nombre: "CAYLA S.A.C.",
   ruc: "20605964550",
-  domicilio: "Mza. Q, Lote 26, Urb. San Andrés, Trujillo, La Libertad",
+  // EL DOMICILIO ES EL DE LOS CONTRATOS FIRMADOS, palabra por palabra.
+  //
+  // Nació aquí el 2026-08-19 en una forma resumida —«Urb. San Andrés,
+  // Trujillo, La Libertad»— que no salía de ningún documento: no tenía ni un
+  // solo consumidor. El único sitio del sistema que declara un domicilio es la
+  // cláusula «DATOS DEL EMPLEADOR» del contrato de trabajo, y ahí dice «V
+  // Etapa» y nombra distrito, provincia y departamento.
+  //
+  // Al unificar había que elegir cuál de las dos era la verdad, y no se puede
+  // elegir la corta: le falta la etapa de la urbanización, que es parte de la
+  // dirección y no adorno. Se toma la larga, que además deja el contrato
+  // renderizado idéntico byte a byte al que ya se ha firmado.
+  domicilio:
+    "Mza. Q, Lote 26, Urb. San Andrés V Etapa, distrito de Trujillo, provincia de Trujillo, departamento de La Libertad",
 } as const;
 
-/** «CAYLA S.A.C. — RUC 20605964550», que es como se lee en un pie de documento. */
+/**
+ * «CAYLA S.A.C. — RUC 20605964550», la forma de un pie de documento.
+ *
+ * ⚠️ NO SIRVE PARA ADAPTAR UN DOCUMENTO QUE YA EXISTE. Cada papel que CAYLA
+ * entrega escribe el RUC a su manera —la boleta «· RUC», las constancias y el
+ * memo «· RUC N.°», el contrato «R.U.C. N.°»— y esas formas se respetaron una
+ * por una al unificar el dato el 2026-08-19: se migró el VALOR, nunca el
+ * formato. Cambiar el texto de un documento con acuses ya firmados es cambiar
+ * lo que esas personas firmaron.
+ *
+ * Es para documentos NUEVOS, que todavía no tienen forma propia que respetar.
+ */
 export function empresaConRuc(): string {
   return `${EMPRESA.nombre} — RUC ${EMPRESA.ruc}`;
 }

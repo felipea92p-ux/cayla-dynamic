@@ -6,7 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 
 // La hoja de constancias del cuadro de categorías y la política salarial.
 //
@@ -21,8 +21,6 @@ import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 // El criterio de a quién obliga es el mismo (activo y en planilla) porque lo
 // dice la misma función en `fn_acuses_politica_salarial`: activas y en
 // planilla, igual que `fn_poblacion_obligada`.
-
-const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550" };
 
 const BASE_LEGAL =
   "Numeral 25.23 del RLGIT (Ley 30709): no basta con tener el cuadro de categorías y la política salarial — hay que acreditar que se informaron a cada integrante.";

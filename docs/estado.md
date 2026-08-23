@@ -55,12 +55,22 @@ Cerrado el mismo día:
 
 - **0275** · las vacaciones dejan de pagarse en cero. Quien pasaba el periodo
   entero de vacaciones cobraba S/0.00 por el 0/0 de `hh.pago / dias_marcados`.
-  Pendiente de pegar en producción.
+  **Aplicada en producción el 2026-08-20**, y comprobada como se comprueban
+  estas: el md5 que devolvió el SQL Editor se comparó contra el que da aplicar
+  la migración sola en el Postgres local dentro de `BEGIN…ROLLBACK`, en el mismo
+  minuto. Coincide, y con la misma longitud — los comentarios llegaron enteros,
+  que es lo que se pierde cuando el portapapeles rompe los acentos.
 - **`va_a_poder_cerrarse.sql`** conocía solo uno de los dos frenos del cierre:
   daba «✓ TODOS CUADRAN» y `fn_planilla_congelar` abortaba igual por el freno de
   la 0243/0244.
 - **La boleta** se contradecía sobre la AFP —«no se descuenta de tu sueldo» en la
   misma hoja que imprime el descuento— y no identificaba al empleador.
+- **El RUC y la razón social**, que estaban escritos a mano en ocho documentos,
+  se leen de `packages/shared/src/empresa.ts`. Lo que NO se unificó es el
+  formato: los ocho escriben el RUC distinto y dos están congelados con firmas
+  encima (la política salarial por la 0141, el contrato en `documento_html`).
+  `tests/empresa.test.ts` vigila las dos mitades — que no aparezca una novena
+  copia, y que ningún documento cambie de forma.
 
 Decidido con Felipe y pendiente de construir: **la sobretasa del 100 % por
 trabajar el día de descanso semanal** (art. 3 del D. Leg. 713), que hoy no
@@ -68,7 +78,129 @@ existe en el sistema. Se hacen **las dos cosas**: registrar el descanso
 sustitutorio cuando lo hubo, y pagar la sobretasa cuando no. Golpea sobre todo a
 TRU, que es el régimen de 6 días con descanso rotativo.
 
+**Y RIGE DESDE AHORA, NO HACIA ATRÁS** (Felipe, 2026-08-20). Se midió lo que
+costaría —`cuanto_cuesta_el_descanso_semanal.sql`, S/163.19 del periodo en curso
+y S/374.61 del de julio ya pagado— y la decisión es que la política empieza
+cuando empieza. **El periodo cerrado no se reabre**, así que esa segunda cifra
+no es una deuda: es la medición de por qué conviene construirlo pronto.
+
+**La 0276 también está en producción**, entera y anotada (20/08 21:03). Se
+comprobó antes de entregarla y por eso no se entregó: sus tres piezas
+—`fn_planilla_calcular`, `fn_provisiones` y la nueva `fn_feriado_devengado`—
+devuelven los md5 que produce esa migración, medidos aplicándola sola en local
+dentro de `BEGIN…ROLLBACK`.
+
+El susto valió la pena igual: el md5 de `fn_provisiones` no coincidía con el que
+la 0276 declara como punto de partida, y el primer impulso fue leerlo como «otra
+versión desconocida». Lo que era, medido contra las siete versiones históricas,
+es la 0276 **ya aplicada**. Con `migraciones_aplicadas` no habría bastado — es
+el registro que el 2026-08-19 dijo que la 0196 estaba puesta mientras el cuerpo
+vivo era el de la 0158.
+
+### Tres cosas que se persiguieron el 2026-08-20 y no eran
+
+Se anotan porque las tres son creíbles y las tres cuestan una tarde:
+
+1. **«A veinte personas les bajó el sueldo el 29/07».** Es el rediseño
+   remunerativo: la base declarada por rango (0128), compensada con movilidad,
+   educación y bono. **Todo el equipo lo aceptó.** Las notas de
+   `asignaciones_salario` lo dicen con todas sus letras — se leen antes de
+   alarmarse.
+2. **«Quien cumple su jornada queda bajo la RMV en meses de 31 días».** No: el
+   piso vive en el cálculo. `fn_planilla_calcular` declara
+   `greatest(bri.base, piso_essalud)` y ese piso es la RMV entera. Declarar y
+   pagar por horas no son lo mismo. Es el quinto defecto de la tabla de
+   descartados del anexo, perseguido otra vez.
+3. **«Cinco personas marcan mucho menos de 45 h/semana».** Son **turnos
+   reducidos**, confirmado por Felipe. El pago por horas es correcto y no se
+   reabre.
+
 Pendiente de mirar renderizado, dos minutos: la boleta y el memo.
+
+**Y una pregunta que solo Felipe puede responder: ¿cuál es el domicilio legal?**
+Al unificar la identidad de la empresa había dos direcciones distintas en el
+código. La que declaran los contratos firmados dice «Urb. San Andrés **V Etapa**,
+distrito de Trujillo, provincia de Trujillo, departamento de La Libertad»; la
+otra, más corta, no salía de ningún documento y no la usaba nadie. Se tomó la de
+los contratos, así que **hoy no hay ningún papel que haya cambiado de texto** —
+queda comprobar contra la ficha RUC que esa sea la buena, porque desde ahora la
+dice un solo sitio.
+
+---
+
+## 2026-08-20 — El feriado entra en la reserva, y una migración que casi revierte un sueldo
+
+La [`0276`](../supabase/migrations/0276_una_sola_base_para_la_reserva.sql) está
+**pegada en producción el 2026-08-20**, confirmada por sus tres md5:
+`fn_planilla_calcular` `b132c828…` → `2f38e5ce…`, `fn_provisiones` `84aae8bf…` →
+`93531851…`, y `fn_feriado_devengado` nueva en `f6bbe9ab…`.
+
+**Qué arregla.** La boleta calculaba las provisiones sobre `pago_base + feriados
++ asignación familiar` y `fn_provisiones` las calculaba **sin el feriado** — la
+palabra no aparecía ni una vez en sus 610 líneas. Y esa función es la que
+autocompleta el monto del depósito el 15/05, 15/07, 15/11 y 15/12, así que se
+depositaba corto: **~S/ 2.400 al año, siempre en contra del equipo**. Ahora el
+feriado se calcula en `fn_feriado_devengado` y lo preguntan las dos. De paso
+llega a la reserva el factor de la 0111.
+
+**La decisión legal, para no reabrirla.** Las dos mitades del feriado entran en
+la base: el día prorrateado (art. 8 del D. Leg. 713, remuneración ordinaria) y
+la sobretasa por trabajarlo (art. 9). Sin `if` de regularidad, y medido: las 27
+ventanas de pago de 2026 a 2032 tienen feriados en **4 o 5 meses distintos**,
+nunca menos de 4, y el umbral del art. 16 del D.S. 001-97-TR son 3. El
+calendario peruano no hace fallar ese test.
+
+### Lo que casi sale mal, que es lo que hay que recordar de este día
+
+La primera versión copió el cuerpo de la boleta de la **0269** porque
+`donde-vive.sh` decía que esa era la vigente — y **lo era, en esa rama**,
+mientras otra sesión ya había fusionado la **0275** a `main` y Felipe la había
+pegado. Pegarla habría revertido la 0275 en silencio: **quien pasa el periodo
+entero de vacaciones habría vuelto a cobrar S/ 0.00 su mes.** No da error;
+devuelve otro número.
+
+No fue descuido de método: se hicieron las dos comprobaciones que este repo
+manda, y las dos miran el worktree. `db reset` reconstruyó un esquema entero sin
+un solo error, sin la 0275, que no estaba en el árbol. Lo cazó **el md5 de
+producción** —90.707 caracteres allá contra 89.527 acá— o sea el último freno de
+la cadena, con el trabajo hecho, verificado y commiteado. Lo confirmó la prueba
+212, que es de la otra sesión: falló en sus tres aserciones de vacaciones.
+
+Y llevaba la misma trampa enterrada dos veces: `fn_feriado_devengado` copió
+también el `horas_vacaciones` de antes del arreglo, mientras el de al lado
+—descanso médico— sí tenía su respaldo desde la 0254. Ahora las dos están juntas
+y con la misma forma, a propósito.
+
+**De ahí salen las dos defensas nuevas:**
+`scripts/hooks/main-tiene-migraciones-que-no-tienes.sh` avisa al empujar cuando
+`main` trae migraciones que tu rama no tiene, y **sube el tono si tocan tus
+mismas funciones** (probado contra el commit del accidente: detecta la 0275 y el
+choque en `fn_planilla_calcular`). Y CLAUDE.md pasa a decir que el md5 de
+producción se pide **antes de escribir**, no antes de entregar.
+
+### Lo que la 0276 NO cierra, declarado en su encabezado
+
+1. **El divisor del sueldo** — la boleta divide entre los días del periodo
+   (29→28) y las ramas viejas de `fn_provisiones` entre los del mes calendario.
+2. **El día de ausencia pagada** — la boleta paga días laborables a tarifa
+   promedio; la rama 4 paga días calendario. S/ 178,93 en un mes para quien tuvo
+   19 días de vacaciones. Lo único que la 0276 arregla de aquí es el feriado
+   duplicado dentro del descanso médico, que rompía ella misma.
+3. **El factor de la 0111 en el borde** — por día en la reserva, por último
+   tramo en la boleta. Se separan un −6,2 % / +13,1 % si `base_provision` cambia
+   a mitad de periodo.
+4. **La liquidación por cese usa una TERCERA base**, `fn_remuneracion_computable`
+   (0129), a la que el feriado no puede llegar. Para el sueldo fijo cambia el
+   signo de la brecha: de S/ −0,04 a S/ +26,52.
+
+### Pendiente medido, para su propia migración
+
+**Un adelanto quincenal le SUBE la liquidación a la persona.**
+`fn_remuneracion_computable` suma los `movimientos_planilla` con `monto > 0` sin
+filtrar categoría ni tipo, así que la gratificación depositada y **los
+descuentos** entran como «variables» en la base de la liquidación siguiente.
+Dinero que la persona debe, contado a su favor. Es anterior a todo esto. Felipe
+pidió medirlo primero y arreglarlo aparte.
 
 ---
 
@@ -182,7 +314,10 @@ Cuatro hallazgos confirmados que quedan pendientes, con su medición hecha:
 
 Felipe, mirando la pantalla: las locadoras y la gente en días de prueba no
 tenían que estar ahí. La [`0274`](../supabase/migrations/0274_las_provisiones_solo_listan_a_quien_devenga.sql)
-las saca. **Pendiente de pegar en producción.**
+las saca. ✅ **Pegada el 2026-08-19**, y vuelta a comprobar contra
+`migraciones_aplicadas` el 2026-08-20. El md5 de `fn_provisiones` pasó de
+`e057765c…` (el cuerpo de la 0273, verificado ANTES de entregar el SQL) a
+`84aae8bf…`, y de **25 personas activas la pantalla pasa a listar 20**.
 
 **Es la vuelta atrás de una decisión que estaba escrita**, con su argumento, en
 la prueba 127: «verlo en cero es una respuesta, que falte obliga a preguntarse si
@@ -781,7 +916,8 @@ Va DENTRO de `pago_base`, como las vacaciones, y por eso NO toca
 
 **`licencia_con_goce` sigue pagando cero, y es decisión** (va por
 `movimientos_planilla`, la 0247 lo dice en su cabecera). **La maternidad ya no:**
-la conectó la **0262** — escrita y probada el 2026-08-15, todavía sin pegar. La
+la conectó la **0262** — escrita y probada el 2026-08-15, **aplicada en
+producción el 2026-08-17**. La
 prueba 187 fija por escrito que las dos reglas son distintas y no se pueden
 igualar: el descanso médico cuenta días laborables porque es sueldo, la
 maternidad cuenta días calendario porque es subsidio.
@@ -1519,7 +1655,7 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
-### A.2.a · La maternidad: **construida, sin pegar** (0262)
+### A.2.a · La maternidad: **construida y aplicada** (0262, en producción el 2026-08-17)
 
 **Nadie ha estado de maternidad todavía, y por eso hubo tiempo de hacerlo bien.**
 La duda de si el subsidio va por planilla o por fuera **quedó resuelta por la
