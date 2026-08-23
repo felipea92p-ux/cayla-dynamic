@@ -192,6 +192,21 @@ function escapado(d: DatosContrato): DatosContrato {
   };
 }
 
+/**
+ * Una lista escrita a mano en el textarea, una función por línea, se imprime
+ * como viñetas — no como un párrafo corrido. El texto ya llega escapado (ver
+ * `escapado`), así que partir por salto de línea es seguro: `escapeHtml` no
+ * toca `\n`. Una sola línea se queda como párrafo, igual que antes.
+ */
+function listaDesdeTexto(texto: string): string {
+  const lineas = texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lineas.length <= 1) return `<p>${texto}</p>`;
+  return `<ul>${lineas.map((l) => `<li>${l}</li>`).join("")}</ul>`;
+}
+
 function clausulaJornada(d: DatosContrato): string {
   return `
     <h3>QUINTA. JORNADA LABORAL, HORARIOS Y REGISTRO DE ASISTENCIA</h3>
@@ -535,7 +550,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
 
     <h2>ANEXO I — FUNCIONES DEL CARGO</h2>
     <p><em>${d.cargo} — Sede ${d.sedeNombre}</em></p>
-    <p>${d.funcionesTexto}</p>
+    ${listaDesdeTexto(d.funcionesTexto)}
 
     <h2>ANEXO II — FALTAS GRAVES</h2>
     <p><em>(Artículo 25 — TUO Decreto Legislativo N.° 728)</em></p>
