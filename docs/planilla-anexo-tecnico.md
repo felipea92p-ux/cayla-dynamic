@@ -77,7 +77,7 @@ vuelvan a perseguir.**
 | *"El feriado debería valer un día de la jornada de cada quien"* | No. Se paga **proporcional al tiempo laborado del mes**: quien vino la mitad cobra la mitad. Decisión de Felipe, confirmada. Que un part-time cobre menos feriado **no es un bug**. |
 | *"El factor debería ser 45/7 = 6,4286 en vez de 6,5"* | Asumía 7,5 h/día. Se marcan ~7,9. Cambiarlo subiría la planilla 1,11 % (S/ 228/mes) corrigiendo algo que no está roto. |
 | *"Hay un efecto calendario del 9,5 %"* | Artefacto de contar días laborables enteros (25/26/27). La gente trabaja por ritmo semanal, no por cupo mensual de días. |
-| *"Quien gana la RMV cae por debajo del mínimo legal"* | No. La escala arranca en S/ 1 320 y el salario mínimo seguro es S/ 1 176. Hay 12 % de colchón. |
+| *"Quien gana la RMV cae por debajo del mínimo legal"* | No, y **sigue siendo no aunque la escala arranque en 1 130 desde el 29/07/2026**. La justificación cambió, la conclusión no: **el piso vive en el cálculo**. `fn_planilla_calcular` declara `greatest(bri.base, piso_essalud)`, y `piso_essalud` es la RMV entera —solo se prorratea por días subsidiados, que es lo que manda el D.S. 009-97-SA—. Por alguien que devengó S/36.96 se aporta igual sobre S/1,130. **Que el pago por horas quede debajo no es lo mismo que declarar debajo**, y el pago por horas es una regla que no se reabre. Perseguido de nuevo el 2026-08-20; misma conclusión. |
 | *"El equipo trabaja 4,4 días por semana"* | Promedio contaminado: mezclaba a 6 personas con menos de 8 semanas de antigüedad. Quien lleva tiempo y cumple hace 6 días. |
 
 **La lección de método:** medir antes de proponer. Cada uno de esos cinco salió
@@ -120,11 +120,14 @@ semanal no compensa nada y la sobretasa se sigue debiendo. La validación de la
 - **Base 6,5 h × días del periodo.** Verificado 2026-08-07.
 - **Factores de provisión** (grati 8,33 % · CTS 4,17 % · vacaciones 4,17 %) en
   `configuracion.planilla_provisiones`.
-- **Ningún rango por debajo de S/ 1 176**, que es el piso que garantiza no caer
-  bajo la RMV en el peor periodo del año. Hoy la escala arranca en 1 320.
-  **Revisar esta regla cuando la RMV suba por encima de S/ 1 269.**
+- **La escala arranca en la RMV, y es la decisión.** Esta línea decía «ningún
+  rango por debajo de S/ 1 176 … hoy la escala arranca en 1 320», que era el
+  colchón de antes del rediseño. Desde el 29/07/2026 la base declarada de
+  colibri **es** la RMV (0128), compensada con movilidad, educación y bono, y el
+  equipo lo aceptó. **No hace falta colchón porque el piso está en el cálculo**
+  —ver la tabla de descartados—, así que esta regla queda sustituida por esa.
 
----
+--
 
 ## El descanso semanal, y las cuatro cosas que ya se midieron
 

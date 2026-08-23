@@ -94,6 +94,9 @@ export interface FeriadoDetalle {
   horas_trabajadas: number;
   proporcional_horas: number;
   antes_ingreso: boolean;
+  /** Desde la 0276 · lo que ese feriado devengó, SIN redondear. Quien lo
+   *  muestre redondea: la boleta lo mete crudo en la base de provisión. */
+  monto?: number;
 }
 export interface Movimiento {
   id: string;
@@ -201,6 +204,16 @@ export interface Fila {
   horas_sobretiempo?: number;
   sobretiempo_desde?: string | null;
   sobretiempo_hasta?: string | null;
+  // Descanso semanal trabajado (0280): también SOLO el recargo —el 100 % del
+  // art. 3 del D. Leg. 713—, porque las horas de ese día ya están en pago_base.
+  // `descanso_semanal_dias` es cuántas veces se cerró un ciclo de siete días
+  // sin descansar, no cuántos días se trabajó. Opcionales por lo mismo que las
+  // de la 0185: una base sin la 0280 pegada no manda las claves y la boleta
+  // tiene que seguir saliendo igual que antes.
+  monto_descanso_semanal?: number;
+  descanso_semanal_dias?: number;
+  descanso_semanal_desde?: string | null;
+  descanso_semanal_hasta?: string | null;
   // Retención de renta de cuarta categoría (0245), solo para quien cobra por
   // recibo por honorarios. `retencion_4ta_base` es el importe por el que tiene
   // que emitir su recibo —NO el total, que ya es el neto— y por eso viaja: sin

@@ -416,6 +416,48 @@ export type Database = {
           },
         ]
       }
+      bonos_umbral_permitido: {
+        Row: {
+          autorizado_por: string | null
+          created_at: string
+          id: string
+          motivo: string
+          persona_id: string
+          usado_at: string | null
+        }
+        Insert: {
+          autorizado_por?: string | null
+          created_at?: string
+          id?: string
+          motivo: string
+          persona_id: string
+          usado_at?: string | null
+        }
+        Update: {
+          autorizado_por?: string | null
+          created_at?: string
+          id?: string
+          motivo?: string
+          persona_id?: string
+          usado_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bonos_umbral_permitido_autorizado_por_fkey"
+            columns: ["autorizado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bonos_umbral_permitido_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categorias_laborales: {
         Row: {
           actualizado_at: string
@@ -2588,6 +2630,7 @@ export type Database = {
       sedes: {
         Row: {
           activa: boolean
+          ciudad: string | null
           codigo: string
           id: string
           nombre: string
@@ -2595,6 +2638,7 @@ export type Database = {
         }
         Insert: {
           activa?: boolean
+          ciudad?: string | null
           codigo: string
           id?: string
           nombre: string
@@ -2602,6 +2646,7 @@ export type Database = {
         }
         Update: {
           activa?: boolean
+          ciudad?: string | null
           codigo?: string
           id?: string
           nombre?: string
@@ -3883,6 +3928,15 @@ export type Database = {
         Args: { p_fecha: string | null }
         Returns: boolean
       }
+      fn_feriado_devengado: {
+        Args: {
+          p_desde: string | null
+          p_dias: number | null
+          p_hasta: string | null
+          p_persona: string | null
+        }
+        Returns: Json
+      }
       fn_feriados: { Args: { p_anio: number | null }; Returns: Json }
       fn_feriados_cobertura: {
         Args: never
@@ -4110,6 +4164,10 @@ export type Database = {
         Returns: undefined
       }
       fn_periodos: { Args: never; Returns: Json }
+      fn_permitir_bono_regular: {
+        Args: { p_motivo: string | null; p_persona_id: string | null }
+        Returns: string
+      }
       fn_persona_actual_id: { Args: never; Returns: string }
       fn_persona_en_roster_terminal: {
         Args: { p_persona_id: string | null }
@@ -4298,7 +4356,11 @@ export type Database = {
         Returns: string
       }
       fn_remuneracion_computable: {
-        Args: { p_fecha_ref: string | null; p_persona_id: string | null }
+        Args: {
+          p_beneficio?: string | null
+          p_fecha_ref: string | null
+          p_persona_id: string | null
+        }
         Returns: Json
       }
       fn_repagar_periodo: {
@@ -4635,6 +4697,14 @@ export type Database = {
       fn_vacaciones_truncas: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
         Returns: Json
+      }
+      fn_ventanas_de_regularidad: {
+        Args: { p_fecha: string | null }
+        Returns: {
+          fin: string
+          ini: string
+          nombre: string
+        }[]
       }
       fn_verificar_corrector: {
         Args: { p_persona_objetivo: string | null }

@@ -40,9 +40,22 @@ cambia cómo se pagan las vacaciones— estaba aplicada en producción y su úni
 ejemplar era un archivo sin commitear en esta Mac**. Ninguno de los otros frenos
 lo veía: `desplegar.sh` cuida el camino de Vercel, y el SQL va por otro camino.
 
-**El md5 de una función se pide a PRODUCCIÓN, no se copia del local.** Cuando
-una migración reescribe una función y su encabezado declara «md5 de partida: X»,
-ese X tiene que venir del SQL Editor. El 2026-08-08 se declaró el md5 local en la
+**El md5 de una función se pide a PRODUCCIÓN, no se copia del local, y se pide
+ANTES DE ESCRIBIR, no antes de entregar.** Cuando una migración reescribe una
+función y su encabezado declara «md5 de partida: X», ese X tiene que venir del
+SQL Editor.
+
+Lo de «antes de escribir» se aprendió el 2026-08-20 y costó una migración
+entera. La 0276 se construyó sobre el cuerpo de la 0269 de
+`fn_planilla_calcular` porque `donde-vive.sh` dijo que esa era la vigente —y lo
+era, EN ESA RAMA— mientras otra sesión ya había fusionado la 0275 a `main` y
+Felipe la había pegado. Pegar la 0276 habría devuelto a **S/ 0.00** el mes de
+quien se toma sus vacaciones completas. Las dos herramientas de la casa miraron
+el worktree y el worktree estaba incompleto; lo cazó el md5 de producción —90 707
+caracteres allá contra 89 527 acá— cuando el trabajo ya estaba hecho, verificado
+y commiteado. Pedirlo al principio cuesta un minuto; pedirlo al final cuesta
+rehacerlo todo. Y ahora `scripts/hooks/main-tiene-migraciones-que-no-tienes.sh`
+avisa además cuando `main` trae una migración que toca tus mismas funciones. El 2026-08-08 se declaró el md5 local en la
 0185 y costó una hora de falsa alarma: producción devolvía otro porque `pbcopy`
 había roto los acentos al copiar (locale `LC_CTYPE=C` → MacRoman), y el texto
 llegó como «Solo un administrador o l√≠der». El SQL corre igual, así que nada

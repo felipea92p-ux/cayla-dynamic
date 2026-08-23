@@ -7,6 +7,7 @@ import { Cargando } from "@/components/cargando";
 import { Documento } from "@/components/documento";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { EMPRESA } from "@cayla-dynamic/shared";
 
 // La hoja de un documento institucional, para imprimirla.
 //
@@ -22,8 +23,6 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 // en blanco, se firma a mano y se escanea de vuelta. Sin esta página, cada
 // encargada dependía de que alguien le reenviara un archivo por WhatsApp —y de
 // que fuera el archivo bueno.
-
-const EMPRESA = { nombre: "CAYLA S.A.C.", ruc: "20605964550" };
 
 interface Doc {
   id: string;
