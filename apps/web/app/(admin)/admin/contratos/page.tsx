@@ -134,6 +134,7 @@ export default function ContratosPage() {
   const [funcionesEditadas, setFuncionesEditadas] = useState("");
   const [activosLibre, setActivosLibre] = useState("");
   const [adendumEditado, setAdendumEditado] = useState("");
+  const [ciudadEditada, setCiudadEditada] = useState("");
   // Sin esto marcado, un Anexo IV vacío es indistinguible de uno olvidado —
   // decisión de Felipe (2026-08-19): un campo vacío no basta, hay que
   // declararlo a propósito.
@@ -282,6 +283,7 @@ export default function ContratosPage() {
     setActivosLibre("");
     setSinActivosAdicionales(false);
     setAdendumEditado("");
+    setCiudadEditada("");
 
     if (tipo === "renovacion" && p.fecha_fin_contrato) {
       const siguiente = new Date(`${p.fecha_fin_contrato}T00:00:00`);
@@ -311,6 +313,7 @@ export default function ContratosPage() {
     activosLibre,
     sinActivosAdicionales,
     adendumEditado,
+    ciudadEditada,
     fechaInicio,
     fechaFin,
   ]);
@@ -323,9 +326,15 @@ export default function ContratosPage() {
 
   const sedeCod = persona?.sede_base_id ? (sedeCodigo.get(persona.sede_base_id) ?? "") : "";
   const sedeNom = persona?.sede_base_id ? (sedeNombreMap.get(persona.sede_base_id) ?? "") : "";
-  const sedeCiudad = persona?.sede_base_id
+  // La ciudad donde se firma. Viene de la sede cuando la sede ES un local
+  // (tienda, taller); Central no lo es —es una clasificación de personal
+  // administrativo, y esa gente puede estar en cualquier ciudad (0282)—, así
+  // que ahí se elige a mano. Editable siempre: un contrato puede firmarse en
+  // otra ciudad por una razón puntual, y eso no debería obligar a tocar la sede.
+  const ciudadDeLaSede = persona?.sede_base_id
     ? (sedes.find((s) => s.id === persona.sede_base_id)?.ciudad ?? null)
     : null;
+  const ciudadFinal = (ciudadEditada.trim() || ciudadDeLaSede) ?? null;
   const esAdendum = tipo === "adendum";
   const movilidadTarifa = persona ? tarifaDeSede(persona.sede_base_id) : null;
 
@@ -340,7 +349,7 @@ export default function ContratosPage() {
           email: persona.email,
           sedeNombre: sedeNom,
           sedeCodigo: sedeCod,
-          ciudad: sedeCiudad,
+          ciudad: ciudadFinal,
           causaObjetivaTexto: causaEditada,
           funcionesTexto: funcionesEditadas,
           fechaInicio,
@@ -378,8 +387,8 @@ export default function ContratosPage() {
   }
   // La ciudad no bloquea —el documento lo dice en su propio texto— pero avisar
   // acá evita descubrirlo recién al leer el PDF impreso.
-  if (persona && sedeCiudad === null) {
-    bloqueos.push(`La sede ${sedeNom} no tiene ciudad cargada: el contrato dirá que falta. Cárgala en /admin/sedes.`);
+  if (persona && !ciudadFinal) {
+    bloqueos.push("Escribe la ciudad donde se firma el contrato.");
   }
 
   async function generarBorrador() {
@@ -610,6 +619,20 @@ export default function ContratosPage() {
                   value={cargoEditado}
                   onChange={(e) => setCargoEditado(e.target.value)}
                 />
+              </label>
+              <label className="block text-sm">
+                Ciudad donde se firma
+                <input
+                  className="mt-1 w-full rounded border border-sand p-2"
+                  placeholder={ciudadDeLaSede ?? "Arequipa, Lima o Trujillo"}
+                  value={ciudadEditada}
+                  onChange={(e) => setCiudadEditada(e.target.value)}
+                />
+                <span className="mt-1 block text-xs text-taupe">
+                  {ciudadDeLaSede
+                    ? `Si lo dejas vacío se usa ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom}.`
+                    : "Central no tiene una ciudad propia: su gente puede estar en cualquiera, así que hay que elegirla."}
+                </span>
               </label>
               {/* Un adendum no repite el contrato ni sus anexos, así que los
                   campos que solo alimentan al contrato no se piden. */}
