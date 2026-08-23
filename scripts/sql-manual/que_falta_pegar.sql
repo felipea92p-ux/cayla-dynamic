@@ -135,7 +135,8 @@ with repo(numero, nombre, nunca) as (values
     (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios', false),
     (274, 'las_provisiones_solo_listan_a_quien_devenga', false),
     (275, 'las_vacaciones_dejan_de_pagarse_en_cero', false),
-    (276, 'una_sola_base_para_la_reserva', false)
+    (276, 'una_sola_base_para_la_reserva', false),
+    (280, 'el_descanso_semanal_trabajado_se_paga', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -270,8 +271,10 @@ select * from (
              when '4f24030bdce39bd665a13f503a2e7d7e' then '✗ 0269 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'b132c828fde4aa5fedd6cf946fee7f08' then '⚠ se quedó en la 0275 — falta pegar lo posterior'
              when '3af7cdc468be355687ad53a4af446222' then '✗ 0275 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '2f38e5ce76bcb22164cd0794671b349f' then '0276 — al día con el repositorio'
+             when '2f38e5ce76bcb22164cd0794671b349f' then '⚠ se quedó en la 0276 — falta pegar lo posterior'
              when '2792fa305cc21dec63339fc03af71f30' then '✗ 0276 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '0912fcb75893b146ea778163ae9d1ecd' then '0280 — al día con el repositorio'
+             when '2398570d2d547504320b423d9b21b12f' then '✗ 0280 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
