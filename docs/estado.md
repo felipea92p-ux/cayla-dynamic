@@ -78,6 +78,18 @@ existe en el sistema. Se hacen **las dos cosas**: registrar el descanso
 sustitutorio cuando lo hubo, y pagar la sobretasa cuando no. Golpea sobre todo a
 TRU, que es el régimen de 6 días con descanso rotativo.
 
+**CONSTRUIDA Y EN PRODUCCIÓN: la 0280**, pegada el 2026-08-22 y verificada por
+md5 (`0912fcb7…`, 91 394 caracteres, calculado en el mismo minuto). La boleta la
+imprime con el día que la dispara, y `chk_foto_cuadra` y `fn_planilla_congelar`
+fueron con ella — sin eso el cierre del mes se caía entero, que es lo que la
+0201 ya pagó una vez.
+
+Lo que NO hizo falta: registrar el descanso sustitutorio. El art. 3 paga «sin
+sustituirlo por otro día en la misma semana», y si se sustituyó ese día libre
+CORTA la racha y no hay séptimo día. La racha es la prueba. El feriado sí
+necesita actas (0069/0093/0238) porque allí el día compensatorio puede caer
+semanas después.
+
 **Y RIGE DESDE AHORA, NO HACIA ATRÁS** (Felipe, 2026-08-20). Se midió lo que
 costaría —`cuanto_cuesta_el_descanso_semanal.sql`, S/163.19 del periodo en curso
 y S/374.61 del de julio ya pagado— y la decisión es que la política empieza
