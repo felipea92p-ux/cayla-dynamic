@@ -249,7 +249,9 @@ function IncidenciasContenido() {
       traerTodo<any>((ini, fin) =>
         supabase
           .from("jornadas")
-          .select("persona_id, fecha, horas_trabajadas, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          // CAMBIO 0283 — `estado` viaja para poder decir cuándo el exceso se
+          // apoya en una hora que puso el sistema y nadie confirmó.
+          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
           .gte("fecha", haceDias(VENTANA_EXCESO_DIAS + 5)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
@@ -379,14 +381,44 @@ function IncidenciasContenido() {
     // 48 la jornada ordinaria pactada. Avisar a las 45 llenaría la pantalla de
     // gente que está dentro de su contrato, y un aviso que salta siempre se
     // ignora a la semana.
-    const porPersonaHoras = new Map<string, { dias: { fecha: string; horas: number }[]; fila: any }>();
+    // CAMBIO 0283 — `sinConfirmar` guarda los días cuya salida la puso el
+    // sistema y nadie confirmó todavía. NO se excluyen del cálculo a propósito:
+    // el objetivo de este aviso es no perderse ningún tramo cargado, y sacar el
+    // día podría esconder una sobrecarga real. Lo que se corrige es la
+    // AFIRMACIÓN: el aviso deja de dar por hecho un exceso que puede descansar
+    // en una hora que nadie marcó, y lo dice. Antes esta pantalla podía decir a
+    // la vez «Auto-cerrada (revisar)» y «pasó el máximo legal» sobre el mismo
+    // día — un falso positivo, que es el peor error según CLAUDE.md.
+    const porPersonaHoras = new Map<
+      string,
+      { dias: { fecha: string; horas: number }[]; sinConfirmar: Set<string>; fila: any }
+    >();
     for (const j of (horasSemanaData as any[]) ?? []) {
       const prev = porPersonaHoras.get(j.persona_id);
       const dia = { fecha: j.fecha as string, horas: Number(j.horas_trabajadas) || 0 };
-      if (prev) prev.dias.push(dia);
-      else porPersonaHoras.set(j.persona_id, { dias: [dia], fila: j });
+      const pendiente = j.estado === "auto_cerrada_pendiente";
+      if (prev) {
+        prev.dias.push(dia);
+        if (pendiente) prev.sinConfirmar.add(dia.fecha);
+      } else {
+        porPersonaHoras.set(j.persona_id, {
+          dias: [dia],
+          sinConfirmar: new Set(pendiente ? [dia.fecha] : []),
+          fila: j,
+        });
+      }
     }
-    for (const { dias, fila: j } of porPersonaHoras.values()) {
+    // ¿La ventana de siete días que termina en `fin` contiene algún día así?
+    const apoyadoEnHoraInventada = (sinConfirmar: Set<string>, fin: string) => {
+      if (sinConfirmar.size === 0) return false;
+      const cursor = new Date(`${fin}T00:00:00Z`);
+      for (let i = 0; i < 7; i++) {
+        if (sinConfirmar.has(cursor.toISOString().slice(0, 10))) return true;
+        cursor.setUTCDate(cursor.getUTCDate() - 1);
+      }
+      return false;
+    };
+    for (const { dias, sinConfirmar, fila: j } of porPersonaHoras.values()) {
       const quien = {
         personaId: j.persona_id,
         nombre: `${j.personas?.nombres ?? ""} ${j.personas?.apellidos ?? ""}`.trim(),
@@ -404,7 +436,10 @@ function IncidenciasContenido() {
         out.push({
           ...quien,
           fecha: v!.fin,
-          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
+          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`
+            + (apoyadoEnHoraInventada(sinConfirmar, v!.fin)
+                 ? " · incluye días cuya salida puso el sistema y falta confirmar"
+                 : ""),
         });
       }
       // La segunda: ¿se pasó ANTES y nadie lo vio? Ya no se puede evitar, pero

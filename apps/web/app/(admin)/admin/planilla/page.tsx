@@ -1108,6 +1108,20 @@ export default function PlanillaPage() {
   async function marcarPagado(pagar: boolean) {
     if (!periodoActual) return;
     if (pagar) {
+      // CAMBIO 0283 — Se avisa ANTES de intentarlo. La base lo frena igual
+      // (fn_planilla_congelar), pero llegar hasta el error con el diálogo ya
+      // aceptado se lee como que el sistema falló, y no es eso: es que faltan
+      // horas por confirmar. Decirlo acá convierte un error en una instrucción.
+      if (diasPendientes) {
+        window.alert(
+          `Todavía no se puede cerrar este periodo.\n\n` +
+            `Hay ${diasPendientes.dias} día(s) cuya hora de salida la puso el sistema porque nadie marcó, ` +
+            `y aún están sin confirmar: ${diasPendientes.nombres.join(", ")}.\n\n` +
+            `Esa hora no la marcó ninguna persona, y si cruza las 48 h de la semana se paga recargo sobre ella. ` +
+            `Entra a Correcciones, confirma o corrige esas salidas, y vuelve aquí.`,
+        );
+        return;
+      }
       if (
         !window.confirm(
           "Marcar este periodo como PAGADO guarda una copia intacta del desglose de cada persona: " +
@@ -1581,6 +1595,23 @@ export default function PlanillaPage() {
     if (ocultos.length === 0) return null;
     return { n: ocultos.length, monto: ocultos.reduce((a, f) => a + f.total, 0) };
   }, [proy, estadoFiltro, sedeFiltro]);
+
+  // CAMBIO 0283 — Días con la salida puesta por el sistema y sin confirmar.
+  // Sobre TODAS las filas del periodo y NUNCA sobre `filasVisibles`, por la
+  // misma razón que el aviso de arriba: si el filtro esconde justo a esa
+  // persona, el aviso desaparecería y el freno de la base saltaría igual —
+  // avisando de alguien que la pantalla no está mostrando.
+  // El freno de verdad vive en `fn_planilla_congelar` (0283); esto solo evita
+  // llegar hasta ahí a ciegas.
+  const diasPendientes = useMemo(() => {
+    const conPendientes = (proy?.filas ?? []).filter((f) => f.dias_pendientes > 0);
+    if (conPendientes.length === 0) return null;
+    return {
+      personas: conPendientes.length,
+      dias: conPendientes.reduce((a, f) => a + f.dias_pendientes, 0),
+      nombres: conPendientes.map((f) => f.nombre).sort(),
+    };
+  }, [proy]);
 
   // ── CSV (columnas de la tabla + las 4 de provisiones; respeta el filtro) ───
   // Nombre y contenido salen de proy (lo realmente cargado), NUNCA del selector

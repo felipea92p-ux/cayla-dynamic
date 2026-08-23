@@ -69,6 +69,18 @@ select throws_ok($$ update jornadas set horas_trabajadas = -3.00
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
 values ('dddddddd-0000-0000-0000-000000000001', '2026-07-01', '2026-07-31', 'abierto');
 
+-- CAMBIO 0283 — Desde la 0283 un periodo no se cierra mientras tenga días con la
+-- salida puesta por el sistema y sin confirmar, y la primera mitad de esta misma
+-- prueba crea uno justo dentro de este periodo (20/07). No es un estorbo del
+-- freno: es el freno funcionando. Se confirma por la puerta real —la que usa
+-- Correcciones— y de paso queda probado que el freno tiene salida.
+select fn_confirmar_auto_cierre(
+  (select id from marcajes
+    where persona_id = '00000000-0000-0000-0000-00000000009c'
+      and origen = 'auto_cierre' and anulada_at is null
+    order by timestamp_marca desc limit 1),
+  'Confirmada en el laboratorio para poder cerrar el periodo');
+
 select lives_ok($$ select fn_periodo_pagado('dddddddd-0000-0000-0000-000000000001', true) $$,
                 'PAGO · marcar como pagado sigue funcionando igual');
 
