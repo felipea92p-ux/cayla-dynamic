@@ -3624,7 +3624,6 @@ export type Database = {
           rango: string
           sede: string
           tope: number
-          ya_tiene: boolean
         }[]
       }
       fn_educacion_cerrar:
@@ -3667,11 +3666,21 @@ export type Database = {
         }[]
       }
       fn_educacion_monto: {
-        Args: { p_costo: number | null; p_persona_id: string | null }
+        Args: {
+          p_costo: number | null
+          p_desde: string | null
+          p_excluir?: string | null
+          p_hasta: string | null
+          p_persona_id: string | null
+        }
         Returns: number
       }
       fn_educacion_por_atender: { Args: never; Returns: number }
       fn_educacion_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_educacion_realinear: {
+        Args: { p_actor?: string | null; p_desde: string | null; p_persona_id: string | null }
+        Returns: number
+      }
       fn_educacion_registrar: {
         Args: {
           p_beneficiario: string | null
@@ -3687,6 +3696,19 @@ export type Database = {
           p_vigente_hasta: string | null
         }
         Returns: string
+      }
+      fn_educacion_saldo: {
+        Args: {
+          p_desde: string | null
+          p_excluir?: string | null
+          p_hasta: string | null
+          p_persona_id: string | null
+        }
+        Returns: number
+      }
+      fn_educacion_tope: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: number
       }
       fn_eliminar_marcaje: {
         Args: { p_marcaje_id: string | null; p_motivo: string | null }
