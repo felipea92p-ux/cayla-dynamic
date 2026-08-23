@@ -42,7 +42,7 @@
 --     cálculo.
 -- ============================================================================
 begin;
-select plan(10);
+select plan(11);
 
 -- ── El laboratorio ──────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre)
@@ -63,14 +63,14 @@ values ('22222222-2160-0000-0000-000000000001', date '2026-07-29', date '2026-08
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, estado, tipo_vinculo,
                       sueldo_fijo, personal_direccion, fecha_ingreso, rol, auth_user_id)
 values
- ('d0216000-0000-0000-0000-000000000001','Siete','Dias',   '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','colaborador',null),
- ('d0216000-0000-0000-0000-000000000002','Ocho','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','colaborador',null),
- ('d0216000-0000-0000-0000-000000000003','Seis','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','colaborador',null),
- ('d0216000-0000-0000-0000-000000000004','Catorce','Dias', '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','colaborador',null),
- ('d0216000-0000-0000-0000-000000000005','Locadora','RxH', '11111111-1111-1111-1111-111111111111','x','activo','rxh',     false,false,date '2025-01-01','colaborador',null),
- ('d0216000-0000-0000-0000-000000000006','Fijo','Sueldo',  '11111111-1111-1111-1111-111111111111','x','activo','planilla',true, false,date '2025-01-01','colaborador',null),
- ('d0216000-0000-0000-0000-000000000007','Direccion','Jefa','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,true, date '2025-01-01','colaborador',null),
- ('d0216000-0000-0000-0000-000000000008','Antes','DeQueRija','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','colaborador',null),
+ ('d0216000-0000-0000-0000-000000000001','Siete','Dias',   '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0216000-0000-0000-0000-000000000002','Ocho','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0216000-0000-0000-0000-000000000003','Seis','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0216000-0000-0000-0000-000000000004','Catorce','Dias', '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0216000-0000-0000-0000-000000000005','Locadora','RxH', '11111111-1111-1111-1111-111111111111','x','activo','rxh',     false,false,date '2025-01-01','integrante',null),
+ ('d0216000-0000-0000-0000-000000000006','Fijo','Sueldo',  '11111111-1111-1111-1111-111111111111','x','activo','planilla',true, false,date '2025-01-01','integrante',null),
+ ('d0216000-0000-0000-0000-000000000007','Direccion','Jefa','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,true, date '2025-01-01','integrante',null),
+ ('d0216000-0000-0000-0000-000000000008','Antes','DeQueRija','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
  ('d0216000-0000-0000-0000-0000000000aa','Admin','216',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','admin','aaaaaaaa-2160-0000-0000-00000000aaaa');
 
 insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
