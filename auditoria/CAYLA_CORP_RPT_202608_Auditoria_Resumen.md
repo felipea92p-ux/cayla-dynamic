@@ -1,8 +1,8 @@
 # Auditoría CAYLA Dynamic — lo que hay que saber en cinco minutos
 
 **2026-08-17** · 116 agentes, cada hallazgo con un verificador independiente encargado de
-refutarlo. **De 99 hallazgos propuestos, 19 murieron ahí.** Quedaron **80: 4 P0, 8 P1, 29 P2,
-39 P3.**
+refutarlo. **De 99 hallazgos propuestos, 19 murieron ahí.** Quedaron **80: 4 P0, 8 P1, 29 P2, 39 P3** — de los que **uno se corrigió a la baja el
+2026-08-18 al leer el código con calma; ver el punto 2**.
 
 ---
 
@@ -30,11 +30,49 @@ En `0130_los_datos_del_tregistro.sql` y dos migraciones más. Su encabezado adem
 personales con nombre y apellido. El `CLAUDE.md` tiene la regla escrita —«datos personales fuera de
 git»— y se incumplió tres veces. Ya está publicado: borrarlo hoy no lo despublica.
 
-**2 · El motor de tardanzas cuenta feriados, vacaciones y descansos médicos como tardanzas — y las
-imprime en el memo disciplinario.** `P0` · **ya ocurrió, desde el 2026-07-21**
-`fn_faltas` aplica seis exclusiones antes de contar. `fn_tardanzas_resumen` hace la pregunta
-contraria sobre los mismos días y **no aplica ninguna**. Es exactamente el falso positivo que este
-repositorio declaró su peor error, y termina en un papel que se le entrega a una persona.
+**2 · El motor de tardanzas cuenta feriados y vacaciones como tardanzas.** `P2`
+`fn_faltas` aplica seis exclusiones antes de contar; `fn_tardanzas_resumen` mira los mismos días
+con otro criterio.
+
+→ **CORREGIDO el 2026-08-18, y la corrección es contra mí.** Este informe decía que el motor de
+tardanzas «no aplica ninguna» exclusión y lo clasificaba como P0. **Es falso.** Leído el cuerpo
+vigente, aplica cuatro: quién es medible (`activo`, `en_planilla`, `not sueldo_fijo`), las
+tardanzas de más de tres horas (`fn_tardanza_es_medible`), lo ya sancionado (el corte del no *bis
+in idem*), y **lo justificado a mano** (`tardanzas_justificadas`). Lo que le falta son las
+exclusiones de calendario.
+
+→ **Y ya estaba catalogado antes de esta auditoría**, como **A4** en
+`docs/hallazgos-abiertos.md`, con una descripción más exacta que la de este informe. La 0200 lo
+dejó abierto expresamente: *«Tampoco toca los feriados. El hallazgo nº4 sigue abierto… Esta
+migración hace que esas tardanzas se vean ANTES, lo que aumenta el valor de cerrar el nº4 — no lo
+sustituye.»*
+
+→ **MEDIDO EN PRODUCCIÓN el 2026-08-18: cero memos emitidos, y CERO falsos positivos.**
+El detector encontró dos jornadas en toda la historia, y al mirarlas una por una **ninguna de las
+dos es un error del sistema**:
+
+- **Janis Revilla**, 28/07, 53 minutos → **tardanza de verdad**. Ese día la tienda de Trujillo
+  abrió con dos turnos: cinco personas entraron entre 07:43 y 08:14, y tres por la tarde. Janis
+  entró **14:38** y su hora de ese martes era **13:45** — la resta da exactamente 53. El sistema
+  no la midió contra su hora de mañana: usó su horario del día, que es lo correcto.
+- **Rufina Salvatierra**, 06/08, 2 minutos → ya cesó; no cuenta para nada.
+
+**Conclusión: A4 no se corrige.** El defecto que describe —que el motor mide puntualidad en
+feriados— resulta ser el comportamiento CORRECTO cuando la tienda abre en feriado con sus horarios
+normales, que es lo que pasa en Trujillo. Excluir los feriados taparía tardanzas reales.
+
+**Y la señal que se pensó usar no sirve**: medido, **22 de 25 feriados trabajados no tienen ni un
+turno registrado**. «Feriado sin turno» no significa «no era su día»; significa «nadie registró
+turnos», que es casi siempre. Si eso se hubiera usado como criterio de exclusión, habría dejado de
+contar tardanzas en prácticamente todos los feriados.
+
+Lo que **sí** queda en pie, y es preventivo porque no tiene ningún caso hoy: que una tardanza no
+pueda contarse en un día de vacaciones aprobadas, descanso sustitutorio o suspensión cumplida.
+
+*(Nota de método, contra mí: llegar aquí costó cuatro consultas y dos hipótesis falsas. Una de
+ellas —que los datos eran una carga masiva— salió de leer `entrada_ts::time` sin convertir a hora
+de Lima, y ver «12:43» donde eran las 07:43. Propuse una explicación sobre un dato mal leído, que
+es exactamente lo que el CLAUDE.md prohíbe.)*
 
 **3 · El kiosco de marcaje puede leer el DNI, el correo y la remuneración de todo su equipo.** `P0`
 La política deja al terminal seleccionar filas completas de `personas`. RLS filtra **filas, no
