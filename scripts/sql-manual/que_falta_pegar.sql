@@ -137,6 +137,7 @@ with repo(numero, nombre, nunca) as (values
     (275, 'las_vacaciones_dejan_de_pagarse_en_cero', false),
     (276, 'una_sola_base_para_la_reserva', false),
     (278, 'ni_los_descuentos_ni_los_beneficios_inflan_la_liquidacion', false),
+    (279, 'una_sede_sabe_en_que_ciudad_esta', false),
     (280, 'el_descanso_semanal_trabajado_se_paga', false)
 ),
 diff as (
