@@ -424,8 +424,15 @@ function anexoIV(d: DatosContrato): string {
     detallan a continuación, correspondientes a la sede ${d.sedeNombre} y
     asignados para el ejercicio de sus funciones y bajo su custodia:</p>
     <p><strong>Activos principales de la sede:</strong> ${d.activosPrincipales}</p>
-    <p><strong>Ajuste específico para esta persona:</strong>
-    ${d.activosLibre || "LA COLABORADORA no tiene activos adicionales bajo su custodia, más allá de los generales de la sede detallados líneas arriba."}</p>
+    <p><strong>Ajuste específico para esta persona:</strong></p>
+    ${
+      d.activosLibre
+        ? // Mismo tratamiento que el Anexo I, y por la misma razón: una lista
+          // de equipos con su número de serie se cita («el bien 3 del Anexo
+          // IV») cuando hay que reclamar la devolución de uno.
+          listaDesdeTexto(d.activosLibre)
+        : "<p>LA COLABORADORA no tiene activos adicionales bajo su custodia, más allá de los generales de la sede detallados líneas arriba.</p>"
+    }
     <p>Todos los bienes detallados son de propiedad exclusiva de LA EMPRESA y se
     entregan únicamente para el desempeño de las funciones de LA COLABORADORA. LA
     COLABORADORA se obliga a custodiarlos y conservarlos con la diligencia
