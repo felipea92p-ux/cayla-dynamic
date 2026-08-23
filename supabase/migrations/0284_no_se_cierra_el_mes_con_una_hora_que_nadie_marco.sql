@@ -7,13 +7,25 @@
 --   hora de salida la puso el proceso automático y todavía nadie confirmó.
 --
 -- QUÉ ASUME
---   · Que `fn_planilla_congelar` es la de la **0244**, confirmada con
+--   · Que `fn_planilla_congelar` es la de la **0280**, confirmada con
 --     `./scripts/donde-vive.sh fn_planilla_congelar`. El cuerpo NO se copió a
 --     mano: se extrajo de la base con `pg_get_functiondef()` y se le insertaron
 --     una declaración y un bloque, sin tocar una sola línea de lo demás.
 --     md5 de partida — PEDIDO A PRODUCCIÓN antes de pegar esto, no copiado del
 --     local. El de esta Mac es 1692771a95d4fe46d1d01d7005b37728
 --     (sin comentarios, 63364f40980570e732b03374d04428cc).
+--
+--     ⚠ ESTA MIGRACIÓN SE ESCRIBIÓ DOS VECES, Y LA PRIMERA ESTABA MAL. El
+--     cuerpo se extrajo de la base local mientras otra sesión tenía aplicada la
+--     0280 —la pila de Docker se llama `supabase_db_cayla-dynamic` a secas y se
+--     comparte entre worktrees—, pero esta rama todavía no la tenía. Resultado:
+--     un `insert` a `planilla_pagada_detalle.monto_descanso_semanal`, columna
+--     que en esta rama no existía. El CI lo cazó con «column
+--     monto_descanso_semanal does not exist» en la prueba 100. Se arregló
+--     trayendo `origin/main` y volviendo a extraer: el cuerpo resultó idéntico,
+--     porque lo que faltaba no era el cuerpo sino la migración de al lado.
+--     La lección: extraer de la base es lo correcto, pero hay que comprobar QUÉ
+--     migraciones tiene esa base antes de fiarse de lo que devuelve.
 --   · Que `fn_planilla_calcular` sigue devolviendo `dias_pendientes` por
 --     persona dentro de `filas` (0276). Es el único dato nuevo que se lee.
 --   · Que `jornadas.estado` sigue teniendo el valor `auto_cerrada_pendiente`.
@@ -72,7 +84,7 @@
 --
 -- ── CÓMO SE REVIERTE ────────────────────────────────────────────────────────
 --
---   Pegar el cuerpo de `fn_planilla_congelar` de la 0244. No toca datos, no
+--   Pegar el cuerpo de `fn_planilla_congelar` de la 0280. No toca datos, no
 --   toca tablas, y no escribe nada: revertir no pierde absolutamente nada.
 --
 -- ============================================================================
