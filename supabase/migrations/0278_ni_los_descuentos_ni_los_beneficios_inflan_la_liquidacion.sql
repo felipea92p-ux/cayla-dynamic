@@ -37,12 +37,12 @@
 --     Y el md5 DE LLEGADA, para comprobar que se pegó entero (medido tras
 --     `npx supabase db reset` con esta migración incluida):
 --
---       fn_remuneracion_computable  2ca12a678a49bbc0b79e9302826147e5   6 863 chars
---       fn_cts_trunca               18ad676646963e676cdf975536ed247a   3 291 chars
---       fn_vacaciones_truncas       1b33f8c67e102535aa785ce18debf3a2   3 228 chars
---       fn_ventanas_de_regularidad  a546419c9c0ba3275e76c79e90c9032c     913 chars  (nueva)
---       fn_permitir_bono_regular    1167032dc6cfa8ee4a0c4b3f75f4fecf     534 chars  (nueva)
---       fn_trg_bono_umbral          ee800cb9ca24ef7b8cf94ae317440521   2 180 chars  (nueva)
+--       fn_remuneracion_computable  dc96f66def7678e0d91606c8d675ba73   8 514 chars
+--       fn_cts_trunca               62edcd69debfe33261d41759192555c2   3 291 chars
+--       fn_vacaciones_truncas       9535ed57eebc317ddbefca0dc8fd409e   3 228 chars
+--       fn_ventanas_de_regularidad  a546419c9c0ba3275e76c79e90c9032c   913 chars  (nueva)
+--       fn_permitir_bono_regular    1167032dc6cfa8ee4a0c4b3f75f4fecf   534 chars  (nueva)
+--       fn_trg_bono_umbral          bec2e7eeb387c13bf7d4c7695dbaa210   2 795 chars  (nueva)
 --
 --     ⚠️ PÍDESELO A PRODUCCIÓN ANTES DE PEGAR ESTO, con la consulta que imprime
 --     `./scripts/donde-vive.sh fn_remuneracion_computable`. Si producción
@@ -367,20 +367,48 @@ begin
     -- de categorías deja fuera la gratificación, la CTS y las vacaciones, que
     -- son beneficios que el sistema deposita, no conceptos remunerativos que
     -- la persona «perciba» en el sentido del art. 16 del D.S. 001-97-TR.
-    select count(distinct date_trunc('month', pp.fecha_fin)), coalesce(sum(mp.monto), 0)
+    -- ⇩⇩⇩ CAMBIO 0278 ⇩⇩⇩ LA REGULARIDAD ES POR CONCEPTO, NO POR EL SACO.
+    --
+    -- El art. 16 del D.S. 001-97-TR dice que las remuneraciones variables entran
+    -- «siempre que el trabajador LAS haya percibido cuando menos tres meses en
+    -- cada periodo». El sujeto es cada remuneración, no el montón: lo que tiene
+    -- que repetirse es EL MISMO concepto.
+    --
+    -- Contándolo por el saco, tres bonos DISTINTOS —uno en agosto, otro en
+    -- setiembre, otro en octubre— abrían la puerta como si fueran una comisión
+    -- repetida tres meses. Ninguno de los tres es regular; los tres entraban.
+    -- Medido: S/224,87 de más por cese.
+    --
+    -- ⚠ EL CONCEPTO ES TEXTO LIBRE, y eso corta para los dos lados. Se agrupa
+    -- normalizado —minúsculas y sin espacios de sobra— pero «Comisión» y
+    -- «Comision de venta» siguen siendo dos conceptos distintos para esta
+    -- cuenta. Si algún día se quiere cerrar esa puerta, el arreglo NO es
+    -- adivinar parecidos: es darle al concepto una lista cerrada, como ya la
+    -- tiene `categoria`. Queda dicho porque quien reparta bonos con nombres
+    -- variados podría no cruzar nunca el umbral, y eso es pagar de menos.
+    select coalesce(max(m.meses), 0), coalesce(sum(m.total) filter (where m.meses >= 3), 0)
       into v_meses_var, v_total_var
-      from movimientos_planilla mp
-      join periodos_planilla pp on pp.id = mp.periodo_id
-     where mp.persona_id = p_persona_id
+      from (
+        select lower(trim(mp.concepto)) as concepto,
+               count(distinct date_trunc('month', pp.fecha_fin)) as meses,
+               sum(mp.monto) as total
+          from movimientos_planilla mp
+          join periodos_planilla pp on pp.id = mp.periodo_id
+         where mp.persona_id = p_persona_id
        -- ⇩⇩⇩ CAMBIO 0278 ⇩⇩⇩ Antes decía «and mp.monto > 0», que no filtra
        -- nada: la tabla tiene CHECK (monto > 0) desde la 0025. Entraban los
        -- descuentos con signo positivo y los tres beneficios que el propio
        -- sistema deposita. Los dos filtros de abajo son el arreglo entero.
        and mp.tipo = 'bono'
        and (mp.categoria is null or mp.categoria = 'otros')
-       and pp.fecha_fin between v_sem_ini and v_sem_fin;
+       and pp.fecha_fin between v_sem_ini and v_sem_fin
+         group by 1
+      ) m;
 
-    -- La prueba de regularidad: menos de 3 meses, no suma nada.
+    -- La prueba de regularidad ya se aplicó ARRIBA, concepto por concepto: el
+    -- `filter (where m.meses >= 3)` deja fuera del total a los que no llegan.
+    -- Acá `v_meses_var` es el mejor de todos, y sirve para decidir si hay algo
+    -- que sumar y para que la pantalla pueda explicar por qué.
     if v_meses_var >= 3 then
       v_prom_var := round(v_total_var / 6.0, 2);
     end if;
@@ -412,7 +440,20 @@ revoke execute on function fn_remuneracion_computable(uuid, date, text) from pub
 do $$
 declare v_src text;
 begin
-  select prosrc into v_src from pg_proc p
+  -- ⇩ SIN LOS COMENTARIOS, y no es un detalle de estilo: es la diferencia entre
+  -- una comprobación que sirve y una que cría lobos.
+  --
+  -- La primera versión de este bloque miraba `prosrc` entero y preguntaba si YA
+  -- NO aparecía «and mp.monto > 0». Pero el arreglo dejó un comentario que CITA
+  -- esa línea para explicar qué se quitó, así que la comprobación la encontraba
+  -- —dentro del comentario— y anunciaba «ATENCION, la funcion NO quedo como
+  -- promete» con la función perfectamente aplicada. Comprobado en local.
+  --
+  -- Un aviso que salta cuando todo está bien es peor que no tener aviso: la
+  -- primera vez se investiga, la segunda se ignora, y la tercera se ignora el
+  -- que era de verdad. Se quitan los comentarios antes de mirar.
+  select regexp_replace(prosrc, '--[^' || chr(10) || ']*', '', 'g') into v_src
+    from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'fn_remuneracion_computable';
 
@@ -421,7 +462,14 @@ begin
      and v_src like '%fn_es_admin_o_lider() is not true%'
      and v_src not like '%and mp.monto > 0%'
   then
-    raise notice '0278 · OK · la base de la liquidacion ya solo admite bonos, y el guard de la 0129 sigue puesto.';
+    if to_regclass('public.bonos_umbral_permitido') is null
+       or not exists (select 1 from pg_trigger where tgname = 'trg_bono_umbral')
+       or v_src not like '%p_beneficio%'
+    then
+      raise notice '0278 · A MEDIAS · el filtro quedo, pero falta el candado o la ventana por beneficio. Se pego solo una parte.';
+    else
+      raise notice '0278 · OK · la base solo admite bonos, cada beneficio mira su ventana, y el candado esta puesto.';
+    end if;
   else
     raise notice '0278 · ATENCION · la funcion NO quedo como esta migracion promete. Revisa que se haya pegado el bloque entero.';
   end if;
@@ -716,12 +764,19 @@ begin
   if v_fin is null then return new; end if;
 
   for v_ventana, v_ini, v_ffin in select nombre, ini, fin from fn_ventanas_de_regularidad(v_fin) loop
+    -- EL MISMO CONCEPTO, no cualquiera. El candado cuenta exactamente lo que
+    -- cuenta el cálculo: si contara más, frenaría bonos distintos que no cuestan
+    -- nada —dar uno de puntualidad en agosto, otro de cumpleaños en setiembre y
+    -- otro de cierre en octubre no hace regular a ninguno—; si contara menos,
+    -- dejaría pasar el que sí. Las dos cuentas tienen que ser la misma o se
+    -- separan, y separadas el candado deja de significar lo que dice.
     select count(distinct date_trunc('month', pp.fecha_fin)) into v_meses
       from movimientos_planilla mp
       join periodos_planilla pp on pp.id = mp.periodo_id
      where mp.persona_id = new.persona_id
        and mp.tipo = 'bono'
        and (mp.categoria is null or mp.categoria = 'otros')
+       and lower(trim(mp.concepto)) = lower(trim(new.concepto))
        and pp.fecha_fin between v_ini and v_ffin
        and date_trunc('month', pp.fecha_fin) <> date_trunc('month', v_fin);
 
@@ -735,10 +790,12 @@ begin
         raise exception using
           errcode = 'P0001',
           message = format(
-            'Este bono seria el mes %s con bono en la ventana de %s (%s al %s). '
+            'Este bono («%s») seria el mes %s en que se paga ESE MISMO concepto '
+            || 'dentro de la ventana de %s (%s al %s). '
             || 'A partir del tercer mes la ley lo mete en la base de la gratificacion, '
             || 'la CTS y las vacaciones, y se paga muchas veces su valor al cesar.',
-            v_meses + 1, v_ventana, to_char(v_ini,'DD/MM/YYYY'), to_char(v_ffin,'DD/MM/YYYY')),
+            new.concepto, v_meses + 1, v_ventana,
+            to_char(v_ini,'DD/MM/YYYY'), to_char(v_ffin,'DD/MM/YYYY')),
           hint = 'Si aun asi corresponde pagarlo, autorizalo dejando el motivo escrito: '
                  || 'select fn_permitir_bono_regular(''' || new.persona_id || ''', ''por que...'');';
       end if;

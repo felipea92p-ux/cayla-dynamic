@@ -29,7 +29,7 @@
 -- los movimientos de planilla que tienen encima.
 -- ============================================================================
 begin;
-select plan(19);
+select plan(20);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000278000', 'ZZ277', 'Sede de laboratorio 277', true);
@@ -234,8 +234,8 @@ select is(
 );
 
 insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto) values
-  ('00000000-0000-0000-0000-000000278081','00000000-0000-0000-0000-0000002780aa','bono','Bono agosto',50.00),
-  ('00000000-0000-0000-0000-000000278091','00000000-0000-0000-0000-0000002780aa','bono','Bono setiembre',50.00);
+  ('00000000-0000-0000-0000-000000278081','00000000-0000-0000-0000-0000002780aa','bono','Comision de venta',50.00),
+  ('00000000-0000-0000-0000-000000278091','00000000-0000-0000-0000-0000002780aa','bono','Comision de venta',50.00);
 
 -- ── 13 a 16 · EL CANDADO ────────────────────────────────────────────────────
 --
@@ -247,7 +247,7 @@ insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto)
 -- ésta se pone roja.
 select throws_ok(
   $$ insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto)
-     values ('00000000-0000-0000-0000-000000278101','00000000-0000-0000-0000-0000002780aa','bono','Tercer mes',50) $$,
+     values ('00000000-0000-0000-0000-000000278101','00000000-0000-0000-0000-0000002780aa','bono','Comision de venta',50) $$,
   'P0001', null,
   'CANDADO · el bono que seria el tercer mes de la ventana se rechaza');
 
@@ -264,14 +264,24 @@ select lives_ok(
   $$ select fn_permitir_bono_regular('00000000-0000-0000-0000-0000002780aa',
        'Bono por cierre de tienda nueva, acordado en acta del 20/10/2026');
      insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto)
-     values ('00000000-0000-0000-0000-000000278101','00000000-0000-0000-0000-0000002780aa','bono','Autorizado',50) $$,
+     values ('00000000-0000-0000-0000-000000278101','00000000-0000-0000-0000-0000002780aa','bono','Comision de venta',50) $$,
   'CANDADO · con motivo escrito, el bono entra');
 
 select throws_ok(
   $$ insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto)
-     values ('00000000-0000-0000-0000-000000278101','00000000-0000-0000-0000-0000002780aa','bono','Sin permiso ya',50) $$,
+     values ('00000000-0000-0000-0000-000000278101','00000000-0000-0000-0000-0000002780aa','bono','Comision de venta',50) $$,
   'P0001', null,
   'CANDADO · y el permiso se gasta: el siguiente vuelve a rechazarse');
+
+-- El otro lado del candado, y es tan importante como el primero: tres bonos
+-- DISTINTOS en tres meses no hacen regular a ninguno —el art. 16 pide que se
+-- repita EL MISMO concepto— así que el candado tiene que dejarlos pasar. Si
+-- alguien "endurece" el candado contando cualquier bono, esta aserción se pone
+-- roja y le dice por qué.
+select lives_ok(
+  $$ insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto)
+     values ('00000000-0000-0000-0000-000000278071','00000000-0000-0000-0000-0000002780aa','bono','Bono de cierre de tienda',50) $$,
+  'CANDADO · un bono con OTRO nombre no cuenta: la regularidad es por concepto');
 
 -- ── 17 · La ventana de la CTS no es la de la gratificación ──────────────────
 -- El defecto que nadie había visto: `fn_remuneracion_computable` usaba una sola
