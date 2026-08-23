@@ -456,7 +456,7 @@ export default function PerfilPersonaPage() {
                   {esMiPerfil && puedeSalario && (
                     <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                       <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
-                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
+                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
                       {firmaMsg && <div className={`mb-3 rounded-lg px-3 py-2 text-sm ${firmaMsg.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>{firmaMsg.texto}</div>}
                       <div className="flex flex-wrap items-center gap-4">
                         {miFirma ? (
