@@ -15,6 +15,7 @@ import {
   formatearFecha,
   ACTIVOS_PRINCIPALES_POR_SEDE,
   FUNCIONES_PLACEHOLDER,
+  MARCADOR_FIRMA_EMPRESA,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
 
@@ -41,10 +42,13 @@ import {
 // `horas_semana_objetivo`: esa comparación no alimentaba nada del contrato y
 // Felipe la encontró más ruidosa que útil.
 
-const EMPRESA = {
-  firmanteNombre: "Alvarez Pereyra Felipe Miguel",
-  firmanteDni: "47384306",
-};
+// Quién firma por CAYLA NO se escribe acá. Vive en `configuracion.firmante_empresa`
+// (0147), validado por trigger: tiene que ser una persona activa con rol admin o
+// lider_do. Antes estaban el nombre y el DNI de Felipe escritos a mano en este
+// archivo — exactamente el tipo de dato que este repositorio prohíbe hardcodear:
+// el día que firme otra persona, el contrato saldría con el nombre equivocado y
+// nadie se enteraría hasta verlo impreso.
+const FIRMANTE_POR_DEFECTO = { nombre: "", dni: "", cargo: "Gerencia General" };
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -64,6 +68,7 @@ interface Sede {
   id: string;
   nombre: string;
   codigo: string;
+  ciudad: string | null;
 }
 interface DatoPersonal {
   persona_id: string;
@@ -113,14 +118,22 @@ export default function ContratosPage() {
   const [bonoOnomastico, setBonoOnomastico] = useState<number | null>(null);
   const [ritVersion, setRitVersion] = useState<string | null>(null);
   const [ritFecha, setRitFecha] = useState<string | null>(null);
+  const [firmante, setFirmante] = useState(FIRMANTE_POR_DEFECTO);
+  // La firma escaneada de QUIEN ESTÁ USANDO EL PANEL. `fn_mi_firma()` no puede
+  // devolver la de otra persona, y eso es deliberado (0076/0147): estampar la
+  // firma de Felipe desde la sesión de alguien más es justo lo que esas
+  // migraciones existen para impedir.
+  const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
+  const [esFirmante, setEsFirmante] = useState(false);
   const [contratos, setContratos] = useState<ContratoFila[]>([]);
 
   const [personaId, setPersonaId] = useState("");
-  const [tipo, setTipo] = useState<"nuevo" | "renovacion">("renovacion");
+  const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum">("renovacion");
   const [cargoEditado, setCargoEditado] = useState("");
   const [causaEditada, setCausaEditada] = useState("");
   const [funcionesEditadas, setFuncionesEditadas] = useState("");
   const [activosLibre, setActivosLibre] = useState("");
+  const [adendumEditado, setAdendumEditado] = useState("");
   // Sin esto marcado, un Anexo IV vacío es indistinguible de uno olvidado —
   // decisión de Felipe (2026-08-19): un campo vacío no basta, hay que
   // declararlo a propósito.
@@ -167,14 +180,14 @@ export default function ContratosPage() {
     }
 
     const hoy = hoyLima();
-    const [ps, ss, dp, sal, params, rit, ctr] = await Promise.all([
+    const [ps, ss, dp, sal, params, rit, ctr, cfg, fichas, firma, yo] = await Promise.all([
       supabase
         .from("personas")
         .select("id, nombres, apellidos, documento, cargo, sede_base_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad")
         .eq("estado", "activo")
         .eq("en_planilla", true)
         .order("apellidos"),
-      supabase.from("sedes").select("id, nombre, codigo"),
+      supabase.from("sedes").select("id, nombre, codigo, ciudad"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, direccion"),
       supabase.from("asignaciones_salario").select("persona_id, salario_mensual_soles").is("vigente_hasta", null),
       // Movilidad y bono: la fila vigente HOY. Sin fila aplicable, cae a
@@ -196,12 +209,37 @@ export default function ContratosPage() {
         .order("vigente_desde", { ascending: false })
         .limit(1),
       supabase.rpc("fn_contratos_listar"),
+      // Quién firma por CAYLA (0147) — dato administrable, no escrito acá.
+      supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+      // Las fichas SIN filtrar por `en_planilla`: quien firma por la empresa no
+      // tiene por qué estar en planilla —puede ser accionista— y buscarlo en la
+      // lista del desplegable lo dejaría sin nombre ni DNI en el contrato.
+      supabase.from("personas").select("id, nombres, apellidos, documento").eq("estado", "activo"),
+      // Mi propia firma escaneada. Solo la mía: fn_mi_firma no acepta parámetros.
+      supabase.rpc("fn_mi_firma"),
+      supabase.rpc("fn_persona_actual_id"),
     ]);
 
     setPersonas((ps.data as Persona[]) ?? []);
     setSedes((ss.data as Sede[]) ?? []);
     setDatosPersonales((dp.data as DatoPersonal[]) ?? []);
     setSalarios((sal.data as Salario[]) ?? []);
+
+    // El firmante: su persona_id y cargo vienen de `configuracion`; su nombre y
+    // su DNI, de la ficha de esa persona — no de un literal en este archivo.
+    const cfgValor = (cfg.data as { valor: { persona_id?: string; cargo?: string } } | null)?.valor;
+    const firmanteId = cfgValor?.persona_id ?? null;
+    type Ficha = { id: string; nombres: string; apellidos: string; documento: string | null };
+    const fichaFirmante = ((fichas.data as Ficha[]) ?? []).find((p) => p.id === firmanteId);
+    setFirmante({
+      nombre: fichaFirmante ? `${fichaFirmante.nombres} ${fichaFirmante.apellidos}` : FIRMANTE_POR_DEFECTO.nombre,
+      dni: fichaFirmante?.documento ?? FIRMANTE_POR_DEFECTO.dni,
+      cargo: cfgValor?.cargo ?? FIRMANTE_POR_DEFECTO.cargo,
+    });
+
+    const miFirma = typeof firma.data === "string" ? firma.data : null;
+    setFirmaUrl(miFirma?.startsWith("data:image") ? miFirma : null);
+    setEsFirmante(Boolean(firmanteId) && firmanteId === (yo.data as string | null));
 
     const paramsData = (params.data as Parametro[]) ?? [];
     setMovilidadTarifas(paramsData.filter((p) => p.clave === "movilidad_diaria"));
@@ -243,6 +281,7 @@ export default function ContratosPage() {
     setFuncionesEditadas(FUNCIONES_PLACEHOLDER);
     setActivosLibre("");
     setSinActivosAdicionales(false);
+    setAdendumEditado("");
 
     if (tipo === "renovacion" && p.fecha_fin_contrato) {
       const siguiente = new Date(`${p.fecha_fin_contrato}T00:00:00`);
@@ -265,7 +304,16 @@ export default function ContratosPage() {
   useEffect(() => {
     setBorrador(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cargoEditado, causaEditada, funcionesEditadas, activosLibre, sinActivosAdicionales, fechaInicio, fechaFin]);
+  }, [
+    cargoEditado,
+    causaEditada,
+    funcionesEditadas,
+    activosLibre,
+    sinActivosAdicionales,
+    adendumEditado,
+    fechaInicio,
+    fechaFin,
+  ]);
 
   const persona = personas.find((p) => p.id === personaId) ?? null;
   const datoPersonal = persona ? (datosPersonales.find((d) => d.persona_id === persona.id) ?? null) : null;
@@ -275,6 +323,10 @@ export default function ContratosPage() {
 
   const sedeCod = persona?.sede_base_id ? (sedeCodigo.get(persona.sede_base_id) ?? "") : "";
   const sedeNom = persona?.sede_base_id ? (sedeNombreMap.get(persona.sede_base_id) ?? "") : "";
+  const sedeCiudad = persona?.sede_base_id
+    ? (sedes.find((s) => s.id === persona.sede_base_id)?.ciudad ?? null)
+    : null;
+  const esAdendum = tipo === "adendum";
   const movilidadTarifa = persona ? tarifaDeSede(persona.sede_base_id) : null;
 
   const datosParaGenerar: DatosContrato | null =
@@ -288,6 +340,7 @@ export default function ContratosPage() {
           email: persona.email,
           sedeNombre: sedeNom,
           sedeCodigo: sedeCod,
+          ciudad: sedeCiudad,
           causaObjetivaTexto: causaEditada,
           funcionesTexto: funcionesEditadas,
           fechaInicio,
@@ -301,22 +354,32 @@ export default function ContratosPage() {
           ritFecha: ritFecha ?? "[sin publicar en el sistema]",
           activosPrincipales: sedeCod ? (ACTIVOS_PRINCIPALES_POR_SEDE[sedeCod] ?? "") : "",
           activosLibre,
-          firmanteNombre: EMPRESA.firmanteNombre,
-          firmanteDni: EMPRESA.firmanteDni,
+          adendumTexto: adendumEditado,
+          firmanteNombre: firmante.nombre,
+          firmanteDni: firmante.dni,
+          firmanteCargo: firmante.cargo,
         }
       : null;
 
   const previewHtml = datosParaGenerar ? construirContrato(datosParaGenerar) : null;
 
-  // Dos campos que un olvido puede dejar exactamente iguales a como
-  // empezaron — y un campo sin tocar no debe poder imprimirse como si fuera
-  // una respuesta. Decisión de Felipe (2026-08-19).
+  // Campos que un olvido puede dejar exactamente iguales a como empezaron — y
+  // un campo sin tocar no debe poder imprimirse como si fuera una respuesta.
+  // Decisión de Felipe (2026-08-19).
   const bloqueos: string[] = [];
-  if (persona && funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER) {
+  if (persona && esAdendum && adendumEditado.trim() === "") {
+    bloqueos.push("Escribe qué se modifica del contrato vigente.");
+  }
+  if (persona && !esAdendum && funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER) {
     bloqueos.push('Completa "Funciones del cargo" — sigue con el texto de relleno.');
   }
-  if (persona && activosLibre.trim() === "" && !sinActivosAdicionales) {
-    bloqueos.push('Marca la casilla de activos, o completa el ajuste específico del Anexo IV.');
+  if (persona && !esAdendum && activosLibre.trim() === "" && !sinActivosAdicionales) {
+    bloqueos.push("Marca la casilla de activos, o completa el ajuste específico del Anexo IV.");
+  }
+  // La ciudad no bloquea —el documento lo dice en su propio texto— pero avisar
+  // acá evita descubrirlo recién al leer el PDF impreso.
+  if (persona && sedeCiudad === null) {
+    bloqueos.push(`La sede ${sedeNom} no tiene ciudad cargada: el contrato dirá que falta. Cárgala en /admin/sedes.`);
   }
 
   async function generarBorrador() {
@@ -455,6 +518,22 @@ export default function ContratosPage() {
 
   const documentoAMostrar = borrador?.html ?? previewHtml;
 
+  // LA FIRMA SE ESTAMPA AL MOSTRAR, NUNCA AL GUARDAR. Lo que la 0272 congela en
+  // `documento_html` es el borrador SIN firmar; meterle la imagen convertiría un
+  // borrador en algo que parece un documento ya firmado. Acá solo se reemplaza
+  // el marcador para la vista y la impresión.
+  //
+  // Y solo si quien está usando el panel ES el firmante configurado: `fn_mi_firma`
+  // devuelve únicamente la firma propia, así que no hay forma —ni la debe haber—
+  // de estampar la de otra persona.
+  const puedeEstampar = esFirmante && Boolean(firmaUrl);
+  const htmlFinal = documentoAMostrar
+    ? documentoAMostrar.replaceAll(
+        MARCADOR_FIRMA_EMPRESA,
+        puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;",
+      )
+    : null;
+
   return (
     <main className="p-6">
       <div className="print:hidden">
@@ -492,10 +571,11 @@ export default function ContratosPage() {
               <select
                 className="mt-1 w-full rounded border border-sand p-2"
                 value={tipo}
-                onChange={(e) => setTipo(e.target.value as "nuevo" | "renovacion")}
+                onChange={(e) => setTipo(e.target.value as "nuevo" | "renovacion" | "adendum")}
               >
                 <option value="renovacion">Renovación</option>
                 <option value="nuevo">Nuevo ingreso</option>
+                <option value="adendum">Adendum</option>
               </select>
             </label>
           </div>
@@ -531,46 +611,63 @@ export default function ContratosPage() {
                   onChange={(e) => setCargoEditado(e.target.value)}
                 />
               </label>
-              <label className="block text-sm">
-                Causa objetiva (revisar antes de imprimir)
-                <textarea
-                  className="mt-1 w-full rounded border border-sand p-2"
-                  rows={4}
-                  value={causaEditada}
-                  onChange={(e) => setCausaEditada(e.target.value)}
-                />
-              </label>
-              <label className="block text-sm">
-                Funciones del cargo (Anexo I)
-                <textarea
-                  className="mt-1 w-full rounded border border-sand p-2"
-                  rows={3}
-                  value={funcionesEditadas}
-                  onChange={(e) => setFuncionesEditadas(e.target.value)}
-                />
-              </label>
-              <label className="block text-sm">
-                Anexo IV — ajuste de activos para esta persona
-                <textarea
-                  className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
-                  rows={2}
-                  value={activosLibre}
-                  disabled={sinActivosAdicionales}
-                  onChange={(e) => setActivosLibre(e.target.value)}
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={sinActivosAdicionales}
-                  onChange={(e) => {
-                    setSinActivosAdicionales(e.target.checked);
-                    if (e.target.checked) setActivosLibre("");
-                  }}
-                />
-                Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales de
-                la sede
-              </label>
+              {/* Un adendum no repite el contrato ni sus anexos, así que los
+                  campos que solo alimentan al contrato no se piden. */}
+              {esAdendum ? (
+                <label className="block text-sm">
+                  Qué se modifica del contrato vigente — una modificación por línea
+                  <textarea
+                    className="mt-1 w-full rounded border border-sand p-2"
+                    rows={4}
+                    placeholder="Ej.: Se modifica la Cláusula Sexta, fijando la remuneración mensual base en S/ …"
+                    value={adendumEditado}
+                    onChange={(e) => setAdendumEditado(e.target.value)}
+                  />
+                </label>
+              ) : (
+                <>
+                  <label className="block text-sm">
+                    Causa objetiva (revisar antes de imprimir)
+                    <textarea
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      rows={4}
+                      value={causaEditada}
+                      onChange={(e) => setCausaEditada(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Funciones del cargo (Anexo I) — una por línea; se numeran solas
+                    <textarea
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      rows={3}
+                      value={funcionesEditadas}
+                      onChange={(e) => setFuncionesEditadas(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Anexo IV — ajuste de activos para esta persona (uno por línea)
+                    <textarea
+                      className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
+                      rows={2}
+                      value={activosLibre}
+                      disabled={sinActivosAdicionales}
+                      onChange={(e) => setActivosLibre(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={sinActivosAdicionales}
+                      onChange={(e) => {
+                        setSinActivosAdicionales(e.target.checked);
+                        if (e.target.checked) setActivosLibre("");
+                      }}
+                    />
+                    Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
+                    de la sede
+                  </label>
+                </>
+              )}
 
               <dl className="grid grid-cols-2 gap-2 text-xs text-taupe">
                 <div>
@@ -602,6 +699,18 @@ export default function ContratosPage() {
                 <div>
                   <dt className="font-semibold">RIT vigente</dt>
                   <dd>{ritVersion ? `v${ritVersion} · ${ritFecha}` : "no publicado en el sistema"}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">Firma de la empresa</dt>
+                  <dd className={puedeEstampar ? "" : "text-rojo"}>
+                    {!firmante.nombre
+                      ? "sin firmante configurado — cárgalo en Documentación"
+                      : puedeEstampar
+                        ? `se estampa la de ${firmante.nombre}`
+                        : esFirmante
+                          ? "no tienes firma escaneada cargada — saldrá la raya en blanco"
+                          : `la firma es de ${firmante.nombre}; solo esa persona puede estamparla, saldrá la raya en blanco`}
+                  </dd>
                 </div>
               </dl>
 
@@ -739,10 +848,10 @@ export default function ContratosPage() {
         )}
       </div>
 
-      {documentoAMostrar && (
+      {htmlFinal && (
         <div
           className="hoja mx-auto mt-6 max-w-3xl rounded-lg border border-sand p-8 text-sm leading-relaxed print:mt-0 print:max-w-none print:rounded-none print:border-0 print:p-0"
-          dangerouslySetInnerHTML={{ __html: documentoAMostrar }}
+          dangerouslySetInnerHTML={{ __html: htmlFinal }}
         />
       )}
     </main>

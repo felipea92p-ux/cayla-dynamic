@@ -78,6 +78,7 @@ const DATOS_CONTRATO: DatosContrato = {
   email: null,
   sedeNombre: "Trujillo",
   sedeCodigo: "TRU",
+  ciudad: "Trujillo",
   causaObjetivaTexto: "Incremento de actividad.",
   funcionesTexto: "Atención a clientas.",
   fechaInicio: "2026-09-01",
@@ -91,8 +92,10 @@ const DATOS_CONTRATO: DatosContrato = {
   ritFecha: "10 de agosto de 2026",
   activosPrincipales: "Caja registradora.",
   activosLibre: "",
+  adendumTexto: "",
   firmanteNombre: "Quien Firma",
   firmanteDni: "11111111",
+  firmanteCargo: "Gerencia General",
 };
 
 describe("el contrato de trabajo", () => {
