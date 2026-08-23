@@ -194,9 +194,21 @@ function escapado(d: DatosContrato): DatosContrato {
 
 /**
  * Una lista escrita a mano en el textarea, una función por línea, se imprime
- * como viñetas — no como un párrafo corrido. El texto ya llega escapado (ver
- * `escapado`), así que partir por salto de línea es seguro: `escapeHtml` no
- * toca `\n`. Una sola línea se queda como párrafo, igual que antes.
+ * NUMERADA — no como un párrafo corrido ni con viñetas. Numerada porque un
+ * anexo de funciones se cita ("la función 14 del Anexo I") cuando hay que
+ * sustentar un incumplimiento, y una viñeta no se puede citar.
+ *
+ * La numera el HTML (`<ol>`), no quien escribe: si alguien numerara a mano,
+ * insertar una función en el medio obligaría a renumerar el resto, y basta
+ * que se olvide una para que el anexo tenga dos "12".
+ *
+ * Una línea que TERMINA EN DOS PUNTOS es un título de sección — la
+ * numeración sigue corrida por debajo, igual que el Anexo I del contrato
+ * modelo, que agrupaba las funciones por bloque.
+ *
+ * El texto ya llega escapado (ver `escapado`), así que partir por salto de
+ * línea es seguro: `escapeHtml` no toca `\n`. Una sola línea se queda como
+ * párrafo, para no cambiar el caso corto que ya existía.
  */
 function listaDesdeTexto(texto: string): string {
   const lineas = texto
@@ -204,7 +216,30 @@ function listaDesdeTexto(texto: string): string {
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
   if (lineas.length <= 1) return `<p>${texto}</p>`;
-  return `<ul>${lineas.map((l) => `<li>${l}</li>`).join("")}</ul>`;
+
+  const partes: string[] = [];
+  let abierta = false;
+  let contados = 0;
+  for (const linea of lineas) {
+    if (linea.endsWith(":")) {
+      if (abierta) {
+        partes.push("</ol>");
+        abierta = false;
+      }
+      partes.push(`<p><strong>${linea}</strong></p>`);
+      continue;
+    }
+    if (!abierta) {
+      // `start` mantiene la numeración corrida entre secciones: la primera
+      // función después de un título no vuelve a empezar en 1.
+      partes.push(`<ol start="${contados + 1}">`);
+      abierta = true;
+    }
+    partes.push(`<li>${linea}</li>`);
+    contados += 1;
+  }
+  if (abierta) partes.push("</ol>");
+  return partes.join("");
 }
 
 function clausulaJornada(d: DatosContrato): string {
