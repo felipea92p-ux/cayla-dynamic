@@ -136,7 +136,8 @@ with repo(numero, nombre, nunca) as (values
     (274, 'las_provisiones_solo_listan_a_quien_devenga', false),
     (275, 'las_vacaciones_dejan_de_pagarse_en_cero', false),
     (276, 'una_sola_base_para_la_reserva', false),
-    (277, 'cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento', false)
+    (277, 'cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento', false),
+    (284, 'no_se_cierra_el_mes_con_una_hora_que_nadie_marco', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
