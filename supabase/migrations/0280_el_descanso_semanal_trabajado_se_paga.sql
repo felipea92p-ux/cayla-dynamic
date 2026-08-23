@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0279 — El descanso semanal trabajado se paga
+-- 0280 — El descanso semanal trabajado se paga
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -120,7 +120,7 @@ alter table planilla_pagada_detalle add constraint chk_foto_cuadra check (
         + monto_educacion
         - descuento_pension
         + monto_sobretiempo
-        + monto_descanso_semanal          -- CAMBIO 0279
+        + monto_descanso_semanal          -- CAMBIO 0280
         + bonos
         - descuentos
         - retencion_4ta
@@ -502,7 +502,7 @@ begin
   ),
   -- ⇧⇧⇧ CAMBIO 0185 ⇧⇧⇧
   --
-  -- ⇩⇩⇩ CAMBIO 0279 ⇩⇩⇩ EL DESCANSO SEMANAL TRABAJADO (art. 3, D. Leg. 713)
+  -- ⇩⇩⇩ CAMBIO 0280 ⇩⇩⇩ EL DESCANSO SEMANAL TRABAJADO (art. 3, D. Leg. 713)
   --
   -- Se reaprovecha `ot_islas` a propósito: la racha de días consecutivos ya
   -- está calculada para el sobretiempo, y dos formas distintas de contar los
@@ -545,7 +545,7 @@ begin
       and d.fecha between p_ini and p_fin
     group by d.persona_id
   ),
-  -- ⇧⇧⇧ CAMBIO 0279 ⇧⇧⇧
+  -- ⇧⇧⇧ CAMBIO 0280 ⇧⇧⇧
   tramos as (
     select a.persona_id, a.rango, a.salario_mensual_soles as salario,
            a.base_provision,                                   -- CAMBIO 0111
@@ -745,7 +745,7 @@ begin
                  -- CAMBIO 0185 · el recargo del sobretiempo. Solo el RECARGO:
                  -- las horas ya están dentro de pago_base.
                  + round(coalesce(ot.horas_recargo, 0) * coalesce(ref.salario, 0) / v_base, 2)
-                 -- CAMBIO 0279 · el recargo del descanso semanal trabajado.
+                 -- CAMBIO 0280 · el recargo del descanso semanal trabajado.
                  -- Solo el RECARGO: las horas de ese día ya están en pago_base.
                  -- Es el error que la 0173 tuvo que corregir con el feriado.
                  + round(coalesce(dsw.horas_recargo, 0) * coalesce(ref.salario, 0) / v_base, 2)
@@ -841,7 +841,7 @@ begin
         -- cuánto, cuántas horas y cuándo. Un monto pelado no se puede verificar
         -- contra el registro de asistencia, que es lo que lo sostiene.
         'monto_sobretiempo', round(coalesce(ot.horas_recargo, 0) * coalesce(ref.salario, 0) / v_base, 2),
-        -- CAMBIO 0279 · Va con sus días y sus fechas, no solo con el monto: un
+        -- CAMBIO 0280 · Va con sus días y sus fechas, no solo con el monto: un
         -- recargo del 100 % sin decir qué día se trabajó es un número que nadie
         -- puede comprobar, y este se le explica a una persona.
         'monto_descanso_semanal', round(coalesce(dsw.horas_recargo, 0) * coalesce(ref.salario, 0) / v_base, 2),
@@ -1297,7 +1297,7 @@ begin
         -- categoría laboral, y por eso vive en su propia columna.
         and pe.personal_direccion is not true
     ) ot on true
-    -- ⇩ CAMBIO 0279 ⇩ El descanso semanal trabajado de esta persona, si lo hubo.
+    -- ⇩ CAMBIO 0280 ⇩ El descanso semanal trabajado de esta persona, si lo hubo.
     --
     -- DOS EXCLUSIONES, NO TRES, y la que falta es la decisión:
     --   · RxH: un locador no tiene descanso remunerado que respetarle. Mismo
@@ -1641,7 +1641,7 @@ begin
                      then round(coalesce(fer.monto, 0), 2)
                           + round(coalesce(ot.horas_recargo, 0)
                                   * coalesce(ref.salario, 0) / v_base, 2)
-                          -- CAMBIO 0279 · la sobretasa del descanso semanal
+                          -- CAMBIO 0280 · la sobretasa del descanso semanal
                           -- entra a la base por lo mismo que el feriado y el
                           -- sobretiempo (0193): el art. 19 del D.S. 001-97-TR
                           -- no la lista como no remunerativa. Y va DENTRO del
@@ -1883,7 +1883,7 @@ begin
     bonos, descuentos,
     monto_movilidad, monto_educacion, descuento_pension, aporte_essalud,   -- CAMBIO 0127
     monto_sobretiempo,                                                     -- CAMBIO 0201
-    monto_descanso_semanal,                                                -- CAMBIO 0279
+    monto_descanso_semanal,                                                -- CAMBIO 0280
     total,
     provision_gratificacion, provision_bonif_extraordinaria, provision_cts, provision_vacaciones, provision_total,   -- CAMBIO 0134
     fila
@@ -1916,7 +1916,7 @@ begin
     -- CAMBIO 0201 — el recargo del sobretiempo, que la 0185 metio al total.
     -- Mismo motivo que la linea de arriba: sin columna, la foto no cuadra.
     coalesce((f->>'monto_sobretiempo')::numeric, 0),
-    coalesce((f->>'monto_descanso_semanal')::numeric, 0),                  -- CAMBIO 0279
+    coalesce((f->>'monto_descanso_semanal')::numeric, 0),                  -- CAMBIO 0280
     coalesce((f->>'total')::numeric, 0),
     coalesce((f->>'provision_gratificacion')::numeric, 0),
     coalesce((f->>'provision_bonif_extraordinaria')::numeric, 0),   -- CAMBIO 0134
@@ -1934,7 +1934,7 @@ $fn$;
 
 -- ── 6 · El rastro ───────────────────────────────────────────────────────────
 insert into migraciones_aplicadas (numero, nombre)
-values (279, 'el_descanso_semanal_trabajado_se_paga')
+values (280, 'el_descanso_semanal_trabajado_se_paga')
 on conflict (numero) do nothing;
 
 -- ── COMPROBACION ────────────────────────────────────────────────────────────
@@ -1946,11 +1946,11 @@ select
       and column_name = 'monto_descanso_semanal')              as la_foto_tiene_la_columna,
   (select pg_get_constraintdef(oid) like '%monto_descanso_semanal%'
      from pg_constraint where conname = 'chk_foto_cuadra')     as el_candado_la_conoce,
-  (select prosrc like '%CAMBIO 0279%' from pg_proc p
+  (select prosrc like '%CAMBIO 0280%' from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'fn_planilla_calcular')
                                                                as la_boleta_la_paga,
-  (select prosrc like '%CAMBIO 0279%' from pg_proc p
+  (select prosrc like '%CAMBIO 0280%' from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'fn_planilla_congelar')
                                                                as el_cierre_la_guarda,

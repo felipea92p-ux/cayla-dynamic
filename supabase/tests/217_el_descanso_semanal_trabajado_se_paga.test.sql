@@ -2,9 +2,9 @@
 -- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local.
 -- Se corre así, en esta Mac:   npx supabase test db
 -- ============================================================================
--- 216_el_descanso_semanal_trabajado_se_paga.test.sql
+-- 217_el_descanso_semanal_trabajado_se_paga.test.sql
 -- ============================================================================
--- EL FRENO QUE PIDE LA 0279. Su promesa se puede romper de cuatro maneras y
+-- EL FRENO QUE PIDE LA 0280. Su promesa se puede romper de cuatro maneras y
 -- ninguna da error: pagando de más, pagando de menos, pagando a quien no le
 -- toca, o tumbando el cierre del mes entero.
 --
@@ -46,92 +46,92 @@ select plan(11);
 
 -- ── El laboratorio ──────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre)
-values ('11111111-1111-1111-1111-111111111111', 'TST', 'Sede de prueba 216')
+values ('11111111-1111-1111-1111-111111111111', 'TST', 'Sede de prueba 217')
 on conflict do nothing;
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                         created_at, updated_at)
-values ('aaaaaaaa-2160-0000-0000-00000000aaaa', '00000000-0000-0000-0000-000000000000',
-        'authenticated', 'authenticated', 'admin216@ejemplo.test', 'x', now(), now())
+values ('aaaaaaaa-2170-0000-0000-00000000aaaa', '00000000-0000-0000-0000-000000000000',
+        'authenticated', 'authenticated', 'admin217@ejemplo.test', 'x', now(), now())
 on conflict (id) do nothing;
 
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
-values ('22222222-2160-0000-0000-000000000001', date '2026-07-29', date '2026-08-28', 'abierto'),
+values ('22222222-2170-0000-0000-000000000001', date '2026-07-29', date '2026-08-28', 'abierto'),
        -- Un periodo anterior a la vigencia de la sobretasa, para la aserción 8.
-       ('22222222-2160-0000-0000-000000000002', date '2026-06-29', date '2026-07-28', 'abierto');
+       ('22222222-2170-0000-0000-000000000002', date '2026-06-29', date '2026-07-28', 'abierto');
 
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, estado, tipo_vinculo,
                       sueldo_fijo, personal_direccion, fecha_ingreso, rol, auth_user_id)
 values
- ('d0216000-0000-0000-0000-000000000001','Siete','Dias',   '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-000000000002','Ocho','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-000000000003','Seis','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-000000000004','Catorce','Dias', '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-000000000005','Locadora','RxH', '11111111-1111-1111-1111-111111111111','x','activo','rxh',     false,false,date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-000000000006','Fijo','Sueldo',  '11111111-1111-1111-1111-111111111111','x','activo','planilla',true, false,date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-000000000007','Direccion','Jefa','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,true, date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-000000000008','Antes','DeQueRija','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
- ('d0216000-0000-0000-0000-0000000000aa','Admin','216',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','admin','aaaaaaaa-2160-0000-0000-00000000aaaa');
+ ('d0217000-0000-0000-0000-000000000001','Siete','Dias',   '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-000000000002','Ocho','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-000000000003','Seis','Dias',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-000000000004','Catorce','Dias', '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-000000000005','Locadora','RxH', '11111111-1111-1111-1111-111111111111','x','activo','rxh',     false,false,date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-000000000006','Fijo','Sueldo',  '11111111-1111-1111-1111-111111111111','x','activo','planilla',true, false,date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-000000000007','Direccion','Jefa','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,true, date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-000000000008','Antes','DeQueRija','11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','integrante',null),
+ ('d0217000-0000-0000-0000-0000000000aa','Admin','217',    '11111111-1111-1111-1111-111111111111','x','activo','planilla',false,false,date '2025-01-01','admin','aaaaaaaa-2170-0000-0000-00000000aaaa');
 
 insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
-select id, 'colibri', 1130, date '2025-01-01' from personas where id::text like 'd0216000%';
+select id, 'colibri', 1130, date '2025-01-01' from personas where id::text like 'd0217000%';
 
 -- Rachas. 8 h por día para que el monto sea comprobable a mano:
 --   8 × 1130 / (6.5 × 31) = 8 × 5.60794… = 44.86
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000001', date '2026-08-01' + g, 8 from generate_series(0,6) g;
+select 'd0217000-0000-0000-0000-000000000001', date '2026-08-01' + g, 8 from generate_series(0,6) g;
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000002', date '2026-08-01' + g, 8 from generate_series(0,7) g;
+select 'd0217000-0000-0000-0000-000000000002', date '2026-08-01' + g, 8 from generate_series(0,7) g;
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000003', date '2026-08-01' + g, 8 from generate_series(0,5) g;
+select 'd0217000-0000-0000-0000-000000000003', date '2026-08-01' + g, 8 from generate_series(0,5) g;
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000004', date '2026-08-01' + g, 8 from generate_series(0,13) g;
+select 'd0217000-0000-0000-0000-000000000004', date '2026-08-01' + g, 8 from generate_series(0,13) g;
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000005', date '2026-08-01' + g, 8 from generate_series(0,6) g;
+select 'd0217000-0000-0000-0000-000000000005', date '2026-08-01' + g, 8 from generate_series(0,6) g;
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000006', date '2026-08-01' + g, 8 from generate_series(0,6) g;
+select 'd0217000-0000-0000-0000-000000000006', date '2026-08-01' + g, 8 from generate_series(0,6) g;
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000007', date '2026-08-01' + g, 8 from generate_series(0,6) g;
+select 'd0217000-0000-0000-0000-000000000007', date '2026-08-01' + g, 8 from generate_series(0,6) g;
 -- Racha entera dentro del periodo ANTERIOR a la vigencia.
 insert into jornadas (persona_id, fecha, horas_trabajadas)
-select 'd0216000-0000-0000-0000-000000000008', date '2026-07-10' + g, 8 from generate_series(0,6) g;
+select 'd0217000-0000-0000-0000-000000000008', date '2026-07-10' + g, 8 from generate_series(0,6) g;
 
-select set_config('request.jwt.claim.sub', 'aaaaaaaa-2160-0000-0000-00000000aaaa', true);
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-2170-0000-0000-00000000aaaa', true);
 
-create temporary table calc_216 on commit drop as
+create temporary table calc_217 on commit drop as
 select f->>'nombre'                              as quien,
        (f->>'descanso_semanal_dias')::int        as dias,
        (f->>'monto_descanso_semanal')::numeric   as monto
   from jsonb_array_elements(
          (fn_planilla_calcular(date '2026-07-29', date '2026-08-28',
-                               '22222222-2160-0000-0000-000000000001')->'filas')) f;
+                               '22222222-2170-0000-0000-000000000001')->'filas')) f;
 
 -- ── 1-3 · El corte del ciclo, que es donde está toda la norma ───────────────
-select is((select dias from calc_216 where quien = 'Siete Dias'), 1,
+select is((select dias from calc_217 where quien = 'Siete Dias'), 1,
   'siete dias seguidos pagan UNA sobretasa: el septimo se trabajo en vez de descansar');
 
-select is((select dias from calc_216 where quien = 'Ocho Dias'), 1,
+select is((select dias from calc_217 where quien = 'Ocho Dias'), 1,
   'ocho dias pagan UNA TAMBIEN, no dos: el octavo abre un ciclo que aun no se cerro sin descanso');
 
-select is((select dias from calc_216 where quien = 'Catorce Dias'), 2,
+select is((select dias from calc_217 where quien = 'Catorce Dias'), 2,
   'catorce dias pagan DOS: dos ciclos completos, y los ciclos no se solapan');
 
 -- ── 4 · El contorno ────────────────────────────────────────────────────────
-select is((select dias from calc_216 where quien = 'Seis Dias'), 0,
+select is((select dias from calc_217 where quien = 'Seis Dias'), 0,
   'seis dias no pagan nada: la semana normal no genera sobretasa');
 
 -- ── 5 · El monto, comprobable a mano ───────────────────────────────────────
-select is((select monto from calc_216 where quien = 'Siete Dias'), 44.86,
+select is((select monto from calc_217 where quien = 'Siete Dias'), 44.86,
   'la sobretasa es el RECARGO de las horas de ese dia: 8 x 1130 / (6.5 x 31) = 44.86');
 
 -- ── 6-7 · Quien queda fuera, y quien NO ────────────────────────────────────
-select is((select monto from calc_216 where quien = 'Locadora RxH'), 0.00,
+select is((select monto from calc_217 where quien = 'Locadora RxH'), 0.00,
   'un locador no tiene descanso remunerado que respetarle (mismo criterio que la 0199)');
 
-select is((select monto from calc_216 where quien = 'Fijo Sueldo'), 0.00,
+select is((select monto from calc_217 where quien = 'Fijo Sueldo'), 0.00,
   'sueldo fijo no cobra recargo por horas: su pago no depende de horas');
 
-select is((select monto from calc_216 where quien = 'Direccion Jefa'), 44.86,
+select is((select monto from calc_217 where quien = 'Direccion Jefa'), 44.86,
   'al personal de direccion SI se le paga: el art. 5 lo excluye de la jornada maxima, no del descanso semanal');
 
 -- ── 8 · La vigencia manda ──────────────────────────────────────────────────
@@ -139,20 +139,20 @@ select is(
   (select (f->>'monto_descanso_semanal')::numeric
      from jsonb_array_elements(
             (fn_planilla_calcular(date '2026-06-29', date '2026-07-28',
-                                  '22222222-2160-0000-0000-000000000002')->'filas')) f
+                                  '22222222-2170-0000-0000-000000000002')->'filas')) f
     where f->>'nombre' = 'Antes DeQueRija'),
   0.00,
   'antes del vigente_desde del parametro no se paga nada: rige desde ahora, no hacia atras');
 
 -- ── 9-10 · Y el cierre no se cae ───────────────────────────────────────────
 select lives_ok(
-  $$select fn_planilla_congelar('22222222-2160-0000-0000-000000000001', 'pago',
-                                'd0216000-0000-0000-0000-0000000000aa')$$,
+  $$select fn_planilla_congelar('22222222-2170-0000-0000-000000000001', 'pago',
+                                'd0217000-0000-0000-0000-0000000000aa')$$,
   'el cierre congela con el concepto nuevo: chk_foto_cuadra lo conoce y no tumba el mes entero');
 
 select is(
   (select sum(monto_descanso_semanal) from planilla_pagada_detalle
-    where periodo_id = '22222222-2160-0000-0000-000000000001'),
+    where periodo_id = '22222222-2170-0000-0000-000000000001'),
   224.31,
   'la foto guarda la sobretasa: 44.86 x 3 + 89.73 de la racha de catorce');
 
