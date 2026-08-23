@@ -179,8 +179,13 @@ select results_eq(
                      '00000000-0000-0000-0000-00000027800b',
                      '00000000-0000-0000-0000-00000027800c')
       order by p.nombres $$,
-  $$ values (1867.40::numeric), (1867.40::numeric), (1867.40::numeric) $$,
-  'Sin bono real, la liquidacion es S/1.867,40 con o sin grati, CTS o adelanto encima'
+-- ⇩ SUBIÓ S/1 950,00 CON LA 0283, y es aritmética, no un ajuste: son los 30
+-- días de los dos récords completos sin gozar que la liquidación no pagaba.
+-- 30 días × (1 950 / 2) / 15 = S/1 950,00. Lo que esta aserción vigila —que un
+-- bono, un adelanto o la grati depositada NO muevan el número— sigue intacto:
+-- las tres personas comparadas siguen dando lo MISMO entre ellas.
+  $$ values (3817.40::numeric), (3817.40::numeric), (3817.40::numeric) $$,
+  'Sin bono real, la liquidacion es S/3.817,40 con o sin grati, CTS o adelanto encima'
 );
 
 -- ── 8 · El caso E y el F, que no tienen grati ni CTS descontada ─────────────
@@ -212,10 +217,13 @@ select is(
 -- La gratificacion y las vacaciones NO se movieron: sus S/95,42 - S/4,17 siguen
 -- llegando. Si alguien vuelve a juntar las tres ventanas, este numero sube y
 -- esta aserción se pone roja.
+-- ⇩ Y ésta subió S/2 050,00: los mismos 30 días, sobre la base de esta persona
+-- que incluye su bono regular (1 950 + 100). La diferencia con la de arriba
+-- —S/91,25— es lo que sigue aportando el bono, que es lo que se vigila acá.
 select is(
   round((fn_liquidacion('00000000-0000-0000-0000-00000027800d','2026-11-30')->>'total')::numeric, 2),
-  1958.65::numeric,
-  'Y llega al monto que se paga: S/1.958,65, S/91,25 mas que sin el bono'
+  4008.65::numeric,
+  'Y llega al monto que se paga: S/4.008,65, S/191,25 mas que sin el bono'
 );
 
 -- ── 11 · La lista blanca sigue cubriendo todas las categorias que existen ───
