@@ -77,7 +77,7 @@ vuelvan a perseguir.**
 | *"El feriado debería valer un día de la jornada de cada quien"* | No. Se paga **proporcional al tiempo laborado del mes**: quien vino la mitad cobra la mitad. Decisión de Felipe, confirmada. Que un part-time cobre menos feriado **no es un bug**. |
 | *"El factor debería ser 45/7 = 6,4286 en vez de 6,5"* | Asumía 7,5 h/día. Se marcan ~7,9. Cambiarlo subiría la planilla 1,11 % (S/ 228/mes) corrigiendo algo que no está roto. |
 | *"Hay un efecto calendario del 9,5 %"* | Artefacto de contar días laborables enteros (25/26/27). La gente trabaja por ritmo semanal, no por cupo mensual de días. |
-| *"Quien gana la RMV cae por debajo del mínimo legal"* | No. La escala arranca en S/ 1 320 y el salario mínimo seguro es S/ 1 176. Hay 12 % de colchón. |
+| *"Quien gana la RMV cae por debajo del mínimo legal"* | No, y **sigue siendo no aunque la escala arranque en 1 130 desde el 29/07/2026**. La justificación cambió, la conclusión no: **el piso vive en el cálculo**. `fn_planilla_calcular` declara `greatest(bri.base, piso_essalud)`, y `piso_essalud` es la RMV entera —solo se prorratea por días subsidiados, que es lo que manda el D.S. 009-97-SA—. Por alguien que devengó S/36.96 se aporta igual sobre S/1,130. **Que el pago por horas quede debajo no es lo mismo que declarar debajo**, y el pago por horas es una regla que no se reabre. Perseguido de nuevo el 2026-08-20; misma conclusión. |
 | *"El equipo trabaja 4,4 días por semana"* | Promedio contaminado: mezclaba a 6 personas con menos de 8 semanas de antigüedad. Quien lleva tiempo y cumple hace 6 días. |
 
 **La lección de método:** medir antes de proponer. Cada uno de esos cinco salió
@@ -120,9 +120,84 @@ semanal no compensa nada y la sobretasa se sigue debiendo. La validación de la
 - **Base 6,5 h × días del periodo.** Verificado 2026-08-07.
 - **Factores de provisión** (grati 8,33 % · CTS 4,17 % · vacaciones 4,17 %) en
   `configuracion.planilla_provisiones`.
-- **Ningún rango por debajo de S/ 1 176**, que es el piso que garantiza no caer
-  bajo la RMV en el peor periodo del año. Hoy la escala arranca en 1 320.
-  **Revisar esta regla cuando la RMV suba por encima de S/ 1 269.**
+- **La escala arranca en la RMV, y es la decisión.** Esta línea decía «ningún
+  rango por debajo de S/ 1 176 … hoy la escala arranca en 1 320», que era el
+  colchón de antes del rediseño. Desde el 29/07/2026 la base declarada de
+  colibri **es** la RMV (0128), compensada con movilidad, educación y bono, y el
+  equipo lo aceptó. **No hace falta colchón porque el piso está en el cálculo**
+  —ver la tabla de descartados—, así que esta regla queda sustituida por esa.
+
+--
+
+## El descanso semanal, y las cuatro cosas que ya se midieron
+
+Verificado el **2026-08-19** con catorce agentes: siete buscando la norma por
+artículo y siete cuyo único trabajo era refutarles. Se anota aquí porque el
+sistema **todavía no paga la sobretasa del descanso semanal**, y quien vaya a
+construirla necesita estas cuatro respuestas antes de escribir una línea.
+
+**1 · La sobretasa del 100 % existe y hoy no se paga.** Art. 3 del D. Leg. 713:
+trabajar el día de descanso semanal sin sustitución se paga con la retribución
+más una sobretasa del 100 %. `fn_planilla_calcular` conoce dos sobretasas —la
+del feriado y el recargo del sobretiempo— y **ninguna lectura de `turnos`**.
+
+**2 · Feriado y descanso semanal NO se acumulan.** Si el día es a la vez el
+descanso de la persona y un feriado, se paga **una sola** sobretasa del 100 %,
+no dos. El día se liquida en triple (remuneración del día + la labor + 100 %);
+el 1 de mayo es la excepción, y aun ahí la sobretasa sigue siendo una. Cinco
+intentos de refutación fallaron. *Consecuencia práctica: si el 7.º día de una
+racha cayó en feriado, esa persona ya cobró lo que le tocaba.*
+
+**3 · El personal de dirección está EXPRESAMENTE excluido, y la norma es del
+reglamento — no es interpretación.** Art. 5 del D.S. 012-92-TR:
+
+> «Por excepción, ni el descanso sustitutorio ni el pago por descanso semanal
+> obligatorio omitido son exigibles en los casos de trabajo realizado por
+> miembros de una misma familia; tampoco en el caso de trabajadores que
+> intervengan en labores exclusivamente de dirección o inspección, y en general
+> todos aquellos que trabajen sin fiscalización superior inmediata…»
+
+Dos refutadores independientes llegaron al mismo artículo, leyéndolo del PDF del
+Congreso. **Cualquier cálculo de esta sobretasa tiene que excluir
+`personal_direccion`** — que es la columna propia que la 0187 creó justo para no
+deducir la dirección del rol del sistema.
+
+**4 · La sustitución tiene plazo, y es la MISMA SEMANA.** No basta con darle
+otro día libre más adelante: si el descanso se mueve dentro de la misma semana,
+no se debe sobretasa; si se mueve fuera, sí. Y **una racha de 7 días seguidos no
+es por sí sola una infracción** — lo que se infringe es el art. 1 cuando el
+ciclo de siete días no contuvo 24 horas continuas de descanso. Con descanso
+**rotativo** —el régimen de TRU— rotar el descanso de un lunes a un domingo
+encadena siete días sin que nadie haya hecho nada mal.
+
+De ahí que el sistema no pueda decidir esto solo: **una racha es un candidato,
+no una deuda**, y quién sustituyó qué día lo sabe DO. Hoy no hay dónde anotarlo
+— `feriados_descanso_sustitutorio` está atada a `fecha_feriado`.
+
+## El periodo de prueba SÍ devenga beneficios
+
+Verificado el mismo día, por cuatro frentes y sus cuatro refutadores. La
+respuesta es unánime y con alta confianza: **no existe ninguna norma peruana que
+diga que durante el periodo de prueba no se devengan CTS, gratificación ni
+vacaciones.** El art. 10 de la LPCL agota su efecto en la protección contra el
+despido arbitrario.
+
+- **CTS** — art. 2 del TUO D.S. 001-97-TR: se devenga desde el primer mes.
+- **Gratificación trunca** — art. 5 del D.S. 005-2002-TR, con el mismo mínimo.
+- **Vacaciones truncas** — art. 23 del D.S. 012-92-TR (el 23, no el 22: el 22 es
+  la fórmula de dozavos).
+
+**El umbral es UN MES de servicios, y es el que decide.** Menos de un mes da
+cero por la norma, no por la etiqueta. Ésa es exactamente la premisa con la que
+se tomó la decisión del 26/07/2026 registrada en la cabecera de la
+`0085_tipo_de_vinculo.sql` — «por los mínimos legales casi siempre daría cero de
+todas formas»—, y es una premisa **medible**, no una opinión:
+`scripts/sql-manual/que_cobraron_las_que_se_fueron.sql` la comprueba caso por
+caso contra quienes cesaron.
+
+La decisión sigue siendo de Felipe y sigue siendo reversible en una línea, que
+es como se dejó escrita. Lo que cambia con esta verificación es que ya no hay
+duda sobre qué dice la norma: la duda que queda es aritmética.
 
 ---
 
@@ -132,7 +207,10 @@ semanal no compensa nada y la sobretasa se sigue debiendo. La validación de la
   devuelve `true` solo para `'planilla'`, así que a quien está en periodo de
   prueba no se le provisiona CTS, gratificación ni vacaciones, y sus truncas
   saldrían en cero. El periodo de prueba (LPCL art. 10) solo afecta la
-  protección contra el despido, no los beneficios. **Sin resolver.**
+  protección contra el despido, no los beneficios. **Verificado contra la norma
+  el 2026-08-19** (ver arriba): sí devengan, con un mínimo de un mes de
+  servicios. La decisión de no devengar es de Felipe, del 26/07/2026, y está
+  registrada en la cabecera de la `0085`. **Sin resolver.**
 - **Los RxH reciben feriados y provisiones** que no les corresponden.
   `fn_planilla_calcular` no consulta `fn_devenga_beneficios`; `fn_provisiones` sí.
   Dos funciones, dos respuestas a la misma pregunta. **Sin resolver.**

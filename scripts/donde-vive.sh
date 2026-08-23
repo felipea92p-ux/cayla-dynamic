@@ -169,9 +169,17 @@ if [ -z "$CONT" ]; then
   exit 0
 fi
 
-VIVA=$(docker exec "$CONT" psql -U postgres -d postgres -tAc \
-  "select md5(prosrc) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-   where n.nspname='public' and p.proname='$FN' limit 1" 2>/dev/null | tr -d ' ' || true)
+SQL_MD5="select md5(p.prosrc) || '|' || md5(array_to_string(array(
+             select regexp_replace(l, '[[:space:]]*--.*\$', '')
+             from unnest(string_to_array(p.prosrc, chr(10))) as l
+             where btrim(l) not like '--%'
+           ), chr(10)))
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = '$FN' limit 1"
+
+PAR=$(docker exec "$CONT" psql -U postgres -d postgres -tAc "$SQL_MD5" 2>/dev/null | tr -d ' ' || true)
+VIVA=${PAR%%|*}
+PELADA=${PAR##*|}
 
 if [ -z "$VIVA" ]; then
   echo ""
@@ -185,7 +193,51 @@ fi
 # de la última migración por si alguien aplicó SQL a mano encima.
 echo ""
 verde "✓ Copia el cuerpo de:  $ULTIMA"
-gris "  Y compruébalo después:  el md5 de la base es $VIVA"
-gris "  Si al aplicar tu migración ese md5 no cambia como esperabas, partiste de"
-gris "  la versión equivocada."
+echo ""
+gris "  md5 de tu base local:      $VIVA"
+gris "  el mismo, sin comentarios: $PELADA"
+echo ""
+
+# ── Por qué hay DOS md5, y por qué el segundo hace falta ────────────────────
+#
+# El md5 de partida se le pide a PRODUCCIÓN, no se copia de aquí — eso ya lo
+# decía el CLAUDE.md. Lo que no decía es que ese número casi nunca coincide:
+# medido el 2026-08-18, el 49 % de las funciones de producción NO TIENEN NI UNA
+# LÍNEA DE COMENTARIO. Se pegaron sin ellos.
+#
+# Y ese detalle convertía la comprobación en ruido: el síntoma de «producción
+# perdió los comentarios» es exactamente el mismo que el de «producción tiene
+# otra versión», que es el accidente grave que este script existe para evitar.
+# Media hora se fue en distinguirlos a mano la primera vez.
+#
+# Con el md5 sin comentarios al lado, los tres casos se separan de un vistazo.
+ambar "  PÍDESELO A PRODUCCIÓN. Pega esto en el SQL Editor (solo lee):"
+echo ""
+cat <<SQL
+    select md5(p.prosrc)                                   as tal_cual,
+           md5(array_to_string(array(
+             select regexp_replace(l, '[[:space:]]*--.*\$', '')
+             from unnest(string_to_array(p.prosrc, chr(10))) as l
+             where btrim(l) not like '--%'
+           ), chr(10)))                                    as sin_comentarios,
+           length(p.prosrc)                                as caracteres
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = '$FN';
+SQL
+echo ""
+gris "  Y así se lee lo que devuelva:"
+gris ""
+gris "   · tal_cual = $VIVA"
+gris "     → producción está idéntica a esta Mac. Sigue tranquila."
+gris ""
+gris "   · sin_comentarios = $PELADA  (y tal_cual distinto)"
+gris "     → MISMO CÓDIGO. Producción perdió los comentarios al pegarse, que le"
+gris "       pasa a la mitad de las funciones. Sigue — pero declara en tu"
+gris "       migración el md5 de PRODUCCIÓN, no el de aquí."
+gris ""
+gris "   · ninguno de los dos coincide"
+gris "     → PARA. Producción tiene otra versión, y copiar de $ULTIMA la"
+gris "       revertiría en silencio. Mide dónde está la diferencia antes de"
+gris "       proponer explicaciones: length contra octet_length, y un substring"
+gris "       del principio."
 echo ""

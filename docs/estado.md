@@ -37,6 +37,97 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-19 — Auditoría de 22 agentes contra la ley peruana
+
+93 hallazgos. Los cinco escépticos tumbaron **46 por no tener población en
+CAYLA**, 9 por decisiones ya tomadas, 3 por no reproducirse, 3 por estar
+arreglados. Quedan 47 mecanismos confirmados contra el cuerpo VIVO de las
+funciones. El catálogo entero, agrupado por dónde muerde, está en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-del-2026-08-19--22-agentes-contra-la-ley-peruana).
+
+**Lo único que hace falta decidir antes del 28 es esto:** correr
+`scripts/sql-manual/a_quien_le_pega.sql` en el SQL Editor. Nueve preguntas, un
+solo `select`. Hasta que se corra, esos 47 son mecanismo confirmado con
+población DESCONOCIDA — que no es lo mismo que plata perdida, y confundirlos es
+exactamente lo que costó cinco falsas alarmas el 2026-08-18.
+
+Cerrado el mismo día:
+
+- **0275** · las vacaciones dejan de pagarse en cero. Quien pasaba el periodo
+  entero de vacaciones cobraba S/0.00 por el 0/0 de `hh.pago / dias_marcados`.
+  **Aplicada en producción el 2026-08-20**, y comprobada como se comprueban
+  estas: el md5 que devolvió el SQL Editor se comparó contra el que da aplicar
+  la migración sola en el Postgres local dentro de `BEGIN…ROLLBACK`, en el mismo
+  minuto. Coincide, y con la misma longitud — los comentarios llegaron enteros,
+  que es lo que se pierde cuando el portapapeles rompe los acentos.
+- **`va_a_poder_cerrarse.sql`** conocía solo uno de los dos frenos del cierre:
+  daba «✓ TODOS CUADRAN» y `fn_planilla_congelar` abortaba igual por el freno de
+  la 0243/0244.
+- **La boleta** se contradecía sobre la AFP —«no se descuenta de tu sueldo» en la
+  misma hoja que imprime el descuento— y no identificaba al empleador.
+- **El RUC y la razón social**, que estaban escritos a mano en ocho documentos,
+  se leen de `packages/shared/src/empresa.ts`. Lo que NO se unificó es el
+  formato: los ocho escriben el RUC distinto y dos están congelados con firmas
+  encima (la política salarial por la 0141, el contrato en `documento_html`).
+  `tests/empresa.test.ts` vigila las dos mitades — que no aparezca una novena
+  copia, y que ningún documento cambie de forma.
+
+Decidido con Felipe y pendiente de construir: **la sobretasa del 100 % por
+trabajar el día de descanso semanal** (art. 3 del D. Leg. 713), que hoy no
+existe en el sistema. Se hacen **las dos cosas**: registrar el descanso
+sustitutorio cuando lo hubo, y pagar la sobretasa cuando no. Golpea sobre todo a
+TRU, que es el régimen de 6 días con descanso rotativo.
+
+**Y RIGE DESDE AHORA, NO HACIA ATRÁS** (Felipe, 2026-08-20). Se midió lo que
+costaría —`cuanto_cuesta_el_descanso_semanal.sql`, S/163.19 del periodo en curso
+y S/374.61 del de julio ya pagado— y la decisión es que la política empieza
+cuando empieza. **El periodo cerrado no se reabre**, así que esa segunda cifra
+no es una deuda: es la medición de por qué conviene construirlo pronto.
+
+**La 0276 también está en producción**, entera y anotada (20/08 21:03). Se
+comprobó antes de entregarla y por eso no se entregó: sus tres piezas
+—`fn_planilla_calcular`, `fn_provisiones` y la nueva `fn_feriado_devengado`—
+devuelven los md5 que produce esa migración, medidos aplicándola sola en local
+dentro de `BEGIN…ROLLBACK`.
+
+El susto valió la pena igual: el md5 de `fn_provisiones` no coincidía con el que
+la 0276 declara como punto de partida, y el primer impulso fue leerlo como «otra
+versión desconocida». Lo que era, medido contra las siete versiones históricas,
+es la 0276 **ya aplicada**. Con `migraciones_aplicadas` no habría bastado — es
+el registro que el 2026-08-19 dijo que la 0196 estaba puesta mientras el cuerpo
+vivo era el de la 0158.
+
+### Tres cosas que se persiguieron el 2026-08-20 y no eran
+
+Se anotan porque las tres son creíbles y las tres cuestan una tarde:
+
+1. **«A veinte personas les bajó el sueldo el 29/07».** Es el rediseño
+   remunerativo: la base declarada por rango (0128), compensada con movilidad,
+   educación y bono. **Todo el equipo lo aceptó.** Las notas de
+   `asignaciones_salario` lo dicen con todas sus letras — se leen antes de
+   alarmarse.
+2. **«Quien cumple su jornada queda bajo la RMV en meses de 31 días».** No: el
+   piso vive en el cálculo. `fn_planilla_calcular` declara
+   `greatest(bri.base, piso_essalud)` y ese piso es la RMV entera. Declarar y
+   pagar por horas no son lo mismo. Es el quinto defecto de la tabla de
+   descartados del anexo, perseguido otra vez.
+3. **«Cinco personas marcan mucho menos de 45 h/semana».** Son **turnos
+   reducidos**, confirmado por Felipe. El pago por horas es correcto y no se
+   reabre.
+
+Pendiente de mirar renderizado, dos minutos: la boleta y el memo.
+
+**Y una pregunta que solo Felipe puede responder: ¿cuál es el domicilio legal?**
+Al unificar la identidad de la empresa había dos direcciones distintas en el
+código. La que declaran los contratos firmados dice «Urb. San Andrés **V Etapa**,
+distrito de Trujillo, provincia de Trujillo, departamento de La Libertad»; la
+otra, más corta, no salía de ningún documento y no la usaba nadie. Se tomó la de
+los contratos, así que **hoy no hay ningún papel que haya cambiado de texto** —
+queda comprobar contra la ficha RUC que esa sea la buena, porque desde ahora la
+dice un solo sitio.
+
+---
+
 ## 2026-08-19 — Un archivo suelto revirtió `fn_provisiones`, y el registro no lo vio
 
 La pantalla Provisiones mostraba un «CTS total» que no era la suma de sus dos
@@ -142,6 +233,35 @@ Cuatro hallazgos confirmados que quedan pendientes, con su medición hecha:
 - **`fn_provisiones` ignora `asignaciones_salario.base_provision`,** que
   `fn_planilla_calcular` sí honra. La boleta reserva sobre una base y la
   provisión sobre otra.
+
+### Y esa misma tarde: la tabla dejó de listar a quien no reserva nada
+
+Felipe, mirando la pantalla: las locadoras y la gente en días de prueba no
+tenían que estar ahí. La [`0274`](../supabase/migrations/0274_las_provisiones_solo_listan_a_quien_devenga.sql)
+las saca. ✅ **Pegada el 2026-08-19**, y vuelta a comprobar contra
+`migraciones_aplicadas` el 2026-08-20. El md5 de `fn_provisiones` pasó de
+`e057765c…` (el cuerpo de la 0273, verificado ANTES de entregar el SQL) a
+`84aae8bf…`, y de **25 personas activas la pantalla pasa a listar 20**.
+
+**Es la vuelta atrás de una decisión que estaba escrita**, con su argumento, en
+la prueba 127: «verlo en cero es una respuesta, que falte obliga a preguntarse si
+se perdió por error». Lo que la tumbó fue la pantalla real: con media tabla en
+cero, el cero dejó de ser una respuesta, y el cero de quien SÍ devenga y aún no
+acumuló —alguien que entró esta semana— quedaba indistinguible del de quien no
+devengará nunca. La preocupación de entonces se contesta en dos sitios: una línea
+en la pantalla que dice a quién lista, y la prueba 211.
+
+**El filtro pregunta por el devengo, no por el tipo de vínculo**, y esa es la
+única parte delicada. `tipo_vinculo = 'planilla'` habría sido más corto y habría
+borrado a la locadora con la gratificación encendida a mano —el caso que la 0196
+existe para poder expresar—, dejando de reservar plata que sí se le debe. Una
+fila solo desaparece cuando `fn_devenga_algo` dice que no devenga nada, o sea
+cuando sus cinco columnas ya valen cero.
+
+Medido antes de darlo por bueno, en local y dentro de `BEGIN … ROLLBACK`: las
+filas que se quedan salieron idénticas campo por campo, la suma de la tabla no se
+movió (S/ 2.137,84 antes y después, 16 filas → 13), y las tres que se fueron
+valían 0.00 en las cinco columnas.
 
 ---
 
@@ -720,7 +840,8 @@ Va DENTRO de `pago_base`, como las vacaciones, y por eso NO toca
 
 **`licencia_con_goce` sigue pagando cero, y es decisión** (va por
 `movimientos_planilla`, la 0247 lo dice en su cabecera). **La maternidad ya no:**
-la conectó la **0262** — escrita y probada el 2026-08-15, todavía sin pegar. La
+la conectó la **0262** — escrita y probada el 2026-08-15, **aplicada en
+producción el 2026-08-17**. La
 prueba 187 fija por escrito que las dos reglas son distintas y no se pueden
 igualar: el descanso médico cuenta días laborables porque es sueldo, la
 maternidad cuenta días calendario porque es subsidio.
@@ -799,9 +920,18 @@ exclusiones se aplican ANTES de contar.
 
 ## 2026-08-13 — el expediente de Mateo, y la 0213 que ya no se puede pegar
 
-**LO ÚNICO CON FECHA.** Hay una imputación de cargos **entregada y abierta**
-(T-03/0001-2026-CAYLA, entregada el 10-ago). Su plazo de descargo vence el
-**domingo 16**; se pidió al laboralista respuesta para el **lunes 17**.
+**LO QUE TENÍA FECHA, Y YA PASÓ.** Hubo una imputación de cargos entregada y
+abierta (T-03/0001-2026-CAYLA, entregada el 10-ago), con descargo venciendo el
+domingo 16 y consulta al laboralista pedida para el lunes 17.
+
+✅ **Las dos preguntas están resueltas y no hay que volver a enviarlas.** Las
+contestan dos migraciones, y ahí es donde vive el razonamiento completo:
+
+- el escalón saltado → [`0246`](../supabase/migrations/0246_una_imputacion_prematura_no_tapa_el_escalon_que_falta.sql)
+- el descargo previo del art. 19.3 → [`0267`](../supabase/migrations/0267_el_descargo_previo_pasa_a_ser_una_politica_de_la_empresa.sql)
+
+Lo que queda vivo de esta sección es el relato de POR QUÉ pasó, que es lo que
+impide repetirlo. El expediente en sí ya no tiene plazo corriendo.
 
 Se emitió **saltándose el escalón d) del art. 19.2 del RIT** — la segunda
 suspensión. El defecto era del generador, que tenía tres peldaños en vez de
@@ -1449,7 +1579,7 @@ los tres conceptos. La repregunta está redactada y lista para enviar en
 *(Dante escribe los códigos sin el cero inicial —dijo «909» por 0909—, así que
 son **0202** y **0203**. Falta su confirmación de una línea.)*
 
-### A.2.a · La maternidad: **construida, sin pegar** (0262)
+### A.2.a · La maternidad: **construida y aplicada** (0262, en producción el 2026-08-17)
 
 **Nadie ha estado de maternidad todavía, y por eso hubo tiempo de hacerlo bien.**
 La duda de si el subsidio va por planilla o por fuera **quedó resuelta por la
@@ -2070,7 +2200,7 @@ hoy**; valen por lo que impiden mañana, no por lo que haya guardado.
 **a) Quiénes estudian y cuánto cuesta su curso** (del tipo `aurora 1 →
 universidad S/520`). Con el nombre y el monto alcanza; se cargan de a uno en
 `/admin/educacion` o con
-`cargar_educacion_v2.sql`, que pide el nombre y no un UUID. **Es la única de las
+la pantalla `/admin/educacion`. **Es la única de las
 tres compensaciones que se puede destrabar hoy sin escribir una línea de
 código** — `asignaciones_educacion` sigue vacía.
 
@@ -2279,9 +2409,6 @@ Sin esos dos papeles se cobra el nominal.
 
 | Archivo | Para qué |
 |---|---|
-| `revision_completa.sql` | 15 comprobaciones de las migraciones 0115–0122 |
-| `encender_movilidad.sql` | Encender la tarifa, en transacción y con verificación |
-| `cargar_educacion_v2.sql` | Cargar una asignación por nombre, sin copiar UUID |
 | `huella_del_esquema.sql` | **¿Producción dice lo mismo que el repositorio?** Una fila: funciones, candados, columnas, y si queda texto con acentos rotos. Empieza siempre por aquí |
 | `que_funcion_cambio.sql` | Solo si la anterior dice que las funciones difieren **con el mismo conteo**: manda las 199 huellas y señala cuál |
 | `rescatar_lo_que_solo_vive_en_produccion.sql` | ⚠️ **Léelo antes de tocar cualquiera de las nueve que lista.** Trae su código para traerlo al repositorio |
@@ -2716,6 +2843,22 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
 ## Decisiones tomadas (no reabrir)
 
 - **Planilla**: régimen MYPE pequeña empresa, base 6.5 h, pago = salario × horas/(6.5 × días).
+- **A Dante Ramal se le pagó por fuera antes de entrar al sistema, y eso NO se
+  carga hacia atrás — se cuenta desde ahora.** Decisión de Felipe: el sistema es
+  nuevo y no vale la pena complicarlo con historia previa.
+
+  ⚠️ **Por qué está escrito aquí y no solo donde se investigó:** de
+  `fecha_ingreso` cuelga el reloj de su CTS, su gratificación y sus vacaciones.
+  Quien mire su devengado dentro de unos meses va a ver una antigüedad más corta
+  de la real y va a querer corregirla. **No es un dato mal cargado: es una
+  decisión.** El relato completo vive en la sección del 2026-08-14, dentro de un
+  bloque que empieza tachado —y por eso esta línea existe: ahí nadie la iba a
+  leer.
+
+  Y un cabo que va con el vínculo de los locadores: **Dante es locador con monto
+  fijo mensual**, el mismo indicio de laboralidad ya señalado para Carlos,
+  Catherine y Claudia. Entra en esa lista; no se quedó fuera por haberse dado de
+  alta después.
 - **La CTS incluye el sexto de la gratificación** — encendido en producción el
   2026-08-05. La base pasa de sueldo pelado a sueldo × 13/12 (Art. 16 del
   D.S. 001-97-TR; en pequeña empresa la grati es media remuneración, así que el
@@ -2724,8 +2867,12 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   TUO de la Ley de CTS y del documento del MTPE. Se eligió la lectura prudente
   —provisionar de más no es infracción, de menos sí—. Se apaga con una línea, y
   la prueba `126` blinda que el sexto no se cuele en la gratificación ni en las
-  vacaciones. **Falta contárselo al contador antes del depósito de mayo**: si él
-  calcula sobre el sueldo pelado, la discrepancia aparece el día del depósito.
+  vacaciones. **Falta contárselo al contador antes del depósito del 15 de
+  NOVIEMBRE de 2026**: si él calcula sobre el sueldo pelado, la discrepancia
+  aparece el día del depósito. (Este párrafo decía «antes del depósito de mayo»
+  y erraba por seis meses en contra: la CTS se deposita el 15 de mayo y el 15 de
+  noviembre, y el sexto se encendió el 05/08, dentro de la ventana mayo–octubre,
+  que es la que se deposita en noviembre.)
 - ~~**A Carlos Espejo no se le toca el tipo de vínculo**~~ — **REVISADA Y
   REVERTIDA el 2026-08-08.** La decisión decía «se revisa el día que exista la
   excepción por persona»: ese día llegó con la 0196, que parte el sí/no en tres

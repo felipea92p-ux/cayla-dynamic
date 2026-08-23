@@ -40,9 +40,22 @@ cambia cómo se pagan las vacaciones— estaba aplicada en producción y su úni
 ejemplar era un archivo sin commitear en esta Mac**. Ninguno de los otros frenos
 lo veía: `desplegar.sh` cuida el camino de Vercel, y el SQL va por otro camino.
 
-**El md5 de una función se pide a PRODUCCIÓN, no se copia del local.** Cuando
-una migración reescribe una función y su encabezado declara «md5 de partida: X»,
-ese X tiene que venir del SQL Editor. El 2026-08-08 se declaró el md5 local en la
+**El md5 de una función se pide a PRODUCCIÓN, no se copia del local, y se pide
+ANTES DE ESCRIBIR, no antes de entregar.** Cuando una migración reescribe una
+función y su encabezado declara «md5 de partida: X», ese X tiene que venir del
+SQL Editor.
+
+Lo de «antes de escribir» se aprendió el 2026-08-20 y costó una migración
+entera. La 0276 se construyó sobre el cuerpo de la 0269 de
+`fn_planilla_calcular` porque `donde-vive.sh` dijo que esa era la vigente —y lo
+era, EN ESA RAMA— mientras otra sesión ya había fusionado la 0275 a `main` y
+Felipe la había pegado. Pegar la 0276 habría devuelto a **S/ 0.00** el mes de
+quien se toma sus vacaciones completas. Las dos herramientas de la casa miraron
+el worktree y el worktree estaba incompleto; lo cazó el md5 de producción —90 707
+caracteres allá contra 89 527 acá— cuando el trabajo ya estaba hecho, verificado
+y commiteado. Pedirlo al principio cuesta un minuto; pedirlo al final cuesta
+rehacerlo todo. Y ahora `scripts/hooks/main-tiene-migraciones-que-no-tienes.sh`
+avisa además cuando `main` trae una migración que toca tus mismas funciones. El 2026-08-08 se declaró el md5 local en la
 0185 y costó una hora de falsa alarma: producción devolvía otro porque `pbcopy`
 había roto los acentos al copiar (locale `LC_CTYPE=C` → MacRoman), y el texto
 llegó como «Solo un administrador o l√≠der». El SQL corre igual, así que nada
@@ -54,6 +67,27 @@ Y cuando dos md5 no coinciden: **medir dónde está la diferencia** —posicione
 marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
 del principio— en vez de proponer explicaciones. Ese día se probaron tres
 hipótesis falsas antes de que el primer `substring` lo resolviera de un vistazo.
+
+**Y que no coincidan es LO NORMAL, no la excepción.** Medido el 2026-08-18 en el
+SQL Editor: **119 de las 243 funciones de producción —el 49 %— no tienen ni una
+línea de comentario**. Se pegaron sin ellos. Así que su md5 nunca va a ser el del
+repositorio, y el síntoma es idéntico al del accidente grave: «producción tiene
+otra versión».
+
+Ese día se fue media hora en distinguirlos a mano con `fn_tardanzas_resumen`
+(producción `49b3cf99…`, local `16f4991a…`). La respuesta era benigna: mismo
+código, sin los comentarios — se comprobó quitándoselos al cuerpo local, que da
+1818 caracteres y el md5 de producción exacto.
+
+`donde-vive.sh` ya no te deja en esa duda: da **los dos md5** —tal cual y sin
+comentarios— y te imprime la consulta lista para pegar en producción, con los
+tres desenlaces escritos. Si coincide el primero, seguir. Si coincide el segundo,
+seguir pero declarando en la migración el md5 de PRODUCCIÓN. Si no coincide
+ninguno, parar.
+
+Lo que **no** se propone es repegar 119 funciones. Pero conviene saber lo que
+cuesta: estas migraciones se leen como documentación del negocio, y en producción
+la mitad de esa explicación no está.
 
 **Antes de dar cualquier SQL que toque plata, se audita empíricamente.**
 Contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con casos reales. No se
@@ -363,8 +397,35 @@ archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
 ## La red de seguridad (jul-2026)
 
 **Antes de subir a GitHub** corre solo un hook (`scripts/hooks/pre-push`) que
-verifica la **numeración**, el `typecheck` y las pruebas de interfaz. Si algo está
-en rojo, el push no se hace. Toma unos 10 segundos.
+verifica la **numeración**, **las dos reglas de abajo que se cumplían de memoria**,
+el `typecheck` y las pruebas de interfaz. Si algo está en rojo, el push no se
+hace. Toma unos 10 segundos.
+
+**Dos de las reglas de este archivo ya no dependen de que alguien las recuerde**
+(`scripts/hooks/reglas-de-la-casa.sh`, ago-2026): comparar `rol` contra un
+literal fuera de `permisos.ts`, y escribir `"America/Lima"` fuera de
+`fecha-lima.ts`. Las dos estaban escritas aquí y las dos se habían vuelto a
+romper — la auditoría de agosto encontró **diez** de la primera y **tres** de la
+segunda. Y las dos reglas se habían escrito DESPUÉS de juntar 35 y 32 copias
+respectivamente, así que el problema nunca fue la redacción: era que un
+documento es memoria, y aquí trabajan varias sesiones a la vez.
+
+Solo mira **lo que el push agrega**, igual que la verificación de numeración y
+por el mismo motivo: comparar el árbol entero encontraría las trece que ya están
+y fallaría en todos los push. La deuda vieja no molesta, y una regla nueva no
+puede entrar; la deuda se paga en su propio lote, no a costa de que este freno
+mienta. Ignora comentarios a propósito — este archivo cita `rol === "admin"`
+para explicar la regla, y castigar a quien la explica sería absurdo.
+
+Bloquea en vez de avisar, y ahí la distinción es la que el hook ya tenía
+escrita: esto habla de lo que **sale** hacia GitHub, no de lo que hay a medio
+escribir en el disco.
+
+No verifica una tercera que se probó y se descartó: buscar `horario_por_dia`
+fuera de `jornada-esperada.ts` para cazar las copias de «qué le tocaba trabajar
+ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
+todo el derecho. Un guardián con ese ruido se desactiva a la semana, así que esa
+regla sigue dependiendo de que alguien la recuerde.
 
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
@@ -407,6 +468,26 @@ No bloquea a propósito, por la regla que este hook ya tenía escrita para
 `types.ts` — *lo que sale de esta máquina se bloquea; lo que solo está en el disco
 se avisa* —, porque con varias sesiones en paralelo una migración a medio escribir
 es un caso legítimo constante.
+
+**Y ese aviso solo mira migraciones. Todo lo demás se protege solo con el
+hábito: se commitea ANTES de pasar a lo siguiente, no al terminar la jornada.**
+El 2026-08-18 se perdieron los tres informes de la auditoría de agosto —116
+agentes, dos horas— y una migración ya escrita, auditada contra la base y con su
+prueba en verde. No los borró nadie a propósito: otra sesión movió el árbol
+compartido y se llevó por delante lo que estaba sin guardar. El trabajo
+intelectual se pudo rehacer porque los datos de los agentes vivían fuera del
+repo; el resto se escribió dos veces.
+
+Con cuatro sesiones compartiendo directorio, un archivo sin commitear no es
+«trabajo en curso»: es trabajo que solo existe mientras nadie toque el árbol. Y
+la ventana no es de horas — basta con que otra sesión haga un `checkout` en el
+minuto siguiente.
+
+Lo caro no fue rehacerlo. Fue que **la migración quedó obsoleta antes de poder
+entregarla**: partía de la 0263 y, mientras se rehacía el trabajo, la función
+vigente pasó a ser la 0269. Pegada tal cual habría revertido esa migración en
+silencio — exactamente el accidente que `donde-vive.sh` existe para evitar, por
+el camino de haber tardado demasiado en guardar.
 
 **Antes de crear una migración o una prueba, pregunta qué número toca:**
 

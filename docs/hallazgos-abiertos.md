@@ -14,6 +14,149 @@ reproduce hoy, táchalo y anota por qué.
 
 ---
 
+## Auditoría del 2026-08-19 · 22 agentes contra la ley peruana
+
+Doce frentes legales —uno por cuerpo normativo—, cinco de cálculo y **cinco
+escépticos** cuyo único trabajo era tumbar lo que los otros levantaran. Salieron
+**93 hallazgos**; los escépticos tumbaron **46 por no tener población en CAYLA**,
+9 por ser decisiones ya tomadas, 3 por no reproducirse y 3 por estar arreglados.
+
+**La regla que se les impuso, y que hizo casi todo el trabajo:** ningún hallazgo
+vale sin una consulta que diga a quién de CAYLA le pasa. Un hallazgo sin
+población es una hipótesis. El día anterior, cinco «hallazgos» se deshicieron al
+medirlos contra producción, y cada uno costó tiempo del cierre.
+
+**La consulta que responde eso vive en
+[`scripts/sql-manual/a_quien_le_pega.sql`](../scripts/sql-manual/a_quien_le_pega.sql)** —
+nueve preguntas, un solo `select`. Se corre antes del 28. Mientras no se corra,
+lo de abajo es mecanismo confirmado con población desconocida, que no es lo
+mismo que plata perdida.
+
+### Cerrado el mismo día
+
+- **0275 · las vacaciones dejan de pagarse en cero.** Quien pasaba el periodo
+  entero de vacaciones cobraba S/0.00 por el 0/0 de `hh.pago / dias_marcados`.
+  La 0254 ya lo había resuelto para el descanso médico y la 0262 para la
+  maternidad; vacaciones era la última y la más probable de las tres.
+- **`va_a_poder_cerrarse.sql` conocía solo uno de los dos frenos del cierre.**
+  Daba «✓ TODOS CUADRAN» y `fn_planilla_congelar` abortaba igual por el freno de
+  la 0243/0244.
+- **La boleta se contradecía sobre la AFP** y no identificaba al empleador.
+
+### Confirmado y pendiente · mueve plata en el pago mensual
+
+| Qué | Cuánto | Dónde |
+|---|---|---|
+| **No existe la sobretasa del 100 % por trabajar el día de descanso semanal** (art. 3 D. Leg. 713) | S/44–58 por episodio | `fn_planilla_calcular` no lee `turnos` ni una vez |
+| Un **feriado dentro de unas vacaciones se paga dos veces** | S/51.99 por feriado | `vacd` no lo excluye y `fer` sí lo paga |
+| La **remuneración vacacional no entra a la base de EsSalud ni de pensión** | S/94 + S/43 por persona y periodo | va a `pago_base` pero no a `pb.basica` |
+| Se pagan **ausencias posteriores al cese** | S/193.55 medidos | `vacd`, `dmd` y `mat` no miran `fecha_cese` |
+| **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad | S/1,306.45 medidos | la rama `sf` no prorratea |
+| **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes | S/1,509.64 medidos | |
+| **Sin régimen de pensión → aporte cero**, y ninguna pantalla de Planilla lo dice | ~S/208/mes por persona | `coalesce(tpen.tasa, …)` |
+| El **sobretiempo pierde el exceso** del ciclo que cruza el día 29 | S/14–19 | `ot_dias` lee desde `p_ini - 7` |
+| La **pantalla de Feriados y la planilla dividen por bases distintas** | 3.33 % de cada sobretasa | mes calendario vs periodo 29→28 |
+
+### Confirmado y pendiente · muerde el día que alguien cese
+
+- **Los récords vacacionales ya ganados y no gozados no se pagan nunca.**
+  `fn_vacaciones_truncas` arranca en el último aniversario. S/2,243 medidos en un
+  caso de tres años. Emparentado con [V1](#v1--la-trunca-de-vacaciones-cobra-dos-veces-los-mismos-días).
+- **La CTS de un semestre cerrado y no depositado desaparece al cesar.**
+  S/406.25 por semestre perdido. Población determinista: quien cese entre el 1 y
+  el 15 de mayo o de noviembre.
+- **`fn_remuneracion_computable` mete descuentos y la propia gratificación** al
+  promedio de «conceptos variables»: filtra `where mp.monto > 0` sin mirar
+  `mp.tipo`. Infla las tres truncas (+S/220.83 de base medidos).
+- **Las truncas se calculan sobre el sueldo de la escala**, no sobre lo percibido.
+- **El promedio de variables se toma del semestre de la gratificación** (ene-jun /
+  jul-dic) también para la CTS, cuyo periodo es nov-abr / may-oct.
+- **`fn_avisos_vinculo` filtra `estado = 'activo'`**: la red de seguridad que la
+  0169 escribió para avisar de quien está en `'prueba'` se apaga justo en el
+  cese, que es cuando esa etiqueta cuesta dinero.
+- **No existe el concepto de vacaciones vencidas** ni la indemnización del art. 23.
+- **El plazo de 48 h de la liquidación se calcula bien pero nadie lo empuja:** no
+  hay contador en el menú ni fila en Incidencias.
+
+### Confirmado y pendiente · gratificación
+
+- **El 9 % de la Ley 30334 no entra en el monto que propone la pantalla.**
+  `fn_grati_cts_periodo` devuelve solo `grati`, no `be`. ~S/59.40 por persona y
+  semestre. Atenuante fuerte: la cabecera de la 0134 dice que lo calcula el
+  contador. La próxima ocasión es el 15/12/2026.
+- **La grati de Navidad se calcula sobre un semestre cortado el 28/12**, porque
+  el periodo que contiene el 15/12 termina ahí. S/10.64 por persona.
+- **La provisión de gratificación de la boleta incluye el feriado y
+  `fn_provisiones` —de donde sale lo que se paga— no.**
+- **El panel de Provisiones muestra tres columnas contra un total que incluye una
+  cuarta** (la bonificación extraordinaria), y `provision_total` difiere en
+  S/0.01 de la suma de sus cuatro celdas.
+
+### Confirmado y pendiente · el papel
+
+- **La retención previsional se imprime como «va a tu fondo»** cuando de cada
+  S/100 solo van ~S/77. ✅ *corregido el 2026-08-19*.
+- **Ni la boleta ni el detalle de servicios identifican al empleador.**
+  ✅ *corregido el 2026-08-19; quedan siete documentos con el RUC escrito a mano.*
+- **El deslinde legal nombra «Rendimiento Extraordinario» e «Incentivo Variable
+  por Metas»**, conceptos retirados de la tabla a propósito.
+- **El pie promete grati, CTS y vacaciones sin consultar `fn_devenga`.**
+- **El CSV que se le pasa al contador no exporta cuatro de las once partidas** que
+  componen el `total` que sí exporta: movilidad, educación, sobretiempo y
+  descuento de pensión. La fila no cuadra.
+- **El CSV de Exportar saca una columna `horas_extra` que NO es sobretiempo:** es
+  `horas_extra_detectadas`, lo que se trabajó por encima del horario de ESE día.
+  Toca sobre todo a LIM, cuyo horario programado es de 9 h.
+- **La política salarial publicada cita el art. 8** para la sobretasa del feriado,
+  que es del art. 9, y el **inciso d)** para el bono de cumpleaños, que es el g).
+  Una línea cada uno más republicar.
+
+### Confirmado y pendiente · disciplina
+
+- **Un día que la colaboradora impugnó por escrito** (`revisiones_pedidas`, el
+  botón de `/mio`) **sigue contando para el umbral y sale impreso en el memo.**
+  Es el canal que se le dio para reclamar, y no lo escucha nadie.
+- **La escalera de inasistencias salta de la primera suspensión a la imputación
+  de cargos** con una sola falta nueva, sin causal del art. 21.5.
+- **La suspensión por faltas se fija en `fn_hoy_lima() + 1`** sin comprobar que
+  sea día laborable, y deja `suspension_fechas` en NULL. La rama de tardanzas sí
+  lo hace bien desde la 0235.
+- **El umbral mensual de tardanzas se borra el 1 de cada mes** y no hay forma de
+  emitir el documento después.
+- **`fn_cargo_de_rol` imprime «Líder de Equipo» para el rol `lider_do`.**
+- **REGRESIÓN de la 0238:** `fn_otorgar_descanso_sustitutorio` volvió a exigir
+  horas marcadas para el estado PENDIENTE, perdiendo el arreglo que la 0072 hizo
+  a propósito. Deja sin registrar el acuerdo previo del feriado — y el próximo es
+  el **30/08/2026**, domingo, que es el día que TRU sí trabaja.
+
+### Latentes confirmados · hoy no cuestan nada
+
+Mecanismo real, población cero hoy. Se anotan para que el día que se enciendan
+no haya que descubrirlos otra vez.
+
+- Al **personal de dirección se le miden tardanzas** y se le puede armar memo.
+- La **tabla `feriados` es global y no tiene sede**: un día no laborable regional
+  se pagaría a las cuatro.
+- El **tope de 90 remuneraciones diarias de CTS** del régimen MYPE no está en el
+  código. No muerde hasta enero de 2031.
+- **`fn_cts_trunca` puede devolver un monto negativo** y `fn_liquidacion` lo suma.
+- **`fn_liquidacion_pagar` no escribe en `desembolsos_beneficios`:** una
+  reincorporación vuelve a devengar CTS y vacaciones enteras.
+- **`v_planilla_pagada` elige la versión máxima POR PERIODO** y no por persona: un
+  pago congelado desaparece si el periodo se repaga.
+- **`fn_remuneracion_computable` lee la asignación familiar sin versionar**
+  mientras planilla y provisiones la leen de `parametros_laborales`. Se dispara
+  con el decreto de la RMV.
+- **`fn_grati_trunca_bruta` tiene el 9 % clavado** mientras las otras dos vías lo
+  leen versionado.
+- **`motivo_cese = 'fin_periodo_prueba'` se acepta en cualquier fecha**, sin medir
+  los tres meses del art. 10 de la LPCL.
+- **El certificado de trabajo y la constancia de cese no existen** en ninguna
+  parte del sistema. La constancia es la llave con la que la persona retira su
+  CTS del banco.
+
+---
+
 ## Dónde está esto hoy (reverificado el 2026-08-08, uno por uno)
 
 **Quedan 15 problemas distintos.** No es una estimación: cada entrada se

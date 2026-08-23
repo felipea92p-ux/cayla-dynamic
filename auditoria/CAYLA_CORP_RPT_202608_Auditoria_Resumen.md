@@ -1,0 +1,88 @@
+# Auditoría CAYLA Dynamic — lo que hay que saber en cinco minutos
+
+**2026-08-17** · 116 agentes, cada hallazgo con un verificador independiente encargado de
+refutarlo. **De 99 hallazgos propuestos, 19 murieron ahí.** Quedaron **80: 4 P0, 8 P1, 29 P2,
+39 P3.**
+
+---
+
+## El veredicto en una línea
+
+**El sistema calcula bien y protege mal.** El núcleo del pago resistió el ataque —no hay dinero en
+coma flotante, el cierre no paga dos veces, el candado de mes pagado funciona, y desde un monto se
+puede llegar a los marcajes que lo originaron—. Lo que está por debajo del mínimo es **quién puede
+ver qué**.
+
+| Eje | Dónde está |
+|---|---|
+| Integridad arquitectónica | camino a clase mundial |
+| Performance y escala a 3 años | **clase mundial** — a 10× no se despeina |
+| Seguridad | **por debajo del mínimo** — los 4 P0 están todos aquí |
+| Corrección de negocio | profesional sólido |
+| Diseño y flujo | profesional sólido |
+
+---
+
+## Los cinco que importan
+
+**1 · Hay DNI, correos y celulares de diez personas publicados en GitHub.** `P0`
+En `0130_los_datos_del_tregistro.sql` y dos migraciones más. Su encabezado además narra hechos
+personales con nombre y apellido. El `CLAUDE.md` tiene la regla escrita —«datos personales fuera de
+git»— y se incumplió tres veces. Ya está publicado: borrarlo hoy no lo despublica.
+
+**2 · El motor de tardanzas cuenta feriados, vacaciones y descansos médicos como tardanzas — y las
+imprime en el memo disciplinario.** `P0` · **ya ocurrió, desde el 2026-07-21**
+`fn_faltas` aplica seis exclusiones antes de contar. `fn_tardanzas_resumen` hace la pregunta
+contraria sobre los mismos días y **no aplica ninguna**. Es exactamente el falso positivo que este
+repositorio declaró su peor error, y termina en un papel que se le entrega a una persona.
+
+**3 · El kiosco de marcaje puede leer el DNI, el correo y la remuneración de todo su equipo.** `P0`
+La política deja al terminal seleccionar filas completas de `personas`. RLS filtra **filas, no
+columnas**: el código pide cuatro campos, pero el token alcanza todos. Y ese token vive en una Mac
+mini a la vista de todo el equipo.
+
+**4 · Once funciones `SECURITY DEFINER` entregan datos de cualquier persona a cualquier sesión.**
+`P0` · **desde el 2026-07-21**
+Reciben un `persona_id` de quien llama y no preguntan quién llama. Alcanzan datos disciplinarios y
+de beneficios de las cuatro sedes.
+
+**5 · Un descanso médico paga sin que Desarrollo Organizacional lo apruebe.** `P1`
+Los dos laterales que pagan ausencias miran `anulada_at` y nunca `aprobada_at`. Y una encargada de
+sede puede registrarlo.
+→ **MEDIDO EN PRODUCCIÓN el 2026-08-18: no le costó un sol a nadie.** Los dos únicos registros son
+de descanso médico de Paola Cahuana (6 y 7 de julio), los hizo Felipe, y la foto del pago de julio
+se congeló **antes** de que existiera el concepto — `la_foto_conoce_el_concepto = false` en las tres
+versiones. Pasa de «ya ocurrió» a **puerta abierta por la que no entró nadie**.
+
+---
+
+## Qué hacer el lunes
+
+1. **Correr los tres detectores que faltan** de la §7 del informe en el SQL Editor. Son `SELECT` de
+   solo lectura, ya escritos y probados. El cuarto —el del descanso médico— ya se corrió.
+2. **Cerrar el hueco del descanso médico** (en curso; ver el plan de remediación).
+3. **Decidir qué hacer con los datos ya publicados en GitHub.** No es una tarea de código: es una
+   decisión sobre el historial del repositorio.
+4. **Tapar las tres fugas de lectura** (terminal, funciones `SECURITY DEFINER`, ascenso a Admin).
+5. **Encender el linter** — 119 errores esperando — y **subir Next a 16.2.11**.
+
+---
+
+## Las dos cosas que este informe dice y no están en ninguna lista
+
+**La objeción.** El sistema usa RLS como si filtrara columnas, y RLS filtra filas. `personas` guarda
+en la misma fila el nombre y el sueldo. Cada pantalla nueva que necesite un nombre volverá a abrir
+el DNI y la remuneración, y la única defensa será que alguien se acuerde de acotar columnas en el
+cliente. Eso no es una defensa: es una costumbre.
+
+**Lo que no se pidió.** La red de seguridad verifica numeración, tipos y pruebas. **No verifica ni
+una sola de las reglas que el propio `CLAUDE.md` declara.** Por eso volvieron las diez comparaciones
+de rol que una regla existe para evitar, por eso «qué le tocaba trabajar ese día» está escrito
+cuatro veces cuando el documento prohíbe una tercera, y por eso la auditoría de diseño de julio
+pidió un guardián que nunca se construyó.
+
+Ese `CLAUDE.md` es de lo mejor que se puede leer en un proyecto de este tamaño. Hoy funciona como
+memoria, no como guardián — y la memoria de un equipo con cuatro sesiones en paralelo dura lo que
+dura una tarde con prisa. Veinte líneas en el hook de pre-push convierten tres páginas de prosa
+excelente en algo que se cumple solo. Es el lote de mayor retorno, y el único que evita volver a
+escribir este informe dentro de seis meses.

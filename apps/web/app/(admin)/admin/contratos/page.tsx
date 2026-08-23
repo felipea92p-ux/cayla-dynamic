@@ -10,11 +10,11 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { hoyLima, puedeGestionarContratos } from "@cayla-dynamic/shared";
-import { horarioVigente, horasSemanalesVigentes, type HorarioTramo } from "@/lib/admin/jornada-esperada";
 import {
   construirContrato,
   formatearFecha,
   ACTIVOS_PRINCIPALES_POR_SEDE,
+  FUNCIONES_PLACEHOLDER,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
 
@@ -29,7 +29,17 @@ import {
 // El texto se persiste en `contratos_generados.documento_html` en el momento
 // de generarse (borrador, sin firma) — antes de que exista el escaneo, no
 // después — para que quede constancia de qué se imprimió aunque pasen días
-// hasta que se firme. Ver migración 0271 y apps/web/lib/admin/contrato-texto.ts.
+// hasta que se firme. Ver migración 0272 y apps/web/lib/admin/contrato-texto.ts.
+//
+// LA JORNADA SIEMPRE ES DE 48 HORAS, NUNCA UN NÚMERO CALCULADO DEL HORARIO.
+// Decisión de Felipe (2026-08-19): el horario real (hoy 45h en varias sedes)
+// es una disposición voluntaria y ajustable de la empresa, no un tope legal —
+// el contrato declara el máximo que la ley permite y que CAYLA se reserva el
+// derecho de usar, igual que ya mide el sobretiempo `fn_planilla_calcular`
+// (contra 48h fijas, nunca contra el horario nominal de cada quien). Por eso
+// esta pantalla no lee `horarios_asignados` ni compara contra
+// `horas_semana_objetivo`: esa comparación no alimentaba nada del contrato y
+// Felipe la encontró más ruidosa que útil.
 
 const EMPRESA = {
   firmanteNombre: "Alvarez Pereyra Felipe Miguel",
@@ -69,9 +79,6 @@ interface Parametro {
   valor: number;
   sede_codigo: string | null;
 }
-interface HorarioFila extends HorarioTramo {
-  horas_semana_objetivo: number | null;
-}
 interface ContratoFila {
   id: string;
   persona_id: string;
@@ -102,7 +109,6 @@ export default function ContratosPage() {
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [datosPersonales, setDatosPersonales] = useState<DatoPersonal[]>([]);
   const [salarios, setSalarios] = useState<Salario[]>([]);
-  const [horarios, setHorarios] = useState<HorarioFila[]>([]);
   const [movilidadTarifas, setMovilidadTarifas] = useState<Parametro[]>([]);
   const [bonoOnomastico, setBonoOnomastico] = useState<number | null>(null);
   const [ritVersion, setRitVersion] = useState<string | null>(null);
@@ -115,6 +121,10 @@ export default function ContratosPage() {
   const [causaEditada, setCausaEditada] = useState("");
   const [funcionesEditadas, setFuncionesEditadas] = useState("");
   const [activosLibre, setActivosLibre] = useState("");
+  // Sin esto marcado, un Anexo IV vacío es indistinguible de uno olvidado —
+  // decisión de Felipe (2026-08-19): un campo vacío no basta, hay que
+  // declararlo a propósito.
+  const [sinActivosAdicionales, setSinActivosAdicionales] = useState(false);
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
 
@@ -157,7 +167,7 @@ export default function ContratosPage() {
     }
 
     const hoy = hoyLima();
-    const [ps, ss, dp, sal, hor, params, rit, ctr] = await Promise.all([
+    const [ps, ss, dp, sal, params, rit, ctr] = await Promise.all([
       supabase
         .from("personas")
         .select("id, nombres, apellidos, documento, cargo, sede_base_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad")
@@ -167,11 +177,6 @@ export default function ContratosPage() {
       supabase.from("sedes").select("id, nombre, codigo"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, direccion"),
       supabase.from("asignaciones_salario").select("persona_id, salario_mensual_soles").is("vigente_hasta", null),
-      supabase
-        .from("horarios_asignados")
-        .select(
-          "persona_id, vigente_desde, vigente_hasta, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, horas_semana_objetivo",
-        ),
       // Movilidad y bono: la fila vigente HOY. Sin fila aplicable, cae a
       // null y el contrato lo dice en vez de inventar un monto — misma
       // regla que /admin/documentacion.
@@ -197,7 +202,6 @@ export default function ContratosPage() {
     setSedes((ss.data as Sede[]) ?? []);
     setDatosPersonales((dp.data as DatoPersonal[]) ?? []);
     setSalarios((sal.data as Salario[]) ?? []);
-    setHorarios((hor.data as HorarioFila[]) ?? []);
 
     const paramsData = (params.data as Parametro[]) ?? [];
     setMovilidadTarifas(paramsData.filter((p) => p.clave === "movilidad_diaria"));
@@ -236,10 +240,9 @@ export default function ContratosPage() {
         `[REVISAR antes de imprimir — en especial si la sede es Central, que no es tienda y puede necesitar ` +
         `otra causa objetiva.]`,
     );
-    setFuncionesEditadas(
-      "[Completar con las funciones específicas del puesto — usar como referencia el Anexo I del contrato anterior de esta persona, si existe.]",
-    );
+    setFuncionesEditadas(FUNCIONES_PLACEHOLDER);
     setActivosLibre("");
+    setSinActivosAdicionales(false);
 
     if (tipo === "renovacion" && p.fecha_fin_contrato) {
       const siguiente = new Date(`${p.fecha_fin_contrato}T00:00:00`);
@@ -249,7 +252,12 @@ export default function ContratosPage() {
       setFechaInicio(hoyLima());
     }
     setFechaFin("");
-  }, [personaId, tipo, personas, sedeNombreMap]);
+    // Deliberadamente NO depende de `personas`/`sedeNombreMap`: generar un
+    // borrador llama a `cargar()`, que trae esos dos arreglos de nuevo con una
+    // referencia distinta aunque el contenido sea el mismo. Si estuvieran acá,
+    // cada "Generar borrador" borraba el formulario que se acababa de llenar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaId, tipo]);
 
   // Cualquier edición posterior invalida el borrador ya generado: lo que se
   // imprime tiene que ser exactamente lo que se congeló en la base, nunca una
@@ -257,26 +265,13 @@ export default function ContratosPage() {
   useEffect(() => {
     setBorrador(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cargoEditado, causaEditada, funcionesEditadas, activosLibre, fechaInicio, fechaFin]);
+  }, [cargoEditado, causaEditada, funcionesEditadas, activosLibre, sinActivosAdicionales, fechaInicio, fechaFin]);
 
   const persona = personas.find((p) => p.id === personaId) ?? null;
   const datoPersonal = persona ? (datosPersonales.find((d) => d.persona_id === persona.id) ?? null) : null;
   const salarioVigente = persona
     ? (salarios.find((s) => s.persona_id === persona.id)?.salario_mensual_soles ?? null)
     : null;
-  const tramoVigente = persona
-    ? horarioVigente(
-        horarios.filter((h) => h.persona_id === persona.id),
-        hoyLima(),
-      )
-    : null;
-  const horasCalculadas = tramoVigente ? horasSemanalesVigentes(tramoVigente) : null;
-  const horasDeclaradas = (tramoVigente as HorarioFila | null)?.horas_semana_objetivo ?? null;
-  const horasDiscrepan =
-    horasCalculadas?.horas !== null &&
-    horasCalculadas?.horas !== undefined &&
-    horasDeclaradas !== null &&
-    Math.abs(horasCalculadas.horas - horasDeclaradas) > 0.5;
 
   const sedeCod = persona?.sede_base_id ? (sedeCodigo.get(persona.sede_base_id) ?? "") : "";
   const sedeNom = persona?.sede_base_id ? (sedeNombreMap.get(persona.sede_base_id) ?? "") : "";
@@ -298,7 +293,6 @@ export default function ContratosPage() {
           fechaInicio,
           fechaFin,
           fechaIngresoOriginal: persona.fecha_ingreso,
-          horasSemanales: horasCalculadas?.horas ?? null,
           remuneracionMensual: salarioVigente,
           cobraMovilidad: persona.cobra_movilidad,
           movilidadDiaria: movilidadTarifa,
@@ -314,12 +308,27 @@ export default function ContratosPage() {
 
   const previewHtml = datosParaGenerar ? construirContrato(datosParaGenerar) : null;
 
+  // Dos campos que un olvido puede dejar exactamente iguales a como
+  // empezaron — y un campo sin tocar no debe poder imprimirse como si fuera
+  // una respuesta. Decisión de Felipe (2026-08-19).
+  const bloqueos: string[] = [];
+  if (persona && funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER) {
+    bloqueos.push('Completa "Funciones del cargo" — sigue con el texto de relleno.');
+  }
+  if (persona && activosLibre.trim() === "" && !sinActivosAdicionales) {
+    bloqueos.push('Marca la casilla de activos, o completa el ajuste específico del Anexo IV.');
+  }
+
   async function generarBorrador() {
     if (!datosParaGenerar || !persona) {
       setAviso({
         tipo: "error",
         texto: "Faltan datos para generar el contrato: revisa DNI, nombre legal (Ficha personal), sueldo vigente y las fechas.",
       });
+      return;
+    }
+    if (bloqueos.length > 0) {
+      setAviso({ tipo: "error", texto: bloqueos[0] });
       return;
     }
     setGenerando(true);
@@ -332,7 +341,9 @@ export default function ContratosPage() {
       p_remuneracion_mensual: datosParaGenerar.remuneracionMensual,
       p_fecha_inicio: fechaInicio,
       p_fecha_fin: fechaFin,
-      p_horas_semanales: datosParaGenerar.horasSemanales,
+      // La jornada del contrato es siempre 48h (ver contrato-texto.ts); no hay
+      // un número calculado del horario que guardar acá.
+      p_horas_semanales: null,
       p_documento_html: html,
     });
     setGenerando(false);
@@ -541,11 +552,24 @@ export default function ContratosPage() {
               <label className="block text-sm">
                 Anexo IV — ajuste de activos para esta persona
                 <textarea
-                  className="mt-1 w-full rounded border border-sand p-2"
+                  className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
                   rows={2}
                   value={activosLibre}
+                  disabled={sinActivosAdicionales}
                   onChange={(e) => setActivosLibre(e.target.value)}
                 />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={sinActivosAdicionales}
+                  onChange={(e) => {
+                    setSinActivosAdicionales(e.target.checked);
+                    if (e.target.checked) setActivosLibre("");
+                  }}
+                />
+                Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales de
+                la sede
               </label>
 
               <dl className="grid grid-cols-2 gap-2 text-xs text-taupe">
@@ -558,17 +582,12 @@ export default function ContratosPage() {
                   <dd>{datoPersonal?.nombre_dni ?? "falta en Ficha personal"}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold">Sueldo vigente</dt>
+                  <dt className="font-semibold">Sueldo base vigente</dt>
                   <dd>{salarioVigente !== null ? `S/ ${salarioVigente.toFixed(2)}` : "sin asignación vigente"}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold">Horas semanales</dt>
-                  <dd className={horasDiscrepan ? "text-rojo" : ""}>
-                    {horasCalculadas?.horas !== null && horasCalculadas?.horas !== undefined
-                      ? horasCalculadas.horas
-                      : "no se pudo determinar — quedará pendiente en el texto"}
-                    {horasDiscrepan && ` (el horario declara ${horasDeclaradas} — revisar antes de imprimir)`}
-                  </dd>
+                  <dt className="font-semibold">Jornada del contrato</dt>
+                  <dd>48 horas semanales (el máximo legal — ver cláusula QUINTA)</dd>
                 </div>
                 <div>
                   <dt className="font-semibold">Movilidad</dt>
@@ -586,9 +605,17 @@ export default function ContratosPage() {
                 </div>
               </dl>
 
+              {bloqueos.length > 0 && (
+                <ul className="list-disc space-y-1 rounded-lg bg-rojo/10 px-4 py-3 pl-8 text-sm text-rojo">
+                  {bloqueos.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              )}
+
               <button
                 className="rounded bg-tinta px-4 py-2 text-sm text-white disabled:opacity-50"
-                disabled={!datosParaGenerar || generando}
+                disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
                 onClick={generarBorrador}
               >
                 {generando ? "Generando…" : "Generar borrador"}

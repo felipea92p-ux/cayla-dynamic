@@ -8,19 +8,40 @@
 -- ============================================================================
 -- Tres situaciones distintas salían idénticas en la planilla: S/0.00.
 --
---   · De vacaciones todo el periodo → el cero es correcto.
+--   · De vacaciones todo el periodo → el cero NO era correcto (ver abajo).
 --   · No marcó ningún día debiendo marcar → hay que mirarlo.
 --   · Sin horario asignado → el sistema ni sabe qué días le tocaba venir.
 --
--- Quien revisa antes de pagar no podía distinguirlas, y la primera —la
--- inofensiva— entrena el ojo para ignorar las otras dos.
+-- Quien revisa antes de pagar no podía distinguirlas, y la primera entrenaba
+-- el ojo para ignorar las otras dos.
+--
+-- ── LO QUE CAMBIÓ CON LA 0275, Y POR QUÉ ────────────────────────────────────
+--
+-- Este archivo nació diciendo que el cero de quien pasa el periodo entero de
+-- vacaciones «es correcto», y lo fijaba con un `is(total, 0)`. No lo era: era
+-- el defecto disfrazado de caso benigno. El art. 15 del D. Leg. 713 dice que la
+-- remuneración vacacional es la que la persona habría percibido de continuar
+-- laborando, así que pagar S/0.00 por el descanso que la ley OBLIGA a tomar le
+-- quita un mes de sueldo a quien hizo exactamente lo que debía.
+--
+-- El origen del cero es aritmético: un día de vacaciones vale
+-- `hh.pago / dias_marcados`, y quien no marcó ningún día tiene 0/0. La 0254 ya
+-- había resuelto ese mismo 0/0 para el descanso médico y la 0262 para la
+-- maternidad; vacaciones era la última de las tres ausencias pagadas que seguía
+-- sin tarifa de respaldo — y la más probable, porque las vacaciones peruanas son
+-- 30 días calendario contra un periodo de 31.
+--
+-- El propósito de este archivo no se pierde, se refuerza: los tres casos siguen
+-- teniendo que distinguirse, y ahora el de vacaciones se distingue solo, porque
+-- ya no es un cero. Lo que se fija aquí es que el mes se paga y que los otros
+-- dos ceros siguen siendo legibles.
 --
 -- La prueba más importante de este archivo es la última: que añadir estos dos
 -- datos NO movió un centavo. Es una función de dinero y se tocó copiando su
 -- texto, no reescribiéndolo.
 -- ============================================================================
 begin;
-select plan(8);
+select plan(9);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values ('00000000-0000-0000-0000-00000000ce01', 'ZZCER', 'Sede de laboratorio', true, 'tienda');
@@ -83,8 +104,22 @@ from jsonb_array_elements(fn_planilla_calcular('2026-06-01', '2026-06-30')->'fil
 select is((select dias_vac from _pl where nombre = 'CeroVacaciones Lab'),
           30, 'VACACIONES · el periodo entero cubierto se ve como 30 días de vacaciones');
 
-select is((select total from _pl where nombre = 'CeroVacaciones Lab'),
-          0::numeric, 'VACACIONES · y su total sigue siendo cero, como debe ser');
+-- CAMBIO 0275 · antes esto era `is(total, 0)`. Ahora cobra su mes. Se comprueba
+-- con `>` y no con el importe exacto a propósito: junio trae el feriado de San
+-- Pedro y San Pablo, y cuánto vale ese feriado ya lo fijan otras pruebas. Lo que
+-- este archivo vigila es que el mes de vacaciones NO salga en cero.
+select cmp_ok((select total from _pl where nombre = 'CeroVacaciones Lab'),
+              '>', 0::numeric,
+              'VACACIONES · cobra su mes: el descanso que la ley obliga a tomar se paga');
+
+-- Y que lo que cobra es su sueldo, no una cifra cualquiera: la tarifa de
+-- respaldo es salario ÷ días laborables, así que el periodo entero de
+-- vacaciones vale el salario completo. Sin esta segunda mitad, la prueba de
+-- arriba pasaría igual con un céntimo.
+select cmp_ok(
+  abs((select pago_base from _pl where nombre = 'CeroVacaciones Lab') - 1950::numeric),
+  '<', 0.02::numeric,
+  'VACACIONES · y lo que cobra es su sueldo del mes, ni más ni menos');
 
 -- ── No marcó, pero le tocaba: hay que mirarlo ───────────────────────────────
 select is((select dias_vac from _pl where nombre = 'CeroNoMarco Lab'),

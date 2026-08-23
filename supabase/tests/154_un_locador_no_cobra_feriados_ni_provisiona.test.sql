@@ -102,10 +102,15 @@ select is(_bol('00000000-0000-0000-0000-00000000ad13', 'provision_vacaciones'), 
 -- calculan la misma cosa por caminos distintos, y ese es el defecto de raíz: la
 -- 0196 arregló uno y dejó el otro, y nadie se enteró hasta ver una boleta.
 -- Mientras las dos existan, esto es lo que las mantiene sincronizadas.
+-- El `coalesce` es del CAMBIO 0274: desde entonces quien no devenga nada ni
+-- siquiera ocupa una fila en las provisiones, así que «no está» cuenta como
+-- «no provisiona gratificación». La aserción sigue diciendo lo mismo — las dos
+-- funciones de acuerdo — y sigue rompiéndose igual si una de las dos empieza a
+-- darle plata al locador.
 select is(
-  (select ((e -> 'grati_total')::numeric > 0)
-     from jsonb_array_elements(fn_provisiones('2026-08-28') -> 'personas') e
-    where (e ->> 'persona_id')::uuid = '00000000-0000-0000-0000-00000000ad13'),
+  coalesce((select ((e -> 'grati_total')::numeric > 0)
+              from jsonb_array_elements(fn_provisiones('2026-08-28') -> 'personas') e
+             where (e ->> 'persona_id')::uuid = '00000000-0000-0000-0000-00000000ad13'), false),
   (_bol('00000000-0000-0000-0000-00000000ad13', 'provision_gratificacion') > 0),
   'LAS DOS DE ACUERDO · provisiones y boleta dicen lo mismo del mismo locador');
 

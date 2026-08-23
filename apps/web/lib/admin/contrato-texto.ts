@@ -27,6 +27,8 @@
 // una vez generado para una persona real. Esta pieza construye la
 // herramienta; no reemplaza esa revisión.
 
+import { EMPRESA } from "@cayla-dynamic/shared";
+
 export interface DatosContrato {
   tipo: "nuevo" | "renovacion" | "adendum";
 
@@ -43,11 +45,11 @@ export interface DatosContrato {
   causaObjetivaTexto: string;
   funcionesTexto: string;
 
-  // Plazo y jornada
+  // Plazo — la jornada es siempre de 48h, el máximo legal; no se declara un
+  // número calculado del horario, que es solo la disposición operativa de hoy.
   fechaInicio: string; // ISO
   fechaFin: string; // ISO
   fechaIngresoOriginal: string; // ISO — para saber si ya pasó el período de prueba
-  horasSemanales: number | null;
 
   // Plata
   remuneracionMensual: number;
@@ -84,6 +86,15 @@ export const ACTIVOS_PRINCIPALES_POR_SEDE: Record<string, string> = {
   AQP: "Caja registradora, equipo de cómputo y mobiliario de tienda asignado en la sede Arequipa.",
   TRU: "Caja registradora, equipo de cómputo y mobiliario de tienda asignado en la sede Trujillo.",
 };
+
+/**
+ * El texto de relleno de "Funciones del cargo" — exportado para que la
+ * pantalla pueda comparar contra él exactamente y BLOQUEAR la generación si
+ * nadie lo reemplazó. Vive acá, no duplicado en la pantalla, para que las dos
+ * comparaciones no puedan desalinearse.
+ */
+export const FUNCIONES_PLACEHOLDER =
+  "[Completar con las funciones específicas del puesto — usar como referencia el Anexo I del contrato anterior de esta persona, si existe.]";
 
 const UNIDADES = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
 const DIECIS = [
@@ -182,26 +193,22 @@ function escapado(d: DatosContrato): DatosContrato {
 }
 
 function clausulaJornada(d: DatosContrato): string {
-  const esEntero = d.horasSemanales !== null && Number.isInteger(d.horasSemanales);
-  const horasTexto =
-    d.horasSemanales === null
-      ? `de <strong>[POR COMPLETAR — no se pudo determinar desde el horario asignado; verificar antes de imprimir]</strong> horas semanales en promedio`
-      : esEntero
-        ? `de ${d.horasSemanales} (${tresDigitos(d.horasSemanales) || "cero"}) horas semanales en promedio`
-        : `de ${d.horasSemanales} horas semanales en promedio`;
-
   return `
     <h3>QUINTA. JORNADA LABORAL, HORARIOS Y REGISTRO DE ASISTENCIA</h3>
-    <p>La jornada laboral será a tiempo parcial, ${horasTexto}, conforme al Texto
+    <p>La jornada laboral es de cuarenta y ocho (48) horas semanales, el máximo
+    establecido por el artículo 25 de la Constitución Política del Perú y el Texto
     Único Ordenado del Decreto Legislativo N.° 854, Ley de Jornada de Trabajo,
-    Horario y Trabajo en Sobretiempo, aprobado por Decreto Supremo N.° 007-2002-TR,
-    y su Reglamento aprobado por Decreto Supremo N.° 008-2002-TR. La jornada se
-    distribuye en turnos rotativos sin exceder el límite de la jornada ordinaria y
-    respetando los descansos previstos por ley.</p>
+    Horario y Trabajo en Sobretiempo, aprobado por Decreto Supremo N.° 007-2002-TR.
+    Que LA EMPRESA determine, por su sola voluntad y según sus necesidades
+    operativas, programar en la práctica un número de horas menor a lo largo de la
+    semana no reduce ni modifica esta jornada pactada: LA EMPRESA conserva en todo
+    momento la facultad de disponer hasta el máximo de 48 horas semanales aquí
+    establecido, sin que ello requiera la suscripción de un nuevo contrato.</p>
     <p>Los horarios de trabajo son rotativos y serán determinados por LA EMPRESA de
     acuerdo a sus requerimientos operativos, pudiendo variar los turnos, los
-    horarios de ingreso y salida, y la distribución de horas a lo largo de la
-    semana. LA EMPRESA comunicará el cuadro de turnos con anticipación razonable.</p>
+    horarios de ingreso y salida, el día de descanso, y la distribución de horas a
+    lo largo de la semana, dentro del máximo establecido en el párrafo anterior. LA
+    EMPRESA comunicará el cuadro de turnos con anticipación razonable.</p>
     <p>El día de descanso semanal es igualmente rotativo y podrá corresponder a
     cualquier día de la semana según la programación establecida por LA EMPRESA
     conforme a sus necesidades operativas, de acuerdo al artículo 2 del Decreto
@@ -226,10 +233,11 @@ function clausulaJornada(d: DatosContrato): string {
 function clausulaRemuneracion(d: DatosContrato): string {
   return `
     <h3>SEXTA. REMUNERACIÓN</h3>
-    <p>LA EMPRESA abonará a LA COLABORADORA una remuneración mensual de
-    S/ ${soles(d.remuneracionMensual)} (${numeroALetras(d.remuneracionMensual)} soles),
-    no menor a la Remuneración Mínima Vital vigente, sujeta a los descuentos de
-    ley.</p>
+    <p>La remuneración mensual base de LA COLABORADORA es de S/ ${soles(d.remuneracionMensual)}
+    (${numeroALetras(d.remuneracionMensual)} soles), no menor a la Remuneración
+    Mínima Vital vigente. Sobre esta base, LA EMPRESA abona a LA COLABORADORA el
+    monto proporcional a las horas efectivamente laboradas en cada período, conforme
+    al registro de asistencia, sujeto a los descuentos de ley.</p>
     <p>El pago se realizará mediante depósito bancario dentro de los primeros
     cinco (05) días hábiles del mes siguiente al período laborado.</p>
     <p>Los bonos o incentivos variables tendrán carácter discrecional y no
@@ -367,7 +375,7 @@ function anexoIV(d: DatosContrato): string {
     asignados para el ejercicio de sus funciones y bajo su custodia:</p>
     <p><strong>Activos principales de la sede:</strong> ${d.activosPrincipales}</p>
     <p><strong>Ajuste específico para esta persona:</strong>
-    ${d.activosLibre || "[completar si corresponde — dejar en blanco si no aplica]"}</p>
+    ${d.activosLibre || "LA COLABORADORA no tiene activos adicionales bajo su custodia, más allá de los generales de la sede detallados líneas arriba."}</p>
     <p>Todos los bienes detallados son de propiedad exclusiva de LA EMPRESA y se
     entregan únicamente para el desempeño de las funciones de LA COLABORADORA. LA
     COLABORADORA se obliga a custodiarlos y conservarlos con la diligencia
@@ -387,8 +395,8 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
   return `
   <article class="contrato">
     <header>
-      <p class="empresa">CAYLA S.A.C.</p>
-      <p class="ruc">RUC N.° 20605964550 · Sede ${d.sedeNombre}</p>
+      <p class="empresa">${EMPRESA.nombre}</p>
+      <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
       <h1>${titulo}</h1>
       <p class="norma">(TUO del Decreto Legislativo N.° 728 — Ley de Productividad y Competitividad Laboral, Art. 57)</p>
       <p class="norma">Régimen Laboral Especial de la Pequeña Empresa — Texto Único Ordenado de la Ley de Impulso al
@@ -400,10 +408,9 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     Trabajo Sujeto a Modalidad Temporal entre:</p>
 
     <h3>I. DATOS DEL EMPLEADOR</h3>
-    <p>CAYLA S.A.C., identificada con R.U.C. N.° 20605964550, con domicilio legal en Mza. Q, Lote 26, Urb. San Andrés
-    V Etapa, distrito de Trujillo, provincia de Trujillo, departamento de La Libertad, debidamente representada por
-    su representante legal, Sr(a). ${d.firmanteNombre}, identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en
-    adelante se denominará LA EMPRESA.</p>
+    <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
+    ${EMPRESA.domicilio}, debidamente representada por su representante legal, Sr(a). ${d.firmanteNombre},
+    identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA.</p>
 
     <h3>II. DATOS DE LA COLABORADORA</h3>
     <p>${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}${
@@ -518,7 +525,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     <div class="firmas">
       <div>
         <p class="linea">&nbsp;</p>
-        <p><strong>GERENTE GENERAL</strong><br/>${d.firmanteNombre}<br/>DNI N.° ${d.firmanteDni}<br/>CAYLA S.A.C.</p>
+        <p><strong>GERENTE GENERAL</strong><br/>${d.firmanteNombre}<br/>DNI N.° ${d.firmanteDni}<br/>${EMPRESA.nombre}</p>
       </div>
       <div>
         <p class="linea">&nbsp;</p>

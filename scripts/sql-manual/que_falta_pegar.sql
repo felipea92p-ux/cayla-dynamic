@@ -133,6 +133,9 @@ with repo(numero, nombre, nunca) as (values
     (271, 'el_total_de_cts_descuenta_lo_mismo_que_sus_ventanas', false),
     (272, 'los_contratos_generados_entran_al_sistema', false),
     (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios', false),
+    (274, 'las_provisiones_solo_listan_a_quien_devenga', false),
+    (275, 'las_vacaciones_dejan_de_pagarse_en_cero', false),
+    (276, 'una_sola_base_para_la_reserva', false),
     (277, 'cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento', false)
 ),
 diff as (
@@ -264,8 +267,12 @@ select * from (
              when '172b8aa710b3b06f89a53c3cf7ae6ff8' then '✗ 0262 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'f6b4f2649f4132dd2db5711b391b1f54' then '⚠ se quedó en la 0263 — falta pegar lo posterior'
              when 'ea201e37d15fbd3ef34d0c5bf8d722fd' then '✗ 0263 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '5e755bdedd964d289104e824eb2925ec' then '0269 — al día con el repositorio'
+             when '5e755bdedd964d289104e824eb2925ec' then '⚠ se quedó en la 0269 — falta pegar lo posterior'
              when '4f24030bdce39bd665a13f503a2e7d7e' then '✗ 0269 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'b132c828fde4aa5fedd6cf946fee7f08' then '⚠ se quedó en la 0275 — falta pegar lo posterior'
+             when '3af7cdc468be355687ad53a4af446222' then '✗ 0275 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '2f38e5ce76bcb22164cd0794671b349f' then '0276 — al día con el repositorio'
+             when '2792fa305cc21dec63339fc03af71f30' then '✗ 0276 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
