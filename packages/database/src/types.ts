@@ -631,6 +631,8 @@ export type Database = {
           anulado_motivo: string | null
           anulado_por: string | null
           cargo: string
+          comunicado_mtpe_at: string | null
+          copia_entregada_at: string | null
           documento_html: string
           fecha_fin: string
           fecha_firma: string | null
@@ -651,6 +653,8 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           cargo: string
+          comunicado_mtpe_at?: string | null
+          copia_entregada_at?: string | null
           documento_html: string
           fecha_fin: string
           fecha_firma?: string | null
@@ -671,6 +675,8 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           cargo?: string
+          comunicado_mtpe_at?: string | null
+          copia_entregada_at?: string | null
           documento_html?: string
           fecha_fin?: string
           fecha_firma?: string | null
@@ -3458,45 +3464,6 @@ export type Database = {
           },
         ]
       }
-      pg_all_foreign_keys: {
-        Row: {
-          fk_columns: unknown[] | null
-          fk_constraint_name: unknown
-          fk_schema_name: unknown
-          fk_table_name: unknown
-          fk_table_oid: unknown
-          is_deferrable: boolean | null
-          is_deferred: boolean | null
-          match_type: string | null
-          on_delete: string | null
-          on_update: string | null
-          pk_columns: unknown[] | null
-          pk_constraint_name: unknown
-          pk_index_name: unknown
-          pk_schema_name: unknown
-          pk_table_name: unknown
-          pk_table_oid: unknown
-        }
-        Relationships: []
-      }
-      tap_funky: {
-        Row: {
-          args: string | null
-          is_definer: boolean | null
-          is_strict: boolean | null
-          is_visible: boolean | null
-          kind: unknown
-          langoid: unknown
-          name: unknown
-          oid: unknown
-          owner: unknown
-          returns: string | null
-          returns_set: boolean | null
-          schema: unknown
-          volatility: string | null
-        }
-        Relationships: []
-      }
       terminal_roster: {
         Row: {
           apellidos: string | null
@@ -3692,80 +3659,6 @@ export type Database = {
       }
     }
     Functions: {
-      _cleanup: { Args: never; Returns: boolean }
-      _contract_on: { Args: { "": string }; Returns: unknown }
-      _currtest: { Args: never; Returns: number }
-      _db_privs: { Args: never; Returns: unknown[] }
-      _extensions: { Args: never; Returns: unknown[] }
-      _get: { Args: { "": string }; Returns: number }
-      _get_latest: { Args: { "": string }; Returns: number[] }
-      _get_note: { Args: { "": string }; Returns: string }
-      _is_verbose: { Args: never; Returns: boolean }
-      _prokind: { Args: { p_oid: unknown | null }; Returns: unknown }
-      _query: { Args: { "": string }; Returns: string }
-      _refine_vol: { Args: { "": string }; Returns: string }
-      _retval: { Args: { "": string }; Returns: string }
-      _table_privs: { Args: never; Returns: unknown[] }
-      _temptypes: { Args: { "": string }; Returns: string }
-      _todo: { Args: never; Returns: string }
-      col_is_null:
-        | {
-            Args: {
-              column_name: unknown | null
-              description?: string | null
-              schema_name: unknown | null
-              table_name: unknown | null
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown | null
-              description?: string | null
-              table_name: unknown | null
-            }
-            Returns: string
-          }
-      col_not_null:
-        | {
-            Args: {
-              column_name: unknown | null
-              description?: string | null
-              schema_name: unknown | null
-              table_name: unknown | null
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown | null
-              description?: string | null
-              table_name: unknown | null
-            }
-            Returns: string
-          }
-      diag:
-        | {
-            Args: { msg: unknown | null }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-        | {
-            Args: { msg: string | null }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-      diag_test_name: { Args: { "": string }; Returns: string }
-      do_tap:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
-      fail:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
-      findfuncs: { Args: { "": string }; Returns: string[] }
-      finish: { Args: { exception_on_failure?: boolean | null }; Returns: string[] }
       fn_aceptar_incidencia: {
         Args: {
           p_fecha: string | null
@@ -4041,6 +3934,10 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_contrato_marcar_tramite: {
+        Args: { p_fecha?: string | null; p_id: string | null; p_tramite: string | null }
+        Returns: undefined
+      }
       fn_contrato_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
       fn_contrato_registrar: {
         Args: {
@@ -4077,10 +3974,13 @@ export type Database = {
           anulado_at: string
           anulado_motivo: string
           cargo: string
+          comunicado_mtpe_at: string
+          copia_entregada_at: string
           fecha_fin: string
           fecha_firma: string
           fecha_inicio: string
           generado_at: string
+          generado_por: string
           horas_semanales: number
           id: string
           persona: string
@@ -4101,6 +4001,25 @@ export type Database = {
           persona_id: string
           sede: string
           ya_vencio: boolean
+        }[]
+      }
+      fn_contratos_tablero: {
+        Args: never
+        Returns: {
+          comunicado_mtpe_at: string
+          contrato_id: string
+          copia_entregada_at: string
+          copia_vence: string
+          dias_marcados_despues: number
+          dias_restantes: number
+          estado: string
+          fecha_fin_contrato: string
+          fecha_firma: string
+          mtpe_vence: string
+          persona: string
+          persona_id: string
+          sede: string
+          tipo: string
         }[]
       }
       fn_corregir_marca: {
@@ -5362,37 +5281,6 @@ export type Database = {
         Args: { p_persona_objetivo: string | null }
         Returns: string
       }
-      format_type_string: { Args: { "": string }; Returns: string }
-      has_unique: { Args: { "": string }; Returns: string }
-      in_todo: { Args: never; Returns: boolean }
-      is_empty: { Args: { "": string }; Returns: string }
-      isnt_empty: { Args: { "": string }; Returns: string }
-      lives_ok: { Args: { "": string }; Returns: string }
-      no_plan: { Args: never; Returns: boolean[] }
-      num_failed: { Args: never; Returns: number }
-      os_name: { Args: never; Returns: string }
-      pass:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
-      pg_version: { Args: never; Returns: string }
-      pg_version_num: { Args: never; Returns: number }
-      pgtap_version: { Args: never; Returns: number }
-      runtests:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
-      skip:
-        | { Args: { "": string }; Returns: string }
-        | { Args: { how_many: number | null; why: string | null }; Returns: string }
-      throws_ok: { Args: { "": string }; Returns: string }
-      todo:
-        | { Args: { how_many: number | null }; Returns: boolean[] }
-        | { Args: { how_many: number | null; why: string | null }; Returns: boolean[] }
-        | { Args: { why: string | null }; Returns: boolean[] }
-        | { Args: { how_many: number | null; why: string | null }; Returns: boolean[] }
-      todo_end: { Args: never; Returns: boolean[] }
-      todo_start:
-        | { Args: never; Returns: boolean[] }
-        | { Args: { "": string }; Returns: boolean[] }
     }
     Enums: {
       estado_jornada:
@@ -5423,9 +5311,7 @@ export type Database = {
         | "retorno_otro"
     }
     CompositeTypes: {
-      _time_trial_type: {
-        a_time: number | null
-      }
+      [_ in never]: never
     }
   }
 }
