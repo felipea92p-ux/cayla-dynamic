@@ -140,6 +140,46 @@ dice un solo sitio.
 
 ---
 
+## 2026-08-24 — Tomarse las vacaciones dejó de costar dinero
+
+La [`0283`](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql)
+está **pegada en producción el 2026-08-24**: `fn_vacaciones_truncas` pasó de
+`9535ed57…` (3 228 chars) a `a005fc69…` (8 117 chars).
+
+**El defecto, medido.** Dos personas idénticas —mismo sueldo, mismo ingreso,
+mismo día de cese—. La única diferencia es que una se tomó sus vacaciones:
+
+| | vacaciones que pagaba la hoja |
+|---|---|
+| Nunca gozó | S/ 812,50 |
+| **Gozó sus 15 días cuando la ley manda** | **S/ 0,00** |
+
+La causa era una ventana: la cuenta empezaba en el último aniversario, y los 15
+días que se ganan al CERRAR un récord se gozan DESPUÉS del aniversario. Caían
+dentro y se restaban del récord nuevo. El mismo descanso se cobraba dos veces, y
+solo a quien lo tomó. Por el mismo borde se caían los récords completos sin
+gozar: quien llevaba dos años sin vacaciones cobraba el trunco y nada más.
+
+**Por qué la cuenta acumulada no puede pagar doble** —la condición que puso
+Felipe antes de aprobarlo—: cada día que la persona se tomó en su vida se resta
+UNA vez del total que ganó en su vida; `vacaciones` es una VISTA sobre
+`ausencias`, así que un día no puede contarse por dos tablas; y ahora se
+descuenta el libro de desembolsos, que esta era la única de las tres truncas en
+no mirar.
+
+**Se comprobó el historial antes de escribirlo**, porque el único modo en que
+esta cuenta puede equivocarse es que un goce no esté registrado. De las 20
+personas activas, las cuatro con un año cumplido se tomaron EXACTAMENTE sus 15
+días, y las 16 restantes no han cumplido el año. Nadie tiene saldo pendiente ni
+récord vencido: no hizo falta fecha de corte.
+
+**La indemnización del art. 23 se avisa y no se calcula** (decisión de Felipe):
+tiene excepciones que el sistema no sabe distinguir. Y lo que de verdad la evita
+es avisar ANTES de que el récord venza — pendiente, y es la mejor idea que salió
+de esta tanda.
+
+---
+
 ## 2026-08-22 — Un bono de S/50 costaba S/318 al cesar, y ya no
 
 La [`0278`](../supabase/migrations/0278_ni_los_descuentos_ni_los_beneficios_inflan_la_liquidacion.sql)
