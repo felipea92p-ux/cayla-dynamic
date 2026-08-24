@@ -172,13 +172,19 @@ a.bg-tinta:hover {
   margin: 0 0 0.3rem;
   position: relative;
 }
-/* La firma escaneada se apoya sobre la raya, no la reemplaza. */
+/* La firma escaneada se apoya sobre la raya, no la reemplaza.
+   `mix-blend-mode: multiply` hace que el fondo blanco del escaneo desaparezca
+   contra el papel: sin esto se veía un recuadro blanco opaco tapando la línea,
+   como una pegatina pegada encima. Desde 2026-08-24 las firmas nuevas se
+   guardan ya con el fondo transparente, pero esto sigue haciendo falta para
+   las que se subieron antes — y no estorba a las nuevas. */
 .contrato .linea img {
   position: absolute;
   bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
   max-height: 3rem;
+  mix-blend-mode: multiply;
 }
 .contrato .pie-hoja {
   text-align: center;
