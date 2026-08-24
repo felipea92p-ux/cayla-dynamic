@@ -141,7 +141,8 @@ with repo(numero, nombre, nunca) as (values
     (280, 'el_descanso_semanal_trabajado_se_paga', false),
     (281, 'el_techo_de_educacion_se_reparte_y_sigue_al_rango', false),
     (282, 'una_sede_central_no_tiene_ciudad_propia', false),
-    (283, 'las_vacaciones_no_gozadas_se_pagan_al_cesar', false)
+    (283, 'las_vacaciones_no_gozadas_se_pagan_al_cesar', false),
+    (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
