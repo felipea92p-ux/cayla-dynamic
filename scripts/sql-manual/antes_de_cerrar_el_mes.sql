@@ -109,8 +109,13 @@ c4b as (
 ),
 c5 as (
   select 6, 'JORNADAS AUTO-CERRADAS SIN CONFIRMAR',
-         case when count(*) = 0 then '✓  ninguna' else '⚠  ' || count(*)::text || ' por revisar' end,
-         'Estas SÍ salen en el contador de pendientes. Se pagan con la hora que inventó el cron.'
+         -- CAMBIO 0284 — Pasó de ⚠ a 🚫. Antes solo avisaba de que esas horas se
+         -- pagaban con la hora que inventó el cron; desde la 0284
+         -- `fn_planilla_congelar` se niega a cerrar el periodo mientras quede
+         -- alguna. Dejarlo en ⚠ diría que el cierre puede continuar, y no puede.
+         case when count(*) = 0 then '✓  ninguna'
+              else '🚫 ' || count(*)::text || ' por revisar — el cierre ABORTARÁ (freno 0284)' end,
+         'Confírmalas en Correcciones: esa hora la puso el cron y nadie la marcó. Hasta entonces el periodo no cierra.'
   from jornadas j, d
   where j.fecha between d.ini and d.fin and j.estado = 'auto_cerrada_pendiente'
 ),
