@@ -142,6 +142,7 @@ with repo(numero, nombre, nunca) as (values
     (281, 'el_techo_de_educacion_se_reparte_y_sigue_al_rango', false),
     (282, 'una_sede_central_no_tiene_ciudad_propia', false),
     (283, 'las_vacaciones_no_gozadas_se_pagan_al_cesar', false),
+    (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false),
     (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false)
 ),
 diff as (
