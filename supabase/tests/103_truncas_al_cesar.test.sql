@@ -175,18 +175,32 @@ select is((fn_cts_trunca('00000000-0000-0000-0000-0000000000c2', '2026-04-30')->
 --
 -- En régimen general serían 30 días al año: 15 días ganados y S/1 200. El doble.
 
+-- ⇩ LOS TRES NÚMEROS DE ABAJO SUBIERON CON LA 0283, Y ES EL ARREGLO.
+--
+-- Esta persona entró el 01/01/2024 y cesa el 30/06/2026: tiene DOS récords
+-- anuales completos sin gozar —30 días— más el trunco de 2026. Hasta la 0283 la
+-- hoja pagaba solo el trunco y esos 30 días no aparecían en ninguna línea. La
+-- expectativa vieja (7,5 días · S/600) era el defecto escrito como si fuera la
+-- regla.
+--
+--   días ganados = 15 × 2 récords + 15 × 6/12 de trunco = 37,5
+--   monto        = (2 400 / 2) × 37,5 / 15 = S/3 000,00
+--   y con 5 días ya gozados: (2 400 / 2) × 32,5 / 15 = S/2 600,00
+--
+-- El régimen NO cambió —siguen siendo 15 días por año, MYPE pequeña empresa—.
+-- Lo que cambió es cuántos años se miran.
 select is((fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000c2', '2026-06-30')->>'dias_ganados')::numeric,
-          7.50::numeric, 'VACACIONES · medio año son 7.5 días — en régimen general serían 15');
+          37.50::numeric, 'VACACIONES · dos récords completos más medio año son 37.5 días');
 
 select is((fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000c2', '2026-06-30')->>'monto')::numeric,
-          600.00::numeric, 'VACACIONES · y su valor a media remuneración por 15 días');
+          3000.00::numeric, 'VACACIONES · y su valor: media remuneración por cada 15 días');
 
 -- Lo ya gozado se descuenta: 5 días tomados dentro del récord dejan 2.5
 -- pendientes → 1 200 × 2.5 / 15 = S/200.00
 select fn_set_vacaciones('00000000-0000-0000-0000-0000000000c6', '2026-03-02', '2026-03-06', 'descanso');
 
 select is((fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000c6', '2026-06-30')->>'monto')::numeric,
-          200.00::numeric, 'VACACIONES · los días ya gozados se descuentan de lo que se le debe');
+          2600.00::numeric, 'VACACIONES · los días ya gozados se descuentan de lo que se le debe');
 
 
 -- ════════════════════════════════════════════════════════════════════════════

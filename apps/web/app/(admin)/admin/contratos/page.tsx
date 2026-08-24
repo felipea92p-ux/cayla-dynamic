@@ -144,6 +144,10 @@ export default function ContratosPage() {
 
   const [generando, setGenerando] = useState(false);
   const [borrador, setBorrador] = useState<{ id: string; html: string } | null>(null);
+  // El texto congelado de un contrato del historial, al abrirlo para
+  // reimprimirlo. Estado propio y no `borrador`: el efecto que descarta el
+  // borrador al editar el formulario no debe cerrar lo que se está mirando.
+  const [documentoAbierto, setDocumentoAbierto] = useState<string | null>(null);
 
   const [subiendoPara, setSubiendoPara] = useState<string | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -265,6 +269,7 @@ export default function ContratosPage() {
   useEffect(() => {
     const p = personas.find((x) => x.id === personaId);
     setBorrador(null);
+    setDocumentoAbierto(null);
     if (!p) return;
 
     setCargoEditado(p.cargo ?? "");
@@ -423,6 +428,7 @@ export default function ContratosPage() {
       setAviso({ tipo: "error", texto: mensajeDeError(error, "generar el contrato") });
       return;
     }
+    setDocumentoAbierto(null);
     setBorrador({ id: id as string, html });
     await cargar();
     setAviso({ tipo: "ok", texto: "Borrador generado. Revísalo, imprímelo y fírmalo; después sube el escaneo desde el historial." });
@@ -497,6 +503,26 @@ export default function ContratosPage() {
     setAviso({ tipo: "ok", texto: "Contrato anulado. Sigue guardado en el historial." });
   }
 
+  /**
+   * Abre el texto CONGELADO de un contrato ya generado, para volver a verlo o
+   * reimprimirlo. Se lee de la base y no se regenera: reconstruirlo con los
+   * datos de hoy daría otro documento —el sueldo o el cargo pueden haber
+   * cambiado— y el que vale es el que se imprimió y se firmó.
+   */
+  async function abrirGenerado(id: string) {
+    const { data, error } = await supabase
+      .from("contratos_generados")
+      .select("documento_html")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) {
+      setAviso({ tipo: "error", texto: mensajeDeError(error, "abrir el contrato") });
+      return;
+    }
+    setDocumentoAbierto((data as { documento_html: string }).documento_html);
+    setAviso(null);
+  }
+
   async function verDocumento(path: string) {
     const { data, error } = await supabase.storage.from("contratos").createSignedUrl(path, 60);
     if (error || !data) {
@@ -525,7 +551,7 @@ export default function ContratosPage() {
     );
   }
 
-  const documentoAMostrar = borrador?.html ?? previewHtml;
+  const documentoAMostrar = documentoAbierto ?? borrador?.html ?? previewHtml;
 
   // LA FIRMA SE ESTAMPA AL MOSTRAR, NUNCA AL GUARDAR. Lo que la 0272 congela en
   // `documento_html` es el borrador SIN firmar; meterle la imagen convertiría un
@@ -792,6 +818,14 @@ export default function ContratosPage() {
                         : "pendiente de firma"}
                   </td>
                   <td className="space-x-2 text-xs">
+                    {/* Sin esto, un contrato generado no se podía volver a ver
+                        ni a imprimir: el documento solo existía en pantalla
+                        mientras durara la sesión de generarlo. Y el que hay que
+                        reimprimir es justo el de días después, cuando vuelve
+                        firmado o cuando alguien pide otra copia. */}
+                    <button className="underline" onClick={() => abrirGenerado(c.id)}>
+                      Ver / imprimir
+                    </button>
                     {c.storage_path && (
                       <button className="underline" onClick={() => verDocumento(c.storage_path!)}>
                         Ver escaneo
@@ -870,6 +904,19 @@ export default function ContratosPage() {
           </section>
         )}
       </div>
+
+      {/* Al mirar uno del historial, los botones van ARRIBA del documento: es
+          de ocho páginas, y buscarlos al final obliga a recorrerlo entero. */}
+      {documentoAbierto && (
+        <div className="mx-auto mt-6 flex max-w-3xl items-center gap-3 print:hidden">
+          <button className="rounded bg-tinta px-4 py-2 text-sm text-white" onClick={imprimir}>
+            Imprimir / Guardar como PDF
+          </button>
+          <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {htmlFinal && (
         <div
