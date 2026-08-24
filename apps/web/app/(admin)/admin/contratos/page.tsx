@@ -98,10 +98,42 @@ interface ContratoFila {
   generado_at: string;
   storage_path: string | null;
   fecha_firma: string | null;
+  generado_por: string | null;
+  copia_entregada_at: string | null;
+  comunicado_mtpe_at: string | null;
   anulado_at: string | null;
   anulado_motivo: string | null;
   vigente: boolean;
 }
+
+interface FilaTablero {
+  persona_id: string;
+  persona: string;
+  sede: string | null;
+  fecha_fin_contrato: string | null;
+  dias_restantes: number | null;
+  contrato_id: string | null;
+  tipo: string | null;
+  fecha_firma: string | null;
+  copia_entregada_at: string | null;
+  comunicado_mtpe_at: string | null;
+  copia_vence: string | null;
+  mtpe_vence: string | null;
+  dias_marcados_despues: number;
+  estado: string;
+}
+
+/** Qué significa cada estado del tablero, en una frase que se pueda actuar. */
+const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
+  desnaturalizado: { texto: "marcó días después de su fecha de fin — riesgo art. 77", grave: true },
+  sin_contrato: { texto: "no tiene ningún contrato generado", grave: true },
+  sin_firmar: { texto: "generado, pendiente de firma", grave: true },
+  vencido: { texto: "su contrato ya venció", grave: true },
+  sin_vencimiento: { texto: "sin fecha de vencimiento cargada", grave: false },
+  por_vencer: { texto: "vence pronto", grave: false },
+  tramite_pendiente: { texto: "falta entregar copia o comunicar al MTPE", grave: false },
+  ok: { texto: "al día", grave: false },
+};
 
 export default function ContratosPage() {
   const router = useRouter();
@@ -126,6 +158,11 @@ export default function ContratosPage() {
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
   const [esFirmante, setEsFirmante] = useState(false);
   const [contratos, setContratos] = useState<ContratoFila[]>([]);
+  // El tablero parte de las PERSONAS, no de los contratos: el historial arranca
+  // de `contratos_generados`, así que quien no tiene ninguno es invisible ahí —
+  // y con veinte venciendo el mismo día, «¿a quién le falta?» es la pregunta
+  // que hay que poder hacer. Ver migración 0287.
+  const [tablero, setTablero] = useState<FilaTablero[]>([]);
 
   const [personaId, setPersonaId] = useState("");
   const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum">("renovacion");
@@ -185,7 +222,7 @@ export default function ContratosPage() {
     }
 
     const hoy = hoyLima();
-    const [ps, ss, dp, sal, params, rit, ctr, cfg, fichas, firma, yo] = await Promise.all([
+    const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma, yo] = await Promise.all([
       supabase
         .from("personas")
         .select("id, nombres, apellidos, documento, cargo, sede_base_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad")
@@ -214,6 +251,7 @@ export default function ContratosPage() {
         .order("vigente_desde", { ascending: false })
         .limit(1),
       supabase.rpc("fn_contratos_listar"),
+      supabase.rpc("fn_contratos_tablero"),
       // Quién firma por CAYLA (0147) — dato administrable, no escrito acá.
       supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
       // Las fichas SIN filtrar por `en_planilla`: quien firma por la empresa no
@@ -256,6 +294,7 @@ export default function ContratosPage() {
     setRitFecha(ritFila ? formatearFecha(ritFila.vigente_desde) : null);
 
     setContratos((ctr.data as ContratoFila[]) ?? []);
+    setTablero((tab.data as FilaTablero[]) ?? []);
     setCargando(false);
   }, [supabase, router]);
 
@@ -523,6 +562,27 @@ export default function ContratosPage() {
     setAviso(null);
   }
 
+  /** Anota que se entregó la copia o que se comunicó al MTPE. */
+  async function marcarTramite(id: string, tramite: "copia" | "mtpe") {
+    const { error } = await supabase.rpc("fn_contrato_marcar_tramite", {
+      p_id: id,
+      p_tramite: tramite,
+      p_fecha: hoyLima(),
+    });
+    if (error) {
+      setAviso({ tipo: "error", texto: mensajeDeError(error, "anotar el trámite") });
+      return;
+    }
+    await cargar();
+    setAviso({
+      tipo: "ok",
+      texto:
+        tramite === "copia"
+          ? "Anotada la entrega de copia a la colaboradora."
+          : "Anotada la comunicación a la Autoridad Administrativa de Trabajo.",
+    });
+  }
+
   async function verDocumento(path: string) {
     const { data, error } = await supabase.storage.from("contratos").createSignedUrl(path, 60);
     if (error || !data) {
@@ -550,6 +610,11 @@ export default function ContratosPage() {
       </main>
     );
   }
+
+  // Solo quien necesita algo. Un tablero donde casi todas las filas dicen «al
+  // día» enseña a ignorarlo — mismo criterio que el tablero de Documentación,
+  // que oculta a quien no tiene nada pendiente.
+  const pendientes = tablero.filter((f) => f.estado !== "ok");
 
   const documentoAMostrar = documentoAbierto ?? borrador?.html ?? previewHtml;
 
@@ -582,6 +647,48 @@ export default function ContratosPage() {
           <p className={`rounded-lg px-4 py-3 text-sm ${aviso.tipo === "error" ? "bg-rojo/10 text-rojo" : "bg-verde/10 text-verde"}`}>
             {aviso.texto}
           </p>
+        )}
+
+        {/* EL TABLERO VA PRIMERO, Y PARTE DE LAS PERSONAS.
+            El historial de abajo arranca de los contratos generados, así que
+            quien no tiene ninguno es invisible ahí — y con veinte venciendo el
+            mismo día, «¿a quién le falta?» es la pregunta que hay que poder
+            hacer al abrir la pantalla, no la que hay que deducir. */}
+        {pendientes.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold">Necesitan atención — {pendientes.length}</h2>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-sand">
+                  <th className="py-1">Persona</th>
+                  <th>Sede</th>
+                  <th>Vence</th>
+                  <th>Qué pasa</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendientes.map((f) => {
+                  const e = ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false };
+                  return (
+                    <tr key={f.persona_id} className="border-b border-sand/50">
+                      <td className="py-1">{f.persona}</td>
+                      <td>{f.sede}</td>
+                      <td>
+                        {f.fecha_fin_contrato ? formatearFecha(f.fecha_fin_contrato) : "—"}
+                        {f.dias_restantes !== null && f.dias_restantes >= 0 && (
+                          <span className="text-taupe"> · {f.dias_restantes} días</span>
+                        )}
+                      </td>
+                      <td className={e.grave ? "text-rojo" : "text-taupe"}>
+                        {e.texto}
+                        {f.estado === "desnaturalizado" && ` (${f.dias_marcados_despues} días marcados)`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
         )}
 
         <section className="space-y-3 rounded-lg border border-sand p-4">
@@ -816,6 +923,16 @@ export default function ContratosPage() {
                       : c.storage_path
                         ? `firmado el ${c.fecha_firma}`
                         : "pendiente de firma"}
+                    {/* Los dos trámites, solo cuando faltan: decir «entregada»
+                        en cada fila llenaría la tabla de confirmaciones que
+                        nadie necesita leer. */}
+                    {c.fecha_firma && !c.anulado_at && (
+                      <span className="block text-xs text-rojo">
+                        {!c.copia_entregada_at && "falta entregar copia"}
+                        {!c.copia_entregada_at && !c.comunicado_mtpe_at && " · "}
+                        {!c.comunicado_mtpe_at && "falta comunicar al MTPE"}
+                      </span>
+                    )}
                   </td>
                   <td className="space-x-2 text-xs">
                     {/* Sin esto, un contrato generado no se podía volver a ver
@@ -833,7 +950,23 @@ export default function ContratosPage() {
                     )}
                     {!c.storage_path && !c.anulado_at && (
                       <button className="underline" onClick={() => abrirSubida(c.id)}>
-                        Subir firma
+                        Subir contrato firmado
+                      </button>
+                    )}
+                    {/* Los dos plazos que el propio contrato promete (cláusula
+                        décima octava): copia a la colaboradora en 3 días
+                        hábiles, comunicación a la Autoridad de Trabajo en 15
+                        días naturales. Solo aparecen sobre un contrato ya
+                        firmado — antes de la firma no hay nada que entregar ni
+                        que comunicar. */}
+                    {c.fecha_firma && !c.anulado_at && !c.copia_entregada_at && (
+                      <button className="underline" onClick={() => marcarTramite(c.id, "copia")}>
+                        Marcar copia entregada
+                      </button>
+                    )}
+                    {c.fecha_firma && !c.anulado_at && !c.comunicado_mtpe_at && (
+                      <button className="underline" onClick={() => marcarTramite(c.id, "mtpe")}>
+                        Marcar comunicado al MTPE
                       </button>
                     )}
                     {!c.anulado_at && (
