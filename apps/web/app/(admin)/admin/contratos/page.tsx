@@ -123,15 +123,34 @@ interface FilaTablero {
   estado: string;
 }
 
-/** Qué significa cada estado del tablero, en una frase que se pueda actuar. */
+/** Cómo se dice cada tipo en pantalla. En la base son «nuevo»/«renovacion». */
+const TIPO_CONTRATO: Record<string, string> = {
+  nuevo: "Nuevo ingreso",
+  renovacion: "Renovación",
+  adendum: "Adendum",
+};
+
+/**
+ * Qué significa cada estado, y cuál merece el rojo.
+ *
+ * `grave` NO quiere decir «hay algo que hacer» — en esta pantalla eso lo dicen
+ * todas las filas. Quiere decir que el plazo YA SE PASÓ y cada día que corre
+ * cuesta. Al principio, con veinte personas sin contrato todavía, marcar eso
+ * como grave pintaba la pantalla entera de rojo, y una pantalla toda roja no
+ * avisa de nada: el `rojo` de esta paleta es el acento sagrado, con un máximo
+ * de usos por vista.
+ */
+/** Los estados que se resuelven generando un contrato; el resto, abriendo el suyo. */
+const NECESITA_CONTRATO = new Set(["sin_contrato", "vencido", "por_vencer", "desnaturalizado"]);
+
 const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
-  desnaturalizado: { texto: "marcó días después de su fecha de fin — riesgo art. 77", grave: true },
-  sin_contrato: { texto: "no tiene ningún contrato generado", grave: true },
-  sin_firmar: { texto: "generado, pendiente de firma", grave: true },
-  vencido: { texto: "su contrato ya venció", grave: true },
-  sin_vencimiento: { texto: "sin fecha de vencimiento cargada", grave: false },
+  desnaturalizado: { texto: "marcó después del vencimiento — riesgo art. 77", grave: true },
+  vencido: { texto: "contrato vencido", grave: true },
+  sin_contrato: { texto: "sin contrato", grave: false },
+  sin_firmar: { texto: "pendiente de firma", grave: false },
+  sin_vencimiento: { texto: "sin fecha de vencimiento", grave: false },
   por_vencer: { texto: "vence pronto", grave: false },
-  tramite_pendiente: { texto: "falta entregar copia o comunicar al MTPE", grave: false },
+  tramite_pendiente: { texto: "falta copia o comunicación al MTPE", grave: false },
   ok: { texto: "al día", grave: false },
 };
 
@@ -615,6 +634,29 @@ export default function ContratosPage() {
   // día» enseña a ignorarlo — mismo criterio que el tablero de Documentación,
   // que oculta a quien no tiene nada pendiente.
   const pendientes = tablero.filter((f) => f.estado !== "ok");
+  // Cuántos son de los que no pueden esperar. Decide si el contador va en rojo:
+  // el rojo de esta paleta es el acento sagrado, y gastarlo en «vence en tres
+  // meses» lo vuelve invisible el día que diga «desnaturalizado».
+  const graves = pendientes.filter((f) => ESTADO_TABLERO[f.estado]?.grave).length;
+
+  // El archivo, agrupado por persona y en el orden en que ya vienen (el más
+  // reciente primero). `Map` y no un objeto: conserva el orden de inserción,
+  // que es el que decide la consulta.
+  //
+  // SIN `useMemo`, y a propósito: este bloque vive DESPUÉS de los `return`
+  // de «cargando» y «sin permiso», así que un hook acá se salta en esos
+  // renders y React revienta con el error 310 —«más hooks que en el render
+  // anterior»—, que es lo que pasó al probarlo. Agrupar veinte filas no
+  // cuesta nada; el hook sí.
+  const porPersona = (() => {
+    const m = new Map<string, ContratoFila[]>();
+    for (const c of contratos) {
+      const previo = m.get(c.persona);
+      if (previo) previo.push(c);
+      else m.set(c.persona, [c]);
+    }
+    return [...m.entries()];
+  })();
 
   const documentoAMostrar = documentoAbierto ?? borrador?.html ?? previewHtml;
 
@@ -641,7 +683,12 @@ export default function ContratosPage() {
       </div>
 
       <div className="mx-auto max-w-3xl space-y-6 print:hidden">
-        <h1 className="text-xl font-semibold">Generador de contratos</h1>
+        <header>
+          <h1 className="font-serif text-2xl">Contratos</h1>
+          <p className="text-sm text-taupe">
+            El contrato de cada integrante: generarlo, imprimirlo, archivarlo firmado.
+          </p>
+        </header>
 
         {aviso && (
           <p className={`rounded-lg px-4 py-3 text-sm ${aviso.tipo === "error" ? "bg-rojo/10 text-rojo" : "bg-verde/10 text-verde"}`}>
@@ -653,41 +700,53 @@ export default function ContratosPage() {
             El historial de abajo arranca de los contratos generados, así que
             quien no tiene ninguno es invisible ahí — y con veinte venciendo el
             mismo día, «¿a quién le falta?» es la pregunta que hay que poder
-            hacer al abrir la pantalla, no la que hay que deducir. */}
+            hacer al abrir la pantalla, no la que hay que deducir.
+            Cada fila lleva su acción: ver un pendiente sin poder resolverlo
+            desde ahí obliga a buscar a esa persona a mano en el desplegable. */}
         {pendientes.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-lg font-semibold">Necesitan atención — {pendientes.length}</h2>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-sand">
-                  <th className="py-1">Persona</th>
-                  <th>Sede</th>
-                  <th>Vence</th>
-                  <th>Qué pasa</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendientes.map((f) => {
-                  const e = ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false };
-                  return (
-                    <tr key={f.persona_id} className="border-b border-sand/50">
-                      <td className="py-1">{f.persona}</td>
-                      <td>{f.sede}</td>
-                      <td>
-                        {f.fecha_fin_contrato ? formatearFecha(f.fecha_fin_contrato) : "—"}
-                        {f.dias_restantes !== null && f.dias_restantes >= 0 && (
-                          <span className="text-taupe"> · {f.dias_restantes} días</span>
-                        )}
-                      </td>
-                      <td className={e.grave ? "text-rojo" : "text-taupe"}>
-                        {e.texto}
-                        {f.estado === "desnaturalizado" && ` (${f.dias_marcados_despues} días marcados)`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <section className="rounded-lg border border-sand bg-papel p-4">
+            <h2 className="mb-3 font-serif text-lg">
+              Necesitan atención{" "}
+              <span className={graves > 0 ? "text-rojo" : "text-taupe"}>· {pendientes.length}</span>
+            </h2>
+            <ul className="divide-y divide-sand/60">
+              {pendientes.map((f) => {
+                const e = ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false };
+                return (
+                  <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+                    <span className="min-w-0 flex-1 truncate">{f.persona}</span>
+                    <span className="text-xs text-taupe">{f.sede}</span>
+                    <span className={`text-sm ${e.grave ? "text-rojo" : "text-taupe"}`}>
+                      {e.texto}
+                      {f.estado === "desnaturalizado" && ` · ${f.dias_marcados_despues} días marcados`}
+                      {f.estado === "por_vencer" && f.dias_restantes !== null && ` · ${f.dias_restantes} días`}
+                    </span>
+                    {/* La acción dice lo que hace. Quien ya tiene contrato y
+                        lo que le falta es firmarlo o hacer un trámite no
+                        necesita generar otro: necesita ABRIR el suyo. Decir
+                        «generar» ahí invita a duplicarlo. */}
+                    {NECESITA_CONTRATO.has(f.estado) ? (
+                      <button
+                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                        onClick={() => {
+                          setPersonaId(f.persona_id);
+                          setTipo(f.estado === "sin_contrato" ? "nuevo" : "renovacion");
+                        }}
+                      >
+                        {f.estado === "sin_contrato" ? "generar" : "renovar"}
+                      </button>
+                    ) : (
+                      <button
+                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                        onClick={() => f.contrato_id && abrirGenerado(f.contrato_id)}
+                      >
+                        abrir
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </section>
         )}
 
@@ -893,104 +952,114 @@ export default function ContratosPage() {
             </>
           )}
         </section>
+        <section className="space-y-3">
+          <h2 className="font-serif text-lg">Archivo</h2>
 
-        <section className="space-y-2">
-          <h2 className="text-lg font-semibold">Historial</h2>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-sand">
-                <th className="py-1">Persona</th>
-                <th>Tipo</th>
-                <th>Vigencia</th>
-                <th>Firma</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {contratos.map((c) => (
-                <tr key={c.id} className={`border-b border-sand/50 ${c.anulado_at ? "opacity-50" : ""}`}>
-                  <td className="py-1">{c.persona}</td>
-                  <td>
-                    {c.tipo}
-                    {c.vigente ? " · vigente" : ""}
-                  </td>
-                  <td>
-                    {formatearFecha(c.fecha_inicio)} – {formatearFecha(c.fecha_fin)}
-                  </td>
-                  <td>
-                    {c.anulado_at
-                      ? `anulado — ${c.anulado_motivo}`
-                      : c.storage_path
-                        ? `firmado el ${c.fecha_firma}`
-                        : "pendiente de firma"}
-                    {/* Los dos trámites, solo cuando faltan: decir «entregada»
-                        en cada fila llenaría la tabla de confirmaciones que
-                        nadie necesita leer. */}
-                    {c.fecha_firma && !c.anulado_at && (
-                      <span className="block text-xs text-rojo">
-                        {!c.copia_entregada_at && "falta entregar copia"}
-                        {!c.copia_entregada_at && !c.comunicado_mtpe_at && " · "}
-                        {!c.comunicado_mtpe_at && "falta comunicar al MTPE"}
+          {contratos.length === 0 && (
+            <p className="text-sm text-taupe">Todavía no se generó ningún contrato.</p>
+          )}
+
+          {/* AGRUPADO POR PERSONA, Y LOS ANULADOS PLEGADOS.
+              La tabla plana repetía el nombre completo en cada fila —cuatro
+              veces para la misma persona— y daba a tres pruebas anuladas el
+              mismo peso visual que al contrato de verdad. Lo que importa de
+              cada persona es UNO: el vigente. Lo demás es historia, y la
+              historia se guarda, no se exhibe. */}
+          {porPersona.map(([nombre, filas]) => {
+            const vivos = filas.filter((c) => !c.anulado_at);
+            const anulados = filas.filter((c) => c.anulado_at);
+            return (
+              <article key={nombre} className="rounded-lg border border-sand bg-papel p-4">
+                <h3 className="mb-2 font-medium">{nombre}</h3>
+
+                {vivos.map((c) => (
+                  <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
+                    <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
+                      <span>
+                        {formatearFecha(c.fecha_inicio)} – {formatearFecha(c.fecha_fin)}
                       </span>
+                      <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
+                      <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
+                        {c.storage_path ? `firmado el ${formatearFecha(c.fecha_firma!)}` : "pendiente de firma"}
+                      </span>
+                    </div>
+
+                    {/* Los dos plazos, solo mientras falten: confirmar en cada
+                        fila lo que ya se hizo llena la pantalla de recibos. */}
+                    {c.fecha_firma && (!c.copia_entregada_at || !c.comunicado_mtpe_at) && (
+                      <p className="text-xs text-taupe">
+                        Falta{" "}
+                        {!c.copia_entregada_at && "entregar copia a la colaboradora"}
+                        {!c.copia_entregada_at && !c.comunicado_mtpe_at && " y "}
+                        {!c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
+                      </p>
                     )}
-                  </td>
-                  <td className="space-x-2 text-xs">
-                    {/* Sin esto, un contrato generado no se podía volver a ver
-                        ni a imprimir: el documento solo existía en pantalla
-                        mientras durara la sesión de generarlo. Y el que hay que
-                        reimprimir es justo el de días después, cuando vuelve
-                        firmado o cuando alguien pide otra copia. */}
-                    <button className="underline" onClick={() => abrirGenerado(c.id)}>
-                      Ver / imprimir
-                    </button>
-                    {c.storage_path && (
-                      <button className="underline" onClick={() => verDocumento(c.storage_path!)}>
-                        Ver escaneo
+
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
+                        Ver / imprimir
                       </button>
-                    )}
-                    {!c.storage_path && !c.anulado_at && (
-                      <button className="underline" onClick={() => abrirSubida(c.id)}>
-                        Subir contrato firmado
-                      </button>
-                    )}
-                    {/* Los dos plazos que el propio contrato promete (cláusula
-                        décima octava): copia a la colaboradora en 3 días
-                        hábiles, comunicación a la Autoridad de Trabajo en 15
-                        días naturales. Solo aparecen sobre un contrato ya
-                        firmado — antes de la firma no hay nada que entregar ni
-                        que comunicar. */}
-                    {c.fecha_firma && !c.anulado_at && !c.copia_entregada_at && (
-                      <button className="underline" onClick={() => marcarTramite(c.id, "copia")}>
-                        Marcar copia entregada
-                      </button>
-                    )}
-                    {c.fecha_firma && !c.anulado_at && !c.comunicado_mtpe_at && (
-                      <button className="underline" onClick={() => marcarTramite(c.id, "mtpe")}>
-                        Marcar comunicado al MTPE
-                      </button>
-                    )}
-                    {!c.anulado_at && (
-                      <button className="text-rojo underline" onClick={() => setAnulando(c.id)}>
+                      {!c.storage_path && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirSubida(c.id)}>
+                          Subir contrato firmado
+                        </button>
+                      )}
+                      {c.storage_path && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => verDocumento(c.storage_path!)}>
+                          Ver escaneo
+                        </button>
+                      )}
+                      {c.fecha_firma && !c.copia_entregada_at && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "copia")}>
+                          Marcar copia entregada
+                        </button>
+                      )}
+                      {c.fecha_firma && !c.comunicado_mtpe_at && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
+                          Marcar comunicado al MTPE
+                        </button>
+                      )}
+                      {/* Anular va al final y en taupe: es destructivo, no
+                          urgente. En rojo junto a acciones inofensivas se
+                          pulsa por error, y el rojo de esta paleta está
+                          reservado para lo que de verdad avisa. */}
+                      <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
                         Anular
                       </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {contratos.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-3 text-taupe">
-                    Todavía no se generó ningún contrato.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </div>
+                    <p className="text-xs text-taupe">
+                      Generado el {formatearFecha(c.generado_at.slice(0, 10))}
+                      {c.generado_por && ` por ${c.generado_por}`}
+                    </p>
+                  </div>
+                ))}
+
+                {anulados.length > 0 && (
+                  <details className="mt-2 border-t border-sand/60 pt-2 text-xs text-taupe">
+                    <summary className="cursor-pointer">
+                      {anulados.length === 1 ? "1 anulado" : `${anulados.length} anulados`}
+                    </summary>
+                    <ul className="mt-1 space-y-1">
+                      {anulados.map((c) => (
+                        <li key={c.id} className="flex flex-wrap items-baseline gap-x-3">
+                          <span>{formatearFecha(c.generado_at.slice(0, 10))}</span>
+                          <span className="min-w-0 flex-1 truncate">{c.anulado_motivo}</span>
+                          <button className="underline underline-offset-2 hover:text-tinta" onClick={() => abrirGenerado(c.id)}>
+                            Ver
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </article>
+            );
+          })}
         </section>
 
         {subiendoPara && (
           <section className="space-y-2 rounded-lg border border-sand p-4">
-            <p className="text-sm font-semibold">Subir escaneo firmado</p>
+            <p className="font-serif text-lg">Subir contrato firmado</p>
             <input type="file" accept="image/*,application/pdf" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
             <label className="block text-sm">
               Fecha de firma
@@ -1019,7 +1088,7 @@ export default function ContratosPage() {
 
         {anulando && (
           <section className="space-y-2 rounded-lg border border-rojo p-4">
-            <p className="text-sm font-semibold">Anular contrato</p>
+            <p className="font-serif text-lg">Anular contrato</p>
             <textarea
               className="w-full rounded border border-sand p-2 text-sm"
               placeholder="Motivo (mínimo 3 caracteres)"
