@@ -1,7 +1,7 @@
 -- ============================================================================
--- 221_un_dia_fichado_no_se_paga_tambien_como_ausencia.test.sql
+-- 222_un_dia_fichado_no_se_paga_tambien_como_ausencia.test.sql
 -- ============================================================================
--- Migración 0285. Un día en que la persona fichó no se paga además como día de
+-- Migración 0286. Un día en que la persona fichó no se paga además como día de
 -- ausencia.
 --
 -- LA FORMA DE ESTE ARCHIVO ES CUATRO PERSONAS IDÉNTICAS, y es a propósito: con
@@ -73,7 +73,7 @@ from jsonb_array_elements(
 where e->>'nombre' like 'Nueve%';
 
 -- ── 1 · NO SE PAGA DOS VECES ────────────────────────────────────────────────
--- El corazón. Antes de la 0285 esto daba S/2.018,21 contra S/1.680,28.
+-- El corazón. Antes de la 0286 esto daba S/2.018,21 contra S/1.680,28.
 select is(
   (select total from _bol where quien like 'NueveVacFicha%'),
   (select total from _bol where quien like 'NueveNormal%'),

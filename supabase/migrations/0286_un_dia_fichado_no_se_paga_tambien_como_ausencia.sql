@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0285_un_dia_fichado_no_se_paga_tambien_como_ausencia.sql
+-- 0286_un_dia_fichado_no_se_paga_tambien_como_ausencia.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que un día en que la persona FICHÓ no se pague además como día de ausencia.
@@ -785,7 +785,7 @@ begin
       -- a function», y no al escribirla sino al EJECUTARLA. Quien agregue el
       -- siguiente campo del JSON tiene que hacerlo acá.
       || jsonb_build_object(
-        -- ⇩⇩⇩ CAMBIO 0285 ⇩⇩⇩ EL AVISO, que importa mas que el arreglo.
+        -- ⇩⇩⇩ CAMBIO 0286 ⇩⇩⇩ EL AVISO, que importa mas que el arreglo.
         --
         -- Cuenta los dias en que la persona FICHO estando dentro de una ausencia
         -- registrada —vacaciones, descanso medico o maternidad—. Desde esta
@@ -1108,7 +1108,7 @@ begin
                 select 1 from vacaciones v
                 where v.persona_id = pe.id
                   and d.d::date between v.fecha_inicio and v.fecha_fin)
-          -- ⇩⇩⇩ CAMBIO 0285 ⇩⇩⇩ UN DIA FICHADO NO SE PAGA TAMBIEN COMO AUSENCIA.
+          -- ⇩⇩⇩ CAMBIO 0286 ⇩⇩⇩ UN DIA FICHADO NO SE PAGA TAMBIEN COMO AUSENCIA.
           -- `fn_provisiones` excluye este dia desde la 0135; la boleta nunca se
           -- entero, y como la boleta es el camino automatico, eso salia del
           -- banco cada mes. Medido: S/337,93 por una semana solapada.
@@ -1167,7 +1167,7 @@ begin
           and not exists (select 1 from vacaciones v
                            where v.persona_id = pe.id
                              and dm.dia between v.fecha_inicio and v.fecha_fin)
-          -- ⇩⇩⇩ CAMBIO 0285 ⇩⇩⇩ UN DIA FICHADO NO SE PAGA TAMBIEN COMO AUSENCIA.
+          -- ⇩⇩⇩ CAMBIO 0286 ⇩⇩⇩ UN DIA FICHADO NO SE PAGA TAMBIEN COMO AUSENCIA.
           -- `fn_provisiones` excluye este dia desde la 0135; la boleta nunca se
           -- entero, y como la boleta es el camino automatico, eso salia del
           -- banco cada mes. Medido: S/337,93 por una semana solapada.
@@ -1869,7 +1869,7 @@ begin
         and exists (select 1 from vacaciones v
                      where v.persona_id = pe.id
                        and d.d::date between v.fecha_inicio and v.fecha_fin)
-        -- ⇩ CAMBIO 0285 ⇩ La MISMA guarda que la boleta: un dia fichado no
+        -- ⇩ CAMBIO 0286 ⇩ La MISMA guarda que la boleta: un dia fichado no
         -- cuenta como dia de ausencia. Va tambien aqui porque esta funcion
         -- recalcula estas horas por su cuenta —la duplicacion que la 0276 dejo
         -- declarada— y sin esta linea el dia solapado seguia inflando el
@@ -1907,7 +1907,7 @@ begin
         and not exists (select 1 from vacaciones v
                          where v.persona_id = pe.id
                            and dm.dia between v.fecha_inicio and v.fecha_fin)
-        -- ⇩ CAMBIO 0285 ⇩ La MISMA guarda que la boleta: un dia fichado no
+        -- ⇩ CAMBIO 0286 ⇩ La MISMA guarda que la boleta: un dia fichado no
         -- cuenta como dia de ausencia. Va tambien aqui porque esta funcion
         -- recalcula estas horas por su cuenta —la duplicacion que la 0276 dejo
         -- declarada— y sin esta linea el dia solapado seguia inflando el
@@ -2021,7 +2021,7 @@ begin
 end;
 $function$;
 insert into migraciones_aplicadas (numero, nombre)
-values (285, 'un_dia_fichado_no_se_paga_tambien_como_ausencia')
+values (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia')
 on conflict (numero) do nothing;
 
 -- ── Comprobación ────────────────────────────────────────────────────────────
