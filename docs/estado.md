@@ -37,6 +37,38 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-22 — El techo de educación se reparte, y sigue al rango (0281)
+
+**Decidido por Felipe.** Tres decisiones, y las tres cambian plata:
+
+1. **El segundo comprobante entra por el saldo, no rebota.** El monto pasa a ser
+   `min(costo × 75 %, techo − lo que ya usan las asignaciones que SE SOLAPAN)`.
+   Antes, con techo de S/180, quien ya cobraba S/150 por su instituto no podía
+   registrar el colegio de su hija ni por los S/30 que quedaban: el monto no se
+   teclea desde la 0149, así que no había forma de cargar ese papel.
+2. **El reparto va por orden de registro**, no a prorrata: la primera conserva su
+   monto y la siguiente se queda con el saldo. Un solo criterio, el mismo que
+   rige el alta.
+3. **El techo sigue al rango, en las dos direcciones.** Al cambiar de rango las
+   asignaciones se realinean solas desde el primer periodo no pagado — cerrando
+   la vigencia vieja y abriendo una nueva, con rastro en `correcciones_auditoria`.
+   La 0132 había dejado ese hueco a propósito («queda por encima del techo nuevo
+   hasta que se la toque») y nadie la tocaba nunca.
+
+**Lo que NO se hizo, y es decisión, no olvido:** la política salarial publicada
+sigue diciendo «cubre el 75 %… hasta el tope de tu categoría». No es falsa —solo
+no menciona el reparto— y publicar una versión nueva obliga a pedir acuse de
+recibo a todo el equipo otra vez (0141). Se agrupa con el próximo cambio de
+política.
+
+**Pendiente:** pegar la **0281** en producción (`./scripts/dame-el-sql.sh 281`).
+Al pegarla no se mueve ningún pago por sí sola: no recorre las filas existentes.
+Las que hoy estén por encima de su techo siguen igual hasta que se toque su rango
+o se corrija a mano — y eso último, desde la 0281, se puede: el candado dejó de
+rechazar también los arreglos hacia abajo.
+
+---
+
 ## 2026-08-19 — Auditoría de 22 agentes contra la ley peruana
 
 93 hallazgos. Los cinco escépticos tumbaron **46 por no tener población en
@@ -137,6 +169,74 @@ otra, más corta, no salía de ningún documento y no la usaba nadie. Se tomó l
 los contratos, así que **hoy no hay ningún papel que haya cambiado de texto** —
 queda comprobar contra la ficha RUC que esa sea la buena, porque desde ahora la
 dice un solo sitio.
+
+---
+
+## 2026-08-22 — Un bono de S/50 costaba S/318 al cesar, y ya no
+
+La [`0278`](../supabase/migrations/0278_ni_los_descuentos_ni_los_beneficios_inflan_la_liquidacion.sql)
+está **pegada en producción el 2026-08-22**, confirmada por sus seis md5.
+
+**El defecto era una línea.** `fn_remuneracion_computable` buscaba los conceptos
+variables con `where mp.monto > 0`, y la tabla tiene `CHECK (monto > 0)`: la
+condición es siempre verdad. No filtraba nada. Entraban los descuentos —un
+adelanto es dinero que la persona DEBE—, la gratificación y la CTS que el propio
+sistema deposita.
+
+Y la puerta la abría el sistema solo: hacen falta 3 meses distintos con
+movimientos, y el depósito del 15/07 y el del 15/11 ya ponen dos. Medido, sueldo
+S/1.950, cese al 30/11:
+
+| | antes | después |
+|---|---|---|
+| Solo grati + CTS (la correcta) | 1.867,40 | **1.867,40** |
+| + un bono de S/50 | 2.185,46 | **1.867,40** |
+| + un adelanto de S/500 | 2.257,01 | **1.867,40** |
+
+**Cuatro piezas:** el filtro (solo `tipo='bono'` con categoría nula u «otros»);
+la ventana por beneficio (la CTS mira nov-abr, no el semestre de la grati); la
+regularidad **por concepto** y no por el saco (art. 16: «siempre que **las** haya
+percibido tres meses» — el sujeto es cada remuneración); y el candado, que
+RECHAZA el bono que sería el tercer mes del mismo concepto, con salida
+autorizada de un solo uso y motivo obligatorio (decisión de Felipe).
+
+**Lo que se cuidó, y es la mitad que nadie pide:** un bono genuinamente regular
+SIGUE entrando. Excluirlo sería pagar por debajo del art. 16, que es infracción,
+no ahorro. La prueba 215 lo defiende con una aserción propia.
+
+### Tres cosas que solo aparecieron al ejecutarlo
+
+- **`create or replace` con un parámetro nuevo no reemplaza: crea una
+  SOBRECARGA.** Convivían la firma de dos argumentos y la de tres, y toda
+  llamada existente quedaba ambigua. No falla al aplicar la migración: **falla
+  al abrir la hoja de liquidación**. Va con su `drop function`.
+- **El aviso de la propia migración gritaba «ATENCIÓN» estando todo bien**,
+  porque buscaba en el código una línea que el arreglo cita dentro de un
+  comentario. Un aviso que salta cuando todo está bien es peor que no tenerlo.
+  Ahora quita los comentarios antes de mirar.
+- El `sed` del renumerado (el 0277 lo tenía otra rama) se llevó por delante los
+  UUID de la prueba, que llevan «0277» dentro. Cuidado con los reemplazos
+  globales sobre archivos con identificadores.
+
+### Lo que la 0278 NO cierra, y va en la dirección contraria
+
+**La hoja de liquidación paga de menos las vacaciones al cesar.** Medido el
+2026-08-22 con dos personas idénticas, mismo sueldo, misma antigüedad, cese el
+mismo día:
+
+| | vacaciones que paga |
+|---|---|
+| Nunca gozó | S/812,50 |
+| **Gozó sus 15 días cuando la ley manda** | **S/0,00** |
+
+Los días gozados del récord ANTERIOR se restan del récord en curso. Y quien
+nunca gozó cobra solo el año en curso: sus récords completos —30 días en el caso
+medido— no aparecen en ninguna línea de la hoja.
+
+Va **en contra de la persona**, y cae en el único camino sin campo editable: la
+liquidación recalcula, congela y paga. **Sin cifra global verificada**: la que
+circuló (S/1.896 sobre una «persona corriente») venía de un laboratorio de un
+agente y no se comprobó. Lo que sí está medido es la tabla de arriba.
 
 ---
 

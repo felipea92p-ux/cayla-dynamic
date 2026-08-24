@@ -248,6 +248,24 @@ export default function PerfilPersonaPage() {
             const octx = out.getContext("2d");
             if (!octx) return reject(new Error("Sin canvas."));
             octx.drawImage(src, minX, minY, bw, bh, 0, 0, ow, oh);
+            // EL FONDO DEL PAPEL SE VUELVE TRANSPARENTE, NO BLANCO.
+            //
+            // El recorte de arriba deja la firma ajustada, pero el blanco del
+            // escaneo seguía siendo opaco. Sobre la raya de un contrato eso se
+            // ve como una pegatina blanca encima de la línea — que es
+            // exactamente lo que reportó Felipe al imprimir el primero.
+            //
+            // El borde no se corta en seco: entre 160 y 240 de luminosidad se
+            // desvanece proporcionalmente, para que el antialiasing del trazo
+            // no quede como un dentado duro.
+            const salida = octx.getImageData(0, 0, ow, oh);
+            const px = salida.data;
+            for (let i = 0; i < px.length; i += 4) {
+              const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+              if (lum >= 240) px[i + 3] = 0;
+              else if (lum > 160) px[i + 3] = Math.round(px[i + 3] * ((240 - lum) / 80));
+            }
+            octx.putImageData(salida, 0, 0);
             resolve(out.toDataURL("image/png"));
           };
           img.src = reader.result as string;
