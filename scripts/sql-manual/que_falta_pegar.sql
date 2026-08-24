@@ -136,14 +136,17 @@ with repo(numero, nombre, nunca) as (values
     (274, 'las_provisiones_solo_listan_a_quien_devenga', false),
     (275, 'las_vacaciones_dejan_de_pagarse_en_cero', false),
     (276, 'una_sola_base_para_la_reserva', false),
+    (277, 'cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento', false),
     (278, 'ni_los_descuentos_ni_los_beneficios_inflan_la_liquidacion', false),
     (279, 'una_sede_sabe_en_que_ciudad_esta', false),
     (280, 'el_descanso_semanal_trabajado_se_paga', false),
     (281, 'el_techo_de_educacion_se_reparte_y_sigue_al_rango', false),
     (282, 'una_sede_central_no_tiene_ciudad_propia', false),
     (283, 'las_vacaciones_no_gozadas_se_pagan_al_cesar', false),
+    (284, 'no_se_cierra_el_mes_con_una_hora_que_nadie_marco', false),
     (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false),
-    (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false)
+    (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false),
+    (287, 'el_contrato_firmado_se_registra_y_sus_plazos_se_miden', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

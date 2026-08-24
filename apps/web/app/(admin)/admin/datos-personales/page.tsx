@@ -91,6 +91,13 @@ export default function DatosPersonalesPage() {
   const [dni, setDni] = useState("");
   const [motivoDni, setMotivoDni] = useState("");
   const [regimen, setRegimen] = useState("");
+  // Desde cuándo rige el régimen nuevo. Lo exige la 0277: el descuento lo decide
+  // el TRAMO vigente de `asignaciones_regimen_pension`, y un tramo sin principio
+  // no se puede leer a una fecha. Llega con el primer día del periodo abierto ya
+  // puesto —la misma fecha que la función sugiere cuando rechaza una que cae en
+  // un periodo pagado— y se puede cambiar para el caso raro.
+  const [regimenDesde, setRegimenDesde] = useState("");
+  const [periodoAbiertoIni, setPeriodoAbiertoIni] = useState<string | null>(null);
   // El correo vive en `personas`, no en la ficha: es el usuario de acceso.
   const [email, setEmail] = useState("");
   const [dhNuevo, setDhNuevo] = useState({ ...DH_VACIO });
@@ -129,6 +136,7 @@ export default function DatosPersonalesPage() {
       { data: p, error: eP }, { data: s, error: eS },
       { data: dp, error: eD }, { data: dh, error: eDH },
       { data: fn, error: eFN },
+      { data: per, error: ePer },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").order("nombres"),
       supabase.from("sedes").select("id, codigo"),
@@ -137,6 +145,9 @@ export default function DatosPersonalesPage() {
       // `con_hijos` viaja por RPC porque el schema cache de PostgREST no expone
       // esa columna — misma razón que en la pantalla de Equipo.
       supabase.rpc("fn_personas_funciones"),
+      // La misma fuente que Planilla y Costos, para que «el periodo abierto» no
+      // tenga dos versiones. Solo alimenta la fecha sugerida del régimen.
+      supabase.rpc("fn_periodos"),
     ]);
 
     // Si una consulta falla NO se pisa el estado. Antes se hacía
@@ -164,6 +175,17 @@ export default function DatosPersonalesPage() {
             (((fn as { persona_id: string; con_hijos: boolean | null }[] | null) ?? []))
               .map((x) => [x.persona_id, x.con_hijos === true] as const),
           ),
+    );
+    // Igual que `conHijos`: fuera del corte de arriba a propósito. Si falla, la
+    // fecha del régimen llega vacía y hay que escribirla, que es molesto pero
+    // honesto — sugerir una fecha inventada sí sería grave, porque decide a qué
+    // periodo se le aplica el descuento nuevo. `fn_periodos` viene ordenada por
+    // fecha_fin descendente, así que el primer 'abierto' es el vigente.
+    setPeriodoAbiertoIni(
+      ePer
+        ? null
+        : ((per as Array<{ fecha_ini: string; estado: string }> | null) ?? [])
+            .find((x) => x.estado === "abierto")?.fecha_ini ?? null,
     );
     setPersonas((p as Persona[]) ?? []);
     setSedes(new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo])));
@@ -195,6 +217,7 @@ export default function DatosPersonalesPage() {
     const persona = personas.find((x) => x.id === id) ?? null;
     setDni(persona?.documento ?? "");
     setRegimen(persona?.regimen_pension ?? "");
+    setRegimenDesde(periodoAbiertoIni ?? "");
     setEmail(persona?.email ?? "");
     const f = fichas.get(id);
     setForm(f ? {
@@ -255,6 +278,12 @@ export default function DatosPersonalesPage() {
       setMsg({ tipo: "error", texto: "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos." });
       return;
     }
+    // Por lo mismo, y con más razón: sin fecha el régimen no se puede guardar, y
+    // llegar hasta el servidor significaría guardar la ficha y fallar después.
+    if (regimenCambio && !regimenDesde) {
+      setMsg({ tipo: "error", texto: "Escribe desde cuándo rige el régimen de pensión nuevo: esa fecha decide a qué periodo se le aplica el descuento." });
+      return;
+    }
     setGuardando(true); setMsg(null);
 
     // Los quince campos de la ficha SIEMPRE se mandan completos: la función de
@@ -292,8 +321,15 @@ export default function DatosPersonalesPage() {
       if (eDni) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}` }); return; }
     }
     if (regimenCambio) {
-      const { error: eReg } = await supabase.rpc("fn_set_regimen_pension", {
+      // CAMBIO 0277 — Antes esto llamaba a `fn_set_regimen_pension`, que escribía
+      // solo `personas.regimen_pension`. Desde la 0261 la planilla lee el TRAMO
+      // vigente y cae a esa columna únicamente como respaldo, así que a quien ya
+      // tenía tramo el cambio no le movía el descuento — y esta pantalla decía
+      // que sí. La función buena escribe el tramo, deja auditoría y se niega si
+      // la fecha cae en un periodo pagado.
+      const { error: eReg } = await supabase.rpc("fn_cambiar_regimen_pension", {
         p_persona_id: sel, p_regimen: regimen || null,
+        p_desde: regimenDesde, p_nota: null,
       });
       if (eReg) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}` }); return; }
     }
@@ -309,7 +345,7 @@ export default function DatosPersonalesPage() {
     setGuardando(false);
     await cargar();
     setMotivoDni("");
-    setMsg({ tipo: "ok", texto: regimenCambio ? "Ficha guardada. El nuevo régimen se aplica desde el próximo cálculo de planilla." : "Ficha guardada." });
+    setMsg({ tipo: "ok", texto: regimenCambio ? `Ficha guardada. El régimen nuevo rige desde el ${regimenDesde} y ya cambia lo que se le descuenta.` : "Ficha guardada." });
   }
 
   async function agregarDerechohabiente() {
@@ -797,8 +833,24 @@ export default function DatosPersonalesPage() {
                         {regimen === ""
                           ? "Sin régimen se le descuenta la tasa genérica del 13 %. Conviene poner el verdadero: sale en su boleta."
                           : "Se descuenta de su remuneración asegurable y va a su fondo de pensión — no se queda en CAYLA."}
-                        {regimenCambio && <strong className="block text-amber-800">Se aplicará desde el próximo cálculo de planilla.</strong>}
                       </p>
+                      {/* CAMBIO 0277 — La fecha solo aparece cuando hay algo que
+                          fechar. Un campo permanente pediría una decisión en cada
+                          guardado de ficha, y la mayoría de los guardados no
+                          tocan el régimen. */}
+                      {regimenCambio && (
+                        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+                          <span className="text-taupe">Rige desde</span>
+                          <input type="date" value={regimenDesde} disabled={!puedeIdentidad}
+                            onChange={(e) => setRegimenDesde(e.target.value)}
+                            className="rounded-lg border border-amber-400 bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+                          <span className="text-[11px] text-amber-800">
+                            {periodoAbiertoIni
+                              ? `El descuento cambia desde esta fecha, y queda registrado quién lo cambió. Viene puesta la del periodo abierto (${periodoAbiertoIni}); si eliges una de un periodo ya pagado, la base la rechaza — ese mes ya se pagó con el régimen anterior.`
+                              : "No se pudo leer cuál es el periodo abierto, así que hay que escribir la fecha. Tiene que caer fuera de todo periodo ya pagado."}
+                          </span>
+                        </label>
+                      )}
                       {/* El CUSPP solo existe en el sistema PRIVADO: identifica
                           la cuenta individual en la AFP. En ONP no hay cuenta
                           individual, y quien ya se jubiló no aporta. Pedírselo
