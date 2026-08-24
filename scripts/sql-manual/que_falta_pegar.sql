@@ -145,7 +145,8 @@ with repo(numero, nombre, nunca) as (values
     (283, 'las_vacaciones_no_gozadas_se_pagan_al_cesar', false),
     (284, 'no_se_cierra_el_mes_con_una_hora_que_nadie_marco', false),
     (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false),
-    (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false)
+    (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false),
+    (288, 'la_puerta_de_borrar_marcajes_se_cierra', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
