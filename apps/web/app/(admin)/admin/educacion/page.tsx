@@ -8,6 +8,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // La asignación por educación (art. 19 f) D.S. 001-97-TR) no es remuneración
@@ -303,12 +304,11 @@ export default function EducacionPage() {
 
   async function verComprobante(f: Fila) {
     if (!f.comprobante_url) return;
-    const supabase = createAdminSupabaseClient();
     // URL firmada de vida corta: el bucket es privado y estos papeles llevan el
-    // nombre de una persona (y a veces el de un menor).
-    const { data, error } = await supabase.storage.from("comprobantes").createSignedUrl(f.comprobante_url, 60);
-    if (error || !data) { avisar("error", `No se pudo abrir el comprobante: ${error?.message ?? "sin URL"}`); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    // nombre de una persona (y a veces el de un menor). La pestaña la abre el
+    // ayudante dentro del clic — ver por qué en `abrir-archivo-firmado.ts`.
+    const fallo = await abrirArchivoFirmado(createAdminSupabaseClient(), "comprobantes", f.comprobante_url);
+    if (fallo) avisar("error", fallo);
   }
 
   async function cerrar(f: Fila) {
@@ -336,7 +336,15 @@ export default function EducacionPage() {
   const visibles = verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
   // El total suma sólo lo que DE VERDAD se paga: una fila sin comprobante existe
   // pero no devenga, y sumarla daría un número que la planilla no va a pagar.
-  const totalMensual = filas.filter((f) => f.paga).reduce((s, f) => s + Number(f.monto), 0);
+  //
+  // Y sólo lo vigente HOY. `paga` mira que la vigencia no haya terminado, pero no
+  // que ya haya empezado — daba igual cuando cada persona tenía una sola fila. Con
+  // un comprobante repartido en tramos —un plan anual que se devenga mes a mes—
+  // sumaría los tres tramos de una misma persona bajo el rótulo «al mes», y ella
+  // nunca cobra los tres el mismo mes.
+  const hoy = hoyLima();
+  const pagaEsteMes = (f: Fila) => f.paga && f.vigente_desde <= hoy;
+  const totalMensual = filas.filter(pagaEsteMes).reduce((s, f) => s + Number(f.monto), 0);
   const porAtender = filas.filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer").length;
 
   const formulario = (
@@ -624,7 +632,7 @@ export default function EducacionPage() {
                     Solo las vigentes
                   </label>
                   <span className="text-taupe">
-                    Pagando: <strong className="text-tinta">{filas.filter((f) => f.paga).length}</strong>
+                    Pagando: <strong className="text-tinta">{filas.filter(pagaEsteMes).length}</strong>
                     {porAtender > 0 && (
                       <> · <strong className="text-rojo">{porAtender} por atender</strong></>
                     )}

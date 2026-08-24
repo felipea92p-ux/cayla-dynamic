@@ -9,6 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { hoyLima, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
   construirContrato,
@@ -603,12 +604,8 @@ export default function ContratosPage() {
   }
 
   async function verDocumento(path: string) {
-    const { data, error } = await supabase.storage.from("contratos").createSignedUrl(path, 60);
-    if (error || !data) {
-      setAviso({ tipo: "error", texto: mensajeDeError(error, "abrir el documento") });
-      return;
-    }
-    window.open(data.signedUrl, "_blank", "noopener");
+    const fallo = await abrirArchivoFirmado(supabase, "contratos", path);
+    if (fallo) setAviso({ tipo: "error", texto: fallo });
   }
 
   useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — Contrato de trabajo` : null);
