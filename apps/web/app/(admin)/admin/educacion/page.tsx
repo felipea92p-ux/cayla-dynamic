@@ -336,7 +336,15 @@ export default function EducacionPage() {
   const visibles = verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
   // El total suma sólo lo que DE VERDAD se paga: una fila sin comprobante existe
   // pero no devenga, y sumarla daría un número que la planilla no va a pagar.
-  const totalMensual = filas.filter((f) => f.paga).reduce((s, f) => s + Number(f.monto), 0);
+  //
+  // Y sólo lo vigente HOY. `paga` mira que la vigencia no haya terminado, pero no
+  // que ya haya empezado — daba igual cuando cada persona tenía una sola fila. Con
+  // un comprobante repartido en tramos —un plan anual que se devenga mes a mes—
+  // sumaría los tres tramos de una misma persona bajo el rótulo «al mes», y ella
+  // nunca cobra los tres el mismo mes.
+  const hoy = hoyLima();
+  const pagaEsteMes = (f: Fila) => f.paga && f.vigente_desde <= hoy;
+  const totalMensual = filas.filter(pagaEsteMes).reduce((s, f) => s + Number(f.monto), 0);
   const porAtender = filas.filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer").length;
 
   const formulario = (
@@ -624,7 +632,7 @@ export default function EducacionPage() {
                     Solo las vigentes
                   </label>
                   <span className="text-taupe">
-                    Pagando: <strong className="text-tinta">{filas.filter((f) => f.paga).length}</strong>
+                    Pagando: <strong className="text-tinta">{filas.filter(pagaEsteMes).length}</strong>
                     {porAtender > 0 && (
                       <> · <strong className="text-rojo">{porAtender} por atender</strong></>
                     )}
