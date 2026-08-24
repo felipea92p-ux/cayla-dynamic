@@ -58,8 +58,15 @@ select is(
 
 -- El rango cayla tiene tope S/180 (0132). Un comprobante de S/300 al 75%
 -- sostendría S/225, así que lo que manda es el techo del rango.
+--
+-- ⇩ CAMBIO 0281 ⇩ La función pide las fechas: desde la 0281 el techo se reparte
+-- entre las asignaciones que SE SOLAPAN, así que sin saber cuándo rige no se
+-- puede decir cuánto queda. Se preguntan fechas de 2027 —fuera de la vigencia
+-- que esta persona ya tiene cargada arriba— para seguir preguntando lo que esta
+-- aserción siempre quiso preguntar: que el techo del rango manda sobre el 75 %.
 select is(
-  fn_educacion_monto('00000000-0000-0000-0000-0000000000b1', 300::numeric),
+  fn_educacion_monto('00000000-0000-0000-0000-0000000000b1', 300::numeric,
+                     '2027-01-01'::date, '2027-06-30'::date),
   180.00::numeric,
   'Con un comprobante de S/300 manda el techo del rango cayla: S/180, no S/225');
 
