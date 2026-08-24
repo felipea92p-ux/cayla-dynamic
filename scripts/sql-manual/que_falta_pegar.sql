@@ -142,7 +142,8 @@ with repo(numero, nombre, nunca) as (values
     (281, 'el_techo_de_educacion_se_reparte_y_sigue_al_rango', false),
     (282, 'una_sede_central_no_tiene_ciudad_propia', false),
     (283, 'las_vacaciones_no_gozadas_se_pagan_al_cesar', false),
-    (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false)
+    (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false),
+    (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -279,8 +280,10 @@ select * from (
              when '3af7cdc468be355687ad53a4af446222' then '✗ 0275 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '2f38e5ce76bcb22164cd0794671b349f' then '⚠ se quedó en la 0276 — falta pegar lo posterior'
              when '2792fa305cc21dec63339fc03af71f30' then '✗ 0276 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '0912fcb75893b146ea778163ae9d1ecd' then '0280 — al día con el repositorio'
+             when '0912fcb75893b146ea778163ae9d1ecd' then '⚠ se quedó en la 0280 — falta pegar lo posterior'
              when '2398570d2d547504320b423d9b21b12f' then '✗ 0280 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '00346e399226432bee73b1047488d178' then '0286 — al día con el repositorio'
+             when '1be99135441ef1d937aa0cbfd059ae95' then '✗ 0286 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
