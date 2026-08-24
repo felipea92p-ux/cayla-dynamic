@@ -97,8 +97,12 @@ select is(
 -- La reasignación no debe cambiar lo que nadie cobra, pero sí debe devolver el
 -- techo que caylo no tenía. Con el comprobante de S/ 727 que motivó todo esto:
 -- el 75% daría S/ 545.25 y el techo de cayla lo baja a S/ 180.
+-- ⇩ CAMBIO 0281 ⇩ con las fechas del tramo, que es lo que la función pide desde
+-- que el techo se reparte. Esta persona no tiene ninguna asignación cargada, así
+-- que el saldo es el techo entero y la cifra es la misma de siempre.
 select is(
-  fn_educacion_monto('00000000-0000-0000-0000-00000000ca02', 727.00),
+  fn_educacion_monto('00000000-0000-0000-0000-00000000ca02', 727.00,
+                     '2027-01-01'::date, '2027-12-31'::date),
   180.00::numeric,
   'TECHO · con el comprobante de S/727 el monto queda en S/180 — antes, en caylo, salían S/545.25');
 

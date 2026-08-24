@@ -47,7 +47,6 @@ interface Candidato {
   sede: string;
   rango: string;
   tope: number | null;
-  ya_tiene: boolean;
 }
 
 // Ni `monto` ni `coberturaPct`: el primero lo calcula la base y el segundo es
@@ -106,6 +105,9 @@ export default function EducacionPage() {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [limite, setLimite] = useState(LIMITE_RESPALDO);
+  // Cuánto techo le queda libre a esa persona EN LAS FECHAS del formulario.
+  // `undefined` = todavía no lo sé · `null` = su rango no tiene techo cargado.
+  const [saldo, setSaldo] = useState<number | null | undefined>(undefined);
   // null = no hay subida en curso. 0–100 = porcentaje real, no una animación:
   // un PDF de 40 MB desde la conexión de una tienda tarda minutos, y sin esto la
   // pantalla se ve colgada y alguien la recarga a mitad de camino.
@@ -141,18 +143,53 @@ export default function EducacionPage() {
     [candidatos, form.personaId],
   );
 
+  // El saldo se le PREGUNTA a la base, no se calcula acá. Desde la 0281 el techo
+  // del rango se reparte entre las asignaciones que se solapan, así que depende
+  // de qué otras filas tenga esa persona en esas fechas — y una segunda copia de
+  // esa cuenta en TypeScript es cómo se fabrican las dos cifras que discrepan.
+  //
+  // Antes esta pantalla mostraba el monto contra el tope BRUTO del rango: a quien
+  // ya tenía un estudio vigente le prometía una cifra que la base iba a rechazar.
+  useEffect(() => {
+    const persona = form.personaId;
+    const desde = form.vigenteDesde;
+    if (!persona || !desde) { setSaldo(undefined); return; }
+
+    let vigente = true;
+    const supabase = createAdminSupabaseClient();
+    void supabase
+      .rpc("fn_educacion_saldo", {
+        p_persona_id: persona,
+        p_desde: desde,
+        // Sin fecha de fin todavía, se pregunta por ese único día: es el tramo
+        // más corto posible, así que nunca promete más techo del que habrá.
+        p_hasta: form.vigenteHasta || desde,
+        p_excluir: editandoId,
+      })
+      .then(({ data, error }) => {
+        if (!vigente) return;
+        setSaldo(error ? undefined : (data as number | null));
+      });
+    return () => { vigente = false; };
+  }, [form.personaId, form.vigenteDesde, form.vigenteHasta, editandoId]);
+
   // El monto sale de la misma cuenta que hace `fn_educacion_monto` en la base:
-  // min(75 % del comprobante, techo del rango). Se muestra MIENTRAS se escribe
-  // para que la cifra no aparezca por sorpresa al guardar. Si mañana cambia la
-  // regla, cambia en la base y esta pantalla queda mostrando otra cosa — por eso
-  // el guardado no confía en este número: lo recalcula la función.
+  // min(75 % del comprobante, techo que queda libre). Se muestra MIENTRAS se
+  // escribe para que la cifra no aparezca por sorpresa al guardar. Si mañana
+  // cambia la regla, cambia en la base y esta pantalla queda mostrando otra cosa
+  // — por eso el guardado no confía en este número: lo recalcula la función.
   const costo = Number(form.costoDeclarado) || 0;
-  const topeComprobante = costo > 0 ? Math.round(costo * COBERTURA) / 100 : null;
-  const topeRango = candidato?.tope ?? null;
-  const monto = topeComprobante === null ? 0
-    : topeRango === null ? topeComprobante
-    : Math.min(topeComprobante, topeRango);
-  const mandaElTecho = topeComprobante !== null && topeRango !== null && topeRango < topeComprobante;
+  const delPapel = costo > 0 ? Math.round(costo * COBERTURA) / 100 : null;
+  // Mientras el saldo no ha llegado se usa el tope del rango, que es su límite
+  // superior: se puede quedar corto de información, nunca prometer de más.
+  const techoLibre = saldo !== undefined ? saldo : (candidato?.tope ?? null);
+  const monto = delPapel === null ? 0
+    : techoLibre === null ? delPapel
+    : Math.min(delPapel, techoLibre);
+  const mandaElTecho = delPapel !== null && techoLibre !== null && techoLibre < delPapel;
+  // El techo ya lo está usando otro estudio de la misma persona.
+  const techoCompartido =
+    candidato?.tope != null && saldo != null && saldo < candidato.tope;
 
   function empezarAlta() {
     setMostrandoAlta(true); setEditandoId(null); setArchivo(null); setMensaje(null);
@@ -183,6 +220,10 @@ export default function EducacionPage() {
     if (!form.personaId) { avisar("error", "Elige de quién es la asignación."); return; }
     if (institucion.length < 3) { avisar("error", "Escribe qué institución emite el comprobante."); return; }
     if (costo <= 0) { avisar("error", "El costo que dice el comprobante tiene que ser mayor que cero."); return; }
+    if (monto <= 0) {
+      avisar("error", "No queda techo libre en esas fechas: lo que ya tiene vigente agota el tope de su rango. Cierra o acorta la otra asignación, o mueve estas fechas.");
+      return;
+    }
     if (form.beneficiario === "hijo" && form.beneficiarioNombre.trim().length < 3) {
       avisar("error", "Si el comprobante es de un hijo o hija, escribe a nombre de quién está. Sin eso, el papel no se puede atar a quien cobra.");
       return;
@@ -312,13 +353,17 @@ export default function EducacionPage() {
           {candidatos.map((c) => (
             <option key={c.persona_id} value={c.persona_id}>
               {c.persona} · {c.sede} · rango {c.rango}
-              {c.ya_tiene ? " (ya tiene una vigente)" : ""}
             </option>
           ))}
         </select>
-        {candidato?.ya_tiene && !editandoId && (
+        {/* El aviso que había acá —«ya tiene una vigente»— preguntaba por una
+            columna que la 0149 dejó NOT NULL: devolvía siempre falso y no se
+            encendió nunca. Y lo que DO necesita saber tampoco era ése: es cuánto
+            techo le queda, que es lo que decide el monto. */}
+        {techoCompartido && candidato && (
           <span className="text-xs text-ambar">
-            Ya tiene una asignación vigente. Si es un estudio nuevo, cierra primero la anterior — si no, se le pagarían las dos.
+            Ya usa {soles(candidato.tope! - saldo!)} de su techo de {soles(candidato.tope!)} en
+            esas fechas: quedan {soles(saldo!)}. Dos estudios conviven, pero se reparten el mismo techo.
           </span>
         )}
         {candidato && candidato.tope === null && (
@@ -408,8 +453,10 @@ export default function EducacionPage() {
           {costo <= 0
             ? "Se calcula solo en cuanto escribas el costo del comprobante."
             : mandaElTecho
-              ? `Es el tope del rango ${candidato?.rango}: el ${COBERTURA}% del comprobante daría ${soles(topeComprobante!)}.`
-              : `Es el ${COBERTURA}% de ${soles(costo)}${topeRango !== null ? `, por debajo del tope del rango (${soles(topeRango)})` : ""}.`}
+              ? techoCompartido
+                ? `Es lo que queda del techo del rango ${candidato?.rango} (${soles(candidato!.tope!)}) después de sus otros estudios vigentes: el ${COBERTURA}% del comprobante daría ${soles(delPapel!)}.`
+                : `Es el tope del rango ${candidato?.rango}: el ${COBERTURA}% del comprobante daría ${soles(delPapel!)}.`
+              : `Es el ${COBERTURA}% de ${soles(costo)}${techoLibre !== null ? `, por debajo del techo que le queda (${soles(techoLibre)})` : ""}.`}
         </span>
       </div>
 
@@ -620,9 +667,17 @@ export default function EducacionPage() {
                             {(() => {
                               const delPapel = Math.round(Number(f.costo_declarado) * Number(f.cobertura_pct)) / 100;
                               const mandaElTecho = Number(f.monto) < delPapel - 0.005;
+                              // ¿Comparte el techo con otro estudio suyo? Desde la 0281 el
+                              // tope del rango se reparte entre las vigencias que se
+                              // solapan, y decir «tope del rango cayla» cuando se pagan
+                              // S/30 de un techo de S/180 sería decir algo falso.
+                              const comparte = filas.some(
+                                (o) => o.id !== f.id && o.persona_id === f.persona_id &&
+                                  o.vigente_desde <= f.vigente_hasta && o.vigente_hasta >= f.vigente_desde);
                               return mandaElTecho ? (
                                 <>
-                                  tope del rango <strong className="text-tinta">{f.rango}</strong>
+                                  {comparte ? "techo del rango, repartido" : "tope del rango"}{" "}
+                                  <strong className="text-tinta">{f.rango}</strong>
                                   <span className="block">
                                     el {f.cobertura_pct}% de {soles(Number(f.costo_declarado))} daría {soles(delPapel)}
                                   </span>

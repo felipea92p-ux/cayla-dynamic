@@ -37,6 +37,38 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-22 — El techo de educación se reparte, y sigue al rango (0281)
+
+**Decidido por Felipe.** Tres decisiones, y las tres cambian plata:
+
+1. **El segundo comprobante entra por el saldo, no rebota.** El monto pasa a ser
+   `min(costo × 75 %, techo − lo que ya usan las asignaciones que SE SOLAPAN)`.
+   Antes, con techo de S/180, quien ya cobraba S/150 por su instituto no podía
+   registrar el colegio de su hija ni por los S/30 que quedaban: el monto no se
+   teclea desde la 0149, así que no había forma de cargar ese papel.
+2. **El reparto va por orden de registro**, no a prorrata: la primera conserva su
+   monto y la siguiente se queda con el saldo. Un solo criterio, el mismo que
+   rige el alta.
+3. **El techo sigue al rango, en las dos direcciones.** Al cambiar de rango las
+   asignaciones se realinean solas desde el primer periodo no pagado — cerrando
+   la vigencia vieja y abriendo una nueva, con rastro en `correcciones_auditoria`.
+   La 0132 había dejado ese hueco a propósito («queda por encima del techo nuevo
+   hasta que se la toque») y nadie la tocaba nunca.
+
+**Lo que NO se hizo, y es decisión, no olvido:** la política salarial publicada
+sigue diciendo «cubre el 75 %… hasta el tope de tu categoría». No es falsa —solo
+no menciona el reparto— y publicar una versión nueva obliga a pedir acuse de
+recibo a todo el equipo otra vez (0141). Se agrupa con el próximo cambio de
+política.
+
+**Pendiente:** pegar la **0281** en producción (`./scripts/dame-el-sql.sh 281`).
+Al pegarla no se mueve ningún pago por sí sola: no recorre las filas existentes.
+Las que hoy estén por encima de su techo siguen igual hasta que se toque su rango
+o se corrija a mano — y eso último, desde la 0281, se puede: el candado dejó de
+rechazar también los arreglos hacia abajo.
+
+---
+
 ## 2026-08-19 — Auditoría de 22 agentes contra la ley peruana
 
 93 hallazgos. Los cinco escépticos tumbaron **46 por no tener población en
