@@ -200,3 +200,64 @@ motivo —feriado trabajado sin turno explícito—:
 **Y hoy no le cuenta a nadie**: `fn_tardanzas_resumen` mira el mes en curso, y la de Janis es del
 mes pasado — comprobado, no aparece en el resumen. El arreglo sigue haciendo falta, pero el P0 del
 informe baja: no hay papel emitido ni escalón movido.
+
+
+---
+
+# Lo del 2026-08-24: una migración corre en producción y no está en `main`
+
+Salió del aviso de huecos del hook al empujar la 0285, y **es el patrón de la 0177**, con un
+atenuante y un peligro.
+
+## El hecho
+
+**La 0277 (`cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento`) está aplicada en
+producción desde el 2026-08-23 y NO está en `main`.** Vive solo en la rama
+`claude/workday-erp-analysis-8c12da`, commiteada el 22 de agosto y subida a GitHub.
+
+La 0284 de esa misma rama **no** está aplicada. Ese hueco es benigno.
+
+## El atenuante
+
+**El archivo sí está en git y en GitHub.** No se puede perder, que es lo que hacía grave a la
+0177. Se recupera con `git show 55042af:supabase/migrations/0277_*.sql`.
+
+## El peligro, que es concreto
+
+`main` no describe lo que corre en producción. Y de ahí salen tres cosas:
+
+1. **`donde-vive.sh` miente** sobre `fn_cambiar_regimen_pension`, `fn_set_regimen_pension` y
+   `fn_regimen_pension_divergentes`: mira los archivos del repo, así que señalaría como vigente
+   una versión anterior a la 0277.
+2. **Quien escriba una migración sobre esas tres copiando de `main` revertiría la 0277 en
+   producción**, en silencio. Es exactamente el accidente que `donde-vive.sh` existe para evitar,
+   llegando por un camino que el script no ve.
+3. **El CI no prueba lo que corre.** Reconstruye el esquema desde `main`, así que para esas tres
+   funciones las pgTAP verifican otra cosa.
+
+**Medido: nadie la ha revertido todavía.** Las migraciones que entraron después en `main` —0278 a
+0285— no tocan ninguna de esas tres. El cruce no ha ocurrido.
+
+## Y una buena noticia: cierra un P1 del informe
+
+La 0277 **es** el arreglo del hallazgo «el régimen de pensión se cambia por la única puerta sin
+candado». Su cabecera describe el mismo defecto con las mismas palabras: `fn_set_regimen_pension`
+hacía un `update` y nada más, y `fn_cambiar_regimen_pension` —la que sí escribe el tramo— no la
+llamaba nadie. **Ya está resuelto en producción desde el 23 de agosto.**
+
+## Qué lo cierra
+
+Fusionar esa rama a `main`. Medido: **se fusionaría limpio, cero conflictos**, y trae 8 commits.
+
+## Lo que este caso destapa del freno
+
+El hook avisa del hueco, pero **no distingue tres situaciones que no se parecen en nada**:
+
+- un número saltado al numerar (inofensivo),
+- un número tomado por otra sesión que aún no fusiona (se resuelve solo),
+- **una migración que corre en producción y no está en `main`** (esto).
+
+Hoy las tres dan el mismo aviso gris. La tercera merece otro tono, y se puede distinguir sola:
+el hook ya sabe buscar en todas las ramas, y lo único que le falta es cruzar el hueco con lo que
+`migraciones_aplicadas` dice en producción — que es justo lo que `que_falta_pegar.sql` ya
+consulta.

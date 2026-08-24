@@ -103,8 +103,13 @@ export type VinculoDerechohabiente = (typeof VINCULOS_DERECHOHABIENTE)[number];
  * Regímenes pensionarios cargados en `tasas_pension` (migración 0114).
  *
  * Esta lista es solo para PINTAR el desplegable. La verdad vive en la tabla, y
- * `fn_set_regimen_pension` valida contra ella — así que si mañana entra una AFP
- * nueva, la función la acepta aunque esta constante todavía no la nombre.
+ * `fn_cambiar_regimen_pension` valida contra ella — así que si mañana entra una
+ * AFP nueva, la función la acepta aunque esta constante todavía no la nombre.
+ *
+ * (La 0261 la había cableado en un `array[...]` dentro de la función y la 0277
+ * la devolvió a la tabla. `fn_set_regimen_pension`, que es quien cumplía esta
+ * promesa antes, está retirada desde la 0277: escribía solo la columna, y desde
+ * la 0261 la planilla lee el tramo vigente.)
  */
 export const REGIMENES_PENSION = [
   "onp",

@@ -73,6 +73,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "actas_descanso_sustitutorio_subida_por_fkey"
+            columns: ["subida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       alertas: {
@@ -115,6 +122,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -204,10 +218,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "asignaciones_educacion_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "asignaciones_educacion_registrado_por_fkey"
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_educacion_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -252,10 +280,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "asignaciones_regimen_pension_asignado_por_fkey"
+            columns: ["asignado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "asignaciones_regimen_pension_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_regimen_pension_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -306,10 +348,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "asignaciones_salario_asignado_por_fkey"
+            columns: ["asignado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "asignaciones_salario_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_salario_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -387,10 +443,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ausencias_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ausencias_aprobada_por_fkey"
             columns: ["aprobada_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_aprobada_por_fkey"
+            columns: ["aprobada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -401,10 +471,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ausencias_registrada_por_fkey"
             columns: ["registrada_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["registrada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -450,10 +534,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bonos_umbral_permitido_autorizado_por_fkey"
+            columns: ["autorizado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bonos_umbral_permitido_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bonos_umbral_permitido_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -500,6 +598,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "categorias_laborales_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       configuracion: {
@@ -526,6 +631,8 @@ export type Database = {
           anulado_motivo: string | null
           anulado_por: string | null
           cargo: string
+          comunicado_mtpe_at: string | null
+          copia_entregada_at: string | null
           documento_html: string
           fecha_fin: string
           fecha_firma: string | null
@@ -546,6 +653,8 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           cargo: string
+          comunicado_mtpe_at?: string | null
+          copia_entregada_at?: string | null
           documento_html: string
           fecha_fin: string
           fecha_firma?: string | null
@@ -566,6 +675,8 @@ export type Database = {
           anulado_motivo?: string | null
           anulado_por?: string | null
           cargo?: string
+          comunicado_mtpe_at?: string | null
+          copia_entregada_at?: string | null
           documento_html?: string
           fecha_fin?: string
           fecha_firma?: string | null
@@ -590,10 +701,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contratos_generados_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contratos_generados_generado_por_fkey"
             columns: ["generado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_generado_por_fkey"
+            columns: ["generado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -604,10 +729,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contratos_generados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contratos_generados_registrado_por_fkey"
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -662,6 +801,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "correcciones_auditoria_corregido_por_fkey"
+            columns: ["corregido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "correcciones_auditoria_marcaje_id_fkey"
             columns: ["marcaje_id"]
             isOneToOne: false
@@ -673,6 +819,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "correcciones_auditoria_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -756,10 +909,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "datos_personales_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "datos_personales_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: true
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -819,10 +986,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "derechohabientes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "derechohabientes_registrado_por_fkey"
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "derechohabientes_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -873,10 +1054,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "desembolsos_beneficios_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "desembolsos_beneficios_registrado_por_fkey"
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desembolsos_beneficios_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -928,10 +1123,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documentos_acuses_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "documentos_acuses_registrado_por_fkey"
             columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_acuses_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1000,8 +1209,29 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documentos_firmados_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "documentos_firmados_persona_id_fkey"
             columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_registrado_por_fkey"
+            columns: ["registrado_por"]
             isOneToOne: false
             referencedRelation: "personas"
             referencedColumns: ["id"]
@@ -1010,7 +1240,7 @@ export type Database = {
             foreignKeyName: "documentos_firmados_registrado_por_fkey"
             columns: ["registrado_por"]
             isOneToOne: false
-            referencedRelation: "personas"
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1058,6 +1288,13 @@ export type Database = {
             columns: ["publicado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_institucionales_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -1161,6 +1398,13 @@ export type Database = {
             columns: ["subido_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_adjuntos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1289,6 +1533,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "expediente_disciplinario_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "expediente_disciplinario_doc_previo_id_fkey"
             columns: ["doc_previo_id"]
             isOneToOne: false
@@ -1303,8 +1554,29 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "expediente_disciplinario_firmante_id_fkey"
+            columns: ["firmante_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "expediente_disciplinario_persona_id_fkey"
             columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_resuelto_por_fkey"
+            columns: ["resuelto_por"]
             isOneToOne: false
             referencedRelation: "personas"
             referencedColumns: ["id"]
@@ -1313,7 +1585,7 @@ export type Database = {
             foreignKeyName: "expediente_disciplinario_resuelto_por_fkey"
             columns: ["resuelto_por"]
             isOneToOne: false
-            referencedRelation: "personas"
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1415,10 +1687,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "feriados_descanso_sustitutorio_otorgado_por_fkey"
+            columns: ["otorgado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "feriados_descanso_sustitutorio_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feriados_descanso_sustitutorio_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1445,6 +1731,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: true
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "firmas_escaneadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1566,6 +1859,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "horarios_asignados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       incidencias_aceptadas: {
@@ -1605,10 +1905,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "incidencias_aceptadas_aceptado_por_fkey"
+            columns: ["aceptado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "incidencias_aceptadas_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidencias_aceptadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1665,6 +1979,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jornadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -1743,10 +2064,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "liquidacion_pagada_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "liquidacion_pagada_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidacion_pagada_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1812,10 +2147,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "marcajes_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "marcajes_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcajes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -1930,6 +2279,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "movimientos_planilla_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "movimientos_planilla_periodo_id_fkey"
             columns: ["periodo_id"]
             isOneToOne: false
@@ -1941,6 +2297,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_planilla_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -1987,6 +2350,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "objetivos_items_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       objetivos_mensuales: {
@@ -2020,6 +2390,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_mensuales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2091,6 +2468,13 @@ export type Database = {
             columns: ["creado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "periodos_planilla_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2254,6 +2638,7 @@ export type Database = {
           dias_trabajados: number
           fila: Json
           horas_mes: number
+          monto_descanso_semanal: number
           monto_educacion: number
           monto_feriados: number
           monto_movilidad: number
@@ -2289,6 +2674,7 @@ export type Database = {
           dias_trabajados?: number
           fila: Json
           horas_mes?: number
+          monto_descanso_semanal?: number
           monto_educacion?: number
           monto_feriados?: number
           monto_movilidad?: number
@@ -2324,6 +2710,7 @@ export type Database = {
           dias_trabajados?: number
           fila?: Json
           horas_mes?: number
+          monto_descanso_semanal?: number
           monto_educacion?: number
           monto_feriados?: number
           monto_movilidad?: number
@@ -2355,6 +2742,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "planilla_pagada_detalle_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "planilla_pagada_detalle_periodo_id_fkey"
             columns: ["periodo_id"]
             isOneToOne: false
@@ -2366,6 +2760,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2403,6 +2804,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "politica_salarial_publicada_por_fkey"
+            columns: ["publicada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       politica_salarial_acuses: {
@@ -2430,6 +2838,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "politica_salarial_acuses_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -2472,6 +2887,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_tokens_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2526,10 +2948,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rendimiento_mensual_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rendimiento_mensual_puesto_por_fkey"
             columns: ["puesto_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rendimiento_mensual_puesto_por_fkey"
+            columns: ["puesto_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2577,6 +3013,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reversas_pago_revertido_por_fkey"
+            columns: ["revertido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       revisiones_pedidas: {
@@ -2619,10 +3062,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "revisiones_pedidas_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2691,10 +3148,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tardanzas_justificadas_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tardanzas_justificadas_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tardanzas_justificadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2739,10 +3210,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tarifas_hora_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tarifas_hora_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarifas_hora_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -2920,6 +3405,13 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "turnos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -2943,10 +3435,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ausencias_registrada_por_fkey"
             columns: ["creado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -2957,6 +3463,17 @@ export type Database = {
             referencedColumns: ["codigo"]
           },
         ]
+      }
+      terminal_roster: {
+        Row: {
+          apellidos: string | null
+          id: string | null
+          nombres: string | null
+          pin_hash: string | null
+          sede_codigo: string | null
+          sede_nombre: string | null
+        }
+        Relationships: []
       }
       v_planilla_pagada: {
         Row: {
@@ -3052,6 +3569,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "planilla_pagada_detalle_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "planilla_pagada_detalle_periodo_id_fkey"
             columns: ["periodo_id"]
             isOneToOne: false
@@ -3063,6 +3587,13 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -3104,10 +3635,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ausencias_registrada_por_fkey"
             columns: ["creado_por"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -3389,6 +3934,10 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_contrato_marcar_tramite: {
+        Args: { p_fecha?: string | null; p_id: string | null; p_tramite: string | null }
+        Returns: undefined
+      }
       fn_contrato_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
       fn_contrato_registrar: {
         Args: {
@@ -3425,10 +3974,13 @@ export type Database = {
           anulado_at: string
           anulado_motivo: string
           cargo: string
+          comunicado_mtpe_at: string
+          copia_entregada_at: string
           fecha_fin: string
           fecha_firma: string
           fecha_inicio: string
           generado_at: string
+          generado_por: string
           horas_semanales: number
           id: string
           persona: string
@@ -3449,6 +4001,25 @@ export type Database = {
           persona_id: string
           sede: string
           ya_vencio: boolean
+        }[]
+      }
+      fn_contratos_tablero: {
+        Args: never
+        Returns: {
+          comunicado_mtpe_at: string
+          contrato_id: string
+          copia_entregada_at: string
+          copia_vence: string
+          dias_marcados_despues: number
+          dias_restantes: number
+          estado: string
+          fecha_fin_contrato: string
+          fecha_firma: string
+          mtpe_vence: string
+          persona: string
+          persona_id: string
+          sede: string
+          tipo: string
         }[]
       }
       fn_corregir_marca: {
