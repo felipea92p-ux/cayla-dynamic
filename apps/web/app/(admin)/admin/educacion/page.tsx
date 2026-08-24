@@ -8,6 +8,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // La asignación por educación (art. 19 f) D.S. 001-97-TR) no es remuneración
@@ -303,12 +304,11 @@ export default function EducacionPage() {
 
   async function verComprobante(f: Fila) {
     if (!f.comprobante_url) return;
-    const supabase = createAdminSupabaseClient();
     // URL firmada de vida corta: el bucket es privado y estos papeles llevan el
-    // nombre de una persona (y a veces el de un menor).
-    const { data, error } = await supabase.storage.from("comprobantes").createSignedUrl(f.comprobante_url, 60);
-    if (error || !data) { avisar("error", `No se pudo abrir el comprobante: ${error?.message ?? "sin URL"}`); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    // nombre de una persona (y a veces el de un menor). La pestaña la abre el
+    // ayudante dentro del clic — ver por qué en `abrir-archivo-firmado.ts`.
+    const fallo = await abrirArchivoFirmado(createAdminSupabaseClient(), "comprobantes", f.comprobante_url);
+    if (fallo) avisar("error", fallo);
   }
 
   async function cerrar(f: Fila) {
