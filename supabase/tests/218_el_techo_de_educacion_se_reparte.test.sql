@@ -16,7 +16,7 @@
 -- Todo en begin/rollback y en fechas de 2027-2028, lejos de cualquier dato real.
 -- ============================================================================
 begin;
-select plan(27);
+select plan(28);
 
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
@@ -243,6 +243,19 @@ select is(
       and beneficiario = 'hijo' and vigente_desde = '2027-11-01'),
   30.00::numeric,
   'ORDEN · y la segunda, con los S/30 que quedan bajo el techo de cayla');
+
+-- ── 12 · El candado sigue viendo la tabla que vigila ──────────────────────
+-- La 0151 le puso `security definer` al trigger porque en esa migración
+-- `topes_educacion_rango` pasó a tener RLS: sin definer deja de VER el tope, y
+-- su regla de fallar abierto —«sin techo cargado, dejo pasar»— lo apaga solo, en
+-- silencio. La 0281 se escribió copiándolo de la 0149 y estuvo a punto de
+-- quitárselo; lo cazó el md5 de producción. Esta línea lo caza la próxima vez.
+select is(
+  (select p.prosecdef from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'fn_educacion_respeta_el_tope'),
+  true,
+  'CANDADO · el trigger es security definer, o el RLS de la 0151 lo deja ciego');
 
 select * from finish();
 rollback;

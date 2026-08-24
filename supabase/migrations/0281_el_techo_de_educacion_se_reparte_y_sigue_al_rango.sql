@@ -71,11 +71,25 @@
 --   corrección hacia abajo, deja arreglar. El techo sigue siendo infranqueable
 --   hacia arriba, que es lo único que tenía que impedir.
 --
+-- MD5 DE PARTIDA — pedidos a PRODUCCIÓN el 2026-08-22, no al Postgres local
+--
+--   fn_educacion_monto            3c8e59c3d476a7c2335f0497c3caaad6   (0149)
+--   fn_educacion_registrar        468ac92ce5cdcfff0331e40da1fab210   (0149)
+--   fn_educacion_candidatos       906b7714b5c859e2d2f62dd4637e5de6   (0136)
+--   fn_educacion_respeta_el_tope  2e58508026b474248e9dba065239614f   (0151)
+--
+--   Los tres primeros son los que esta migración esperaba. El cuarto NO: esta
+--   migración se había escrito copiando el trigger de la 0149, y producción
+--   corre el de la **0151**, que le agregó `security definer` cuando puso RLS
+--   sobre `topes_educacion_rango`. Pegarla así habría apagado el candado del
+--   techo en silencio — el trigger habría dejado de ver la tabla y su regla de
+--   fallar abierto lo habría leído como «este rango no tiene techo».
+--
 -- QUÉ ASUME
 --
 --   · `asignaciones_educacion` con su CHECK del comprobante (0120), el techo por
---     rango (0132) y las nueve reglas de la 0149 — de la que se copian los
---     cuerpos de `fn_educacion_registrar` y `fn_educacion_respeta_el_tope`.
+--     rango (0132), las nueve reglas de la 0149 —de la que se copia el cuerpo de
+--     `fn_educacion_registrar`— y la 0151, de la que se copia el trigger.
 --   · `fn_educacion_desde_cuando_puede_regir()` y `fn_educacion_fecha_pagada()`
 --     (0149), `fn_persona_actual_id()` (0078), `fn_es_admin_o_lider()`.
 --   · Que `fn_set_salario` sigue impidiendo cambiar un salario dentro de un
@@ -229,13 +243,22 @@ grant execute on function fn_educacion_monto(uuid, numeric, date, date, uuid) to
 
 
 -- ── D · El candado deja de impedir el arreglo ───────────────────────────────
--- Copiado de la 0149 y con una sola condición nueva. Antes: «si la suma pasa el
+-- Copiado de la **0151**, no de la 0149, y esa distinción casi cuesta el candado
+-- entero: la 0151 le puso `security definer` porque en esa misma migración
+-- `topes_educacion_rango` pasó a tener RLS. Sin definer, el trigger deja de VER
+-- el tope y su primera regla —«sin tope cargado, dejo pasar»— lo lee como «no hay
+-- techo». El candado se apaga solo, en silencio, y nadie se entera hasta que
+-- alguien cobre de más. Se descubrió pidiendo el md5 a producción: 2e585080…
+-- (0151) contra 476f663c… (0149), 16 caracteres de diferencia.
+--
+-- Con una sola condición nueva. Antes: «si la suma pasa el
 -- techo, rechaza». Ahora: «si la suma pasa el techo Y ADEMÁS sube, rechaza».
 -- Para un alta es lo mismo de siempre. Para una corrección hacia abajo, es la
 -- diferencia entre poder arreglar una fila heredada y no poder.
 create or replace function fn_educacion_respeta_el_tope()
 returns trigger
 language plpgsql
+security definer          -- ⇦ de la 0151, y NO es decorativo: ver arriba
 set search_path = public
 as $$
 declare
