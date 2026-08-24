@@ -14,7 +14,12 @@
 // incumplimiento, y las secciones no pueden reiniciar la cuenta.
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { construirContrato, numeroALetras, type DatosContrato } from "../apps/web/lib/admin/contrato-texto";
+import {
+  construirContrato,
+  numeroALetras,
+  tipoQueCorresponde,
+  type DatosContrato,
+} from "../apps/web/lib/admin/contrato-texto";
 
 describe("numeroALetras", () => {
   it("escribe el 21–29 en una sola palabra", () => {
@@ -131,5 +136,44 @@ describe("construirContrato", () => {
     const html = construirContrato(datos({ cargo: 'Asesora <script>alert("x")</script>' }));
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+// ── «Nuevo» o «renovación»: lo decide el vínculo, no este sistema ──────────
+// El 2026-08-24 Felipe avisó de algo que la pantalla afirmaba y era falso:
+// «todo mi personal tiene contrato, solo que aún no se ha escaneado». El
+// tablero decía «sin contrato» de veinte personas porque el generador no tenía
+// una fila suya —se estrenó en agosto de 2026—, y de esa misma confusión salía
+// el tipo del contrato a generar.
+//
+// El daño no era la palabra: un contrato «nuevo» imprime un período de prueba
+// de tres meses en el que cualquiera de las partes puede resolverlo sin causa y
+// sin indemnización. Las veinte renovaciones de fin de año habrían salido
+// quitándole por escrito, a gente con años de servicio, la estabilidad que el
+// artículo 79 del TUO del D. Leg. 728 ya le reconoce.
+describe("tipoQueCorresponde", () => {
+  it("quien ya ingresó recibe una RENOVACIÓN, aunque no tenga contrato en el sistema", () => {
+    expect(tipoQueCorresponde("2024-03-01", "2026-08-24")).toBe("renovacion");
+  });
+
+  it("solo es NUEVO cuando el vínculo todavía no empezó", () => {
+    expect(tipoQueCorresponde("2026-09-01", "2026-08-24")).toBe("nuevo");
+  });
+
+  it("quien ingresa hoy mismo ya tiene vínculo: renovación no, pero nuevo sí", () => {
+    expect(tipoQueCorresponde("2026-08-24", "2026-08-24")).toBe("renovacion");
+  });
+
+  it("sin fecha de ingreso elige la opción que NO le quita un derecho a nadie", () => {
+    expect(tipoQueCorresponde(null, "2026-08-24")).toBe("renovacion");
+    expect(tipoQueCorresponde(undefined, "2026-08-24")).toBe("renovacion");
+  });
+
+  it("y un contrato de renovación NO abre un período de prueba nuevo", () => {
+    const conPrueba = construirContrato(datos({ tipo: "nuevo" }));
+    const sinPrueba = construirContrato(datos({ tipo: "renovacion" }));
+    expect(conPrueba).toContain("sin expresión de causa");
+    expect(sinPrueba).not.toContain("sin expresión de causa");
+    expect(sinPrueba).toContain("No aplica un nuevo período de prueba");
   });
 });

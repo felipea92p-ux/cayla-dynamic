@@ -17,6 +17,7 @@ import {
   ACTIVOS_PRINCIPALES_POR_SEDE,
   FUNCIONES_PLACEHOLDER,
   MARCADOR_FIRMA_EMPRESA,
+  tipoQueCorresponde,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
 
@@ -144,10 +145,29 @@ const TIPO_CONTRATO: Record<string, string> = {
 /** Los estados que se resuelven generando un contrato; el resto, abriendo el suyo. */
 const NECESITA_CONTRATO = new Set(["sin_contrato", "vencido", "por_vencer", "desnaturalizado"]);
 
+/**
+ * Qué decir de quien NO tiene contrato en este sistema.
+ *
+ * `fn_contratos_tablero` responde «no hay fila acá», y eso NO es lo mismo que
+ * «esta persona no tiene contrato»: el generador se estrenó en agosto de 2026 y
+ * todo el equipo venía firmando en papel desde antes. Escribir «sin contrato»
+ * al lado de veinte nombres es afirmar algo falso sobre gente real — y encima
+ * en la pantalla que se abre para decidir a quién hay que renovarle.
+ *
+ * Se distingue con `fecha_fin_contrato`, que la persona ya trae puesta: si hay
+ * fecha de vencimiento, el contrato existe y está firmado en un archivador; lo
+ * que falta es traerlo acá. Si no hay ni fecha ni fila, ahí sí no se sabe de
+ * ningún contrato, y eso es lo que hay que decir.
+ */
+function estadoSinContrato(f: FilaTablero): { texto: string; grave: boolean } {
+  if (f.fecha_fin_contrato === null) return { texto: "sin contrato registrado", grave: false };
+  return { texto: "en papel, sin registrar acá", grave: false };
+}
+
 const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
   desnaturalizado: { texto: "marcó después del vencimiento — riesgo art. 77", grave: true },
   vencido: { texto: "contrato vencido", grave: true },
-  sin_contrato: { texto: "sin contrato", grave: false },
+  sin_contrato: { texto: "sin contrato registrado", grave: false },
   sin_firmar: { texto: "pendiente de firma", grave: false },
   sin_vencimiento: { texto: "sin fecha de vencimiento", grave: false },
   por_vencer: { texto: "vence pronto", grave: false },
@@ -708,7 +728,14 @@ export default function ContratosPage() {
             </h2>
             <ul className="divide-y divide-sand/60">
               {pendientes.map((f) => {
-                const e = ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false };
+                const e =
+                  f.estado === "sin_contrato"
+                    ? estadoSinContrato(f)
+                    : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
+                const tipoFila = tipoQueCorresponde(
+                  personas.find((p) => p.id === f.persona_id)?.fecha_ingreso,
+                  hoyLima(),
+                );
                 return (
                   <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
                     <span className="min-w-0 flex-1 truncate">{f.persona}</span>
@@ -717,6 +744,11 @@ export default function ContratosPage() {
                       {e.texto}
                       {f.estado === "desnaturalizado" && ` · ${f.dias_marcados_despues} días marcados`}
                       {f.estado === "por_vencer" && f.dias_restantes !== null && ` · ${f.dias_restantes} días`}
+                      {/* El de papel también vence, y esa es la fecha que
+                          manda mientras no haya uno nuevo firmado. */}
+                      {f.estado === "sin_contrato" &&
+                        f.fecha_fin_contrato !== null &&
+                        ` · vence ${f.fecha_fin_contrato}`}
                     </span>
                     {/* La acción dice lo que hace. Quien ya tiene contrato y
                         lo que le falta es firmarlo o hacer un trámite no
@@ -727,10 +759,10 @@ export default function ContratosPage() {
                         className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
                         onClick={() => {
                           setPersonaId(f.persona_id);
-                          setTipo(f.estado === "sin_contrato" ? "nuevo" : "renovacion");
+                          setTipo(tipoFila);
                         }}
                       >
-                        {f.estado === "sin_contrato" ? "generar" : "renovar"}
+                        {tipoFila === "nuevo" ? "generar" : "renovar"}
                       </button>
                     ) : (
                       <button
@@ -1057,16 +1089,34 @@ export default function ContratosPage() {
         {subiendoPara && (
           <section className="space-y-2 rounded-lg border border-sand p-4">
             <p className="font-serif text-lg">Subir contrato firmado</p>
-            <input type="file" accept="image/*,application/pdf" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
-            <label className="block text-sm">
-              Fecha de firma
-              <input
-                type="date"
-                className="mt-1 rounded border border-sand p-2"
-                value={fechaFirma}
-                onChange={(e) => setFechaFirma(e.target.value)}
-              />
-            </label>
+            <p className="text-sm text-taupe">
+              El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm">
+                Archivo escaneado
+                {/* El estilo `file:` es el de la casa —lo usan Documentación,
+                    Educación, Normas, Feriados y Disciplina—. Sin él, el input
+                    sale con el control crudo del navegador: no parece pulsable
+                    y no se parece a nada más del panel. */}
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-white"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Fecha de firma
+                <input
+                  type="date"
+                  className="rounded-lg border border-sand px-3 py-2 text-sm"
+                  value={fechaFirma}
+                  max={hoyLima()}
+                  onChange={(e) => setFechaFirma(e.target.value)}
+                />
+              </label>
+            </div>
             {progreso !== null && <p className="text-xs">{progreso}%</p>}
             <div className="space-x-2">
               <button
