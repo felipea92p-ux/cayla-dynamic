@@ -467,6 +467,50 @@ dice un solo sitio.
 
 ---
 
+## 2026-08-25 — El aviso de vacaciones se construyó dos veces, y el duplicado lo rompió
+
+La **0297** creó `fn_vacaciones_por_vencer` desde una rama, con su prueba, su
+banda en Ausencias, su entrada en el menú y en «Lo mío», y sus tipos
+regenerados. Dos días después la **0299** creó la misma función desde otra rama,
+sin comprobar que ya existía.
+
+**No quedó en trabajo perdido.** Las dos tenían todos sus argumentos con valor
+por defecto, así que la llamada sin argumentos encajaba en las dos:
+
+    ERROR: function fn_vacaciones_por_vencer() is not unique
+
+Con las dos vivas el aviso NO se mostraba. Es el mismo accidente que la 0278
+documentó al agregar un parámetro con `create or replace`: no falla al pegar la
+migración, **falla al abrir la pantalla**.
+
+La [`0301`](../supabase/migrations/0301_retirar_la_copia_duplicada_del_aviso_de_vacaciones.sql)
+suelta la firma de la 0299. **Está pegada en producción el 2026-08-25** y
+confirmada: queda una sola, `p_dias integer, p_as_of date`, md5 `0f4ea1c9…`.
+
+**Sobrevive la de la 0297 y no por antigüedad.** Ve más gente —cada persona sus
+propios días, una encargada los de su sede—, devuelve la sede, y sobre todo
+tiene una condición que la otra no tenía:
+
+    and ( dias_para_vencer <= p_dias or records_vencidos > 0 )
+
+con este comentario suyo: «quien YA tiene un récord vencido puede tener el
+siguiente a un año de distancia, y con solo el filtro de los 60 días desaparecía
+de la lista justo la persona más urgente. Se vio en el panel con datos de
+prueba, no razonándolo». La otra filtraba solo por la ventana: **a quien más
+urge avisarle, no le avisaba**.
+
+**La causa de raíz, y la regla que salió de ahí:** no se corrió
+`./scripts/donde-vive.sh` antes de escribir, porque el script se leía como «para
+reescribir una función». Ya está en CLAUDE.md que **también se corre antes de
+crear**: con varias sesiones a la vez, «esta función no existe» es una
+suposición, no un hecho.
+
+**Y lo único que destapó todo esto fue pedir el md5 después de pegar.** Dos
+filas donde debía haber una. Sin esa comprobación, el aviso habría quedado roto
+en silencio hasta que alguien abriera la pantalla.
+
+---
+
 ## 2026-08-25 — Tres arreglos más, y una decisión de la 0254 revertida con la norma en la mano
 
 Tres migraciones pegadas en producción el 2026-08-25, cada una confirmada por
