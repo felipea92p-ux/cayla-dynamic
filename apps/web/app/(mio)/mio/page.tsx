@@ -338,10 +338,15 @@ export default function MioPage() {
         .lte("fecha_ini", hoyLima()).gte("fecha_fin", hoyLima()).maybeSingle(),
       supabase.from("feriados").select("fecha, nombre")
         .gte("fecha", hoyLima()).order("fecha").limit(3),
+      // SIN filtro de fechas, a propósito. Antes se recortaba al rango que la
+      // persona está mirando, y entonces la RESPUESTA de su encargada se volvía
+      // invisible en cuanto el día caía fuera de la ventana por defecto: pidió
+      // que le revisaran un día, se lo revisaron, y no se enteraba. Traerlas
+      // todas no pesa —hay como mucho UNA por día y por persona, por el unique
+      // de la 0257— y es lo que permite avisar abajo de las ya respondidas.
       supabase.from("revisiones_pedidas")
         .select("fecha, comentario, atendida_at, respuesta")
-        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
-        .gte("fecha", desde).lte("fecha", hasta),
+        .eq("persona_id", yo.id),         // ← explícito, como todo lo de acá
     ]);
 
     setJornadas((js as Jornada[]) ?? []);
@@ -430,6 +435,16 @@ export default function MioPage() {
       };
     });
   }, [yo, desde, hasta, jornadas, turnos, tramos, faltas, perdonadas]);
+
+  // Las que YA te respondieron, hayas mirado ese día o no. Es la vuelta del
+  // circuito de la 0257: pediste que revisaran un día y alguien contestó. Sin
+  // esto, la respuesta solo se veía si navegabas justo a esa fecha.
+  const respondidas = useMemo(
+    () => [...revisiones.values()]
+      .filter((r) => r.atendida_at && r.respuesta)
+      .sort((a, b) => (b.atendida_at ?? "").localeCompare(a.atendida_at ?? "")),
+    [revisiones],
+  );
 
   const resumen = useMemo(() => {
     const hoy = hoyLima();
@@ -614,7 +629,7 @@ export default function MioPage() {
           Arriba y con un verbo, no como una etiqueta pequeña dentro de la tabla.
           Estos son los días que le pueden costar plata a ella, y es la única que
           sabe qué pasó de verdad ese día. */}
-      {(resumen.porRevisar.length > 0 || resumen.faltas.length > 0) && (
+      {(resumen.porRevisar.length > 0 || resumen.faltas.length > 0 || respondidas.length > 0) && (
         <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 text-sm">
           <h2 className="mb-2 font-serif text-lg">Revisa esto</h2>
           {resumen.porRevisar.length > 0 && (
@@ -630,6 +645,20 @@ export default function MioPage() {
               ({resumen.faltas.map((d) => diaYMes(d.fecha)).join(", ")}). Si trabajaste o tenías permiso, se corrige
               con el motivo anotado.
             </p>
+          )}
+          {respondidas.length > 0 && (
+            <div className="mb-1">
+              <strong>
+                Te respondieron {respondidas.length === 1 ? "el día que pediste revisar" : `los ${respondidas.length} días que pediste revisar`}.
+              </strong>
+              <ul className="mt-0.5 space-y-0.5">
+                {respondidas.map((r) => (
+                  <li key={r.fecha}>
+                    <span className="text-taupe">{diaYMes(r.fecha)}:</span> {r.respuesta}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <p className="text-taupe">Avísale a tu encargada. Un marcaje se arregla; al final del mes ya no.</p>
         </section>

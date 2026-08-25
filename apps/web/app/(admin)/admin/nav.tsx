@@ -94,12 +94,22 @@ export function AdminNav() {
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
-  // El único contador del menú, y a propósito: un aviso que aparece en todos
-  // lados deja de ser un aviso. Cuenta las asignaciones por educación a las que
-  // les falta el comprobante o les quedan menos de 30 días — las dos cosas que,
-  // si nadie mira, terminan en un pago sin sustento o en alguien que deja de
-  // cobrar. La cuenta la hace la base (fn_educacion_por_atender), no el navegador.
+  // LOS DOS contadores del menú, y siguen siendo dos a propósito: un aviso que
+  // aparece en todos lados deja de ser un aviso. Cada uno se ganó su sitio
+  // porque, si nadie mira, termina en plata mal pagada.
+  //
+  // 1 · Educación: asignaciones sin comprobante o con menos de 30 días. Sin eso,
+  //     un pago sin sustento o alguien que deja de cobrar. La cuenta la hace la
+  //     base (fn_educacion_por_atender), no el navegador.
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
+  // 2 · Revisiones pedidas (0257). Este entra por una razón distinta y más
+  //     fuerte: es la ÚNICA lista del sistema que no la generó el sistema
+  //     mirando datos, sino una persona que estuvo ahí ese día y dice que su
+  //     marcaje está mal. Y hasta hoy no avisaba en ninguna parte — vivía en un
+  //     solo consumidor dentro de Incidencias. Si el periodo cierra con el
+  //     reclamo sin leer, ya es plata mal pagada y hay que reabrir para
+  //     arreglarlo. Tiene fecha límite; el resto de esta pantalla no.
+  const [revisionesPendientes, setRevisionesPendientes] = useState(0);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
 
@@ -109,6 +119,22 @@ export function AdminNav() {
     void createAdminSupabaseClient()
       .rpc("fn_educacion_por_atender")
       .then(({ data }) => { if (vivo) setEducacionPorAtender(Number(data) || 0); });
+    return () => { vivo = false; };
+  }, [rol, pathname]);
+
+  // Las revisiones pedidas las ve quien puede atenderlas: encargada de sede y
+  // DO, o sea los mismos roles que ven Incidencias. No se cuenta con una función
+  // propia porque `fn_revisiones_pedidas(true)` YA devuelve solo las pendientes
+  // — el contador es su largo. Una función de conteo aparte sería una segunda
+  // definición de «pendiente» que podría separarse de la primera.
+  useEffect(() => {
+    if (!(ROLES_CON_PANEL as readonly string[]).includes(rol ?? "")) { setRevisionesPendientes(0); return; }
+    let vivo = true;
+    void createAdminSupabaseClient()
+      .rpc("fn_revisiones_pedidas", { p_solo_pendientes: true })
+      .then(({ data }) => {
+        if (vivo) setRevisionesPendientes(Array.isArray(data) ? data.length : 0);
+      });
     return () => { vivo = false; };
   }, [rol, pathname]);
 
@@ -145,6 +171,14 @@ export function AdminNav() {
                         title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
                       >
                         {educacionPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
+                      <span
+                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                        title={`${revisionesPendientes} persona(s) pidieron que se revise un día suyo`}
+                      >
+                        {revisionesPendientes}
                       </span>
                     )}
                   </Link>
@@ -192,6 +226,11 @@ export function AdminNav() {
                     {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
                       <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
                         {educacionPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
+                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
+                        {revisionesPendientes}
                       </span>
                     )}
                   </Link>
