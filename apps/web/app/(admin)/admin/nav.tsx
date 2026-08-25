@@ -94,22 +94,28 @@ export function AdminNav() {
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
-  // DOS contadores, y ninguno más. El comentario de antes decía «el único, y a
-  // propósito: un aviso que aparece en todos lados deja de ser un aviso», y esa
-  // regla sigue en pie — lo que cambió es que apareció una segunda cosa que
-  // cumple la misma vara: algo que, si nadie mira a tiempo, cuesta plata y ya no
-  // se puede deshacer.
+  // TRES contadores, y ninguno más. El comentario original decía «el único, y a
+  // propósito: un aviso que aparece en todos lados deja de ser un aviso». Esa
+  // regla sigue en pie; lo que pasó es que aparecieron dos cosas más que cumplen
+  // la MISMA vara, y la vara es exigente: algo que, si nadie lo mira a tiempo,
+  // cuesta plata y después ya no tiene arreglo.
   //
   //   Educación   · asignaciones sin comprobante o por vencer: un pago sin
   //                 sustento, o alguien que deja de cobrar.
   //   Ausencias   · récords de vacaciones que vencen dentro de 60 días: pasado
   //                 el plazo, el art. 23 del D. Leg. 713 manda una remuneración
   //                 entera de indemnización y ese día ya no tiene arreglo.
+  //   Incidencias · revisiones pedidas (0257). La ÚNICA lista del panel que no
+  //                 la generó el sistema mirando datos, sino una persona que
+  //                 estuvo ahí ese día y dice que su marcaje está mal. Si el
+  //                 periodo cierra con el reclamo sin leer, ya es plata mal
+  //                 pagada y hay que reabrir el mes para arreglarlo.
   //
-  // Las dos cuentas las hace la base, no el navegador, y con el mismo umbral que
-  // la pantalla a la que llevan.
+  // Antes de agregar un cuarto: la pregunta no es «¿es importante?», es «¿tiene
+  // fecha límite y cuesta plata pasarla?». Casi nada la pasa.
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
+  const [revisionesPendientes, setRevisionesPendientes] = useState(0);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
 
@@ -131,6 +137,26 @@ export function AdminNav() {
     void createAdminSupabaseClient()
       .rpc("fn_vacaciones_por_atender")
       .then(({ data }) => { if (vivo) setVacacionesPorAtender(Number(data) || 0); });
+    return () => { vivo = false; };
+  }, [rol, pathname]);
+
+  // Las revisiones pedidas las ve quien puede atenderlas: encargada de sede y
+  // DO, o sea los mismos roles que ven Incidencias. No lleva función de conteo
+  // propia porque `fn_revisiones_pedidas(true)` YA devuelve solo las pendientes
+  // — el contador es su largo. Una función aparte sería una segunda definición
+  // de «pendiente» que podría separarse de la primera.
+  useEffect(() => {
+    // Mismo predicado que la de vacaciones: ROLES_CON_PANEL y puedeOperarEquipo
+    // son el mismo conjunto (DO_Y_ENCARGADA, permisos.ts:89,132). Se pregunta por
+    // la función y no por la lista, que es lo que manda la primera regla de
+    // packages/shared — y de paso se evita el cast.
+    if (!puedeOperarEquipo(rol)) { setRevisionesPendientes(0); return; }
+    let vivo = true;
+    void createAdminSupabaseClient()
+      .rpc("fn_revisiones_pedidas", { p_solo_pendientes: true })
+      .then(({ data }) => {
+        if (vivo) setRevisionesPendientes(Array.isArray(data) ? data.length : 0);
+      });
     return () => { vivo = false; };
   }, [rol, pathname]);
 
@@ -175,6 +201,14 @@ export function AdminNav() {
                         title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}
                       >
                         {vacacionesPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
+                      <span
+                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                        title={`${revisionesPendientes} persona(s) pidieron que se revise un día suyo`}
+                      >
+                        {revisionesPendientes}
                       </span>
                     )}
                   </Link>
@@ -227,6 +261,11 @@ export function AdminNav() {
                     {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
                       <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
                         {vacacionesPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
+                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
+                        {revisionesPendientes}
                       </span>
                     )}
                   </Link>
