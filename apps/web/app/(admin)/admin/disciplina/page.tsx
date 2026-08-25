@@ -783,6 +783,13 @@ export default function DisciplinaPage() {
   const borradores = docs.filter((d) => d.estado === "borrador");
   const entregados = docs.filter((d) => d.estado === "entregado");
   const firmados = docs.filter((d) => d.estado === "firmado");
+  // Con qué causal ya tiene un borrador esperando firma. El generador de la
+  // base ya lo rechaza (`fn_expediente_generar_tardanza`/`_falta`: "Ya hay un
+  // borrador... pendiente"), pero el botón de acá seguía ofreciéndose igual —
+  // pulsarlo solo podía terminar en ese error. Mismo principio que ya se
+  // aplica a `bloqueado` más abajo: no se ofrece un botón que solo puede dar
+  // error.
+  const pendientePorCausal = new Set(borradores.map((d) => `${d.persona_id}:${d.tipo_causal}`));
 
   if (rol !== null && !puede) {
     return (
@@ -890,8 +897,10 @@ function fechasDe(h: Hecho[]): string {
                       («decide Gerencia»). Ofrecer un botón que solo puede dar
                       error enseña a ignorar los errores de esta pantalla. */}
                   <button onClick={() => generar("tardanza", t.persona_id)}
-                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0 || t.umbral === "bloqueado"}
-                    title={t.tardanzas_mes === 0
+                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0 || t.umbral === "bloqueado" || pendientePorCausal.has(`${t.persona_id}:tardanza`)}
+                    title={pendientePorCausal.has(`${t.persona_id}:tardanza`)
+                      ? "Ya hay un borrador de tardanza pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
+                      : t.tardanzas_mes === 0
                       ? "Sus únicos días son de más de tres horas: no se puede imputar sobre una medición dudosa. Revisa su turno de esos días."
                       : t.umbral === "bloqueado"
                         ? "Ya tiene una imputación de cargos vigente. El siguiente paso es evaluar sus descargos (art. 31) y lo decide Gerencia, no el sistema."
@@ -932,7 +941,11 @@ function fechasDe(h: Hecho[]): string {
                       {f.consecutivas} consec · {f.en_30} en 30d · {f.en_180} en 180d
                     </span>
                   </span>
-                  <button onClick={() => generar("falta", f.persona_id)} disabled={ocupado === f.persona_id}
+                  <button onClick={() => generar("falta", f.persona_id)}
+                    disabled={ocupado === f.persona_id || pendientePorCausal.has(`${f.persona_id}:falta`)}
+                    title={pendientePorCausal.has(`${f.persona_id}:falta`)
+                      ? "Ya hay un borrador de falta pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
+                      : undefined}
                     className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
                     {ocupado === f.persona_id ? "Generando…" : "Generar borrador"}
                   </button>
@@ -1106,7 +1119,20 @@ function fechasDe(h: Hecho[]): string {
                   {d.nivel === "suspension" && (
                     <label className="mt-1 flex items-center gap-2 text-xs text-taupe">
                       Días de suspensión:
-                      <input type="number" min={1} max={15} defaultValue={d.suspension_dias ?? 1}
+                      {/* El tope real (1-2 la primera, 2-3 la segunda, art.
+                          19.2 c)/d)) lo exige la base al guardar (mig. 0294),
+                          que es quien conoce el historial de esta persona —
+                          acá solo se marca el techo absoluto de cualquier
+                          suspensión, el del numeral 54.5, para que el campo no
+                          invite a escribir un número que la base va a
+                          rechazar igual.
+                          `onWheel` con blur: un `<input type="number">` deja
+                          que la rueda del mouse cambie el valor mientras el
+                          cursor pasa por encima al hacer scroll de la página,
+                          sin que nadie lo teclee — un candidato real para
+                          cómo llegó a 10 sin que se note el cambio. */}
+                      <input type="number" min={1} max={3} defaultValue={d.suspension_dias ?? 1}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onBlur={(e) => guardarDias(d, Number(e.target.value))}
                         className="w-16 rounded border px-2 py-1" />
                       {/* Desde cuándo. El sistema propone, pero la fecha la
