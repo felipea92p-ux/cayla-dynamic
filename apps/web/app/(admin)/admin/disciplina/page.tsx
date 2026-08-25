@@ -783,6 +783,40 @@ export default function DisciplinaPage() {
   const borradores = docs.filter((d) => d.estado === "borrador");
   const entregados = docs.filter((d) => d.estado === "entregado");
   const firmados = docs.filter((d) => d.estado === "firmado");
+  // Con qué causal ya tiene un borrador esperando firma. El generador de la
+  // base ya lo rechaza (`fn_expediente_generar_tardanza`/`_falta`: "Ya hay un
+  // borrador... pendiente"), pero el botón de acá seguía ofreciéndose igual —
+  // pulsarlo solo podía terminar en ese error. Mismo principio que ya se
+  // aplica a `bloqueado` más abajo: no se ofrece un botón que solo puede dar
+  // error.
+  const pendientePorCausal = new Set(borradores.map((d) => `${d.persona_id}:${d.tipo_causal}`));
+
+  /**
+   * El rango de días que el Reglamento admite para ESTE documento.
+   *
+   * El numeral 54.5 topa toda suspensión en tres días. Sobre ese techo, la
+   * escala de impuntualidad gradúa: la primera es de uno a dos (19.2 c) y la
+   * segunda tiene que ser MAYOR que la primera (19.2 d). La escala de faltas no
+   * gradúa —tiene un solo peldaño de suspensión— así que ahí solo rige el techo.
+   *
+   * Es la misma cuenta que hace `fn_expediente_set_suspension` (mig. 0294), y se
+   * repite acá con un fin distinto: que el campo OFREZCA lo que se puede pedir,
+   * en vez de dejar teclear un número que vuelve rechazado. Un `max` de HTML no
+   * impide nada por sí solo —no hay formulario que validar, hay un `onBlur` que
+   * llama a la RPC— así que esto es el letrero, y la base es el candado.
+   */
+  function rangoSuspension(d: Doc): { min: number; max: number; previa: number | null } {
+    const doceMeses = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const dias = docs
+      .filter((x) => x.persona_id === d.persona_id && x.tipo_causal === d.tipo_causal
+        && x.nivel === "suspension" && x.estado === "entregado" && x.id !== d.id
+        && x.entregado_at !== null && Date.parse(x.entregado_at) >= doceMeses)
+      .map((x) => x.suspension_dias ?? 0);
+    const previa = dias.length ? Math.max(...dias) : null;
+    if (d.tipo_causal !== "tardanza") return { min: 1, max: 3, previa };
+    if (previa === null) return { min: 1, max: 2, previa };
+    return { min: Math.min(previa + 1, 3), max: 3, previa };
+  }
 
   if (rol !== null && !puede) {
     return (
@@ -890,8 +924,10 @@ function fechasDe(h: Hecho[]): string {
                       («decide Gerencia»). Ofrecer un botón que solo puede dar
                       error enseña a ignorar los errores de esta pantalla. */}
                   <button onClick={() => generar("tardanza", t.persona_id)}
-                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0 || t.umbral === "bloqueado"}
-                    title={t.tardanzas_mes === 0
+                    disabled={ocupado === t.persona_id || t.tardanzas_mes === 0 || t.umbral === "bloqueado" || pendientePorCausal.has(`${t.persona_id}:tardanza`)}
+                    title={pendientePorCausal.has(`${t.persona_id}:tardanza`)
+                      ? "Ya hay un borrador de tardanza pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
+                      : t.tardanzas_mes === 0
                       ? "Sus únicos días son de más de tres horas: no se puede imputar sobre una medición dudosa. Revisa su turno de esos días."
                       : t.umbral === "bloqueado"
                         ? "Ya tiene una imputación de cargos vigente. El siguiente paso es evaluar sus descargos (art. 31) y lo decide Gerencia, no el sistema."
@@ -932,7 +968,11 @@ function fechasDe(h: Hecho[]): string {
                       {f.consecutivas} consec · {f.en_30} en 30d · {f.en_180} en 180d
                     </span>
                   </span>
-                  <button onClick={() => generar("falta", f.persona_id)} disabled={ocupado === f.persona_id}
+                  <button onClick={() => generar("falta", f.persona_id)}
+                    disabled={ocupado === f.persona_id || pendientePorCausal.has(`${f.persona_id}:falta`)}
+                    title={pendientePorCausal.has(`${f.persona_id}:falta`)
+                      ? "Ya hay un borrador de falta pendiente para esta persona. Revísalo en «Borradores pendientes» antes de generar otro."
+                      : undefined}
                     className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
                     {ocupado === f.persona_id ? "Generando…" : "Generar borrador"}
                   </button>
@@ -1103,12 +1143,43 @@ function fechasDe(h: Hecho[]): string {
                       )}
                     </label>
                   )}
-                  {d.nivel === "suspension" && (
-                    <label className="mt-1 flex items-center gap-2 text-xs text-taupe">
+                  {d.nivel === "suspension" && (() => {
+                    const r = rangoSuspension(d);
+                    const fuera = d.suspension_dias !== null
+                      && (d.suspension_dias < r.min || d.suspension_dias > r.max);
+                    return (
+                    <label className="mt-1 flex flex-wrap items-center gap-2 text-xs text-taupe">
                       Días de suspensión:
-                      <input type="number" min={1} max={15} defaultValue={d.suspension_dias ?? 1}
+                      {/* El campo ofrece SOLO lo que el Reglamento admite para
+                          este documento, que no es siempre 1-3: la primera por
+                          tardanzas es de 1 a 2 (19.2 c) y la segunda tiene que
+                          ser mayor que la primera (19.2 d). El candado de verdad
+                          está en la base (mig. 0294) — un `max` de HTML no
+                          impide escribir ni enviar, porque acá no hay formulario
+                          que validar sino un `onBlur` que llama a la RPC.
+                          `onWheel` con blur porque un `<input type="number">`
+                          cambia de valor con la rueda del mouse cuando el cursor
+                          pasa por encima al hacer scroll: no es como llegó el 10
+                          de agosto —ese se tecleó a propósito, probando— pero
+                          sigue siendo una forma de mover días de sueldo sin
+                          querer. */}
+                      <input type="number" min={r.min} max={r.max} defaultValue={d.suspension_dias ?? r.min}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onBlur={(e) => guardarDias(d, Number(e.target.value))}
-                        className="w-16 rounded border px-2 py-1" />
+                        className={`w-16 rounded border px-2 py-1 ${fuera ? "border-rojo text-rojo" : ""}`} />
+                      <span className={fuera ? "text-rojo" : undefined}>
+                        {r.min === r.max ? `solo ${r.min}` : `de ${r.min} a ${r.max}`}
+                        {r.previa !== null
+                          ? ` · su anterior fue de ${r.previa}, y el numeral 19.2 d) pide que ésta sea mayor`
+                          : d.tipo_causal === "tardanza"
+                            ? " · es la primera, y el numeral 19.2 c) la topa en dos"
+                            : " · numeral 54.5"}
+                      </span>
+                      {fuera && (
+                        <span className="text-rojo">
+                          Los {d.suspension_dias} de ahora quedan fuera de ese rango: corrígelo antes de firmar.
+                        </span>
+                      )}
                       {/* Desde cuándo. El sistema propone, pero la fecha la
                           decide quien tramita: entre generar el borrador y
                           firmarlo pueden pasar días, y una suspensión fijada
@@ -1133,7 +1204,8 @@ function fechasDe(h: Hecho[]): string {
                         </span>
                       )}
                     </label>
-                  )}
+                    );
+                  })()}
                   {subiendoCargo?.id === d.id && (
                     <FormularioCargo
                       tipo={subiendoCargo.tipo}
