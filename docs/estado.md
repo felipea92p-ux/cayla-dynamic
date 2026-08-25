@@ -37,6 +37,252 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-25 — Revisión nocturna: las nueve cosas más importantes por corregir
+
+**Contexto de esta entrada.** Felipe pidió una revisión de código exhaustiva
+mientras dormía. Se lanzaron dos pasadas de auditoría adversarial (Workflow,
+46 agentes de búsqueda+verificación, cada hallazgo releído contra el código
+real por un escéptico aparte) sobre permisos/RLS, fechas, duplicación de
+lógica, cobertura de pruebas SQL, componentes React, seguridad de rutas
+`api/` y consistencia de UI. **34 hallazgos sobrevivieron** esa verificación.
+
+**A media noche apareció algo más importante que lo anterior**: el directorio
+`auditoria/` —no listado en la tabla de `docs/` de este archivo ni en
+CLAUDE.md, por eso ninguna pasada lo leyó— contiene una auditoría previa de
+**116 agentes (2026-08-17/18)**, con **80 hallazgos sobrevivientes** (4 P0,
+8 P1, 29 P2, 39 P3) y su propio plan de remediación por lotes
+(`CAYLA_CORP_OPS_202608_PlanRemediacion.md`). Es sustancialmente más profunda
+que lo de esta noche. **Casi todo lo que las dos pasadas de esta noche
+encontraron ya estaba ahí catalogado** — incluida, palabra por palabra, la
+política RLS del terminal que salió en la primera pasada.
+
+Así que lo de abajo no es "mi lista independiente": es **el estado real,
+reverificado esta noche contra el código vivo** (no contra ningún informe) de
+lo más grave de esas dos fuentes juntas, más lo genuinamente nuevo que ninguna
+de las dos tenía.
+
+**Lo que NO se hizo**: cruzar los 34 hallazgos de esta noche contra los 39 P3
+del informe viejo (solo contra P0/P1 y una muestra de P2). Puede haber más
+solapamiento del que aquí se descuenta.
+
+### 1 · Nueve funciones `SECURITY DEFINER` entregan datos de cualquier persona a cualquier sesión — P0, sigue abierto
+
+**Dónde:** `fn_falta_contadores` (0094) · `fn_tardanza_escalon` (0246) ·
+`fn_dia_suspendido` · `fn_dias_suspension` · `fn_beneficio_ya_depositado` ·
+`fn_educacion_monto` (0149) · `fn_es_dia_laborable` · `fn_reglamento_no_acusado`
+· `fn_dcs_por_que_no_compensa`. Las nueve corren como `postgres` (sin RLS),
+reciben un `p_persona_id` que manda quien llama, y `grant execute … to
+authenticated`.
+
+**Por qué importa:** cualquiera de las ~30 personas con cuenta hace un POST a
+`/rest/v1/rpc/fn_educacion_monto` con el id de una compañera y se entera de su
+banda salarial; con `fn_tardanza_escalon`, si tiene una suspensión encima y
+cuál es el siguiente escalón; con `fn_falta_contadores`, las fechas exactas de
+sus inasistencias. Los ids de personas no son secretos — salen en el roster
+del terminal.
+
+**Reverificado esta noche** contra el Postgres local: las nueve siguen dando
+`true` en `has_function_privilege('authenticated', oid, 'EXECUTE')`. El
+informe de agosto lo midió con HTTP real (JWT firmado con el secreto local,
+`POST /rest/v1/rpc/...` → HTTP 200) y con 8 intentos de refutación fallidos.
+El arreglo ya está medido y no toca ninguna pantalla: `revoke execute` en las
+nueve — una función `SECURITY DEFINER` que llama a otra lo hace como su dueño
+(`postgres`), no como `authenticated`, así que los envoltorios con guard que
+sí se usan desde el panel siguen funcionando igual.
+
+**Propuesta:** la migración de revokes, con la prueba pgTAP que fija el
+predicado correcto (`prosecdef + grant a authenticated + recibe p_persona_id +
+sin guard en el cuerpo` — no "todo prosecdef", eso ya se probó y dio 14 falsos
+positivos).
+
+### 2 · Una `lider_do` puede ascenderse a Admin sola, en tres clics y sin dejar rastro — P1→ severidad de facto de P0
+
+**Dónde:** `apps/web/app/(admin)/admin/equipo/page.tsx:422-431` escribe `rol`
+directo a la tabla `personas` vía `.update()`; el desplegable que lo alimenta
+(líneas 18-23) ofrece "Admin". La policy de UPDATE sobre `personas` solo exige
+`fn_es_admin_o_lider()` — no compara el rol de quien llama contra el rol
+destino. El camino paralelo (`apps/web/app/api/admin/cuentas/route.ts`) SÍ
+llama a `puedeActuarSobre()` del escalafón y por eso rechaza a una `lider_do`
+que intente promoverse — la pantalla no pasa por ahí.
+
+**Por qué importa:** Admin ve todos los sueldos, el padrón con DNI y cuentas
+bancarias, y puede reabrir un periodo ya pagado. `personas` no tiene tabla de
+auditoría ni trigger de cambios de rol — ningún rastro de que ocurrió.
+
+**Reverificado esta noche:** `fn_set_rol` no existe; `equipo/page.tsx:429`
+sigue escribiendo `rol: form.rol` directo; la columna `rol` sigue con
+`UPDATE` abierto a `authenticated`. Sigue exactamente igual que cuando se
+encontró.
+
+**Propuesta (ya decidida en el informe de agosto, con sus descartes
+explicados):** una RPC `SECURITY DEFINER` (`fn_set_rol`) que reimplemente el
+escalafón dentro de la base, y `revoke update (rol) on personas from
+authenticated` — así la regla la cumplen los dos caminos, no solo el que la
+llama.
+
+### 3 · El kiosco de marcaje sigue exponiendo DNI y sueldo base por REST directo — P0, el más barato de cerrar
+
+**Dónde:** `supabase/migrations/0008_visible_todas_sedes.sql:12-17` crea la
+policy `personas_select_terminal_roster` sin recortar columnas. La 0285
+construyó el reemplazo (vista `terminal_roster`) y el frontend
+(`apps/web/lib/terminal/roster.ts`) ya migró a leerla — pero la policy vieja
+sobre `personas` nunca se retiró, y su propio comentario en la 0285 dice que
+se haría "en una migración posterior, después de desplegar el frontend".
+
+**Por qué importa:** el token del terminal es una sesión `authenticated`
+normal en una Mac mini sin PIN, a la vista de todo el equipo (decisión
+deliberada de Felipe). Con ese token, un `GET /rest/v1/personas?select=
+documento,sueldo_base_legal,...` sigue devolviendo filas completas.
+
+**De las tres que forman el "Lote 3" del plan de agosto, ésta es la más fácil
+de cerrar ya:** el paso que faltaba (migrar el frontend) ya está hecho y
+confirmado. Solo falta `drop policy personas_select_terminal_roster on
+personas;`.
+
+### 4 · El candado del mes pagado se mide con el reloj, no con la jornada — riesgo directo para el cierre del 28, sobre todo en TRU
+
+**Dónde:** once funciones (`fn_anular_marcaje`, `fn_corregir_marca`,
+`fn_eliminar_marcaje`, `fn_reactivar_marcaje`, `fn_confirmar_auto_cierre`,
+`fn_agregar_marcaje`, `fn_corregir_marcaje`, `fn_reabrir_dia`,
+`fn_resellar_dia`, `fn_levantar_sello_si_el_dia_cuadra`,
+`fn_dias_por_revisar`) derivan la fecha de una marca con `(timestamp_marca at
+time zone 'America/Lima')::date`, ignorando la columna `fecha_jornada` que la
+0240 introdujo para esto exacto. `fn_recalcular_jornada` sí la usa.
+
+**Por qué importa:** si el turno del día 28 (último del periodo) cierra a las
+00:30 del 29, esa salida pertenece —para la planilla— al día 28, pero el
+candado la ve como del día 29, que sigue abierto. Se puede anular, corregir o
+**eliminar** (`fn_eliminar_marcaje` hace `delete` duro) con el mes ya pagado.
+El monto pagado no se mueve —eso lo protege `fn_recalcular_jornada`— pero **el
+registro de control de asistencia que lo sustenta sí puede quedar
+contradiciéndolo**, sin aviso. Es exactamente el escenario que la 0240 se
+escribió para resolver, y TRU —que trabaja domingo y cierra tarde— es la sede
+donde más ocurre.
+
+**Sin reverificar esta noche por tiempo** — el informe de agosto lo midió con
+4 intentos reales en `BEGIN…ROLLBACK`, todos exitosos salvo el primero.
+
+**Propuesta:** sustituir la expresión en las once funciones por
+`coalesce(fecha_jornada, (timestamp_marca at time zone 'America/Lima')::date)`
+— la expresión correcta ya vive en `fn_trg_marcajes_recalcular_jornada`, solo
+falta extraerla a una función compartida y llamarla desde las once.
+
+### 5 · DNI, correos y celulares reales de diez personas, commiteados y ya en GitHub — P0, no es tarea de código
+
+**Dónde:** `supabase/migrations/0130_los_datos_del_tregistro.sql` y dos
+migraciones más.
+
+**Por qué importa:** ya está publicado. Borrarlo del archivo hoy no lo
+despublica del historial de GitHub.
+
+**Esto es una decisión de Felipe, no una migración.** Reescribir el historial
+de un repo con varias sesiones trabajando en paralelo tiene su propio costo y
+riesgo — se anota aquí para que la decisión no se pierda, no para proponerla
+a ciegas.
+
+### 6 · El descanso médico sigue pagando sin que DO lo apruebe
+
+**Dónde:** los laterales de ausencias en `fn_planilla_calcular` filtran
+`anulada_at is null` y nunca miran `aprobada_at`. `fn_registrar_ausencia` deja
+registrar a la encargada de sede; `fn_aprobar_ausencia` solo a admin/lider —
+pero la planilla no espera esa aprobación para pagar.
+
+**Reverificado esta noche:** `grep -c aprobada_at` sobre el cuerpo vivo de
+`fn_planilla_calcular` da cero. Sigue exactamente como lo dejó el informe de
+agosto (que además ya había medido: hoy, cero soles mal pagados — julio se
+congeló antes de que existiera el concepto).
+
+**De paso, un vecino sin lote asignado:** `licencia_con_goce` está marcada en
+el catálogo como que paga y requiere aprobación, y `fn_planilla_calcular` no
+la paga por ningún lado — el error contrario (alguien deja de cobrar), sin
+investigar.
+
+**Propuesta:** ya está diseñada en el plan de agosto — tres líneas dentro del
+bloque de feriados (con cuidado: tocar solo dos de las tres rompe el
+prorrateo del feriado dentro de una licencia, medido en −S/22.17). Antes de
+escribirla: `donde-vive.sh fn_planilla_calcular` y el md5 de producción, igual
+que siempre.
+
+### 7 · `guardarDocumento()` muestra "archivado" con éxito aunque la segunda mitad del guardado haya fallado — nuevo esta noche
+
+**Dónde:** `apps/web/app/(admin)/admin/documentacion/page.tsx:642-651`. La
+primera llamada a `fn_documento_registrar` (crear el registro) sí chequea
+`error`; la segunda (adjuntar el `storage_path` del archivo ya subido al
+registro recién creado) no lo chequea, y el flujo sigue hasta mostrar el
+aviso de éxito.
+
+**Por qué importa:** un documento puede quedar registrado sin su archivo
+adjunto, y la persona que lo subió cree que quedó archivado. Es exactamente
+el tipo de silencio que CLAUDE.md señala como el peor error de este sistema,
+aplicado a un documento con valor legal (política, movilidad, bono).
+
+**Propuesta:** destructurar `error` de la segunda llamada y, si falla, avisar
+en vez de mostrar éxito — mismo patrón que ya usa el primer bloque.
+
+### 8 · La regla "qué mes de educación falta un comprobante" está escrita 3-5 veces, casi sin prueba — nuevo esta noche
+
+**Dónde:** `supabase/migrations/0290_un_comprobante_por_mes_y_no_uno_por_
+asignacion.sql` crea `fn_educacion_papeles` (:328), `fn_educacion_meses_
+sin_papel` (:355) y `fn_educacion_por_atender` (:465) — ninguna de las tres
+se llama por su nombre desde `supabase/tests/`. `fn_educacion_listar` (:386,
+sí probada en el test 226) trae una cuarta copia inline de la misma lógica, y
+es esa cuarta copia la que el test termina verificando.
+
+**Por qué importa:** `fn_educacion_por_atender` es el contador que le avisa a
+DO qué papeles faltan perseguir. Si alguien corrige una sola de las cinco
+copias, el contador del menú puede decir "0 pendientes" mientras la lista
+real muestra filas con `meses_sin_papel > 0` — y nadie va detrás del papel
+que sustenta un pago ya hecho.
+
+**Propuesta:** sobre el mismo laboratorio del test 226, sumar 3-4 aserciones
+que llamen directo a las tres funciones sueltas y comparen contra la columna
+`meses_sin_papel`.
+
+### 9 · Tablas nuevas con datos sensibles, con RLS pero sin ninguna prueba que confirme que protege — patrón, nuevo esta noche
+
+**Dónde:** `contratos_generados` + el bucket "contratos" (0272/0287, sueldos y
+PDFs firmados) · `asignaciones_regimen_pension` (0261, régimen de pensión) ·
+`educacion_comprobantes` (0290). Las tres tienen policies que restringen a
+admin/lider o a la propia persona, y **ningún test cambia de usuario** para
+comprobar que alguien sin ese rol quede bloqueado — todos los tests
+relacionados corren con una sola sesión admin de principio a fin.
+
+**Por qué importa:** el patrón ya existe en el repo y funciona
+(`supabase/tests/198_...` sí cambia de usuario con `set local role
+authenticated`). Sin ese segundo usuario en estas tres, un error futuro en
+cualquiera de las tres policies no lo detectaría ningún pgTAP — se enteraría
+alguien mirando por accidente el sueldo o el contrato de otra persona.
+
+**Propuesta:** sumar el patrón del test 198 a los tests 223 (contratos), 214
+(régimen de pensión) y 226 (educación): tras crear el dato como admin, cambiar
+a una persona sin ese rol y comprobar `count(*) = 0`.
+
+---
+
+**Una corrección de paso.** El informe de agosto decía que `feriados/page.tsx`
+"al menos sí confirma" antes de quitar un descanso sustitutorio ya otorgado.
+Releído el código esta noche: **no confirma** — `quitar(id)` llama a la RPC en
+el primer clic, sin `window.confirm`. El comentario que hay al lado (líneas
+714-719) explica por qué debería confirmarse, pero no hay ningún código que lo
+haga cumplir. Esto es parte del **P2 "Cinco acciones que devuelven plata... al
+primer clic"** del informe de agosto (línea 1079), que también cubre
+`quitarJustificacion`/`quitarLevantamiento` en incidencias, horas y
+correcciones — las dos pasadas de esta noche redescubrieron ese mismo P2 sin
+saber que ya existía.
+
+**Lo que queda fuera de los nueve, y por qué:** cuatro P1 más del informe de
+agosto sin reverificar esta noche por tiempo —`fn_dia_incoherente` y
+`fn_siguiente_tipo_esperado` no conocen `fecha_jornada` (sella marcas buenas
+como "pendiente de revisión" el día después de un cruce de medianoche); el
+botón "¿Volviste a entrar?" del terminal puede borrar la salida real de
+anoche; el auto-cierre (3 h) llega antes que la ventana de la 0240 y la salida
+de madrugada se sigue rechazando; una incidencia de quien marca fuera de su
+sede sale sin nombre y no se puede sacar de la lista—, más 29 P2 y 39 P3 que
+no se leyeron esta noche. Todo vive en `auditoria/CAYLA_CORP_RPT_202608_
+Auditoria.md` y su plan en `auditoria/CAYLA_CORP_OPS_202608_PlanRemediacion.md`.
+
+---
+
 ## 2026-08-22 — El techo de educación se reparte, y sigue al rango (0281)
 
 **Decidido por Felipe.** Tres decisiones, y las tres cambian plata:
