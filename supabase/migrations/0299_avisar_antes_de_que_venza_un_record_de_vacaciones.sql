@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0298_avisar_antes_de_que_venza_un_record_de_vacaciones.sql
+-- 0299_avisar_antes_de_que_venza_un_record_de_vacaciones.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que CAYLA se entere de que a alguien le va a vencer un récord de vacaciones
@@ -44,7 +44,7 @@
 --     el más antiguo pendiente  = años_cumplidos − records_pendientes + 1
 --     vence el                  = ingreso + (ese índice + 1) años
 --
--- Comprobado con dos casos en la prueba 233: quien tomó sus 15 días de un récord
+-- Comprobado con dos casos en la prueba 234: quien tomó sus 15 días de un récord
 -- de dos, y quien no tomó ninguno —a esa el récord más antiguo ya le venció—.
 --
 -- SOLO CUENTA LOS RÉCORDS COMPLETOS. El trunco en curso no puede vencer: su año
@@ -147,5 +147,5 @@ comment on function fn_vacaciones_por_vencer(int) is
   'Quien tiene un record de vacaciones que vence dentro de p_dias_aviso dias, o que ya vencio. La cuenta del saldo NO se recalcula aca: viene de fn_vacaciones_resumen. Existe para que la indemnizacion del art. 23 del D. Leg. 713 nunca llegue a existir, en vez de calcularla bien el dia del cese.';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (298, 'avisar_antes_de_que_venza_un_record_de_vacaciones')
+values (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones')
 on conflict (numero) do nothing;

@@ -1,7 +1,7 @@
 -- ============================================================================
--- 233_avisar_antes_de_que_venza_un_record_de_vacaciones.test.sql
+-- 234_avisar_antes_de_que_venza_un_record_de_vacaciones.test.sql
 -- ============================================================================
--- Migración 0298. El sistema avisa de un récord de vacaciones que va a vencer,
+-- Migración 0299. El sistema avisa de un récord de vacaciones que va a vencer,
 -- con meses de antelación, en vez de descubrirlo el día de la liquidación.
 --
 -- LO QUE ESTA PRUEBA FIJA NO ES UN MONTO: es la ARITMÉTICA DE FECHAS, que es

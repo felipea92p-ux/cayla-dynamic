@@ -46,7 +46,7 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 type NombreRpcSinTipar = Parameters<ReturnType<typeof createAdminSupabaseClient>["rpc"]>[0];
 const RPC_SUBSIDIO = "fn_ausencias_subsidio" as unknown as NombreRpcSinTipar;
 const RPC_ADJUNTAR = "fn_ausencia_adjuntar_certificado" as unknown as NombreRpcSinTipar;
-// ⇩ 0298 · igual que las dos de arriba: nombre sin tipar hasta que se regeneren
+// ⇩ 0299 · igual que las dos de arriba: nombre sin tipar hasta que se regeneren
 // los tipos. Lo que devuelve lo comprueba `VacacionPorVencer`.
 const RPC_POR_VENCER = "fn_vacaciones_por_vencer" as unknown as NombreRpcSinTipar;
 
@@ -95,7 +95,7 @@ interface Subsidio {
 
 export default function AusenciasPage() {
   const router = useRouter();
-/** Un récord de vacaciones que vence pronto, o que ya venció (migración 0298).
+/** Un récord de vacaciones que vence pronto, o que ya venció (migración 0299).
  *  Es lo único de esta pantalla que tiene FECHA LÍMITE: pasada, el art. 23 del
  *  D. Leg. 713 manda una indemnización de una remuneración entera. */
 interface VacacionPorVencer {
@@ -291,7 +291,7 @@ interface VacacionPorVencer {
           </div>
         )}
 
-        {/* ── RÉCORDS DE VACACIONES POR VENCER (0298) ──────────────────────
+        {/* ── RÉCORDS DE VACACIONES POR VENCER (0299) ──────────────────────
             VA EN ROJO Y VA PRIMERA, y las dos cosas a propósito.
 
             El resto de avisos de esta pantalla son «para mirar»: cuentan algo y
