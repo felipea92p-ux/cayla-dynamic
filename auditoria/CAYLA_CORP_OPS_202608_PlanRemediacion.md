@@ -29,10 +29,10 @@ archivos sueltos» no lo es.
 | **0** | Medir en producción | 🟡 **1 de 4 hecho** | Solo lectura, cero riesgo. Sin esto todos los alcances del informe son cero. |
 | **1** | El descanso médico exige aprobación | 🔵 **en curso** | Único hallazgo con fecha: afecta la planilla que cierra el 28. |
 | **2** | Decisión sobre los datos publicados en GitHub | ⬜ | Es P0 y **no es una tarea de código**: es una decisión sobre el historial. |
-| **3** | Cerrar las tres fugas de lectura | 🟡 **2 de 3 hecho** | Terminal ✅ (0291) · `SECURITY DEFINER` ✅ (0292, pegada en producción el 2026-08-25) · ascenso a Admin ⬜. Policies y guards; no tocan ningún cálculo. |
+| **3** | Cerrar las tres fugas de lectura | ✅ **3 de 3 — CERRADO** | Terminal ✅ (0291) · `SECURITY DEFINER` ✅ (0292) · ascenso a Admin ✅ (0295/0296, pegadas el 2026-08-25). Las tres en producción, verificadas por md5. |
 | **4** | Las tardanzas dejan de contar feriados y vacaciones | ⬜ | Más grande y necesita pgTAP nuevo. |
 | **5** | Terminar la 0240 (el cruce de medianoche) | ⬜ | Cuatro hallazgos de un mismo origen: `fecha_jornada` existe y cinco funciones no la conocen. |
-| **6** | El guardián de las reglas del `CLAUDE.md` | ⬜ | **El de mayor retorno.** Veinte líneas que impiden que todo lo demás vuelva. |
+| **6** | El guardián de las reglas del `CLAUDE.md` | 🟡 **La parte literal, hecha; la aspiración, no** | Lo que el informe pide con nombre y forma —el `grep` de veinte líneas para `rol ===` y `America/Lima`— ya existe: `scripts/hooks/reglas-de-la-casa.sh`, de agosto, activo en el pre-push. Esta fila no se había actualizado. Quedan los dos ejemplos que el informe cita como «memoria, no guardián» y que SÍ siguen sin guardián: la triplicación de «qué le tocaba trabajar ese día» (probada y descartada por ruido — 28 aciertos, casi todos legítimos) y los 84 colores sobre 9 tokens (sección de diseño, sin explorar). Ninguno de los dos es un grep de veinte líneas. |
 | **7** | Encender el linter y subir Next a 16.2.11 | ⬜ | 119 errores viejos + parche de seguridad. |
 | **8** | Unificar «qué le tocaba trabajar ese día» | ⬜ | Refactor puro: cuatro copias a una. |
 
@@ -261,3 +261,39 @@ Hoy las tres dan el mismo aviso gris. La tercera merece otro tono, y se puede di
 el hook ya sabe buscar en todas las ramas, y lo único que le falta es cruzar el hueco con lo que
 `migraciones_aplicadas` dice en producción — que es justo lo que `que_falta_pegar.sql` ya
 consulta.
+
+---
+
+# LOTE 3 — Cerrado el 2026-08-25: las tres fugas de lectura
+
+Las tres estaban vivas todavía cuando se retomó el trabajo esta noche —el informe
+las catalogó el 17 de agosto y nadie las había tocado—. Se cerraron en el mismo
+lote, cada una con su migración, su prueba pgTAP adversarial (falla contra el
+código sin el arreglo, pasa con él) y su confirmación por md5 contra producción.
+
+**Terminal (0291).** `personas_select_terminal_roster` (la 0008) seguía viva
+aunque su reemplazo —la vista `terminal_roster` de la 0285— ya estaba construido
+y el frontend ya había migrado. Cerrarla no tocó ninguna pantalla: verificado
+que el terminal no lee `personas` por ningún otro camino.
+
+**Las nueve `SECURITY DEFINER` (0292).** `revoke execute … from authenticated`
+en las nueve. Medido que el camino legítimo —una función con guard que las
+llama por dentro— sigue funcionando: `SECURITY DEFINER` corre como el dueño de
+la función, nunca como quien la llamó.
+
+**El ascenso a Admin (0295, 0296, y una cuarta puerta que el informe no
+había visto: 0300).** El informe original describía UNA puerta —el `update`
+directo de `/admin/equipo`— y una regla insuficiente: «solo se promueve a un
+integrante» no evitaba degradar a un admin, solo evitaba UN síntoma. La
+corrección que se escribió es más general que el hallazgo: `fn_set_rol`
+reimplementa el escalafón completo (quien no es admin no puede dar un rol
+igual o superior al suyo), un trigger cierra el `update` directo distinguiendo
+quién escribe —`SECURITY DEFINER` corre como `postgres`, un `PATCH` de
+PostgREST corre como `authenticated`—, y al revisar el camino completo apareció
+una CUARTA puerta que el informe de agosto no había mirado: `fn_crear_persona`
+aceptaba cualquiera de los cuatro roles, incluido 'admin', al dar de alta a
+una persona NUEVA, sin ningún control. Misma vulnerabilidad, la puerta de
+crear en vez de la de editar. Se cerró con la misma regla, en la 0300.
+
+**Estado: las tres fugas del informe, cerradas. Y una cuarta que ni el informe
+ni el plan original sabían que existía, cerrada también.**
