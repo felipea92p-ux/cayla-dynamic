@@ -46,6 +46,9 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 type NombreRpcSinTipar = Parameters<ReturnType<typeof createAdminSupabaseClient>["rpc"]>[0];
 const RPC_SUBSIDIO = "fn_ausencias_subsidio" as unknown as NombreRpcSinTipar;
 const RPC_ADJUNTAR = "fn_ausencia_adjuntar_certificado" as unknown as NombreRpcSinTipar;
+// ⇩ 0298 · igual que las dos de arriba: nombre sin tipar hasta que se regeneren
+// los tipos. Lo que devuelve lo comprueba `VacacionPorVencer`.
+const RPC_POR_VENCER = "fn_vacaciones_por_vencer" as unknown as NombreRpcSinTipar;
 
 function fmt(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -92,6 +95,19 @@ interface Subsidio {
 
 export default function AusenciasPage() {
   const router = useRouter();
+/** Un récord de vacaciones que vence pronto, o que ya venció (migración 0298).
+ *  Es lo único de esta pantalla que tiene FECHA LÍMITE: pasada, el art. 23 del
+ *  D. Leg. 713 manda una indemnización de una remuneración entera. */
+interface VacacionPorVencer {
+  persona_id: string;
+  nombre: string;
+  dias_saldo: number;
+  records_pendientes: number;
+  vence_el: string;
+  dias_para_vencer: number;
+  ya_vencido: boolean;
+}
+
   const rol = useRolActual();
   const puedeGestionar = puedeOperarEquipo(rol);
   const esDO = puedeVerTodasLasSedes(rol);
@@ -101,6 +117,7 @@ export default function AusenciasPage() {
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const [porVencer, setPorVencer] = useState<VacacionPorVencer[]>([]);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -127,12 +144,13 @@ export default function AusenciasPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }, { data: pv }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
       supabase.rpc(RPC_SUBSIDIO, {}),
+      supabase.rpc(RPC_POR_VENCER, {})   // 90 dias por defecto, en la propia funcion,
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
@@ -148,6 +166,7 @@ export default function AusenciasPage() {
     setLista((a as unknown as Ausencia[]) ?? []);
     setAlertas((al as unknown as Alerta[]) ?? []);
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
+    setPorVencer((pv as unknown as VacacionPorVencer[]) ?? []);
     setCargando(false);
   }, [supabase, router, desde, hasta]);
 
@@ -269,6 +288,42 @@ export default function AusenciasPage() {
         {msg && (
           <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
             {msg.texto}
+          </div>
+        )}
+
+        {/* ── RÉCORDS DE VACACIONES POR VENCER (0298) ──────────────────────
+            VA EN ROJO Y VA PRIMERA, y las dos cosas a propósito.
+
+            El resto de avisos de esta pantalla son «para mirar»: cuentan algo y
+            alguien decide. Éste no: tiene FECHA. Pasada esa fecha, el art. 23
+            del D. Leg. 713 manda una indemnización de una remuneración entera,
+            y ya no hay nada que decidir — solo pagarla.
+
+            Por eso existe: hasta la 0283, esto solo aparecía en la hoja de
+            liquidación, o sea el día en que la persona ya se fue y el récord ya
+            había vencido. Avisar ahí llega tarde por definición. */}
+        {porVencer.length > 0 && (
+          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p className="font-medium">Vacaciones que vencen: hay que programarlas.</p>
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {porVencer.map((v) => (
+                <li key={v.persona_id}>
+                  <strong className="font-medium">{v.nombre}</strong>{" "}
+                  {v.ya_vencido ? (
+                    <>tiene {v.records_pendientes === 1 ? "un récord" : `${v.records_pendientes} récords`} de
+                      vacaciones <strong className="font-medium">ya vencido</strong> desde
+                      el {fmt(v.vence_el)} — {v.dias_saldo} días sin gozar.</>
+                  ) : (
+                    <>tiene {v.dias_saldo} días sin gozar y su récord vence
+                      el {fmt(v.vence_el)}, en {v.dias_para_vencer} días.</>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs opacity-80">
+              Un récord que vence sin gozarse obliga a pagar una indemnización de una remuneración
+              (art. 23, D. Leg. 713). Programar el descanso cuesta cero.
+            </p>
           </div>
         )}
 
