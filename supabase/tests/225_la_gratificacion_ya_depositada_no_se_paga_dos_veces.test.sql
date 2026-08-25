@@ -1,7 +1,7 @@
 -- ============================================================================
--- 224_la_gratificacion_ya_depositada_no_se_paga_dos_veces.test.sql
+-- 225_la_gratificacion_ya_depositada_no_se_paga_dos_veces.test.sql
 -- ============================================================================
--- Migración 0288. Quien cesa DESPUÉS de cobrar su gratificación no la vuelve a
+-- Migración 0289. Quien cesa DESPUÉS de cobrar su gratificación no la vuelve a
 -- cobrar en la liquidación.
 --
 -- CUATRO PERSONAS IDÉNTICAS y una sola variable: el día del cese. A las cuatro
@@ -64,7 +64,7 @@ select cmp_ok(
   'ANTES DEL 15 · quien cesa el 12 cobra su gratificacion: aun no se la habian pagado');
 
 -- ── 2 · DESPUES DEL 15 NO SE REPITE ─────────────────────────────────────────
--- El defecto. Antes de la 0288 esto daba S/1.062,75.
+-- El defecto. Antes de la 0289 esto daba S/1.062,75.
 select is(
   (fn_grati_trunca('00000000-0000-0000-0000-000000288002','2026-07-20')->>'monto')::numeric,
   0::numeric,

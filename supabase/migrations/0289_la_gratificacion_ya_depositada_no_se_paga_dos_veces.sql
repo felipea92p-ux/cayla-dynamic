@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0288_la_gratificacion_ya_depositada_no_se_paga_dos_veces.sql
+-- 0289_la_gratificacion_ya_depositada_no_se_paga_dos_veces.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que quien cesa DESPUÉS de haber cobrado su gratificación no la cobre otra
@@ -86,7 +86,7 @@
 --
 --   · LO QUE SE MIDIÓ. Verde tras `db reset`: 148 archivos, 1.475 pruebas. Y el
 --     freno frena: revirtiendo la función se ponen rojas las aserciones 2 y 5
---     de la prueba 224 —la del duplicado y la del techo— y ninguna otra en todo
+--     de la prueba 225 —la del duplicado y la del techo— y ninguna otra en todo
 --     el repositorio. Las aserciones 1, 3 y 4 siguen verdes con la función
 --     vieja a propósito: son las que vigilan que el arreglo no se pase al otro
 --     lado, y con la vieja ya se cumplían.
@@ -96,7 +96,7 @@
 --   ni permisos. Revertir devuelve los trece días de julio y los de diciembre.
 --
 -- CÓMO SE COMPRUEBA QUE QUEDÓ BIEN
---   La prueba 224 monta los cuatro ceses de arriba. Y en producción: que nadie
+--   La prueba 225 monta los cuatro ceses de arriba. Y en producción: que nadie
 --   con fecha de cese entre el 15 y el 28 de julio o de diciembre tenga la
 --   gratificación de ese semestre en su liquidación.
 -- ============================================================================
@@ -113,7 +113,7 @@ declare
   v_gt numeric; v_be numeric; v_fecha_ref date;
   v_sem date; v_m_sem int; v_d_sem int; v_semestres text[] := '{}';
   v_pago_ini date; v_pago_fin date;
-  v_pago_legal date;   -- CAMBIO 0288
+  v_pago_legal date;   -- CAMBIO 0289
 begin
   -- ⇩⇩⇩ CAMBIO 0129 ⇩⇩⇩ El guard que faltaba desde la 0087.
   -- Estas cuatro funciones son SECURITY DEFINER y están concedidas a
@@ -190,7 +190,7 @@ begin
         and mp.categoria = 'gratificacion'
         and pp.fecha_fin >= v_pago_ini
         and pp.fecha_fin <  v_pago_fin
-        -- ⇩⇩⇩ CAMBIO 0288 ⇩⇩⇩ EL ANCLA ES CUÁNDO TOCABA PAGAR, NO CUÁNDO
+        -- ⇩⇩⇩ CAMBIO 0289 ⇩⇩⇩ EL ANCLA ES CUÁNDO TOCABA PAGAR, NO CUÁNDO
         -- CERRÓ EL PERIODO.
         --
         -- Acá decía `pp.estado = 'pagado' and pp.fecha_fin <= p_fecha_cese`, y
@@ -271,5 +271,5 @@ begin
 end;
 $function$;
 insert into migraciones_aplicadas (numero, nombre)
-values (288, 'la_gratificacion_ya_depositada_no_se_paga_dos_veces')
+values (289, 'la_gratificacion_ya_depositada_no_se_paga_dos_veces')
 on conflict (numero) do nothing;
