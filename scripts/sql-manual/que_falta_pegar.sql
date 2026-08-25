@@ -149,7 +149,8 @@ with repo(numero, nombre, nunca) as (values
     (287, 'el_contrato_firmado_se_registra_y_sus_plazos_se_miden', false),
     (289, 'la_gratificacion_ya_depositada_no_se_paga_dos_veces', false),
     (290, 'un_comprobante_por_mes_y_no_uno_por_asignacion', false),
-    (291, 'el_kiosco_deja_de_poder_leer_toda_la_fila', false)
+    (291, 'el_kiosco_deja_de_poder_leer_toda_la_fila', false),
+    (292, 'nueve_funciones_dejan_de_responderle_a_cualquiera', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
