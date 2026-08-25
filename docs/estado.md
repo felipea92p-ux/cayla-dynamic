@@ -283,6 +283,55 @@ Auditoria.md` y su plan en `auditoria/CAYLA_CORP_OPS_202608_PlanRemediacion.md`.
 
 ---
 
+## 2026-08-24 — Un comprobante por cada mes que se paga (0290)
+
+**Aplicada en producción y verificada.** Los 15 comprobantes que había se
+mudaron a `educacion_comprobantes` y ninguna asignación perdió el suyo.
+
+**Lo que lo motivó, medido:** de las trece asignaciones vigentes de ese día,
+**diez abarcaban dos o tres periodos de planilla con un solo comprobante**. El
+pago era correcto —una pensión mensual se repite— pero el sustento no estaba
+completo, y no se podía arreglar: la tabla admitía un comprobante y nada más.
+
+Tres decisiones de Felipe:
+
+1. **Cada papel dice qué mes respalda.** Contar no basta: se apagaría el aviso
+   subiendo tres veces el recibo de agosto.
+2. **El mes es el del PERIODO, no el del calendario.** Un tramo del 29/08 al
+   28/09 se paga una vez; pedir dos papeles sería pedir papel de más.
+3. **El aviso se ve también en el contador del menú**, no solo al entrar.
+
+Y una que no se pidió pero decide el riesgo: **`comprobante_url` no se borró**.
+Pasó a ser un espejo que mantiene un trigger, así que `fn_planilla_calcular` no
+se tocó. La regla «sin papel no devenga» sigue viva sin que la planilla se entere
+de que ahora hay una tabla detrás.
+
+**Ojo con el contador de Educación:** subió al pegar la migración, y no es que
+algo se haya roto — ahora cuenta las asignaciones que ya cobraron un mes sin
+papel, que era el caso invisible.
+
+**Pendiente operativo, no de código:** pedirle a DO los comprobantes de los meses
+que ya se cobraron. La pantalla dice cuáles son, fila por fila.
+
+---
+
+## 2026-08-24 — Los planes anuales se cargan por tramos
+
+Duolingo y Domestika no son pensiones mensuales: son cargos que se pagan una vez.
+Con la vigencia puesta a varios meses, se pagaba cada mes contra un gasto único —
+S/810 contra un comprobante de S/499 en el caso de Sandra.
+
+**Se resolvió sin tocar el sistema**, partiendo el comprobante en tramos que
+suman el papel exacto: una fila por periodo, con el trozo del gasto que se imputa
+a ese mes. Sandra 360 + 139 = 499; Diana 120 + 120 + 34.90 = 274.90. Cada tramo
+lleva el mismo comprobante adjunto y una nota que dice de qué plan sale.
+
+**Lo que el sistema sigue sin saber es que un comprobante puede cubrir más de un
+mes.** Mientras eso no exista, un plan anual hay que cargarlo a mano así, y nada
+avisa si alguien no lo hace.
+
+---
+
 ## 2026-08-22 — El techo de educación se reparte, y sigue al rango (0281)
 
 **Decidido por Felipe.** Tres decisiones, y las tres cambian plata:
