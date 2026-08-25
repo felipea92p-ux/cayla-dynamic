@@ -37,6 +37,49 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-25 — Una suspensión de 10 días que nadie ordenó (0294)
+
+**Pendiente: pegar la 0294 en producción** (`./scripts/dame-el-sql.sh 294`), y
+antes de pegarla confirmar el md5 de partida de `fn_expediente_set_suspension`
+contra el SQL Editor — el declarado en la migración es el de la 0075,
+`96f32dbd2ff1c41da38765ef1ec5bbf6`. Al pegarla no se mueve ningún documento ya
+emitido: solo deja de aceptar números que el Reglamento no admite.
+
+Revisando el caso de Sasha Fernandez (AQP) —segunda suspensión por tardanzas,
+que el generador propuso con 2 días— la pantalla mostraba **10 días**: 26, 27,
+28, 29 y 31 de agosto, y del 1 al 5 de septiembre. Nadie tecleó ese número.
+
+**Los topes estaban escritos en el generador y no en el editor.** La 0235 le
+puso a `fn_expediente_generar_tardanza` los tres límites del RIT —54.5 tres días
+como techo, 19.2 c) la primera de uno a dos, 19.2 d) la segunda mayor que la
+primera— y `fn_expediente_set_suspension` (0075) siguió escribiendo `p_dias` sin
+preguntar nada. Cuando la 0075 se escribió, todas las suspensiones salían de un
+día y no había qué topar; la 0232 hizo normales los rangos de dos y tres.
+
+**Y el `max={15}` de la pantalla no era una defensa.** El atributo `max` de HTML
+no impide escribir ni enviar: solo valida un formulario, y acá hay un `onBlur`
+que llama a la RPC. Además un `<input type="number">` cambia de valor con la
+rueda del mouse cuando el cursor pasa por encima al hacer scroll — diez días sin
+sueldo caben en un gesto que nadie nota. Ahora `max={3}` y `onWheel` con blur.
+
+**De paso, un tercero:** «Generar borrador» se ofrecía aunque ya hubiera un
+borrador pendiente de esa causal. La base lo rechaza desde siempre, así que el
+botón solo podía terminar en error.
+
+⚠️ **El tope de tres días es del RIT de CAYLA, no de la ley.** La LPCL no fija
+número —exige proporcionalidad y gradualidad— y la práctica privada peruana
+maneja techos informales de ~7 días. Subirlo es decisión de Gerencia, pero se
+toma **reformando el RIT y volviéndolo a entregar con acuse**, no aflojando el
+candado: un memo que se funda en el Reglamento y lo incumple en su parte
+resolutiva no sirve como sanción previa del literal h) del art. 25 el día que
+haga falta.
+
+**Lo que queda sin cerrar:** los documentos ya firmados o entregados no se
+revisan solos. Si alguna suspensión pasada quedó fuera de los topes, hay que
+buscarla a mano — la 0294 solo cuida las que se editen desde ahora.
+
+---
+
 ## 2026-08-25 — Revisión nocturna: las nueve cosas más importantes por corregir
 
 **Contexto de esta entrada.** Felipe pidió una revisión de código exhaustiva
