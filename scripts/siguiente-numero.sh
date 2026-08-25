@@ -31,6 +31,22 @@ verde() { printf "\033[32m%s\033[0m\n" "$1"; }
 gris()  { printf "\033[90m%s\033[0m\n" "$1"; }
 rojo()  { printf "\033[31m%s\033[0m\n" "$1"; }
 
+# Las ramas se comparan contra lo último que este clon trajo de GitHub, y eso
+# envejece. `git fetch` primero, por la misma razón que lo hace `dame-el-sql.sh`:
+# sin él, un número que otra sesión reclamó hace media hora parece libre.
+#
+# No es hipotético. El 2026-08-24 este script contestó «0280 libre» y la 0280
+# llevaba DOS DÍAS commiteada en otra rama —renumerada a 0280 precisamente para
+# no chocar con otra— que este clon todavía no había traído. Se descubrió al
+# aplicar la migración: `migraciones_aplicadas` ya tenía el 280 y el insert no
+# hizo nada. Renumerar en ese punto es barato; que la colisión llegue a producción
+# no lo es.
+#
+# Falla abierto: sin red se sigue contestando con lo que hay, diciéndolo.
+if ! git fetch origin --quiet 2>/dev/null; then
+  gris "  (sin red: las ramas se comparan con lo último que se trajo de GitHub)"
+fi
+
 # Todos los números ocupados de un directorio, mirando ramas + disco.
 ocupados() {
   local dir="$1"
