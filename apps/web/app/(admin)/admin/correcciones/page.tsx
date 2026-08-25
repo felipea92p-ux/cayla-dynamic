@@ -694,7 +694,7 @@ export default function CorreccionesPage() {
             <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="mb-1 font-serif text-lg">Levantar tardanza</h3>
               <p className="mb-4 text-sm text-taupe">
-                Se perdona la tardanza (deja de contar y suma al bono de puntualidad).
+                Se perdona la tardanza: deja de contar para la escalera disciplinaria y para el umbral del mes.
                 <strong> La hora real no se toca</strong> — queda tachada con su motivo.
               </p>
               <label className="mb-3 flex flex-col gap-1 text-sm">

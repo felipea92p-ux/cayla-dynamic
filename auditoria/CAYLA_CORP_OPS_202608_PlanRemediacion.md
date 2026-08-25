@@ -32,7 +32,7 @@ archivos sueltos» no lo es.
 | **3** | Cerrar las tres fugas de lectura | ✅ **3 de 3 — CERRADO** | Terminal ✅ (0291) · `SECURITY DEFINER` ✅ (0292) · ascenso a Admin ✅ (0295/0296, pegadas el 2026-08-25). Las tres en producción, verificadas por md5. |
 | **4** | Las tardanzas dejan de contar feriados y vacaciones | ⬜ | Más grande y necesita pgTAP nuevo. |
 | **5** | Terminar la 0240 (el cruce de medianoche) | ⬜ | Cuatro hallazgos de un mismo origen: `fecha_jornada` existe y cinco funciones no la conocen. |
-| **6** | El guardián de las reglas del `CLAUDE.md` | ⬜ | **El de mayor retorno.** Veinte líneas que impiden que todo lo demás vuelva. |
+| **6** | El guardián de las reglas del `CLAUDE.md` | 🟡 **La parte literal, hecha; la aspiración, no** | Lo que el informe pide con nombre y forma —el `grep` de veinte líneas para `rol ===` y `America/Lima`— ya existe: `scripts/hooks/reglas-de-la-casa.sh`, de agosto, activo en el pre-push. Esta fila no se había actualizado. Quedan los dos ejemplos que el informe cita como «memoria, no guardián» y que SÍ siguen sin guardián: la triplicación de «qué le tocaba trabajar ese día» (probada y descartada por ruido — 28 aciertos, casi todos legítimos) y los 84 colores sobre 9 tokens (sección de diseño, sin explorar). Ninguno de los dos es un grep de veinte líneas. |
 | **7** | Encender el linter y subir Next a 16.2.11 | ⬜ | 119 errores viejos + parche de seguridad. |
 | **8** | Unificar «qué le tocaba trabajar ese día» | ⬜ | Refactor puro: cuatro copias a una. |
 
