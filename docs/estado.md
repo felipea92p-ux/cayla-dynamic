@@ -529,6 +529,68 @@ dice un solo sitio.
 
 ---
 
+## 2026-08-25 — Tres arreglos más, y una decisión de la 0254 revertida con la norma en la mano
+
+Tres migraciones pegadas en producción el 2026-08-25, cada una confirmada por
+md5 antes y después:
+
+**[`0286`](../supabase/migrations/0286_un_dia_fichado_no_se_paga_tambien_como_ausencia.sql)
+· un día fichado no se paga también como ausencia.** Cuatro personas idénticas,
+tres con una ausencia registrada: quien fichó estando de vacaciones o con parte
+médico cobraba el día DOS veces, S/337,93 por semana solapada. `fn_provisiones`
+ya excluía ese día desde la 0135 y la boleta nunca se enteró — era una QUINTA
+diferencia entre las dos bases, y la única que salía del banco cada mes.
+Hubo que arreglarlo en dos sitios: con la guarda solo en la boleta quedaba un
+residuo de S/23,41 que era `fn_feriado_devengado` recalculando por su cuenta.
+La boleta gana `dias_solapados`, que avisa aunque ya no cueste plata.
+
+**[`0289`](../supabase/migrations/0289_la_gratificacion_ya_depositada_no_se_paga_dos_veces.sql)
+· la gratificación ya depositada no se paga dos veces.** Se deposita el 15 y el
+periodo no cierra hasta el 28: quien cesaba en medio la cobraba otra vez entera,
+S/1.062,75. Trece días en julio y trece en diciembre. La comprobación pedía que
+el periodo estuviera `pagado` Y que hubiera terminado antes del cese, y el día 20
+fallan las dos. **La segunda condición no era un descuido** —sin ella un cese de
+septiembre daría por cobrada la de diciembre— así que no se quitó: se le cambió
+el ancla, de «¿cerró el periodo?» a «¿ya llegó el 15?».
+
+**[`0293`](../supabase/migrations/0293_el_feriado_dentro_de_un_descanso_medico_se_paga.sql)
+· el feriado dentro de un descanso médico se paga.** Revierte una decisión de la
+0254, que lo excluyó porque «la planilla ya lo paga en su propia línea». Medido,
+esa premisa no se sostiene: el feriado es un PRORRATEO, no una línea que pague un
+día —quien trabajó el mes entero cobra S/350,26 de feriados y quien faltó una
+semana, S/252,24—. No había doble pago; había un día que no pagaba nadie, y solo
+a quien estaba enfermo. La norma lo dice al revés en tres artículos: art. 8 del
+D. Leg. 713 → art. 4 → art. 3 del D.S. 012-92-TR, que incluye las «enfermedades
+debidamente comprobadas» entre los días efectivamente trabajados.
+
+### Lo que se decidió NO tocar, con su medición hecha
+
+**El 1 de mayo sigue prorrateándose.** El art. 8 lo saca de la regla —«salvo el
+Día del Trabajo, que se percibirá SIN CONDICIÓN ALGUNA»— así que hoy se paga
+corto a quien tuvo un mes flojo: **S/12,50 por persona a jornada completa, una
+fecha al año, del orden de S/250 anuales en el equipo**. Decisión de Felipe del
+2026-08-25, tomada con la cifra delante. Lo que se elimina el 1 de mayo NO es la
+proporción por el tamaño de la jornada —un part-time cobra su propia jornada—
+sino la proporción por cuántos días vino ese mes.
+
+**El prorrateo general del feriado tampoco se toca.** Sigue siendo decisión de
+Felipe, confirmada en `docs/planilla-anexo-tecnico.md`, y la prueba 229 la
+defiende con una aserción propia para que ninguna corrección futura la arrastre.
+
+### La lección de método de estos dos días
+
+**El md5 de llegada se mide DESPUÉS de renumerar.** Pasó con la 0286 el 24, se
+documentó, y volvió a pasar con la 0289 el 25 — porque lo escrito decía cómo
+reconocer el síntoma («misma longitud, distinto hash») y no cuándo medir. Ya está
+en CLAUDE.md como regla.
+
+**Y la duplicación de `fn_feriado_devengado` mordió tres veces**: en la 0276, en
+la 0286 y en la 0293. Cada vez el mismo patrón —el arreglo puesto solo en la
+boleta deja un residuo de unos pocos soles que no cuadra— y cada vez cuesta una
+medición extra encontrarlo. Unificar esas dos copias sigue pendiente.
+
+---
+
 ## 2026-08-24 — Tomarse las vacaciones dejó de costar dinero
 
 La [`0283`](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql)

@@ -63,6 +63,17 @@ falla — solo se vuelve ilegible, y estas migraciones se leen. Ya está arregla
 en el script, que ahora compara el portapapeles byte por byte y se niega si no
 coincide; la regla de método queda igual.
 
+**Y el md5 de llegada se mide DESPUÉS de renumerar, nunca antes.** Cuando el
+hook obliga a cambiar el número —pasa a menudo, con varias sesiones tomando
+números a la vez— los marcadores «CAMBIO 00NN» del cuerpo cambian con él, y el
+md5 cambia mientras la longitud NO, porque los dos números ocupan cuatro
+caracteres. Eso produce la firma más desconcertante que hay acá: **misma
+longitud, distinto hash**, que parece corrupción de acentos y no lo es. Pasó con
+la 0286 el 2026-08-24, se documentó, y volvió a pasar con la 0289 al día
+siguiente — porque lo escrito decía cómo reconocer el síntoma y no cuándo medir.
+Si aparece igual, `position('CAMBIO 00NN' in prosrc)` contra producción lo
+resuelve de un vistazo.
+
 Y cuando dos md5 no coinciden: **medir dónde está la diferencia** —posiciones de
 marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
 del principio— en vez de proponer explicaciones. Ese día se probaron tres

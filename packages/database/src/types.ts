@@ -5255,6 +5255,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_set_rol: {
+        Args: {
+          p_nuevo_rol: Database["public"]["Enums"]["rol_usuario"] | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
       fn_set_salario: {
         Args: {
           p_nota?: string | null

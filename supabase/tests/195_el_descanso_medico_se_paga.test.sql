@@ -12,8 +12,10 @@
 -- pantallas decían que se pagaba y las provisiones sí lo devengaban.
 --
 -- Esto fija lo que arregló la 0254, incluidas las tres decisiones que más fácil
--- se rompen sin que nadie lo note: que el feriado de dentro no se pague dos
--- veces, que el domingo no se pague, y que el tope de 20 días del RIT muerda.
+-- se rompen sin que nadie lo note: que el domingo no se pague y que el tope de
+-- 20 días del RIT muerda. (La tercera era que el feriado de dentro no se pagara
+-- dos veces; la 0293 la revirtió al medir que el feriado es un prorrateo y no
+-- una línea que pague ese día. Ver su cabecera.)
 -- ============================================================================
 begin;
 select plan(8);
@@ -84,13 +86,23 @@ select cmp_ok(
   (pg_temp.fila('DmEnferma Lab')->>'dias_descanso_medico_pagados')::int, '>', 0,
   'un descanso médico paga días, en vez de salir en cero');
 
--- 2 y 3 · CUATRO días de seis, y el porqué de cada descuento:
---   29/07 es feriado — la planilla ya lo paga en su propia línea
+-- 2 y 3 · CINCO días de seis, y el porqué del único descuento:
 --   02/08 es domingo — no le tocaba trabajar
--- Si alguien quita uno de los dos filtros, esta prueba lo dice.
+--
+-- ⇩ ERAN CUATRO HASTA LA 0293, y el que se sumó es el feriado del 29/07.
+-- Esta prueba decía «la planilla ya lo paga en su propia línea», que es el
+-- argumento con el que la 0254 lo excluyó. Medido, esa premisa no se sostiene:
+-- el feriado NO es una línea que pague un día, es un PRORRATEO —quien trabajó
+-- el mes entero cobra S/350,26 de feriados y quien faltó una semana, S/252,24—.
+-- No había doble pago que evitar; había un día que no pagaba nadie, y solo a
+-- quien estaba enfermo. El art. 3 del D.S. 012-92-TR lo dice al revés: las
+-- «enfermedades debidamente comprobadas» CUENTAN como días efectivamente
+-- trabajados hasta que la Seguridad Social asuma la cobertura.
+--
+-- El filtro del domingo sí sigue, y esta prueba lo defiende igual que antes.
 select is(
-  (pg_temp.fila('DmEnferma Lab')->>'dias_descanso_medico_pagados')::int, 4,
-  'de 6 días calendario se pagan 4: el feriado y el domingo no');
+  (pg_temp.fila('DmEnferma Lab')->>'dias_descanso_medico_pagados')::int, 5,
+  'de 6 días calendario se pagan 5: el domingo no, el feriado sí (0293)');
 
 -- La tolerancia de un céntimo NO es pereza: la función redondea el monto una
 -- sola vez, al final, y esta prueba lo reconstruye desde un `pago_base` que el
@@ -99,7 +111,7 @@ select is(
 -- paga. Lo que se está fijando es la REGLA de valoración, no el redondeo.
 select cmp_ok(
   abs((pg_temp.fila('DmEnferma Lab')->>'monto_descanso_medico')::numeric
-      - (pg_temp.fila('DmControl Lab')->>'pago_base')::numeric / 3 * 4),
+      - (pg_temp.fila('DmControl Lab')->>'pago_base')::numeric / 3 * 5),   -- 5 días desde la 0293
   '<', 0.02::numeric,
   'y cada día vale el promedio de lo que se le pagó por día trabajado');
 
@@ -116,11 +128,17 @@ select is(
   (pg_temp.fila('DmControl Lab')->>'dias_descanso_medico_pagados')::int, 0,
   'quien no tiene descanso médico no cobra ninguno');
 
--- 6 · EL TOPE DEL RIT. Un descanso de todo el periodo tiene 26 días laborables
---     no feriados, pero CAYLA solo asume los primeros 20 CALENDARIO del año: de
---     esos 20, quince son laborables y no feriados. Sin tope daría más.
+-- 6 · EL TOPE DEL RIT, que sigue mordiendo igual. Un descanso de todo el
+--     periodo tiene 26 días laborables, pero CAYLA solo asume los primeros 20
+--     CALENDARIO del año: de esos 20, DIECISIETE son laborables. Sin tope daría
+--     más.
+--
+--     ⇩ ERAN QUINCE HASTA LA 0293. Los dos que se suman son feriados caídos
+--     dentro de esos mismos 20 días calendario. El tope NO se movió —sigue
+--     acotando a 20 días de calendario— y eso es lo que esta aserción vigila:
+--     lo que cambió es cuántos de esos 20 se pagan, no cuántos se cuentan.
 select is(
-  (pg_temp.fila('DmTodoElMes Lab')->>'dias_descanso_medico_pagados')::int, 15,
+  (pg_temp.fila('DmTodoElMes Lab')->>'dias_descanso_medico_pagados')::int, 17,
   'el tope de 20 días calendario del RIT art. 31 f) muerde');
 
 -- 7 · EL RESPALDO DE LA TARIFA. Quien pasó el periodo entero enfermo no marcó
