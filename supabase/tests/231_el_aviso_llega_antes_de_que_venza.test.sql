@@ -10,7 +10,7 @@
 -- la regla que lo reemplaza: vencidos = k − 1.
 -- ============================================================================
 begin;
-select plan(17);
+select plan(19);
 
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa) values
@@ -128,6 +128,27 @@ select throws_like(
   $$ select fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date) $$,
   '%otra persona%',
   'PERMISO · y una encargada de OTRA sede tampoco');
+
+-- ── 7 · Quien YA tiene un récord vencido no puede desaparecer de la lista ──
+-- Se vuelve a la sesión de DO: la sección anterior la dejó en la encargada de
+-- OTRA sede, que no ve a nadie — y una lista vacía por permisos parecería que la
+-- regla falla cuando lo que falla es quién está preguntando.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000d9', true);
+
+-- Se descubrió mirando el panel con datos de prueba, no razonándolo: con solo el
+-- filtro de los 60 días, alguien con dos récords vencidos y el siguiente a un
+-- año de distancia no salía por ningún lado — justo la persona más urgente.
+select is(
+  (select count(*)::int from fn_vacaciones_por_vencer(60, '2027-08-25'::date)
+    where persona_id = '00000000-0000-0000-0000-0000000000d2'),
+  1,
+  'VENCIDO · sigue en la lista aunque su próximo vencimiento esté a más de 60 días');
+
+select is(
+  (select records_vencidos from fn_vacaciones_por_vencer(60, '2027-08-25'::date)
+    where persona_id = '00000000-0000-0000-0000-0000000000d2'),
+  2,
+  'VENCIDO · y con tres años sin gozar son DOS los vencidos, no tres');
 
 select * from finish();
 rollback;

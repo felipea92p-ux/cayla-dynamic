@@ -14,7 +14,7 @@ import {
   BookText, UserRound, ScrollText,
   LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
-import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
 // Qué renglones del menú ve cada quien. Las listas vienen de `permisos.ts` — el
 // menú no vuelve a decidir quién es DO, solo lo consulta.
@@ -94,12 +94,22 @@ export function AdminNav() {
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
-  // El único contador del menú, y a propósito: un aviso que aparece en todos
-  // lados deja de ser un aviso. Cuenta las asignaciones por educación a las que
-  // les falta el comprobante o les quedan menos de 30 días — las dos cosas que,
-  // si nadie mira, terminan en un pago sin sustento o en alguien que deja de
-  // cobrar. La cuenta la hace la base (fn_educacion_por_atender), no el navegador.
+  // DOS contadores, y ninguno más. El comentario de antes decía «el único, y a
+  // propósito: un aviso que aparece en todos lados deja de ser un aviso», y esa
+  // regla sigue en pie — lo que cambió es que apareció una segunda cosa que
+  // cumple la misma vara: algo que, si nadie mira a tiempo, cuesta plata y ya no
+  // se puede deshacer.
+  //
+  //   Educación   · asignaciones sin comprobante o por vencer: un pago sin
+  //                 sustento, o alguien que deja de cobrar.
+  //   Ausencias   · récords de vacaciones que vencen dentro de 60 días: pasado
+  //                 el plazo, el art. 23 del D. Leg. 713 manda una remuneración
+  //                 entera de indemnización y ese día ya no tiene arreglo.
+  //
+  // Las dos cuentas las hace la base, no el navegador, y con el mismo umbral que
+  // la pantalla a la que llevan.
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
+  const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
 
@@ -109,6 +119,18 @@ export function AdminNav() {
     void createAdminSupabaseClient()
       .rpc("fn_educacion_por_atender")
       .then(({ data }) => { if (vivo) setEducacionPorAtender(Number(data) || 0); });
+    return () => { vivo = false; };
+  }, [rol, pathname]);
+
+  // La de vacaciones la ve también la encargada: es quien arma el calendario de
+  // su tienda. La función ya devuelve solo lo que a cada rol le toca, así que
+  // acá no se vuelve a decidir quién ve qué.
+  useEffect(() => {
+    if (!puedeOperarEquipo(rol)) { setVacacionesPorAtender(0); return; }
+    let vivo = true;
+    void createAdminSupabaseClient()
+      .rpc("fn_vacaciones_por_atender")
+      .then(({ data }) => { if (vivo) setVacacionesPorAtender(Number(data) || 0); });
     return () => { vivo = false; };
   }, [rol, pathname]);
 
@@ -145,6 +167,14 @@ export function AdminNav() {
                         title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
                       >
                         {educacionPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
+                      <span
+                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                        title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}
+                      >
+                        {vacacionesPorAtender}
                       </span>
                     )}
                   </Link>
@@ -192,6 +222,11 @@ export function AdminNav() {
                     {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
                       <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
                         {educacionPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
+                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
+                        {vacacionesPorAtender}
                       </span>
                     )}
                   </Link>

@@ -245,8 +245,16 @@ as $$
     cross join lateral (select fn_vacaciones_saldo(v.id, coalesce(p_as_of, fn_hoy_lima())) as r) x
    where (x.r->>'aplica')::boolean is true
      and (x.r->>'records_sin_gozar')::int > 0
-     and (x.r->>'dias_para_vencer')::int <= p_dias
-   order by (x.r->>'dias_para_vencer')::int, v.apellidos, v.nombres;
+     -- El `or` no es un adorno: quien YA tiene un récord vencido puede tener el
+     -- siguiente a un año de distancia, y con solo el filtro de los 60 días
+     -- desaparecía de la lista justo la persona más urgente. Se vio en el panel
+     -- con datos de prueba, no razonándolo: alguien con dos récords vencidos no
+     -- salía por ningún lado.
+     and ( (x.r->>'dias_para_vencer')::int <= p_dias
+        or (x.r->>'records_vencidos')::int > 0 )
+   -- Los vencidos primero, y entre ellos el que lleva más tiempo vencido.
+   order by (x.r->>'records_vencidos')::int desc,
+            (x.r->>'dias_para_vencer')::int, v.apellidos, v.nombres;
 $$;
 
 grant execute on function fn_vacaciones_por_vencer(int, date) to authenticated;

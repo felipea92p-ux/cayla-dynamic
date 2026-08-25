@@ -78,6 +78,21 @@ interface Ausencia {
   registrada_por_nombre: string | null; registrada_at: string;
   anulada: boolean; anulada_motivo: string | null;
 }
+// Un récord de vacaciones a punto de vencer. Lo calcula la base
+// (fn_vacaciones_por_vencer) con el mismo umbral que el contador del menú:
+// dos cifras distintas para la misma pregunta son peor que ninguna.
+interface RecordPorVencer {
+  persona_id: string;
+  persona: string;
+  sede: string;
+  fecha_ingreso: string;
+  dias_pendientes: number;
+  records_sin_gozar: number;
+  records_vencidos: number;
+  vence_el: string;
+  dias_para_vencer: number;
+}
+
 interface Alerta {
   persona_id: string; nombre: string; tipo_nombre: string;
   veces: number; ventana_dias: number; umbral: number;
@@ -101,6 +116,7 @@ export default function AusenciasPage() {
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const [porVencer, setPorVencer] = useState<RecordPorVencer[]>([]);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -127,12 +143,13 @@ export default function AusenciasPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }, { data: pv }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
       supabase.rpc(RPC_SUBSIDIO, {}),
+      supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
@@ -147,6 +164,7 @@ export default function AusenciasPage() {
     setTipoCod((prev) => prev || tt[0]?.codigo || "");
     setLista((a as unknown as Ausencia[]) ?? []);
     setAlertas((al as unknown as Alerta[]) ?? []);
+    setPorVencer((pv as unknown as RecordPorVencer[]) ?? []);
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
     setCargando(false);
   }, [supabase, router, desde, hasta]);
@@ -269,6 +287,44 @@ export default function AusenciasPage() {
         {msg && (
           <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
             {msg.texto}
+          </div>
+        )}
+
+        {/* Va ARRIBA de las alertas de reiteración a propósito: esto no es «para
+            mirar», es una fecha que si pasa cuesta una remuneración entera de
+            indemnización (art. 23 del D. Leg. 713) y ya no se puede deshacer. */}
+        {porVencer.length > 0 && (
+          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${
+            porVencer.some((r) => r.records_vencidos > 0 || r.dias_para_vencer < 0)
+              ? "bg-rojo/10 text-rojo" : "bg-ambar/15 text-ambar"}`}>
+            <p className="font-medium">Vacaciones que hay que programar</p>
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {porVencer.map((r) => (
+                <li key={r.persona_id}>
+                  <strong className="font-medium">{r.persona}</strong>{" "}
+                  <span className="opacity-70">{r.sede}</span> ·{" "}
+                  {r.records_vencidos > 0 ? (
+                    <>
+                      tiene {r.records_vencidos} récord{r.records_vencidos === 1 ? "" : "s"} VENCIDO
+                      {r.records_vencidos === 1 ? "" : "S"} y el siguiente vence el {fmt(r.vence_el)}
+                    </>
+                  ) : r.dias_para_vencer < 0 ? (
+                    <>su récord venció el {fmt(r.vence_el)}</>
+                  ) : (
+                    <>
+                      le vence un récord el {fmt(r.vence_el)} — faltan {r.dias_para_vencer} día
+                      {r.dias_para_vencer === 1 ? "" : "s"}
+                    </>
+                  )}
+                  {" "}({r.dias_pendientes} días pendientes)
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs opacity-80">
+              Un récord que se cierra tiene un año para tomarse. Si ese año pasa sin gozarse, el art. 23
+              del D. Leg. 713 manda además una indemnización de una remuneración — y ese día ya no se
+              puede evitar. Programarlas antes es lo único que la evita.
+            </p>
           </div>
         )}
 
