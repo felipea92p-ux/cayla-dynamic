@@ -2532,7 +2532,50 @@ techo repite esto exacto. Está sin decidir si esa función debe pasar a bloquea
 | **Cargar las declaraciones de ruta firmadas** | **de Felipe. Plazo: 28/08/2026.** El sitio donde subirlas ya existe |
 | **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. **Acordado: se construye después de cerrar el Seguro de Vida Ley** |
 | **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
-| **Generador de contratos** — los tres conceptos tienen que estar en el contrato de trabajo | nada, pero no existe la pieza |
+| **Imprimir y firmar las ~20 renovaciones** — la pieza ya existe (`/admin/contratos`) | **revisión legal del texto**, y tres arreglos de SQL que esperan el md5 de producción |
+
+### El generador de contratos, tras la auditoría del 2026-08-24
+
+La pieza está construida y auditada. **229 agentes, 74 hallazgos brutos, 18
+sobrevivieron** a tres escépticos independientes cada uno. Ocho tocaban el papel
+y están arreglados (PR #57); el detalle vive en ese commit, no acá.
+
+**El que enseña algo:** el defecto grave no lo encontró la auditoría — lo
+encontró Felipe diciendo al pasar «todo mi personal tiene contrato, solo que aún
+no se ha escaneado». La pantalla decía «sin contrato» porque el generador no
+tenía filas previas, y de esa confusión salía el TIPO del contrato: las veinte
+renovaciones habrían salido como contratos nuevos, con un período de prueba de
+tres meses «sin expresión de causa y sin derecho a indemnización» impreso a gente
+con años de casa. Se arregló, y horas después la auditoría encontró **la misma
+puerta por otro lado**: el tipo tampoco se reponía al cambiar de persona en el
+desplegable. Un agujero cerrado en un sitio no está cerrado.
+
+**Lo que falta antes de imprimir:**
+
+1. **La revisión legal del texto.** No la ha hecho nadie. El plan la dejó marcada
+   como obligatoria y sigue sin hacerse.
+2. **Tres arreglos en SQL**, confirmados, que esperan el md5 de `fn_contrato_registrar`
+   y `fn_contrato_anular` pedido **a producción**:
+   - falta la política `UPDATE` del bucket `contratos` — si el RPC falla después
+     de subir el archivo, ese escaneo no se puede volver a subir nunca;
+   - firmar un borrador viejo mueve `personas.fecha_fin_contrato` **hacia atrás**
+     sin ningún freno;
+   - anular un contrato ya firmado no revierte esa fecha: la persona se queda con
+     el vencimiento de un documento declarado nulo.
+
+**Y una decisión de negocio que el código no puede tomar.** El contrato se emite
+siempre bajo el **art. 57** del TUO del D. Leg. 728 —«inicio o incremento de
+actividad»—, cuya duración máxima es de **tres años**; el art. 74 pone cinco al
+conjunto de contratos sujetos a modalidad. Pasado el tope, el art. 77
+desnaturaliza el vínculo a indefinido **por ley, sin que nadie lo decida**. Desde
+el 2026-08-24 la pantalla lo **avisa** al fijar la fecha de fin, pero nadie ha
+medido a quién le pasa: la respuesta necesita las fechas de ingreso reales, que
+solo están en producción. Con casi toda la planilla a plazo fijo, además, la
+causa objetiva —«el volumen no puede ser absorbido por el personal permanente»—
+es la que hay que poder sostener ante una inspección.
+
+**Descartado a propósito:** archivar en el sistema los contratos de papel
+anteriores (decisión de Felipe, 2026-08-24 — las renovaciones los reemplazan).
 
 ### La 0128 sigue escrita y sin llamar
 
