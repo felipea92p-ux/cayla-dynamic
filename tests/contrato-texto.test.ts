@@ -16,6 +16,7 @@
 import { describe, expect, it } from "vitest";
 import {
   construirContrato,
+  finDelPeriodoDePrueba,
   numeroALetras,
   tipoQueCorresponde,
   type DatosContrato,
@@ -175,5 +176,63 @@ describe("tipoQueCorresponde", () => {
     expect(conPrueba).toContain("sin expresión de causa");
     expect(sinPrueba).not.toContain("sin expresión de causa");
     expect(sinPrueba).toContain("No aplica un nuevo período de prueba");
+  });
+});
+
+// ── El período de prueba se afirma solo cuando de verdad corrió ────────────
+// La auditoría del 2026-08-24 (229 agentes) encontró que `tipoQueCorresponde`
+// devuelve «renovacion» para CUALQUIER fecha de ingreso pasada — también la de
+// quien entró hace tres semanas —, y la rama de renovación afirmaba como hecho
+// que «ya superó el período de prueba». Eso es una declaración falsa en un
+// documento firmado, y regala la estabilidad del art. 79 antes de que la ley la
+// reconozca. El art. 10 de la LPCL cuenta tres meses desde el INICIO DEL
+// VÍNCULO: renovar no lo reinicia, pero tampoco lo completa.
+describe("período de prueba", () => {
+  it("a quien lleva años, el contrato le reconoce que ya lo superó", () => {
+    const html = construirContrato(
+      datos({ tipo: "renovacion", fechaIngresoOriginal: "2022-03-01", fechaInicio: "2027-01-01" }),
+    );
+    expect(html).toContain("ya superó el período");
+    expect(html).not.toContain("sin expresión de causa");
+  });
+
+  it("a un ingreso reciente NO le declara superado lo que no ha corrido", () => {
+    const html = construirContrato(
+      datos({ tipo: "renovacion", fechaIngresoOriginal: "2026-08-01", fechaInicio: "2026-09-01" }),
+    );
+    expect(html).not.toContain("ya superó el período");
+    expect(html).toContain("NO se reinicia con la celebración del presente contrato");
+    // Y dice CUÁNDO termina, que es el dato que hace verificable la cláusula.
+    expect(html).toContain("1 de noviembre de 2026");
+    // Sigue sin abrirle un período nuevo de tres meses sin causa.
+    expect(html).not.toContain("sin expresión de causa");
+  });
+
+  it("justo el día en que se cumplen los tres meses, ya está superado", () => {
+    const html = construirContrato(
+      datos({ tipo: "renovacion", fechaIngresoOriginal: "2026-06-01", fechaInicio: "2026-09-01" }),
+    );
+    expect(html).toContain("ya superó el período");
+  });
+
+  it("un contrato nuevo sí abre período de prueba", () => {
+    const html = construirContrato(datos({ tipo: "nuevo" }));
+    expect(html).toContain("sin expresión de causa");
+  });
+});
+
+describe("finDelPeriodoDePrueba", () => {
+  it("suma tres meses de calendario, no noventa días", () => {
+    expect(finDelPeriodoDePrueba("2026-01-15")).toBe("2026-04-15");
+    expect(finDelPeriodoDePrueba("2026-08-01")).toBe("2026-11-01");
+  });
+
+  it("un día que no existe en el mes destino cae al último de ese mes", () => {
+    // 31 de agosto + 3 meses = 30 de noviembre, no 1 de diciembre.
+    expect(finDelPeriodoDePrueba("2026-08-31")).toBe("2026-11-30");
+  });
+
+  it("cruza el año sin perderse", () => {
+    expect(finDelPeriodoDePrueba("2026-11-20")).toBe("2027-02-20");
   });
 });
