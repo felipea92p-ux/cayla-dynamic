@@ -82,7 +82,22 @@
 --
 --   · md5 DE LLEGADA, para comprobar que se pegó entero:
 --
---       fn_grati_trunca_bruta   0065baffac3d1b89c9323f6a0867b262   8 595 chars
+--       fn_grati_trunca_bruta   8a4d089c3bf1bc78ef0563191c942a2f   8 595 chars
+--
+--     ⚠ Y ESTE NÚMERO SE TOMÓ DESPUÉS DE RENUMERAR, que es la única forma de
+--     que sirva. La primera versión decía `0065baff…` —medido cuando esto se
+--     llamaba 0288, antes de que el hook obligara a renumerar— y contra
+--     producción daba la firma que ya cazó a la 0286 el día anterior: MISMA
+--     LONGITUD, DISTINTO HASH. Los marcadores «CAMBIO 0288» del cuerpo pasan a
+--     «CAMBIO 0289» y los dos ocupan cuatro caracteres.
+--
+--     La 0286 dejó escrito CÓMO reconocer ese síntoma. No dejó escrito CUÁNDO
+--     medir, y por eso se repitió al día siguiente. La regla es esta:
+--
+--         el md5 DE LLEGADA se mide DESPUÉS del renumerado, nunca antes.
+--
+--     Y si aparece la firma igual: `position('CAMBIO 00NN' in prosrc)` sobre el
+--     cuerpo de producción dice en un vistazo qué número tiene dentro.
 --
 --   · LO QUE SE MIDIÓ. Verde tras `db reset`: 148 archivos, 1.475 pruebas. Y el
 --     freno frena: revirtiendo la función se ponen rojas las aserciones 2 y 5

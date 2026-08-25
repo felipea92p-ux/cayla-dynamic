@@ -29,7 +29,7 @@ archivos sueltos» no lo es.
 | **0** | Medir en producción | 🟡 **1 de 4 hecho** | Solo lectura, cero riesgo. Sin esto todos los alcances del informe son cero. |
 | **1** | El descanso médico exige aprobación | 🔵 **en curso** | Único hallazgo con fecha: afecta la planilla que cierra el 28. |
 | **2** | Decisión sobre los datos publicados en GitHub | ⬜ | Es P0 y **no es una tarea de código**: es una decisión sobre el historial. |
-| **3** | Cerrar las tres fugas de lectura | ⬜ | Terminal, funciones `SECURITY DEFINER`, ascenso a Admin. Policies y guards; no tocan ningún cálculo. |
+| **3** | Cerrar las tres fugas de lectura | 🟡 **2 de 3 hecho** | Terminal ✅ (0291) · `SECURITY DEFINER` ✅ (0292, pegada en producción el 2026-08-25) · ascenso a Admin ⬜. Policies y guards; no tocan ningún cálculo. |
 | **4** | Las tardanzas dejan de contar feriados y vacaciones | ⬜ | Más grande y necesita pgTAP nuevo. |
 | **5** | Terminar la 0240 (el cruce de medianoche) | ⬜ | Cuatro hallazgos de un mismo origen: `fecha_jornada` existe y cinco funciones no la conocen. |
 | **6** | El guardián de las reglas del `CLAUDE.md` | ⬜ | **El de mayor retorno.** Veinte líneas que impiden que todo lo demás vuelva. |
