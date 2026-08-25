@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
@@ -40,6 +40,19 @@ interface Fila {
   semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
   // Lo que de verdad decide si esta fila entra en la planilla.
   paga: boolean;
+  // Desde la 0290: cuántos papeles tiene colgados, y cuántos de los meses que ya
+  // cobró siguen sin uno. Los meses que no han llegado no cuentan.
+  papeles: number;
+  meses_sin_papel: number;
+}
+
+interface Papel {
+  id: string;
+  storage_path: string;
+  mes_cubierto: string;
+  nota: string | null;
+  subido_por: string;
+  created_at: string;
 }
 
 interface Candidato {
@@ -89,6 +102,13 @@ const soles = (n: number) =>
 // de Lima desde la base, así que construir un Date solo podría estropearla.
 const fmtFecha = (iso: string) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
 
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+               "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// "2026-07-01" → "julio 2026". Por la misma razón que fmtFecha: con un Date, un
+// primero de mes se puede convertir en el último del anterior según el huso.
+const nombreMes = (iso: string) => { const [y, m] = iso.split("-"); return `${MESES[Number(m) - 1]} ${y}`; };
+
 export default function EducacionPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -114,6 +134,9 @@ export default function EducacionPage() {
   // pantalla se ve colgada y alguien la recarga a mitad de camino.
   const [progreso, setProgreso] = useState<number | null>(null);
   const [verSoloVigentes, setVerSoloVigentes] = useState(true);
+  // El detalle de papeles de UNA fila, abierto bajo ella. null = ninguna abierta.
+  const [papelesDe, setPapelesDe] = useState<{ fila: Fila; papeles: Papel[]; faltan: string[] } | null>(null);
+  const [adjuntando, setAdjuntando] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -302,13 +325,82 @@ export default function EducacionPage() {
     );
   }
 
-  async function verComprobante(f: Fila) {
-    if (!f.comprobante_url) return;
+  async function abrirPapel(papel: Papel) {
     // URL firmada de vida corta: el bucket es privado y estos papeles llevan el
     // nombre de una persona (y a veces el de un menor). La pestaña la abre el
     // ayudante dentro del clic — ver por qué en `abrir-archivo-firmado.ts`.
-    const fallo = await abrirArchivoFirmado(createAdminSupabaseClient(), "comprobantes", f.comprobante_url);
+    const fallo = await abrirArchivoFirmado(createAdminSupabaseClient(), "comprobantes", papel.storage_path);
     if (fallo) avisar("error", fallo);
+  }
+
+  // Abre —o cierra— el detalle de papeles de una fila. Los meses que faltan los
+  // dice la base, no esta pantalla: es la misma cuenta que enciende el aviso y la
+  // que suma al contador del menú, y tres copias de una cuenta discrepan.
+  async function verPapeles(f: Fila) {
+    if (papelesDe?.fila.id === f.id) { setPapelesDe(null); return; }
+    await cargarPapeles(f);
+  }
+
+  async function cargarPapeles(f: Fila) {
+    const supabase = createAdminSupabaseClient();
+    const [lista, faltan] = await Promise.all([
+      supabase.rpc("fn_educacion_papeles", { p_asignacion_id: f.id }),
+      supabase.rpc("fn_educacion_meses_sin_papel", { p_asignacion_id: f.id }),
+    ]);
+    if (lista.error) { avisar("error", mensajeDeError(lista.error, "leer los comprobantes")); return; }
+    setPapelesDe({
+      fila: f,
+      papeles: (lista.data as Papel[]) ?? [],
+      faltan: (faltan.data as string[]) ?? [],
+    });
+  }
+
+  async function adjuntarPapel(f: Fila, mes: string, archivo: File) {
+    if (archivo.size > limite.bytes) {
+      avisar("error", `“${archivo.name}” pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es ${mb(limite.bytes)}.`);
+      return;
+    }
+    setAdjuntando(mes);
+    const supabase = createAdminSupabaseClient();
+    const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
+    // La ruta lleva el mes: dos recibos de la misma asignación no se pisan, y
+    // mirando el bucket se sabe qué respalda cada archivo sin abrir la base.
+    const ruta = `educacion/${f.persona_id}/${f.id}-${mes.slice(0, 7)}.${ext}`;
+
+    // El archivo primero y la fila después: si la fila fallara, quedaría un
+    // archivo suelto en el bucket, que es más barato que una fila que dice tener
+    // un papel que no está.
+    const errorSubida = await subirArchivoConProgreso(supabase, "comprobantes", ruta, archivo, setProgreso);
+    setProgreso(null);
+    if (errorSubida) { setAdjuntando(null); avisar("error", `El comprobante no subió: ${errorSubida}`); return; }
+
+    const { error } = await supabase.rpc("fn_educacion_adjuntar_comprobante", {
+      p_asignacion_id: f.id, p_storage_path: ruta, p_mes_cubierto: mes, p_nota: null,
+    });
+    setAdjuntando(null);
+    if (error) { avisar("error", mensajeDeError(error, "adjuntar el comprobante")); return; }
+
+    await cargar();
+    await cargarPapeles(f);
+    avisar("ok", `Comprobante de ${nombreMes(mes)} adjuntado.`);
+  }
+
+  async function quitarPapel(f: Fila, papel: Papel) {
+    const motivo = window.prompt(
+      `¿Por qué se quita el comprobante de ${nombreMes(papel.mes_cubierto)}?\n\n` +
+      `El archivo NO se borra del almacén: solo deja de sostener esta asignación. ` +
+      `Si era el único, la asignación deja de pagarse hasta que subas otro.`,
+      "",
+    );
+    if (motivo === null) return;
+    if (motivo.trim().length < 3) { avisar("error", "Escribe el motivo: sin él, esa fila se queda sin con qué defenderse."); return; }
+
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_educacion_quitar_comprobante", { p_id: papel.id, p_motivo: motivo.trim() });
+    if (error) { avisar("error", mensajeDeError(error, "quitar el comprobante")); return; }
+    await cargar();
+    await cargarPapeles(f);
+    avisar("ok", "Comprobante quitado.");
   }
 
   async function cerrar(f: Fila) {
@@ -345,7 +437,11 @@ export default function EducacionPage() {
   const hoy = hoyLima();
   const pagaEsteMes = (f: Fila) => f.paga && f.vigente_desde <= hoy;
   const totalMensual = filas.filter(pagaEsteMes).reduce((s, f) => s + Number(f.monto), 0);
-  const porAtender = filas.filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer").length;
+  // Mismo criterio que fn_educacion_por_atender en la base (0290): también
+  // cuenta a las que ya cobraron un mes sin papel, que era el caso invisible.
+  const porAtender = filas.filter(
+    (f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer" || f.meses_sin_papel > 0,
+  ).length;
 
   const formulario = (
     <div className="mb-6 grid max-w-3xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
@@ -656,7 +752,8 @@ export default function EducacionPage() {
                     </thead>
                     <tbody>
                       {visibles.map((f) => (
-                        <tr key={f.id} className={`border-t ${f.semaforo === "vencida" ? "text-taupe" : ""}`}>
+                        <Fragment key={f.id}>
+                        <tr className={`border-t ${f.semaforo === "vencida" ? "text-taupe" : ""}`}>
                           <td className="px-4 py-2">
                             {f.persona}
                             <span className="ml-1 text-xs text-taupe">{f.sede} · {f.rango}</span>
@@ -712,11 +809,23 @@ export default function EducacionPage() {
                             )}
                           </td>
                           <td className="px-4 py-2">
-                            {f.comprobante_url ? (
-                              <button onClick={() => void verComprobante(f)} className="text-xs font-medium underline">Ver</button>
+                            {/* Desde la 0290 una asignación tiene un papel por cada mes
+                                que paga, así que acá ya no hay UN comprobante que ver:
+                                hay una cuenta, y el detalle se abre debajo. */}
+                            {f.papeles > 0 ? (
+                              <button onClick={() => void verPapeles(f)} className="text-xs font-medium underline">
+                                {f.papeles} papel{f.papeles === 1 ? "" : "es"}
+                              </button>
                             ) : (
-                              <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo" title="Sin el comprobante, este pago se recategoriza como remuneración en una fiscalización">
+                              <button onClick={() => void verPapeles(f)}
+                                className="rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo"
+                                title="Sin comprobante, este pago se recategoriza como remuneración en una fiscalización">
                                 falta
+                              </button>
+                            )}
+                            {f.meses_sin_papel > 0 && f.papeles > 0 && (
+                              <span className="block text-xs text-ambar">
+                                falta{f.meses_sin_papel === 1 ? "" : "n"} {f.meses_sin_papel} mes{f.meses_sin_papel === 1 ? "" : "es"}
                               </span>
                             )}
                           </td>
@@ -739,6 +848,53 @@ export default function EducacionPage() {
                             </div>
                           </td>
                         </tr>
+                        {papelesDe?.fila.id === f.id && (
+                          <tr className="border-t bg-sand/20">
+                            <td colSpan={8} className="px-4 py-3">
+                              <div className="flex flex-col gap-2 text-xs">
+                                <span className="font-medium text-tinta">
+                                  Los papeles de esta asignación, uno por cada mes que paga
+                                </span>
+
+                                {papelesDe.papeles.map((papel) => (
+                                  <div key={papel.id} className="flex flex-wrap items-center gap-3">
+                                    <span className="w-36 text-tinta">{nombreMes(papel.mes_cubierto)}</span>
+                                    <button onClick={() => void abrirPapel(papel)} className="font-medium underline">Ver</button>
+                                    <button onClick={() => void quitarPapel(f, papel)} className="text-rojo underline">Quitar</button>
+                                    <span className="text-taupe">lo subió {papel.subido_por}</span>
+                                  </div>
+                                ))}
+
+                                {papelesDe.faltan.map((mes) => (
+                                  <div key={mes} className="flex flex-wrap items-center gap-3">
+                                    <span className="w-36 text-ambar">{nombreMes(mes)}</span>
+                                    <label className="cursor-pointer font-medium underline">
+                                      {adjuntando === mes ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar el recibo de este mes"}
+                                      <input
+                                        type="file"
+                                        accept={limite.tipos}
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const archivo = e.target.files?.[0];
+                                          e.target.value = "";
+                                          if (archivo) void adjuntarPapel(f, mes, archivo);
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                ))}
+
+                                {papelesDe.faltan.length === 0 && (
+                                  <span className="text-taupe">
+                                    Todos los meses que esta asignación ya cobró tienen su papel. Los que
+                                    todavía no llegan se piden cuando llegue su mes.
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
