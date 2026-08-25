@@ -152,7 +152,11 @@ with repo(numero, nombre, nunca) as (values
     (291, 'el_kiosco_deja_de_poder_leer_toda_la_fila', false),
     (292, 'nueve_funciones_dejan_de_responderle_a_cualquiera', false),
     (293, 'el_feriado_dentro_de_un_descanso_medico_se_paga', false),
-    (297, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false)
+    (295, 'el_rol_ya_no_se_asigna_solo', false),
+    (296, 'el_rol_solo_cambia_por_una_puerta', false),
+    (297, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
+    (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
+    (300, 'crear_a_alguien_tambien_pasa_por_el_escalafon', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
