@@ -14,7 +14,7 @@ import {
   BookText, UserRound, ScrollText,
   LogOut, Menu, X, type LucideIcon,
 } from "lucide-react";
-import { ROLES_CON_PANEL, ROLES_DO } from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
 // Qué renglones del menú ve cada quien. Las listas vienen de `permisos.ts` — el
 // menú no vuelve a decidir quién es DO, solo lo consulta.
@@ -94,21 +94,27 @@ export function AdminNav() {
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
-  // LOS DOS contadores del menú, y siguen siendo dos a propósito: un aviso que
-  // aparece en todos lados deja de ser un aviso. Cada uno se ganó su sitio
-  // porque, si nadie mira, termina en plata mal pagada.
+  // TRES contadores, y ninguno más. El comentario original decía «el único, y a
+  // propósito: un aviso que aparece en todos lados deja de ser un aviso». Esa
+  // regla sigue en pie; lo que pasó es que aparecieron dos cosas más que cumplen
+  // la MISMA vara, y la vara es exigente: algo que, si nadie lo mira a tiempo,
+  // cuesta plata y después ya no tiene arreglo.
   //
-  // 1 · Educación: asignaciones sin comprobante o con menos de 30 días. Sin eso,
-  //     un pago sin sustento o alguien que deja de cobrar. La cuenta la hace la
-  //     base (fn_educacion_por_atender), no el navegador.
+  //   Educación   · asignaciones sin comprobante o por vencer: un pago sin
+  //                 sustento, o alguien que deja de cobrar.
+  //   Ausencias   · récords de vacaciones que vencen dentro de 60 días: pasado
+  //                 el plazo, el art. 23 del D. Leg. 713 manda una remuneración
+  //                 entera de indemnización y ese día ya no tiene arreglo.
+  //   Incidencias · revisiones pedidas (0257). La ÚNICA lista del panel que no
+  //                 la generó el sistema mirando datos, sino una persona que
+  //                 estuvo ahí ese día y dice que su marcaje está mal. Si el
+  //                 periodo cierra con el reclamo sin leer, ya es plata mal
+  //                 pagada y hay que reabrir el mes para arreglarlo.
+  //
+  // Antes de agregar un cuarto: la pregunta no es «¿es importante?», es «¿tiene
+  // fecha límite y cuesta plata pasarla?». Casi nada la pasa.
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
-  // 2 · Revisiones pedidas (0257). Este entra por una razón distinta y más
-  //     fuerte: es la ÚNICA lista del sistema que no la generó el sistema
-  //     mirando datos, sino una persona que estuvo ahí ese día y dice que su
-  //     marcaje está mal. Y hasta hoy no avisaba en ninguna parte — vivía en un
-  //     solo consumidor dentro de Incidencias. Si el periodo cierra con el
-  //     reclamo sin leer, ya es plata mal pagada y hay que reabrir para
-  //     arreglarlo. Tiene fecha límite; el resto de esta pantalla no.
+  const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
@@ -122,13 +128,29 @@ export function AdminNav() {
     return () => { vivo = false; };
   }, [rol, pathname]);
 
-  // Las revisiones pedidas las ve quien puede atenderlas: encargada de sede y
-  // DO, o sea los mismos roles que ven Incidencias. No se cuenta con una función
-  // propia porque `fn_revisiones_pedidas(true)` YA devuelve solo las pendientes
-  // — el contador es su largo. Una función de conteo aparte sería una segunda
-  // definición de «pendiente» que podría separarse de la primera.
+  // La de vacaciones la ve también la encargada: es quien arma el calendario de
+  // su tienda. La función ya devuelve solo lo que a cada rol le toca, así que
+  // acá no se vuelve a decidir quién ve qué.
   useEffect(() => {
-    if (!(ROLES_CON_PANEL as readonly string[]).includes(rol ?? "")) { setRevisionesPendientes(0); return; }
+    if (!puedeOperarEquipo(rol)) { setVacacionesPorAtender(0); return; }
+    let vivo = true;
+    void createAdminSupabaseClient()
+      .rpc("fn_vacaciones_por_atender")
+      .then(({ data }) => { if (vivo) setVacacionesPorAtender(Number(data) || 0); });
+    return () => { vivo = false; };
+  }, [rol, pathname]);
+
+  // Las revisiones pedidas las ve quien puede atenderlas: encargada de sede y
+  // DO, o sea los mismos roles que ven Incidencias. No lleva función de conteo
+  // propia porque `fn_revisiones_pedidas(true)` YA devuelve solo las pendientes
+  // — el contador es su largo. Una función aparte sería una segunda definición
+  // de «pendiente» que podría separarse de la primera.
+  useEffect(() => {
+    // Mismo predicado que la de vacaciones: ROLES_CON_PANEL y puedeOperarEquipo
+    // son el mismo conjunto (DO_Y_ENCARGADA, permisos.ts:89,132). Se pregunta por
+    // la función y no por la lista, que es lo que manda la primera regla de
+    // packages/shared — y de paso se evita el cast.
+    if (!puedeOperarEquipo(rol)) { setRevisionesPendientes(0); return; }
     let vivo = true;
     void createAdminSupabaseClient()
       .rpc("fn_revisiones_pedidas", { p_solo_pendientes: true })
@@ -171,6 +193,14 @@ export function AdminNav() {
                         title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
                       >
                         {educacionPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
+                      <span
+                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                        title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}
+                      >
+                        {vacacionesPorAtender}
                       </span>
                     )}
                     {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
@@ -226,6 +256,11 @@ export function AdminNav() {
                     {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
                       <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
                         {educacionPorAtender}
+                      </span>
+                    )}
+                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
+                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
+                        {vacacionesPorAtender}
                       </span>
                     )}
                     {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (

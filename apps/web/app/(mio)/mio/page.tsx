@@ -203,6 +203,13 @@ export default function MioPage() {
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  // Su saldo de vacaciones y hasta cuándo puede tomarlo. Sin plata: en esta
+  // pantalla no hay dinero, y la función tampoco devuelve ninguno — por eso se
+  // le puede preguntar a cada persona por lo suyo.
+  const [vacas, setVacas] = useState<{
+    dias_pendientes: number; records_sin_gozar: number; records_vencidos: number;
+    vence_el: string | null; dias_para_vencer: number | null;
+  } | null>(null);
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [perdonadas, setPerdonadas] = useState<Set<string>>(new Set());
   const [tramos, setTramos] = useState<HorarioTramo[]>([]);
@@ -372,6 +379,22 @@ export default function MioPage() {
   }, [supabase, yo, desde, hasta]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Se pide aparte y no dentro del bloque grande: es una sola pregunta, depende
+  // solo de quién es, y si falla no debe llevarse por delante el resto de la
+  // pantalla.
+  useEffect(() => {
+    if (!yo?.id) { setVacas(null); return; }
+    let vivo = true;
+    void supabase
+      .rpc("fn_vacaciones_saldo", { p_persona_id: yo.id, p_as_of: null })
+      .then(({ data }) => {
+        if (!vivo) return;
+        const r = data as { aplica?: boolean } | null;
+        setVacas(r && r.aplica ? (r as never) : null);
+      });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
 
   /** El periodo de pago en curso, para el botón. Del 29 al 28 — leído, no calculado. */
   async function irAlPeriodoDePago() {
@@ -912,6 +935,29 @@ export default function MioPage() {
           </>
         )}
       </section>
+
+      {/* ── Sus vacaciones, y hasta cuándo puede tomarlas ───────────────────
+          Un récord que se cierra tiene un año para gozarse. Pasado ese año la
+          empresa debe una indemnización (art. 23 del D. Leg. 713) y la persona
+          se quedó sin su descanso — que es lo que de verdad importa acá. Nadie
+          pide vacaciones que no sabe que tiene. */}
+      {vacas && vacas.records_sin_gozar > 0 && vacas.vence_el && (
+        <section className={`mb-6 rounded-2xl border p-5 text-sm ${
+          (vacas.dias_para_vencer ?? 999) <= 60 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}`}>
+          <h2 className="mb-2 font-serif text-lg">Tus vacaciones</h2>
+          <p>
+            Te quedan <strong>{vacas.dias_pendientes} días</strong> sin tomar, y el récord más
+            antiguo <strong>vence el {diaYMes(vacas.vence_el)}</strong>
+            {typeof vacas.dias_para_vencer === "number" && vacas.dias_para_vencer >= 0
+              ? ` — faltan ${vacas.dias_para_vencer} días.`
+              : "."}
+          </p>
+          <p className="mt-2 text-xs text-taupe">
+            Después de esa fecha esos días ya no se pueden tomar como descanso. Si quieres
+            programarlas, habla con tu encargada.
+          </p>
+        </section>
+      )}
 
       {/* ── Sus ausencias ────────────────────────────────────────────────────
           «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
