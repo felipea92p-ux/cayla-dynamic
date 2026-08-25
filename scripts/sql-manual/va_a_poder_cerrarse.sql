@@ -91,6 +91,15 @@ frenadas as (
     and lq.monto_periodo > 0
     and coalesce((f->>'total')::numeric, 0) > 0
     and coalesce((f->>'descuentos')::numeric, 0) < lq.monto_periodo
+),
+-- FRENO 3 · el de la 0284. `dias_pendientes` ya viaja en cada fila del cálculo,
+-- así que no hace falta consultar `jornadas`: es exactamente el mismo dato que
+-- lee `fn_planilla_congelar` para decidir, y por eso no puede discrepar.
+pendientes as (
+  select f->>'nombre' as persona,
+         coalesce((f->>'dias_pendientes')::int, 0) as dias
+  from filas
+  where coalesce((f->>'dias_pendientes')::int, 0) > 0
 )
 select
   case when (select count(*) from calc) = 0
@@ -101,6 +110,9 @@ select
        when (select count(*) from frenadas) > 0
          then '🚫 ' || (select count(*) from frenadas)::text || ' con liquidación ya cobrada de este periodo'
               || ' — el cierre abortará PARA TODOS (freno 0243/0244)'
+       when (select count(*) from pendientes) > 0
+         then '🚫 ' || (select count(*) from pendientes)::text || ' con días auto-cerrados sin confirmar'
+              || ' — el cierre abortará PARA TODOS (freno 0284)'
        else '✓  TODOS CUADRAN (' || (select count(*) from calc)::text || ' personas) — el cierre puede completarse'
   end                                                                            as veredicto,
   coalesce((select string_agg(persona || ': ' || round(total - suma,2)::text, ' · '
@@ -111,4 +123,6 @@ select
                               || to_char(descuento_ya_puesto, 'FM999999990.00')
                               || ' de descuento — usa «💸 Ya le pagué aparte»', ' · '
                               order by monto_periodo desc) from frenadas), '—')  as ya_cobraron_su_liquidacion,
+  coalesce((select string_agg(persona || ': ' || dias::text || ' día(s) — confírmalos en Correcciones',
+                              ' · ' order by dias desc) from pendientes), '—')   as horas_sin_confirmar,
   (select coalesce(round(sum(total),2),0) from calc)::text                        as total_del_periodo;

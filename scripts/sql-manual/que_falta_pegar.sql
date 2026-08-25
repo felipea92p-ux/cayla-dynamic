@@ -147,6 +147,7 @@ with repo(numero, nombre, nunca) as (values
     (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false),
     (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false),
     (287, 'el_contrato_firmado_se_registra_y_sus_plazos_se_miden', false),
+    (288, 'la_puerta_de_borrar_marcajes_se_cierra', false),
     (289, 'la_gratificacion_ya_depositada_no_se_paga_dos_veces', false),
     (290, 'un_comprobante_por_mes_y_no_uno_por_asignacion', false),
     (291, 'el_kiosco_deja_de_poder_leer_toda_la_fila', false),
@@ -156,6 +157,7 @@ with repo(numero, nombre, nunca) as (values
     (295, 'el_rol_ya_no_se_asigna_solo', false),
     (296, 'el_rol_solo_cambia_por_una_puerta', false),
     (297, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
+    (298, 'un_turno_que_cambia_deja_rastro', false),
     (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
     (300, 'crear_a_alguien_tambien_pasa_por_el_escalafon', false),
     (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones', false)

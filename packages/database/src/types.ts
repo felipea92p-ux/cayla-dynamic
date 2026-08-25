@@ -5372,7 +5372,26 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      fn_vacaciones_por_atender: { Args: never; Returns: number }
+      fn_vacaciones_por_vencer: {
+        Args: { p_as_of?: string | null; p_dias?: number | null }
+        Returns: {
+          dias_para_vencer: number
+          dias_pendientes: number
+          fecha_ingreso: string
+          persona: string
+          persona_id: string
+          records_sin_gozar: number
+          records_vencidos: number
+          sede: string
+          vence_el: string
+        }[]
+      }
       fn_vacaciones_resumen: { Args: { p_as_of?: string | null }; Returns: Json }
+      fn_vacaciones_saldo: {
+        Args: { p_as_of?: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
       fn_vacaciones_truncas: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
         Returns: Json
