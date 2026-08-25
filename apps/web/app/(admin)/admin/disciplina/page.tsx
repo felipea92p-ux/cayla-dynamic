@@ -791,6 +791,33 @@ export default function DisciplinaPage() {
   // error.
   const pendientePorCausal = new Set(borradores.map((d) => `${d.persona_id}:${d.tipo_causal}`));
 
+  /**
+   * El rango de días que el Reglamento admite para ESTE documento.
+   *
+   * El numeral 54.5 topa toda suspensión en tres días. Sobre ese techo, la
+   * escala de impuntualidad gradúa: la primera es de uno a dos (19.2 c) y la
+   * segunda tiene que ser MAYOR que la primera (19.2 d). La escala de faltas no
+   * gradúa —tiene un solo peldaño de suspensión— así que ahí solo rige el techo.
+   *
+   * Es la misma cuenta que hace `fn_expediente_set_suspension` (mig. 0294), y se
+   * repite acá con un fin distinto: que el campo OFREZCA lo que se puede pedir,
+   * en vez de dejar teclear un número que vuelve rechazado. Un `max` de HTML no
+   * impide nada por sí solo —no hay formulario que validar, hay un `onBlur` que
+   * llama a la RPC— así que esto es el letrero, y la base es el candado.
+   */
+  function rangoSuspension(d: Doc): { min: number; max: number; previa: number | null } {
+    const doceMeses = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const dias = docs
+      .filter((x) => x.persona_id === d.persona_id && x.tipo_causal === d.tipo_causal
+        && x.nivel === "suspension" && x.estado === "entregado" && x.id !== d.id
+        && x.entregado_at !== null && Date.parse(x.entregado_at) >= doceMeses)
+      .map((x) => x.suspension_dias ?? 0);
+    const previa = dias.length ? Math.max(...dias) : null;
+    if (d.tipo_causal !== "tardanza") return { min: 1, max: 3, previa };
+    if (previa === null) return { min: 1, max: 2, previa };
+    return { min: Math.min(previa + 1, 3), max: 3, previa };
+  }
+
   if (rol !== null && !puede) {
     return (
       <div className="flex min-h-screen flex-col">
@@ -1116,25 +1143,43 @@ function fechasDe(h: Hecho[]): string {
                       )}
                     </label>
                   )}
-                  {d.nivel === "suspension" && (
-                    <label className="mt-1 flex items-center gap-2 text-xs text-taupe">
+                  {d.nivel === "suspension" && (() => {
+                    const r = rangoSuspension(d);
+                    const fuera = d.suspension_dias !== null
+                      && (d.suspension_dias < r.min || d.suspension_dias > r.max);
+                    return (
+                    <label className="mt-1 flex flex-wrap items-center gap-2 text-xs text-taupe">
                       Días de suspensión:
-                      {/* El tope real (1-2 la primera, 2-3 la segunda, art.
-                          19.2 c)/d)) lo exige la base al guardar (mig. 0294),
-                          que es quien conoce el historial de esta persona —
-                          acá solo se marca el techo absoluto de cualquier
-                          suspensión, el del numeral 54.5, para que el campo no
-                          invite a escribir un número que la base va a
-                          rechazar igual.
-                          `onWheel` con blur: un `<input type="number">` deja
-                          que la rueda del mouse cambie el valor mientras el
-                          cursor pasa por encima al hacer scroll de la página,
-                          sin que nadie lo teclee — un candidato real para
-                          cómo llegó a 10 sin que se note el cambio. */}
-                      <input type="number" min={1} max={3} defaultValue={d.suspension_dias ?? 1}
+                      {/* El campo ofrece SOLO lo que el Reglamento admite para
+                          este documento, que no es siempre 1-3: la primera por
+                          tardanzas es de 1 a 2 (19.2 c) y la segunda tiene que
+                          ser mayor que la primera (19.2 d). El candado de verdad
+                          está en la base (mig. 0294) — un `max` de HTML no
+                          impide escribir ni enviar, porque acá no hay formulario
+                          que validar sino un `onBlur` que llama a la RPC.
+                          `onWheel` con blur porque un `<input type="number">`
+                          cambia de valor con la rueda del mouse cuando el cursor
+                          pasa por encima al hacer scroll: no es como llegó el 10
+                          de agosto —ese se tecleó a propósito, probando— pero
+                          sigue siendo una forma de mover días de sueldo sin
+                          querer. */}
+                      <input type="number" min={r.min} max={r.max} defaultValue={d.suspension_dias ?? r.min}
                         onWheel={(e) => e.currentTarget.blur()}
                         onBlur={(e) => guardarDias(d, Number(e.target.value))}
-                        className="w-16 rounded border px-2 py-1" />
+                        className={`w-16 rounded border px-2 py-1 ${fuera ? "border-rojo text-rojo" : ""}`} />
+                      <span className={fuera ? "text-rojo" : undefined}>
+                        {r.min === r.max ? `solo ${r.min}` : `de ${r.min} a ${r.max}`}
+                        {r.previa !== null
+                          ? ` · su anterior fue de ${r.previa}, y el numeral 19.2 d) pide que ésta sea mayor`
+                          : d.tipo_causal === "tardanza"
+                            ? " · es la primera, y el numeral 19.2 c) la topa en dos"
+                            : " · numeral 54.5"}
+                      </span>
+                      {fuera && (
+                        <span className="text-rojo">
+                          Los {d.suspension_dias} de ahora quedan fuera de ese rango: corrígelo antes de firmar.
+                        </span>
+                      )}
                       {/* Desde cuándo. El sistema propone, pero la fecha la
                           decide quien tramita: entre generar el borrador y
                           firmarlo pueden pasar días, y una suspensión fijada
@@ -1159,7 +1204,8 @@ function fechasDe(h: Hecho[]): string {
                         </span>
                       )}
                     </label>
-                  )}
+                    );
+                  })()}
                   {subiendoCargo?.id === d.id && (
                     <FormularioCargo
                       tipo={subiendoCargo.tipo}

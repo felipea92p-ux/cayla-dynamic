@@ -39,15 +39,23 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ## 2026-08-25 — Una suspensión de 10 días que nadie ordenó (0294)
 
-**Pendiente: pegar la 0294 en producción** (`./scripts/dame-el-sql.sh 294`), y
-antes de pegarla confirmar el md5 de partida de `fn_expediente_set_suspension`
-contra el SQL Editor — el declarado en la migración es el de la 0075,
-`96f32dbd2ff1c41da38765ef1ec5bbf6`. Al pegarla no se mueve ningún documento ya
-emitido: solo deja de aceptar números que el Reglamento no admite.
+**Pendiente: pegar la 0294 en producción** (`./scripts/dame-el-sql.sh 294`). El
+md5 de partida **ya está confirmado contra el SQL Editor el 2026-08-25**:
+`96f32dbd2ff1c41da38765ef1ec5bbf6`, 994 caracteres — producción tiene la 0075
+idéntica al repositorio, comentarios incluidos. Al pegarla no se mueve ningún
+documento ya emitido: solo deja de aceptar números que el Reglamento no admite.
+
+**Decidido por Felipe (2026-08-25): el tope se queda en 3.** No se reforma el
+RIT. El candado hace cumplir lo que el Reglamento ya dice.
 
 Revisando el caso de Sasha Fernandez (AQP) —segunda suspensión por tardanzas,
 que el generador propuso con 2 días— la pantalla mostraba **10 días**: 26, 27,
-28, 29 y 31 de agosto, y del 1 al 5 de septiembre. Nadie tecleó ese número.
+28, 29 y 31 de agosto, y del 1 al 5 de septiembre.
+
+**Los tecleó Felipe a propósito, para enseñar el defecto**, y conviene que quede
+escrito: la primera versión de esta nota supuso que había sido la rueda del
+mouse y eso era inventar una causa. El defecto no necesita ninguna: el campo
+aceptaba diez días y la base los escribía.
 
 **Los topes estaban escritos en el generador y no en el editor.** La 0235 le
 puso a `fn_expediente_generar_tardanza` los tres límites del RIT —54.5 tres días
@@ -58,9 +66,20 @@ día y no había qué topar; la 0232 hizo normales los rangos de dos y tres.
 
 **Y el `max={15}` de la pantalla no era una defensa.** El atributo `max` de HTML
 no impide escribir ni enviar: solo valida un formulario, y acá hay un `onBlur`
-que llama a la RPC. Además un `<input type="number">` cambia de valor con la
-rueda del mouse cuando el cursor pasa por encima al hacer scroll — diez días sin
-sueldo caben en un gesto que nadie nota. Ahora `max={3}` y `onWheel` con blur.
+que llama a la RPC. El candado quedó en la base; la pantalla pasa a ser el
+letrero, y dice lo que de verdad cabe.
+
+**El campo ya no ofrece un rango fijo, sino el de ESE documento.** Preguntado
+por Felipe: no es 1 a 3 siempre. Para quien nunca fue suspendida por tardanzas
+son 1 o 2 (19.2 c); para quien ya cumplió una de un día —el caso de Sasha— son
+**2 o 3**, porque la segunda tiene que ser mayor. La pantalla calcula ese rango
+con la misma cuenta que la base, lo escribe al lado del campo con su motivo, y
+pinta en rojo el valor que quede fuera. Un borrador que hoy tenga un número
+imposible se ve al abrir la pantalla, no al intentar firmarlo.
+
+Se mantiene además `onWheel` con blur: un `<input type="number">` cambia de
+valor con la rueda del mouse cuando el cursor pasa por encima al hacer scroll.
+No fue lo que pasó acá, pero mueve días de sueldo sin que nadie lo teclee.
 
 **De paso, un tercero:** «Generar borrador» se ofrecía aunque ya hubiera un
 borrador pendiente de esa causal. La base lo rechaza desde siempre, así que el
