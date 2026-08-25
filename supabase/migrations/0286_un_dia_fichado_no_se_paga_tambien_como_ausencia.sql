@@ -69,8 +69,24 @@
 --
 --   · md5 DE LLEGADA, para comprobar que se pegó entero:
 --
---       fn_planilla_calcular   be616eadbc8aead2da30f1c03203bd77   93 901 chars
---       fn_feriado_devengado   8acac4e36fbac0f11f2d79d4485addb2   13 784 chars
+--       fn_planilla_calcular   00346e399226432bee73b1047488d178   93 901 chars
+--       fn_feriado_devengado   d21f19045c55bc258849b4691ca08ff6   13 784 chars
+--
+--     ⚠ ESTOS DOS NÚMEROS SON LA SEGUNDA VERSIÓN, y la primera enseñó algo que
+--     conviene dejar escrito. Se anotaron `be616ead…` y `8acac4e3…`, medidos
+--     cuando esta migración todavía se llamaba 0285 —otra rama tenía ese número
+--     y el hook obligó a renumerar—. Los marcadores «CAMBIO 0285» dentro del
+--     cuerpo pasaron a «CAMBIO 0286»: el md5 cambió y la LONGITUD NO, porque
+--     los dos son cuatro caracteres.
+--
+--     Al comparar con producción salió la firma más desconcertante que hay en
+--     este repo: **misma longitud, distinto hash, en las dos funciones a la
+--     vez**. Parece corrupción de acentos —es lo que pasó con la 0185— y no lo
+--     era: era un renumerado. Si te toca perseguir un md5 que no cuadra,
+--     `position('CAMBIO 00NN' in prosrc)` y `octet_length` contra `length` lo
+--     resuelven en un vistazo, y comparar el md5 del LOCAL RECIÉN
+--     RECONSTRUIDO —no el que quedó anotado antes— es lo primero que hay que
+--     hacer.
 --
 --   · LO QUE SE MIDIÓ. Verde tras `db reset`: 143 archivos, 1.426 pruebas. Y el
 --     freno frena: devolviendo las DOS funciones a su versión anterior se ponen
