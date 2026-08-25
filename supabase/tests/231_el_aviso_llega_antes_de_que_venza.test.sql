@@ -1,0 +1,133 @@
+-- ============================================================================
+-- 231_el_aviso_llega_antes_de_que_venza.test.sql
+-- ============================================================================
+-- Ana ingresó el 01/01/2024 y no se ha tomado un solo día. Su primer récord
+-- cierra el 01/01/2025 y VENCE el 01/01/2026: hasta esa fecha no hay
+-- indemnización que valga, y a partir de ella sí.
+--
+-- Estas son las seis fechas con que se midió el defecto de la 0283 —que contaba
+-- récords completos sin gozar y los llamaba vencidos— y con las que se comprobó
+-- la regla que lo reemplaza: vencidos = k − 1.
+-- ============================================================================
+begin;
+select plan(17);
+
+-- ── Semilla ─────────────────────────────────────────────────────────────────
+insert into sedes (id, codigo, nombre, activa) values
+  ('00000000-0000-0000-0000-0000000000d0', 'ZZVA1', 'Sede vacaciones 1', true),
+  ('00000000-0000-0000-0000-0000000000d5', 'ZZVA2', 'Sede vacaciones 2', true);
+
+set session_replication_role = replica;
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso) values
+  ('00000000-0000-0000-0000-0000000000d1', 'VacDO', 'Laboratorio',
+   '00000000-0000-0000-0000-0000000000d0', 'lider_do', 'x',
+   '00000000-0000-0000-0000-0000000000d9', '2020-01-01'),
+  ('00000000-0000-0000-0000-0000000000d3', 'VacEncargada', 'Laboratorio',
+   '00000000-0000-0000-0000-0000000000d0', 'supervisor_sede', 'x',
+   '00000000-0000-0000-0000-0000000000d8', '2021-01-01'),
+  ('00000000-0000-0000-0000-0000000000d4', 'VacOtraSede', 'Laboratorio',
+   '00000000-0000-0000-0000-0000000000d5', 'supervisor_sede', 'x',
+   '00000000-0000-0000-0000-0000000000d7', '2021-01-01'),
+  ('00000000-0000-0000-0000-0000000000d2', 'VacAna', 'Laboratorio',
+   '00000000-0000-0000-0000-0000000000d0', 'integrante', 'x',
+   '00000000-0000-0000-0000-0000000000d6', '2024-01-01');
+set session_replication_role = origin;
+
+insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
+values ('00000000-0000-0000-0000-0000000000d2', 'cayla', 1200, '2024-01-01');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000d9', true);
+
+
+-- ── 1 · Antes de cerrar el primer récord no hay nada que avisar ─────────────
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2024-12-20'::date)->>'records_sin_gozar')::int,
+  0, 'ANTES · a los 11 meses no hay ningún récord completo');
+
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2024-12-20'::date)->>'vence_el'),
+  null, 'ANTES · y por eso no hay fecha de vencimiento que dar');
+
+
+-- ── 2 · Recién cerrado: sin gozar, pero NO vencido ──────────────────────────
+-- Este es el caso que la 0283 contaba mal.
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2025-01-15'::date)->>'records_sin_gozar')::int,
+  1, 'CERRADO · a los 14 días de cerrarlo hay un récord completo sin gozar');
+
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2025-01-15'::date)->>'records_vencidos')::int,
+  0, 'CERRADO · pero NINGUNO vencido: le queda un año entero para tomárselo');
+
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2025-01-15'::date)->>'vence_el')::date,
+  '2026-01-01'::date, 'CERRADO · y vence el 01/01/2026, un año después de cerrarse');
+
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2025-01-15'::date)->>'dias_para_vencer')::int,
+  351, 'CERRADO · faltan 351 días, así que todavía no es asunto de nadie');
+
+
+-- ── 3 · El aviso entra a los 60 días y ni un día antes ─────────────────────
+select is(
+  (select count(*)::int from fn_vacaciones_por_vencer(60, '2025-09-01')
+    where persona_id = '00000000-0000-0000-0000-0000000000d2'),
+  0, 'AVISO · a 122 días del vencimiento no aparece');
+
+select is(
+  (select count(*)::int from fn_vacaciones_por_vencer(60, '2025-11-05')
+    where persona_id = '00000000-0000-0000-0000-0000000000d2'),
+  1, 'AVISO · a 57 días sí aparece');
+
+select is(
+  (select dias_para_vencer from fn_vacaciones_por_vencer(60, '2025-11-05')
+    where persona_id = '00000000-0000-0000-0000-0000000000d2'),
+  57, 'AVISO · y dice cuántos días faltan, no solo que falta');
+
+
+-- ── 4 · Pasado el año: uno vencido, y el siguiente ya tiene su fecha ───────
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date)->>'records_sin_gozar')::int,
+  2, 'VENCIDO · con dos años sin gozar hay dos récords completos');
+
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date)->>'records_vencidos')::int,
+  1, 'VENCIDO · pero solo UNO venció — la 0283 decía dos');
+
+select is(
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date)->>'vence_el')::date,
+  '2027-01-01'::date, 'VENCIDO · y el que sigue vence el 01/01/2027');
+
+
+-- ── 5 · La liquidación dice lo mismo que el saldo ───────────────────────────
+select is(
+  (fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date)->>'records_vencidos')::int,
+  1, 'HOJA · la liquidación cuenta los vencidos igual que el saldo');
+
+select is(
+  (fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date)->>'dias_pendientes')::numeric,
+  (fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date)->>'dias_pendientes')::numeric,
+  'HOJA · y los días pendientes salen de la misma cuenta, no de una copia');
+
+
+-- ── 6 · Cada quien ve lo suyo ───────────────────────────────────────────────
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000d6', true);
+
+select lives_ok(
+  $$ select fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date) $$,
+  'PERMISO · cada persona puede ver su propio saldo');
+
+select throws_like(
+  $$ select fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d1'::uuid, '2026-01-15'::date) $$,
+  '%otra persona%',
+  'PERMISO · pero no el de una compañera');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000d7', true);
+
+select throws_like(
+  $$ select fn_vacaciones_saldo('00000000-0000-0000-0000-0000000000d2'::uuid, '2026-01-15'::date) $$,
+  '%otra persona%',
+  'PERMISO · y una encargada de OTRA sede tampoco');
+
+select * from finish();
+rollback;
