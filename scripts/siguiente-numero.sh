@@ -47,14 +47,29 @@ if ! git fetch origin --quiet 2>/dev/null; then
   gris "  (sin red: las ramas se comparan con lo último que se trajo de GitHub)"
 fi
 
-# Todos los números ocupados de un directorio, mirando ramas + disco.
+# Todos los números ocupados de un directorio: las ramas, y el disco de TODAS
+# las sesiones.
+#
+# Lo segundo importa más de lo que parece. Aquí se trabaja en worktrees —el
+# 2026-08-24 había DIEZ vivos a la vez— y cada uno tiene su propio directorio,
+# así que un `ls` normal solo ve el de quien pregunta. Una migración que otra
+# sesión ya escribió pero todavía no commiteó es invisible: no está en ninguna
+# rama y no está en tu disco.
+#
+# No es hipotético. Ese mismo día, con este script ya arreglado para traer las
+# ramas de GitHub, seguía contestando «0291 libre» mientras el repo principal
+# tenía escrita —sin commitear— la `0291_el_kiosco_deja_de_poder_leer_toda_la_fila.sql`.
+# `git worktree list` los enumera todos, incluido el repo principal, así que
+# basta con recorrerlos.
 ocupados() {
   local dir="$1"
   {
     for r in $(git for-each-ref --format='%(refname)' refs/heads refs/remotes 2>/dev/null); do
       git ls-tree -r --name-only "$r" "$dir" 2>/dev/null || true
     done
-    ls "$dir" 2>/dev/null || true
+    for w in $(git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2}'); do
+      ls "$w/$dir" 2>/dev/null || true
+    done
   } | sed 's|.*/||' | grep -E '^[0-9]+_' | sed 's/^0*//; s/_.*//' | sort -n | uniq
 }
 
