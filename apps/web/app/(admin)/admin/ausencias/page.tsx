@@ -93,21 +93,28 @@ interface Subsidio {
   dias_para_el_umbral: number; sin_certificado: number;
 }
 
-export default function AusenciasPage() {
-  const router = useRouter();
-/** Un récord de vacaciones que vence pronto, o que ya venció (migración 0299).
+/** Un récord de vacaciones que vence pronto, o que ya venció.
  *  Es lo único de esta pantalla que tiene FECHA LÍMITE: pasada, el art. 23 del
- *  D. Leg. 713 manda una indemnización de una remuneración entera. */
+ *  D. Leg. 713 manda una indemnización de una remuneración entera.
+ *
+ *  ⇩ LOS CAMPOS SON LOS DE `fn_vacaciones_por_vencer` DE LA 0297, que es la que
+ *  sobrevive. Hubo un momento en que existieron DOS funciones con ese nombre
+ *  —la 0299 la creó sin mirar que la 0297 ya estaba— y esta interfaz describía
+ *  los campos de la que se retiró en la 0301. Si algún día los nombres no
+ *  cuadran y llegan `undefined`, es esto: mirar qué firma responde de verdad. */
 interface VacacionPorVencer {
   persona_id: string;
-  nombre: string;
-  dias_saldo: number;
-  records_pendientes: number;
+  persona: string;
+  sede: string;
+  dias_pendientes: number;
+  records_sin_gozar: number;
+  records_vencidos: number;
   vence_el: string;
   dias_para_vencer: number;
-  ya_vencido: boolean;
 }
 
+export default function AusenciasPage() {
+  const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeOperarEquipo(rol);
   const esDO = puedeVerTodasLasSedes(rol);
@@ -150,7 +157,7 @@ interface VacacionPorVencer {
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
       supabase.rpc(RPC_SUBSIDIO, {}),
-      supabase.rpc(RPC_POR_VENCER, {})   // 90 dias por defecto, en la propia funcion,
+      supabase.rpc(RPC_POR_VENCER, { p_dias: 60, p_as_of: null }),
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
@@ -308,13 +315,12 @@ interface VacacionPorVencer {
             <ul className="mt-1 space-y-0.5 text-xs">
               {porVencer.map((v) => (
                 <li key={v.persona_id}>
-                  <strong className="font-medium">{v.nombre}</strong>{" "}
-                  {v.ya_vencido ? (
-                    <>tiene {v.records_pendientes === 1 ? "un récord" : `${v.records_pendientes} récords`} de
-                      vacaciones <strong className="font-medium">ya vencido</strong> desde
-                      el {fmt(v.vence_el)} — {v.dias_saldo} días sin gozar.</>
+                  <strong className="font-medium">{v.persona}</strong> ({v.sede}){" "}
+                  {v.records_vencidos > 0 ? (
+                    <>tiene {v.records_vencidos === 1 ? "un récord" : `${v.records_vencidos} récords`}{" "}
+                      <strong className="font-medium">ya vencidos</strong> — {v.dias_pendientes} días sin gozar.</>
                   ) : (
-                    <>tiene {v.dias_saldo} días sin gozar y su récord vence
+                    <>tiene {v.dias_pendientes} días sin gozar y su récord vence
                       el {fmt(v.vence_el)}, en {v.dias_para_vencer} días.</>
                   )}
                 </li>
