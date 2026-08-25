@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 232_un_turno_que_cambia_deja_rastro.test.sql
+-- 233_un_turno_que_cambia_deja_rastro.test.sql
 -- ============================================================================
 -- El turno del día MANDA sobre el horario base: `jornada-esperada.ts` pregunta
 -- primero por el turno y solo después cae al horario semanal. O sea que el
