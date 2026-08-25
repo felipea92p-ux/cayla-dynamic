@@ -9,6 +9,7 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { instanteEntrega } from "@/lib/admin/instante-entrega";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import {
   NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, TZ_LIMA, hoyLima, puedeOperarEquipo,
 } from "@cayla-dynamic/shared";
@@ -627,9 +628,8 @@ export default function DisciplinaPage() {
   async function verAdjunto(path: string) {
     // URL firmada de vida corta: el bucket es privado y estos papeles son los
     // más delicados del sistema.
-    const { data, error } = await supabase.storage.from("expedientes").createSignedUrl(path, 60);
-    if (error || !data) { setMsg({ tipo: "error", texto: `No se pudo abrir: ${error?.message ?? "sin URL"}` }); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    const fallo = await abrirArchivoFirmado(supabase, "expedientes", path);
+    if (fallo) setMsg({ tipo: "error", texto: fallo });
   }
 
   async function entregar(id: string) {

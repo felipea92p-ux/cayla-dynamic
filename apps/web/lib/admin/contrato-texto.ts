@@ -471,6 +471,33 @@ function clausulaBeneficios(d: DatosContrato): string {
     </ol>`;
 }
 
+/**
+ * ¿Este contrato ESTRENA la relación laboral, o continúa una que ya existe?
+ *
+ * Vive acá, pegada a `clausulaPeriodoPrueba`, porque es la pregunta que esa
+ * cláusula responde — y responderla mal no cambia una etiqueta, cambia lo que
+ * la persona firma. Un contrato «nuevo» abre un período de prueba de tres meses
+ * en el que «cualquiera de las partes podrá resolver el contrato sin expresión
+ * de causa y sin derecho a indemnización»; ponerle eso a quien lleva años
+ * trabajando le quita por escrito la estabilidad que el artículo 79 del TUO del
+ * D. Leg. 728 ya le reconoce.
+ *
+ * La pantalla lo decidía por si el generador tenía una fila de esa persona, y
+ * el generador se estrenó en agosto de 2026: no tenía fila NADIE, así que las
+ * veinte renovaciones de fin de año habrían salido como contratos nuevos.
+ * «Tener fila en este sistema» nunca fue la pregunta.
+ *
+ * `fechaIngreso` ausente ⇒ renovación: sin dato, la opción segura es la que NO
+ * le quita un derecho a nadie.
+ */
+export function tipoQueCorresponde(
+  fechaIngreso: string | null | undefined,
+  hoy: string,
+): "nuevo" | "renovacion" {
+  if (!fechaIngreso) return "renovacion";
+  return fechaIngreso > hoy ? "nuevo" : "renovacion";
+}
+
 function clausulaPeriodoPrueba(d: DatosContrato): string {
   if (d.tipo !== "nuevo") {
     return `
