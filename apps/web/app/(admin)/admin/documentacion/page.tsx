@@ -10,6 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
@@ -569,12 +570,8 @@ export default function DocumentacionPage() {
   // inspector. La URL se firma al momento y dura un minuto: el bucket es
   // privado y así sigue siéndolo.
   async function verDocumento(path: string) {
-    const { data, error } = await supabase.storage.from("documentos").createSignedUrl(path, 60);
-    if (error || !data) {
-      setAvisoDoc({ tipo: "error", texto: mensajeDeError(error, "abrir el documento") });
-      return;
-    }
-    window.open(data.signedUrl, "_blank", "noopener");
+    const fallo = await abrirArchivoFirmado(supabase, "documentos", path);
+    if (fallo) setAvisoDoc({ tipo: "error", texto: fallo });
   }
 
   async function guardarDocumento() {

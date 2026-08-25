@@ -9,6 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { hoyLima, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
   construirContrato,
@@ -16,6 +17,7 @@ import {
   ACTIVOS_PRINCIPALES_POR_SEDE,
   FUNCIONES_PLACEHOLDER,
   MARCADOR_FIRMA_EMPRESA,
+  tipoQueCorresponde,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
 
@@ -59,10 +61,17 @@ interface Persona {
   documento: string | null;
   cargo: string | null;
   sede_base_id: string | null;
+  // Dónde trabaja de verdad. La movilidad se paga por acá y no por la sede
+  // base (0166), así que el contrato tiene que decir la misma tarifa que la
+  // boleta: si no, el papel promete un monto y la planilla paga otro.
+  sede_fisica_id: string | null;
   email: string | null;
   fecha_ingreso: string;
   fecha_fin_contrato: string | null;
   cobra_movilidad: boolean;
+  // Las dos exclusiones que la planilla sí respeta y el contrato no miraba.
+  personal_direccion: boolean;
+  sueldo_fijo: boolean;
 }
 interface Sede {
   id: string;
@@ -98,10 +107,80 @@ interface ContratoFila {
   generado_at: string;
   storage_path: string | null;
   fecha_firma: string | null;
+  generado_por: string | null;
+  copia_entregada_at: string | null;
+  comunicado_mtpe_at: string | null;
   anulado_at: string | null;
   anulado_motivo: string | null;
   vigente: boolean;
 }
+
+interface FilaTablero {
+  persona_id: string;
+  persona: string;
+  sede: string | null;
+  fecha_fin_contrato: string | null;
+  dias_restantes: number | null;
+  contrato_id: string | null;
+  tipo: string | null;
+  fecha_firma: string | null;
+  copia_entregada_at: string | null;
+  comunicado_mtpe_at: string | null;
+  copia_vence: string | null;
+  mtpe_vence: string | null;
+  dias_marcados_despues: number;
+  estado: string;
+}
+
+/** Cómo se dice cada tipo en pantalla. En la base son «nuevo»/«renovacion». */
+const TIPO_CONTRATO: Record<string, string> = {
+  nuevo: "Nuevo ingreso",
+  renovacion: "Renovación",
+  adendum: "Adendum",
+};
+
+/**
+ * Qué significa cada estado, y cuál merece el rojo.
+ *
+ * `grave` NO quiere decir «hay algo que hacer» — en esta pantalla eso lo dicen
+ * todas las filas. Quiere decir que el plazo YA SE PASÓ y cada día que corre
+ * cuesta. Al principio, con veinte personas sin contrato todavía, marcar eso
+ * como grave pintaba la pantalla entera de rojo, y una pantalla toda roja no
+ * avisa de nada: el `rojo` de esta paleta es el acento sagrado, con un máximo
+ * de usos por vista.
+ */
+/** Los estados que se resuelven generando un contrato; el resto, abriendo el suyo. */
+const NECESITA_CONTRATO = new Set(["sin_contrato", "vencido", "por_vencer", "desnaturalizado"]);
+
+/**
+ * Qué decir de quien NO tiene contrato en este sistema.
+ *
+ * `fn_contratos_tablero` responde «no hay fila acá», y eso NO es lo mismo que
+ * «esta persona no tiene contrato»: el generador se estrenó en agosto de 2026 y
+ * todo el equipo venía firmando en papel desde antes. Escribir «sin contrato»
+ * al lado de veinte nombres es afirmar algo falso sobre gente real — y encima
+ * en la pantalla que se abre para decidir a quién hay que renovarle.
+ *
+ * Se distingue con `fecha_fin_contrato`, que la persona ya trae puesta: si hay
+ * fecha de vencimiento, el contrato existe y está firmado en un archivador; lo
+ * que falta es traerlo acá. Si no hay ni fecha ni fila, ahí sí no se sabe de
+ * ningún contrato, y eso es lo que hay que decir.
+ */
+function estadoSinContrato(f: FilaTablero): { texto: string; grave: boolean } {
+  if (f.fecha_fin_contrato === null) return { texto: "sin contrato registrado", grave: false };
+  return { texto: "en papel, sin registrar acá", grave: false };
+}
+
+const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
+  desnaturalizado: { texto: "marcó después del vencimiento — riesgo art. 77", grave: true },
+  vencido: { texto: "contrato vencido", grave: true },
+  sin_contrato: { texto: "sin contrato registrado", grave: false },
+  sin_firmar: { texto: "pendiente de firma", grave: false },
+  sin_vencimiento: { texto: "sin fecha de vencimiento", grave: false },
+  por_vencer: { texto: "vence pronto", grave: false },
+  tramite_pendiente: { texto: "falta copia o comunicación al MTPE", grave: false },
+  ok: { texto: "al día", grave: false },
+};
 
 export default function ContratosPage() {
   const router = useRouter();
@@ -126,6 +205,11 @@ export default function ContratosPage() {
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null);
   const [esFirmante, setEsFirmante] = useState(false);
   const [contratos, setContratos] = useState<ContratoFila[]>([]);
+  // El tablero parte de las PERSONAS, no de los contratos: el historial arranca
+  // de `contratos_generados`, así que quien no tiene ninguno es invisible ahí —
+  // y con veinte venciendo el mismo día, «¿a quién le falta?» es la pregunta
+  // que hay que poder hacer. Ver migración 0287.
+  const [tablero, setTablero] = useState<FilaTablero[]>([]);
 
   const [personaId, setPersonaId] = useState("");
   const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum">("renovacion");
@@ -185,10 +269,10 @@ export default function ContratosPage() {
     }
 
     const hoy = hoyLima();
-    const [ps, ss, dp, sal, params, rit, ctr, cfg, fichas, firma, yo] = await Promise.all([
+    const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma, yo] = await Promise.all([
       supabase
         .from("personas")
-        .select("id, nombres, apellidos, documento, cargo, sede_base_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad")
+        .select("id, nombres, apellidos, documento, cargo, sede_base_id, sede_fisica_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad, personal_direccion, sueldo_fijo")
         .eq("estado", "activo")
         .eq("en_planilla", true)
         .order("apellidos"),
@@ -208,12 +292,13 @@ export default function ContratosPage() {
       // mano: es exactamente el dato que este repo prohíbe hardcodear.
       supabase
         .from("documentos_institucionales")
-        .select("version, vigente_desde")
+        .select("version, etiqueta_version, vigente_desde")
         .eq("tipo", "rit")
         .lte("vigente_desde", hoy)
         .order("vigente_desde", { ascending: false })
         .limit(1),
       supabase.rpc("fn_contratos_listar"),
+      supabase.rpc("fn_contratos_tablero"),
       // Quién firma por CAYLA (0147) — dato administrable, no escrito acá.
       supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
       // Las fichas SIN filtrar por `en_planilla`: quien firma por la empresa no
@@ -251,17 +336,47 @@ export default function ContratosPage() {
     const bono = paramsData.find((p) => p.clave === "bono_onomastico");
     setBonoOnomastico(bono ? Number(bono.valor) : null);
 
-    const ritFila = ((rit.data as { version: number; vigente_desde: string }[] | null) ?? [])[0];
-    setRitVersion(ritFila ? String(ritFila.version) : null);
+    const ritFila = ((rit.data as { version: number; etiqueta_version: string | null; vigente_desde: string }[] | null) ?? [])[0];
+    // `version` es un CORRELATIVO interno —cuántas veces se ha publicado un
+    // documento de ese tipo—, no la versión editorial. La 0265 lo dejó escrito:
+    // «con el Reglamento 4.0 publicado como `version = 1`, el 5.0 será la 2: el
+    // desfase de tres se queda para siempre», y por eso agregó `etiqueta_version`.
+    // Citándolo mal, los veinte contratos remitirían a un «RIT versión 1» que no
+    // existe: el papel que el equipo firmó dice 4.0.
+    setRitVersion(ritFila ? String(ritFila.etiqueta_version ?? ritFila.version) : null);
     setRitFecha(ritFila ? formatearFecha(ritFila.vigente_desde) : null);
 
     setContratos((ctr.data as ContratoFila[]) ?? []);
+    setTablero((tab.data as FilaTablero[]) ?? []);
     setCargando(false);
   }, [supabase, router]);
 
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  // EL TIPO SE REPONE AL CAMBIAR DE PERSONA, y esto no es comodidad.
+  //
+  // Sin este efecto, elegir «generar» en el tablero sobre un ingreso nuevo deja
+  // `tipo = "nuevo"`, y al cambiar de persona en el desplegable ese «nuevo» se
+  // queda pegado: el efecto de abajo repone cargo, causa, funciones y fechas
+  // pero NO el tipo. La siguiente persona —con años de servicio— se llevaría la
+  // cláusula TERCERA de contrato nuevo, o sea un período de prueba de tres
+  // meses «sin expresión de causa y sin derecho a indemnización». Es el mismo
+  // defecto que se cerró el 2026-08-24 por el otro camino; cerrarlo solo en el
+  // botón del tablero dejaba esta puerta abierta.
+  //
+  // Va en su propio efecto y no dentro del de abajo porque aquel depende de
+  // `tipo`: escribirlo ahí lo haría dispararse a sí mismo.
+  useEffect(() => {
+    const p = personas.find((x) => x.id === personaId);
+    if (!p) return;
+    setTipo(tipoQueCorresponde(p.fecha_ingreso, hoyLima()));
+    // `personas` fuera de las dependencias por la misma razón que el efecto de
+    // abajo: `cargar()` la devuelve con otra referencia y repondría el tipo
+    // que quien usa la pantalla acaba de elegir a mano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaId]);
 
   // Al cambiar de persona o de tipo, se reponen los campos editables con un
   // punto de partida razonable — y se descarta cualquier borrador anterior,
@@ -341,7 +456,11 @@ export default function ContratosPage() {
     : null;
   const ciudadFinal = (ciudadEditada.trim() || ciudadDeLaSede) ?? null;
   const esAdendum = tipo === "adendum";
-  const movilidadTarifa = persona ? tarifaDeSede(persona.sede_base_id) : null;
+  // `coalesce(sede_fisica, sede_base)` — el mismo criterio de
+  // `fn_planilla_calcular` (0166). Leerlo solo de la sede base le imprimía a
+  // quien tiene base Central y trabaja en AQP la tarifa de Central, que no
+  // existe, y el contrato salía prometiendo S/ 0.00 de movilidad.
+  const movilidadTarifa = persona ? tarifaDeSede(persona.sede_fisica_id ?? persona.sede_base_id) : null;
 
   const datosParaGenerar: DatosContrato | null =
     persona && datoPersonal?.nombre_dni && persona.documento && salarioVigente !== null && fechaInicio && fechaFin
@@ -384,8 +503,40 @@ export default function ContratosPage() {
   if (persona && esAdendum && adendumEditado.trim() === "") {
     bloqueos.push("Escribe qué se modifica del contrato vigente.");
   }
-  if (persona && !esAdendum && funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER) {
-    bloqueos.push('Completa "Funciones del cargo" — sigue con el texto de relleno.');
+  // Igualdad exacta contra el relleno NO basta: borrar el textarea —el gesto
+  // natural antes de escribir— deja "" , que no es el placeholder, y el Anexo I
+  // salía en blanco. Un anexo de funciones vacío es el que se cita («la función
+  // 14 del Anexo I») el día que haya que sustentar un incumplimiento.
+  if (persona && !esAdendum && (funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER || funcionesEditadas.trim() === "")) {
+    bloqueos.push('Completa "Funciones del cargo" — está vacío o sigue con el texto de relleno.');
+  }
+  // La causa objetiva arranca con una nota dirigida a quien usa el panel. Esa
+  // nota entra TAL CUAL a la cláusula PRIMERA (`<p>${d.causaObjetivaTexto}</p>`):
+  // un contrato firmado que lleva dentro «[REVISAR antes de imprimir…]» no solo
+  // queda en ridículo, debilita justo la cláusula que sustenta la modalidad
+  // temporal ante una inspección.
+  if (persona && causaEditada.includes("[REVISAR")) {
+    bloqueos.push("Revisa y quita la nota «[REVISAR antes de imprimir…]» de la causa objetiva.");
+  }
+  // Un beneficio con monto es un monto REAL o no se imprime. Sin tarifa vigente
+  // el contrato decía «asignación diaria de movilidad (S/ 0.00)», que promete
+  // por escrito un beneficio de cero.
+  if (persona && !esAdendum && persona.cobra_movilidad && movilidadTarifa === null) {
+    bloqueos.push("No hay tarifa de movilidad vigente para su sede: publícala antes de generar el contrato.");
+  }
+  if (persona && !esAdendum && !(bonoOnomastico && bonoOnomastico > 0)) {
+    bloqueos.push("No hay monto vigente del bono de onomástico: publícalo antes de generar el contrato.");
+  }
+  // Las dos exclusiones de pago que el texto no sabe describir todavía. El
+  // contrato les promete jornada de 48 h con sobretiempo al 25 %/35 % y pago
+  // proporcional a las horas; a personal de dirección la ley lo excluye
+  // (art. 5, D.S. 007-2002-TR) y a sueldo fijo su pago no depende de horas.
+  // Se bloquea en vez de improvisar un texto: un contrato es para firmarlo.
+  if (persona && !esAdendum && persona.personal_direccion) {
+    bloqueos.push("Está marcada como personal de dirección: el texto de jornada y sobretiempo no le corresponde. Revísalo con criterio legal antes de generar.");
+  }
+  if (persona && !esAdendum && persona.sueldo_fijo) {
+    bloqueos.push("Cobra sueldo fijo: la cláusula de remuneración proporcional a las horas no le corresponde. Revísalo con criterio legal antes de generar.");
   }
   if (persona && !esAdendum && activosLibre.trim() === "" && !sinActivosAdicionales) {
     bloqueos.push("Marca la casilla de activos, o completa el ajuste específico del Anexo IV.");
@@ -394,6 +545,25 @@ export default function ContratosPage() {
   // acá evita descubrirlo recién al leer el PDF impreso.
   if (persona && !ciudadFinal) {
     bloqueos.push("Escribe la ciudad donde se firma el contrato.");
+  }
+  // EL TOPE DE LA MODALIDAD. El contrato se emite siempre bajo el art. 57 del
+  // TUO del D. Leg. 728 —«inicio o incremento de actividad»—, y esa modalidad
+  // tiene un máximo de TRES años; el art. 74 pone cinco al conjunto de
+  // contratos sujetos a modalidad con el mismo empleador. Pasado el tope, el
+  // art. 77 desnaturaliza el vínculo a indefinido POR LEY, sin que nadie lo
+  // decida y sin que nada en el sistema lo dijera: `fn_contratos_desnaturalizados`
+  // solo mira quien marcó DESPUÉS de su fecha de fin, no la acumulación.
+  //
+  // Avisa, no bloquea: renovar pasado el tope puede ser una decisión tomada a
+  // sabiendas, y quien la tome tiene que verlo escrito antes de firmar.
+  const avisos: string[] = [];
+  if (persona && !esAdendum && fechaFin) {
+    const anios = (new Date(`${fechaFin}T00:00:00`).getTime() - new Date(`${persona.fecha_ingreso}T00:00:00`).getTime()) / 31_557_600_000;
+    if (anios > 5) {
+      avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años a plazo fijo, sobre el tope de CINCO del artículo 74. El vínculo quedaría desnaturalizado a indefinido por el artículo 77.`);
+    } else if (anios > 3) {
+      avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años bajo la modalidad del artículo 57, cuyo máximo es de TRES. Conviene cambiar de modalidad o pasar a indefinido.`);
+    }
   }
 
   async function generarBorrador() {
@@ -523,13 +693,30 @@ export default function ContratosPage() {
     setAviso(null);
   }
 
-  async function verDocumento(path: string) {
-    const { data, error } = await supabase.storage.from("contratos").createSignedUrl(path, 60);
-    if (error || !data) {
-      setAviso({ tipo: "error", texto: mensajeDeError(error, "abrir el documento") });
+  /** Anota que se entregó la copia o que se comunicó al MTPE. */
+  async function marcarTramite(id: string, tramite: "copia" | "mtpe") {
+    const { error } = await supabase.rpc("fn_contrato_marcar_tramite", {
+      p_id: id,
+      p_tramite: tramite,
+      p_fecha: hoyLima(),
+    });
+    if (error) {
+      setAviso({ tipo: "error", texto: mensajeDeError(error, "anotar el trámite") });
       return;
     }
-    window.open(data.signedUrl, "_blank", "noopener");
+    await cargar();
+    setAviso({
+      tipo: "ok",
+      texto:
+        tramite === "copia"
+          ? "Anotada la entrega de copia a la colaboradora."
+          : "Anotada la comunicación a la Autoridad Administrativa de Trabajo.",
+    });
+  }
+
+  async function verDocumento(path: string) {
+    const fallo = await abrirArchivoFirmado(supabase, "contratos", path);
+    if (fallo) setAviso({ tipo: "error", texto: fallo });
   }
 
   useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — Contrato de trabajo` : null);
@@ -550,6 +737,34 @@ export default function ContratosPage() {
       </main>
     );
   }
+
+  // Solo quien necesita algo. Un tablero donde casi todas las filas dicen «al
+  // día» enseña a ignorarlo — mismo criterio que el tablero de Documentación,
+  // que oculta a quien no tiene nada pendiente.
+  const pendientes = tablero.filter((f) => f.estado !== "ok");
+  // Cuántos son de los que no pueden esperar. Decide si el contador va en rojo:
+  // el rojo de esta paleta es el acento sagrado, y gastarlo en «vence en tres
+  // meses» lo vuelve invisible el día que diga «desnaturalizado».
+  const graves = pendientes.filter((f) => ESTADO_TABLERO[f.estado]?.grave).length;
+
+  // El archivo, agrupado por persona y en el orden en que ya vienen (el más
+  // reciente primero). `Map` y no un objeto: conserva el orden de inserción,
+  // que es el que decide la consulta.
+  //
+  // SIN `useMemo`, y a propósito: este bloque vive DESPUÉS de los `return`
+  // de «cargando» y «sin permiso», así que un hook acá se salta en esos
+  // renders y React revienta con el error 310 —«más hooks que en el render
+  // anterior»—, que es lo que pasó al probarlo. Agrupar veinte filas no
+  // cuesta nada; el hook sí.
+  const porPersona = (() => {
+    const m = new Map<string, ContratoFila[]>();
+    for (const c of contratos) {
+      const previo = m.get(c.persona);
+      if (previo) previo.push(c);
+      else m.set(c.persona, [c]);
+    }
+    return [...m.entries()];
+  })();
 
   const documentoAMostrar = documentoAbierto ?? borrador?.html ?? previewHtml;
 
@@ -576,12 +791,83 @@ export default function ContratosPage() {
       </div>
 
       <div className="mx-auto max-w-3xl space-y-6 print:hidden">
-        <h1 className="text-xl font-semibold">Generador de contratos</h1>
+        <header>
+          <h1 className="font-serif text-2xl">Contratos</h1>
+          <p className="text-sm text-taupe">
+            El contrato de cada integrante: generarlo, imprimirlo, archivarlo firmado.
+          </p>
+        </header>
 
         {aviso && (
           <p className={`rounded-lg px-4 py-3 text-sm ${aviso.tipo === "error" ? "bg-rojo/10 text-rojo" : "bg-verde/10 text-verde"}`}>
             {aviso.texto}
           </p>
+        )}
+
+        {/* EL TABLERO VA PRIMERO, Y PARTE DE LAS PERSONAS.
+            El historial de abajo arranca de los contratos generados, así que
+            quien no tiene ninguno es invisible ahí — y con veinte venciendo el
+            mismo día, «¿a quién le falta?» es la pregunta que hay que poder
+            hacer al abrir la pantalla, no la que hay que deducir.
+            Cada fila lleva su acción: ver un pendiente sin poder resolverlo
+            desde ahí obliga a buscar a esa persona a mano en el desplegable. */}
+        {pendientes.length > 0 && (
+          <section className="rounded-lg border border-sand bg-papel p-4">
+            <h2 className="mb-3 font-serif text-lg">
+              Necesitan atención{" "}
+              <span className={graves > 0 ? "text-rojo" : "text-taupe"}>· {pendientes.length}</span>
+            </h2>
+            <ul className="divide-y divide-sand/60">
+              {pendientes.map((f) => {
+                const e =
+                  f.estado === "sin_contrato"
+                    ? estadoSinContrato(f)
+                    : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
+                const tipoFila = tipoQueCorresponde(
+                  personas.find((p) => p.id === f.persona_id)?.fecha_ingreso,
+                  hoyLima(),
+                );
+                return (
+                  <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+                    <span className="min-w-0 flex-1 truncate">{f.persona}</span>
+                    <span className="text-xs text-taupe">{f.sede}</span>
+                    <span className={`text-sm ${e.grave ? "text-rojo" : "text-taupe"}`}>
+                      {e.texto}
+                      {f.estado === "desnaturalizado" && ` · ${f.dias_marcados_despues} días marcados`}
+                      {f.estado === "por_vencer" && f.dias_restantes !== null && ` · ${f.dias_restantes} días`}
+                      {/* El de papel también vence, y esa es la fecha que
+                          manda mientras no haya uno nuevo firmado. */}
+                      {f.estado === "sin_contrato" &&
+                        f.fecha_fin_contrato !== null &&
+                        ` · vence ${f.fecha_fin_contrato}`}
+                    </span>
+                    {/* La acción dice lo que hace. Quien ya tiene contrato y
+                        lo que le falta es firmarlo o hacer un trámite no
+                        necesita generar otro: necesita ABRIR el suyo. Decir
+                        «generar» ahí invita a duplicarlo. */}
+                    {NECESITA_CONTRATO.has(f.estado) ? (
+                      <button
+                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                        onClick={() => {
+                          setPersonaId(f.persona_id);
+                          setTipo(tipoFila);
+                        }}
+                      >
+                        {tipoFila === "nuevo" ? "generar" : "renovar"}
+                      </button>
+                    ) : (
+                      <button
+                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                        onClick={() => f.contrato_id && abrirGenerado(f.contrato_id)}
+                      >
+                        abrir
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
         <section className="space-y-3 rounded-lg border border-sand p-4">
@@ -771,6 +1057,17 @@ export default function ContratosPage() {
                 </ul>
               )}
 
+              {/* Avisos: no impiden generar, pero tienen que verse ANTES de
+                  firmar. En arena y no en rojo — el rojo es el acento sagrado y
+                  ya lo gastan los bloqueos de arriba. */}
+              {avisos.length > 0 && (
+                <ul className="list-disc space-y-1 rounded-lg border border-taupe/40 bg-sand/40 px-4 py-3 pl-8 text-sm text-taupe">
+                  {avisos.map((a) => (
+                    <li key={a}>{a}</li>
+                  ))}
+                </ul>
+              )}
+
               <button
                 className="rounded bg-tinta px-4 py-2 text-sm text-white disabled:opacity-50"
                 disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
@@ -786,88 +1083,142 @@ export default function ContratosPage() {
             </>
           )}
         </section>
+        <section className="space-y-3">
+          <h2 className="font-serif text-lg">Archivo</h2>
 
-        <section className="space-y-2">
-          <h2 className="text-lg font-semibold">Historial</h2>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-sand">
-                <th className="py-1">Persona</th>
-                <th>Tipo</th>
-                <th>Vigencia</th>
-                <th>Firma</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {contratos.map((c) => (
-                <tr key={c.id} className={`border-b border-sand/50 ${c.anulado_at ? "opacity-50" : ""}`}>
-                  <td className="py-1">{c.persona}</td>
-                  <td>
-                    {c.tipo}
-                    {c.vigente ? " · vigente" : ""}
-                  </td>
-                  <td>
-                    {formatearFecha(c.fecha_inicio)} – {formatearFecha(c.fecha_fin)}
-                  </td>
-                  <td>
-                    {c.anulado_at
-                      ? `anulado — ${c.anulado_motivo}`
-                      : c.storage_path
-                        ? `firmado el ${c.fecha_firma}`
-                        : "pendiente de firma"}
-                  </td>
-                  <td className="space-x-2 text-xs">
-                    {/* Sin esto, un contrato generado no se podía volver a ver
-                        ni a imprimir: el documento solo existía en pantalla
-                        mientras durara la sesión de generarlo. Y el que hay que
-                        reimprimir es justo el de días después, cuando vuelve
-                        firmado o cuando alguien pide otra copia. */}
-                    <button className="underline" onClick={() => abrirGenerado(c.id)}>
-                      Ver / imprimir
-                    </button>
-                    {c.storage_path && (
-                      <button className="underline" onClick={() => verDocumento(c.storage_path!)}>
-                        Ver escaneo
-                      </button>
+          {contratos.length === 0 && (
+            <p className="text-sm text-taupe">Todavía no se generó ningún contrato.</p>
+          )}
+
+          {/* AGRUPADO POR PERSONA, Y LOS ANULADOS PLEGADOS.
+              La tabla plana repetía el nombre completo en cada fila —cuatro
+              veces para la misma persona— y daba a tres pruebas anuladas el
+              mismo peso visual que al contrato de verdad. Lo que importa de
+              cada persona es UNO: el vigente. Lo demás es historia, y la
+              historia se guarda, no se exhibe. */}
+          {porPersona.map(([nombre, filas]) => {
+            const vivos = filas.filter((c) => !c.anulado_at);
+            const anulados = filas.filter((c) => c.anulado_at);
+            return (
+              <article key={nombre} className="rounded-lg border border-sand bg-papel p-4">
+                <h3 className="mb-2 font-medium">{nombre}</h3>
+
+                {vivos.map((c) => (
+                  <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
+                    <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
+                      <span>
+                        {formatearFecha(c.fecha_inicio)} – {formatearFecha(c.fecha_fin)}
+                      </span>
+                      <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
+                      <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
+                        {c.storage_path ? `firmado el ${formatearFecha(c.fecha_firma!)}` : "pendiente de firma"}
+                      </span>
+                    </div>
+
+                    {/* Los dos plazos, solo mientras falten: confirmar en cada
+                        fila lo que ya se hizo llena la pantalla de recibos. */}
+                    {c.fecha_firma && (!c.copia_entregada_at || !c.comunicado_mtpe_at) && (
+                      <p className="text-xs text-taupe">
+                        Falta{" "}
+                        {!c.copia_entregada_at && "entregar copia a la colaboradora"}
+                        {!c.copia_entregada_at && !c.comunicado_mtpe_at && " y "}
+                        {!c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
+                      </p>
                     )}
-                    {!c.storage_path && !c.anulado_at && (
-                      <button className="underline" onClick={() => abrirSubida(c.id)}>
-                        Subir firma
+
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
+                        Ver / imprimir
                       </button>
-                    )}
-                    {!c.anulado_at && (
-                      <button className="text-rojo underline" onClick={() => setAnulando(c.id)}>
+                      {!c.storage_path && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirSubida(c.id)}>
+                          Subir contrato firmado
+                        </button>
+                      )}
+                      {c.storage_path && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => verDocumento(c.storage_path!)}>
+                          Ver escaneo
+                        </button>
+                      )}
+                      {c.fecha_firma && !c.copia_entregada_at && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "copia")}>
+                          Marcar copia entregada
+                        </button>
+                      )}
+                      {c.fecha_firma && !c.comunicado_mtpe_at && (
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
+                          Marcar comunicado al MTPE
+                        </button>
+                      )}
+                      {/* Anular va al final y en taupe: es destructivo, no
+                          urgente. En rojo junto a acciones inofensivas se
+                          pulsa por error, y el rojo de esta paleta está
+                          reservado para lo que de verdad avisa. */}
+                      <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
                         Anular
                       </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {contratos.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-3 text-taupe">
-                    Todavía no se generó ningún contrato.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </div>
+                    <p className="text-xs text-taupe">
+                      Generado el {formatearFecha(c.generado_at.slice(0, 10))}
+                      {c.generado_por && ` por ${c.generado_por}`}
+                    </p>
+                  </div>
+                ))}
+
+                {anulados.length > 0 && (
+                  <details className="mt-2 border-t border-sand/60 pt-2 text-xs text-taupe">
+                    <summary className="cursor-pointer">
+                      {anulados.length === 1 ? "1 anulado" : `${anulados.length} anulados`}
+                    </summary>
+                    <ul className="mt-1 space-y-1">
+                      {anulados.map((c) => (
+                        <li key={c.id} className="flex flex-wrap items-baseline gap-x-3">
+                          <span>{formatearFecha(c.generado_at.slice(0, 10))}</span>
+                          <span className="min-w-0 flex-1 truncate">{c.anulado_motivo}</span>
+                          <button className="underline underline-offset-2 hover:text-tinta" onClick={() => abrirGenerado(c.id)}>
+                            Ver
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </article>
+            );
+          })}
         </section>
 
         {subiendoPara && (
           <section className="space-y-2 rounded-lg border border-sand p-4">
-            <p className="text-sm font-semibold">Subir escaneo firmado</p>
-            <input type="file" accept="image/*,application/pdf" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
-            <label className="block text-sm">
-              Fecha de firma
-              <input
-                type="date"
-                className="mt-1 rounded border border-sand p-2"
-                value={fechaFirma}
-                onChange={(e) => setFechaFirma(e.target.value)}
-              />
-            </label>
+            <p className="font-serif text-lg">Subir contrato firmado</p>
+            <p className="text-sm text-taupe">
+              El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm">
+                Archivo escaneado
+                {/* El estilo `file:` es el de la casa —lo usan Documentación,
+                    Educación, Normas, Feriados y Disciplina—. Sin él, el input
+                    sale con el control crudo del navegador: no parece pulsable
+                    y no se parece a nada más del panel. */}
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-white"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Fecha de firma
+                <input
+                  type="date"
+                  className="rounded-lg border border-sand px-3 py-2 text-sm"
+                  value={fechaFirma}
+                  max={hoyLima()}
+                  onChange={(e) => setFechaFirma(e.target.value)}
+                />
+              </label>
+            </div>
             {progreso !== null && <p className="text-xs">{progreso}%</p>}
             <div className="space-x-2">
               <button
@@ -886,7 +1237,7 @@ export default function ContratosPage() {
 
         {anulando && (
           <section className="space-y-2 rounded-lg border border-rojo p-4">
-            <p className="text-sm font-semibold">Anular contrato</p>
+            <p className="font-serif text-lg">Anular contrato</p>
             <textarea
               className="w-full rounded border border-sand p-2 text-sm"
               placeholder="Motivo (mínimo 3 caracteres)"

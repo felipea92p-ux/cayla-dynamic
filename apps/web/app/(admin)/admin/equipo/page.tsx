@@ -426,7 +426,6 @@ export default function EquipoPage() {
         nombres: form.nombres.trim(),
         apellidos: form.apellidos.trim(),
         sede_base_id: form.sedeId,
-        rol: form.rol,
         email: form.email.trim() || null,
       })
       .eq("id", editandoId);
@@ -434,6 +433,28 @@ export default function EquipoPage() {
       setGuardando(false);
       avisar("error", mensajeDeError(error, "guardar"));
       return;
+    }
+    // Rol: mismo patrón dirty-check, pero por una razón que va más allá de no
+    // ensuciar la auditoría. Este campo dejó de viajar en el `update` de arriba
+    // porque una fila escrita directo desde el navegador no distingue «esto lo
+    // pide un admin» de «esto lo pide cualquiera con la columna abierta» — RLS
+    // solo filtraba FILAS, y el desplegable de abajo ofrece «Admin» igual que
+    // ofrece «Integrante». `fn_set_rol` reimplementa el escalafón adentro de la
+    // base (packages/shared/src/escalafon.ts, la misma regla que ya usa
+    // /api/admin/cuentas): quien no es admin nunca puede dar un rol igual o
+    // superior al suyo, así que esto no es solo prolijidad de auditoría — es la
+    // puerta que faltaba.
+    const rolOriginal = personas.find((p) => p.id === editandoId)?.rol;
+    if (form.rol !== rolOriginal) {
+      const { error: errorRol } = await supabase.rpc("fn_set_rol", {
+        p_persona_id: editandoId,
+        p_nuevo_rol: form.rol,
+      });
+      if (errorRol) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero el rol no se pudo cambiar: ${mensajeDeError(errorRol)}`);
+        return;
+      }
     }
     // El área se guarda por RPC (columna fuera del schema cache) solo si:
     // (a) su carga fue confiable — si falló, el form muestra el default y escribirlo

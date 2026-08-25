@@ -146,8 +146,18 @@ with repo(numero, nombre, nunca) as (values
     (284, 'no_se_cierra_el_mes_con_una_hora_que_nadie_marco', false),
     (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar', false),
     (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia', false),
+    (287, 'el_contrato_firmado_se_registra_y_sus_plazos_se_miden', false),
     (288, 'la_puerta_de_borrar_marcajes_se_cierra', false),
-    (298, 'un_turno_que_cambia_deja_rastro', false)
+    (289, 'la_gratificacion_ya_depositada_no_se_paga_dos_veces', false),
+    (290, 'un_comprobante_por_mes_y_no_uno_por_asignacion', false),
+    (291, 'el_kiosco_deja_de_poder_leer_toda_la_fila', false),
+    (292, 'nueve_funciones_dejan_de_responderle_a_cualquiera', false),
+    (293, 'el_feriado_dentro_de_un_descanso_medico_se_paga', false),
+    (295, 'el_rol_ya_no_se_asigna_solo', false),
+    (296, 'el_rol_solo_cambia_por_una_puerta', false),
+    (297, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
+    (298, 'un_turno_que_cambia_deja_rastro', false),
+    (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -286,8 +296,10 @@ select * from (
              when '2792fa305cc21dec63339fc03af71f30' then '✗ 0276 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '0912fcb75893b146ea778163ae9d1ecd' then '⚠ se quedó en la 0280 — falta pegar lo posterior'
              when '2398570d2d547504320b423d9b21b12f' then '✗ 0280 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '00346e399226432bee73b1047488d178' then '0286 — al día con el repositorio'
+             when '00346e399226432bee73b1047488d178' then '⚠ se quedó en la 0286 — falta pegar lo posterior'
              when '1be99135441ef1d937aa0cbfd059ae95' then '✗ 0286 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'b1fa2aaaee9a6e4192ea3d616e3d8304' then '0293 — al día con el repositorio'
+             when '70e0f0270b72ea121eb5ba8edda348e6' then '✗ 0293 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'

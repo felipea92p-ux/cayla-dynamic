@@ -8,6 +8,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { Documento } from "@/components/documento";
 
@@ -524,9 +525,8 @@ export default function NormasPage() {
 
   async function verCargo(path: string) {
     // URL firmada de vida corta: el almacén es privado y son papeles firmados.
-    const { data, error } = await supabase.storage.from("acuses").createSignedUrl(path, 60);
-    if (error || !data) { setMsgPapel(`No se pudo abrir el cargo: ${error?.message ?? "sin URL"}`); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    const fallo = await abrirArchivoFirmado(supabase, "acuses", path);
+    if (fallo) setMsgPapel(fallo);
   }
 
 
