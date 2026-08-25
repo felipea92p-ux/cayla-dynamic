@@ -19,6 +19,14 @@
 -- direcciones: que el terminal VEA lo que necesita para no equivocarse, y que
 -- eso no le abra las marcas a nadie más. El `is not null` de la policy es lo
 -- único que separa «el terminal de AQP» de «cualquier sesión con login».
+--
+-- CAMBIO 0291 · las aserciones de roster (antes 1 y 3) leían `personas`
+-- directo, porque cuando se escribió esta prueba ESE era el camino real del
+-- terminal. La 0285 lo movió a la vista `terminal_roster`, y la 0291 cerró el
+-- camino viejo por completo — así que hoy `select from personas` como
+-- terminal da SIEMPRE cero filas, sea quien sea. Seguir comprobando eso haría
+-- que la prueba "pasara" sin que el roster de verdad funcione. Se actualizan
+-- para leer de `terminal_roster`, que es lo que la pantalla usa hoy.
 -- ============================================================================
 begin;
 select plan(7);
@@ -67,7 +75,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000001820f
 set local role authenticated;
 
 select is(
-  (select count(*)::int from personas where id = '00000000-0000-0000-0000-000000018202'),
+  (select count(*)::int from terminal_roster where id = '00000000-0000-0000-0000-000000018202'),
   1,
   'ROSTER · el terminal de B ofrece a la viajera, aunque su sede base sea A');
 
@@ -78,7 +86,7 @@ select is(
 
 -- La otra mitad del permiso: lo que se abrió no se abrió de más.
 select is(
-  (select count(*)::int from personas where id = '00000000-0000-0000-0000-000000018203'),
+  (select count(*)::int from terminal_roster where id = '00000000-0000-0000-0000-000000018203'),
   0,
   'LÍMITE · a la que no viaja no la ofrece: no está en su roster');
 

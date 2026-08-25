@@ -1330,6 +1330,58 @@ export type Database = {
         }
         Relationships: []
       }
+      educacion_comprobantes: {
+        Row: {
+          asignacion_id: string
+          created_at: string
+          id: string
+          mes_cubierto: string
+          nota: string | null
+          storage_path: string
+          subido_por: string | null
+        }
+        Insert: {
+          asignacion_id: string
+          created_at?: string
+          id?: string
+          mes_cubierto: string
+          nota?: string | null
+          storage_path: string
+          subido_por?: string | null
+        }
+        Update: {
+          asignacion_id?: string
+          created_at?: string
+          id?: string
+          mes_cubierto?: string
+          nota?: string | null
+          storage_path?: string
+          subido_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_comprobantes_asignacion_id_fkey"
+            columns: ["asignacion_id"]
+            isOneToOne: false
+            referencedRelation: "asignaciones_educacion"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_comprobantes_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_comprobantes_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etiquetas_complemento: {
         Row: {
           activa: boolean
@@ -4232,6 +4284,15 @@ export type Database = {
           vigente_desde: string
         }[]
       }
+      fn_educacion_adjuntar_comprobante: {
+        Args: {
+          p_asignacion_id: string | null
+          p_mes_cubierto: string | null
+          p_nota?: string | null
+          p_storage_path: string | null
+        }
+        Returns: string
+      }
       fn_educacion_candidatos: {
         Args: never
         Returns: {
@@ -4268,9 +4329,11 @@ export type Database = {
           dias_para_vencer: number
           id: string
           institucion: string
+          meses_sin_papel: number
           monto: number
           nota: string
           paga: boolean
+          papeles: number
           persona: string
           persona_id: string
           rango: string
@@ -4280,6 +4343,18 @@ export type Database = {
           vigente_desde: string
           vigente_hasta: string
         }[]
+      }
+      fn_educacion_mes_del_periodo: {
+        Args: { p_fecha: string | null }
+        Returns: string
+      }
+      fn_educacion_meses_del_tramo: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: string[]
+      }
+      fn_educacion_meses_sin_papel: {
+        Args: { p_asignacion_id: string | null }
+        Returns: string[]
       }
       fn_educacion_monto: {
         Args: {
@@ -4291,8 +4366,23 @@ export type Database = {
         }
         Returns: number
       }
+      fn_educacion_papeles: {
+        Args: { p_asignacion_id: string | null }
+        Returns: {
+          created_at: string
+          id: string
+          mes_cubierto: string
+          nota: string
+          storage_path: string
+          subido_por: string
+        }[]
+      }
       fn_educacion_por_atender: { Args: never; Returns: number }
       fn_educacion_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_educacion_quitar_comprobante: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
       fn_educacion_realinear: {
         Args: { p_actor?: string | null; p_desde: string | null; p_persona_id: string | null }
         Returns: number
@@ -4859,6 +4949,17 @@ export type Database = {
       fn_recalcular_jornada: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
+      }
+      fn_regimen_pension_divergentes: {
+        Args: never
+        Returns: {
+          dice_la_ficha: string
+          estado: string
+          nombre: string
+          paga_la_planilla: string
+          persona_id: string
+          tramo_desde: string
+        }[]
       }
       fn_registrar_acta_descanso: {
         Args: { p_nombre?: string | null; p_path: string | null; p_referencia: string | null }

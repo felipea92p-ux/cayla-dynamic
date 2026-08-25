@@ -129,17 +129,23 @@ semanal no compensa nada y la sobretasa se sigue debiendo. La validación de la
 
 --
 
-## El descanso semanal, y las cuatro cosas que ya se midieron
+## El descanso semanal — construida y en producción (0280)
 
-Verificado el **2026-08-19** con catorce agentes: siete buscando la norma por
-artículo y siete cuyo único trabajo era refutarles. Se anota aquí porque el
-sistema **todavía no paga la sobretasa del descanso semanal**, y quien vaya a
-construirla necesita estas cuatro respuestas antes de escribir una línea.
+⚠️ **Corrección.** Esta sección decía «el sistema todavía no paga la sobretasa»
+porque se escribió a partir del verificado del **2026-08-19**, sin releer
+`docs/estado.md` primero. Entre esa fecha y ésta, otra sesión ya la construyó:
+**la 0280, pegada en producción el 2026-08-22 y verificada por md5**. El detalle
+operativo —qué costó no aplicarla retroactivamente, cómo se verificó— vive en
+`docs/estado.md`, sección del 2026-08-19. Lo que queda aquí son las cuatro
+respuestas de norma que la sustentan, porque siguen siendo la referencia para
+tocar ese cálculo, y una quinta que dice cómo se construyó de verdad.
 
-**1 · La sobretasa del 100 % existe y hoy no se paga.** Art. 3 del D. Leg. 713:
+**1 · La sobretasa del 100 % existe, y ya se paga.** Art. 3 del D. Leg. 713:
 trabajar el día de descanso semanal sin sustitución se paga con la retribución
-más una sobretasa del 100 %. `fn_planilla_calcular` conoce dos sobretasas —la
-del feriado y el recargo del sobretiempo— y **ninguna lectura de `turnos`**.
+más una sobretasa del 100 %. `fn_planilla_calcular` (cuerpo vivo, verificado
+2026-08-24) tiene el concepto `monto_descanso_semanal` y lo lee de `dsw`, el
+lateral que la 0280 añadió — antes solo existían las sobretasas del feriado y
+del sobretiempo, y ninguna lectura de `turnos`.
 
 **2 · Feriado y descanso semanal NO se acumulan.** Si el día es a la vez el
 descanso de la persona y un feriado, se paga **una sola** sobretasa del 100 %,
@@ -170,9 +176,14 @@ ciclo de siete días no contuvo 24 horas continuas de descanso. Con descanso
 **rotativo** —el régimen de TRU— rotar el descanso de un lunes a un domingo
 encadena siete días sin que nadie haya hecho nada mal.
 
-De ahí que el sistema no pueda decidir esto solo: **una racha es un candidato,
-no una deuda**, y quién sustituyó qué día lo sabe DO. Hoy no hay dónde anotarlo
-— `feriados_descanso_sustitutorio` está atada a `fecha_feriado`.
+**5 · Cómo se construyó, y por qué no hizo falta una tabla de sustitución
+nueva.** La 0280 no necesitó registrar la sustitución en ningún sitio: si el
+descanso se movió dentro de la semana, **la racha misma se corta** — no hay
+séptimo día consecutivo, y sin séptimo día no hay sobretasa que calcular. La
+racha de siete o más días seguidos con marca **es** la prueba de que no hubo
+sustitución; no hace falta que nadie la anote aparte. Es distinto del feriado
+(`feriados_descanso_sustitutorio`), que sí necesita acta porque ahí el día
+compensatorio puede caer semanas después y nada más lo delata.
 
 ## El periodo de prueba SÍ devenga beneficios
 

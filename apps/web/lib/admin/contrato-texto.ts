@@ -500,6 +500,31 @@ export function tipoQueCorresponde(
 
 function clausulaPeriodoPrueba(d: DatosContrato): string {
   if (d.tipo !== "nuevo") {
+    // ¿HA CORRIDO DE VERDAD EL PERÍODO DE PRUEBA?
+    //
+    // Decir «ya superó el período de prueba» es afirmar un HECHO, y el
+    // generador lo afirmaba de cualquiera cuya fecha de ingreso fuera anterior
+    // a hoy — incluida quien entró hace tres semanas con un contrato corto y
+    // recibe el siguiente enseguida. El período de prueba del artículo 10 de la
+    // LPCL corre TRES MESES desde el inicio de la relación laboral: renovar no
+    // lo reinicia, pero tampoco lo completa.
+    //
+    // Se mide contra el inicio de ESTE contrato, que es la fecha desde la que
+    // el documento habla. Si a esa fecha los tres meses no se han cumplido, el
+    // contrato dice la verdad —sigue corriendo, y desde cuándo— en vez de
+    // regalar una estabilidad que la ley todavía no reconoce.
+    const fin = finDelPeriodoDePrueba(d.fechaIngresoOriginal);
+    if (fin > d.fechaInicio) {
+      return `
+    <h3>TERCERA. PERÍODO DE PRUEBA</h3>
+    <p>El período de prueba de tres (3) meses previsto en el artículo 10 del TUO
+    del Decreto Legislativo N.° 728 se computa desde el inicio de la relación
+    laboral de LA COLABORADORA, ocurrido el ${formatearFecha(d.fechaIngresoOriginal)},
+    y NO se reinicia con la celebración del presente contrato. En consecuencia,
+    dicho período culmina el ${formatearFecha(fin)}. Superada esa fecha, LA
+    COLABORADORA gozará de estabilidad laboral durante la vigencia del presente
+    contrato conforme al artículo 79 del mismo cuerpo legal.</p>`;
+    }
     return `
     <h3>TERCERA. PERÍODO DE PRUEBA</h3>
     <p>No aplica un nuevo período de prueba: LA COLABORADORA ya superó el período
@@ -516,6 +541,23 @@ function clausulaPeriodoPrueba(d: DatosContrato): string {
     indemnización. Superado el período de prueba, LA COLABORADORA gozará de
     estabilidad laboral durante la vigencia del contrato conforme al artículo 79
     del TUO del Decreto Legislativo N.° 728.</p>`;
+}
+
+/**
+ * El día en que se cumplen los tres meses del artículo 10 de la LPCL.
+ *
+ * Se calcula sumando meses de calendario, no 90 días: la ley cuenta meses. Y en
+ * UTC a propósito — estas son fechas de calendario («2026-08-01»), no instantes,
+ * así que construirlas en la hora local del navegador podría correrlas un día.
+ */
+export function finDelPeriodoDePrueba(fechaIngreso: string): string {
+  const d = new Date(`${fechaIngreso}T00:00:00Z`);
+  const dia = d.getUTCDate();
+  d.setUTCMonth(d.getUTCMonth() + 3);
+  // Si el día no existe en el mes destino (31 de noviembre), Date se pasa al
+  // mes siguiente; se retrocede al último día del mes que corresponde.
+  if (d.getUTCDate() !== dia) d.setUTCDate(0);
+  return d.toISOString().slice(0, 10);
 }
 
 function clausulaDisciplina(d: DatosContrato): string {

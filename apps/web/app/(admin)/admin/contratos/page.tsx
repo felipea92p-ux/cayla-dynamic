@@ -61,10 +61,17 @@ interface Persona {
   documento: string | null;
   cargo: string | null;
   sede_base_id: string | null;
+  // Dónde trabaja de verdad. La movilidad se paga por acá y no por la sede
+  // base (0166), así que el contrato tiene que decir la misma tarifa que la
+  // boleta: si no, el papel promete un monto y la planilla paga otro.
+  sede_fisica_id: string | null;
   email: string | null;
   fecha_ingreso: string;
   fecha_fin_contrato: string | null;
   cobra_movilidad: boolean;
+  // Las dos exclusiones que la planilla sí respeta y el contrato no miraba.
+  personal_direccion: boolean;
+  sueldo_fijo: boolean;
 }
 interface Sede {
   id: string;
@@ -265,7 +272,7 @@ export default function ContratosPage() {
     const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma, yo] = await Promise.all([
       supabase
         .from("personas")
-        .select("id, nombres, apellidos, documento, cargo, sede_base_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad")
+        .select("id, nombres, apellidos, documento, cargo, sede_base_id, sede_fisica_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad, personal_direccion, sueldo_fijo")
         .eq("estado", "activo")
         .eq("en_planilla", true)
         .order("apellidos"),
@@ -285,7 +292,7 @@ export default function ContratosPage() {
       // mano: es exactamente el dato que este repo prohíbe hardcodear.
       supabase
         .from("documentos_institucionales")
-        .select("version, vigente_desde")
+        .select("version, etiqueta_version, vigente_desde")
         .eq("tipo", "rit")
         .lte("vigente_desde", hoy)
         .order("vigente_desde", { ascending: false })
@@ -329,8 +336,14 @@ export default function ContratosPage() {
     const bono = paramsData.find((p) => p.clave === "bono_onomastico");
     setBonoOnomastico(bono ? Number(bono.valor) : null);
 
-    const ritFila = ((rit.data as { version: number; vigente_desde: string }[] | null) ?? [])[0];
-    setRitVersion(ritFila ? String(ritFila.version) : null);
+    const ritFila = ((rit.data as { version: number; etiqueta_version: string | null; vigente_desde: string }[] | null) ?? [])[0];
+    // `version` es un CORRELATIVO interno —cuántas veces se ha publicado un
+    // documento de ese tipo—, no la versión editorial. La 0265 lo dejó escrito:
+    // «con el Reglamento 4.0 publicado como `version = 1`, el 5.0 será la 2: el
+    // desfase de tres se queda para siempre», y por eso agregó `etiqueta_version`.
+    // Citándolo mal, los veinte contratos remitirían a un «RIT versión 1» que no
+    // existe: el papel que el equipo firmó dice 4.0.
+    setRitVersion(ritFila ? String(ritFila.etiqueta_version ?? ritFila.version) : null);
     setRitFecha(ritFila ? formatearFecha(ritFila.vigente_desde) : null);
 
     setContratos((ctr.data as ContratoFila[]) ?? []);
@@ -341,6 +354,29 @@ export default function ContratosPage() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  // EL TIPO SE REPONE AL CAMBIAR DE PERSONA, y esto no es comodidad.
+  //
+  // Sin este efecto, elegir «generar» en el tablero sobre un ingreso nuevo deja
+  // `tipo = "nuevo"`, y al cambiar de persona en el desplegable ese «nuevo» se
+  // queda pegado: el efecto de abajo repone cargo, causa, funciones y fechas
+  // pero NO el tipo. La siguiente persona —con años de servicio— se llevaría la
+  // cláusula TERCERA de contrato nuevo, o sea un período de prueba de tres
+  // meses «sin expresión de causa y sin derecho a indemnización». Es el mismo
+  // defecto que se cerró el 2026-08-24 por el otro camino; cerrarlo solo en el
+  // botón del tablero dejaba esta puerta abierta.
+  //
+  // Va en su propio efecto y no dentro del de abajo porque aquel depende de
+  // `tipo`: escribirlo ahí lo haría dispararse a sí mismo.
+  useEffect(() => {
+    const p = personas.find((x) => x.id === personaId);
+    if (!p) return;
+    setTipo(tipoQueCorresponde(p.fecha_ingreso, hoyLima()));
+    // `personas` fuera de las dependencias por la misma razón que el efecto de
+    // abajo: `cargar()` la devuelve con otra referencia y repondría el tipo
+    // que quien usa la pantalla acaba de elegir a mano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaId]);
 
   // Al cambiar de persona o de tipo, se reponen los campos editables con un
   // punto de partida razonable — y se descarta cualquier borrador anterior,
@@ -420,7 +456,11 @@ export default function ContratosPage() {
     : null;
   const ciudadFinal = (ciudadEditada.trim() || ciudadDeLaSede) ?? null;
   const esAdendum = tipo === "adendum";
-  const movilidadTarifa = persona ? tarifaDeSede(persona.sede_base_id) : null;
+  // `coalesce(sede_fisica, sede_base)` — el mismo criterio de
+  // `fn_planilla_calcular` (0166). Leerlo solo de la sede base le imprimía a
+  // quien tiene base Central y trabaja en AQP la tarifa de Central, que no
+  // existe, y el contrato salía prometiendo S/ 0.00 de movilidad.
+  const movilidadTarifa = persona ? tarifaDeSede(persona.sede_fisica_id ?? persona.sede_base_id) : null;
 
   const datosParaGenerar: DatosContrato | null =
     persona && datoPersonal?.nombre_dni && persona.documento && salarioVigente !== null && fechaInicio && fechaFin
@@ -463,8 +503,40 @@ export default function ContratosPage() {
   if (persona && esAdendum && adendumEditado.trim() === "") {
     bloqueos.push("Escribe qué se modifica del contrato vigente.");
   }
-  if (persona && !esAdendum && funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER) {
-    bloqueos.push('Completa "Funciones del cargo" — sigue con el texto de relleno.');
+  // Igualdad exacta contra el relleno NO basta: borrar el textarea —el gesto
+  // natural antes de escribir— deja "" , que no es el placeholder, y el Anexo I
+  // salía en blanco. Un anexo de funciones vacío es el que se cita («la función
+  // 14 del Anexo I») el día que haya que sustentar un incumplimiento.
+  if (persona && !esAdendum && (funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER || funcionesEditadas.trim() === "")) {
+    bloqueos.push('Completa "Funciones del cargo" — está vacío o sigue con el texto de relleno.');
+  }
+  // La causa objetiva arranca con una nota dirigida a quien usa el panel. Esa
+  // nota entra TAL CUAL a la cláusula PRIMERA (`<p>${d.causaObjetivaTexto}</p>`):
+  // un contrato firmado que lleva dentro «[REVISAR antes de imprimir…]» no solo
+  // queda en ridículo, debilita justo la cláusula que sustenta la modalidad
+  // temporal ante una inspección.
+  if (persona && causaEditada.includes("[REVISAR")) {
+    bloqueos.push("Revisa y quita la nota «[REVISAR antes de imprimir…]» de la causa objetiva.");
+  }
+  // Un beneficio con monto es un monto REAL o no se imprime. Sin tarifa vigente
+  // el contrato decía «asignación diaria de movilidad (S/ 0.00)», que promete
+  // por escrito un beneficio de cero.
+  if (persona && !esAdendum && persona.cobra_movilidad && movilidadTarifa === null) {
+    bloqueos.push("No hay tarifa de movilidad vigente para su sede: publícala antes de generar el contrato.");
+  }
+  if (persona && !esAdendum && !(bonoOnomastico && bonoOnomastico > 0)) {
+    bloqueos.push("No hay monto vigente del bono de onomástico: publícalo antes de generar el contrato.");
+  }
+  // Las dos exclusiones de pago que el texto no sabe describir todavía. El
+  // contrato les promete jornada de 48 h con sobretiempo al 25 %/35 % y pago
+  // proporcional a las horas; a personal de dirección la ley lo excluye
+  // (art. 5, D.S. 007-2002-TR) y a sueldo fijo su pago no depende de horas.
+  // Se bloquea en vez de improvisar un texto: un contrato es para firmarlo.
+  if (persona && !esAdendum && persona.personal_direccion) {
+    bloqueos.push("Está marcada como personal de dirección: el texto de jornada y sobretiempo no le corresponde. Revísalo con criterio legal antes de generar.");
+  }
+  if (persona && !esAdendum && persona.sueldo_fijo) {
+    bloqueos.push("Cobra sueldo fijo: la cláusula de remuneración proporcional a las horas no le corresponde. Revísalo con criterio legal antes de generar.");
   }
   if (persona && !esAdendum && activosLibre.trim() === "" && !sinActivosAdicionales) {
     bloqueos.push("Marca la casilla de activos, o completa el ajuste específico del Anexo IV.");
@@ -473,6 +545,25 @@ export default function ContratosPage() {
   // acá evita descubrirlo recién al leer el PDF impreso.
   if (persona && !ciudadFinal) {
     bloqueos.push("Escribe la ciudad donde se firma el contrato.");
+  }
+  // EL TOPE DE LA MODALIDAD. El contrato se emite siempre bajo el art. 57 del
+  // TUO del D. Leg. 728 —«inicio o incremento de actividad»—, y esa modalidad
+  // tiene un máximo de TRES años; el art. 74 pone cinco al conjunto de
+  // contratos sujetos a modalidad con el mismo empleador. Pasado el tope, el
+  // art. 77 desnaturaliza el vínculo a indefinido POR LEY, sin que nadie lo
+  // decida y sin que nada en el sistema lo dijera: `fn_contratos_desnaturalizados`
+  // solo mira quien marcó DESPUÉS de su fecha de fin, no la acumulación.
+  //
+  // Avisa, no bloquea: renovar pasado el tope puede ser una decisión tomada a
+  // sabiendas, y quien la tome tiene que verlo escrito antes de firmar.
+  const avisos: string[] = [];
+  if (persona && !esAdendum && fechaFin) {
+    const anios = (new Date(`${fechaFin}T00:00:00`).getTime() - new Date(`${persona.fecha_ingreso}T00:00:00`).getTime()) / 31_557_600_000;
+    if (anios > 5) {
+      avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años a plazo fijo, sobre el tope de CINCO del artículo 74. El vínculo quedaría desnaturalizado a indefinido por el artículo 77.`);
+    } else if (anios > 3) {
+      avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años bajo la modalidad del artículo 57, cuyo máximo es de TRES. Conviene cambiar de modalidad o pasar a indefinido.`);
+    }
   }
 
   async function generarBorrador() {
@@ -962,6 +1053,17 @@ export default function ContratosPage() {
                 <ul className="list-disc space-y-1 rounded-lg bg-rojo/10 px-4 py-3 pl-8 text-sm text-rojo">
                   {bloqueos.map((b) => (
                     <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Avisos: no impiden generar, pero tienen que verse ANTES de
+                  firmar. En arena y no en rojo — el rojo es el acento sagrado y
+                  ya lo gastan los bloqueos de arriba. */}
+              {avisos.length > 0 && (
+                <ul className="list-disc space-y-1 rounded-lg border border-taupe/40 bg-sand/40 px-4 py-3 pl-8 text-sm text-taupe">
+                  {avisos.map((a) => (
+                    <li key={a}>{a}</li>
                   ))}
                 </ul>
               )}
