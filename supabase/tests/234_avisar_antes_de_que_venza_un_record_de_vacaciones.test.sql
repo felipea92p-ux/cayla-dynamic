@@ -16,6 +16,18 @@
 --   · la que no gozó nada           → su récord más antiguo YA venció
 --   · la que gozó la mitad          → le queda uno, y vence más adelante
 -- ============================================================================
+-- ── CAMBIO 0302 ─────────────────────────────────────────────────────────────
+-- Esta prueba se escribió para la fn_vacaciones_por_vencer de la 0299, que
+-- devolvía `nombre · dias_saldo · records_pendientes · ya_vencido`. En `main`
+-- convivían DOS implementaciones de la misma función con firmas distintas —dos
+-- migraciones paralelas, no un renumerado— y llamarla reventaba con «function
+-- fn_vacaciones_por_vencer(integer) is not unique». La 0302 quita la sobrante y
+-- se queda la de la 0297, por decisión de Felipe.
+--
+-- Los CASOS de esta prueba no cambian: siguen valiendo, y son buenos. Lo que se
+-- remapea son las columnas — `nombre` pasa a `persona`, y `ya_vencido` se
+-- deriva de `records_vencidos > 0`, que es lo que la función que se queda dice.
+-- ============================================================================
 begin;
 select plan(6);
 
@@ -62,17 +74,22 @@ select * from fn_vacaciones_por_vencer(400);
 -- La mitad que impide que el aviso se vuelva ruido. Si avisa de todo el mundo,
 -- nadie lo mira, y el día que avise de alguien de verdad ya no significará nada.
 select is(
-  (select count(*)::int from _av where nombre like 'DoceAlDia%'), 0,
+  (select count(*)::int from _av where persona like 'DoceAlDia%'), 0,
   'SIN RUIDO · quien gozó sus dos récords no aparece en el aviso');
 
 -- ── 2 y 3 · A QUIEN NO GOZÓ NADA, EL MÁS ANTIGUO YA LE VENCIÓ ───────────────
 -- Su récord 1 se ganó el 01/03/2025 y debía gozarse antes del 01/03/2026. Esa
 -- fecha ya pasó: el aviso tiene que decirlo, y decir que YA venció.
 select is(
-  (select vence_el from _av where nombre like 'DoceNuncaGozo%'), '2026-03-01'::date,
-  'VENCIDO · a quien no gozó nada, su récord más antiguo venció el 01/03/2026');
+  -- CAMBIO 0302 — La 0299 devolvía en `vence_el` el récord MÁS ANTIGUO, o sea el
+  -- que ya venció (01/03/2026). La 0297 devuelve el PRÓXIMO por vencer y cuenta
+  -- aparte los ya vencidos en `records_vencidos`. Son dos preguntas distintas y
+  -- las dos son legítimas; la de la 0297 es la que queda, y es más informativa
+  -- porque no confunde «lo que ya se perdió» con «lo que hay que programar».
+  (select vence_el from _av where persona like 'DoceNuncaGozo%'), '2027-03-01'::date,
+  'VENCIDO · a quien no gozó nada, el PRÓXIMO récord vence el 01/03/2027 — el ya vencido se cuenta aparte');
 select is(
-  (select ya_vencido from _av where nombre like 'DoceNuncaGozo%'), true,
+  (select records_vencidos > 0 from _av where persona like 'DoceNuncaGozo%'), true,
   'VENCIDO · y el aviso lo marca como ya vencido, no como próximo');
 
 -- ── 4 y 5 · A QUIEN GOZÓ LA MITAD, LE QUEDA UNO Y VENCE DESPUÉS ─────────────
@@ -80,17 +97,17 @@ select is(
 -- pendiente es el 2, ganado el 01/03/2026 y vence el 01/03/2027. Si la
 -- aritmética se equivocara por un año, esta aserción lo dice.
 select is(
-  (select vence_el from _av where nombre like 'DoceMitad%'), '2027-03-01'::date,
+  (select vence_el from _av where persona like 'DoceMitad%'), '2027-03-01'::date,
   'FIFO · quien gozó el primer récord tiene pendiente el segundo, que vence en 2027');
 select is(
-  (select ya_vencido from _av where nombre like 'DoceMitad%'), false,
+  (select records_vencidos > 0 from _av where persona like 'DoceMitad%'), false,
   'FIFO · y todavía no ha vencido: el aviso llega con tiempo, que es su razón de ser');
 
 -- ── 6 · LA VENTANA DE AVISO FILTRA ──────────────────────────────────────────
 -- Con 30 días de antelación, el que vence en 2027 no debe salir. Un aviso que
 -- ignora su propia ventana avisa siempre y no sirve.
 select is(
-  (select count(*)::int from fn_vacaciones_por_vencer(30) where nombre like 'DoceMitad%'), 0,
+  (select count(*)::int from fn_vacaciones_por_vencer(30) where persona like 'DoceMitad%'), 0,
   'VENTANA · con 30 días de aviso, el que vence dentro de un año no aparece');
 
 select * from finish();

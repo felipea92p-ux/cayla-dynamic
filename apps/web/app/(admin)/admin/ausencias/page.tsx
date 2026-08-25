@@ -46,7 +46,7 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 type NombreRpcSinTipar = Parameters<ReturnType<typeof createAdminSupabaseClient>["rpc"]>[0];
 const RPC_SUBSIDIO = "fn_ausencias_subsidio" as unknown as NombreRpcSinTipar;
 const RPC_ADJUNTAR = "fn_ausencia_adjuntar_certificado" as unknown as NombreRpcSinTipar;
-// ⇩ 0299 · igual que las dos de arriba: nombre sin tipar hasta que se regeneren
+// ⇩ 0297 · igual que las dos de arriba: nombre sin tipar hasta que se regeneren
 // los tipos. Lo que devuelve lo comprueba `VacacionPorVencer`.
 const RPC_POR_VENCER = "fn_vacaciones_por_vencer" as unknown as NombreRpcSinTipar;
 
@@ -95,17 +95,27 @@ interface Subsidio {
 
 export default function AusenciasPage() {
   const router = useRouter();
-/** Un récord de vacaciones que vence pronto, o que ya venció (migración 0299).
+/** Un récord de vacaciones que vence pronto, o que ya venció (migración 0297).
  *  Es lo único de esta pantalla que tiene FECHA LÍMITE: pasada, el art. 23 del
  *  D. Leg. 713 manda una indemnización de una remuneración entera. */
+// CAMBIO 0302 — La forma la manda `fn_vacaciones_por_vencer` de la 0297, que es
+// la que quedó viva. En `main` convivían dos implementaciones con firmas
+// distintas y llamarla reventaba; la que se fue devolvía
+// `nombre · dias_saldo · records_pendientes · ya_vencido`.
+//
+// OJO CON `vence_el`: acá es el PRÓXIMO récord por vencer, no el más antiguo.
+// Los que ya se pasaron se cuentan aparte en `records_vencidos`. Mezclarlos
+// haría escribir «ya vencido desde» junto a una fecha futura.
 interface VacacionPorVencer {
   persona_id: string;
-  nombre: string;
-  dias_saldo: number;
-  records_pendientes: number;
+  persona: string;
+  sede: string;
+  fecha_ingreso: string;
+  dias_pendientes: number;
+  records_sin_gozar: number;
+  records_vencidos: number;
   vence_el: string;
   dias_para_vencer: number;
-  ya_vencido: boolean;
 }
 
   const rol = useRolActual();
@@ -150,7 +160,7 @@ interface VacacionPorVencer {
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
       supabase.rpc(RPC_SUBSIDIO, {}),
-      supabase.rpc(RPC_POR_VENCER, {})   // 90 dias por defecto, en la propia funcion,
+      supabase.rpc(RPC_POR_VENCER, {})   // 60 dias por defecto, en la propia funcion (0297),
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
@@ -308,13 +318,17 @@ interface VacacionPorVencer {
             <ul className="mt-1 space-y-0.5 text-xs">
               {porVencer.map((v) => (
                 <li key={v.persona_id}>
-                  <strong className="font-medium">{v.nombre}</strong>{" "}
-                  {v.ya_vencido ? (
-                    <>tiene {v.records_pendientes === 1 ? "un récord" : `${v.records_pendientes} récords`} de
-                      vacaciones <strong className="font-medium">ya vencido</strong> desde
-                      el {fmt(v.vence_el)} — {v.dias_saldo} días sin gozar.</>
+                  <strong className="font-medium">{v.persona}</strong>{" "}
+                  {v.records_vencidos > 0 ? (
+                    // La fecha NO se pone junto a «ya vencido»: `vence_el` es la del
+                    // próximo, no la del que se pasó. Decir «vencido desde el
+                    // {fecha futura}» sería falso, y de las dos mitades la urgente es
+                    // la que ya se perdió.
+                    <>tiene {v.records_vencidos === 1 ? "un récord" : `${v.records_vencidos} récords`} de
+                      vacaciones <strong className="font-medium">ya vencido{v.records_vencidos === 1 ? "" : "s"}</strong>
+                      {" "}— {v.dias_pendientes} días sin gozar. El siguiente vence el {fmt(v.vence_el)}.</>
                   ) : (
-                    <>tiene {v.dias_saldo} días sin gozar y su récord vence
+                    <>tiene {v.dias_pendientes} días sin gozar y su récord vence
                       el {fmt(v.vence_el)}, en {v.dias_para_vencer} días.</>
                   )}
                 </li>
