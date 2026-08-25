@@ -25,7 +25,7 @@
 --   el resultado no dependa del día en que se ejecute.
 -- ============================================================================
 begin;
-select plan(7);
+select plan(9);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000002e0', 'ZZTOP', 'Sede de laboratorio', true);
@@ -37,10 +37,12 @@ values ('00000000-0000-0000-0000-0000000002e1', 'TopeAdmin', 'Laboratorio',
         '00000000-0000-0000-0000-0000000002e9');
 set session_replication_role = origin;
 
--- Dos situaciones: quien nunca fue suspendida, y quien ya cumplió una de un día.
+-- Tres situaciones: quien nunca fue suspendida, quien ya cumplió una de un día,
+-- y la misma de un día pero por FALTAS — que se rige por otra escala.
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, tipo_vinculo) values
   ('00000000-0000-0000-0000-0000000002a1', 'TopePrimera', 'Laboratorio', '00000000-0000-0000-0000-0000000002e0', 'test-hash', 'planilla'),
-  ('00000000-0000-0000-0000-0000000002a2', 'TopeSegunda', 'Laboratorio', '00000000-0000-0000-0000-0000000002e0', 'test-hash', 'planilla');
+  ('00000000-0000-0000-0000-0000000002a2', 'TopeSegunda', 'Laboratorio', '00000000-0000-0000-0000-0000000002e0', 'test-hash', 'planilla'),
+  ('00000000-0000-0000-0000-0000000002a3', 'TopeFalta', 'Laboratorio', '00000000-0000-0000-0000-0000000002e0', 'test-hash', 'planilla');
 
 -- Horario de los siete días para las dos: sin él no hay días laborables que
 -- fijar y `fn_dias_suspension` aborta antes de llegar a lo que se prueba.
@@ -49,7 +51,8 @@ insert into horarios_asignados
    almuerzo_max_minutos, dias_laborables, horas_semana_objetivo)
 select p, '2020-01-01', '09:00', '18:00', 60, 60, array[0,1,2,3,4,5,6], 45
 from (values ('00000000-0000-0000-0000-0000000002a1'::uuid),
-             ('00000000-0000-0000-0000-0000000002a2'::uuid)) as v(p);
+             ('00000000-0000-0000-0000-0000000002a2'::uuid),
+             ('00000000-0000-0000-0000-0000000002a3'::uuid)) as v(p);
 
 -- La suspensión previa de un día, ENTREGADA y vigente (art. 56).
 insert into expediente_disciplinario
@@ -58,6 +61,13 @@ insert into expediente_disciplinario
    medio_entrega, entregado_at, creado_por)
 values
   ('T-ZZTOP/0001', '00000000-0000-0000-0000-0000000002a2', 'tardanza', 'suspension', 'entregado',
+   fn_hoy_lima() - 40, fn_hoy_lima() - 35, 1, fn_hoy_lima() - 34, fn_hoy_lima() - 34,
+   '00000000-0000-0000-0000-0000000002e1', now() - interval '1 month',
+   'fisico', now() - interval '1 month',
+   '00000000-0000-0000-0000-0000000002e1'),
+  -- La misma forma, pero por FALTAS: su escala tiene un solo peldaño de
+  -- suspensión y el generador la emite siempre de un día.
+  ('F-ZZTOP/0001', '00000000-0000-0000-0000-0000000002a3', 'falta', 'suspension', 'entregado',
    fn_hoy_lima() - 40, fn_hoy_lima() - 35, 1, fn_hoy_lima() - 34, fn_hoy_lima() - 34,
    '00000000-0000-0000-0000-0000000002e1', now() - interval '1 month',
    'fisico', now() - interval '1 month',
@@ -73,7 +83,10 @@ values
    1, fn_hoy_lima() + 1, fn_hoy_lima() + 1, '00000000-0000-0000-0000-0000000002e1'),
   ('00000000-0000-0000-0000-0000000002b2', '00000000-0000-0000-0000-0000000002a2',
    'tardanza', 'suspension', 'borrador', fn_hoy_lima() - 2, fn_hoy_lima(),
-   2, fn_hoy_lima() + 1, fn_hoy_lima() + 2, '00000000-0000-0000-0000-0000000002e1');
+   2, fn_hoy_lima() + 1, fn_hoy_lima() + 2, '00000000-0000-0000-0000-0000000002e1'),
+  ('00000000-0000-0000-0000-0000000002b3', '00000000-0000-0000-0000-0000000002a3',
+   'falta', 'suspension', 'borrador', fn_hoy_lima() - 2, fn_hoy_lima(),
+   1, fn_hoy_lima() + 1, fn_hoy_lima() + 1, '00000000-0000-0000-0000-0000000002e1');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000002e9', true);
 
@@ -127,6 +140,24 @@ select is(
     where id = '00000000-0000-0000-0000-0000000002b2'),
   3,
   'Los tres días quedaron escritos en el borrador');
+
+-- ── 8-9 · La escalera del 19.2 es la de TARDANZAS, y solo esa ──────────────
+-- La escala de faltas tiene un único peldaño de suspensión (amonestación →
+-- suspensión → imputación) y su generador la emite siempre de un día. Exigirle
+-- «mayor que la anterior» rechazaría un borrador legítimo al mover su fecha,
+-- porque cambiar la fecha reenvía los mismos días.
+select lives_ok(
+  $$ select * from fn_expediente_set_suspension(
+       '00000000-0000-0000-0000-0000000002b3'::uuid, 1, fn_hoy_lima() + 1) $$,
+  'Una suspensión por FALTAS repite el día de la anterior: su escala no gradúa como el 19.2');
+
+-- Pero el techo del 54.5 sí es de toda suspensión, sea cual sea la causal.
+select throws_ok(
+  $$ select * from fn_expediente_set_suspension(
+       '00000000-0000-0000-0000-0000000002b3'::uuid, 4, fn_hoy_lima() + 1) $$,
+  'P0001',
+  null,
+  'Cuatro días por faltas también se rechazan: el 54.5 topa toda suspensión');
 
 select * from finish();
 rollback;
