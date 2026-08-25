@@ -69,6 +69,14 @@
 --   El guard lo hace el cuerpo de la función y no un `revoke`, por lo aprendido
 --   en la 0129: un revoke se deshace la próxima vez que alguien conceda en masa.
 --
+-- MD5 DE PARTIDA — pedido a PRODUCCIÓN el 2026-08-25, no al Postgres local
+--
+--   fn_vacaciones_truncas   a005fc6907be6a55d7243bdf6e65aa9d   (8 117 caracteres)
+--
+--   Es la versión de la 0283, que es de la que se copia el cuerpo. Coincide con
+--   el md5 que `docs/estado.md` anotó el día que se pegó y con el del Postgres
+--   local — los tres calculados por separado.
+--
 -- QUÉ ASUME
 --
 --   · `fn_vacaciones_truncas` en su versión de la 0283 — de la que se copia el
