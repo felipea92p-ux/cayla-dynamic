@@ -161,6 +161,8 @@ with repo(numero, nombre, nunca) as (values
     (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
     (300, 'crear_a_alguien_tambien_pasa_por_el_escalafon', false),
     (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones', false),
+    (302, 'la_ausencia_pagada_se_devenga_por_dias_laborables', false),
+    (303, 'la_negativa_a_firmar_entrega_el_documento', false),
     (305, 'un_retroactivo_dice_de_que_mes_viene', false)
 ),
 diff as (

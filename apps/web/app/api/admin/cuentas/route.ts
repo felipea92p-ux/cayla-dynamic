@@ -1,4 +1,4 @@
-import { createAnonClient, createServiceRoleClient } from "@cayla-dynamic/database";
+import { createAnonClient, createServiceRoleClient, createUserClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -334,7 +334,31 @@ export async function POST(req: Request) {
       if (p.rol !== "integrante") {
         return NextResponse.json({ error: "solo se promueve a un integrante" }, { status: 409 });
       }
-      const { error } = await admin.from("personas").update({ rol: "supervisor_sede" }).eq("id", personaId);
+      // El rol NO se escribe desde acá con la llave de servicio. Dos razones, y
+      // la segunda es la que importa:
+      //
+      //   1. Desde la 0296 un `update` directo de `personas.rol` lo aborta un
+      //      trigger salvo que quien escriba sea `postgres`. La llave de
+      //      servicio es `service_role`, no `postgres`: medido contra la base,
+      //      este update devolvía «El rol se cambia con fn_set_rol, no con un
+      //      update directo».
+      //   2. Escribiendo por acá el cambio de rol no dejaba NINGUNA fila en
+      //      `correcciones_auditoria`. `fn_set_rol` (0295) la inserta siempre —
+      //      un cambio que puede dar acceso a todos los sueldos y al padrón
+      //      completo no puede ser invisible. La llave de servicio no es nadie
+      //      dentro de la base (`auth.uid()` es null), así que por ese camino
+      //      no había a quién anotar.
+      //
+      // Por eso la llamada va con la sesión de quien pulsó el botón, que ya
+      // vino validada arriba. `fn_set_rol` vuelve a comprobar los permisos por
+      // su cuenta —y hace cumplir el escalafón entero, no solo lo que mira
+      // `puedeActuarSobre`—, así que las dos puertas dicen lo mismo.
+      const comoYo = createUserClient(token);
+      if (!comoYo) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
+      const { error } = await comoYo.rpc("fn_set_rol", {
+        p_persona_id: personaId,
+        p_nuevo_rol: "supervisor_sede",
+      });
       if (error) {
         Sentry.captureException(error);
         return NextResponse.json({ error: mensajeDeError(error, "promover a esa persona") }, { status: 500 });
