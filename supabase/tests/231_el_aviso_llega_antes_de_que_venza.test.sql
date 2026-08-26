@@ -10,7 +10,7 @@
 -- la regla que lo reemplaza: vencidos = k − 1.
 -- ============================================================================
 begin;
-select plan(19);
+select plan(23);
 
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa) values
@@ -33,8 +33,25 @@ insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_
    '00000000-0000-0000-0000-0000000000d6', '2024-01-01');
 set session_replication_role = origin;
 
-insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
-values ('00000000-0000-0000-0000-0000000000d2', 'cayla', 1200, '2024-01-01');
+-- Dos casos más, heredados de la prueba 234 que escribió la otra sesión para la
+-- 0299: cuando esa migración se retiró, sus casos se trajeron acá en vez de
+-- perderse. Mismo ingreso que Ana, y lo único que cambia es cuánto gozaron.
+insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso, tipo_vinculo) values
+  ('00000000-0000-0000-0000-0000000000da', 'VacAlDia', 'Laboratorio',
+   '00000000-0000-0000-0000-0000000000d0', 'x', '2024-01-01', 'planilla'),
+  ('00000000-0000-0000-0000-0000000000db', 'VacMitad', 'Laboratorio',
+   '00000000-0000-0000-0000-0000000000d0', 'x', '2024-01-01', 'planilla');
+
+insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde) values
+  ('00000000-0000-0000-0000-0000000000d2', 'cayla', 1200, '2024-01-01'),
+  ('00000000-0000-0000-0000-0000000000da', 'cayla', 1200, '2024-01-01'),
+  ('00000000-0000-0000-0000-0000000000db', 'cayla', 1200, '2024-01-01');
+
+-- VacAlDia gozó sus dos récords; VacMitad, solo el primero.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por) values
+  ('00000000-0000-0000-0000-0000000000da','vacaciones','2025-02-01','2025-02-15','récord 1','00000000-0000-0000-0000-0000000000d1'),
+  ('00000000-0000-0000-0000-0000000000da','vacaciones','2026-02-01','2026-02-15','récord 2','00000000-0000-0000-0000-0000000000d1'),
+  ('00000000-0000-0000-0000-0000000000db','vacaciones','2025-02-01','2025-02-15','récord 1','00000000-0000-0000-0000-0000000000d1');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000d9', true);
 
@@ -149,6 +166,38 @@ select is(
     where persona_id = '00000000-0000-0000-0000-0000000000d2'),
   2,
   'VENCIDO · y con tres años sin gozar son DOS los vencidos, no tres');
+
+-- ── 8 · Los tres casos de la prueba 234, que no se perdieron ───────────────
+-- Los escribió la otra sesión para la 0299. Cuando esa migración se retiró por
+-- duplicada, sus casos se trajeron acá: son los que esta prueba no cubría.
+--
+-- Se miden al 01/03/2026 y no antes: las vacaciones de VacAlDia son de febrero
+-- de 2026, y preguntando en enero todavía no habían ocurrido — el saldo las
+-- cuenta por la fecha en que se toman, así que habría salido en la lista por una
+-- razón que no es la que se quiere probar.
+select is(
+  (select count(*)::int from fn_vacaciones_por_vencer(400, '2026-03-01'::date)
+    where persona like 'VacAlDia%'),
+  0,
+  'SIN RUIDO · quien gozó sus dos récords no aparece en el aviso');
+
+select is(
+  (select vence_el from fn_vacaciones_por_vencer(400, '2026-03-01'::date)
+    where persona like 'VacMitad%'),
+  '2027-01-01'::date,
+  'FIFO · quien gozó el primer récord tiene pendiente el segundo, que vence en 2027');
+
+select is(
+  (select records_vencidos from fn_vacaciones_por_vencer(400, '2026-03-01'::date)
+    where persona like 'VacMitad%'),
+  0,
+  'FIFO · y no le ha vencido ninguno: el aviso llega con tiempo, que es su razón de ser');
+
+select is(
+  (select count(*)::int from fn_vacaciones_por_vencer(30, '2026-03-01'::date)
+    where persona like 'VacMitad%'),
+  0,
+  'VENTANA · con 30 días de aviso, el que vence dentro de un año no aparece');
 
 select * from finish();
 rollback;

@@ -203,6 +203,13 @@ export default function MioPage() {
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  // Su saldo de vacaciones y hasta cuándo puede tomarlo. Sin plata: en esta
+  // pantalla no hay dinero, y la función tampoco devuelve ninguno — por eso se
+  // le puede preguntar a cada persona por lo suyo.
+  const [vacas, setVacas] = useState<{
+    dias_pendientes: number; records_sin_gozar: number; records_vencidos: number;
+    vence_el: string | null; dias_para_vencer: number | null;
+  } | null>(null);
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [perdonadas, setPerdonadas] = useState<Set<string>>(new Set());
   const [tramos, setTramos] = useState<HorarioTramo[]>([]);
@@ -338,10 +345,15 @@ export default function MioPage() {
         .lte("fecha_ini", hoyLima()).gte("fecha_fin", hoyLima()).maybeSingle(),
       supabase.from("feriados").select("fecha, nombre")
         .gte("fecha", hoyLima()).order("fecha").limit(3),
+      // SIN filtro de fechas, a propósito. Antes se recortaba al rango que la
+      // persona está mirando, y entonces la RESPUESTA de su encargada se volvía
+      // invisible en cuanto el día caía fuera de la ventana por defecto: pidió
+      // que le revisaran un día, se lo revisaron, y no se enteraba. Traerlas
+      // todas no pesa —hay como mucho UNA por día y por persona, por el unique
+      // de la 0257— y es lo que permite avisar abajo de las ya respondidas.
       supabase.from("revisiones_pedidas")
         .select("fecha, comentario, atendida_at, respuesta")
-        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
-        .gte("fecha", desde).lte("fecha", hasta),
+        .eq("persona_id", yo.id),         // ← explícito, como todo lo de acá
     ]);
 
     setJornadas((js as Jornada[]) ?? []);
@@ -367,6 +379,22 @@ export default function MioPage() {
   }, [supabase, yo, desde, hasta]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Se pide aparte y no dentro del bloque grande: es una sola pregunta, depende
+  // solo de quién es, y si falla no debe llevarse por delante el resto de la
+  // pantalla.
+  useEffect(() => {
+    if (!yo?.id) { setVacas(null); return; }
+    let vivo = true;
+    void supabase
+      .rpc("fn_vacaciones_saldo", { p_persona_id: yo.id, p_as_of: null })
+      .then(({ data }) => {
+        if (!vivo) return;
+        const r = data as { aplica?: boolean } | null;
+        setVacas(r && r.aplica ? (r as never) : null);
+      });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
 
   /** El periodo de pago en curso, para el botón. Del 29 al 28 — leído, no calculado. */
   async function irAlPeriodoDePago() {
@@ -430,6 +458,16 @@ export default function MioPage() {
       };
     });
   }, [yo, desde, hasta, jornadas, turnos, tramos, faltas, perdonadas]);
+
+  // Las que YA te respondieron, hayas mirado ese día o no. Es la vuelta del
+  // circuito de la 0257: pediste que revisaran un día y alguien contestó. Sin
+  // esto, la respuesta solo se veía si navegabas justo a esa fecha.
+  const respondidas = useMemo(
+    () => [...revisiones.values()]
+      .filter((r) => r.atendida_at && r.respuesta)
+      .sort((a, b) => (b.atendida_at ?? "").localeCompare(a.atendida_at ?? "")),
+    [revisiones],
+  );
 
   const resumen = useMemo(() => {
     const hoy = hoyLima();
@@ -614,7 +652,7 @@ export default function MioPage() {
           Arriba y con un verbo, no como una etiqueta pequeña dentro de la tabla.
           Estos son los días que le pueden costar plata a ella, y es la única que
           sabe qué pasó de verdad ese día. */}
-      {(resumen.porRevisar.length > 0 || resumen.faltas.length > 0) && (
+      {(resumen.porRevisar.length > 0 || resumen.faltas.length > 0 || respondidas.length > 0) && (
         <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 text-sm">
           <h2 className="mb-2 font-serif text-lg">Revisa esto</h2>
           {resumen.porRevisar.length > 0 && (
@@ -630,6 +668,20 @@ export default function MioPage() {
               ({resumen.faltas.map((d) => diaYMes(d.fecha)).join(", ")}). Si trabajaste o tenías permiso, se corrige
               con el motivo anotado.
             </p>
+          )}
+          {respondidas.length > 0 && (
+            <div className="mb-1">
+              <strong>
+                Te respondieron {respondidas.length === 1 ? "el día que pediste revisar" : `los ${respondidas.length} días que pediste revisar`}.
+              </strong>
+              <ul className="mt-0.5 space-y-0.5">
+                {respondidas.map((r) => (
+                  <li key={r.fecha}>
+                    <span className="text-taupe">{diaYMes(r.fecha)}:</span> {r.respuesta}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <p className="text-taupe">Avísale a tu encargada. Un marcaje se arregla; al final del mes ya no.</p>
         </section>
@@ -883,6 +935,29 @@ export default function MioPage() {
           </>
         )}
       </section>
+
+      {/* ── Sus vacaciones, y hasta cuándo puede tomarlas ───────────────────
+          Un récord que se cierra tiene un año para gozarse. Pasado ese año la
+          empresa debe una indemnización (art. 23 del D. Leg. 713) y la persona
+          se quedó sin su descanso — que es lo que de verdad importa acá. Nadie
+          pide vacaciones que no sabe que tiene. */}
+      {vacas && vacas.records_sin_gozar > 0 && vacas.vence_el && (
+        <section className={`mb-6 rounded-2xl border p-5 text-sm ${
+          (vacas.dias_para_vencer ?? 999) <= 60 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}`}>
+          <h2 className="mb-2 font-serif text-lg">Tus vacaciones</h2>
+          <p>
+            Te quedan <strong>{vacas.dias_pendientes} días</strong> sin tomar, y el récord más
+            antiguo <strong>vence el {diaYMes(vacas.vence_el)}</strong>
+            {typeof vacas.dias_para_vencer === "number" && vacas.dias_para_vencer >= 0
+              ? ` — faltan ${vacas.dias_para_vencer} días.`
+              : "."}
+          </p>
+          <p className="mt-2 text-xs text-taupe">
+            Después de esa fecha esos días ya no se pueden tomar como descanso. Si quieres
+            programarlas, habla con tu encargada.
+          </p>
+        </section>
+      )}
 
       {/* ── Sus ausencias ────────────────────────────────────────────────────
           «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
