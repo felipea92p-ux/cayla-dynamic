@@ -207,7 +207,8 @@ manda a reescribir la 0292 desde cero.
 | 1 · las nueve funciones `SECURITY DEFINER` | ✅ cerrado y **aplicado** en producción | migración 0292 · prueba 228 |
 | 2 · ascenderse a Admin | ✅ escrito · **falta pegar**, y no antes de desplegar (ver abajo) | 0295 + 0296 + 0300 · pruebas 232, 235 |
 | 3 · el kiosco, el DNI y el sueldo | ✅ cerrado y **aplicado** | migración 0291 · prueba 227 |
-| 4 a 9 | siguen abiertos, medidos abajo | — |
+| 4 · el candado del mes pagado | ✅ los seis candados cerrados y **aplicados**; quedan 14 usos fuera del candado | migración 0307 · prueba 241 |
+| 5 a 9 | siguen abiertos, medidos abajo | — |
 
 **Lo único que falta pegar en todo el repositorio son la 0295 y la 0296**, y eso
 se pregunta con `./scripts/que-falta-pegar.sh`, no se lee acá.
@@ -310,7 +311,7 @@ de cerrar ya:** el paso que faltaba (migrar el frontend) ya está hecho y
 confirmado. Solo falta `drop policy personas_select_terminal_roster on
 personas;`.
 
-### 4 · El candado del mes pagado se mide con el reloj, no con la jornada — riesgo directo para el cierre del 28, sobre todo en TRU
+### 4 · El candado del mes pagado se mide con el reloj — ✅ LOS SEIS CANDADOS CERRADOS (0307, prueba 241, aplicada el 26/08) · quedan 14 usos fuera del candado
 
 **Dónde:** once funciones (`fn_anular_marcaje`, `fn_corregir_marca`,
 `fn_eliminar_marcaje`, `fn_reactivar_marcaje`, `fn_confirmar_auto_cierre`,
@@ -329,6 +330,29 @@ registro de control de asistencia que lo sustenta sí puede quedar
 contradiciéndolo**, sin aviso. Es exactamente el escenario que la 0240 se
 escribió para resolver, y TRU —que trabaja domingo y cierra tarde— es la sede
 donde más ocurre.
+
+**Reverificado y cerrado a medias el 2026-08-25/26.** Los once seguían con 19
+usos del reloj y cero de `fecha_jornada`. Demostrado contra la base, mismo
+periodo pagado, misma jornada del 28: la entrada de las 20:00 del 28 se frenaba
+y la salida de las 00:30 del 29 **se borraba, 0 filas**.
+
+La **0307** cambió de vara las SEIS comprobaciones de «periodo ya PAGADO»
+—anular, corregir marca, corregir marcaje, eliminar, reactivar y confirmar
+auto-cierre— y puso la regla en una sola función, `fn_fecha_de_jornada`. Está
+aplicada en producción y su prueba es la 241 (11 aserciones).
+
+**Lo que queda, y va en su propia migración:** los otros 14 usos —el resellado
+del día, la búsqueda de la sede del día, `fn_dias_por_revisar` y
+`fn_dia_incoherente`, que no estaba en la lista original de once pero está en el
+mismo camino—. Se dejaron fuera a propósito para no mover funciones que
+sostienen el cierre a tres días de usarlo.
+
+⚠️ **Y antes de escribir esa segunda migración, la trampa:** `fn_corregir_marca`
+tiene un guard que dice «aquí solo se corrige la hora dentro de su mismo día»
+comparando contra el día del RELOJ. Moverlo a la fecha de jornada haría que
+saltara SIEMPRE para una marca de madrugada, dejándola imposible de corregir.
+Ahí hacen falta dos variables, no una. La aserción 10 de la prueba 241 se pone
+roja el día que alguien lo mueva sin verlo.
 
 **Sin reverificar esta noche por tiempo** — el informe de agosto lo midió con
 4 intentos reales en `BEGIN…ROLLBACK`, todos exitosos salvo el primero.
