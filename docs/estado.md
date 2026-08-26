@@ -37,6 +37,136 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-25 — La reserva le pagaba de más a quien estuvo de vacaciones (0302)
+
+**Pendiente: pegar la 0302 en producción** (`./scripts/dame-el-sql.sh 302`).
+md5 de partida **confirmado contra el SQL Editor el 2026-08-25**:
+`93531851f35abcdd295fd8fb4aa77922`, 33 892 caracteres — el Postgres local
+reconstruido desde cero devuelve el mismo par.
+
+`fn_provisiones` contaba cada día de **calendario** de una ausencia pagada; la
+boleta cuenta los **laborables**. Los sábados y domingos del tramo entraban dos
+veces: una dentro del sueldo mensual y otra como día de ausencia.
+
+Se leía sin saber SQL: **la reserva le daba más gratificación a quien estuvo de
+vacaciones que a quien trabajó el mes entero.** Y no se quedaba en un informe —
+`fn_grati_cts_periodo` autocompleta el depósito desde esa base, así que el
+exceso salía del banco el 15/05, el 15/07, el 15/11 y el 15/12.
+
+Medido en local con `BEGIN … ROLLBACK`, marzo 2026, S/1.950, 19 días corridos
+de ausencia. Se usó el **mes calendario** como periodo a propósito, para no
+arrastrar la divergencia del divisor 29→28 que la 0276 dejó abierta:
+
+| Caso | Antes | Con la 0302 |
+|---|---|---|
+| Vacaciones | 20,96 | **0,00** |
+| Descanso médico | 20,96 | **0,00** |
+| Trujillo, 6 días laborables **con domingo** | 15,72 | **0,00** |
+
+Trujillo no es decoración: es la fila que separa este arreglo de «restarle los
+domingos a la ausencia». Un arreglo así pasa las otras comprobaciones y falla
+ésa.
+
+**Lo que NO se tocó, y es el cuidado de la migración.** La rama existe desde la
+0135 porque sin ella tomarse las vacaciones te *bajaba* la gratificación — el
+error contrario, y ése sí contra la persona. Sigue contando la ausencia entera;
+cambia cuántos días de ella cuentan. Tampoco cambió cuánto vale el día: se
+intentó poner `salario / días laborables` en lugar de `salario / días del mes`,
+que suena más fino, y **se midió que empeoraba** — la diferencia subía a S/32,16
+en vez de bajar a cero, porque así el día de ausencia valdría más que el
+trabajado.
+
+Prueba **236**, seis comprobaciones. Con la función de producción fallan cuatro
+—las cuatro de «boleta = reserva»— y pasan las dos que vigilan que la rama de la
+0135 siga en pie. Ninguna otra de las 159 se apoyaba en el defecto.
+
+### Lo que la 0302 deja abierto a propósito (medido, no supuesto)
+
+**Maternidad y licencia con goce siguen sin cuadrar**: la reserva devenga
+S/115,32 y la boleta S/36,69. La diferencia **baja** de S/99,59 a S/78,63 con la
+0302 —o sea que no lo empeora— pero no lo cierra, porque la causa es otra: **la
+boleta no tiene rama para esos dos tipos.** Tiene `vacd` para vacaciones y `dmd`
+para descanso médico, y nada más; a quien está de maternidad o de licencia con
+goce le apunta base S/440,32 en un mes de S/1.383,87.
+
+Son dos casos distintos y ninguno es el defecto de la 0302:
+
+- **Licencia con goce de remuneraciones** — «con goce» significa que la paga el
+  empleador. Que la boleta le ponga cero **parece un defecto contra la persona**
+  y merece su propia migración y su propia medición. *Falta preguntarle a Felipe
+  si CAYLA ha dado alguna, y cuándo.*
+- **Maternidad** — el subsidio lo paga EsSalud, no CAYLA, así que que la boleta
+  no le pague sueldo puede ser correcto. Y aun así la reserva hace bien en
+  devengarla: el art. 3.2 c) del D.S. 005-2002-TR cuenta como tiempo
+  efectivamente laborado «los descansos o licencias establecidos por las normas
+  de seguridad social y que originan el pago de subsidios». Ahí los dos números
+  **miden cosas distintas**, y forzarlos a ser iguales sería el error.
+
+---
+
+## 2026-08-25 — Una suspensión de 10 días que nadie ordenó (0294)
+
+**Aplicada en producción el 2026-08-25** — confirmado con
+`que_falta_pegar.sql`. El md5 de partida se había verificado antes contra el
+SQL Editor (`96f32dbd2ff1c41da38765ef1ec5bbf6`, 994 caracteres: producción
+tenía la 0075 idéntica al repositorio, comentarios incluidos). Al pegarla no se
+movió ningún documento ya emitido: solo dejó de aceptar números que el
+Reglamento no admite.
+
+**Decidido por Felipe (2026-08-25): el tope se queda en 3.** No se reforma el
+RIT. El candado hace cumplir lo que el Reglamento ya dice.
+
+Revisando el caso de Sasha Fernandez (AQP) —segunda suspensión por tardanzas,
+que el generador propuso con 2 días— la pantalla mostraba **10 días**: 26, 27,
+28, 29 y 31 de agosto, y del 1 al 5 de septiembre.
+
+**Los tecleó Felipe a propósito, para enseñar el defecto**, y conviene que quede
+escrito: la primera versión de esta nota supuso que había sido la rueda del
+mouse y eso era inventar una causa. El defecto no necesita ninguna: el campo
+aceptaba diez días y la base los escribía.
+
+**Los topes estaban escritos en el generador y no en el editor.** La 0235 le
+puso a `fn_expediente_generar_tardanza` los tres límites del RIT —54.5 tres días
+como techo, 19.2 c) la primera de uno a dos, 19.2 d) la segunda mayor que la
+primera— y `fn_expediente_set_suspension` (0075) siguió escribiendo `p_dias` sin
+preguntar nada. Cuando la 0075 se escribió, todas las suspensiones salían de un
+día y no había qué topar; la 0232 hizo normales los rangos de dos y tres.
+
+**Y el `max={15}` de la pantalla no era una defensa.** El atributo `max` de HTML
+no impide escribir ni enviar: solo valida un formulario, y acá hay un `onBlur`
+que llama a la RPC. El candado quedó en la base; la pantalla pasa a ser el
+letrero, y dice lo que de verdad cabe.
+
+**El campo ya no ofrece un rango fijo, sino el de ESE documento.** Preguntado
+por Felipe: no es 1 a 3 siempre. Para quien nunca fue suspendida por tardanzas
+son 1 o 2 (19.2 c); para quien ya cumplió una de un día —el caso de Sasha— son
+**2 o 3**, porque la segunda tiene que ser mayor. La pantalla calcula ese rango
+con la misma cuenta que la base, lo escribe al lado del campo con su motivo, y
+pinta en rojo el valor que quede fuera. Un borrador que hoy tenga un número
+imposible se ve al abrir la pantalla, no al intentar firmarlo.
+
+Se mantiene además `onWheel` con blur: un `<input type="number">` cambia de
+valor con la rueda del mouse cuando el cursor pasa por encima al hacer scroll.
+No fue lo que pasó acá, pero mueve días de sueldo sin que nadie lo teclee.
+
+**De paso, un tercero:** «Generar borrador» se ofrecía aunque ya hubiera un
+borrador pendiente de esa causal. La base lo rechaza desde siempre, así que el
+botón solo podía terminar en error.
+
+⚠️ **El tope de tres días es del RIT de CAYLA, no de la ley.** La LPCL no fija
+número —exige proporcionalidad y gradualidad— y la práctica privada peruana
+maneja techos informales de ~7 días. Subirlo es decisión de Gerencia, pero se
+toma **reformando el RIT y volviéndolo a entregar con acuse**, no aflojando el
+candado: un memo que se funda en el Reglamento y lo incumple en su parte
+resolutiva no sirve como sanción previa del literal h) del art. 25 el día que
+haga falta.
+
+**Lo que queda sin cerrar:** los documentos ya firmados o entregados no se
+revisan solos. Si alguna suspensión pasada quedó fuera de los topes, hay que
+buscarla a mano — la 0294 solo cuida las que se editen desde ahora.
+
+---
+
 ## 2026-08-25 — Revisión nocturna: las nueve cosas más importantes por corregir
 
 **Contexto de esta entrada.** Felipe pidió una revisión de código exhaustiva
@@ -65,7 +195,48 @@ de las dos tenía.
 del informe viejo (solo contra P0/P1 y una muestra de P2). Puede haber más
 solapamiento del que aquí se descuenta.
 
-### 1 · Nueve funciones `SECURITY DEFINER` entregan datos de cualquier persona a cualquier sesión — P0, sigue abierto
+---
+
+⚠️ **ESTA LISTA ENVEJECIÓ EN HORAS. Releída y medida el 2026-08-25 por la
+tarde:** tres de los nueve ya estaban resueltos por otras sesiones —con su
+migración y su prueba— mientras el texto seguía diciendo «sigue abierto». Casi
+manda a reescribir la 0292 desde cero.
+
+| # | Estado hoy | Dónde |
+|---|---|---|
+| 1 · las nueve funciones `SECURITY DEFINER` | ✅ cerrado y **aplicado** en producción | migración 0292 · prueba 228 |
+| 2 · ascenderse a Admin | ✅ escrito · **falta pegar**, y no antes de desplegar (ver abajo) | 0295 + 0296 + 0300 · pruebas 232, 235 |
+| 3 · el kiosco, el DNI y el sueldo | ✅ cerrado y **aplicado** | migración 0291 · prueba 227 |
+| 4 a 9 | siguen abiertos, medidos abajo | — |
+
+**Lo único que falta pegar en todo el repositorio son la 0295 y la 0296**, y eso
+se pregunta con `./scripts/que-falta-pegar.sh`, no se lee acá.
+
+⚠️ **La 0296 NO se pega hasta que esté desplegado el arreglo de
+`/api/admin/cuentas`.** Su trigger aborta cualquier `update` de `personas.rol`
+que no venga de `postgres`, y el botón «promover a encargada» de
+`/admin/cuentas` escribía el rol con la llave de SERVICIO, que dentro de la
+base es `service_role`. Medido contra el Postgres local con el trigger puesto:
+devolvía «El rol se cambia con fn_set_rol, no con un update directo». Pegarla
+antes deja el botón muerto.
+
+El arreglo ya está hecho (commit «Promover a encargada deja de escribir el rol
+por la puerta de atrás»): la ruta llama a `fn_set_rol` con la sesión de quien
+pulsó el botón, vía `createUserClient(token)`. **De paso cerró un agujero que
+ninguna de las dos auditorías había visto**: por ese camino el cambio de rol no
+dejaba NINGUNA fila en `correcciones_auditoria`, porque la llave de servicio no
+es nadie dentro de la base (`auth.uid()` es null) y no había a quién anotar.
+Justo lo que la 0295 existe para impedir, evitado por la otra puerta.
+
+**La lección, que es la misma de siempre en este archivo:** una lista de
+pendientes escrita a mano compite con varias sesiones trabajando en paralelo, y
+pierde. Antes de tomar cualquier hallazgo de aquí, medirlo contra el código
+vivo — `ls supabase/migrations`, `donde-vive.sh`, la prueba pgTAP que le
+corresponda.
+
+---
+
+### 1 · ~~Nueve funciones `SECURITY DEFINER` entregan datos de cualquier persona a cualquier sesión~~ — ✅ CERRADO (0292, prueba 228, aplicado el 25/08)
 
 **Dónde:** `fn_falta_contadores` (0094) · `fn_tardanza_escalon` (0246) ·
 `fn_dia_suspendido` · `fn_dias_suspension` · `fn_beneficio_ya_depositado` ·
@@ -95,7 +266,7 @@ predicado correcto (`prosecdef + grant a authenticated + recibe p_persona_id +
 sin guard en el cuerpo` — no "todo prosecdef", eso ya se probó y dio 14 falsos
 positivos).
 
-### 2 · Una `lider_do` puede ascenderse a Admin sola, en tres clics y sin dejar rastro — P1→ severidad de facto de P0
+### 2 · Una `lider_do` puede ascenderse a Admin sola, en tres clics y sin dejar rastro — ESCRITO (0295 + 0296 + 0300), falta pegar · leer el aviso de la 0296 arriba
 
 **Dónde:** `apps/web/app/(admin)/admin/equipo/page.tsx:422-431` escribe `rol`
 directo a la tabla `personas` vía `.update()`; el desplegable que lo alimenta
@@ -120,7 +291,7 @@ escalafón dentro de la base, y `revoke update (rol) on personas from
 authenticated` — así la regla la cumplen los dos caminos, no solo el que la
 llama.
 
-### 3 · El kiosco de marcaje sigue exponiendo DNI y sueldo base por REST directo — P0, el más barato de cerrar
+### 3 · ~~El kiosco de marcaje sigue exponiendo DNI y sueldo base por REST directo~~ — ✅ CERRADO (0291, prueba 227, aplicado el 25/08)
 
 **Dónde:** `supabase/migrations/0008_visible_todas_sedes.sql:12-17` crea la
 policy `personas_select_terminal_roster` sin recortar columnas. La 0285
@@ -464,6 +635,50 @@ otra, más corta, no salía de ningún documento y no la usaba nadie. Se tomó l
 los contratos, así que **hoy no hay ningún papel que haya cambiado de texto** —
 queda comprobar contra la ficha RUC que esa sea la buena, porque desde ahora la
 dice un solo sitio.
+
+---
+
+## 2026-08-25 — El aviso de vacaciones se construyó dos veces, y el duplicado lo rompió
+
+La **0297** creó `fn_vacaciones_por_vencer` desde una rama, con su prueba, su
+banda en Ausencias, su entrada en el menú y en «Lo mío», y sus tipos
+regenerados. Dos días después la **0299** creó la misma función desde otra rama,
+sin comprobar que ya existía.
+
+**No quedó en trabajo perdido.** Las dos tenían todos sus argumentos con valor
+por defecto, así que la llamada sin argumentos encajaba en las dos:
+
+    ERROR: function fn_vacaciones_por_vencer() is not unique
+
+Con las dos vivas el aviso NO se mostraba. Es el mismo accidente que la 0278
+documentó al agregar un parámetro con `create or replace`: no falla al pegar la
+migración, **falla al abrir la pantalla**.
+
+La [`0301`](../supabase/migrations/0301_retirar_la_copia_duplicada_del_aviso_de_vacaciones.sql)
+suelta la firma de la 0299. **Está pegada en producción el 2026-08-25** y
+confirmada: queda una sola, `p_dias integer, p_as_of date`, md5 `0f4ea1c9…`.
+
+**Sobrevive la de la 0297 y no por antigüedad.** Ve más gente —cada persona sus
+propios días, una encargada los de su sede—, devuelve la sede, y sobre todo
+tiene una condición que la otra no tenía:
+
+    and ( dias_para_vencer <= p_dias or records_vencidos > 0 )
+
+con este comentario suyo: «quien YA tiene un récord vencido puede tener el
+siguiente a un año de distancia, y con solo el filtro de los 60 días desaparecía
+de la lista justo la persona más urgente. Se vio en el panel con datos de
+prueba, no razonándolo». La otra filtraba solo por la ventana: **a quien más
+urge avisarle, no le avisaba**.
+
+**La causa de raíz, y la regla que salió de ahí:** no se corrió
+`./scripts/donde-vive.sh` antes de escribir, porque el script se leía como «para
+reescribir una función». Ya está en CLAUDE.md que **también se corre antes de
+crear**: con varias sesiones a la vez, «esta función no existe» es una
+suposición, no un hecho.
+
+**Y lo único que destapó todo esto fue pedir el md5 después de pegar.** Dos
+filas donde debía haber una. Sin esa comprobación, el aviso habría quedado roto
+en silencio hasta que alguien abriera la pantalla.
 
 ---
 
@@ -2068,6 +2283,34 @@ mensaje.** El comparador viejo llevaba las huellas del repositorio dentro y
 acusó a 25 funciones que estaban bien. Se sacaron del archivo… y entonces
 caducaron en el mensaje que las transportaba: se calcularon a las 10:28, entraron
 cinco migraciones a las 10:55 y 11:14, y la comparación de las 11:30 ya no valía.
+
+### Y aun así, empieza por la lista de números — medido el 2026-08-19
+
+Los md5 son la herramienta fina, pero **caducan en minutos**, y ese día caducaron
+para los dos lados a la vez:
+
+- La huella de producción dijo `hasta_migracion: 287` cuando ya iba por la 301
+  — entre una consulta y la siguiente se pegaron migraciones.
+- Y la base local de esta Mac saltó de 286 a 301 en mitad de la comparación,
+  porque otra sesión corrió `db reset`.
+
+Resultado: tres md5 distintos, +3 funciones y +14 columnas de diferencia, y una
+sospecha de código cambiado a mano en producción **que era falsa entera**.
+
+Lo que lo resolvió en un minuto fue esto, que no caduca:
+
+```sql
+select string_agg(numero::text, ',' order by numero) as numeros
+from migraciones_aplicadas
+where numero >= 265;
+```
+
+Esa lista se compara contra `ls supabase/migrations/`. O está el 295 o no está —
+no hay generación que valga. Ese día la respuesta fue **faltaban dos**, la 0295 y
+la 0296, y ni una sola migración en producción que no estuviera en el repositorio.
+
+**La regla:** los números primero. Los md5 solo si los números ya coinciden —
+porque solo entonces significan algo.
 
 `huella_del_esquema.sql` calcula las dos mitades en el mismo minuto y trae
 `hasta_migracion`, para que comparar dos generaciones distintas se delate en vez

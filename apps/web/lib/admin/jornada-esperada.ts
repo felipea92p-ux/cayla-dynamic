@@ -14,10 +14,17 @@
 // no tiene `horario_por_dia` se usa el resumen legacy `dias_laborables`.
 //
 // SE ROMPE SI: alguien cambia esa prioridad en la base y no acá. Es el riesgo de
-// tener la regla escrita dos veces, y ya está escrita dos veces: hay una copia
-// más vieja y solo para la hora de entrada en `admin/correcciones/page.tsx`
-// (`calcularEsperado`). Vale la pena unificarlas; hoy no se hace para no meter
-// ese cambio dentro de otro.
+// tener la regla escrita más de una vez, y ya se estuvo así: `admin/correcciones/page.tsx`
+// tenía su propia copia (`calcularEsperado`), solo para la hora de entrada, y con
+// un bug real —su rama legacy no comprobaba `dias_laborables`, porque su consulta
+// nunca pedía esa columna—. Se unificó el 2026-08-25: esa pantalla ya llama a
+// `esperadoDelDia`.
+//
+// QUEDAN DOS COPIAS SIN UNIFICAR, y CLAUDE.md ya prohíbe una tercera nueva:
+// `admin/incidencias/page.tsx` (`trabajaEseDia`, solo booleano, para calcular
+// cobertura de encargadas) y `admin/turnos/page.tsx` (`horasDeTramo` y `celda`,
+// para dibujar la grilla de turnos). Antes de escribir una función nueva que
+// responda «¿le tocaba trabajar ese día?», usar ésta.
 
 export interface TurnoDia {
   hora_entrada: string | null;

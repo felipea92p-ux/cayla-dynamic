@@ -81,6 +81,21 @@ echo "→ lo que main tiene y tú no…"
 echo "→ las reglas de la casa…"
 "$(dirname "$0")/reglas-de-la-casa.sh" || exit 1
 
+# ── El linter, pero solo sobre lo que este push agrega ─────────────────────
+#
+# ESLint llevaba instalado y apagado desde julio. La auditoría de agosto lo
+# encontró con 119 errores; una semana después eran 131. Creció en doce sin que
+# nadie lo notara, que es lo que le pasa a un guardián que nadie enciende.
+#
+# Mismo criterio que el de arriba y que numeracion.sh: solo juzga lo que el push
+# AÑADE. Los errores viejos no frenan a nadie; el 132 no entra.
+#
+# Es barato porque no lintea el repositorio entero: solo los archivos que el
+# push modifica, y si no toca ningún .ts ni .tsx sale en un parpadeo — que aquí
+# es lo normal, porque la mayoría de los push son SQL.
+echo "→ el linter, sobre lo nuevo…"
+"$(dirname "$0")/lint-de-lo-nuevo.sh" || exit 1
+
 # ── Los tipos generados, que no pueden viajar vacíos ────────────────────────
 #
 # `packages/database/src/types.ts` lo escribe `gen-types` de un tirón: si el
