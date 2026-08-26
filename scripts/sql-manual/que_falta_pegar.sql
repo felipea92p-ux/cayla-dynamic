@@ -157,7 +157,8 @@ with repo(numero, nombre, nunca) as (values
     (297, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
     (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
     (300, 'crear_a_alguien_tambien_pasa_por_el_escalafon', false),
-    (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones', false)
+    (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones', false),
+    (304, 'una_marca_apartada_deja_de_vivir_en_un_solo_navegador', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
