@@ -81,8 +81,24 @@ entero, licencia a caballo entre dos periodos y día fichado dentro; idempotenci
 probada pegando el archivo dos veces; y la coherencia de `chk_foto_cuadra`,
 `fn_planilla_congelar`, `fn_provisiones` y la justificación de la falta.
 
-**Decisión pendiente: cuándo entra la 0315**, porque el periodo cierra el 28 y
-sumar las vacaciones a la base sube el descuento de pensión de quien las tomó.
+**Decidido el 2026-08-26: partida en dos.**
+
+· **La 0316 (escrita, auditada, sin pegar)** cierra el caso que NO mueve nada
+  hoy: la licencia con goce y el duelo directo entran a `bri.base`, más la tilde
+  de «cónyuge». Un término calcado del de la 0263, tres líneas de código.
+  Medido con 8 personas: la licencia sube su base +483,87 (el monto exacto) y su
+  neto baja S/62,90 de ONP; **descanso médico, vacaciones, maternidad, control,
+  sueldo fijo y RxH quedan idénticos al céntimo**. Los dos últimos son los que
+  más caro costaría romper: tienen la base en cero a propósito y la regla de la
+  casa es que las sobretasas COMPLETAN una base, nunca CREAN una.
+  md5 de llegada: `634ef0c497da26a06904e056327cfb60`, 104.327 caracteres.
+  Prueba [`251`](../supabase/tests/251_lo_que_se_paga_por_licencia_tambien_se_declara.test.sql),
+  14 aserciones. Suite: 174 archivos, 1736 pruebas, PASS.
+
+· **Las vacaciones quedan para después del cierre del 28**, en su propia
+  migración y avisando al contador, porque ese término sí cambia el neto de
+  quien las tomó. La prueba 251 lo vigila al estilo de la 244: declara el
+  defecto como abierto y se caerá el día que alguien lo arregle.
 
 ---
 
