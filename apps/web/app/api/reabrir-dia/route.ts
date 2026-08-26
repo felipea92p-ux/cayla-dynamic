@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createUserClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -39,10 +39,15 @@ export async function POST(req: Request) {
 
   // El cliente lleva la sesión de la terminal, no la llave de servicio: es lo que
   // hace que auth.uid() dentro de la función devuelva el kiosco que llamó.
-  const sb = createClient(URL, ANON, {
-    auth: { persistSession: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
+  //
+  // Se pide a `createUserClient` en vez de armarlo acá con `createClient`, y no
+  // es cosmético: armado a mano no llevaba el genérico `<Database>`, así que el
+  // `rpc` de abajo NO estaba comprobado —ni el nombre de la función, ni sus
+  // parámetros— mientras el resto del panel sí. Era el único sitio del código
+  // que hablaba con la base sin tipos. Hace exactamente lo mismo: token en la
+  // cabecera, sin persistir sesión.
+  const sb = createUserClient(token);
+  if (!sb) return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
 
   const { data, error } = await sb.rpc("fn_reabrir_dia", {
     p_persona_id: personaId,

@@ -2411,6 +2411,7 @@ export type Database = {
           id: string
           monto: number
           periodo_id: string
+          periodo_origen_id: string | null
           persona_id: string
           tipo: string
         }
@@ -2422,6 +2423,7 @@ export type Database = {
           id?: string
           monto: number
           periodo_id: string
+          periodo_origen_id?: string | null
           persona_id: string
           tipo: string
         }
@@ -2433,6 +2435,7 @@ export type Database = {
           id?: string
           monto?: number
           periodo_id?: string
+          periodo_origen_id?: string | null
           persona_id?: string
           tipo?: string
         }
@@ -2454,6 +2457,13 @@ export type Database = {
           {
             foreignKeyName: "movimientos_planilla_periodo_id_fkey"
             columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_planilla_periodo_origen_id_fkey"
+            columns: ["periodo_origen_id"]
             isOneToOne: false
             referencedRelation: "periodos_planilla"
             referencedColumns: ["id"]
@@ -3922,28 +3932,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      fn_agregar_movimiento:
-        | {
-            Args: {
-              p_concepto: string | null
-              p_monto: number | null
-              p_periodo_id: string | null
-              p_persona_id: string | null
-              p_tipo: string | null
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_categoria: string | null
-              p_concepto: string | null
-              p_monto: number | null
-              p_periodo_id: string | null
-              p_persona_id: string | null
-              p_tipo: string | null
-            }
-            Returns: undefined
-          }
+      fn_agregar_movimiento: {
+        Args: {
+          p_categoria?: string | null
+          p_concepto: string | null
+          p_monto: number | null
+          p_periodo_id: string | null
+          p_periodo_origen_id?: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
+        }
+        Returns: undefined
+      }
       fn_ahora_servidor: { Args: never; Returns: string }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }
