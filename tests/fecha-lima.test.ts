@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   TZ_LIMA, fechaLima, rangoDelDiaLima, rangoDelMesLima, horaLima, horaDecimalLima,
+  nombreDelMesLima, nombreDelMesLimaTitulo, mesesRecientesLima,
 } from "@cayla-dynamic/shared";
 
 describe("el borde de medianoche, que es donde se pierde un día de pago", () => {
@@ -72,5 +73,45 @@ describe("la hora, para pintar y para comparar contra el corte de turno", () => 
   });
   it("medianoche de Lima es 0, no 24", () => {
     expect(horaDecimalLima("2026-08-04T05:00:00Z")).toBe(0);
+  });
+});
+
+describe("el nombre del mes, que la carta cita y la pantalla tiene que decir igual", () => {
+  it("da el mes en minúscula, para meterlo dentro de una frase", () => {
+    expect(nombreDelMesLima("2026-08-04")).toBe("agosto");
+  });
+  it("y con mayúscula para abrir un título", () => {
+    expect(nombreDelMesLimaTitulo("2026-08-04")).toBe("Agosto");
+  });
+  it("el día 1 nombra su propio mes, no el anterior", () => {
+    // Este es el borde que importa: la cadena ya es una fecha de Lima resuelta,
+    // así que volver a aplicarle la zona horaria la correría un día atrás y el
+    // 1 de agosto se leería como «julio» — justo el mes que este trabajo
+    // arregla que no se pierda.
+    expect(nombreDelMesLima("2026-08-01")).toBe("agosto");
+    expect(nombreDelMesLima("2026-01-01")).toBe("enero");
+  });
+});
+
+describe("los meses que el selector de Disciplina puede ofrecer", () => {
+  it("empieza por el mes en curso y va hacia atrás", () => {
+    expect(mesesRecientesLima(3, "2026-08-25")).toEqual(
+      ["2026-08-01", "2026-07-01", "2026-06-01"]);
+  });
+  it("cruza el cambio de año sin inventarse un mes cero", () => {
+    expect(mesesRecientesLima(3, "2026-01-15")).toEqual(
+      ["2026-01-01", "2025-12-01", "2025-11-01"]);
+  });
+  it("desde un día 31 no se salta un mes", () => {
+    // Con `setMonth` sobre un 31, restar un mes cae en el mes equivocado:
+    // el 31 de marzo menos un mes da el 3 de marzo, y febrero desaparece de
+    // la lista. Por eso la cuenta va sobre enteros y no sobre Date.
+    expect(mesesRecientesLima(3, "2026-03-31")).toEqual(
+      ["2026-03-01", "2026-02-01", "2026-01-01"]);
+  });
+  it("doce por defecto: el horizonte del antecedente del numeral 19.1 c)", () => {
+    const m = mesesRecientesLima(undefined, "2026-08-25");
+    expect(m).toHaveLength(12);
+    expect(m[11]).toBe("2025-09-01");
   });
 });
