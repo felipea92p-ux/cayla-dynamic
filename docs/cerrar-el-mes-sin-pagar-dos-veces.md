@@ -52,6 +52,19 @@ exacto, y termina así:
 
 Eso es literal: **no se guardó nada a medias**. Puedes resolverlo con calma.
 
+**c) Se frena por días sin confirmar.** Desde el 22/08 hay un tercer caso, y es
+**el más probable de los tres**: días cuya hora de salida la puso el sistema y
+que todavía nadie ha confirmado. El mes pasado hubo 49, y van en aumento.
+
+> Hay días cuya hora de salida la puso el sistema y todavía nadie la confirmó.
+
+⚠️ **Este NO se arregla con «💸 Ya le pagué aparte».** Ese botón es para el caso
+b). Éste se resuelve en **Correcciones**, confirmando o ajustando la hora de
+salida de cada día que el mensaje nombre. Después vuelves a cerrar.
+
+La pantalla además te avisa de esto **antes** de que intentes cerrar, con un
+cartel propio: si lo ves, resuélvelo antes de pulsar nada.
+
 ### 3 · Si se frenó: registrar lo que ya le pagaste
 
 1. Busca su fila en Planilla (acuérdate del filtro «Mostrar»).
@@ -110,10 +123,19 @@ el día que se usa, y este documento solo se usa el 28.
 mitad de mes lleva su aviso al lado —ámbar si falta resolverlo, gris con ✓ si ya
 está—. Eso es el paso 1.
 
-Si quieres el dato antes de abrir la pantalla, la consulta que lo responde sola
-es [`se_pago_dos_veces_a_quien_ya_se_liquido.sql`](../scripts/sql-manual/se_pago_dos_veces_a_quien_ya_se_liquido.sql),
-que cruza las dos fotos —la del periodo y la de la liquidación— y dice, persona
-por persona, si el mes está registrado dos veces o una sola.
+Y antes de pulsar «Marcar como PAGADO», corre
+[`va_a_poder_cerrarse.sql`](../scripts/sql-manual/va_a_poder_cerrarse.sql). Es la
+consulta escrita para este momento exacto: responde si `fn_planilla_congelar` va
+a poder terminar, y cubre los tres frenos.
+
+Importa porque el cierre inserta las ~30 filas **en una sola sentencia**: si una
+sola persona lo frena, no se congela ninguna y el mes entero se queda sin cerrar.
+
+⚠️ **No uses `se_pago_dos_veces_a_quien_ya_se_liquido.sql` para esto.** Este
+documento lo recomendaba y era un error: esa consulta cruza la FOTO del periodo,
+y el periodo que estás cerrando todavía no tiene foto. Ese día devuelve «nada que
+cruzar» para todo el mundo — se lee como visto bueno estando ciega. Sirve
+DESPUÉS, para revisar periodos ya cerrados.
 
 ---
 
