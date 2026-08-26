@@ -37,6 +37,84 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — Dos horarios ya no pueden cubrir el mismo día (0309)
+
+**PEGADA EN PRODUCCIÓN el 2026-08-26**, y verificada: candado puesto, cero
+solapes, y `fn_set_horario_semanal` sigue viva y ejecutable por `authenticated`
+—o sea que la pantalla de Horarios sigue pudiendo asignar—.
+
+`horarios_asignados` solo tenía un índice **parcial** sobre el tramo abierto
+(`idx_horario_vigente_unico`, `where vigente_hasta is null`). Dos tramos
+cerrados podían pisarse, y cuando dos cubren el mismo día quien decide es un
+`order by vigente_desde desc limit 1`: elige uno **en silencio**, y de esa
+elección sale qué se esperaba de esa persona ese día — si llegó tarde, si salió
+antes, o si faltó. El diagnóstico estaba escrito en la cabecera de la 0209 desde
+hacía tiempo y nadie había vuelto a él.
+
+Medido antes de escribir nada, con `hay_horarios_solapados.sql`: **10 pares en 8
+personas** sobre 113 tramos. Nueve eran el mismo error de convención —el tramo
+anterior cerrando el mismo día en que empieza el siguiente, tomando
+`vigente_hasta` como «el día en que arranca el próximo» cuando es inclusivo— y
+uno era un solape real de cuatro días.
+
+**Nadie cobró de menos por esto.** El arreglo no le cambió el horario a ninguna
+persona ningún día, y no es una deducción: se midió. Gana siempre el de
+`vigente_desde` más reciente, así que el que empieza antes ya estaba tapado en
+los días del solape.
+
+### Lo que costó dos intentos, y es lo que hay que recordar
+
+La primera versión demostraba esa invarianza con una tabla **temporal**:
+guardaba qué tramo mandaba para cada persona y cada día, hacía el arreglo, lo
+recalculaba y comparaba. Pasó las 1652 pruebas del CI y **murió al pegarla**:
+
+    ERROR: 42P01: relation "_horario_antes" does not exist
+
+El SQL Editor no le deja ver esa tabla al bloque que la lee. El CI no lo cazó
+porque aplica con `psql`, y ahí sí sobrevive. **Un freno que depende del entorno
+donde corre no es un freno** — y el entorno donde corre de verdad es el SQL
+Editor, no el contenedor de GitHub.
+
+Y había un segundo defecto, independiente del editor: esa versión **cambiaba los
+datos y después comprobaba**. Si la comprobación fallaba, el `rollback` la
+salvaba; pero pedirle a la red que te salve no es lo mismo que no saltar. La
+versión que se pegó comprueba primero, sin tabla temporal: para cada día que un
+tramo va a perder pregunta si algún tramo posterior ya lo cubría.
+
+Se supo que se podía reintentar limpio porque se midió, no porque se supusiera:
+`scripts/sql-manual/que_paso_con_la_0309.sql` distingue los tres estados
+posibles —aplicó entero, quedó a medias, no entró nada— y dijo que producción
+estaba intacta. Esa consulta queda en el repo: el mismo accidente le puede pasar
+a cualquier migración que toque datos.
+
+La prueba `243` subió a 12 aserciones y ganó lo que le faltaba: **un caso que
+DEBE bloquear**. Un tramo largo pisado por uno corto posterior, donde acortar
+dejaría a alguien sin horario dieciséis días. Un freno probado solo con casos que
+pasan no está probado.
+
+### Y de paso: `dame-el-sql.sh` entregaba la migración equivocada
+
+Se descubrió pidiendo la 0309 con el cero delante. `printf %04d` en `/bin/sh`
+lee un número que empieza por cero como **octal**:
+
+| Pides | Te daba |
+|---|---|
+| `0309` | error «invalid number» — ruidoso, se ve |
+| `0173` | la **0123**, sin decir nada |
+| `0177` (cómo se pagan las vacaciones) | la **0127** (la foto del pago) |
+
+Los dos archivos equivocados existen, así que el script los encontraba, los
+copiaba al portapapeles y decía «✓ Se puede pegar». Su propia ayuda promete «da
+igual con ceros o sin ellos». Arreglado en dos capas: se quitan los ceros antes
+de formatear, y además el número del archivo encontrado tiene que coincidir con
+el pedido o no se entrega nada. La segunda vale más que una prueba — corre en
+cada uso.
+
+**Nunca se entregó una migración equivocada por esto:** el hábito de la casa es
+escribir el número sin ceros, y así siempre funcionó.
+
+---
+
 ## 2026-08-25 — La reserva le pagaba de más a quien estuvo de vacaciones (0302)
 
 **PEGADA EN PRODUCCIÓN el 2026-08-25.** El SQL Editor devolvió `0302 · OK` con
