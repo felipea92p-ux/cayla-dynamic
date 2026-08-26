@@ -1,5 +1,6 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
+import type { ClienteCayla } from "./rpc-estricto";
 
 /**
  * Sesiones SEPARADAS por superficie: el terminal de marcaje y el panel admin
@@ -11,9 +12,9 @@ import type { Database } from "./types";
  * así que no se necesita el manejo de cookies SSR de @supabase/ssr.
  */
 
-const clientes: Partial<Record<string, SupabaseClient<Database>>> = {};
+const clientes: Partial<Record<string, ClienteCayla>> = {};
 
-function crearClienteConAlmacen(storageKey: string): SupabaseClient<Database> {
+function crearClienteConAlmacen(storageKey: string): ClienteCayla {
   if (!clientes[storageKey]) {
     clientes[storageKey] = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,12 +26,12 @@ function crearClienteConAlmacen(storageKey: string): SupabaseClient<Database> {
 }
 
 /** Cliente del TERMINAL de marcaje (sesión persistente del dispositivo fijo de la sede). */
-export function createTerminalSupabaseClient(): SupabaseClient<Database> {
+export function createTerminalSupabaseClient(): ClienteCayla {
   return crearClienteConAlmacen("cayla-auth-terminal");
 }
 
 /** Cliente del PANEL DE ADMINISTRACIÓN (sesión personal de admin/supervisor). */
-export function createAdminSupabaseClient(): SupabaseClient<Database> {
+export function createAdminSupabaseClient(): ClienteCayla {
   return crearClienteConAlmacen("cayla-auth-admin");
 }
 
@@ -45,7 +46,7 @@ export function createAdminSupabaseClient(): SupabaseClient<Database> {
  * `localStorage`, que en el servidor no existe y además convertiría el cliente
  * en un singleton compartido entre peticiones de personas distintas.
  */
-export function createAnonClient(): SupabaseClient<Database> | null {
+export function createAnonClient(): ClienteCayla | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const llave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !llave) return null;
@@ -67,7 +68,7 @@ export function createAnonClient(): SupabaseClient<Database> | null {
  * responda "servidor sin configurar" con su propio código de estado en lugar de
  * caerse con un 500 sin explicación.
  */
-export function createServiceRoleClient(): SupabaseClient<Database> | null {
+export function createServiceRoleClient(): ClienteCayla | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const llave = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !llave) return null;
@@ -98,7 +99,7 @@ export function createServiceRoleClient(): SupabaseClient<Database> | null {
  * nuevo en cada petición y no persiste sesión, así que no hay forma de que la
  * sesión de una persona se filtre a la petición de otra.
  */
-export function createUserClient(token: string): SupabaseClient<Database> | null {
+export function createUserClient(token: string): ClienteCayla | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const llave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !llave || !token) return null;

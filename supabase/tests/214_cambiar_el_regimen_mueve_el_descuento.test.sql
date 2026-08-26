@@ -23,7 +23,7 @@
 -- Y comprueba que la puerta vieja ya no deja pasar.
 -- ============================================================================
 begin;
-select plan(14);
+select plan(17);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values ('00000000-0000-0000-0000-000000027700', 'ZZREG', 'Sede de laboratorio', true, 'tienda');
@@ -171,6 +171,55 @@ select is(
     where persona_id = '00000000-0000-0000-0000-000000027703'),
   1,
   'fn_regimen_pension_divergentes() caza a quien tiene la ficha diciendo una cosa y el descuento haciendo otra');
+
+
+-- ── LA RLS DE ESTA TABLA NO LA COMPROBABA NADIE ────────────────────────────
+-- `asignaciones_regimen_pension` dice a qué régimen pertenece cada persona y
+-- desde cuándo — el dato del que sale su descuento. Tiene policy desde la 0261
+-- y hasta hoy ninguna prueba cambiaba de usuario: las catorce de arriba corren
+-- enteras como admin, así que si la policy se rompiera no se enteraría ninguna.
+--
+-- ⚠ `set local role authenticated` NO es decorativo — la misma advertencia del
+-- test 198. pgTAP corre como `postgres`, superusuario, y SE SALTA LA RLS.
+--
+-- OJO CON LO QUE FIJA LA PRIMERA: aquí la regla es «DO y nadie más», ni siquiera
+-- la propia persona ve su tramo. Es distinto de `contratos_generados` y de
+-- `educacion_comprobantes`, que sí dejan a cada quien ver lo suyo. Si algún día
+-- se decide que aquí también, esta prueba es la que hay que cambiar — a
+-- propósito y no por accidente, que es de lo que se trata.
+set session_replication_role = replica;
+update personas set rol = 'integrante', auth_user_id = '00000000-0000-0000-0000-0000000277bb'
+ where id = '00000000-0000-0000-0000-000000027702';
+set session_replication_role = origin;
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000277bb', true);
+
+set local role authenticated;
+
+select is(
+  (select count(*)::int from asignaciones_regimen_pension),
+  0,
+  'RLS · una integrante no ve ningún tramo de régimen, ni siquiera el suyo');
+
+-- `authenticated` TIENE el grant de INSERT sobre esta tabla (viene por defecto
+-- en Supabase). Lo único que lo frena es que la policy sea `for select` y no
+-- exista ninguna otra. La fila va COMPLETA a propósito: si le faltara una
+-- columna not-null reventaría por 23502 y la prueba «pasaría» sin que la policy
+-- hiciera nada.
+select throws_ok(
+  $$ insert into asignaciones_regimen_pension (persona_id, regimen, vigente_desde)
+     values ('00000000-0000-0000-0000-000000027702', 'onp', '2027-01-01') $$,
+  '42501', NULL,
+  'RLS · y no puede escribirse un régimen a sí misma, aunque el grant se lo permita');
+
+-- La otra mitad: la policy protege, no tapa. DO sí los ve, y preguntando con el
+-- mismo rol de base con el que preguntaría el navegador.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000277aa', true);
+select ok(
+  (select count(*) from asignaciones_regimen_pension) > 0,
+  'RLS · pero DO sí los ve: la policy protege, no tapa');
+
+reset role;
 
 
 select * from finish();
