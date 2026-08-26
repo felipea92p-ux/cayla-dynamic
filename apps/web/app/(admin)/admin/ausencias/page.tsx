@@ -25,6 +25,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
 
 // ── AQUÍ VIVÍAN TRES NOMBRES DE FUNCIÓN SIN TIPAR ───────────────────────────
 //
@@ -248,14 +249,20 @@ export default function AusenciasPage() {
     // un archivo que no subió sería el peor intercambio posible. El mensaje lo
     // dice para que nadie crea que no se guardó nada.
     if (archivo && nuevoId) {
-      const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
+      // La foto se reduce ANTES de subir (ver `reducir-imagen.ts`): una foto de
+      // un papel tomada con el celular de la tienda trae más píxeles de los que
+      // el papel tiene información, y cada tope que se amplía solo mueve el
+      // muro más lejos. Si no es imagen o el navegador no puede, sube la
+      // original — ahí se prefiere el papel a los megas.
+      const paraSubir = await reducirImagen(archivo);
+      const ext = paraSubir.name.split(".").pop()?.toLowerCase() ?? "bin";
       const ruta = `certificados/${personaId}/${nuevoId}.${ext}`;
       setProgreso(0);
-      const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, archivo, setProgreso);
+      const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, paraSubir, setProgreso);
       setProgreso(null);
       if (errorSubida) {
         setGuardando(false);
-        setMsg({ tipo: "error", texto: `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.` });
+        setMsg({ tipo: "error", texto: `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.` });
         await cargar();
         return;
       }
