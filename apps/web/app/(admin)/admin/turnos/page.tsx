@@ -336,8 +336,18 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       p_persona_id: d.personaId, p_vigente_desde: d.fecha, p_horario: semanal,
     });
     if (e1) { setProcesando(null); setAviso(`No se pudo cambiar el horario de ${d.persona}: ${e1.message}`); return; }
-    await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
+    // Su `error` se comprueba igual que en `usarHorarioBase`, diez líneas más
+    // arriba, que llama a ESTA MISMA función y sí lo mira. Sin comprobarlo, el
+    // horario base quedaba cambiado y el turno puntual seguía ahí — y en la
+    // cascada de `jornada-esperada.ts` el turno del día le gana al horario, así
+    // que ese día seguía esperando la hora vieja sin que nadie lo dijera.
+    const { error: eQuitar } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
+    if (eQuitar) {
+      setAviso(`El horario base de ${d.persona} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${eQuitar.message}. Mientras siga ahí, ese día manda el turno y no el horario base.`);
+      await cargar();
+      return;
+    }
     await cargar();
   }
 
@@ -683,16 +693,23 @@ export default function TurnosPage() {
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
       p_persona_id: edit.personaId, p_vigente_desde: edit.fecha, p_horario: semanal,
     });
-    if (!error) {
-      const c = celda(edit.personaId, edit.fecha);
-      if (c.tipo === "turno" || c.tipo === "descanso") {
-        await supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha });
-      }
-    }
+    // El `error` de esta segunda mitad NO se miraba, y la pantalla terminaba
+    // diciendo «Horario base actualizado» con el turno puntual todavía puesto.
+    // En la cascada de `jornada-esperada.ts` el turno del día le gana al
+    // horario, así que ese día seguía esperando la hora vieja — y de esa hora
+    // esperada salen las tardanzas y las faltas de esa persona.
+    const celdaHoy = error ? null : celda(edit.personaId, edit.fecha);
+    const eQuitar = celdaHoy && (celdaHoy.tipo === "turno" || celdaHoy.tipo === "descanso")
+      ? (await supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha })).error
+      : null;
     setGuardando(false);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     setEdit(null);
     await cargar();
+    if (eQuitar) {
+      setMsg({ tipo: "error", texto: `El horario base de los ${DIAS_PLURAL[Number(dow)]} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${mensajeDeError(eQuitar)} Mientras siga ahí, ese día manda el turno y no el horario base.` });
+      return;
+    }
     setMsg({ tipo: "ok", texto: `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.` });
   };
   const marcarDescanso = () => edit && ejecutar(() => supabase.rpc("fn_set_descanso", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));

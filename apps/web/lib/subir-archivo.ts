@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ClienteCayla } from "@cayla-dynamic/database";
 import { conTipoDeclarado } from "./tipos-archivo";
 
 /**
@@ -33,7 +33,7 @@ import { conTipoDeclarado } from "./tipos-archivo";
  * `Authorization`— es el mismo que arma el SDK.
  */
 export async function subirArchivoConProgreso(
-  supabase: SupabaseClient,
+  supabase: ClienteCayla,
   bucket: string,
   ruta: string,
   archivo: File,

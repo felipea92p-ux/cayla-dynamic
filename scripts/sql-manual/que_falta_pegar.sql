@@ -171,7 +171,8 @@ with repo(numero, nombre, nunca) as (values
     (309, 'dos_horarios_no_pueden_cubrir_el_mismo_dia', false),
     (310, 'el_feriado_dentro_de_un_descanso_medico_tampoco_se_reserva_en_cero', false),
     (311, 'el_mes_cerrado_se_puede_documentar_y_el_corte_se_suma', false),
-    (312, 'un_contrato_anulado_no_deja_su_fecha_puesta', false)
+    (312, 'un_contrato_anulado_no_deja_su_fecha_puesta', false),
+    (313, 'un_mes_ya_pagado_se_lee_no_se_recalcula', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

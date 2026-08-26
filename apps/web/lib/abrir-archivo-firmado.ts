@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ClienteCayla } from "@cayla-dynamic/database";
 
 /**
  * ABRIR UN PAPEL GUARDADO EN UN BUCKET PRIVADO, SIN QUE EL NAVEGADOR LO BLOQUEE.
@@ -33,7 +33,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * vez de dejar a la persona mirando una pantalla donde no pasó nada.
  */
 export async function abrirArchivoFirmado(
-  supabase: SupabaseClient,
+  supabase: ClienteCayla,
   bucket: string,
   ruta: string,
   segundos = 60,

@@ -26,29 +26,20 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 
-// ── POR QUÉ ESTAS DOS FUNCIONES VAN CON UN NOMBRE SIN TIPAR ──────────────────
+// ── AQUÍ VIVÍAN TRES NOMBRES DE FUNCIÓN SIN TIPAR ───────────────────────────
 //
-// `packages/database/src/types.ts` se genera con `pnpm --filter …database
-// gen-types`, y hoy NO conoce `fn_ausencias_subsidio` ni
-// `fn_ausencia_adjuntar_certificado` porque las crea la 0197.
+// Eran `RPC_SUBSIDIO`, `RPC_ADJUNTAR` y `RPC_POR_VENCER`, tres constantes con
+// `as unknown as NombreRpcSinTipar` porque `types.ts` no conocía todavía las
+// funciones que crearon la 0197 y la 0299. El comentario que las acompañaba
+// prometía: «cuando alguien regenere los tipos, esto se borra y deja de
+// compilar si se olvida».
 //
-// Regenerarlo arreglaría esto en una línea, pero el archivo lleva tiempo sin
-// regenerarse y la versión actual del CLI emite los parámetros opcionales como
-// `string | undefined` donde la vieja ponía `string | null`. Medido el
-// 2026-08-08: **53 errores en 13 pantallas**, entre ellas planilla y
-// liquidaciones. Eso es una tarea propia, no un efecto colateral de agregar un
-// campo a Ausencias.
+// No se cumplió. Los tipos ya conocen las tres —se comprobó el 2026-08-26— y
+// esto siguió compilando igual, porque forzar un nombre CORRECTO a la unión de
+// todos los nombres nunca falla: el aviso que iba a delatarlo no podía existir.
+// Se quedaron tres llamadas sin comprobar y nada lo dijo.
 //
-// Así que el nombre se pasa sin tipar y SOLO el nombre: los argumentos y lo que
-// devuelve siguen comprobados abajo por las interfaces `Subsidio` y por el
-// `catch` de cada llamada. Cuando alguien regenere los tipos, esto se borra y
-// deja de compilar si se olvida — que es justo lo que se quiere.
-type NombreRpcSinTipar = Parameters<ReturnType<typeof createAdminSupabaseClient>["rpc"]>[0];
-const RPC_SUBSIDIO = "fn_ausencias_subsidio" as unknown as NombreRpcSinTipar;
-const RPC_ADJUNTAR = "fn_ausencia_adjuntar_certificado" as unknown as NombreRpcSinTipar;
-// ⇩ 0299 · igual que las dos de arriba: nombre sin tipar hasta que se regeneren
-// los tipos. Lo que devuelve lo comprueba `VacacionPorVencer`.
-const RPC_POR_VENCER = "fn_vacaciones_por_vencer" as unknown as NombreRpcSinTipar;
+// Escritas con su nombre literal, las tres las comprueba el compilador.
 
 function fmt(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -156,8 +147,8 @@ export default function AusenciasPage() {
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
-      supabase.rpc(RPC_SUBSIDIO, {}),
-      supabase.rpc(RPC_POR_VENCER, { p_dias: 60, p_as_of: null }),
+      supabase.rpc("fn_ausencias_subsidio", {}),
+      supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
@@ -246,12 +237,9 @@ export default function AusenciasPage() {
         await cargar();
         return;
       }
-      // El `as never` va por lo mismo que el nombre: sin la función en los tipos
-      // generados, TypeScript infiere `never` para sus argumentos. Los dos
-      // valores son los que la 0197 declara y el servidor los valida igual.
-      const { error: eAdj } = await supabase.rpc(RPC_ADJUNTAR, {
+      const { error: eAdj } = await supabase.rpc("fn_ausencia_adjuntar_certificado", {
         p_ausencia_id: nuevoId, p_storage_path: ruta,
-      } as never);
+      });
       if (eAdj) {
         setGuardando(false);
         setMsg({ tipo: "error", texto: `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${eAdj.message}).` });
