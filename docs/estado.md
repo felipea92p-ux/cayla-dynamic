@@ -83,7 +83,15 @@ probada pegando el archivo dos veces; y la coherencia de `chk_foto_cuadra`,
 
 **Decidido el 2026-08-26: partida en dos.**
 
-· **La 0316 (escrita, auditada, sin pegar)** cierra el caso que NO mueve nada
+· **La 0316 — PEGADA Y VERIFICADA EN PRODUCCIÓN el 2026-08-26.** md5 de llegada
+  `f6ece4f8e21a8171b0d393ddf47cd1ce`, 104.644 caracteres, el esperado al byte, y
+  comprobado que no revirtió nada: siguen en pie la 0263 (descanso médico), la
+  0262 (maternidad), la 0314 (catálogo) y la 0275 (vacaciones), las cuatro
+  cascadas de días laborables están y hay **una sola** `fn_planilla_calcular`.
+  Su revisión adversaria salió con **cero hallazgos** — seis propuestos por
+  cuatro lentes independientes, los seis refutados con medición.
+
+  Cierra el caso que NO mueve nada
   hoy: la licencia con goce y el duelo directo entran a `bri.base`, más la tilde
   de «cónyuge». Un término calcado del de la 0263, tres líneas de código.
   Medido con 8 personas: la licencia sube su base +483,87 (el monto exacto) y su
