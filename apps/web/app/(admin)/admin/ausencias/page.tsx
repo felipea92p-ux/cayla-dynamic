@@ -183,6 +183,27 @@ export default function AusenciasPage() {
     if (!personaId) { setMsg({ tipo: "error", texto: "Elige a la persona." }); return; }
     if (!tipoCod) { setMsg({ tipo: "error", texto: "Elige el tipo de ausencia." }); return; }
     if (fin < inicio) { setMsg({ tipo: "error", texto: "La fecha de fin no puede ser anterior a la de inicio." }); return; }
+
+    // Los mismos tres datos que exige `fn_registrar_ausencia` (0101), pero
+    // comprobados acá y DICIENDO CUÁL falta. El aviso del servidor los enumera
+    // juntos, y el 2026-08-26 eso costó un rato: los tres campos se veían
+    // llenos en pantalla y el aviso seguía listándolos todos, así que no había
+    // forma de saber si el que faltaba era el profesional o la fecha. Nombrar
+    // el que falta convierte «no me deja» en «ah, esto».
+    if (tipoSel?.requiere_documento) {
+      const faltan: string[] = [];
+      if (!docProf.trim()) faltan.push("el profesional o institución");
+      if (!docColeg.trim()) faltan.push("el número de colegiatura");
+      if (!docFecha) faltan.push("la fecha de emisión");
+      if (faltan.length > 0) {
+        setMsg({
+          tipo: "error",
+          texto: `Falta ${faltan.join(" y ")} — ${tipoSel.nombre} lo exige. Si no tienes ningún documento, regístralo como «Descanso por salud»: no paga, pero tampoco cuenta como falta.`,
+        });
+        return;
+      }
+    }
+
     setGuardando(true);
     setMsg(null);
     const { data: nuevoId, error } = await supabase.rpc("fn_registrar_ausencia", {
@@ -195,7 +216,16 @@ export default function AusenciasPage() {
       p_doc_colegiatura: docColeg.trim() || null,
       p_doc_fecha: docFecha || null,
     });
-    if (error) { setGuardando(false); setMsg({ tipo: "error", texto: error.message }); return; }
+    // El código va entre paréntesis a propósito. Con los tres datos ya
+    // comprobados arriba, un rechazo del servidor por «falta el documento» ya
+    // no puede ser lo que parece — y sin el código (PGRST202 si la función no
+    // responde, 42501 si es permiso) no hay cómo distinguirlo de un aviso que
+    // se quedó pegado en pantalla.
+    if (error) {
+      setGuardando(false);
+      setMsg({ tipo: "error", texto: error.code ? `${error.message} (${error.code})` : error.message });
+      return;
+    }
 
     // El certificado, si se eligió uno. Va DESPUÉS porque su ruta lleva dentro
     // el id de la ausencia, que hasta acá no existía.
@@ -388,7 +418,16 @@ export default function AusenciasPage() {
         )}
 
         {/* Registrar */}
-        <div className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+        {/* El aviso se borra en cuanto se toca cualquier campo, y va en el
+            contenedor y no en cada `onChange` para que ningún campo nuevo se
+            olvide de hacerlo. Antes solo se limpiaba dentro de `registrar()`:
+            corregías lo que el aviso rojo pedía, los campos quedaban llenos, y
+            el aviso seguía ahí diciendo que faltaban. Un error que sobrevive a
+            su corrección se lee como «el sistema me sigue rechazando». */}
+        <div
+          onInput={() => setMsg(null)}
+          className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2"
+        >
           <label className="flex flex-col gap-1 text-sm">
             Persona
             <select value={personaId} onChange={(e) => setPersonaId(e.target.value)} className="rounded-lg border bg-crema px-3 py-2">
