@@ -365,7 +365,13 @@ export default function DocumentacionPage() {
     { que: TipoDoc; personaId: string | null; negativa: boolean } | null
   >(null);
   const [archivoDoc, setArchivoDoc] = useState<File | null>(null);
-  const [fechaFirma, setFechaFirma] = useState("");
+  // NACE CON LA FECHA DE HOY, no vacía. Ver la regla en CLAUDE.md: un campo de
+  // fecha vacío que bloquea el envío depende de que el navegador entregue el
+  // valor, y Safari no siempre lo hace — el 2026-08-26 un descanso médico real
+  // no se pudo registrar por eso, con la fecha pintada en el campo y vacía por
+  // dentro. Hoy es lo más probable para un papel que se acaba de firmar, se ve
+  // en pantalla y se corrige en un clic.
+  const [fechaFirma, setFechaFirma] = useState(hoyLima());
   const [notaDoc, setNotaDoc] = useState("");
   const [progresoDoc, setProgresoDoc] = useState<number | null>(null);
   const [guardandoDoc, setGuardandoDoc] = useState(false);
