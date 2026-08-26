@@ -18,8 +18,24 @@
 -- que no tenerlo: enseña a confiar en él justo el día que no hay que hacerlo.
 --
 --   FRENO 1 · `chk_foto_cuadra` — el CHECK de `planilla_pagada_detalle`. El
---   total de la fila tiene que ser la suma exacta de sus once partidas. Si una
+--   total de la fila tiene que ser la suma exacta de sus DOCE partidas. Si una
 --   sola no cuadra, el insert entero viola el CHECK.
+--
+--   ⇩ ERAN ONCE HASTA EL 2026-08-26. La 0280 metió `monto_descanso_semanal`
+--   dentro del CHECK el 22/08 y este script no se enteró: sumaba once partidas
+--   contra un total que ya traía doce, así que a quien hubiera trabajado su
+--   séptimo día le habría gritado un descuadre FALSO — y este es el guardián
+--   que se mira justo antes de pulsar «Marcar como PAGADO». Le pega sobre todo
+--   a TRU, donde se trabaja domingo y las rachas largas se concentran.
+--
+--   LA LISTA NO SE ESCRIBE DE MEMORIA. Se saca del CHECK vivo, así:
+--     select pg_get_constraintdef(oid) from pg_constraint
+--      where conname = 'chk_foto_cuadra';
+--   Es la misma disciplina que la nota de abajo sobre `descuento_afp`: cada vez
+--   que una migración añade una partida al pago, este script queda corto y no
+--   avisa. Falla en la dirección peligrosa —da un descuadre donde no lo hay— y
+--   quien lo lea el día 28 no tiene forma de saber si el falso es el script o
+--   la planilla.
 --
 --   FRENO 2 · el `raise exception` de la 0243/0244 — alguien que cesó DENTRO
 --   de este periodo, ya cobró su liquidación con `monto_periodo > 0`, tiene
@@ -69,6 +85,7 @@ calc as (
               + coalesce((f->>'monto_educacion')::numeric,0)
               - coalesce((f->>'descuento_afp')::numeric,0)
               + coalesce((f->>'monto_sobretiempo')::numeric,0)
+              + coalesce((f->>'monto_descanso_semanal')::numeric,0)
               + coalesce((f->>'bonos')::numeric,0)
               - coalesce((f->>'descuentos')::numeric,0)
               - coalesce((f->>'retencion_4ta')::numeric,0), 2) as suma
