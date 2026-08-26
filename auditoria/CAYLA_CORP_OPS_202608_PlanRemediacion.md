@@ -294,3 +294,35 @@ Dos piezas, y ninguna urge:
    ausencia; es una decisión de negocio antes que de código.
 
 **Anotado y sin hacer.** Nadie está perdiendo dinero hoy.
+
+---
+
+# Producción al día · 2026-08-26
+
+Las tres que faltaban se pegaron y se verificaron una por una contra el md5 que cada migración
+declara. No es una impresión: es la cadena completa medida.
+
+| paso | md5 de `fn_provisiones` | quién lo confirmó |
+|---|---|---|
+| tras la 0302 | `866c0a1664afde204ae6d685760afb84` · 36 518 car. | producción, antes de pegar la 0308 |
+| tras la **0308** | `adb0a986b32d26920fb9488a314b4d45` · 38 053 car. | producción al aplicarla — **y es el md5 de partida que la 0310 declaraba** |
+| tras la **0310** | `b40ded0faad67ac72625369d22699562` · 39 308 car. | producción, la migración y el Postgres local: **los tres iguales** |
+
+La **0309** la aplicó otra sesión el mismo día. Con eso se cierra el asunto de su intento fallido
+del 26, cuando murió a media ejecución por una tabla temporal que el SQL Editor no mantiene entre
+sentencias: la versión que entró ya comprueba **antes** de tocar un solo dato.
+
+**Estado al cerrar:**
+
+```
+145 de 145 migraciones aplicadas · 0 pendientes
+fn_planilla_calcular  → 0306, al día con el repositorio
+fn_provisiones        → 0310, al día con el repositorio
+Acentos rotos         → ninguno
+Frontend              → desplegado
+```
+
+Y una comprobación que conviene imitar: la 0310 devolvió además
+`la_0308_sigue_en_su_sitio: 14259` — la posición del marcador «CAMBIO 0308» dentro del cuerpo. En
+una cadena de dos migraciones sobre la misma función, eso es lo que distingue «se apiló encima» de
+«la reescribió y borró la anterior». Sale gratis y responde la única pregunta que importa.
