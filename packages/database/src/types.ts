@@ -1489,7 +1489,10 @@ export type Database = {
           descargo_valoracion: string | null
           descargo_vence_at: string | null
           doc_previo_id: string | null
+          entrega_testigo_id: string | null
+          entrega_testigo_nombre: string | null
           entregado_at: string | null
+          entregado_por: string | null
           estado: string
           fecha_cese: string | null
           firmado_at: string | null
@@ -1521,7 +1524,10 @@ export type Database = {
           descargo_valoracion?: string | null
           descargo_vence_at?: string | null
           doc_previo_id?: string | null
+          entrega_testigo_id?: string | null
+          entrega_testigo_nombre?: string | null
           entregado_at?: string | null
+          entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firmado_at?: string | null
@@ -1553,7 +1559,10 @@ export type Database = {
           descargo_valoracion?: string | null
           descargo_vence_at?: string | null
           doc_previo_id?: string | null
+          entrega_testigo_id?: string | null
+          entrega_testigo_nombre?: string | null
           entregado_at?: string | null
+          entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firmado_at?: string | null
@@ -1596,6 +1605,34 @@ export type Database = {
             columns: ["doc_previo_id"]
             isOneToOne: false
             referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entrega_testigo_id_fkey"
+            columns: ["entrega_testigo_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entrega_testigo_id_fkey"
+            columns: ["entrega_testigo_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entregado_por_fkey"
+            columns: ["entregado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entregado_por_fkey"
+            columns: ["entregado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -2231,6 +2268,83 @@ export type Database = {
             columns: ["terminal_id"]
             isOneToOne: false
             referencedRelation: "terminales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marcas_apartadas: {
+        Row: {
+          client_uuid: string
+          id: string
+          motivo: string | null
+          motivo_otro: string | null
+          persona_id: string
+          reportada_at: string
+          resolucion: string | null
+          resuelta_at: string | null
+          resuelta_por: string | null
+          terminal_id: string | null
+          timestamp_cliente: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+          ultimo_error: string | null
+        }
+        Insert: {
+          client_uuid: string
+          id?: string
+          motivo?: string | null
+          motivo_otro?: string | null
+          persona_id: string
+          reportada_at?: string
+          resolucion?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          terminal_id?: string | null
+          timestamp_cliente: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+          ultimo_error?: string | null
+        }
+        Update: {
+          client_uuid?: string
+          id?: string
+          motivo?: string | null
+          motivo_otro?: string | null
+          persona_id?: string
+          reportada_at?: string
+          resolucion?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          terminal_id?: string | null
+          timestamp_cliente?: string
+          tipo?: Database["public"]["Enums"]["tipo_marca"]
+          ultimo_error?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marcas_apartadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcas_apartadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcas_apartadas_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcas_apartadas_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -3423,6 +3537,8 @@ export type Database = {
       }
       turnos: {
         Row: {
+          creado_por: string | null
+          created_at: string | null
           es_descanso: boolean
           fecha: string
           hora_entrada: string | null
@@ -3432,6 +3548,8 @@ export type Database = {
           persona_id: string
         }
         Insert: {
+          creado_por?: string | null
+          created_at?: string | null
           es_descanso?: boolean
           fecha: string
           hora_entrada?: string | null
@@ -3441,6 +3559,8 @@ export type Database = {
           persona_id: string
         }
         Update: {
+          creado_por?: string | null
+          created_at?: string | null
           es_descanso?: boolean
           fecha?: string
           hora_entrada?: string | null
@@ -3450,6 +3570,20 @@ export type Database = {
           persona_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "turnos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turnos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "turnos_persona_id_fkey"
             columns: ["persona_id"]
@@ -4494,7 +4628,13 @@ export type Database = {
         Returns: undefined
       }
       fn_expediente_entregar: {
-        Args: { p_fecha?: string | null; p_id: string | null; p_medio: string | null }
+        Args: {
+          p_fecha?: string | null
+          p_id: string | null
+          p_medio: string | null
+          p_testigo_id?: string | null
+          p_testigo_nombre?: string | null
+        }
         Returns: undefined
       }
       fn_expediente_firmantes: {
@@ -4762,6 +4902,41 @@ export type Database = {
           vence_el: string
           vencido: boolean
         }[]
+      }
+      fn_marca_apartada_reportar: {
+        Args: {
+          p_client_uuid: string | null
+          p_motivo_otro?: string | null
+          p_persona_id: string | null
+          p_terminal_id?: string | null
+          p_timestamp_cliente: string | null
+          p_tipo: Database["public"]["Enums"]["tipo_marca"] | null
+          p_ultimo_error?: string | null
+        }
+        Returns: string
+      }
+      fn_marca_apartada_resolver: {
+        Args: { p_id: string | null; p_motivo: string | null; p_resolucion: string | null }
+        Returns: Json
+      }
+      fn_marcas_apartadas: {
+        Args: never
+        Returns: {
+          client_uuid: string
+          fecha: string
+          id: string
+          persona: string
+          persona_id: string
+          reportada_at: string
+          sede: string
+          timestamp_cliente: string
+          tipo: string
+          ultimo_error: string
+        }[]
+      }
+      fn_marcas_apartadas_resueltas: {
+        Args: { p_client_uuids: string[] | null }
+        Returns: string[]
       }
       fn_mes_planilla_pagado: {
         Args: { p_anio: number | null; p_mes: number | null }

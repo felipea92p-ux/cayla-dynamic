@@ -546,6 +546,30 @@ vigente pasó a ser la 0269. Pegada tal cual habría revertido esa migración en
 silencio — exactamente el accidente que `donde-vive.sh` existe para evitar, por
 el camino de haber tardado demasiado en guardar.
 
+**Y antes de EMPEZAR algo, mira si otra rama ya lo está haciendo.**
+
+```bash
+git log --all --oneline -20                    # qué se está construyendo ahora mismo
+git grep -l "fn_lo_que_vas_a_tocar" $(git for-each-ref --format='%(refname)' refs/heads refs/remotes)
+```
+
+Cuesta diez segundos y el 2026-08-25 habría ahorrado esto: **dos sesiones
+construyeron la misma función el mismo día**, cada una con su migración —la 0297
+y la 0299—, las dos se fusionaron a `main` y las dos se pegaron en producción.
+Como sus firmas diferían (`p_dias, p_as_of` contra `p_dias_aviso`), Postgres no
+protestó: guardó dos funciones con el mismo nombre, con ventanas distintas
+—60 días contra 90— y alcances distintos. Nada falló, y ese es el problema: dos
+puertas para la misma pregunta conviviendo en silencio hasta que alguien note que
+la pantalla y el contador no dicen lo mismo. Se descubrió contando funciones
+después de pegar, y costó dos migraciones más para retirar una —la 0301 y una
+0302 que hubo que tirar porque hacía lo mismo—.
+
+Ese mismo día, más temprano, `siguiente-numero.sh` había repartido un número ya
+ocupado por la misma razón de fondo: **aquí trabajan diez worktrees a la vez y
+cada uno solo se ve a sí mismo**. Aquello se arregló en el script; esto no lo
+caza ninguna herramienta, porque «otra rama está construyendo esta misma idea» no
+se parece a nada que se pueda comparar automáticamente sin ruido.
+
 **Antes de crear una migración o una prueba, pregunta qué número toca:**
 
 ```bash

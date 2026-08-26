@@ -162,7 +162,11 @@ with repo(numero, nombre, nunca) as (values
     (300, 'crear_a_alguien_tambien_pasa_por_el_escalafon', false),
     (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones', false),
     (302, 'la_ausencia_pagada_se_devenga_por_dias_laborables', false),
-    (306, 'el_descanso_medico_y_la_maternidad_pagan_solo_aprobados', false)
+    (303, 'la_negativa_a_firmar_entrega_el_documento', false),
+    (304, 'una_marca_apartada_deja_de_vivir_en_un_solo_navegador', false),
+    (305, 'un_retroactivo_dice_de_que_mes_viene', false),
+    (306, 'el_descanso_medico_y_la_maternidad_pagan_solo_aprobados', false),
+    (307, 'el_candado_del_mes_pagado_mide_la_jornada', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

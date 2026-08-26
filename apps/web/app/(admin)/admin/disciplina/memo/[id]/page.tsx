@@ -136,6 +136,28 @@ export default function MemoPage() {
   // aplicado, y la Casación de Lambayeque manda probarlo. Decir «las que
   // constan en su legajo» obliga a quien lea el papel a ir a buscar el legajo;
   // nombrarlas hace que el documento se sostenga solo.
+  // ── LAS CITAS DE ESTE MEMO SON DEL RIT v4.0, Y ESO HAY QUE COMPROBARLO ──
+  //
+  // Hasta el 2026-08-15 citaban la versión 3.0, y el v4.0 renumeró el articulado
+  // entero. No eran citas «un poco viejas»: apuntaban a artículos que hoy dicen
+  // otra cosa. El memo invocaba el «artículo 14.4» para la vigencia de doce
+  // meses del antecedente —el 14 del v4.0 es SOBRETIEMPO— y el «artículo 7»
+  // para la escalera de tardanzas —el 7 es PERIODO DE PRUEBA—.
+  //
+  // Un descargo que abra el Reglamento por donde el memo le dice encuentra otra
+  // materia, y a partir de ahí el documento entero deja de merecer crédito.
+  //
+  // El mapeo, verificado uno por uno contra docs/reglamento-interno-de-trabajo.md:
+  //   14.4 → 56.1   vigencia de doce meses del antecedente
+  //   14.2 → 54.5   límites de la suspensión sin goce
+  //    7 c) → 19.2 c)  primera suspensión por tardanzas
+  //   8.3-a → 53.2 c)  la inasistencia injustificada como falta
+  //   8.3-b → 21.2 b)  segundo umbral de inasistencias
+  //   8.2  → 20.4   plazo de cuarenta y ocho horas para justificar
+  //   13-c → art. 20  inasistencias
+  //
+  // Si mañana sale una versión 5.0, esto se revisa ANTES de emitir nada.
+
   const [previas, setPrevias] = useState<Previa[]>([]);
   const [areas, setAreas] = useState<Area[]>(AREAS_FALLBACK);
   const [sede, setSede] = useState<string>("");
@@ -190,13 +212,25 @@ export default function MemoPage() {
     setAreas(parseAreas(ar, eAr));
 
     // Las sanciones previas de la MISMA causal, vigentes (12 meses), en orden.
+    //
+    // Solo las ENTREGADAS. El numeral 56.2 es terminante: «Un documento firmado
+    // por la Empresa y no entregado no está vigente, no agrava, no habilita el
+    // escalón siguiente y no constituye sanción disciplinaria previa para los
+    // efectos del literal h) del artículo 25 de la LPCL».
+    //
+    // Antes se aceptaban `firmado` y `entregado`. La carta de imputación NOMBRA
+    // sus previas una por una, así que una firmada y no entregada colada ahí
+    // hacía que el documento afirmara por escrito un hecho falso sobre el
+    // requisito mismo que tiene que probar. Y el estado intermedio no es
+    // hipotético: la pantalla de Disciplina tiene una sección entera de
+    // «Firmados — por entregar».
     // Solo firmadas o entregadas: un borrador no sancionó nada y citarlo sería
     // afirmar en un documento legal algo que no ocurrió.
     const { data: prev } = await supabase.from("expediente_disciplinario")
       .select("correlativo, nivel, firmado_at, entregado_at")
       .eq("persona_id", doc.persona_id)
       .eq("tipo_causal", doc.tipo_causal)
-      .in("estado", ["firmado", "entregado"])
+      .eq("estado", "entregado")
       .neq("id", doc.id)
       .gte("firmado_at", new Date(Date.now() - 365 * 24 * 3600 * 1000).toISOString())
       .order("firmado_at", { ascending: true });
@@ -279,21 +313,21 @@ export default function MemoPage() {
         <>
           <p>El presente memorándum deja constancia de que, durante el mes de <strong>{mesDe(doc.periodo_desde)}</strong>, usted registró <strong>{n} tardanzas</strong>, superando el umbral b) del artículo 7 del Reglamento Interno de Trabajo de {EMPRESA.nombre} (tres o más tardanzas en un mismo mes calendario), según el detalle de las marcaciones que a continuación se indica.</p>
           <p>Las tardanzas detalladas no han sido objeto de sanción disciplinaria previa. El descuento proporcional por el tiempo no laborado, de haberse aplicado en planilla, tiene naturaleza contraprestativa y es independiente de esta sanción; no la sustituye.</p>
-          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, que se incorpora a su legajo como antecedente disciplinario con vigencia de doce (12) meses desde su notificación (artículo 14.4 del RIT). Se le exhorta a corregir su puntualidad. La reincidencia dará lugar a <strong>suspensión sin goce de haber</strong> conforme al umbral c) del artículo 7 del RIT.</p>
+          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, que se incorpora a su legajo como antecedente disciplinario con vigencia de doce (12) meses desde su notificación (numeral 56.1 del RIT). Se le exhorta a corregir su puntualidad. La reincidencia dará lugar a <strong>suspensión sin goce de haber</strong> conforme al literal c) del numeral 19.2 del RIT.</p>
         </>
       );
     }
     if (nivel === "amonestacion" && t === "falta") {
       return (
         <>
-          <p>El presente memorándum deja constancia de que, correspondiéndole laborar en la(s) fecha(s) que se detalla(n), usted <strong>no concurrió al centro de trabajo ni registró marca alguna</strong> en el sistema de control de asistencia, sin que exista justificación aceptada dentro del plazo previsto en el artículo 8.2 del RIT.</p>
-          <p>La inasistencia injustificada constituye falta conforme al artículo 8.3-a del RIT y contraviene el deber de asistencia y puntualidad (artículo 13-c). El descuento del día no laborado y de la parte proporcional del descanso semanal es independiente de esta sanción.</p>
-          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, incorporada a su legajo por doce (12) meses (artículo 14.4 del RIT). Una nueva inasistencia injustificada dará lugar a <strong>suspensión sin goce de haber</strong> (artículo 8.3-b), y la acumulación de ausencias puede configurar causal de despido conforme al artículo 25-h de la LPCL.</p>
+          <p>El presente memorándum deja constancia de que, correspondiéndole laborar en la(s) fecha(s) que se detalla(n), usted <strong>no concurrió al centro de trabajo ni registró marca alguna</strong> en el sistema de control de asistencia, sin que exista justificación aceptada dentro del plazo previsto en el numeral 20.4 del RIT.</p>
+          <p>La inasistencia injustificada constituye falta conforme al literal c) del numeral 53.2 del RIT y contraviene el deber de asistencia y puntualidad (artículo 20 del RIT). El descuento del día no laborado y de la parte proporcional del descanso semanal es independiente de esta sanción.</p>
+          <p>Por lo expuesto, se le impone <strong>AMONESTACIÓN ESCRITA</strong>, incorporada a su legajo por doce (12) meses (numeral 56.1 del RIT). Una nueva inasistencia injustificada dará lugar a <strong>suspensión sin goce de haber</strong> (artículo 8.3-b), y la acumulación de ausencias puede configurar causal de despido conforme al artículo 25-h de la LPCL.</p>
         </>
       );
     }
     if (nivel === "suspension") {
-      const art = t === "tardanza" ? "umbral c) del artículo 7" : "artículo 8.3-b";
+      const art = t === "tardanza" ? "literal c) del numeral 19.2" : "literal b) del numeral 21.2";
       return (
         <>
           <p>Habiendo sido usted <strong>amonestado por escrito con anterioridad</strong> por {CAUSAL[t]}, y habiendo reincidido según el detalle que se indica, se configura el {art} del RIT. Estos hechos son nuevos y posteriores a la sanción previa; no se recuenta ninguno ya sancionado.</p>
@@ -304,11 +338,11 @@ export default function MemoPage() {
             {doc.suspension_fechas?.length
               ? <>, los días <strong>{doc.suspension_fechas.map(fechaCorta).join(", ")}</strong></>
               : doc.suspension_desde && <>, del <strong>{fechaCorta(doc.suspension_desde)}</strong>{doc.suspension_hasta && <> al <strong>{fechaCorta(doc.suspension_hasta)}</strong></>}</>}
-            . Durante ese periodo no deberá concurrir al centro de trabajo ni percibirá remuneración (artículo 14.2 del RIT).</p>
+            . Durante ese periodo no deberá concurrir al centro de trabajo ni percibirá remuneración (numeral 54.5 del RIT).</p>
           {/* La vigencia se dice aquí igual que en la amonestación. Sin ella, el
               papel no informa cuánto pesa en el legajo — y de esa vigencia
               depende que la siguiente sanción escale o vuelva a empezar. */}
-          <p>Esta sanción se incorpora a su legajo como antecedente disciplinario con vigencia de <strong>doce (12) meses</strong> desde su notificación (artículo 14.4 del RIT).</p>
+          <p>Esta sanción se incorpora a su legajo como antecedente disciplinario con vigencia de <strong>doce (12) meses</strong> desde su notificación (numeral 56.1 del RIT).</p>
           <p>Se le advierte que, de persistir, {EMPRESA.nombre} iniciará el procedimiento de despido por causa justa previsto en el artículo 31 de la LPCL.</p>
         </>
       );

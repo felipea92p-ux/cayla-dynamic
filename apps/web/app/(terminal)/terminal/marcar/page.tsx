@@ -11,6 +11,7 @@ import {
   obtenerDescartadas,
   obtenerPendientes,
 } from "@/lib/terminal/offline-db";
+import { sincronizarApartadas } from "@/lib/terminal/apartadas";
 import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
@@ -188,6 +189,23 @@ export default function MarcarPage() {
         .catch(() => {});
     revisar();
     const t = setInterval(revisar, 4000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Y las sube al servidor, que es lo que las saca de este navegador (0304).
+  //
+  // Va en su propio intervalo y mucho más lento que el contador de arriba: ese
+  // solo mira IndexedDB y puede correr cada cuatro segundos sin costar nada;
+  // este habla con el servidor. Cada dos minutos alcanza de sobra para algo que
+  // resuelve una persona a mano.
+  //
+  // También es lo único que hace bajar el aviso rojo: cuando alguien resuelve la
+  // marca desde Correcciones, la siguiente pasada la borra de la cola. No hay
+  // botón para silenciarlo, a propósito.
+  useEffect(() => {
+    const sincronizar = () => { void sincronizarApartadas().catch(() => {}); };
+    sincronizar();
+    const t = setInterval(sincronizar, 120000);
     return () => clearInterval(t);
   }, []);
 
