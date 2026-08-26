@@ -1489,7 +1489,10 @@ export type Database = {
           descargo_valoracion: string | null
           descargo_vence_at: string | null
           doc_previo_id: string | null
+          entrega_testigo_id: string | null
+          entrega_testigo_nombre: string | null
           entregado_at: string | null
+          entregado_por: string | null
           estado: string
           fecha_cese: string | null
           firmado_at: string | null
@@ -1521,7 +1524,10 @@ export type Database = {
           descargo_valoracion?: string | null
           descargo_vence_at?: string | null
           doc_previo_id?: string | null
+          entrega_testigo_id?: string | null
+          entrega_testigo_nombre?: string | null
           entregado_at?: string | null
+          entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firmado_at?: string | null
@@ -1553,7 +1559,10 @@ export type Database = {
           descargo_valoracion?: string | null
           descargo_vence_at?: string | null
           doc_previo_id?: string | null
+          entrega_testigo_id?: string | null
+          entrega_testigo_nombre?: string | null
           entregado_at?: string | null
+          entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
           firmado_at?: string | null
@@ -4494,7 +4503,13 @@ export type Database = {
         Returns: undefined
       }
       fn_expediente_entregar: {
-        Args: { p_fecha?: string | null; p_id: string | null; p_medio: string | null }
+        Args: {
+          p_fecha?: string | null
+          p_id: string | null
+          p_medio: string | null
+          p_testigo_id?: string | null
+          p_testigo_nombre?: string | null
+        }
         Returns: undefined
       }
       fn_expediente_firmantes: {

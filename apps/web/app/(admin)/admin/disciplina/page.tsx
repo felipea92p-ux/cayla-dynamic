@@ -150,20 +150,23 @@ interface Doc {
  */
 function FormularioCargo({
   tipo, pideFecha, entregadoEl, fecha, progreso, ocupado,
-  alElegirArchivo, alCambiarFecha, alCambiarNota, nota, alGuardar, alCancelar,
+  alElegirArchivo, alCambiarFecha, alCambiarNota, nota, testigo, alCambiarTestigo, alGuardar, alCancelar,
 }: {
   tipo: TipoPapel; pideFecha: boolean; entregadoEl: string | null;
-  fecha: string; nota: string; progreso: number | null; ocupado: boolean;
+  fecha: string; nota: string; testigo: string; progreso: number | null; ocupado: boolean;
   alElegirArchivo: (f: File | null) => void;
   alCambiarFecha: (v: string) => void;
   alCambiarNota: (v: string) => void;
+  alCambiarTestigo: (v: string) => void;
   alGuardar: () => void; alCancelar: () => void;
 }) {
   return (
     <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
       <p className="mb-2 text-xs text-taupe">
         {tipo === "acta_negativa"
-          ? "Sube el acta con testigo. Queda constancia de que se ofreció entregar; el documento NO se marca entregado."
+          ? pideFecha
+            ? "El acta suscrita por quien entrega y por un testigo produce los mismos efectos que el cargo firmado (num. 55.4 del RIT). Al subirla el documento queda ENTREGADO con esta fecha, y desde ahí corren los plazos."
+            : "Sube el acta para archivarla en el legajo. La entrega ya registrada no cambia."
           : tipo === "descargo"
             ? "Sube el descargo que presentó por escrito. Se archiva en el legajo junto al memo que lo provocó; no cambia el estado del documento."
           : pideFecha
@@ -185,10 +188,22 @@ function FormularioCargo({
               className="rounded border px-2 py-1 text-xs" />
           </label>
         )}
+        {tipo === "acta_negativa" && (
+          <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+            Testigo del acta — nombre y apellido
+            <input value={testigo} onChange={(e) => alCambiarTestigo(e.target.value)}
+              placeholder="ej. Rosa Quispe Ramírez"
+              className="rounded border px-2 py-1 text-xs" />
+            <span className="text-taupe">
+              Quien presenció la negativa y firma el acta junto a quien entrega. Puede ser
+              cualquier persona presente, esté o no en el sistema.
+            </span>
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-xs sm:col-span-2">
           Nota (opcional)
           <input value={nota} onChange={(e) => alCambiarNota(e.target.value)}
-            placeholder={tipo === "acta_negativa" ? "ej. presente la encargada de TRU como testigo" : tipo === "descargo" ? "ej. entregado en mesa de partes el 14/08" : "ej. recibido en la tienda"}
+            placeholder={tipo === "acta_negativa" ? "ej. se le leyó en voz alta y se negó también a recibir la copia" : tipo === "descargo" ? "ej. entregado en mesa de partes el 14/08" : "ej. recibido en la tienda"}
             className="rounded border px-2 py-1 text-xs" />
         </label>
       </div>
@@ -246,6 +261,7 @@ export default function DisciplinaPage() {
   const [archivoCargo, setArchivoCargo] = useState<File | null>(null);
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [notaCargo, setNotaCargo] = useState("");
+  const [testigoCargo, setTestigoCargo] = useState("");
   const [progresoCargo, setProgresoCargo] = useState<number | null>(null);
   const [verCerrados, setVerCerrados] = useState(false);
   // Quién puede suscribir CADA documento. Se pregunta por documento y no una
@@ -520,6 +536,7 @@ export default function DisciplinaPage() {
     setArchivoCargo(null);
     setFechaEntrega(hoyLima());
     setNotaCargo("");
+    setTestigoCargo("");
     setMsg(null);
   }
 
@@ -529,7 +546,12 @@ export default function DisciplinaPage() {
     // documento ya entregado la fecha buena es la registrada, y en un acta de
     // negativa no hay entrega que fechar.
     const doc = docs.find((x) => x.id === subiendoCargo.id) ?? null;
-    const pideFecha = subiendoCargo.tipo === "cargo_firmado" && doc?.estado === "firmado";
+    // El acta de negativa ENTREGA (num. 55.4: «produce los mismos efectos que
+    // el cargo firmado»). Hasta hoy solo se archivaba y el documento se quedaba
+    // en "firmado" — o sea sin efectos, sin plazos y sin contar para el
+    // escalón siguiente. La negativa a firmar salía gratis.
+    const actaEntrega = subiendoCargo.tipo === "acta_negativa" && doc?.estado === "firmado";
+    const pideFecha = (subiendoCargo.tipo === "cargo_firmado" && doc?.estado === "firmado") || actaEntrega;
     if (!archivoCargo) {
       setMsg({ tipo: "error", texto: FALTA_PAPEL[subiendoCargo.tipo] });
       return;
@@ -540,6 +562,12 @@ export default function DisciplinaPage() {
     }
     if (pideFecha && !fechaEntrega) {
       setMsg({ tipo: "error", texto: "Indica la fecha de entrega: desde ahí corren los plazos de descargo." });
+      return;
+    }
+    // La base lo rechaza igual, pero enterarse después de subir el archivo es
+    // una vuelta entera para escribir un nombre.
+    if (actaEntrega && !testigoCargo.trim()) {
+      setMsg({ tipo: "error", texto: "Escribe el nombre del testigo: el acta la suscriben quien entrega y un testigo (num. 55.4 del RIT). Sin testigo no hay acta, y sin acta no hay entrega." });
       return;
     }
 
@@ -567,17 +595,45 @@ export default function DisciplinaPage() {
       p_documento_id: subiendoCargo.id,
       p_path: ruta,
       p_tipo: subiendoCargo.tipo,
-      p_fecha_entrega: pideFecha ? instanteEntrega(fechaEntrega, doc?.firmado_at ?? null) : null,
+      // Solo el cargo firmado entrega por esta vía: fn_expediente_adjuntar
+      // marca 'fisico', que es lo que un papel firmado significa. El acta se
+      // entrega abajo, con su medio propio y su testigo.
+      p_fecha_entrega: pideFecha && !actaEntrega ? instanteEntrega(fechaEntrega, doc?.firmado_at ?? null) : null,
       p_nota: notaCargo.trim() || null,
     });
+    if (error) {
+      setOcupado(null);
+      setMsg({ tipo: "error", texto: mensajeDeError(error) });
+      return;
+    }
+
+    // Segundo paso, y en este orden a propósito: si esto falla, el acta ya está
+    // archivada y el documento sigue en "firmado" — el estado de siempre, del
+    // que se sale reintentando. Al revés dejaría un documento entregado cuyo
+    // acta no está en ninguna parte.
+    if (actaEntrega) {
+      const { error: falloEntrega } = await supabase.rpc("fn_expediente_entregar", {
+        p_id: subiendoCargo.id,
+        p_medio: "acta_negativa",
+        p_fecha: instanteEntrega(fechaEntrega, doc?.firmado_at ?? null),
+        p_testigo_nombre: testigoCargo.trim(),
+      });
+      if (falloEntrega) {
+        setOcupado(null);
+        await cargar();
+        setMsg({ tipo: "error", texto: `El acta quedó archivada, pero el documento NO se marcó entregado (${mensajeDeError(falloEntrega)}). Vuelve a intentarlo desde «entregar sin papel».` });
+        return;
+      }
+    }
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
 
     setSubiendoCargo(null);
     await cargar();
     setMsg({ tipo: "ok", texto:
       subiendoCargo.tipo === "acta_negativa"
-        ? "Acta de negativa archivada contra el documento."
+        ? actaEntrega
+          ? "Acta archivada y documento ENTREGADO. La negativa a firmar produce los mismos efectos que la firma (num. 55.4), así que desde hoy corren los plazos y cuenta para el escalón siguiente."
+          : "Acta de negativa archivada contra el documento."
         : subiendoCargo.tipo === "descargo"
           ? "Descargo archivado en el legajo. Es la pieza que prueba que se respetó el plazo del art. 31."
           : pideFecha
@@ -1213,11 +1269,11 @@ function fechasDe(h: Hecho[]): string {
                          archiva acá es el descargo previo, no el cargo. */
                       pideFecha={false}
                       entregadoEl={null}
-                      fecha={fechaEntrega} nota={notaCargo}
+                      fecha={fechaEntrega} nota={notaCargo} testigo={testigoCargo}
                       progreso={progresoCargo} ocupado={ocupado === d.id}
                       alElegirArchivo={setArchivoCargo}
                       alCambiarFecha={setFechaEntrega}
-                      alCambiarNota={setNotaCargo}
+                      alCambiarNota={setNotaCargo} alCambiarTestigo={setTestigoCargo}
                       alGuardar={() => void guardarCargo()}
                       alCancelar={() => setSubiendoCargo(null)}
                     />
@@ -1280,13 +1336,13 @@ function fechasDe(h: Hecho[]): string {
                   {subiendoCargo?.id === d.id && (
                     <FormularioCargo
                       tipo={subiendoCargo.tipo}
-                      pideFecha={subiendoCargo.tipo === "cargo_firmado"}
+                      pideFecha={subiendoCargo.tipo === "cargo_firmado" || subiendoCargo.tipo === "acta_negativa"}
                       entregadoEl={null}
-                      fecha={fechaEntrega} nota={notaCargo}
+                      fecha={fechaEntrega} nota={notaCargo} testigo={testigoCargo}
                       progreso={progresoCargo} ocupado={ocupado === d.id}
                       alElegirArchivo={setArchivoCargo}
                       alCambiarFecha={setFechaEntrega}
-                      alCambiarNota={setNotaCargo}
+                      alCambiarNota={setNotaCargo} alCambiarTestigo={setTestigoCargo}
                       alGuardar={() => void guardarCargo()}
                       alCancelar={() => setSubiendoCargo(null)}
                     />
@@ -1398,11 +1454,11 @@ function fechasDe(h: Hecho[]): string {
                           tipo={subiendoCargo.tipo}
                           pideFecha={false}
                           entregadoEl={d.entregado_at ? selloLima(d.entregado_at) : null}
-                          fecha={fechaEntrega} nota={notaCargo}
+                          fecha={fechaEntrega} nota={notaCargo} testigo={testigoCargo}
                           progreso={progresoCargo} ocupado={ocupado === d.id}
                           alElegirArchivo={setArchivoCargo}
                           alCambiarFecha={setFechaEntrega}
-                          alCambiarNota={setNotaCargo}
+                          alCambiarNota={setNotaCargo} alCambiarTestigo={setTestigoCargo}
                           alGuardar={() => void guardarCargo()}
                           alCancelar={() => setSubiendoCargo(null)}
                         />
