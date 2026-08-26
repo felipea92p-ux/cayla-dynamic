@@ -879,18 +879,33 @@ roja el día que alguien lo mueva sin verlo.
 — la expresión correcta ya vive en `fn_trg_marcajes_recalcular_jornada`, solo
 falta extraerla a una función compartida y llamarla desde las once.
 
-### 5 · DNI, correos y celulares reales de diez personas, commiteados y ya en GitHub — P0, no es tarea de código
+### 5 · DNI, correos y celulares reales de diez personas, commiteados — ⚠️ REBAJADO el 2026-08-26: NO es P0
 
-**Dónde:** `supabase/migrations/0130_los_datos_del_tregistro.sql` y dos
-migraciones más.
+**Dónde:** `supabase/migrations/0130_los_datos_del_tregistro.sql` (commit
+`f12a9a6`) y dos migraciones más. Diez líneas con DNI o correo.
 
-**Por qué importa:** ya está publicado. Borrarlo del archivo hoy no lo
-despublica del historial de GitHub.
+**Esto decía «ya está publicado» y era falso.** Medido el 2026-08-26 contra la
+API de GitHub:
 
-**Esto es una decisión de Felipe, no una migración.** Reescribir el historial
-de un repo con varias sesiones trabajando en paralelo tiene su propio costo y
-riesgo — se anota aquí para que la decisión no se pierda, no para proponerla
-a ciegas.
+| | |
+|---|---|
+| Visibilidad del repositorio | **privado** |
+| Forks | **0** |
+| Colaboradores | **1 — Felipe** |
+
+O sea que esos datos no están expuestos a nadie: están en un repositorio privado
+de una sola persona. Se corrige la entrada porque **un aviso exagerado que lleva
+dos días arriba enseña a no leer los avisos**, y este archivo tiene otros que sí
+importan.
+
+**Lo que queda de riesgo, dicho en su tamaño real:** GitHub como empresa aloja
+esos datos, y la exposición saltaría de golpe el día que el repositorio se
+hiciera público o se sumara un colaborador. En Perú caen bajo la Ley 29733; el
+argumento para limpiarlos es de cumplimiento y de higiene, no de fuga.
+
+**Sigue siendo decisión de Felipe.** Reescribir el historial con varias sesiones
+trabajando en paralelo tiene su propio costo y riesgo, y por eso no se propone
+a ciegas. Pero no corre prisa: no hay incendio.
 
 ### 6 · El descanso médico sigue pagando sin que DO lo apruebe
 
