@@ -286,10 +286,21 @@ begin
   -- Reponer: por la puerta de siempre, con la hora ORIGINAL. Si vuelve a fallar
   -- —el día ya está en un periodo pagado, por ejemplo— la excepción sube tal
   -- cual y no se marca nada como resuelto.
+  --
+  -- El origen es `admin_correccion` y NO `terminal`, aunque la marca se hiciera
+  -- en el terminal. No es un detalle cosmético: el cuerpo de fn_registrar_marcaje
+  -- exige, para origen `terminal`, que quien llama SEA ese terminal
+  -- (`auth.uid() <> v_terminal_auth` → «el terminal autenticado no coincide»), y
+  -- acá quien llama es una persona desde el panel. Poner `terminal` reventaría
+  -- siempre.
+  --
+  -- Y además dice la verdad: esta fila la escribió una persona, no la Mac mini.
+  -- Lo que se conserva es lo que importa —la HORA ORIGINAL de la marca— y de
+  -- dónde venía queda escrito en `marcas_apartadas`, que no se borra.
   if p_resolucion = 'repuesta' then
     perform fn_registrar_marcaje(
       v_m.persona_id, v_m.tipo, v_m.timestamp_cliente, v_m.client_uuid,
-      'terminal'::origen_marca, v_m.terminal_id, v_p.sede_base_id, v_m.motivo_otro);
+      'admin_correccion'::origen_marca, null, v_p.sede_base_id, v_m.motivo_otro);
   end if;
 
   update marcas_apartadas
