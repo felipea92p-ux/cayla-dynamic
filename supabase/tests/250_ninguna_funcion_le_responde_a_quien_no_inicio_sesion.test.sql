@@ -44,7 +44,7 @@
 -- `anon` — comprobado el 2026-08-26 en el SQL Editor. Esto vigila el mañana.
 -- ============================================================================
 begin;
-select plan(2);
+select plan(3);
 
 -- ── El diagnóstico, se cumpla o no ─────────────────────────────────────────
 select diag('── reglas por defecto para FUNCIONES en public ──');
@@ -98,6 +98,32 @@ select cmp_ok(
   '>',
   200,
   'y hay mas de 200 funciones fn_* que revisar: la medicion no paso por estar vacia'
+);
+
+-- ── 3 · LA PUERTA DE MAÑANA (0315) ─────────────────────────────────────────
+-- La comprobación 1 mira las funciones que YA existen. Ésta mira la regla que
+-- decide cómo nacen las siguientes, y es la que de verdad cierra el caso:
+-- mientras `anon` esté en los privilegios por defecto de `postgres` para
+-- funciones de `public`, la próxima migración que se pegue crearía funciones
+-- abiertas — sin fallar, sin avisar, y sin que la comprobación 1 lo viera hasta
+-- la corrida siguiente.
+--
+-- Es exactamente lo que la imagen `supabase/postgres:17.6.1.165` trajo el
+-- 2026-08-26, y lo que la 0076 no podía frenar: ella revoca de PUBLIC, y esto
+-- es una concesión explícita a `anon`. Son dos cosas distintas.
+--
+-- `supabase_admin` tiene su propia regla, que también concede `anon`, y no se
+-- comprueba a propósito: no crea funciones de la casa —las 276 son de
+-- `postgres`, medido— y cambiarla exigiría ser miembro de ese rol.
+select is_empty(
+  $defacl$ select defaclrole::regrole::text as rol_creador,
+                  array_to_string(defaclacl, ' ') as regla
+             from pg_default_acl
+            where defaclnamespace = 'public'::regnamespace
+              and defaclobjtype = 'f'
+              and defaclrole = 'postgres'::regrole
+              and array_to_string(defaclacl, ' ') like '%anon=%' $defacl$,
+  'la regla por defecto de postgres no le da EXECUTE a anon sobre funciones nuevas'
 );
 
 select * from finish();
