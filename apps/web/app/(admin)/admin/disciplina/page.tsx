@@ -12,6 +12,8 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import {
   NIVEL_DISCIPLINARIO_CORTO, NIVEL_DISCIPLINARIO_LABELS, TZ_LIMA, hoyLima, puedeOperarEquipo,
+  rangoDelDiaLima, rangoDelMesLima, mesesRecientesLima, nombreDelMesLima, nombreDelMesLimaTitulo,
+  primeroDeMesLima,
 } from "@cayla-dynamic/shared";
 
 
@@ -31,22 +33,14 @@ function selloLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
-// El mes que este semáforo está contando, escrito una sola vez. Sale de
-// `hoyLima()` y no de `new Date()` porque es el mismo corte del día que usa
-// `fn_tardanzas_resumen` (`date_trunc('month', fn_hoy_lima())`): el 1 de mes,
-// entre medianoche de Lima y medianoche del navegador, las dos formas no dicen
-// el mismo mes.
-// Se normaliza a minúscula a mano: `Intl` devuelve «Agosto» en Node y en los
-// navegadores de hoy, pero el mes va en minúscula dentro de una frase («lleva 2
-// en agosto») y con mayúscula al abrir el título. Fijar las dos formas acá evita
-// además depender de que todos los navegadores capitalicen igual.
-const MES_ACTUAL = (() => {
-  const [y, m] = hoyLima().split("-").map(Number);
-  return new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: "UTC" })
-    .format(new Date(Date.UTC(y, m - 1, 1)))
-    .toLocaleLowerCase("es-PE");
-})();
-const MES_ACTUAL_TITULO = MES_ACTUAL.charAt(0).toLocaleUpperCase("es-PE") + MES_ACTUAL.slice(1);
+// El mes de este semáforo dejó de ser una constante: se elige.
+//
+// Era `date_trunc('month', fn_hoy_lima())` escrito en la pantalla, y decía la
+// verdad mientras el sistema solo supo contar el mes en curso. El numeral 19.4
+// dice que el cierre del mes no impide emitir un documento por hechos de un mes
+// ya concluido, así que ahora el mes viaja como estado y se nombra con
+// `nombreDelMesLima`, que vive en `fecha-lima.ts` con el resto del calendario
+// de Lima.
 
 // Las etiquetas de la escala viven en packages/shared desde la 0200: las
 // necesitan también el Dashboard y el Reporte por sede.
@@ -295,6 +289,17 @@ export default function DisciplinaPage() {
    *  que la base va a rechazar. */
   const [exigeDescargo, setExigeDescargo] = useState(true);
   const [firmanteElegido, setFirmanteElegido] = useState<Record<string, string>>({});
+  /**
+   * El mes sobre el que se mira y se documenta la impuntualidad, como
+   * `2026-08-01`. Por defecto el mes en curso, que es lo único que existía
+   * hasta hoy.
+   *
+   * Deja de ser una constante porque el numeral 19.4 dice que el cierre del mes
+   * no impide emitir el documento por hechos de un mes ya concluido, y hasta
+   * hoy el sistema lo impedía: el día 1 el contador de todos volvía a cero y el
+   * mes anterior se volvía indocumentable para siempre. Doce veces al año.
+   */
+  const [mesTard, setMesTard] = useState<string>(primeroDeMesLima());
   const borradoresRef = useRef<HTMLDivElement>(null);
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
@@ -304,7 +309,11 @@ export default function DisciplinaPage() {
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: t, error: eT }, { data: f, error: eF }, { data: d, error: eD }, { data: p }] = await Promise.all([
-      supabase.rpc("fn_tardanzas_resumen", {}),
+      // Para el mes en curso, sin argumentos: es el camino de siempre. Para uno
+      // cerrado, `p_as_of` en su último día, que es como esta función sabe
+      // mirar hacia atrás desde la 0067.
+      supabase.rpc("fn_tardanzas_resumen",
+        mesTard === primeroDeMesLima() ? {} : { p_as_of: rangoDelMesLima(mesTard).fin }),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
         .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega, entrega_testigo_nombre, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion")
@@ -385,7 +394,7 @@ export default function DisciplinaPage() {
       ((sc as { persona_id: string; motivo: string }[]) ?? []).map((x) => [x.persona_id, x.motivo]),
     ));
     setCargando(false);
-  }, [supabase, router]);
+  }, [supabase, router, mesTard]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -410,8 +419,13 @@ export default function DisciplinaPage() {
 
   async function generar(tipo: "tardanza" | "falta", personaId: string) {
     setOcupado(personaId); setMsg(null);
-    const fn = tipo === "tardanza" ? "fn_expediente_generar_tardanza" : "fn_expediente_generar_falta";
-    const { error } = await supabase.rpc(fn, { p_persona_id: personaId });
+    // Las dos RPC dejaron de tener la misma forma: el generador de tardanzas
+    // recibe el mes que se documenta y el de faltas no, porque la escala de
+    // faltas no se cuenta por mes calendario.
+    const { error } = tipo === "tardanza"
+      ? await supabase.rpc("fn_expediente_generar_tardanza",
+          { p_persona_id: personaId, p_mes: mesTard })
+      : await supabase.rpc("fn_expediente_generar_falta", { p_persona_id: personaId });
     setOcupado(null);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
@@ -870,11 +884,27 @@ export default function DisciplinaPage() {
    * llama a la RPC— así que esto es el letrero, y la base es el candado.
    */
   function rangoSuspension(d: Doc): { min: number; max: number; previa: number | null } {
-    const doceMeses = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    // La referencia es el CIERRE DEL PERIODO QUE ESTE DOCUMENTO CUBRE, no «hoy».
+    //
+    // El numeral 19.1 c) dice que el antecedente agrava si fue notificado dentro
+    // de los doce meses anteriores AL HECHO QUE SE EVALÚA. Documentando un mes
+    // ya cerrado —que desde el art. 19.4 se puede— una suspensión entregada
+    // DESPUÉS de ese mes no puede graduar unos hechos que, cuando ocurrieron, no
+    // la tenían encima. Medirlo contra `Date.now()` le sumaba un día sin goce a
+    // alguien por un atraso de la empresa en entregar el documento anterior.
+    //
+    // El instante sale de `rangoDelDiaLima`: el desfase de Lima no se escribe
+    // a mano en ningún sitio fuera de `fecha-lima.ts`.
+    const ref = d.periodo_hasta
+      ? Date.parse(rangoDelDiaLima(d.periodo_hasta).fin)
+      : Date.now();
+    const doceMeses = ref - 365 * 24 * 60 * 60 * 1000;
     const dias = docs
       .filter((x) => x.persona_id === d.persona_id && x.tipo_causal === d.tipo_causal
         && x.nivel === "suspension" && x.estado === "entregado" && x.id !== d.id
-        && x.entregado_at !== null && Date.parse(x.entregado_at) >= doceMeses)
+        && x.entregado_at !== null
+        && Date.parse(x.entregado_at) >= doceMeses
+        && Date.parse(x.entregado_at) <= ref)
       .map((x) => x.suspension_dias ?? 0);
     const previa = dias.length ? Math.max(...dias) : null;
     if (d.tipo_causal !== "tardanza") return { min: 1, max: 3, previa };
@@ -924,7 +954,27 @@ function fechasDe(h: Hecho[]): string {
         {/* Semáforo de tardanzas */}
         <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
-            <h2 className="text-sm font-medium">Tardanzas — {MES_ACTUAL_TITULO}{!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-medium">
+                Tardanzas — {nombreDelMesLimaTitulo(mesTard)} {mesTard.slice(0, 4)}
+                {!cargando && tardanzas.length > 0 && <span className="font-normal text-taupe"> · {tardanzas.length}</span>}
+              </h2>
+              {/* Sin este selector el arreglo del generador no se alcanza desde
+                  ningún sitio: el botón de abajo está deshabilitado cuando el
+                  contador del mes es 0, y el día 1 —el caso que se arregla— es
+                  0 para todo el mundo. */}
+              <label className="flex items-center gap-1 text-xs text-taupe">
+                Mes
+                <select value={mesTard} onChange={(e) => setMesTard(e.target.value)}
+                  className="rounded border bg-crema px-2 py-1 text-xs text-tinta">
+                  {mesesRecientesLima().map((m) => (
+                    <option key={m} value={m}>
+                      {nombreDelMesLimaTitulo(m)} {m.slice(0, 4)}{m === primeroDeMesLima() ? " · en curso" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             {/* El umbral NO es el mismo para todas: depende del escalón en el
                 que esté cada quien (RIT art. 7 b/c/d). Decir «3» aquí, como
                 decía hasta la 0200, era falso para quien arrastra un
@@ -942,9 +992,23 @@ function fechasDe(h: Hecho[]): string {
               Umbral RIT art. 19.2: <strong>3</strong> en el <strong>mes calendario</strong> sin
               antecedente · <strong>2</strong> tras una amonestación · <strong>1</strong> tras una
               suspensión. Cada fila dice el suyo.
-              {" "}El conteo arranca de cero el día 1; Incidencias avisa sobre los últimos 30 días
+              {" "}Cada mes se cuenta por separado; Incidencias avisa sobre los últimos 30 días
               corridos, así que ahí el número puede ser mayor que acá.
             </p>
+            {/* Documentar hacia atrás es un derecho del numeral 19.4 y a la vez
+                la única forma NUEVA de hacer daño que abre este cambio: hasta
+                hoy era imposible. Las dos advertencias que lo acotan no las
+                puede decidir el código, así que se dicen acá. */}
+            {mesTard !== primeroDeMesLima() && (
+              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Estás mirando un <strong>mes ya cerrado</strong>. El numeral 19.4 permite emitir el
+                documento por hechos de un mes concluido, pero el art. 52 dice que una demora
+                injustificada equivale a condonación — y un hecho condonado no sustenta sanción ni
+                se valora como antecedente. Si no hay motivo para el retraso, no lo emitas.
+                {" "}Y por el numeral 56.6: <strong>emite del mes más viejo al más nuevo</strong>.
+                Entregado un documento, los meses anteriores ya no se pueden documentar.
+              </p>
+            )}
           </div>
           {cargando ? (
             <Cargando />
@@ -954,7 +1018,7 @@ function fechasDe(h: Hecho[]): string {
               significa que no se pudo mirar. Vuelve a cargar la página; si sigue igual, avisa antes de dar el mes por revisado.
             </p>
           ) : tardanzas.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-taupe">Nadie con tardanzas relevantes este mes.</p>
+            <p className="px-4 py-6 text-sm text-taupe">Nadie con tardanzas relevantes en {nombreDelMesLima(mesTard)}.</p>
           ) : (
             <ul className="divide-y">
               {tardanzas.map((t) => (
@@ -965,7 +1029,7 @@ function fechasDe(h: Hecho[]): string {
                       <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "aviso" ? "bg-amber-100 text-amber-800" : "bg-rojo/10 text-rojo"}`}>
                         {t.tardanzas_mes}
                         {t.umbral === "aviso"
-                          ? ` de ${t.minimo} en ${MES_ACTUAL} · aviso`
+                          ? ` de ${t.minimo} en ${nombreDelMesLima(mesTard)} · aviso`
                           : t.umbral === "bloqueado"
                             ? " · imputación vigente, decide Gerencia"
                             : ` · corresponde ${NIVEL_DISCIPLINARIO_CORTO[t.umbral as keyof typeof NIVEL_DISCIPLINARIO_CORTO] ?? t.umbral}`}
@@ -996,7 +1060,7 @@ function fechasDe(h: Hecho[]): string {
                       : t.umbral === "bloqueado"
                         ? "Ya tiene una imputación de cargos vigente. El siguiente paso es evaluar sus descargos (art. 31) y lo decide Gerencia, no el sistema."
                         : t.umbral === "aviso"
-                          ? `Aún no llega a su umbral: lleva ${t.tardanzas_mes} en ${MES_ACTUAL} y su escalón exige ${t.minimo}. El conteo arranca de cero el día 1.`
+                          ? `Aún no llega a su umbral: lleva ${t.tardanzas_mes} en ${nombreDelMesLima(mesTard)} y su escalón exige ${t.minimo}.`
                           : undefined}
                     className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
                     {ocupado === t.persona_id ? "Generando…" : "Generar borrador"}
