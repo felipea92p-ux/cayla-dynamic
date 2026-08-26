@@ -274,11 +274,13 @@ Tres ausencias de tipos no pagados, **ninguna es un incumplimiento**:
   no obliga y el no-pago es correcto. Confirmado por Felipe.
 - **Sandra Ramírez** · estudios, 25-26/08 · el reglamento no lista los estudios entre las licencias
   con goce del art. 31.4. Correcto.
-- **Chiara Flores** · salud, 04-09/08, seis días · el tipo `salud` no paga a propósito —
-  `fn_registrar_ausencia` lo dice al registrarlo: «si no hay documento, regístralo como Descanso
-  por salud, que no paga pero tampoco cuenta como falta». **Lo único que conviene mirar**: seis
-  días es mucho; si hubo certificado médico, correspondía `descanso_medico`, que sí paga los
-  primeros veinte días.
+- **Chiara Flores** · salud, 04-09/08 · **COMPROBADO el 2026-08-25: quedó bien.** Se dudó porque
+  seis días parecían muchos y, con certificado médico, habría correspondido `descanso_medico`, que
+  sí paga los primeros veinte. Medido: **sin documento profesional, sin colegiatura, sin archivo
+  subido** — así que `salud` es el tipo correcto, el que no paga pero tampoco cuenta como falta.
+  Y el cálculo afinó más de lo que la duda suponía: de los **seis días de calendario, solo cuatro
+  eran laborables suyos**. El domingo 9 y el feriado del 6 no se le descontaron. Tampoco fichó
+  ninguno de esos días, así que la ausencia fue real.
 
 Y de `licencia_con_goce`: **cero registros en toda la historia**.
 
