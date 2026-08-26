@@ -77,9 +77,10 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000236ff
 
 -- El descanso médico entra por `ausencias`; las vacaciones por su propia tabla,
 -- que tiene un trigger que crea la ausencia. Cada una por su puerta.
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por)
+-- Aprobada por DO (0306): sin `aprobada_at` el descanso médico no paga.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, aprobada_por, aprobada_at)
 values ('00000000-0000-0000-0000-000000023603', 'descanso_medico', '2026-03-02', '2026-03-20',
-        'prueba', '00000000-0000-0000-0000-0000000236ad');
+        'prueba', '00000000-0000-0000-0000-0000000236ad', '00000000-0000-0000-0000-0000000236ad', now());
 
 insert into vacaciones (persona_id, fecha_inicio, fecha_fin, creado_por) values
   ('00000000-0000-0000-0000-000000023602', '2026-03-02', '2026-03-20', '00000000-0000-0000-0000-0000000236ad'),

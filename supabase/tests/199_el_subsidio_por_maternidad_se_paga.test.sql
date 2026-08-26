@@ -68,12 +68,15 @@ on conflict do nothing;
 -- Licencia del 01 al 10 de agosto: DIEZ días corridos, con los domingos 02 y 09
 -- dentro y el feriado del 06. Si se contara por días laborables saldrían 7; si
 -- se excluyera el feriado —como hacía el primer intento— saldrían 9.
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, subsidio_diario) values
-  ('00000000-0000-0000-0000-0000000006b3', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', 200.00),
-  ('00000000-0000-0000-0000-0000000006b4', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', 200.00),
-  ('00000000-0000-0000-0000-0000000006b7', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', 200.00),
+-- Aprobadas por DO (0306): desde esa migración una licencia sin aprobar no
+-- paga nada, y esta prueba fija el caso YA aprobado — el caso sin aprobar
+-- vive en la 240.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, subsidio_diario, aprobada_por, aprobada_at) values
+  ('00000000-0000-0000-0000-0000000006b3', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', 200.00, '00000000-0000-0000-0000-0000000006b2', now()),
+  ('00000000-0000-0000-0000-0000000006b4', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', 200.00, '00000000-0000-0000-0000-0000000006b2', now()),
+  ('00000000-0000-0000-0000-0000000006b7', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', 200.00, '00000000-0000-0000-0000-0000000006b2', now()),
   -- Sin monto entrado: el caso que tiene que gritar.
-  ('00000000-0000-0000-0000-0000000006b6', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', null);
+  ('00000000-0000-0000-0000-0000000006b6', 'maternidad', '2026-08-01', '2026-08-10', 'lab', '00000000-0000-0000-0000-0000000006b2', null, '00000000-0000-0000-0000-0000000006b2', now());
 
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
 values ('eeeeeeee-0000-0000-0000-0000000006e1', '2026-07-29', '2026-08-28', 'abierto');

@@ -54,9 +54,12 @@ insert into feriados (fecha, nombre) values
   ('2026-07-29', 'Fiestas Patrias'), ('2026-08-06', 'Batalla de Junín')
 on conflict do nothing;
 
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por) values
-  ('00000000-0000-0000-0000-0000000005a3', 'descanso_medico', '2026-07-29', '2026-08-03', 'lab', '00000000-0000-0000-0000-0000000005a2'),
-  ('00000000-0000-0000-0000-0000000005a5', 'descanso_medico', '2026-07-29', '2026-08-28', 'lab', '00000000-0000-0000-0000-0000000005a2');
+-- Aprobadas por DO (0306): desde esa migración una ausencia sin aprobar no
+-- paga nada, y esta prueba fija el caso YA aprobado — el caso sin aprobar
+-- vive en la 240.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, aprobada_por, aprobada_at) values
+  ('00000000-0000-0000-0000-0000000005a3', 'descanso_medico', '2026-07-29', '2026-08-03', 'lab', '00000000-0000-0000-0000-0000000005a2', '00000000-0000-0000-0000-0000000005a2', now()),
+  ('00000000-0000-0000-0000-0000000005a5', 'descanso_medico', '2026-07-29', '2026-08-28', 'lab', '00000000-0000-0000-0000-0000000005a2', '00000000-0000-0000-0000-0000000005a2', now());
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000005ff', true);
 
