@@ -9,7 +9,7 @@
 --
 -- CÓMO SE LEE LA FILA QUE DEVUELVE
 --
---   md5_ahora = 634ef0c497da26a06904e056327cfb60  y  chars_ahora = 104327
+--   md5_ahora = f6ece4f8e21a8171b0d393ddf47cd1ce  y  chars_ahora = 104644
 --     → la 0316 quedó EXACTA. Todo bien.
 --
 --   tiene_la_0316 = false

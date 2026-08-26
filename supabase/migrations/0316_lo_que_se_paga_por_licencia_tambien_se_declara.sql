@@ -31,8 +31,10 @@
 -- POR QUE ENTRA A LA BASE, Y NO ES DISCUTIBLE
 --
 --   Estos dias los paga CAYLA, no EsSalud. No hay subsidio de por medio: es
---   remuneracion por un dia en que la ley (Ley 31602) o la empresa (art. 31.4.a
---   del Reglamento Interno) dispensan de asistir sin dejar de pagar.
+--   remuneracion por un dia en que una norma dispensa de asistir sin dejar de
+--   pagar. El art. 31.4 del Reglamento Interno lista NUEVE licencias asi, cada
+--   una con la suya; el fallecimiento es la letra a) y viene de la Ley 31602.
+--   No es una concesion de CAYLA: es la ley recogida en el Reglamento.
 --
 --   El art. 19 del D.S. 001-97-TR ENUMERA lo que no es remunerativo, y esto no
 --   esta en esa lista. El art. 23.4 del Reglamento lo dice ademas de frente:
@@ -111,7 +113,7 @@
 --   valores esperados al lado.
 --
 -- MD5 DE LLEGADA  (medido con el numero ya definitivo, no antes de renumerar)
---   634ef0c497da26a06904e056327cfb60 · 104.327 caracteres
+--   f6ece4f8e21a8171b0d393ddf47cd1ce · 104.644 caracteres
 --   Produccion tiene que devolver exactamente eso despues de pegar.
 -- ============================================================================
 
@@ -1867,13 +1869,18 @@ begin
              -- Se pagaban y no se declaraban.
              --
              -- POR QUE ENTRA. Estos dias los paga CAYLA, no EsSalud. No hay
-             -- subsidio de por medio: es remuneracion por un dia en que la ley
-             -- (Ley 31602) o la empresa (art. 31.4.a del Reglamento Interno)
-             -- dispensan de asistir sin dejar de pagar. El art. 19 del D.S.
-             -- 001-97-TR enumera lo que NO es remunerativo y esto no esta ahi,
-             -- asi que entra a la base de EsSalud y a la de pension igual que
-             -- cualquier dia trabajado. El art. 23.4 del Reglamento lo dice
-             -- ademas de frente: se computa como tiempo laborado.
+             -- subsidio de por medio: es remuneracion por un dia en que una
+             -- norma dispensa de asistir sin dejar de pagar. El art. 31.4 del
+             -- Reglamento Interno lista NUEVE licencias asi, cada una con la
+             -- suya; el fallecimiento es la letra a) y viene de la Ley 31602.
+             --
+             -- El art. 19 del D.S. 001-97-TR ENUMERA lo que no es remunerativo
+             -- y esto no esta en esa lista, asi que entra a la base de EsSalud
+             -- y a la de pension igual que cualquier dia trabajado. Y el propio
+             -- Reglamento lo dice dos veces de frente: el art. 31.3.a —«se
+             -- computan como tiempo laborado para el calculo del pago del
+             -- articulo 23, AUNQUE NO EXISTA REGISTRO DE MARCAJE»— y el art.
+             -- 23.4, que lo repite desde el otro lado.
              --
              -- NO CONFUNDIR CON LA MATERNIDAD (0262), que es el caso opuesto y
              -- esta doce lineas mas arriba: aquel es un subsidio de EsSalud que

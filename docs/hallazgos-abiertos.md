@@ -1303,6 +1303,51 @@ nadie ha decidido que se acumulen las tres. **Pendiente de medir.**
 
 ---
 
+## Nueve licencias legales distintas entran por la misma puerta (abierto · no afecta al pago)
+
+**Encontrado el 2026-08-26** al verificar las citas legales de la 0316 contra
+[`docs/reglamento-interno-de-trabajo.md`](reglamento-interno-de-trabajo.md).
+
+El **art. 31.4 del Reglamento** lista **nueve** licencias con goce que CAYLA
+otorga, cada una con su norma, su tope y sus requisitos de aviso:
+
+| | Licencia | Norma | Tope |
+|---|---|---|---|
+| a | Fallecimiento de familiar directo | Ley 31602 | 5 días, ampliables por distancia |
+| b | Enfermedad grave o terminal de familiar | Ley 30012 | 7 días + hasta 30 a cuenta de vacaciones; oncológico de hijo hasta 1 año, CAYLA asume 21 días (Ley 31041) |
+| c | Asistencia a persona con discapacidad a cargo | Ley 30119 | **56 horas al año** |
+| d | Prevención y detección de cáncer | Leyes 31479 y 31561 | 2 días hábiles compensables + 1 no compensable, **al año** |
+| e | Donación de órganos o tejidos | Ley 28189 | lo que requiera |
+| f | Incapacidad temporal (descanso médico / CITT) | — | CAYLA asume 20 días al año |
+| g | Citación de autoridad judicial, fiscal, policial o militar | — | el tiempo necesario |
+| h | Licencia sindical | — | según normativa colectiva |
+| i | Supervisora de SST | Ley 29783 | **30 días naturales al año** |
+
+**El catálogo `tipos_ausencia` tiene hoy CINCO tipos que pagan**, y solo dos de
+esas nueve tienen puerta propia: la `f` es `descanso_medico` y la `a` es
+`duelo_familiar_directo` (creada por la 0314). **Las otras siete comparten un
+único `licencia_con_goce` genérico.**
+
+**No afecta al pago**, y por eso no es urgente: todas pagan igual, la 0314 las
+paga y la 0316 las declara. Lo que se pierde es **el control de topes**, que es
+donde hay riesgo real de inspección:
+
+- las **56 horas anuales** de la Ley 30119 no se pueden contar si no se sabe
+  cuáles de las licencias registradas son de esa ley;
+- los **2 + 1 días anuales** de la Ley 31479/31561 tampoco;
+- los **30 días naturales** de la supervisora de SST tampoco;
+- y la `b` tiene una mecánica propia —los días 8 a 37 salen del saldo de
+  vacaciones o se compensan con horas— que hoy no puede aplicarse porque el
+  sistema no sabe que esa licencia es de la Ley 30012.
+
+**El art. 31.5 dice además que la enumeración es enunciativa**, así que un tipo
+por ley tampoco puede ser una lista cerrada escrita a mano — sería la tercera
+regla de `packages/shared` («nunca una lista escrita a mano de algo que vive en
+una tabla»). El camino es que el catálogo gane una columna con la norma y el
+tope, y que las nueve se registren como filas.
+
+---
+
 ## El feriado de quien tuvo licencia con goce se paga corto (abierto · S/2,2 por día y feriado)
 
 **Encontrado el 2026-08-26**, al auditar la 0314. Es PREEXISTENTE: se midió con
