@@ -167,7 +167,7 @@ with esperado(escenario, veredicto, porque) as (values
   ('E06MaterSin',     'cuadran',  'maternidad SIN firmar: ninguno de los dos paga (0308)'),
   ('E07Trujillo',     'cuadran',  'seis dias laborables CON domingo, de vacaciones'),
   ('E08Solape',       'cuadran',  'ficho tres dias dentro de sus vacaciones: se paga una sola vez (0286)'),
-  ('E09LicGoce',      'divergen', 'DEFECTO CONOCIDO, sin lote: licencia_con_goce esta en el catalogo como que paga y fn_planilla_calcular no la paga por ningun camino. Cuando se arregle, esta fila pasa a cuadran.'),
+  ('E09LicGoce',      'cuadran',  'ARREGLADO por la 0314, y esta fila lo anuncio: decia «cuando se arregle, esta fila pasa a cuadran». La reserva YA devengaba esos dias; era la boleta la que no los pagaba, asi que el arreglo no separo el par: lo puso de acuerdo.'),
   ('E10SueldoFijo',   'cuadran',  'sueldo fijo: devenga por calendario en las dos'),
   ('E11ParteFeriado', 'cuadran',  'descanso medico justo encima de un feriado en miercoles (0310)'),
   ('E12TruParteDom',  'cuadran',  'ídem en Trujillo, con el feriado en DOMINGO, que alli si es laborable (0310)')

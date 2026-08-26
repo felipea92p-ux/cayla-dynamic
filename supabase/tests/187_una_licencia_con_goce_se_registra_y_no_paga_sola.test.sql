@@ -1,35 +1,43 @@
 -- ============================================================================
--- 187_una_licencia_con_goce_se_registra_y_no_paga_sola.test.sql — migración 0247
+-- 187_una_licencia_con_goce_se_registra_y_no_paga_sola.test.sql
+--   — migraciones 0247 y 0314
+--
+-- ⚠️ EL NOMBRE DEL ARCHIVO ES HISTÓRICO Y YA NO DESCRIBE LO QUE PRUEBA. Desde
+-- la 0314 la licencia con goce SÍ se paga. Se intentó renombrarlo y el hook de
+-- numeración lo frenó con razón: cinco ramas sin fusionar tienen todavía el
+-- nombre viejo, así que al fusionarse habría DOS archivos con el número 187.
+-- Un nombre que miente cuesta menos que una colisión de numeración, que deja
+-- `supabase db reset` sin poder reconstruir el esquema.
 -- ============================================================================
 -- La 0247 agrega el tipo `licencia_con_goce`: la empresa exonera de asistir y
 -- sigue pagando. La fila es trivial; lo que esta prueba fija es el MALENTENDIDO
 -- que la rodea, porque es el que cuesta plata.
 --
--- EL MALENTENDIDO. El tipo se llama «con goce» y tiene `paga = true`. Cualquiera
--- —incluida una sesión futura leyendo esto— asume que registrar la ausencia hace
--- que la planilla le pague esos días. NO LO HACE. Si nadie fija eso por escrito,
--- el día que alguien registre una licencia y cierre el mes, la persona cobra de
--- menos y el sistema se ve correcto en pantalla.
+-- EL MALENTENDIDO, Y CÓMO SE CERRÓ. El tipo se llama «con goce» y tiene
+-- `paga = true`. Cualquiera asume que registrar la ausencia hace que la planilla
+-- le pague esos días. Durante meses NO LO HACÍA, y esta prueba existía para
+-- decirlo por escrito: «el día que alguien registre una licencia y cierre el
+-- mes, la persona cobra de menos y el sistema se ve correcto en pantalla».
 --
--- ⚠️ Y OJO, QUE ESTO CAMBIÓ. Hasta la 0254 el argumento era fuerte y simple:
--- `fn_planilla_calcular` no leía `ausencias` en absoluto. Ya no es cierto — la
--- 0254 conectó `descanso_medico`, porque el RIT art. 31 f) obliga a CAYLA a
--- asumir los primeros 20 días de incapacidad del año. Así que hoy la planilla
--- SÍ lee esa tabla, y lo que sostiene el párrafo de arriba es más estrecho:
--- lee UN tipo, y `licencia_con_goce` no es ese tipo.
+-- Eso ya no pasa. La **0314** invirtió la regla: la planilla dejó de conocer
+-- tipos por su nombre y pasó a preguntarle al CATÁLOGO qué paga, excluyendo
+-- solo los tres que tienen tratamiento propio. Con el mismo cambio entró
+-- `duelo_familiar_directo`, que la Ley 31602 obliga a pagar.
 --
--- Por eso la prueba central no es «el tipo existe» sino las dos que van detrás:
--- qué mueve `paga` (las provisiones) y qué NO mueve (el sueldo del periodo).
+-- Esta prueba conserva su número y su historia porque el aviso sigue haciendo
+-- falta en la otra dirección: lo que hoy protege no es que la licencia NO se
+-- pague, sino que se pague UNA sola vez. Ver la 249, que monta la planilla
+-- entera y mide los importes.
 --
 -- LAS CUATRO COSAS QUE SE FIJAN:
 --
 --   1. El tipo existe y sus cuatro interruptores son los que la 0247 declara.
 --      `descuenta_vacaciones = false` es el caro: si se pone mal, una decisión
 --      de la empresa le gasta a la persona su saldo de vacaciones.
---   2. `fn_planilla_calcular` NO paga `licencia_con_goce` ni `maternidad`, y sí
---      paga `descanso_medico` desde la 0254. Es la prueba que sostiene todo el
---      párrafo de arriba, y se hace contra `prosrc` porque es la única forma de
---      comprobar una AUSENCIA de lectura sin montar una planilla entera.
+--   2. Que `fn_planilla_calcular` pregunte al catálogo (0314) y que los tres
+--      tipos con regla propia queden fuera de esa puerta — las dos mitades, y
+--      la segunda es la que evita pagar dos veces el mismo día. Se hace contra
+--      `prosrc` porque mide la FORMA de la regla, no un importe.
 --   3. Registrar la licencia SÍ tapa la falta: la vista
 --      `justificaciones_asistencia` la ve, y es la que leen las faltas.
 --   4. La licencia entra por la vista con su tipo, no con otro. Si mañana
@@ -40,7 +48,7 @@
 -- para verificar un `join ... and ta.paga` que ya está cubierto.
 -- ============================================================================
 begin;
-select plan(13);
+select plan(14);
 
 -- ── 1 · El tipo existe, y con los interruptores declarados ──────────────────
 select is(
@@ -79,22 +87,46 @@ select is(
   'licencia_con_goce nace activo'
 );
 
--- ── 2 · Lo que el nombre promete y la planilla no cumple ────────────────────
--- ESTA PRUEBA YA SE CAYÓ UNA VEZ, y era su trabajo. Decía que
--- `fn_planilla_calcular` no leía `ausencias` en absoluto — cierto hasta la
--- **0254**, que conectó `descanso_medico` porque el RIT art. 31 f) obliga a
--- CAYLA a asumir los primeros 20 días de incapacidad del año. Al conectarla,
--- esta prueba se puso en rojo y avisó de que la afirmación había caducado.
+-- ── 2 · Lo que el nombre promete, y que la planilla ya cumple ──────────────
+-- ESTA PRUEBA SE HA CAÍDO TRES VECES, y las tres era su trabajo.
 --
--- Así que ahora dice la verdad de hoy, que es más estrecha y más útil: la
--- planilla paga UN tipo de ausencia, y `licencia_con_goce` no es ese tipo. Si
--- alguien la conecta, esto se cae otra vez — y volverá a ser lo correcto,
--- porque el nombre del tipo promete un pago que nadie decidió todavía.
+--   · Decía que `fn_planilla_calcular` no leía `ausencias` en absoluto. Cierto
+--     hasta la **0254**, que conectó `descanso_medico` (RIT art. 31 f).
+--   · Decía que la maternidad seguía fuera a propósito. Cierto hasta la **0256**.
+--   · Y decía que `licencia_con_goce` no se pagaba «porque el nombre del tipo
+--     promete un pago que nadie decidió todavía». Se decidió: la **0314**.
+--
+-- La tercera caída es la que esta prueba venía anunciando desde que se escribió.
+-- Su cabecera describe el daño con precisión —«el día que alguien registre una
+-- licencia y cierre el mes, la persona cobra de menos y el sistema se ve
+-- correcto en pantalla»— y la 0314 lo cierra, junto con el duelo de familiar
+-- directo que la Ley 31602 obliga a pagar.
+--
+-- LA VERDAD DE HOY, y es un cambio de forma, no de lista: la planilla ya no
+-- conoce tipos POR SU NOMBRE. Pregunta al CATÁLOGO —`tipos_ausencia.paga`— y
+-- excluye solo los tres que tienen tratamiento propio. Por eso lo que se fija
+-- aquí no es «paga estos N tipos», que caducaría al siguiente tipo que alguien
+-- cree, sino las dos mitades de la regla nueva.
+--
+-- Se mira el FILTRO y no la palabra suelta, por la razón que esta misma prueba
+-- enseñó abajo: `prosrc not like '%maternidad%'` salió en rojo por un COMENTARIO
+-- que solo la nombraba.
 select ok(
-  (select prosrc not like '%licencia_con_goce%'
+  (select prosrc like '%t.codigo = a.tipo and t.paga%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
-  'la planilla NO paga licencia_con_goce: el tipo se registra y tapa la falta, pero no paga sola'
+  'la planilla pregunta al catálogo qué ausencia paga, en vez de conocer tipos por su nombre (0314)'
+);
+
+-- Y la otra mitad, que es la que evita pagar DOS VECES el mismo día: los tres
+-- tipos con tratamiento propio quedan FUERA de esa puerta nueva. Si alguien
+-- quita esta exclusión, el mes de quien estuvo de descanso médico, de
+-- maternidad o de vacaciones se paga dos veces.
+select ok(
+  (select prosrc like '%a.tipo not in (''descanso_medico'', ''maternidad'', ''vacaciones'')%'
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+  'y los tres que ya tienen regla propia quedan fuera de esa puerta: nadie cobra dos veces'
 );
 
 -- Y la maternidad SÍ, desde la **0256**. Esta prueba se puso en rojo por segunda
