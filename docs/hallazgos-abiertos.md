@@ -49,7 +49,7 @@ mismo que plata perdida.
 |---|---|---|
 | **No existe la sobretasa del 100 % por trabajar el día de descanso semanal** (art. 3 D. Leg. 713) | S/44–58 por episodio | `fn_planilla_calcular` no lee `turnos` ni una vez |
 | Un **feriado dentro de unas vacaciones se paga dos veces** | S/51.99 por feriado | `vacd` no lo excluye y `fer` sí lo paga |
-| La **remuneración vacacional no entra a la base de EsSalud ni de pensión** | S/94 + S/43 por persona y periodo | va a `pago_base` pero no a `pb.basica` |
+| La **remuneración vacacional no entra a la base de EsSalud ni de pensión** — ⚠️ **remedido el 2026-08-26 y es peor de lo que decía esta línea**: quien pasa el periodo ENTERO de vacaciones cobra S/3.000 y **se le declara sobre S/1.130**, que es solo el piso RMV. Su base cae a cero y únicamente la levanta el piso. Y **el defecto es de familia, no de las vacaciones**: la 0263 ya tuvo que sumar el descanso médico a `bri.base` por lo mismo, y la **0314 acaba de añadir un tercer caso** (la licencia con goce y el duelo de familiar directo, que hoy no tienen población). El arreglo es un solo término por concepto, calcado del de la 0263 | S/94 + S/43 por persona y periodo en el caso típico; hasta S/1.870 de base no declarada en el mes entero | va a `pago_base` pero no a `pb.basica` |
 | Se pagan **ausencias posteriores al cese** | S/193.55 medidos | `vacd`, `dmd` y `mat` no miran `fecha_cese` |
 | **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad | S/1,306.45 medidos | la rama `sf` no prorratea |
 | **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes | S/1,509.64 medidos | |

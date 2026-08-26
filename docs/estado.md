@@ -37,6 +37,71 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — Lo que la revisión adversaria de la 0314 encontró · PENDIENTE
+
+32 agentes, cinco lentes independientes y dos escépticos por hallazgo. **13
+propuestos, 9 refutados con medición, 4 en pie** — y los cuatro son en realidad
+**dos**: tres lentes distintas dieron con el mismo defecto.
+
+**El defecto: se paga y no se declara.** El monto de la licencia con goce y del
+duelo de familiar directo entra a `pago_base` pero **no a `bri.base`**, que es la
+remuneración afecta a EsSalud y a pensión. Es exactamente el mecanismo que la
+**0263** ya tuvo que arreglar para el descanso médico, y su comentario lo dice
+con estas palabras: *«La 0254 los metió en `pago_base` pero no en `pb.basica`,
+así que no llegaban aquí: se pagaban y no se declaraban.»*
+
+**Hoy cuesta S/ 0,00** por la 0314: `duelo_familiar_directo` lo crea esa misma
+migración y `licencia_con_goce` tiene cero usos medidos en producción.
+
+**Pero el mismo agujero está abierto para las VACACIONES, y ese sí gotea hoy.**
+Ya estaba catalogado en [`hallazgos-abiertos.md`](hallazgos-abiertos.md) desde la
+auditoría del 19 de agosto. **Remedido el 2026-08-26 y es peor de lo que decía
+esa línea:**
+
+| | cobra | declara a EsSalud |
+|---|---|---|
+| Mes entero de vacaciones, sueldo 3.000 | **3.000,00** | **1.130,00** ← solo el piso RMV |
+| Mes entero trabajado, mismo sueldo | 2.612,90 | 1.372,25 |
+
+Su base cae a cero y únicamente la levanta el piso legal.
+
+**El cuarto hallazgo es una tilde:** el tipo nuevo se llama «conyuge» y el resto
+del catálogo sí acentúa («Descanso médico», «Cumpleaños»). Un `update` de una
+línea.
+
+**Lo que la revisión NO cubrió**, y conviene saberlo: producción (ningún agente
+tuvo acceso) y el feriado prorrateado de quien tuvo licencia, que la cabecera de
+la 0314 ya declara fuera a propósito.
+
+**Lo que sí verificó, y salió limpio:** el diff real contra el cuerpo de la 0306
+—**cero líneas quitadas o modificadas**, 43 marcadores CAMBIO intactos, firma
+idéntica—; que el doble pago es imposible por el EXCLUDE `ausencias_sin_solape`,
+con `pago_base` cerrando exacto en siete escenarios incluidos licencia de periodo
+entero, licencia a caballo entre dos periodos y día fichado dentro; idempotencia
+probada pegando el archivo dos veces; y la coherencia de `chk_foto_cuadra`,
+`fn_planilla_congelar`, `fn_provisiones` y la justificación de la falta.
+
+**Decidido el 2026-08-26: partida en dos.**
+
+· **La 0316 (escrita, auditada, sin pegar)** cierra el caso que NO mueve nada
+  hoy: la licencia con goce y el duelo directo entran a `bri.base`, más la tilde
+  de «cónyuge». Un término calcado del de la 0263, tres líneas de código.
+  Medido con 8 personas: la licencia sube su base +483,87 (el monto exacto) y su
+  neto baja S/62,90 de ONP; **descanso médico, vacaciones, maternidad, control,
+  sueldo fijo y RxH quedan idénticos al céntimo**. Los dos últimos son los que
+  más caro costaría romper: tienen la base en cero a propósito y la regla de la
+  casa es que las sobretasas COMPLETAN una base, nunca CREAN una.
+  md5 de llegada: `634ef0c497da26a06904e056327cfb60`, 104.327 caracteres.
+  Prueba [`251`](../supabase/tests/251_lo_que_se_paga_por_licencia_tambien_se_declara.test.sql),
+  14 aserciones. Suite: 174 archivos, 1736 pruebas, PASS.
+
+· **Las vacaciones quedan para después del cierre del 28**, en su propia
+  migración y avisando al contador, porque ese término sí cambia el neto de
+  quien las tomó. La prueba 251 lo vigila al estilo de la 244: declara el
+  defecto como abierto y se caerá el día que alguien lo arregle.
+
+---
+
 ## 2026-08-26 — El catálogo decide qué ausencia se paga (0314) · EN PRODUCCIÓN
 
 **PEGADA Y VERIFICADA el 2026-08-26.** md5 de llegada
