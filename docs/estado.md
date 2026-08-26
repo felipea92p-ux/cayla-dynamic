@@ -39,10 +39,10 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ## 2026-08-25 — La reserva le pagaba de más a quien estuvo de vacaciones (0302)
 
-**Pendiente: pegar la 0302 en producción** (`./scripts/dame-el-sql.sh 302`).
-md5 de partida **confirmado contra el SQL Editor el 2026-08-25**:
-`93531851f35abcdd295fd8fb4aa77922`, 33 892 caracteres — el Postgres local
-reconstruido desde cero devuelve el mismo par.
+**PEGADA EN PRODUCCIÓN el 2026-08-25.** El SQL Editor devolvió `0302 · OK` con
+el md5 de llegada declarado, `866c0a1664afde204ae6d685760afb84`, 36 518
+caracteres. md5 de partida `93531851f35abcdd295fd8fb4aa77922` (33 892), pedido a
+producción antes de escribir.
 
 `fn_provisiones` contaba cada día de **calendario** de una ausencia pagada; la
 boleta cuenta los **laborables**. Los sábados y domingos del tramo entraban dos
