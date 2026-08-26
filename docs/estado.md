@@ -307,6 +307,83 @@ partió en dos:
 
 ---
 
+## 2026-08-26 — El divisor 29→28: medido, decidido y vigilado (prueba 248)
+
+**No hay nada que pegar.** Esto no es una migración: es una medición, una
+decisión y una prueba.
+
+Llevaba seis días declarado abierto en la cabecera de la 0276 y sin un solo
+número. Ya lo tiene.
+
+### Qué pasa, en una frase
+
+Para el mismo 10 de febrero, **la boleta dice que ese día vale `salario/31`** —los
+días que tiene el periodo 29-ene → 28-feb— y **`fn_provisiones` dice
+`salario/28`**, los días que tiene febrero. Ninguna de las dos es absurda:
+dividir el sueldo entre los días de su mes es lo normal. El problema es solo que
+no coinciden.
+
+### Y se compensa solo
+
+| Periodo (S/1.950) | Boleta | Reserva | Diferencia |
+|---|---|---|---|
+| 29 ene → 28 feb (31 días) | 115,32 | 126,55 | **+11,23** |
+| 1 → 28 mar (28 días) | 116,07 | 104,83 | **−11,24** |
+| **Los dos juntos** | 231,39 | 231,38 | **−0,01** |
+
+Febrero no tiene 29, así que el periodo siguiente empieza el 1 de marzo y solo
+dura 28 días: ahí la boleta divide entre 28 (día caro) y la reserva entre los 31
+de marzo (día barato). **Es la misma distorsión, al revés.** El resto del año
+alterna ±S/3,50 —meses de 30 contra meses de 31— y también se cancela.
+
+**Neto de los once periodos que caben en un año: S/0,01.** Acumulado al depósito
+del 15/07: +S/3,49. Al del 15/12: −S/3,50. Sumando CTS y vacaciones, que salen de
+la misma base, multiplica por ~2,1: el peor mes son ±S/23 por persona y el año
+sigue siendo un céntimo.
+
+### La decisión
+
+**Felipe, 2026-08-26: no se toca, se vigila.** Las razones, por orden:
+
+1. Mueve S/0,01 al año. No hay plata que recuperar.
+2. El arreglo es más peligroso que el defecto: habría que cambiar el divisor en
+   tres ramas de `fn_provisiones`, la misma función que ha estado en el centro de
+   cinco errores de plata en una semana. Cambiar el corazón del cálculo para
+   mover cero es mala apuesta.
+3. El único sitio donde no alcanza a compensarse es un **cese a mitad de año**,
+   que se lleva la diferencia acumulada de ese momento — hasta unos S/11 de
+   gratificación, ~S/23 con CTS y vacaciones, y puede ir para cualquier lado.
+
+**Lo que sí es real y queda sin arreglar:** la pantalla de Provisiones oscila
+hasta un ±10 % en febrero y marzo. Se corrige sola al mes siguiente, pero si
+miras el número de febrero para planificar, está alto.
+
+### El vigilante (prueba 248)
+
+La 244 **esquiva** esta divergencia usando mes calendario. «La esquivo» no puede
+ser el final, así que la 248 corre los **once periodos reales 29→28** y exige que
+el año cierre en cero. Tres comprobaciones: que los once se midieron, que el año
+cierra dentro de cinco céntimos, y —la que impide la falsa tranquilidad— **que
+siga habiendo divergencia mensual**, porque si algún día desaparece significa que
+alguien igualó los divisores y esta cabecera pasó a mentir.
+
+**Se comprobó que tiene dientes**, y el primer intento fue inválido: se rompió el
+divisor de las ramas 2, 4 y 5 y la 248 ni se inmutó, porque la rama 1 usa
+`j.fecha` en vez de `gs` y el reemplazo la esquivó. Rota **la rama 1** —la que
+estas once personas ejercitan— el neto del año pasa de −0,01 a **+15,14** y la
+comprobación 2 cae. Sin esa segunda vuelta se habría entregado una prueba que
+casi no puede fallar, que es peor que no tenerla.
+
+### Por qué once periodos y no doce
+
+El doceavo cruza el 31 de diciembre y `fn_provisiones` reparte en semestres del
+**año calendario**: los días de diciembre caen en un semestre que la consulta del
+año siguiente no muestra. Sale una diferencia de S/15,73 que parece grave y es
+del laboratorio — comprobado moviendo el año entero, el outlier se muda con el
+periodo que cruza.
+
+---
+
 ## 2026-08-26 — Ya hay un freno para el par boleta/reserva (prueba 244), y encontró la 0310
 
 **Pendiente: pegar la 0310 en producción, DESPUÉS de la 0308**
