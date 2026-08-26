@@ -164,7 +164,10 @@ with repo(numero, nombre, nunca) as (values
     (302, 'la_ausencia_pagada_se_devenga_por_dias_laborables', false),
     (303, 'la_negativa_a_firmar_entrega_el_documento', false),
     (304, 'una_marca_apartada_deja_de_vivir_en_un_solo_navegador', false),
-    (305, 'un_retroactivo_dice_de_que_mes_viene', false)
+    (305, 'un_retroactivo_dice_de_que_mes_viene', false),
+    (306, 'el_descanso_medico_y_la_maternidad_pagan_solo_aprobados', false),
+    (307, 'el_candado_del_mes_pagado_mide_la_jornada', false),
+    (308, 'la_reserva_tampoco_devenga_sin_la_firma_de_do', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -305,8 +308,10 @@ select * from (
              when '2398570d2d547504320b423d9b21b12f' then '✗ 0280 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '00346e399226432bee73b1047488d178' then '⚠ se quedó en la 0286 — falta pegar lo posterior'
              when '1be99135441ef1d937aa0cbfd059ae95' then '✗ 0286 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'b1fa2aaaee9a6e4192ea3d616e3d8304' then '0293 — al día con el repositorio'
+             when 'b1fa2aaaee9a6e4192ea3d616e3d8304' then '⚠ se quedó en la 0293 — falta pegar lo posterior'
              when '70e0f0270b72ea121eb5ba8edda348e6' then '✗ 0293 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '4688bf0101891f347f05cf96c0db9e68' then '0306 — al día con el repositorio'
+             when 'cce36e70ae3d5f58d2fb9d063a451b16' then '✗ 0306 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
