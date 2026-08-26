@@ -322,8 +322,8 @@ select * from (
              when 'cce36e70ae3d5f58d2fb9d063a451b16' then '✗ 0306 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'c8070bb865e977d2d0e6b1bb4bac58d2' then '⚠ se quedó en la 0314 — falta pegar lo posterior'
              when 'c60b66ae4c1eca9515f4e3b79be82c4d' then '✗ 0314 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '634ef0c497da26a06904e056327cfb60' then '0316 — al día con el repositorio'
-             when '0d46bcc7fcc31b3f61d934848f8c8bb0' then '✗ 0316 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'f6ece4f8e21a8171b0d393ddf47cd1ce' then '0316 — al día con el repositorio'
+             when '151ceaa7d2745e13718dbd5e53ca472f' then '✗ 0316 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
