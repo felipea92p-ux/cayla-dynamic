@@ -168,6 +168,7 @@ with repo(numero, nombre, nunca) as (values
     (306, 'el_descanso_medico_y_la_maternidad_pagan_solo_aprobados', false),
     (307, 'el_candado_del_mes_pagado_mide_la_jornada', false),
     (308, 'la_reserva_tampoco_devenga_sin_la_firma_de_do', false),
+    (309, 'dos_horarios_no_pueden_cubrir_el_mismo_dia', false),
     (310, 'el_feriado_dentro_de_un_descanso_medico_tampoco_se_reserva_en_cero', false)
 ),
 diff as (
