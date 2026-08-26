@@ -323,6 +323,87 @@ partió en dos:
 
 ---
 
+## 2026-08-26 — Una imagen de Supabase abrió 105 funciones, y el CI lo cazó (0315)
+
+**PEGADA EN PRODUCCIÓN el 2026-08-26.** El SQL Editor devolvió `0315 · OK`, 258
+funciones revisadas, **0 abiertas a `anon`**, y la regla por defecto de
+`postgres` sin `anon` dentro.
+
+### Cómo empezó
+
+`main` se puso rojo a las 20:00 en dos pruebas de permisos, **en un commit que
+solo tocaba un `.md`**. Eso solo puede ser el entorno. Comparadas la última
+corrida verde y la primera roja, la única diferencia era la imagen:
+`supabase/postgres:17.6.1.159` → **`17.6.1.165`**. El workflow instala el CLI de
+Supabase con `version: latest`, así que se la trajo sola.
+
+### Lo que destapó, y por qué no era un falso positivo
+
+La protección de esta casa era **una línea** de la 0076:
+
+    alter default privileges revoke execute on functions from public;
+
+Eso quita el permiso que PostgreSQL le da a **PUBLIC** por defecto. La imagen
+nueva no usa PUBLIC: trae una regla que le concede EXECUTE a **`anon`
+explícitamente**, y *revocar de PUBLIC no quita una concesión explícita a otro
+rol*. Son dos cosas distintas.
+
+Así que la 0076 seguía corriendo sin error y ya no protegía. **No falló: dejó de
+tener razón.** Es la tercera vez el mismo día que aparece esa forma de avería
+—la primera fue la línea de la 0276 que la 0310 retiró— y merece quedar dicha
+así: *una línea con la premisa caducada no se rompe, se queda muda.*
+
+### Cómo se midió, que es lo que hizo falta
+
+Se empujó la **prueba 250 solo para medir**, con `diag()` que imprimen el
+diagnóstico pase o falle. El CI contestó:
+
+| | Producción y local (`.159`) | CI (`.165`) |
+|---|---|---|
+| Funciones abiertas a `anon` | **0 de 258** | **105 de 258** |
+| Regla por defecto de `postgres` | `{postgres, service_role}` | `{postgres, **anon**, authenticated, service_role}` |
+| Dueño de las `fn_*` | postgres, 276 | postgres, 276 |
+
+Esa última fila **descartó la primera hipótesis**, que era mía y era falsa: yo
+dije que la imagen cambiaba *quién* crea las funciones. No. Queda escrito para
+que nadie la persiga otra vez.
+
+Y explica por qué solo fallaban dos pruebas: son las dos únicas que comprobaban
+esto. Las otras **103 funciones expuestas no tenían quien las mirara**.
+
+### El arreglo (0315), y por qué era seguro
+
+**Decidido por Felipe:** el barrido explícito, no fijar la versión del CI.
+
+Dos mitades: revoca `execute` de `anon` y PUBLIC sobre cada `fn_*` existente, y
+saca `anon` de los privilegios por defecto para que las próximas nazcan
+cerradas. No toca `authenticated` ni `service_role` — los guards de dentro de
+cada función siguen decidiendo qué puede hacer alguien **con** sesión.
+
+**No le quitó nada a nadie**, y eso se midió antes de escribirlo: producción ya
+tenía cero funciones abiertas a `anon` y todo funcionaba, terminales incluidos.
+La migración escribe de forma permanente lo que ya era cierto, para que deje de
+depender de una regla que Supabase cambia sin avisar.
+
+**Verificado en dos vueltas.** Primero reproduciendo la condición de la imagen
+nueva en local dentro de `BEGIN … ROLLBACK`: con su regla puesta, funciones
+abiertas; con la 0315, cero — **incluida una función creada mientras la puerta
+estaba abierta**. Después el CI lo confirmó contra la imagen real: verde.
+
+**Solo `fn_*`, y se comprobó por qué:** las otras 188 funciones de `public`
+pertenecen todas a la extensión `btree_gist`, ninguna es de la casa. `fn_*` no
+es una convención cómoda, es la frontera exacta.
+
+### Lo que queda abierto, sin lote
+
+**El CI instala el CLI con `version: latest`.** Hoy nos hizo un favor —el aviso
+era real— pero es una dependencia que se mueve sola bajo los pies de todas las
+sesiones, y la próxima vez puede romper por algo que no sea cierto. Se planteó
+fijarla y Felipe eligió arreglar la raíz primero. Queda anotado como decisión
+pendiente, no como olvido.
+
+---
+
 ## 2026-08-26 — El divisor 29→28: medido, decidido y vigilado (prueba 248)
 
 **No hay nada que pegar.** Esto no es una migración: es una medición, una
