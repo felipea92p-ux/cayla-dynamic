@@ -1354,3 +1354,33 @@ maquinaria buena ya existe.**
    de las dos opciones se elija.
 2. **¿Reabrir y recalcular, o seguir regularizando por movimiento?** Es una
    decisión de proceso, no de programación.
+
+---
+
+## Pendiente del cierre de agosto: los días de Chiara sin certificado
+
+**No es dinero, es expediente.** Su descanso médico de 6 días (29/07→03/08) está
+aprobado y paga S/194.01. Pero estuvo de baja más días, y los demás no tenían
+certificado: hoy figuran como **faltas sin justificar**.
+
+**Qué hacer:** registrarlos en `/admin/ausencias` con el tipo **`salud`** —
+«Descanso por salud (sin documento)». No paga (correcto, no hay papel) y su
+boleta no se mueve de S/1 009,76; lo que cambia es que dejan de constar como que
+no apareció sin avisar.
+
+Medido contra el Postgres local, dentro de BEGIN … ROLLBACK:
+
+| registrado como | `fn_faltas` dice |
+|---|---|
+| `salud`, sin documento | **justificada**, motivo `salud` |
+| nada | **falta** |
+
+El tipo trae `alerta_desde = 3` en `ventana_alerta_dias = 60`: si se repite,
+avisa. Que es lo que corresponde — Dynamic avisa, nunca sanciona solo.
+
+**Y una corrección de método.** En esta misma sesión se afirmó que `fn_faltas`
+no miraba la tabla `ausencias` y que ni un descanso médico aprobado libraba de
+la falta. Era FALSO: se leyó una versión de la función que no era la viva. La
+medición lo desmintió en dos minutos. Leer el `prosrc` con `limit 1` cuando hay
+varias versiones devuelve cualquiera — se mide llamando a la función, no
+leyéndola.
