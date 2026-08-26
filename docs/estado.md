@@ -80,27 +80,81 @@ Prueba **236**, seis comprobaciones. Con la función de producción fallan cuatr
 —las cuatro de «boleta = reserva»— y pasan las dos que vigilan que la rama de la
 0135 siga en pie. Ninguna otra de las 159 se apoyaba en el defecto.
 
-### Lo que la 0302 deja abierto a propósito (medido, no supuesto)
+### Lo que la 0302 dejó abierto — RESUELTO el 2026-08-26, ver la 0308
 
-**Maternidad y licencia con goce siguen sin cuadrar**: la reserva devenga
-S/115,32 y la boleta S/36,69. La diferencia **baja** de S/99,59 a S/78,63 con la
-0302 —o sea que no lo empeora— pero no lo cierra, porque la causa es otra: **la
-boleta no tiene rama para esos dos tipos.** Tiene `vacd` para vacaciones y `dmd`
-para descanso médico, y nada más; a quien está de maternidad o de licencia con
-goce le apunta base S/440,32 en un mes de S/1.383,87.
+Aquí se había anotado que maternidad y licencia con goce no cuadraban contra la
+boleta, y que hacía falta averiguar por qué. Ya está medido, y la respuesta
+partió en dos:
 
-Son dos casos distintos y ninguno es el defecto de la 0302:
+- **Maternidad firmada: NO es un defecto y no hay nada que arreglar.** La boleta
+  marca esos días como `dias_maternidad_sin_monto` — o sea que a propósito no
+  les pone sueldo, porque el subsidio lo paga EsSalud y no CAYLA. Y la reserva
+  hace bien en devengar, porque el art. 3.2 c) del D.S. 005-2002-TR cuenta como
+  tiempo efectivamente laborado «los descansos o licencias establecidos por las
+  normas de seguridad social y que originan el pago de subsidios». Los dos
+  números miden cosas distintas; forzarlos a coincidir sería el error. La prueba
+  242 comprueba que SIGAN divergiendo, para que nadie los iguale sin saberlo.
+- **Licencia con goce: sigue abierta, y sin lote.** Está en el catálogo como que
+  paga, y `fn_planilla_calcular` no la paga por ningún camino. Es el error
+  contrario —alguien deja de cobrar lo que le toca— y necesita su propia
+  medición. La 0306 ya la había anotado por su cuenta.
 
-- **Licencia con goce de remuneraciones** — «con goce» significa que la paga el
-  empleador. Que la boleta le ponga cero **parece un defecto contra la persona**
-  y merece su propia migración y su propia medición. *Falta preguntarle a Felipe
-  si CAYLA ha dado alguna, y cuándo.*
-- **Maternidad** — el subsidio lo paga EsSalud, no CAYLA, así que que la boleta
-  no le pague sueldo puede ser correcto. Y aun así la reserva hace bien en
-  devengarla: el art. 3.2 c) del D.S. 005-2002-TR cuenta como tiempo
-  efectivamente laborado «los descansos o licencias establecidos por las normas
-  de seguridad social y que originan el pago de subsidios». Ahí los dos números
-  **miden cosas distintas**, y forzarlos a ser iguales sería el error.
+---
+
+## 2026-08-26 — La 0306 arregló media cosa, y la otra media costaba plata (0308)
+
+**Pendiente: pegar la 0308 en producción** (`./scripts/dame-el-sql.sh 308`).
+md5 de partida `866c0a1664afde204ae6d685760afb84`, 36 518 caracteres — es lo que
+devolvió el SQL Editor al pegar la 0302 el mismo día, así que viene de
+producción y es de hoy.
+
+La **0306** (de otra sesión, pegada el 26/08) hizo que `fn_planilla_calcular`
+exigiera `aprobada_at` para pagar el descanso médico y la maternidad. El
+argumento es correcto y está bien escrito: `fn_aprobar_ausencia` existe justo
+para que sea DO quien decide qué convierte días en plata, y no la encargada de
+sede.
+
+Pero solo cambió una mitad del par. **`fn_provisiones` no se enteró**, así que
+un descanso médico registrado y sin firmar pagaba S/0 de sueldo y reservaba como
+si se hubiera pagado el mes entero. Y de ahí sale el depósito:
+`fn_grati_cts_periodo` es la **única** función de la base que llama a
+`fn_provisiones` — comprobado sobre el `prosrc` de todas ellas.
+
+Medido en local, marzo 2026, S/1.950, 19 días del 02 al 20:
+
+| Caso | Antes | Con la 0308 |
+|---|---|---|
+| Vacaciones (así entran: **sin firma**) | 0,00 | **0,00** — intacto |
+| Descanso médico **sin firmar** | 78,63 | **0,00** |
+| Descanso médico firmado | 0,00 | **0,00** |
+| Maternidad **sin firmar** | 78,63 | **0,00** |
+| Maternidad firmada | 78,63 | 78,63 — correcto, ver arriba |
+
+S/78,63 en gratificación por caso; **S/164,34** sumando CTS, vacaciones y la
+bonificación extraordinaria.
+
+**Decidido por Felipe (2026-08-26): que la reserva siga a la boleta.** Las otras
+dos opciones eran revertir esa parte de la 0306 —que devolvería a la sede la
+decisión de qué convierte días en plata— o dejarlo y solo avisar en pantalla,
+que ve el problema pero deja salir la plata igual. Si DO firma tarde, el mes
+cerrado no se toca y la diferencia se paga como retroactivo; desde la 0305 ese
+movimiento puede decir de qué mes viene.
+
+**La regla se le pregunta al catálogo, no se escribe la lista de tipos** — y eso
+no fue elegancia, fue lo que evitó un desastre. Las vacaciones entran a
+`ausencias` por un trigger desde su propia tabla y llegan **siempre con
+`aprobada_at` en null**. Exigir la firma a ciegas le habría puesto la reserva en
+cero a todo el que se toma vacaciones: un defecto mucho peor que el arreglado, y
+contra la persona. `tipos_ausencia.requiere_aprobacion` ya dice que las
+vacaciones no la necesitan. La comprobación 1 de la prueba 242 existe para que
+ese arreglo perezoso no pueda entrar nunca.
+
+**Lo que esto deja anotado como método**, porque es la cuarta vez que pasa
+(0276, 0286, 0293, y ahora 0306→0308): **la boleta y la reserva son dos mitades
+del mismo par y hay que tocarlas juntas.** Una sesión arregló una mitad con buen
+criterio, sus pruebas pasaron, el CI quedó verde, y el par quedó diciendo dos
+cosas distintas sobre la misma persona el mismo mes. Ninguna herramienta de la
+casa lo vio: se descubrió midiendo boleta contra reserva a mano.
 
 ---
 
