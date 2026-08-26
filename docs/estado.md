@@ -37,6 +37,60 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — La 0311 se quedó sin pegar y dejó el botón de Disciplina muerto
+
+**PEGADA EN PRODUCCIÓN el 2026-08-26**, y verificada: las seis comprobaciones de
+la migración devolvieron `true`, incluida `no_quedo_sobrecargada` —una sola
+`fn_expediente_generar_tardanza`, no dos conviviendo—.
+
+Lo que se vio fue esto: en Disciplina, «Generar borrador» respondía **«El
+sistema no encontró esta función. Avisa a Felipe: falta aplicar una
+migración.»** El semáforo cargaba bien —las cinco tardanzas de agosto ahí,
+Paola Cahuana con cuatro y su «corresponde amonestación»— y el botón no hacía
+nada. O sea: el expediente se podía ver y no se podía abrir.
+
+`PGRST202`. Desde la 0311 el panel llama con **dos** argumentos —la persona y el
+mes que se documenta— y producción tenía la función de uno solo. PostgREST no
+encuentra ninguna firma que encaje y devuelve eso.
+
+**La forma del accidente, que es lo que vale guardar.** El panel iba por
+delante de la base. El selector «Mes» —la mitad visible de la 0311— llevaba
+desplegado desde que se fusionó a `main`; la mitad SQL se quedó sin pegar
+mientras el cierre de producción del mismo día cubría la 0308, la 0309, la 0310
+y la 0312. La 0311 cayó en el hueco entre dos.
+
+Ningún freno lo veía, y no por descuido: `que-falta-pegar.sh` responde muy bien
+la pregunta, pero **hay que hacerla**. Nadie la hizo entre el despliegue y el
+día siguiente. Los hooks cuidan lo que sale de esta máquina hacia GitHub;
+ninguno mira la distancia entre lo que Vercel ya publicó y lo que la base sabe
+hacer. Esa distancia se abre en el momento exacto en que una migración cambia la
+firma de una función que la pantalla llama.
+
+Y se nota tarde a propósito: no falla al desplegar, no falla al cargar la
+pantalla, no deja rastro en ningún log que alguien mire. Falla **cuando una
+persona aprieta el botón** — el mismo modo de daño que las sobrecargas de la
+0297/0299, que tampoco fallan al pegar sino al abrir.
+
+**Lo que sí funcionó.** La 0311 trae su propio freno: comprueba los md5 de
+partida de las cuatro funciones que reescribe y aborta antes de tocar nada si
+producción no tiene el cuerpo del que se copió. Con eso, entregarla sin haber
+preguntado el md5 a producción primero deja de ser una apuesta — la pregunta la
+hace la migración, en la misma transacción en que va a escribir, que es el único
+momento en que la respuesta no puede caducar. **Vale la pena imitarlo en toda
+migración que reescriba una función.**
+
+Se comprobó además, antes de darla, que la 0311 estaba byte por byte igual en
+`origin/main` y que ninguna migración posterior toca
+`fn_expediente_generar_tardanza`, `fn_tardanza_escalon`, `fn_tardanzas_resumen`
+ni `fn_expediente_set_suspension`.
+
+**Pendiente que deja abierto:** nada frena que el panel se despliegue con una
+llamada que la base todavía no entiende. Merece pensarse, aunque no es obvio
+que se pueda comprobar sin ruido.
+
+---
+
+
 ## 2026-08-26 — Dos horarios ya no pueden cubrir el mismo día (0309)
 
 **PEGADA EN PRODUCCIÓN el 2026-08-26**, y verificada: candado puesto, cero
