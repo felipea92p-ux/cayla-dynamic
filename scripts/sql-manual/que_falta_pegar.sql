@@ -173,7 +173,9 @@ with repo(numero, nombre, nunca) as (values
     (311, 'el_mes_cerrado_se_puede_documentar_y_el_corte_se_suma', false),
     (312, 'un_contrato_anulado_no_deja_su_fecha_puesta', false),
     (313, 'un_mes_ya_pagado_se_lee_no_se_recalcula', false),
-    (315, 'anon_deja_de_depender_de_una_regla_por_defecto', false)
+    (314, 'el_duelo_de_un_familiar_directo_se_paga_y_las_licencias_tambien', false),
+    (315, 'anon_deja_de_depender_de_una_regla_por_defecto', false),
+    (316, 'lo_que_se_paga_por_licencia_tambien_se_declara', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -316,8 +318,12 @@ select * from (
              when '1be99135441ef1d937aa0cbfd059ae95' then '✗ 0286 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'b1fa2aaaee9a6e4192ea3d616e3d8304' then '⚠ se quedó en la 0293 — falta pegar lo posterior'
              when '70e0f0270b72ea121eb5ba8edda348e6' then '✗ 0293 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '4688bf0101891f347f05cf96c0db9e68' then '0306 — al día con el repositorio'
+             when '4688bf0101891f347f05cf96c0db9e68' then '⚠ se quedó en la 0306 — falta pegar lo posterior'
              when 'cce36e70ae3d5f58d2fb9d063a451b16' then '✗ 0306 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'c8070bb865e977d2d0e6b1bb4bac58d2' then '⚠ se quedó en la 0314 — falta pegar lo posterior'
+             when 'c60b66ae4c1eca9515f4e3b79be82c4d' then '✗ 0314 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '634ef0c497da26a06904e056327cfb60' then '0316 — al día con el repositorio'
+             when '0d46bcc7fcc31b3f61d934848f8c8bb0' then '✗ 0316 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
