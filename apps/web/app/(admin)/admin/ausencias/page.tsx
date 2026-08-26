@@ -17,7 +17,7 @@
 // peruana; el resto no paga porque así lo decidió CAYLA.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
@@ -129,6 +129,20 @@ export default function AusenciasPage() {
   const [docProf, setDocProf] = useState("");
   const [docColeg, setDocColeg] = useState("");
   const [docFecha, setDocFecha] = useState("");
+  // LO QUE SE MANDA ES LO QUE SE VE, y por eso hay refs además de estado.
+  //
+  // El 2026-08-26 el formulario rechazó un descanso médico diciendo que
+  // faltaba la fecha de emisión mientras el campo mostraba 26/08/2026 en
+  // pantalla. El navegador tenía la fecha; React no: el valor entró sin que el
+  // evento llegara al componente (Safari lo hace con `input[type=date]` y con
+  // el autorrelleno), así que el estado seguía vacío y la validación —la de
+  // acá y la del servidor— pedía un dato que estaba delante de los ojos.
+  //
+  // Leer del DOM al enviar no puede colar basura: un `input[type=date]`
+  // devuelve "" o una fecha válida, nunca texto a medias.
+  const refDocProf = useRef<HTMLInputElement>(null);
+  const refDocColeg = useRef<HTMLInputElement>(null);
+  const refDocFecha = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [subsidio, setSubsidio] = useState<Subsidio[]>([]);
@@ -181,11 +195,19 @@ export default function AusenciasPage() {
     // llenos en pantalla y el aviso seguía listándolos todos, así que no había
     // forma de saber si el que faltaba era el profesional o la fecha. Nombrar
     // el que falta convierte «no me deja» en «ah, esto».
+    // El valor visible manda sobre el estado; ver el comentario de los refs.
+    const vProf = (docProf || refDocProf.current?.value || "").trim();
+    const vColeg = (docColeg || refDocColeg.current?.value || "").trim();
+    const vFecha = docFecha || refDocFecha.current?.value || "";
+    if (vProf !== docProf) setDocProf(vProf);
+    if (vColeg !== docColeg) setDocColeg(vColeg);
+    if (vFecha !== docFecha) setDocFecha(vFecha);
+
     if (tipoSel?.requiere_documento) {
       const faltan: string[] = [];
-      if (!docProf.trim()) faltan.push("el profesional o institución");
-      if (!docColeg.trim()) faltan.push("el número de colegiatura");
-      if (!docFecha) faltan.push("la fecha de emisión");
+      if (!vProf) faltan.push("el profesional o institución");
+      if (!vColeg) faltan.push("el número de colegiatura");
+      if (!vFecha) faltan.push("la fecha de emisión");
       if (faltan.length > 0) {
         setMsg({
           tipo: "error",
@@ -203,9 +225,9 @@ export default function AusenciasPage() {
       p_fecha_inicio: inicio,
       p_fecha_fin: fin,
       p_motivo: motivo.trim() || null,
-      p_doc_profesional: docProf.trim() || null,
-      p_doc_colegiatura: docColeg.trim() || null,
-      p_doc_fecha: docFecha || null,
+      p_doc_profesional: vProf || null,
+      p_doc_colegiatura: vColeg || null,
+      p_doc_fecha: vFecha || null,
     });
     // El código va entre paréntesis a propósito. Con los tres datos ya
     // comprobados arriba, un rechazo del servidor por «falta el documento» ya
@@ -466,15 +488,15 @@ export default function AusenciasPage() {
               </p>
               <label className="flex flex-col gap-1 text-sm">
                 Profesional o institución
-                <input value={docProf} onChange={(e) => setDocProf(e.target.value)} placeholder="ej. Dra. Rojas / Clínica San Pablo" className="rounded-lg border px-3 py-2" />
+                <input ref={refDocProf} value={docProf} onChange={(e) => setDocProf(e.target.value)} onBlur={(e) => setDocProf(e.currentTarget.value)} placeholder="ej. Dra. Rojas / Clínica San Pablo" className="rounded-lg border px-3 py-2" />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 N.º de colegiatura (CMP) o de CITT
-                <input value={docColeg} onChange={(e) => setDocColeg(e.target.value)} placeholder="ej. CMP 12345" className="rounded-lg border px-3 py-2" />
+                <input ref={refDocColeg} value={docColeg} onChange={(e) => setDocColeg(e.target.value)} onBlur={(e) => setDocColeg(e.currentTarget.value)} placeholder="ej. CMP 12345" className="rounded-lg border px-3 py-2" />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Fecha de emisión
-                <input type="date" value={docFecha} onChange={(e) => setDocFecha(e.target.value)} className="rounded-lg border px-3 py-2" />
+                <input ref={refDocFecha} type="date" value={docFecha} onChange={(e) => setDocFecha(e.target.value)} onBlur={(e) => setDocFecha(e.currentTarget.value)} className="rounded-lg border px-3 py-2" />
               </label>
               {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
                   admin y líder de DO: un certificado dice el diagnóstico de una
