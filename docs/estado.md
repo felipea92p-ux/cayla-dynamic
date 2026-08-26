@@ -37,6 +37,107 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — La boleta de un mes pagado decía otra cosa que el depósito (0313)
+
+**PEGADA EN PRODUCCIÓN el 2026-08-26.** El SQL Editor devolvió `0313 · OK` con
+las cuatro columnas en `true` y el md5 de llegada declarado,
+`0c9718e51240a97b809495c28a68ce93` (2 272 caracteres). md5 de partida
+`fad72eefc30b5b2de9dd81460cf87dd9` (536), el de la 0105.
+
+**Verificada después de pegar** con `scripts/sql-manual/llego_bien_la_0313.sql`:
+de **18 descuadres a 0**, `fuente = foto`, y 32 personas en la foto contra 32 en
+la boleta (antes 33).
+
+`fn_proyeccion_periodo` —lo que llaman las dos pantallas de planilla— hacía tres
+cosas: comprobar el rol, buscar el periodo y llamar a `fn_planilla_calcular`. No
+había ninguna rama que preguntara si el mes ya se pagó, y
+`planilla_pagada_detalle` no aparecía por ningún lado.
+
+**El sistema guardaba lo que pagó, y luego imprimía otra cosa.**
+
+Medido en producción antes de tocar nada, periodo 28/06–28/07: **18 personas**
+cuya boleta decía un número distinto del que cobraron. Y en las dos
+direcciones, que es lo que impide leer la suma como una deuda: a unas les decía
+MENOS —el papel contradiciendo el depósito— y a otras MÁS, que es peor, porque
+es el documento de CAYLA diciendo que se les debía más de lo que recibieron. La
+mayor: cobró S/2 156,15 y la boleta decía S/1 078,07, la mitad exacta.
+
+Se volvió visible ahora porque el 2026-08-26 entraron **cinco migraciones que
+reescriben `fn_planilla_calcular`** (0293, 0302, 0306, 0308, 0310). Cada una es
+correcta hacia adelante y cada una movía, hacia atrás, todos los meses cerrados
+a la vez.
+
+### Los dos daños que solo aparecieron al escribir la prueba
+
+- **Quien cesó no tenía boleta de los meses que sí cobró.** No salía otro
+  número: no salía nada. `fn_planilla_calcular` arma la planilla de quien
+  trabajó el rango, así que una cesada sin jornadas dentro del periodo devuelve
+  CERO filas aunque su fila esté congelada. Es justo quien más veces las pide.
+- **Y al revés:** alguien a quien ese mes NO se le pagó tenía boleta igual, en
+  cero, porque la pantalla lo encontraba en el padrón. Salió en la verificación
+  como la persona 33 de 32.
+
+### Lo que se decidió, y por qué
+
+- **Se cambia UNA clave, `filas`.** El resto del sobre —`dias`, `base_horas`,
+  `feriados`, `factores_provision`, `asignacion_monto`, las etiquetas— sigue
+  viniendo del cálculo: es metadato del periodo, no la cifra de nadie, y
+  reconstruirlo desde la foto obligaría a copiar cinco reglas más que se
+  desincronizarían a la primera migración. Comprobado antes de decidirlo: la
+  boleta solo usa `filas`, `mes_etiqueta` y `anio_etiqueta`.
+- **La última versión DE CADA PERSONA, no la del periodo.** La `version` de la
+  foto es del periodo entero (0201), así que un repago deja vivas las viejas.
+  `fn_liquidacion` ya tenía escrito por qué importa y se le hizo caso: quien no
+  sale en el recálculo tiene su fila pagada en una versión ANTERIOR, y el
+  `max(version)` del periodo la haría desaparecer de la boleta.
+- **Un pagado SIN foto se sigue recalculando, pero lo DICE**
+  (`fuente = recalculo_sin_foto`). Son los anteriores al registro congelado.
+  Medido: hoy son 0.
+- **El md5 de partida NO se pidió a producción antes de escribir**, y la
+  cabecera lo dice en vez de disimularlo. En su lugar la migración **lo
+  comprueba ella misma** y aborta sin tocar nada si no coincide — el patrón de
+  la 0309. Sustituye a la pregunta previa, no se la salta.
+
+### La lección de método, y esta costó una pegada en falso
+
+**No se entrega algo nuevo que pegar hasta haber leído lo que devolvió lo
+anterior.** La 0313 se entregó, Felipe dijo «ya pegué», y antes de pedirle la
+fila se le puso en el portapapeles la consulta de verificación. Se pegó encima y
+**la migración nunca llegó a correr**. Lo delató que `md5_ahora` siguiera siendo
+el viejo; si la verificación no hubiera devuelto el md5, habría quedado como
+aplicada sin estarlo.
+
+Por eso `llego_bien_la_0313.sql` devuelve el md5 además de los descuadres: hace
+de comprobante y de medición a la vez, y una sola consulta no se puede pegar
+encima de sí misma.
+
+### Y una trampa de lectura que hay que recordar
+
+`la_boleta_dice_lo_que_se_pago.sql` —la consulta que encontró el defecto—
+**seguirá diciendo 18 después del arreglo**, y no es un fallo: le pregunta a
+`fn_planilla_calcular` directamente. El recálculo sigue dando otro número; lo
+que cambió es que la boleta dejó de mostrarlo. Quien no sepa esa distinción va a
+intentar arreglar algo que ya está bien.
+
+### Lo que la 0313 NO cierra
+
+- **La pantalla no dice de dónde viene el número.** La respuesta trae `fuente`,
+  pero la boleta no la muestra. Que diga «boleta del pago, congelada el DD/MM»
+  es corto y no lleva SQL.
+- **`fn_liquidacion`**, a propósito y con su motivo: recalcula el periodo del
+  cese y le resta la foto. Si ese periodo ya estaba pagado, la resta se hace
+  entre dos números que no son comparables. Mismo defecto, más estrecho, y
+  merece su propia medición.
+- **`fn_planilla_foto_diferencias` y `fn_simular_planilla` siguen
+  recalculando**, y está bien: comparar y simular necesitan el cálculo de hoy.
+
+Prueba **247**, con las nueve comprobaciones y su negativo: con la función vieja
+puesta falla en cinco —la boleta dice S/1 498,28 cuando se pagó S/1 383,87, la
+cesada devuelve 0 filas, y las tres de `fuente` dan NULL—. Sin ese contraste la
+prueba sería decorativa.
+
+---
+
 ## 2026-08-26 — Dos horarios ya no pueden cubrir el mismo día (0309)
 
 **PEGADA EN PRODUCCIÓN el 2026-08-26**, y verificada: candado puesto, cero
