@@ -435,6 +435,28 @@ Bloquea en vez de avisar, y ahí la distinción es la que el hook ya tenía
 escrita: esto habla de lo que **sale** hacia GitHub, no de lo que hay a medio
 escribir en el disco.
 
+**Y desde el 2026-08-25 corre también el linter, sobre lo que el push agrega**
+(`scripts/hooks/lint-de-lo-nuevo.sh`). ESLint llevaba instalado y configurado
+desde julio, con su tarea de turbo y su script en el `package.json`, y no lo
+ejecutaba nadie: ni el hook, ni GitHub, ni `desplegar.sh`. La auditoría de
+agosto lo encontró con 119 errores; **una semana después eran 131**. Creció en
+doce sin que nadie lo notara, que es exactamente lo que le pasa a un guardián
+instalado y apagado.
+
+Mismo criterio que los dos de arriba: la deuda vieja no frena a nadie, el error
+132 no entra. Y es barato porque no lintea el repositorio entero —solo los
+archivos que el push modifica—, así que un push de puro SQL sale en cuatro
+centésimas.
+
+Ojo con una cosa al tocarlo: **se escribió cuatro veces antes de funcionar, y
+las cuatro veces fallaba en silencio dando el push por bueno**. Colar una ruta
+de `packages/` hace que eslint aborte sin analizar nada; pasarle las rutas sin
+`xargs` las manda como un solo argumento; `${SALIDA#[}` nunca quita el corchete
+porque `[` es un carácter de patrón; y `echo` interpreta los `\n` que el JSON de
+eslint lleva dentro de sus mensajes, así que hay que usar `printf '%s'`. Ninguno
+de los cuatro daba error: todos devolvían «todo bien». Por eso un freno se
+prueba con un caso que DEBE bloquear, no solo con uno que debe pasar.
+
 No verifica una tercera que se probó y se descartó: buscar `horario_por_dia`
 fuera de `jornada-esperada.ts` para cazar las copias de «qué le tocaba trabajar
 ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
