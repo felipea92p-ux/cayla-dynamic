@@ -37,6 +37,66 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — El catálogo decide qué ausencia se paga (0314) · LISTA, SIN PEGAR
+
+**Escrita, auditada contra el Postgres local y con su prueba en verde. Falta
+pegarla en producción.**
+
+`fn_planilla_calcular` conocía DOS tipos de ausencia por su nombre
+—`descanso_medico` y `maternidad`— y cualquier otro marcado `paga = true` en el
+catálogo se ignoraba **en silencio**. Eso dejaba dos agujeros:
+
+- **`licencia_con_goce`** llevaba meses activa, en el desplegable, con la
+  pantalla prometiendo al aprobarla que «esos días entran en su planilla». No
+  entraban. La prueba `187` lo tenía escrito desde que se creó el tipo: *«el día
+  que alguien registre una licencia y cierre el mes, la persona cobra de menos y
+  el sistema se ve correcto en pantalla»*.
+- **El duelo no distinguía** al familiar directo del que no lo es. El art. 31.4.a
+  del Reglamento Interno y la Ley 31602 obligan a pagar **cinco días** cuando el
+  fallecido es cónyuge o conviviente, padres, hijos o hermanos. El otro duelo es
+  potestativo y CAYLA decidió no pagarlo.
+
+La 0314 invierte la regla: **paga lo que el catálogo dice que paga**, y excluye
+solo los tres que tienen tratamiento propio (descanso médico por su tope de 20
+días, maternidad por su subsidio de días calendario, vacaciones por `vacd`). El
+tipo nuevo `duelo_familiar_directo` entra con `requiere_aprobacion = true` y sin
+exigir documento — un acta de defunción no tiene número de colegiatura.
+
+**Lo que la auditoría empírica midió** (7 escenarios, `BEGIN … ROLLBACK`):
+
+| | antes | después |
+|---|---|---|
+| Duelo directo, firmado por DO | 1526,81 | **1824,58** ✅ |
+| Duelo directo, sin firma | 1526,81 | 1526,81 ✅ |
+| Duelo otro familiar | 1526,81 | 1526,81 ✅ |
+| Licencia con goce | 1526,81 | **1824,58** ✅ |
+| Descanso médico | 1846,74 | 1846,74 **intacto** |
+| Vacaciones | 1846,74 | 1846,74 **intacto** |
+| Control | 1846,74 | 1846,74 **intacto** |
+
+Las tres últimas son las que importaban: **nadie cobra dos veces**.
+
+**Y una confirmación que no se buscaba.** Al correr la suite, la prueba `244`
+—«la boleta y la reserva dicen lo mismo»— se puso roja en la dirección contraria
+a la habitual: su escenario `E09LicGoce` estaba declarado como divergencia
+conocida, con la nota *«cuando se arregle, esta fila pasa a cuadran»*. Pasó a
+cuadrar. O sea que **`fn_provisiones` ya devengaba esos días**; era la boleta la
+que no los pagaba. El arreglo no separó el par: lo puso de acuerdo.
+
+**Lo que falta antes de pegarla, y no es opcional:** correr
+[`scripts/sql-manual/se_usa_la_licencia_con_goce.sql`](../scripts/sql-manual/se_usa_la_licencia_con_goce.sql)
+en el SQL Editor. Solo lee, y responde lo único que esta migración no sabe: si
+hay una licencia con goce registrada dentro de un periodo **ya pagado**. Si la
+hay, a esa persona se le pagó de menos y hay que devolverle la diferencia — la
+0314 evita que vuelva a pasar, pero no devuelve nada.
+
+**Queda abierto, y anotado en [`hallazgos-abiertos.md`](hallazgos-abiertos.md):**
+el feriado de quien tuvo licencia con goce se paga corto (~S/2,2 por día de
+licencia y por feriado). Es preexistente —se midió con la 0306 vigente y ya daba
+corto— y va aparte porque `fn_feriado_devengado` es un punto caliente.
+
+---
+
 ## 2026-08-26 — Dos horarios ya no pueden cubrir el mismo día (0309)
 
 **PEGADA EN PRODUCCIÓN el 2026-08-26**, y verificada: candado puesto, cero

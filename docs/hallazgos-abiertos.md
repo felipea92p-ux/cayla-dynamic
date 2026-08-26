@@ -1303,6 +1303,65 @@ nadie ha decidido que se acumulen las tres. **Pendiente de medir.**
 
 ---
 
+## El feriado de quien tuvo licencia con goce se paga corto (abierto · S/2,2 por día y feriado)
+
+**Encontrado el 2026-08-26**, al auditar la 0314. Es PREEXISTENTE: se midió con
+la 0306 vigente y ya daba corto, así que la 0314 no lo crea — lo hace visible,
+porque a partir de ella esos días sí se pagan.
+
+`fn_feriado_devengado` prorratea el feriado sobre las horas del periodo:
+
+```
+proporcional_horas = 7.5 * (horas_mes + horas_vacaciones + horas_descanso_medico) / v_base
+```
+
+Las vacaciones y el descanso médico suman sus horas **figuradas** al numerador
+para que a nadie se le recorte el feriado por haber estado de licencia. La
+licencia con goce —y desde la 0314 el duelo de familiar directo— **no están en
+esa suma**, así que sus días bajan el promedio y el feriado se paga de menos.
+
+**Medido**, escenario de laboratorio con salario 1300 y periodo 29/07→28/08:
+
+| | horas del mes | proporcional | feriado |
+|---|---|---|---|
+| Sin ausencia | 216 | 8,04 | S/238,80 |
+| Vacaciones 5 días | 176 | 8,04 | S/238,80 |
+| Descanso médico 5 días | 176 | 8,04 | S/238,80 |
+| **Licencia con goce 5 días** | 176 | **6,55** | **S/216,64** |
+
+Diferencia: **S/22,16** con dos feriados en el periodo. La fórmula del daño es
+≈ `7,5 × días_licencia × horas_día × salario / v_base² × feriados_del_periodo`,
+o sea ~S/2,2 por cada día de licencia y por cada feriado. Solo aplica en meses
+con feriado, y siempre **contra la persona**.
+
+**Y no es lo mismo que faltar.** Quien falta por un duelo NO pagado también ve
+el feriado reducido, y eso es correcto: no trabajó, no devengó (D. Leg. 713
+art. 4, «proporcional al número de días efectivamente trabajados»). Lo que no
+cuadra es que un día que SÍ se paga como trabajado no cuente como devengado
+para el feriado del mismo mes.
+
+**El precedente está en la propia función**, escrito para la maternidad:
+*«quien pasa el periodo entero de licencia devenga S/0.00 de feriados […] así
+que excluir el feriado no evitaba una duplicación: le quitaba el día. Diez días
+de licencia le pagaban nueve.»*
+
+**Cómo se arregla, y por qué no se hizo en la 0314.** Hace falta sumar las horas
+de licencia al numerador con la MISMA condición que las paga (aprobadas, del
+catálogo, sin solape con día fichado ni con vacaciones), o pagaría el feriado
+entero a quien no cobró la licencia. Como esa regla no puede escribirse dos
+veces, lo limpio es una función pequeña —`fn_dias_licencia_con_goce(persona,
+ini, fin)`, comprobado el 2026-08-26 que no existe en ninguna rama— que
+consulten los dos lados, al estilo de la 0276 («el feriado ya no se calcula acá:
+se pregunta»).
+
+**La firma de `fn_feriado_devengado` NO se toca**: la llaman
+`fn_planilla_calcular` y `fn_provisiones`, y cambiarla obligaría a reescribir
+las dos. Va aparte de la 0314 porque `fn_feriado_devengado` es un punto caliente
+—la tocaron la 0293, 0302, 0306, 0308 y 0310— y meterla allí obligaba a un
+segundo md5 de producción que puede caducar mientras se pega.
+
+---
+
 ## Lo pagado por «movimiento» no aporta a la base imponible (abierto · S/24.54)
 
 **Medido contra producción el 2026-08-25, periodo 29/07–28/08.** Hoy cuesta
