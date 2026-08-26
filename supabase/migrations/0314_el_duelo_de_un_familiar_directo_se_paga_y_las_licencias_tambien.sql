@@ -60,19 +60,18 @@
 --     LABORABLES y no de calendario. Por eso de los cinco dias de la Ley 31602
 --     se pagan los que eran suyos, sin regalar domingos.
 --
--- CUANTO CUESTA HOY  (PENDIENTE DE MEDIR EN PRODUCCION)
---   Esta migracion se escribio SIN saber si alguien tiene una licencia con
---   goce registrada. Importa, y no es un detalle de redaccion:
+-- CUANTO CUESTA HOY:  NADA.  MEDIDO EN PRODUCCION EL 2026-08-26
+--   `licencias_total = 0`. Nadie ha registrado nunca una licencia con goce en
+--   toda la historia del sistema, asi que ninguna cayo dentro de un periodo
+--   pagado y no hay diferencia que devolverle a nadie.
 --
---     · si no hay ninguna, esto es un arreglo preventivo y no se le debe un
---       sol a nadie;
---     · si hay alguna dentro de un periodo YA PAGADO, entonces a esa persona
---       se le pago de menos y hay que devolverle la diferencia. Esta
---       migracion no la devuelve: solo evita que vuelva a pasar.
+--   Esto es un arreglo PREVENTIVO, y conviene decirlo con esa palabra: el
+--   defecto era real —el tipo estaba activo, en el desplegable, con la pantalla
+--   prometiendo al aprobarlo que «esos dias entran en su planilla»— pero no
+--   llego a costar un sol porque nadie uso la puerta. La proxima vez que
+--   alguien la use, ya funciona.
 --
---   La consulta que lo responde ya existe y solo lee:
---   `scripts/sql-manual/se_usa_la_licencia_con_goce.sql`. Correrla ANTES de
---   pegar esto, y anotar aqui el resultado.
+--   La consulta que lo respondio: `scripts/sql-manual/se_usa_la_licencia_con_goce.sql`.
 --
 -- MD5 DE PARTIDA
 --   4688bf0101891f347f05cf96c0db9e68 · 97.038 caracteres
@@ -108,6 +107,19 @@
 --
 -- COMO SE COMPRUEBA QUE QUEDO BIEN
 --   La consulta del final devuelve una fila con cinco `true`.
+--
+--   Y que la reescritura no se llevo nada por delante, que es otra pregunta:
+--   `scripts/sql-manual/quedo_bien_la_0314.sql`.
+--
+-- APLICADA EN PRODUCCION EL 2026-08-26, y verificada
+--   md5 de llegada: c8070bb865e977d2d0e6b1bb4bac58d2 · 102.178 caracteres
+--   Medido DESPUES de renumerar de 0313 a 0314, que es cuando cambian los
+--   marcadores «CAMBIO 00NN» del cuerpo.
+--   Comprobado ademas: siguen en pie los cambios de la 0275, la 0286 y la
+--   0306; las cuatro cascadas de «le tocaba trabajar ese dia» (0302) estan
+--   —eran tres antes de esta migracion, la cuarta la trae el lateral nuevo—;
+--   y hay UNA sola fn_planilla_calcular, sin la sobrecarga que rompio la
+--   pantalla con la 0297/0299.
 -- ============================================================================
 
 -- ── 1 · El tipo que faltaba ─────────────────────────────────────────────────

@@ -37,10 +37,29 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-08-26 — El catálogo decide qué ausencia se paga (0314) · LISTA, SIN PEGAR
+## 2026-08-26 — El catálogo decide qué ausencia se paga (0314) · EN PRODUCCIÓN
 
-**Escrita, auditada contra el Postgres local y con su prueba en verde. Falta
-pegarla en producción.**
+**PEGADA Y VERIFICADA el 2026-08-26.** md5 de llegada
+`c8070bb865e977d2d0e6b1bb4bac58d2`, 102.178 caracteres, el esperado al byte.
+Comprobado además que la reescritura **no revirtió nada**: siguen en pie los
+cambios de la 0275, la 0286 y la 0306, las cuatro cascadas de «¿le tocaba
+trabajar ese día?» están —eran tres, la cuarta la trae el lateral nuevo— y hay
+**una sola** `fn_planilla_calcular`, sin la sobrecarga que rompió la pantalla con
+la 0297/0299.
+
+**No le costó un sol a nadie: `licencias_total = 0` en producción.** Nadie
+registró nunca una licencia con goce, así que ninguna cayó en un periodo pagado
+y no hay diferencia que devolver. El defecto era real y la puerta estaba
+abierta; simplemente no entró nadie por ella.
+
+**Dos cosas del pegado que vale la pena recordar.** La primera vez no se aplicó
+nada —la comprobación salió con el md5 de partida intacto y `quedo_el_rastro =
+false`— y no se supo por qué, porque nadie miró lo que devolvió el editor. Lo
+que lo dejó ver en dos minutos fue tener escrita de antemano la consulta de
+comprobación con los valores esperados. Y el md5 de partida, que se pidió
+DESPUÉS de pegar en vez de antes, resultó coincidir exactamente con el declarado
+(`4688bf01…`), o sea que no había peligro — pero eso se supo por suerte, no por
+método.
 
 `fn_planilla_calcular` conocía DOS tipos de ausencia por su nombre
 —`descanso_medico` y `maternidad`— y cualquier otro marcado `paga = true` en el
