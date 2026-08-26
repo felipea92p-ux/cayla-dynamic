@@ -1249,3 +1249,54 @@ cinco y no entre dos: con montos de S/80 a S/150 la diferencia entre AFP vecinas
 es de céntimos, y el redondeo de la boleta podría no distinguirlas. Si queda
 ambiguo, se pregunta y punto — pero conviene medirlo antes de dar por perdido
 un dato que la base todavía tiene.
+
+---
+
+## El séptimo día que además es feriado cobra DOS sobretasas — decidido, no es un defecto
+
+**Decisión de Felipe, 2026-08-25: se pagan las dos.** Queda escrito aquí para que
+la próxima sesión que lo encuentre no lo trate como un error y lo «arregle».
+
+### El caso, medido contra producción
+
+La 0280 paga el 100 % del art. 3 del D. Leg. 713 a quien trabaja su séptimo día
+seguido. Cuando ese día es **además feriado**, se suma el 100 % del art. 9. El
+día queda pagado tres veces: sus horas, que ya están en `pago_base` porque las
+marcó, más las dos sobretasas.
+
+En el periodo 29/07–28/08, dos de tres casos se solapan — los tres en Trujillo:
+
+| | séptimo día | feriado | de más |
+|---|---|---|---|
+| Melany Enrriquez | 06/08 | Batalla de Junín | S/ 66.63 |
+| Nicole Blas | 29/07 | Fiestas Patrias | ~S/ 29.02 |
+| Janis Revilla | 19/08 | — | no se solapa |
+
+El 06/08 de Melany, pieza por pieza: **11.33 h** marcadas, sueldo S/1 185, base
+6.5 × 31 = 201.5, hora a S/5.8809. Cada pieza vale 11.33 × 5.8809 = **S/66.63**,
+y el día completo **S/199.89**. Con una sola sobretasa serían S/133.26.
+
+Conviene no leer mal ese número: es alto porque **el día fue de 11 h 20**, no
+porque la regla sea generosa. Su día normal ronda las 8.7 h.
+
+### Por qué se pagan las dos
+
+Perdió **dos cosas distintas** ese día: el feriado, que la ley da libre a todo el
+mundo, y su descanso semanal, que llevaba siete días sin tomar. Que las dos
+pérdidas caigan en la misma fecha no las convierte en una.
+
+Y el riesgo es asimétrico: pagar de más no expone a nada en una inspección;
+pagar de menos, sí.
+
+### Lo que queda medido y en contra, para que la decisión sea informada
+
+Son **~S/95 al mes solo en TRU**, y se repite cada mes que alguien encadene siete
+días — la propia 0280 midió seis rachas en un periodo, no es un caso raro.
+
+### Y una capa más que aún no se ha medido
+
+Melany tiene además **S/21.38 de sobretiempo** en el periodo. Con 11.33 h en el
+séptimo día seguido, es probable que parte de ese recargo sea **de este mismo
+día**: entonces el 06/08 no llevaría dos sobretasas sino **tres** —feriado,
+descanso semanal y exceso de 48 h semanales—. Cada una tiene su artículo, pero
+nadie ha decidido que se acumulen las tres. **Pendiente de medir.**
