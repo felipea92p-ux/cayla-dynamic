@@ -37,6 +37,73 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-25 — La reserva le pagaba de más a quien estuvo de vacaciones (0302)
+
+**Pendiente: pegar la 0302 en producción** (`./scripts/dame-el-sql.sh 302`).
+md5 de partida **confirmado contra el SQL Editor el 2026-08-25**:
+`93531851f35abcdd295fd8fb4aa77922`, 33 892 caracteres — el Postgres local
+reconstruido desde cero devuelve el mismo par.
+
+`fn_provisiones` contaba cada día de **calendario** de una ausencia pagada; la
+boleta cuenta los **laborables**. Los sábados y domingos del tramo entraban dos
+veces: una dentro del sueldo mensual y otra como día de ausencia.
+
+Se leía sin saber SQL: **la reserva le daba más gratificación a quien estuvo de
+vacaciones que a quien trabajó el mes entero.** Y no se quedaba en un informe —
+`fn_grati_cts_periodo` autocompleta el depósito desde esa base, así que el
+exceso salía del banco el 15/05, el 15/07, el 15/11 y el 15/12.
+
+Medido en local con `BEGIN … ROLLBACK`, marzo 2026, S/1.950, 19 días corridos
+de ausencia. Se usó el **mes calendario** como periodo a propósito, para no
+arrastrar la divergencia del divisor 29→28 que la 0276 dejó abierta:
+
+| Caso | Antes | Con la 0302 |
+|---|---|---|
+| Vacaciones | 20,96 | **0,00** |
+| Descanso médico | 20,96 | **0,00** |
+| Trujillo, 6 días laborables **con domingo** | 15,72 | **0,00** |
+
+Trujillo no es decoración: es la fila que separa este arreglo de «restarle los
+domingos a la ausencia». Un arreglo así pasa las otras comprobaciones y falla
+ésa.
+
+**Lo que NO se tocó, y es el cuidado de la migración.** La rama existe desde la
+0135 porque sin ella tomarse las vacaciones te *bajaba* la gratificación — el
+error contrario, y ése sí contra la persona. Sigue contando la ausencia entera;
+cambia cuántos días de ella cuentan. Tampoco cambió cuánto vale el día: se
+intentó poner `salario / días laborables` en lugar de `salario / días del mes`,
+que suena más fino, y **se midió que empeoraba** — la diferencia subía a S/32,16
+en vez de bajar a cero, porque así el día de ausencia valdría más que el
+trabajado.
+
+Prueba **236**, seis comprobaciones. Con la función de producción fallan cuatro
+—las cuatro de «boleta = reserva»— y pasan las dos que vigilan que la rama de la
+0135 siga en pie. Ninguna otra de las 159 se apoyaba en el defecto.
+
+### Lo que la 0302 deja abierto a propósito (medido, no supuesto)
+
+**Maternidad y licencia con goce siguen sin cuadrar**: la reserva devenga
+S/115,32 y la boleta S/36,69. La diferencia **baja** de S/99,59 a S/78,63 con la
+0302 —o sea que no lo empeora— pero no lo cierra, porque la causa es otra: **la
+boleta no tiene rama para esos dos tipos.** Tiene `vacd` para vacaciones y `dmd`
+para descanso médico, y nada más; a quien está de maternidad o de licencia con
+goce le apunta base S/440,32 en un mes de S/1.383,87.
+
+Son dos casos distintos y ninguno es el defecto de la 0302:
+
+- **Licencia con goce de remuneraciones** — «con goce» significa que la paga el
+  empleador. Que la boleta le ponga cero **parece un defecto contra la persona**
+  y merece su propia migración y su propia medición. *Falta preguntarle a Felipe
+  si CAYLA ha dado alguna, y cuándo.*
+- **Maternidad** — el subsidio lo paga EsSalud, no CAYLA, así que que la boleta
+  no le pague sueldo puede ser correcto. Y aun así la reserva hace bien en
+  devengarla: el art. 3.2 c) del D.S. 005-2002-TR cuenta como tiempo
+  efectivamente laborado «los descansos o licencias establecidos por las normas
+  de seguridad social y que originan el pago de subsidios». Ahí los dos números
+  **miden cosas distintas**, y forzarlos a ser iguales sería el error.
+
+---
+
 ## 2026-08-25 — Una suspensión de 10 días que nadie ordenó (0294)
 
 **Pendiente: pegar la 0294 en producción** (`./scripts/dame-el-sql.sh 294`). El
