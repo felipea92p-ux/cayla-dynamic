@@ -3371,7 +3371,7 @@ techo repite esto exacto. Está sin decidir si esa función debe pasar a bloquea
 | **Cargar las declaraciones de ruta firmadas** | **de Felipe. Plazo: 28/08/2026.** El sitio donde subirlas ya existe |
 | **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. **Acordado: se construye después de cerrar el Seguro de Vida Ley** |
 | **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
-| **Imprimir y firmar las ~20 renovaciones** — la pieza ya existe (`/admin/contratos`) | **revisión legal del texto**, y tres arreglos de SQL que esperan el md5 de producción |
+| **Imprimir y firmar las ~20 renovaciones** — la pieza ya existe (`/admin/contratos`) y su SQL está al día | **la revisión legal del texto**, que no ha hecho nadie |
 
 ### El generador de contratos, tras la auditoría del 2026-08-24
 
@@ -3393,14 +3393,26 @@ desplegable. Un agujero cerrado en un sitio no está cerrado.
 
 1. **La revisión legal del texto.** No la ha hecho nadie. El plan la dejó marcada
    como obligatoria y sigue sin hacerse.
-2. **Tres arreglos en SQL**, confirmados, que esperan el md5 de `fn_contrato_registrar`
-   y `fn_contrato_anular` pedido **a producción**:
-   - falta la política `UPDATE` del bucket `contratos` — si el RPC falla después
-     de subir el archivo, ese escaneo no se puede volver a subir nunca;
-   - firmar un borrador viejo mueve `personas.fecha_fin_contrato` **hacia atrás**
-     sin ningún freno;
-   - anular un contrato ya firmado no revierte esa fecha: la persona se queda con
-     el vencimiento de un documento declarado nulo.
+2. ~~Tres arreglos en SQL~~ — **cerrados el 2026-08-26 con la 0312**, ya pegada en
+   producción (sus seis comprobaciones en `true`). Eran: la política `UPDATE` que
+   le faltaba al bucket `contratos`, firmar un borrador viejo moviendo
+   `personas.fecha_fin_contrato` hacia atrás, y anular sin devolverla.
+
+   **Lo que enseñó y conviene no olvidar.** La primera versión de esa migración
+   preguntaba «¿es el contrato más reciente sin anular?», calcando el criterio de
+   `fn_contratos_tablero`. Sonaba coherente. Una revisión adversarial de 61
+   agentes la tumbó: esa pregunta **la gana un borrador sin firmar**, así que
+   anular el contrato firmado teniendo una renovación preparada NO devolvía la
+   fecha — el defecto que la migración decía arreglar, sin arreglar, y con la
+   migración convencida de lo contrario. Se reprodujo contra la base antes de
+   aceptarlo.
+
+   La pregunta correcta no era cuál se generó al final sino **de cuál viene la
+   fecha**, y una fecha de vencimiento solo puede venir de un papel firmado. De
+   ahí `fn_contrato_firmado_vigente_de` y `fn_contrato_refrescar_vencimiento`:
+   una sola regla y un solo recálculo, que usan las dos rutas. Ninguna de las dos
+   se concede a `authenticated` — sus usos son internos y conceder abriría por
+   RPC lo que la 0292 cerró.
 
 **Y una decisión de negocio que el código no puede tomar.** El contrato se emite
 siempre bajo el **art. 57** del TUO del D. Leg. 728 —«inicio o incremento de
