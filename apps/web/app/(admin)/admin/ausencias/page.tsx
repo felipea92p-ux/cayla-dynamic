@@ -147,6 +147,11 @@ export default function AusenciasPage() {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [subsidio, setSubsidio] = useState<Subsidio[]>([]);
+  // ausencia → ruta de su certificado en el almacén. Vacío para quien no puede
+  // verlos: el almacén solo responde a admin y líder de DO (0197), así que
+  // quien no tiene ese permiso recibe una lista vacía y no ve ningún botón.
+  // La regla vive en la base, no repetida acá.
+  const [certificados, setCertificados] = useState<Record<string, string>>({});
 
   const [desde, setDesde] = useState(haceMeses(6));
   const [hasta, setHasta] = useState(haceMeses(-6));
@@ -192,7 +197,37 @@ export default function AusenciasPage() {
     const tt = (t as unknown as Tipo[]) ?? [];
     setTipos(tt);
     setTipoCod((prev) => prev || tt[0]?.codigo || "");
-    setLista((a as unknown as Ausencia[]) ?? []);
+    const ausencias = (a as unknown as Ausencia[]) ?? [];
+    setLista(ausencias);
+
+    // QUÉ CERTIFICADOS HAY, preguntándoselo al almacén y no a la tabla.
+    //
+    // `fn_ausencias` (0101) es anterior a que el certificado existiera (0197) y
+    // no devuelve `doc_storage_path`. Se podría reescribir, pero preguntarle al
+    // almacén tiene una ventaja que no se pierde: encuentra el archivo aunque
+    // la fila no lo tenga anotado, que es justo lo que pasa cuando la subida
+    // funciona y el enlace posterior falla — un caso que esta pantalla admite a
+    // propósito, porque prefiere registrar la ausencia a perderla por un
+    // archivo.
+    //
+    // Solo se pregunta por las personas que tienen alguna ausencia CON
+    // documento en el rango a la vista: son las de descanso médico y
+    // maternidad, no las treinta.
+    const conDocumento = Array.from(new Set(ausencias.filter((x) => x.doc_colegiatura).map((x) => x.persona_id)));
+    if (conDocumento.length > 0) {
+      const mapa: Record<string, string> = {};
+      await Promise.all(conDocumento.map(async (pid) => {
+        const { data: archivos } = await supabase.storage
+          .from("certificados").list(`certificados/${pid}`, { limit: 1000 });
+        for (const f of archivos ?? []) {
+          // El archivo se guarda con el id de la ausencia por nombre.
+          mapa[f.name.replace(/\.[^.]+$/, "")] = `certificados/${pid}/${f.name}`;
+        }
+      }));
+      setCertificados(mapa);
+    } else {
+      setCertificados({});
+    }
     setAlertas((al as unknown as Alerta[]) ?? []);
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
     setPorVencer((pv as unknown as VacacionPorVencer[]) ?? []);
@@ -200,6 +235,31 @@ export default function AusenciasPage() {
   }, [supabase, router, desde, hasta]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  /**
+   * Abre el certificado de una ausencia en una pestaña nueva.
+   *
+   * El almacén es privado: la dirección se firma en el momento y caduca en un
+   * minuto. Un certificado dice el diagnóstico de una persona, así que no puede
+   * quedar viviendo en una URL que alguien pegue en un chat.
+   *
+   * La pestaña se abre ANTES de pedir la firma. Si se abriera después, Safari
+   * la trata como una ventana emergente no pedida por nadie y la bloquea — el
+   * clic ya terminó para cuando llega la respuesta.
+   */
+  async function verCertificado(a: Ausencia) {
+    const ruta = certificados[a.id];
+    if (!ruta) return;
+    const pestana = window.open("", "_blank");
+    const { data, error } = await supabase.storage.from("certificados").createSignedUrl(ruta, 60);
+    if (error || !data?.signedUrl) {
+      pestana?.close();
+      setMsg({ tipo: "error", texto: `No se pudo abrir el certificado (${error?.message ?? "sin respuesta"}).` });
+      return;
+    }
+    if (pestana) pestana.location.href = data.signedUrl;
+    else window.open(data.signedUrl, "_blank");
+  }
 
   async function registrar() {
     if (!personaId) { setMsg({ tipo: "error", texto: "Elige a la persona." }); return; }
@@ -617,6 +677,14 @@ export default function AusenciasPage() {
                         <>
                           <span className="rounded-full bg-sand px-2 py-0.5 text-xs">anulada</span>
                           <div className="text-xs text-taupe">{a.anulada_motivo}</div>
+                          {/* El papel sigue existiendo aunque la ausencia se
+                              haya anulado, y a veces es justo lo que hay que
+                              mirar para entender por qué se anuló. */}
+                          {certificados[a.id] && (
+                            <button onClick={() => void verCertificado(a)} className="mt-1 rounded border px-2 py-0.5 text-xs hover:bg-sand/50">
+                              Ver documento
+                            </button>
+                          )}
                         </>
                       ) : a.requiere_aprobacion && !a.aprobada ? (
                         <span className="rounded-full bg-ambar/20 px-2 py-0.5 text-xs text-ambar">
@@ -629,6 +697,11 @@ export default function AusenciasPage() {
                     <td className="px-4 py-2">
                       {!a.anulada && (
                         <div className="flex flex-wrap gap-2 text-xs">
+                          {certificados[a.id] && (
+                            <button onClick={() => void verCertificado(a)} className="rounded border px-2 py-1 hover:bg-sand/50">
+                              Ver documento
+                            </button>
+                          )}
                           {esDO && a.requiere_aprobacion && !a.aprobada && (
                             <button onClick={() => void aprobar(a)} disabled={guardando} className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-50">
                               Aprobar
