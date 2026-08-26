@@ -37,6 +37,73 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-25 — La reserva le pagaba de más a quien estuvo de vacaciones (0302)
+
+**Pendiente: pegar la 0302 en producción** (`./scripts/dame-el-sql.sh 302`).
+md5 de partida **confirmado contra el SQL Editor el 2026-08-25**:
+`93531851f35abcdd295fd8fb4aa77922`, 33 892 caracteres — el Postgres local
+reconstruido desde cero devuelve el mismo par.
+
+`fn_provisiones` contaba cada día de **calendario** de una ausencia pagada; la
+boleta cuenta los **laborables**. Los sábados y domingos del tramo entraban dos
+veces: una dentro del sueldo mensual y otra como día de ausencia.
+
+Se leía sin saber SQL: **la reserva le daba más gratificación a quien estuvo de
+vacaciones que a quien trabajó el mes entero.** Y no se quedaba en un informe —
+`fn_grati_cts_periodo` autocompleta el depósito desde esa base, así que el
+exceso salía del banco el 15/05, el 15/07, el 15/11 y el 15/12.
+
+Medido en local con `BEGIN … ROLLBACK`, marzo 2026, S/1.950, 19 días corridos
+de ausencia. Se usó el **mes calendario** como periodo a propósito, para no
+arrastrar la divergencia del divisor 29→28 que la 0276 dejó abierta:
+
+| Caso | Antes | Con la 0302 |
+|---|---|---|
+| Vacaciones | 20,96 | **0,00** |
+| Descanso médico | 20,96 | **0,00** |
+| Trujillo, 6 días laborables **con domingo** | 15,72 | **0,00** |
+
+Trujillo no es decoración: es la fila que separa este arreglo de «restarle los
+domingos a la ausencia». Un arreglo así pasa las otras comprobaciones y falla
+ésa.
+
+**Lo que NO se tocó, y es el cuidado de la migración.** La rama existe desde la
+0135 porque sin ella tomarse las vacaciones te *bajaba* la gratificación — el
+error contrario, y ése sí contra la persona. Sigue contando la ausencia entera;
+cambia cuántos días de ella cuentan. Tampoco cambió cuánto vale el día: se
+intentó poner `salario / días laborables` en lugar de `salario / días del mes`,
+que suena más fino, y **se midió que empeoraba** — la diferencia subía a S/32,16
+en vez de bajar a cero, porque así el día de ausencia valdría más que el
+trabajado.
+
+Prueba **236**, seis comprobaciones. Con la función de producción fallan cuatro
+—las cuatro de «boleta = reserva»— y pasan las dos que vigilan que la rama de la
+0135 siga en pie. Ninguna otra de las 159 se apoyaba en el defecto.
+
+### Lo que la 0302 deja abierto a propósito (medido, no supuesto)
+
+**Maternidad y licencia con goce siguen sin cuadrar**: la reserva devenga
+S/115,32 y la boleta S/36,69. La diferencia **baja** de S/99,59 a S/78,63 con la
+0302 —o sea que no lo empeora— pero no lo cierra, porque la causa es otra: **la
+boleta no tiene rama para esos dos tipos.** Tiene `vacd` para vacaciones y `dmd`
+para descanso médico, y nada más; a quien está de maternidad o de licencia con
+goce le apunta base S/440,32 en un mes de S/1.383,87.
+
+Son dos casos distintos y ninguno es el defecto de la 0302:
+
+- **Licencia con goce de remuneraciones** — «con goce» significa que la paga el
+  empleador. Que la boleta le ponga cero **parece un defecto contra la persona**
+  y merece su propia migración y su propia medición. *Falta preguntarle a Felipe
+  si CAYLA ha dado alguna, y cuándo.*
+- **Maternidad** — el subsidio lo paga EsSalud, no CAYLA, así que que la boleta
+  no le pague sueldo puede ser correcto. Y aun así la reserva hace bien en
+  devengarla: el art. 3.2 c) del D.S. 005-2002-TR cuenta como tiempo
+  efectivamente laborado «los descansos o licencias establecidos por las normas
+  de seguridad social y que originan el pago de subsidios». Ahí los dos números
+  **miden cosas distintas**, y forzarlos a ser iguales sería el error.
+
+---
+
 ## 2026-08-25 — Una suspensión de 10 días que nadie ordenó (0294)
 
 **Aplicada en producción el 2026-08-25** — confirmado con
@@ -568,6 +635,50 @@ otra, más corta, no salía de ningún documento y no la usaba nadie. Se tomó l
 los contratos, así que **hoy no hay ningún papel que haya cambiado de texto** —
 queda comprobar contra la ficha RUC que esa sea la buena, porque desde ahora la
 dice un solo sitio.
+
+---
+
+## 2026-08-25 — El aviso de vacaciones se construyó dos veces, y el duplicado lo rompió
+
+La **0297** creó `fn_vacaciones_por_vencer` desde una rama, con su prueba, su
+banda en Ausencias, su entrada en el menú y en «Lo mío», y sus tipos
+regenerados. Dos días después la **0299** creó la misma función desde otra rama,
+sin comprobar que ya existía.
+
+**No quedó en trabajo perdido.** Las dos tenían todos sus argumentos con valor
+por defecto, así que la llamada sin argumentos encajaba en las dos:
+
+    ERROR: function fn_vacaciones_por_vencer() is not unique
+
+Con las dos vivas el aviso NO se mostraba. Es el mismo accidente que la 0278
+documentó al agregar un parámetro con `create or replace`: no falla al pegar la
+migración, **falla al abrir la pantalla**.
+
+La [`0301`](../supabase/migrations/0301_retirar_la_copia_duplicada_del_aviso_de_vacaciones.sql)
+suelta la firma de la 0299. **Está pegada en producción el 2026-08-25** y
+confirmada: queda una sola, `p_dias integer, p_as_of date`, md5 `0f4ea1c9…`.
+
+**Sobrevive la de la 0297 y no por antigüedad.** Ve más gente —cada persona sus
+propios días, una encargada los de su sede—, devuelve la sede, y sobre todo
+tiene una condición que la otra no tenía:
+
+    and ( dias_para_vencer <= p_dias or records_vencidos > 0 )
+
+con este comentario suyo: «quien YA tiene un récord vencido puede tener el
+siguiente a un año de distancia, y con solo el filtro de los 60 días desaparecía
+de la lista justo la persona más urgente. Se vio en el panel con datos de
+prueba, no razonándolo». La otra filtraba solo por la ventana: **a quien más
+urge avisarle, no le avisaba**.
+
+**La causa de raíz, y la regla que salió de ahí:** no se corrió
+`./scripts/donde-vive.sh` antes de escribir, porque el script se leía como «para
+reescribir una función». Ya está en CLAUDE.md que **también se corre antes de
+crear**: con varias sesiones a la vez, «esta función no existe» es una
+suposición, no un hecho.
+
+**Y lo único que destapó todo esto fue pedir el md5 después de pegar.** Dos
+filas donde debía haber una. Sin esa comprobación, el aviso habría quedado roto
+en silencio hasta que alguien abriera la pantalla.
 
 ---
 
