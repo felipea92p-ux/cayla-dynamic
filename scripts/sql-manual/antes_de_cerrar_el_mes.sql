@@ -176,21 +176,40 @@ c7 as (
 -- resultado CORRECTO. Un chequeo que grita por lo normal se desactiva a la
 -- semana, y con él se pierde el grito que sí importa.
 --
--- Los que pagan son cuatro: descanso_medico, licencia_con_goce, maternidad y
--- vacaciones. Y de esos se descuenta a quien no devenga —un locador no cobra
--- vacaciones desde la 0186— para no volver a inventar una alarma.
+-- Los que pagan salen del CATÁLOGO desde la 0314, no de una lista escrita aquí.
+-- Y de esos se descuenta a quien no devenga —un locador no cobra vacaciones
+-- desde la 0186— para no volver a inventar una alarma.
+--
+-- ⚠️⚠️ Y AQUÍ ESTÁ LA SEGUNDA VEZ QUE ESTE MISMO CHEQUEO SE PASÓ DE LISTO, el
+-- 2026-08-26. Preguntaba «¿es de un tipo que paga?» y gritaba 💸 por TODAS. Esa
+-- era la condición correcta hasta la 0254; hoy es falsa, porque el descanso
+-- médico (0254), la maternidad (0262) y las vacaciones (0275) YA se pagan. El
+-- chequeo estaba nombrando como problema justo lo que funciona: medido, tres
+-- gritos por un caso real.
+--
+-- LA CONDICIÓN QUE DE VERDAD DECIDE, desde la 0306 y la 0314, es OTRA: la firma
+-- de Desarrollo Organizacional. Sin `aprobada_at`, un tipo que exige aprobación
+-- paga S/0.00 — y esa regla nació DENTRO del periodo de agosto de 2026, así que
+-- lo que el día 20 se pagaba solo, el 28 puede salir en cero.
+--
+-- Se mira `t.requiere_aprobacion` y no una lista de códigos, por lo mismo que la
+-- 0314: el próximo tipo que alguien cree caería en la misma trampa en silencio.
+-- Lo que NO exige aprobación —las vacaciones— no puede aparecer aquí jamás.
 c8 as (
-  select 9, 'AUSENCIAS QUE PAGARÁN CERO',
-         case when count(*) = 0 then '✓  ninguna en el periodo'
-              else '💸 ' || count(*)::text || ' ausencia(s) QUE DEBERÍAN PAGARSE y saldrán S/0.00' end,
+  select 9, 'AUSENCIAS QUE PAGARÁN CERO POR FALTARLES LA FIRMA DE DO',
+         case when count(*) = 0 then '✓  ninguna: todas las que pagan están firmadas'
+              else '💸 ' || count(*)::text || ' ausencia(s) SIN FIRMA: saldrán S/0.00' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos || ' · ' || a.tipo
                              || ' ' || a.fecha_inicio::text || '→' || a.fecha_fin::text, ' · '),
-                  'Ninguna ausencia de tipo pagable en el periodo. Los permisos personales, el duelo y la salud sin documento NO pagan: S/0.00 es su resultado correcto.')
+                  'Todo lo que paga en este periodo tiene la firma de DO. Los permisos personales, el duelo por otro familiar y la salud sin documento NO pagan: S/0.00 es su resultado correcto, y por eso no salen aquí.')
   from ausencias a
   join personas p on p.id = a.persona_id
   join tipos_ausencia t on t.codigo = a.tipo and t.paga is true, d
   where a.anulada_at is null and a.fecha_inicio <= d.fin and a.fecha_fin >= d.ini
     and p.en_planilla is true
+    -- ⇩⇩⇩ 2026-08-26 ⇩⇩⇩ lo que decide hoy es la firma, no el tipo.
+    and t.requiere_aprobacion is true
+    and a.aprobada_at is null
 ),
 
 -- ── 9 · Quién entró o cesó dentro del periodo ───────────────────────────────
