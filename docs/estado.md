@@ -2173,6 +2173,34 @@ acusó a 25 funciones que estaban bien. Se sacaron del archivo… y entonces
 caducaron en el mensaje que las transportaba: se calcularon a las 10:28, entraron
 cinco migraciones a las 10:55 y 11:14, y la comparación de las 11:30 ya no valía.
 
+### Y aun así, empieza por la lista de números — medido el 2026-08-19
+
+Los md5 son la herramienta fina, pero **caducan en minutos**, y ese día caducaron
+para los dos lados a la vez:
+
+- La huella de producción dijo `hasta_migracion: 287` cuando ya iba por la 301
+  — entre una consulta y la siguiente se pegaron migraciones.
+- Y la base local de esta Mac saltó de 286 a 301 en mitad de la comparación,
+  porque otra sesión corrió `db reset`.
+
+Resultado: tres md5 distintos, +3 funciones y +14 columnas de diferencia, y una
+sospecha de código cambiado a mano en producción **que era falsa entera**.
+
+Lo que lo resolvió en un minuto fue esto, que no caduca:
+
+```sql
+select string_agg(numero::text, ',' order by numero) as numeros
+from migraciones_aplicadas
+where numero >= 265;
+```
+
+Esa lista se compara contra `ls supabase/migrations/`. O está el 295 o no está —
+no hay generación que valga. Ese día la respuesta fue **faltaban dos**, la 0295 y
+la 0296, y ni una sola migración en producción que no estuviera en el repositorio.
+
+**La regla:** los números primero. Los md5 solo si los números ya coinciden —
+porque solo entonces significan algo.
+
 `huella_del_esquema.sql` calcula las dos mitades en el mismo minuto y trae
 `hasta_migracion`, para que comparar dos generaciones distintas se delate en vez
 de asustar. Los tres comparadores que mentían —`comparar_funciones.sql`,
