@@ -1,5 +1,13 @@
 -- ============================================================================
--- 187_una_licencia_con_goce_se_registra_y_paga.test.sql — migraciones 0247 y 0314
+-- 187_una_licencia_con_goce_se_registra_y_no_paga_sola.test.sql
+--   — migraciones 0247 y 0314
+--
+-- ⚠️ EL NOMBRE DEL ARCHIVO ES HISTÓRICO Y YA NO DESCRIBE LO QUE PRUEBA. Desde
+-- la 0314 la licencia con goce SÍ se paga. Se intentó renombrarlo y el hook de
+-- numeración lo frenó con razón: cinco ramas sin fusionar tienen todavía el
+-- nombre viejo, así que al fusionarse habría DOS archivos con el número 187.
+-- Un nombre que miente cuesta menos que una colisión de numeración, que deja
+-- `supabase db reset` sin poder reconstruir el esquema.
 -- ============================================================================
 -- La 0247 agrega el tipo `licencia_con_goce`: la empresa exonera de asistir y
 -- sigue pagando. La fila es trivial; lo que esta prueba fija es el MALENTENDIDO
@@ -18,7 +26,7 @@
 --
 -- Esta prueba conserva su número y su historia porque el aviso sigue haciendo
 -- falta en la otra dirección: lo que hoy protege no es que la licencia NO se
--- pague, sino que se pague UNA sola vez. Ver la 248, que monta la planilla
+-- pague, sino que se pague UNA sola vez. Ver la 249, que monta la planilla
 -- entera y mide los importes.
 --
 -- LAS CUATRO COSAS QUE SE FIJAN:

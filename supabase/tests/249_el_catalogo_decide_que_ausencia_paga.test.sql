@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 248_el_catalogo_decide_que_ausencia_paga.test.sql
+-- 249_el_catalogo_decide_que_ausencia_paga.test.sql
 -- ============================================================================
 -- Fija la 0314. `fn_planilla_calcular` conocía DOS tipos de ausencia por su
 -- nombre —`descanso_medico` y `maternidad`— y cualquier otro marcado
