@@ -1300,3 +1300,57 @@ séptimo día seguido, es probable que parte de ese recargo sea **de este mismo
 día**: entonces el 06/08 no llevaría dos sobretasas sino **tres** —feriado,
 descanso semanal y exceso de 48 h semanales—. Cada una tiene su artículo, pero
 nadie ha decidido que se acumulen las tres. **Pendiente de medir.**
+
+---
+
+## Lo pagado por «movimiento» no aporta a la base imponible (abierto · S/24.54)
+
+**Medido contra producción el 2026-08-25, periodo 29/07–28/08.** Hoy cuesta
+S/24.54 en total. Se anota por lo que puede llegar a ser, no por lo que es.
+
+### El hueco
+
+`fn_planilla_calcular` suma los movimientos al TOTAL **después** de calcular
+`bri.base`. Nada pagado por esa vía aporta a pensión ni a EsSalud, sea lo que
+sea. Para dos categorías eso es correcto y para dos no:
+
+| categoría | ¿aporta hoy? | ¿debería? | base legal |
+|---|---|---|---|
+| gratificacion | no | **no** | Ley 30334 — inafecta a aportes |
+| cts | no | **no** | art. 19 D.S. 001-97-TR — no es remuneración |
+| vacaciones | no | **sí** | art. 15 D. Leg. 713 — remuneración ordinaria |
+| otros | no | depende del concepto | sobretiempo sí (0193, PLAME 0107) |
+
+### Lo medido
+
+S/111.58 en nueve personas → **S/14.49** de pensión no retenida y **S/10.05** de
+EsSalud no aportado.
+
+**Ocho de los nueve son el mismo concepto literal:** «Regularización de
+sobretiempo 28-jun al 28-jul», S/100.03. No es disperso — **es una operación en
+lote**, y volverá a pasar cada vez que se descubra sobretiempo tras cerrar un
+mes. El noveno es un feriado pagado de menos (Paola, S/11.55, **sin categoría**).
+
+### Por qué NO se arregló el mismo día
+
+Arreglarlo es reescribir `fn_planilla_calcular`. Esta misma sesión revirtió
+cuarenta migraciones de esa función por partir de un cuerpo desactualizado.
+Volver a tocarla el mismo día por S/24.54, y sin la respuesta del contador, es
+la clase de decisión que ya salió cara hoy.
+
+### La salida que probablemente no necesita código
+
+La regularización existe porque el sobretiempo se descubrió **después** de
+cerrar julio. Pero la **0203** ya permite reabrir un periodo pagado y
+recalcularlo: por ahí el sobretiempo entra por `ot.horas_recargo`, aporta a la
+base solo, y se declara en el mes que le toca. **El movimiento es el parche; la
+maquinaria buena ya existe.**
+
+### Las dos preguntas para Dante
+
+1. **¿En qué periodo se declara** un sobretiempo devengado en julio y pagado en
+   agosto? La PLAME va por devengado, así que en rigor tocaría rectificar la de
+   julio. Hoy no está en ninguno de los dos, y ese es el problema real — no cuál
+   de las dos opciones se elija.
+2. **¿Reabrir y recalcular, o seguir regularizando por movimiento?** Es una
+   decisión de proceso, no de programación.
