@@ -895,9 +895,11 @@ export default function DisciplinaPage() {
     //
     // El instante sale de `rangoDelDiaLima`: el desfase de Lima no se escribe
     // a mano en ningún sitio fuera de `fecha-lima.ts`.
-    const ref = d.periodo_hasta
-      ? Date.parse(rangoDelDiaLima(d.periodo_hasta).fin)
-      : Date.now();
+    // Sin periodo declarado —un borrador que aún no lo tiene— la referencia es
+    // el cierre de HOY en Lima, no `Date.now()`: el instante del navegador no
+    // es el corte del día de este sistema, y además `Date.now()` en render es
+    // impuro y el linter lo rechaza con razón.
+    const ref = Date.parse(rangoDelDiaLima(d.periodo_hasta ?? hoyLima()).fin);
     const doceMeses = ref - 365 * 24 * 60 * 60 * 1000;
     const dias = docs
       .filter((x) => x.persona_id === d.persona_id && x.tipo_causal === d.tipo_causal
