@@ -83,9 +83,9 @@ mini a la vista de todo el equipo.
 Lo cerró la **0277**, aplicada en producción el 2026-08-23 por otra sesión. Su cabecera describe el
 mismo defecto que este informe: `fn_set_regimen_pension` hacía un `update` y nada más, y
 `fn_cambiar_regimen_pension` —la que sí escribe el tramo versionado— no la llamaba nadie.
-⚠️ **Pero esa migración NO está en `main`**, solo en la rama `claude/workday-erp-analysis-8c12da`.
-Mientras siga así, quien reescriba esas tres funciones copiando de `main` la revertiría en
-silencio. Ver el plan de remediación.
+✅ **Y desde el 2026-08-25 también está en `main`.** Estuvo dos días corriendo en producción sin
+estar en el repositorio —el patrón de la 0177— y se cerró fusionando la rama. Verificado por md5
+contra producción: `ed01ed0f903bf13800d3cf282919abe8`, idéntico, comentarios incluidos.
 
 **4 · Once funciones `SECURITY DEFINER` entregan datos de cualquier persona a cualquier sesión.**
 `P0` · **desde el 2026-07-21**

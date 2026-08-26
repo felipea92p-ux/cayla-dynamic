@@ -110,7 +110,7 @@ EVENTOS=$(
 )
 
 if [ -z "$EVENTOS" ]; then
-  rojo "✗ Ninguna migración define «$FN»."
+  rojo "✗ Ninguna migración define «${FN}»."
   gris "  ¿Está bien escrito el nombre? Prueba:  ls supabase/migrations | xargs grep -lie '$FN'"
   exit 1
 fi
@@ -121,7 +121,7 @@ ARCHIVO_FINAL=$(echo "$EVENTOS" | tail -1 | cut -f2)
 
 if [ -z "$ARCHIVOS" ]; then
   # Solo hay borrados: la función se creó fuera de estas migraciones.
-  rojo "✗ «$FN» solo aparece borrada, nunca creada, en supabase/migrations."
+  rojo "✗ «${FN}» solo aparece borrada, nunca creada, en supabase/migrations."
   gris "  Última mención:  $(basename "$ARCHIVO_FINAL")"
   exit 1
 fi
@@ -130,7 +130,7 @@ CUANTAS=$(echo "$ARCHIVOS" | wc -l | tr -d ' ')
 ULTIMA=$(echo "$ARCHIVOS" | tail -1)
 
 echo ""
-echo "«$FN» está definida en $CUANTAS migración(es):"
+echo "«${FN}» está definida en $CUANTAS migración(es):"
 echo "$ARCHIVOS" | while read -r f; do
   if [ "$f" != "$ULTIMA" ]; then
     gris "    $(basename "$f")"
@@ -147,7 +147,7 @@ done
 # alguien decidió eliminar.
 if [ "$ARCHIVO_FINAL" != "$ULTIMA" ]; then
   echo ""
-  rojo "✗ «$FN» YA NO EXISTE: la borró $(basename "$ARCHIVO_FINAL")."
+  rojo "✗ «${FN}» YA NO EXISTE: la borró $(basename "$ARCHIVO_FINAL")."
   gris "  Su última definición fue $(basename "$ULTIMA"), pero se eliminó después."
   gris "  Volver a crearla es una decisión de negocio, no un copiar y pegar."
   echo ""

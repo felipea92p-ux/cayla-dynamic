@@ -106,11 +106,12 @@ Son dos casos distintos y ninguno es el defecto de la 0302:
 
 ## 2026-08-25 — Una suspensión de 10 días que nadie ordenó (0294)
 
-**Pendiente: pegar la 0294 en producción** (`./scripts/dame-el-sql.sh 294`). El
-md5 de partida **ya está confirmado contra el SQL Editor el 2026-08-25**:
-`96f32dbd2ff1c41da38765ef1ec5bbf6`, 994 caracteres — producción tiene la 0075
-idéntica al repositorio, comentarios incluidos. Al pegarla no se mueve ningún
-documento ya emitido: solo deja de aceptar números que el Reglamento no admite.
+**Aplicada en producción el 2026-08-25** — confirmado con
+`que_falta_pegar.sql`. El md5 de partida se había verificado antes contra el
+SQL Editor (`96f32dbd2ff1c41da38765ef1ec5bbf6`, 994 caracteres: producción
+tenía la 0075 idéntica al repositorio, comentarios incluidos). Al pegarla no se
+movió ningún documento ya emitido: solo dejó de aceptar números que el
+Reglamento no admite.
 
 **Decidido por Felipe (2026-08-25): el tope se queda en 3.** No se reforma el
 RIT. El candado hace cumplir lo que el Reglamento ya dice.
@@ -194,7 +195,48 @@ de las dos tenía.
 del informe viejo (solo contra P0/P1 y una muestra de P2). Puede haber más
 solapamiento del que aquí se descuenta.
 
-### 1 · Nueve funciones `SECURITY DEFINER` entregan datos de cualquier persona a cualquier sesión — P0, sigue abierto
+---
+
+⚠️ **ESTA LISTA ENVEJECIÓ EN HORAS. Releída y medida el 2026-08-25 por la
+tarde:** tres de los nueve ya estaban resueltos por otras sesiones —con su
+migración y su prueba— mientras el texto seguía diciendo «sigue abierto». Casi
+manda a reescribir la 0292 desde cero.
+
+| # | Estado hoy | Dónde |
+|---|---|---|
+| 1 · las nueve funciones `SECURITY DEFINER` | ✅ cerrado y **aplicado** en producción | migración 0292 · prueba 228 |
+| 2 · ascenderse a Admin | ✅ escrito · **falta pegar**, y no antes de desplegar (ver abajo) | 0295 + 0296 + 0300 · pruebas 232, 235 |
+| 3 · el kiosco, el DNI y el sueldo | ✅ cerrado y **aplicado** | migración 0291 · prueba 227 |
+| 4 a 9 | siguen abiertos, medidos abajo | — |
+
+**Lo único que falta pegar en todo el repositorio son la 0295 y la 0296**, y eso
+se pregunta con `./scripts/que-falta-pegar.sh`, no se lee acá.
+
+⚠️ **La 0296 NO se pega hasta que esté desplegado el arreglo de
+`/api/admin/cuentas`.** Su trigger aborta cualquier `update` de `personas.rol`
+que no venga de `postgres`, y el botón «promover a encargada» de
+`/admin/cuentas` escribía el rol con la llave de SERVICIO, que dentro de la
+base es `service_role`. Medido contra el Postgres local con el trigger puesto:
+devolvía «El rol se cambia con fn_set_rol, no con un update directo». Pegarla
+antes deja el botón muerto.
+
+El arreglo ya está hecho (commit «Promover a encargada deja de escribir el rol
+por la puerta de atrás»): la ruta llama a `fn_set_rol` con la sesión de quien
+pulsó el botón, vía `createUserClient(token)`. **De paso cerró un agujero que
+ninguna de las dos auditorías había visto**: por ese camino el cambio de rol no
+dejaba NINGUNA fila en `correcciones_auditoria`, porque la llave de servicio no
+es nadie dentro de la base (`auth.uid()` es null) y no había a quién anotar.
+Justo lo que la 0295 existe para impedir, evitado por la otra puerta.
+
+**La lección, que es la misma de siempre en este archivo:** una lista de
+pendientes escrita a mano compite con varias sesiones trabajando en paralelo, y
+pierde. Antes de tomar cualquier hallazgo de aquí, medirlo contra el código
+vivo — `ls supabase/migrations`, `donde-vive.sh`, la prueba pgTAP que le
+corresponda.
+
+---
+
+### 1 · ~~Nueve funciones `SECURITY DEFINER` entregan datos de cualquier persona a cualquier sesión~~ — ✅ CERRADO (0292, prueba 228, aplicado el 25/08)
 
 **Dónde:** `fn_falta_contadores` (0094) · `fn_tardanza_escalon` (0246) ·
 `fn_dia_suspendido` · `fn_dias_suspension` · `fn_beneficio_ya_depositado` ·
@@ -224,7 +266,7 @@ predicado correcto (`prosecdef + grant a authenticated + recibe p_persona_id +
 sin guard en el cuerpo` — no "todo prosecdef", eso ya se probó y dio 14 falsos
 positivos).
 
-### 2 · Una `lider_do` puede ascenderse a Admin sola, en tres clics y sin dejar rastro — P1→ severidad de facto de P0
+### 2 · Una `lider_do` puede ascenderse a Admin sola, en tres clics y sin dejar rastro — ESCRITO (0295 + 0296 + 0300), falta pegar · leer el aviso de la 0296 arriba
 
 **Dónde:** `apps/web/app/(admin)/admin/equipo/page.tsx:422-431` escribe `rol`
 directo a la tabla `personas` vía `.update()`; el desplegable que lo alimenta
@@ -249,7 +291,7 @@ escalafón dentro de la base, y `revoke update (rol) on personas from
 authenticated` — así la regla la cumplen los dos caminos, no solo el que la
 llama.
 
-### 3 · El kiosco de marcaje sigue exponiendo DNI y sueldo base por REST directo — P0, el más barato de cerrar
+### 3 · ~~El kiosco de marcaje sigue exponiendo DNI y sueldo base por REST directo~~ — ✅ CERRADO (0291, prueba 227, aplicado el 25/08)
 
 **Dónde:** `supabase/migrations/0008_visible_todas_sedes.sql:12-17` crea la
 policy `personas_select_terminal_roster` sin recortar columnas. La 0285
@@ -2241,6 +2283,34 @@ mensaje.** El comparador viejo llevaba las huellas del repositorio dentro y
 acusó a 25 funciones que estaban bien. Se sacaron del archivo… y entonces
 caducaron en el mensaje que las transportaba: se calcularon a las 10:28, entraron
 cinco migraciones a las 10:55 y 11:14, y la comparación de las 11:30 ya no valía.
+
+### Y aun así, empieza por la lista de números — medido el 2026-08-19
+
+Los md5 son la herramienta fina, pero **caducan en minutos**, y ese día caducaron
+para los dos lados a la vez:
+
+- La huella de producción dijo `hasta_migracion: 287` cuando ya iba por la 301
+  — entre una consulta y la siguiente se pegaron migraciones.
+- Y la base local de esta Mac saltó de 286 a 301 en mitad de la comparación,
+  porque otra sesión corrió `db reset`.
+
+Resultado: tres md5 distintos, +3 funciones y +14 columnas de diferencia, y una
+sospecha de código cambiado a mano en producción **que era falsa entera**.
+
+Lo que lo resolvió en un minuto fue esto, que no caduca:
+
+```sql
+select string_agg(numero::text, ',' order by numero) as numeros
+from migraciones_aplicadas
+where numero >= 265;
+```
+
+Esa lista se compara contra `ls supabase/migrations/`. O está el 295 o no está —
+no hay generación que valga. Ese día la respuesta fue **faltaban dos**, la 0295 y
+la 0296, y ni una sola migración en producción que no estuviera en el repositorio.
+
+**La regla:** los números primero. Los md5 solo si los números ya coinciden —
+porque solo entonces significan algo.
 
 `huella_del_esquema.sql` calcula las dos mitades en el mismo minuto y trae
 `hasta_migracion`, para que comparar dos generaciones distintas se delate en vez

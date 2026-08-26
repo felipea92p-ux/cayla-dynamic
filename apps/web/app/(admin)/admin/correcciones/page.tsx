@@ -5,16 +5,13 @@ import { useRouter } from "next/navigation";
 import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { AdminNav } from "../nav";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 
 function fechaHoyLima() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
-}
-// Día de la semana (0=domingo … 6=sábado) de un ISO — misma clave que horario_por_dia.
-function dowDe(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 // "HH:MM" en hora Lima para el input de tipo time
 function horaInput(tsISO: string) {
@@ -41,26 +38,23 @@ function selloLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
-interface TurnoDia { hora_entrada: string | null; es_descanso: boolean; }
-interface HorarioTramo { hora_entrada: string | null; horario_por_dia: Record<string, { e?: string; s?: string; r?: number }> | null; }
-// Contra qué hora se mide la tardanza ese día y de dónde sale. Replica la
-// prioridad del backend (fn_recalcular_jornada): el turno del día manda; solo si
-// no hay turno se cae al horario base. `deTurno` marca el override para resaltarlo.
-function calcularEsperado(fecha: string, turno: TurnoDia | null, horario: HorarioTramo | null): { hora: string | null; origen: string; deTurno: boolean } | null {
-  if (turno) {
-    if (turno.es_descanso) return { hora: null, origen: "descanso (turno del día)", deTurno: true };
-    if (turno.hora_entrada) return { hora: turno.hora_entrada.slice(0, 5), origen: "turno del día", deTurno: true };
-  }
-  if (horario) {
-    const hpd = horario.horario_por_dia;
-    if (hpd) {
-      const d = hpd[String(dowDe(fecha))];
-      if (d?.e) return { hora: d.e.slice(0, 5), origen: "horario base", deTurno: false };
-      return { hora: null, origen: "descanso (horario base)", deTurno: false };
-    }
-    if (horario.hora_entrada) return { hora: horario.hora_entrada.slice(0, 5), origen: "horario base", deTurno: false };
-  }
-  return null; // sin turno ni horario vigente: no hay contra qué medir
+// CAMBIO · esta pantalla calculaba "qué le tocaba ese día" con su propia
+// copia (`calcularEsperado`), y la copia tenía un bug real: la rama legacy
+// devolvía la hora de entrada mirando solo `horario.hora_entrada`, sin
+// comprobar `dias_laborables` — porque la consulta de abajo nunca pedía esa
+// columna. A alguien con un horario del formato viejo se le podía medir
+// tardanza un día que no le tocaba trabajar. Ahora se usa la misma función
+// que ya usan /mio y /admin/horas (jornada-esperada.ts), que sí lo hace bien.
+//
+// Solo cambia CÓMO se calcula `entrada`/`trabaja`; el texto que ve la
+// encargada es el mismo — este mapa reconstruye las frases que ya existían,
+// porque `Esperado.origen` da un código corto ("turno"/"horario"/"legacy"),
+// no la frase para pantalla.
+function textoOrigen(e: Esperado): string {
+  const base = e.origen === "turno" ? "turno del día"
+    : e.origen === "sin_horario" ? "sin horario vigente"
+    : "horario base";
+  return e.trabaja ? base : `descanso (${base})`;
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
@@ -82,6 +76,21 @@ const TIPOS_DE_LA_FAMILIA = (tipo: TipoMarca): TipoMarca[] =>
   (Object.keys(TIPO_MARCA_LABELS) as TipoMarca[]).filter((t) => familiaDe(t) === familiaDe(tipo));
 /** Día que el sistema selló solo, por haber quedado con una secuencia imposible (mig. 0068). */
 interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; }
+
+/** Una marca que la persona hizo y el terminal no pudo enviar. No es un marcaje:
+ *  lo será si alguien la repone desde acá, con su hora original. */
+interface MarcaApartada {
+  id: string;
+  client_uuid: string;
+  persona_id: string;
+  persona: string;
+  sede: string;
+  tipo: string;
+  timestamp_cliente: string;
+  fecha: string;
+  ultimo_error: string | null;
+  reportada_at: string;
+}
 interface Jornada { estado: string; horas_trabajadas: number | null; minutos_tarde: number | null; }
 // Fila de correcciones_auditoria (el registro de quién cambió qué, cuándo y por qué).
 // Sin embeds de PostgREST a propósito: en este repo el schema cache está trabado
@@ -138,7 +147,7 @@ export default function CorreccionesPage() {
   const [auditoriaError, setAuditoriaError] = useState(false); // para no confundir "sin correcciones" con "no cargó"
   // Contra qué hora se mide la tardanza ese día y de dónde sale (turno del día vs
   // horario base) — para que "N min tarde" nunca sea un número sin contexto.
-  const [esperado, setEsperado] = useState<{ hora: string | null; origen: string; deTurno: boolean } | null>(null);
+  const [esperado, setEsperado] = useState<Esperado | null>(null);
   // Levantamiento de tardanza de ese día (perdón por fuerza mayor): si existe, la
   // tardanza se muestra tachada y no cuenta. La hora real NO se toca.
   const [levTardanza, setLevTardanza] = useState<{ motivo: string; observacion: string | null } | null>(null);
@@ -153,6 +162,10 @@ export default function CorreccionesPage() {
   // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
   // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
   const [porRevisar, setPorRevisar] = useState<DiaPorRevisar[]>([]);
+  // Marcas que el terminal no logró enviar y apartó (0304). Hasta esa migración
+  // vivían en el IndexedDB de una Mac mini y nadie podía verlas desde acá.
+  const [apartadas, setApartadas] = useState<MarcaApartada[]>([]);
+  const [resolviendo, setResolviendo] = useState<string | null>(null);
   // ¿La secuencia de ESTE día sigue siendo imposible? Se pregunta en vivo a la
   // base en cada carga, no se deduce del sello guardado en las marcas: el sello
   // dice que el día estuvo roto alguna vez, no que lo siga estando.
@@ -185,8 +198,49 @@ export default function CorreccionesPage() {
       // no tiene la migración 0068, la pantalla sigue funcionando igual (sin lista).
       const { data: dr } = await supabase.rpc("fn_dias_por_revisar", { p_limite: 50 });
       setPorRevisar((dr as DiaPorRevisar[]) ?? []);
+      // Falla suave igual que la de arriba: sin la 0304 la pantalla funciona
+      // igual, solo que sin esta lista.
+      const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
+      setApartadas((ap as unknown as MarcaApartada[]) ?? []);
     });
   }, [router]);
+
+  async function resolverApartada(m: MarcaApartada, resolucion: "repuesta" | "improcedente") {
+    const pregunta = resolucion === "repuesta"
+      ? `Vas a registrar la marca de ${m.persona} con su hora original: ${horaTextoLima(m.timestamp_cliente)} del ${m.fecha}.\n\n¿Por qué? (queda en el historial)`
+      : `Vas a declarar IMPROCEDENTE la marca de ${m.persona} del ${m.fecha} a las ${horaTextoLima(m.timestamp_cliente)}.\n\nNo se va a registrar ningún marcaje. ¿Por qué?`;
+    const motivo = window.prompt(pregunta, "");
+    if (motivo === null) return;
+    if (motivo.trim().length < 3) {
+      setMensaje({ tipo: "error", texto: "Escribe el motivo: esto decide si un día de trabajo queda registrado o no." });
+      return;
+    }
+
+    setResolviendo(m.id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_marca_apartada_resolver", {
+      p_id: m.id, p_resolucion: resolucion, p_motivo: motivo.trim(),
+    });
+    setResolviendo(null);
+
+    if (error) {
+      // El error de fn_registrar_marcaje sube tal cual: si el día está en un
+      // periodo pagado, por ejemplo, hay que reabrirlo antes — y eso es lo que
+      // dice el mensaje. La marca NO queda como resuelta.
+      setMensaje({ tipo: "error", texto: mensajeDeError(error, "resolver la marca apartada") });
+      return;
+    }
+
+    const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
+    setApartadas((ap as unknown as MarcaApartada[]) ?? []);
+    setMensaje({
+      tipo: "ok",
+      texto: resolucion === "repuesta"
+        ? `Marca registrada con su hora original. El aviso del terminal bajará solo en unos minutos.`
+        : `Declarada improcedente. No se registró ningún marcaje, y queda el motivo en el historial.`,
+    });
+    if (m.persona_id === personaId && m.fecha === fecha) void cargarDia();
+  }
 
   const cargarDia = useCallback(async () => {
     if (!personaId) return;
@@ -211,9 +265,15 @@ export default function CorreccionesPage() {
         .select("id, campo_modificado, valor_anterior, valor_nuevo, corregido_at, motivo, corregido_por")
         .eq("persona_id", personaId).order("corregido_at", { ascending: false }).limit(30),
       // Contra qué se mide la tardanza ese día: el turno puntual manda sobre el
-      // horario base (misma prioridad que fn_recalcular_jornada). Fallan suave.
-      supabase.from("turnos").select("hora_entrada, es_descanso").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
-      supabase.from("horarios_asignados").select("hora_entrada, horario_por_dia, vigente_desde")
+      // horario base (misma prioridad que fn_recalcular_jornada, espejada en
+      // jornada-esperada.ts). Fallan suave.
+      //
+      // CAMBIO · `horarios_asignados` no traía `dias_laborables`: la rama
+      // legacy de esperadoDelDia necesita esa columna para saber si el día
+      // era laborable, no solo si hay una hora de entrada declarada.
+      supabase.from("turnos").select("hora_entrada, hora_salida, es_descanso").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
+      supabase.from("horarios_asignados")
+        .select("persona_id, vigente_desde, vigente_hasta, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos")
         .eq("persona_id", personaId).lte("vigente_desde", fecha).or(`vigente_hasta.is.null,vigente_hasta.gte.${fecha}`)
         .order("vigente_desde", { ascending: false }).limit(1).maybeSingle(),
       // ¿La tardanza de ese día fue levantada (perdonada por fuerza mayor)?
@@ -228,7 +288,7 @@ export default function CorreccionesPage() {
     // Falla suave: si la consulta no llega, no se inventa un sello que no sabemos si existe.
     setDiaIncoherente(incoh === true);
     setJornada((jor as Jornada) ?? null);
-    setEsperado(calcularEsperado(fecha, turno as TurnoDia | null, horario as HorarioTramo | null));
+    setEsperado(esperadoDelDia(fecha, (turno as TurnoDia) ?? null, (horario as HorarioTramo) ?? null));
     setLevTardanza((levT as { motivo: string; observacion: string | null } | null) ?? null);
     setAuditoriaError(Boolean(errAud));
     setAuditoria(errAud ? [] : ((aud as Auditoria[]) ?? []));
@@ -394,6 +454,54 @@ export default function CorreccionesPage() {
           Cada cambio pide un motivo y queda registrado (quién, qué y cuándo).
         </p>
 
+        {/* Va ARRIBA de los días por revisar: aquellos son días que existen y
+            están desordenados; estas son marcas que NO existen todavía. Si nadie
+            las repone, ese día se paga como si la persona no hubiera venido. */}
+        {apartadas.length > 0 && (
+          <div className="mb-6 max-w-3xl rounded-xl border border-rojo/40 bg-rojo/5 p-4">
+            <p className="text-sm font-medium text-tinta">
+              {apartadas.length === 1
+                ? "1 marca no llegó a registrarse"
+                : `${apartadas.length} marcas no llegaron a registrarse`}
+            </p>
+            <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+              El terminal las intentó seis veces y las apartó para no perderlas. La persona sí marcó:
+              mientras no se repongan, ese día se paga como si no hubiera venido.
+            </p>
+            <ul className="flex flex-col gap-2">
+              {apartadas.map((m) => (
+                <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
+                  <div>
+                    <span className="font-medium text-tinta">{m.persona}</span>
+                    <span className="text-taupe">
+                      {" "}· {m.sede} · {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
+                    </span>
+                  </div>
+                  {m.ultimo_error && (
+                    <div className="mt-0.5 text-xs text-taupe">el terminal decía: {m.ultimo_error}</div>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    <button
+                      onClick={() => void resolverApartada(m, "repuesta")}
+                      disabled={resolviendo === m.id}
+                      className="rounded border border-tinta/30 px-2 py-1 font-medium hover:bg-sand/50 disabled:opacity-50"
+                    >
+                      {resolviendo === m.id ? "Registrando…" : "Registrarla con su hora"}
+                    </button>
+                    <button
+                      onClick={() => void resolverApartada(m, "improcedente")}
+                      disabled={resolviendo === m.id}
+                      className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10 disabled:opacity-50"
+                    >
+                      No corresponde
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {porRevisar.length > 0 && (
           <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
             <p className="text-sm font-medium text-tinta">
@@ -503,18 +611,18 @@ export default function CorreccionesPage() {
                 Si viene de un turno puntual (pisa el horario base), se resalta. */}
             {esperado && (
               <div className="mb-4 rounded-lg border px-4 py-2.5 text-sm">
-                {esperado.hora ? (
+                {esperado.entrada ? (
                   <>
-                    Entrada esperada ese día: <strong>{esperado.hora}</strong>
-                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${esperado.deTurno ? "bg-ambar/15 text-ambar" : "bg-taupe/15 text-taupe"}`}>
-                      {esperado.origen}
+                    Entrada esperada ese día: <strong>{esperado.entrada}</strong>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${esperado.origen === "turno" ? "bg-ambar/15 text-ambar" : "bg-taupe/15 text-taupe"}`}>
+                      {textoOrigen(esperado)}
                     </span>
-                    {esperado.deTurno && (
+                    {esperado.origen === "turno" && (
                       <span className="ml-2 text-xs text-taupe">— este día tiene un turno propio que manda sobre el horario base. Se cambia en Turnos.</span>
                     )}
                   </>
                 ) : (
-                  <span className="text-taupe">Ese día no mide tardanza: {esperado.origen}.</span>
+                  <span className="text-taupe">Ese día no mide tardanza: {textoOrigen(esperado)}.</span>
                 )}
               </div>
             )}

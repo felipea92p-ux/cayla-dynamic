@@ -220,9 +220,12 @@ Y una cuarta, de agosto de 2026: **«qué le tocaba trabajar ese día» se pregu
 cascada *turno del día → `horario_por_dia` → `dias_laborables`* que espeja
 `fn_recalcular_jornada`, con sus pruebas en `tests/jornada-esperada.test.ts`.
 Vive en `apps/web/lib` y no en `packages/shared` porque hoy solo la usa el panel;
-el día que la necesite el terminal, se muda. Queda una copia más vieja y parcial
-—solo la hora de entrada— en `admin/correcciones/page.tsx` (`calcularEsperado`):
-**unificarlas está pendiente, y mientras tanto no se escribe una tercera.** Esa
+el día que la necesite el terminal, se muda. Hubo una copia más vieja y parcial
+—solo la hora de entrada, y con un bug real: su rama legacy no comprobaba
+`dias_laborables`— en `admin/correcciones/page.tsx` (`calcularEsperado`);
+se unificó el 2026-08-25. **Quedan otras dos sin unificar**
+—`admin/incidencias/page.tsx` (`trabajaEseDia`) y `admin/turnos/page.tsx`
+(`horasDeTramo`, `celda`)— **y mientras tanto no se escribe una quinta.** Esa
 regla decide si a alguien se le cuenta una falta.
 
 ```bash
@@ -453,6 +456,28 @@ Bloquea en vez de avisar, y ahí la distinción es la que el hook ya tenía
 escrita: esto habla de lo que **sale** hacia GitHub, no de lo que hay a medio
 escribir en el disco.
 
+**Y desde el 2026-08-25 corre también el linter, sobre lo que el push agrega**
+(`scripts/hooks/lint-de-lo-nuevo.sh`). ESLint llevaba instalado y configurado
+desde julio, con su tarea de turbo y su script en el `package.json`, y no lo
+ejecutaba nadie: ni el hook, ni GitHub, ni `desplegar.sh`. La auditoría de
+agosto lo encontró con 119 errores; **una semana después eran 131**. Creció en
+doce sin que nadie lo notara, que es exactamente lo que le pasa a un guardián
+instalado y apagado.
+
+Mismo criterio que los dos de arriba: la deuda vieja no frena a nadie, el error
+132 no entra. Y es barato porque no lintea el repositorio entero —solo los
+archivos que el push modifica—, así que un push de puro SQL sale en cuatro
+centésimas.
+
+Ojo con una cosa al tocarlo: **se escribió cuatro veces antes de funcionar, y
+las cuatro veces fallaba en silencio dando el push por bueno**. Colar una ruta
+de `packages/` hace que eslint aborte sin analizar nada; pasarle las rutas sin
+`xargs` las manda como un solo argumento; `${SALIDA#[}` nunca quita el corchete
+porque `[` es un carácter de patrón; y `echo` interpreta los `\n` que el JSON de
+eslint lleva dentro de sus mensajes, así que hay que usar `printf '%s'`. Ninguno
+de los cuatro daba error: todos devolvían «todo bien». Por eso un freno se
+prueba con un caso que DEBE bloquear, no solo con uno que debe pasar.
+
 No verifica una tercera que se probó y se descartó: buscar `horario_por_dia`
 fuera de `jornada-esperada.ts` para cazar las copias de «qué le tocaba trabajar
 ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
@@ -520,6 +545,30 @@ entregarla**: partía de la 0263 y, mientras se rehacía el trabajo, la función
 vigente pasó a ser la 0269. Pegada tal cual habría revertido esa migración en
 silencio — exactamente el accidente que `donde-vive.sh` existe para evitar, por
 el camino de haber tardado demasiado en guardar.
+
+**Y antes de EMPEZAR algo, mira si otra rama ya lo está haciendo.**
+
+```bash
+git log --all --oneline -20                    # qué se está construyendo ahora mismo
+git grep -l "fn_lo_que_vas_a_tocar" $(git for-each-ref --format='%(refname)' refs/heads refs/remotes)
+```
+
+Cuesta diez segundos y el 2026-08-25 habría ahorrado esto: **dos sesiones
+construyeron la misma función el mismo día**, cada una con su migración —la 0297
+y la 0299—, las dos se fusionaron a `main` y las dos se pegaron en producción.
+Como sus firmas diferían (`p_dias, p_as_of` contra `p_dias_aviso`), Postgres no
+protestó: guardó dos funciones con el mismo nombre, con ventanas distintas
+—60 días contra 90— y alcances distintos. Nada falló, y ese es el problema: dos
+puertas para la misma pregunta conviviendo en silencio hasta que alguien note que
+la pantalla y el contador no dicen lo mismo. Se descubrió contando funciones
+después de pegar, y costó dos migraciones más para retirar una —la 0301 y una
+0302 que hubo que tirar porque hacía lo mismo—.
+
+Ese mismo día, más temprano, `siguiente-numero.sh` había repartido un número ya
+ocupado por la misma razón de fondo: **aquí trabajan diez worktrees a la vez y
+cada uno solo se ve a sí mismo**. Aquello se arregló en el script; esto no lo
+caza ninguna herramienta, porque «otra rama está construyendo esta misma idea» no
+se parece a nada que se pueda comparar automáticamente sin ruido.
 
 **Antes de crear una migración o una prueba, pregunta qué número toca:**
 

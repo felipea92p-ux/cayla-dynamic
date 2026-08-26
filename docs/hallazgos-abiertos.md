@@ -1125,13 +1125,31 @@ Parecían defectos y no lo son. Anotados para no volver a investigarlos.
 
 ---
 
-## El régimen de pensión no tiene historia (abierto, hoy no cuesta plata)
+## ~~El régimen de pensión no tiene historia~~ — CERRADO con la 0261
 
-**Hoy no hay un sol mal pagado por esto, y julio está pagado y congelado.** Lo
-que hay es que **la boleta de julio de Judith y lo que el sistema calcula hoy
-para julio ya no dicen lo mismo**, y nada avisa de la diferencia.
+> **RESUELTO el 2026-08-15.** Migración **0261**, aplicada y verificada en
+> producción: `marcas_0261 = 1`, `lee_el_historial = true`, y las marcas de la
+> 0254 y la 0245 intactas en 7 y 6 — la garantía de que reescribir una función
+> de 76.000 caracteres no revirtió nada. 23 personas quedaron con historial.
+> Prueba **202**, comprobada por los dos lados: sin el arreglo fallan las dos
+> centrales.
+>
+> **Queda un dato, no un defecto:** en qué AFP estaba Judith antes de jubilarse.
+> Ver «El hueco que se dejó a propósito», al final.
+
+**Nunca hubo un sol mal pagado por esto, y julio siguió pagado y congelado.** Lo
+que había era que **la boleta de julio de Judith y lo que el sistema calculaba
+para julio ya no decían lo mismo**.
 
 Salió el 2026-08-15 al revisar por qué Judith figuraba como JUBILADA.
+
+**CORRECCIÓN de cómo se contó primero:** se dijo que «nada avisa de la
+diferencia», y era falso. `fn_planilla_foto_diferencias` compara la foto del
+pago contra el recálculo y la pantalla del periodo lo pinta en ámbar. Lo que
+falla no es el aviso: es su **diagnóstico**. Dice «Alguien corrigió algo de
+estas fechas después del pago» —y nadie corrigió nada de julio— y ofrece el
+botón **«repagar»**, que en este caso sobrescribiría la foto correcta de julio
+con un 0 % que jamás se pagó. La red existía y apuntaba al lado contrario.
 
 ### Qué pasa
 
@@ -1173,12 +1191,166 @@ distinto aparece en cuanto alguien **mira** la planilla de un periodo viejo, sin
 reabrir nada. Dolería de verdad al cuadrar una PLAME pasada o cualquier reporte
 anual construido sobre `fn_planilla_calcular`.
 
-### El arreglo, cuando toque
+### El arreglo, tal como se hizo (0261)
 
-Versionar la pertenencia como ya se versiona la tasa: `vigente_desde` /
-`vigente_hasta` por persona y régimen, y que el cálculo pregunte «¿en qué
-régimen estaba ESTA persona al cierre de ESE periodo?». Es el mismo patrón que
-`tasas_pension` ya usa bien — solo que aplicado una capa más arriba.
+Versionar la pertenencia como ya se versionaba la tasa. Tres piezas:
 
-**No está hecho. No se toca sin decisión de Felipe:** cambia cómo se calcula un
-periodo pasado, que es exactamente lo que la 0190 prometió no tocar.
+1. **`asignaciones_regimen_pension`**, con la forma EXACTA de
+   `asignaciones_salario`: el mismo `EXCLUDE USING gist` contra solapes, la
+   misma unicidad de una sola fila abierta, la misma RLS. Copiar la forma no es
+   pereza: quien sabe leer una sabe leer la otra, y el día que haya que tocar
+   las dos no habrá dos maneras.
+2. **`fn_cambiar_regimen_pension`**, para que nadie vuelva a cambiarlo con un
+   `update` a secas — que es lo que borraba la historia. Se niega si la fecha
+   cae en un periodo pagado, reutilizando el freno de la 0203.
+3. **Una sola expresión distinta en `fn_planilla_calcular`.** Como abajo se lee
+   `from pers pe`, los DOS consumidores —el régimen que sale en la boleta y la
+   tasa que se aplica— heredan el valor histórico sin tocarlos.
+
+El cuerpo no se copió a mano: se extrajo con `pg_get_functiondef()` y se
+verificó que las otras dos lecturas quedaban intactas.
+
+**No movió un céntimo al pegarse.** El relleno escribe el régimen que cada
+quien ya tenía —lo que la función venía suponiendo, ahora con fecha— y el
+`coalesce` de respaldo deja igual a quien no tenga fila. Auditado: las 1235
+pruebas pgTAP pasan, incluidas todas las de planilla que afirman importes
+exactos.
+
+### El hueco que se dejó a propósito
+
+A quien figura 'jubilada' NO se le escribió una fila desde su fecha de ingreso:
+sería afirmar que llevaba jubilada desde que entró, y eso no lo sabe nadie. Se
+le escribió desde el **2026-07-29**, lo único que la 0190 dejó dicho, y el tramo
+anterior quedó **vacío**. Una tabla que se llama «historial» no puede mentir
+para quedar completa.
+
+Producción lo confirma: `con_hueco_antes_de_su_primera_fila = 1`.
+
+**Lo que falta es un dato, y lo tiene Felipe: en qué AFP estaba Judith antes de
+jubilarse.** Con él, su julio recalcula igual que su boleta. Se registra con un
+`insert` deliberado y justificado —no por `fn_cambiar_regimen_pension`, que se
+niega a fechar nada dentro de un periodo pagado, y hace bien.
+
+#### Y ese dato probablemente no haya que preguntárselo a nadie
+
+Felipe no lo recuerda (2026-08-15), pero la base lo sabe. La aritmética:
+
+- La foto del pago de julio guarda `descuento_pension` — lo que se le retuvo.
+- **La base imponible NO depende del régimen**: es básica + asignación familiar
+  + feriados + recargo de sobretiempo. Así que recalcular julio hoy la da bien,
+  aunque el régimen salga mal.
+- `descuento_pension / base` = la tasa exacta que se le aplicó.
+
+Y las tasas son distintas entre sí: Habitat 12.84 · Integra 12.92 · Prima 12.97
+· ONP 13.00 · Profuturo 13.06. Un cociente de tres decimales las separa.
+
+Antes de usarlo hay que comprobar que la división cae limpia sobre una de las
+cinco y no entre dos: con montos de S/80 a S/150 la diferencia entre AFP vecinas
+es de céntimos, y el redondeo de la boleta podría no distinguirlas. Si queda
+ambiguo, se pregunta y punto — pero conviene medirlo antes de dar por perdido
+un dato que la base todavía tiene.
+
+---
+
+## El séptimo día que además es feriado cobra DOS sobretasas — decidido, no es un defecto
+
+**Decisión de Felipe, 2026-08-25: se pagan las dos.** Queda escrito aquí para que
+la próxima sesión que lo encuentre no lo trate como un error y lo «arregle».
+
+### El caso, medido contra producción
+
+La 0280 paga el 100 % del art. 3 del D. Leg. 713 a quien trabaja su séptimo día
+seguido. Cuando ese día es **además feriado**, se suma el 100 % del art. 9. El
+día queda pagado tres veces: sus horas, que ya están en `pago_base` porque las
+marcó, más las dos sobretasas.
+
+En el periodo 29/07–28/08, dos de tres casos se solapan — los tres en Trujillo:
+
+| | séptimo día | feriado | de más |
+|---|---|---|---|
+| Melany Enrriquez | 06/08 | Batalla de Junín | S/ 66.63 |
+| Nicole Blas | 29/07 | Fiestas Patrias | ~S/ 29.02 |
+| Janis Revilla | 19/08 | — | no se solapa |
+
+El 06/08 de Melany, pieza por pieza: **11.33 h** marcadas, sueldo S/1 185, base
+6.5 × 31 = 201.5, hora a S/5.8809. Cada pieza vale 11.33 × 5.8809 = **S/66.63**,
+y el día completo **S/199.89**. Con una sola sobretasa serían S/133.26.
+
+Conviene no leer mal ese número: es alto porque **el día fue de 11 h 20**, no
+porque la regla sea generosa. Su día normal ronda las 8.7 h.
+
+### Por qué se pagan las dos
+
+Perdió **dos cosas distintas** ese día: el feriado, que la ley da libre a todo el
+mundo, y su descanso semanal, que llevaba siete días sin tomar. Que las dos
+pérdidas caigan en la misma fecha no las convierte en una.
+
+Y el riesgo es asimétrico: pagar de más no expone a nada en una inspección;
+pagar de menos, sí.
+
+### Lo que queda medido y en contra, para que la decisión sea informada
+
+Son **~S/95 al mes solo en TRU**, y se repite cada mes que alguien encadene siete
+días — la propia 0280 midió seis rachas en un periodo, no es un caso raro.
+
+### Y una capa más que aún no se ha medido
+
+Melany tiene además **S/21.38 de sobretiempo** en el periodo. Con 11.33 h en el
+séptimo día seguido, es probable que parte de ese recargo sea **de este mismo
+día**: entonces el 06/08 no llevaría dos sobretasas sino **tres** —feriado,
+descanso semanal y exceso de 48 h semanales—. Cada una tiene su artículo, pero
+nadie ha decidido que se acumulen las tres. **Pendiente de medir.**
+
+---
+
+## Lo pagado por «movimiento» no aporta a la base imponible (abierto · S/24.54)
+
+**Medido contra producción el 2026-08-25, periodo 29/07–28/08.** Hoy cuesta
+S/24.54 en total. Se anota por lo que puede llegar a ser, no por lo que es.
+
+### El hueco
+
+`fn_planilla_calcular` suma los movimientos al TOTAL **después** de calcular
+`bri.base`. Nada pagado por esa vía aporta a pensión ni a EsSalud, sea lo que
+sea. Para dos categorías eso es correcto y para dos no:
+
+| categoría | ¿aporta hoy? | ¿debería? | base legal |
+|---|---|---|---|
+| gratificacion | no | **no** | Ley 30334 — inafecta a aportes |
+| cts | no | **no** | art. 19 D.S. 001-97-TR — no es remuneración |
+| vacaciones | no | **sí** | art. 15 D. Leg. 713 — remuneración ordinaria |
+| otros | no | depende del concepto | sobretiempo sí (0193, PLAME 0107) |
+
+### Lo medido
+
+S/111.58 en nueve personas → **S/14.49** de pensión no retenida y **S/10.05** de
+EsSalud no aportado.
+
+**Ocho de los nueve son el mismo concepto literal:** «Regularización de
+sobretiempo 28-jun al 28-jul», S/100.03. No es disperso — **es una operación en
+lote**, y volverá a pasar cada vez que se descubra sobretiempo tras cerrar un
+mes. El noveno es un feriado pagado de menos (Paola, S/11.55, **sin categoría**).
+
+### Por qué NO se arregló el mismo día
+
+Arreglarlo es reescribir `fn_planilla_calcular`. Esta misma sesión revirtió
+cuarenta migraciones de esa función por partir de un cuerpo desactualizado.
+Volver a tocarla el mismo día por S/24.54, y sin la respuesta del contador, es
+la clase de decisión que ya salió cara hoy.
+
+### La salida que probablemente no necesita código
+
+La regularización existe porque el sobretiempo se descubrió **después** de
+cerrar julio. Pero la **0203** ya permite reabrir un periodo pagado y
+recalcularlo: por ahí el sobretiempo entra por `ot.horas_recargo`, aporta a la
+base solo, y se declara en el mes que le toca. **El movimiento es el parche; la
+maquinaria buena ya existe.**
+
+### Las dos preguntas para Dante
+
+1. **¿En qué periodo se declara** un sobretiempo devengado en julio y pagado en
+   agosto? La PLAME va por devengado, así que en rigor tocaría rectificar la de
+   julio. Hoy no está en ninguno de los dos, y ese es el problema real — no cuál
+   de las dos opciones se elija.
+2. **¿Reabrir y recalcular, o seguir regularizando por movimiento?** Es una
+   decisión de proceso, no de programación.
