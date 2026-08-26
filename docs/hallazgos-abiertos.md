@@ -1125,13 +1125,31 @@ Parecían defectos y no lo son. Anotados para no volver a investigarlos.
 
 ---
 
-## El régimen de pensión no tiene historia (abierto, hoy no cuesta plata)
+## ~~El régimen de pensión no tiene historia~~ — CERRADO con la 0261
 
-**Hoy no hay un sol mal pagado por esto, y julio está pagado y congelado.** Lo
-que hay es que **la boleta de julio de Judith y lo que el sistema calcula hoy
-para julio ya no dicen lo mismo**, y nada avisa de la diferencia.
+> **RESUELTO el 2026-08-15.** Migración **0261**, aplicada y verificada en
+> producción: `marcas_0261 = 1`, `lee_el_historial = true`, y las marcas de la
+> 0254 y la 0245 intactas en 7 y 6 — la garantía de que reescribir una función
+> de 76.000 caracteres no revirtió nada. 23 personas quedaron con historial.
+> Prueba **202**, comprobada por los dos lados: sin el arreglo fallan las dos
+> centrales.
+>
+> **Queda un dato, no un defecto:** en qué AFP estaba Judith antes de jubilarse.
+> Ver «El hueco que se dejó a propósito», al final.
+
+**Nunca hubo un sol mal pagado por esto, y julio siguió pagado y congelado.** Lo
+que había era que **la boleta de julio de Judith y lo que el sistema calculaba
+para julio ya no decían lo mismo**.
 
 Salió el 2026-08-15 al revisar por qué Judith figuraba como JUBILADA.
+
+**CORRECCIÓN de cómo se contó primero:** se dijo que «nada avisa de la
+diferencia», y era falso. `fn_planilla_foto_diferencias` compara la foto del
+pago contra el recálculo y la pantalla del periodo lo pinta en ámbar. Lo que
+falla no es el aviso: es su **diagnóstico**. Dice «Alguien corrigió algo de
+estas fechas después del pago» —y nadie corrigió nada de julio— y ofrece el
+botón **«repagar»**, que en este caso sobrescribiría la foto correcta de julio
+con un 0 % que jamás se pagó. La red existía y apuntaba al lado contrario.
 
 ### Qué pasa
 
@@ -1173,12 +1191,42 @@ distinto aparece en cuanto alguien **mira** la planilla de un periodo viejo, sin
 reabrir nada. Dolería de verdad al cuadrar una PLAME pasada o cualquier reporte
 anual construido sobre `fn_planilla_calcular`.
 
-### El arreglo, cuando toque
+### El arreglo, tal como se hizo (0261)
 
-Versionar la pertenencia como ya se versiona la tasa: `vigente_desde` /
-`vigente_hasta` por persona y régimen, y que el cálculo pregunte «¿en qué
-régimen estaba ESTA persona al cierre de ESE periodo?». Es el mismo patrón que
-`tasas_pension` ya usa bien — solo que aplicado una capa más arriba.
+Versionar la pertenencia como ya se versionaba la tasa. Tres piezas:
 
-**No está hecho. No se toca sin decisión de Felipe:** cambia cómo se calcula un
-periodo pasado, que es exactamente lo que la 0190 prometió no tocar.
+1. **`asignaciones_regimen_pension`**, con la forma EXACTA de
+   `asignaciones_salario`: el mismo `EXCLUDE USING gist` contra solapes, la
+   misma unicidad de una sola fila abierta, la misma RLS. Copiar la forma no es
+   pereza: quien sabe leer una sabe leer la otra, y el día que haya que tocar
+   las dos no habrá dos maneras.
+2. **`fn_cambiar_regimen_pension`**, para que nadie vuelva a cambiarlo con un
+   `update` a secas — que es lo que borraba la historia. Se niega si la fecha
+   cae en un periodo pagado, reutilizando el freno de la 0203.
+3. **Una sola expresión distinta en `fn_planilla_calcular`.** Como abajo se lee
+   `from pers pe`, los DOS consumidores —el régimen que sale en la boleta y la
+   tasa que se aplica— heredan el valor histórico sin tocarlos.
+
+El cuerpo no se copió a mano: se extrajo con `pg_get_functiondef()` y se
+verificó que las otras dos lecturas quedaban intactas.
+
+**No movió un céntimo al pegarse.** El relleno escribe el régimen que cada
+quien ya tenía —lo que la función venía suponiendo, ahora con fecha— y el
+`coalesce` de respaldo deja igual a quien no tenga fila. Auditado: las 1235
+pruebas pgTAP pasan, incluidas todas las de planilla que afirman importes
+exactos.
+
+### El hueco que se dejó a propósito
+
+A quien figura 'jubilada' NO se le escribió una fila desde su fecha de ingreso:
+sería afirmar que llevaba jubilada desde que entró, y eso no lo sabe nadie. Se
+le escribió desde el **2026-07-29**, lo único que la 0190 dejó dicho, y el tramo
+anterior quedó **vacío**. Una tabla que se llama «historial» no puede mentir
+para quedar completa.
+
+Producción lo confirma: `con_hueco_antes_de_su_primera_fila = 1`.
+
+**Lo que falta es un dato, y lo tiene Felipe: en qué AFP estaba Judith antes de
+jubilarse.** Con él, su julio recalcula igual que su boleta. Se registra con un
+`insert` deliberado y justificado —no por `fn_cambiar_regimen_pension`, que se
+niega a fechar nada dentro de un periodo pagado, y hace bien.
