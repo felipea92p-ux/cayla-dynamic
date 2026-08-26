@@ -54,6 +54,15 @@ a_cuadra as (
         + coalesce((f->>'monto_plus')::numeric,0)     + coalesce((f->>'asignacion_familiar')::numeric,0)
         + coalesce((f->>'monto_movilidad')::numeric,0)+ coalesce((f->>'monto_educacion')::numeric,0)
         - coalesce((f->>'descuento_afp')::numeric,0)  + coalesce((f->>'monto_sobretiempo')::numeric,0)
+        -- ⇩ CAMBIO 2026-08-26 ⇩ Faltaba, y daba un descuadre FALSO a quien
+        -- trabajó su séptimo día: la 0280 metió esta partida dentro de
+        -- `chk_foto_cuadra` el 22/08 y las dos copias de esta suma —ésta y la
+        -- de `va_a_poder_cerrarse.sql`— se quedaron en once. Medido: S/251.61
+        -- de descuadre inventado sobre un total de S/2472.58. La lista sale del
+        -- CHECK vivo, no de memoria:
+        --   select pg_get_constraintdef(oid) from pg_constraint
+        --    where conname = 'chk_foto_cuadra';
+        + coalesce((f->>'monto_descanso_semanal')::numeric,0)
         + coalesce((f->>'bonos')::numeric,0)          - coalesce((f->>'descuentos')::numeric,0)
         - coalesce((f->>'retencion_4ta')::numeric,0), 2), 2) <> 0
 ),

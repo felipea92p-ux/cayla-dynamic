@@ -17,14 +17,16 @@
 // tener la regla escrita más de una vez, y ya se estuvo así: `admin/correcciones/page.tsx`
 // tenía su propia copia (`calcularEsperado`), solo para la hora de entrada, y con
 // un bug real —su rama legacy no comprobaba `dias_laborables`, porque su consulta
-// nunca pedía esa columna—. Se unificó el 2026-08-25: esa pantalla ya llama a
-// `esperadoDelDia`.
+// nunca pedía esa columna—. `admin/incidencias/page.tsx` tenía otra (`trabajaEseDia`,
+// solo booleano, para cobertura de encargadas), con un bug menor: comprobaba que
+// el día EXISTIERA en `horario_por_dia`, no que tuviera hora de entrada (`.e`),
+// así que un día de descanso guardado como `{}` en vez de ausente habría contado
+// como trabajado. Las dos se unificaron el 2026-08-25.
 //
-// QUEDAN DOS COPIAS SIN UNIFICAR, y CLAUDE.md ya prohíbe una tercera nueva:
-// `admin/incidencias/page.tsx` (`trabajaEseDia`, solo booleano, para calcular
-// cobertura de encargadas) y `admin/turnos/page.tsx` (`horasDeTramo` y `celda`,
-// para dibujar la grilla de turnos). Antes de escribir una función nueva que
-// responda «¿le tocaba trabajar ese día?», usar ésta.
+// QUEDA UNA COPIA SIN UNIFICAR, y CLAUDE.md ya prohíbe una quinta:
+// `admin/turnos/page.tsx` (`horasDeTramo` y `celda`, para dibujar la grilla de
+// turnos). Antes de escribir una función nueva que responda «¿le tocaba
+// trabajar ese día?», usar ésta.
 
 export interface TurnoDia {
   hora_entrada: string | null;

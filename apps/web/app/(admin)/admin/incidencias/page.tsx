@@ -8,6 +8,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
   TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
   MAXIMO_DIAS_SIN_DESCANSO, avisoDeRacha, ventanaMasCargada,
@@ -213,8 +214,8 @@ function IncidenciasContenido() {
       supabase.from("sedes").select("id, codigo"),
       supabase.from("personas").select("id, sede_base_id").eq("rol", "supervisor_sede").eq("estado", "activo"),
       supabase.from("metas_cobertura").select("sede_id, dia_semana, meta_encargadas").gt("meta_encargadas", 0),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
-      supabase.from("turnos").select("persona_id, fecha, hora_entrada, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingoActual).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunesActual}`),
+      supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunesActual).lte("fecha", domingoActual),
       // Incidencias ya aceptadas (visto bueno): para no volver a mostrarlas.
       // Se pide desde el filtro O desde la ventana fija más profunda, lo que sea
       // más atrás: los avisos de racha y de exceso NO respetan Desde/Hasta —se
@@ -515,26 +516,19 @@ function IncidenciasContenido() {
     const codigoPorSede = new Map(((sedesData as { id: string; codigo: string }[] | null) ?? []).map((s) => [s.id, s.codigo]));
     const sedePorEncargada = new Map(((encargadasData as { id: string; sede_base_id: string }[] | null) ?? []).map((p) => [p.id, p.sede_base_id]));
     const turnoPorClave = new Map(
-      ((turnosData as { persona_id: string; fecha: string; hora_entrada: string | null; es_descanso: boolean }[] | null) ?? [])
-        .map((t) => [`${t.persona_id}|${t.fecha}`, t]),
+      ((turnosData as { persona_id: string; fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])
+        .map((t) => [`${t.persona_id}|${t.fecha}`, t as TurnoDia]),
     );
-    const horariosPorPersona = new Map<string, { hora_entrada: string; dias_laborables: number[]; horario_por_dia: Record<string, unknown> | null; vigente_desde: string; vigente_hasta: string | null }[]>();
-    for (const h of (horariosData as any[]) ?? []) {
+    const horariosPorPersona = new Map<string, HorarioTramo[]>();
+    for (const h of (horariosData as HorarioTramo[] | null) ?? []) {
       const arr = horariosPorPersona.get(h.persona_id) ?? [];
       arr.push(h);
       horariosPorPersona.set(h.persona_id, arr);
     }
     function trabajaEseDia(personaId: string, fecha: string): boolean {
-      const t = turnoPorClave.get(`${personaId}|${fecha}`);
-      if (t) return !t.es_descanso;
-      const tramos = (horariosPorPersona.get(personaId) ?? [])
-        .filter((h) => h.vigente_desde <= fecha && (h.vigente_hasta == null || h.vigente_hasta >= fecha))
-        .sort((a, b) => (a.vigente_desde < b.vigente_desde ? 1 : -1));
-      const h = tramos[0];
-      if (!h) return false;
-      const dow = diaSemanaNum(fecha);
-      if (h.horario_por_dia) return Boolean((h.horario_por_dia as Record<string, unknown>)[String(dow)]);
-      return (h.dias_laborables ?? []).includes(dow);
+      const turno = turnoPorClave.get(`${personaId}|${fecha}`) ?? null;
+      const horario = horarioVigente(horariosPorPersona.get(personaId) ?? [], fecha);
+      return esperadoDelDia(fecha, turno, horario).trabaja;
     }
     const diasSemanaActual = Array.from({ length: 7 }, (_, i) => addDias(lunesActual, i));
     for (const dia of diasSemanaActual) {
