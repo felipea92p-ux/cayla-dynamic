@@ -233,3 +233,62 @@ fusiona, y una migración que corre en producción sin estar en `main`—. Hoy l
 mismo gris. La tercera merece rojo, y se puede distinguir sola cruzando el hueco con
 `migraciones_aplicadas`, que es lo que `que_falta_pegar.sql` ya consulta. **Queda propuesto, sin
 hacer.**
+
+---
+
+# Las ausencias que el reglamento manda pagar y la planilla no paga · 2026-08-25
+
+**Sin ningún caso real hoy.** Se revisó a fondo y no hay nada que corregir; queda anotado para
+que quien lo encuentre no repita el camino.
+
+## El hecho
+
+El artículo **23.4** del Reglamento Interno —«Tiempo que se computa aunque no exista marcación»—
+manda computar como tiempo laborado, además de las horas registradas:
+
+| lo que manda computar | ¿el sistema lo hace? |
+|---|---|
+| a) descanso semanal y feriados | ✅ |
+| b) descanso vacacional | ✅ desde la 0177 |
+| c) **licencias y permisos con goce de los artículos 22, 31 y 33** | ⚠️ **solo descanso médico y maternidad** |
+
+`fn_planilla_calcular` menciona exactamente dos tipos: `descanso_medico` y `maternidad`. El tipo
+`licencia_con_goce`, marcado en el catálogo como que PAGA y activo en el desplegable, **no aparece
+en el cálculo ni una vez**. La pantalla avisa al aprobarlo que «esos días entran en su planilla»,
+y no entran.
+
+## Y el tipo `duelo`, que es más fino de lo que parece
+
+Está marcado como que **no paga**, y eso es correcto para el caso común. El artículo 31.4.a solo
+obliga cuando el fallecido es **cónyuge o conviviente, padres, hijos o hermanos** (Ley 31602:
+5 días calendario, no compensables). Para cualquier otro familiar no hay obligación legal.
+
+**El sistema no puede distinguir los dos casos**: `duelo` es siempre no pagado. Así que el día que
+fallezca un familiar directo y se registre `duelo`, tampoco se pagará — y ahí sí la ley obliga.
+
+## Lo medido en producción el 2026-08-25
+
+Tres ausencias de tipos no pagados, **ninguna es un incumplimiento**:
+
+- **Carmen Sanándres** · duelo, 24-25/08 · el fallecido **no era familiar directo**, así que la ley
+  no obliga y el no-pago es correcto. Confirmado por Felipe.
+- **Sandra Ramírez** · estudios, 25-26/08 · el reglamento no lista los estudios entre las licencias
+  con goce del art. 31.4. Correcto.
+- **Chiara Flores** · salud, 04-09/08, seis días · el tipo `salud` no paga a propósito —
+  `fn_registrar_ausencia` lo dice al registrarlo: «si no hay documento, regístralo como Descanso
+  por salud, que no paga pero tampoco cuenta como falta». **Lo único que conviene mirar**: seis
+  días es mucho; si hubo certificado médico, correspondía `descanso_medico`, que sí paga los
+  primeros veinte días.
+
+Y de `licencia_con_goce`: **cero registros en toda la historia**.
+
+## Qué haría falta, si alguna vez se decide
+
+Dos piezas, y ninguna urge:
+
+1. Que `licencia_con_goce` se pague, con el mismo mecanismo que ya usan las vacaciones (0177) y el
+   descanso médico (0254): el promedio de lo pagado por día trabajado en el periodo.
+2. Distinguir el duelo por familiar directo del resto. Puede ser un tipo nuevo, o un campo en la
+   ausencia; es una decisión de negocio antes que de código.
+
+**Anotado y sin hacer.** Nadie está perdiendo dinero hoy.
