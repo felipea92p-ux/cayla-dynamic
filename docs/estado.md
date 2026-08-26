@@ -478,6 +478,59 @@ Auditoria.md` y su plan en `auditoria/CAYLA_CORP_OPS_202608_PlanRemediacion.md`.
 
 ---
 
+## 2026-08-25 — Una marca apartada deja de vivir en un solo navegador (0304)
+
+**Aplicada y verificada en producción.** Cierra el PENDIENTE que quedaba escrito
+más abajo: «una marca apartada no la puede ver nadie».
+
+Cuando el terminal falla seis veces aparta la marca en vez de borrarla —bien, y
+deliberado— pero ahí terminaba el camino: vivía en el IndexedDB de esa Mac mini,
+el aviso rojo decía «avisa a tu encargada» **para siempre** porque nada lo
+apagaba, y la encargada no tenía dónde mirar.
+
+Ahora el terminal las reporta (idempotente por `client_uuid`, cada dos minutos),
+se ven en **Correcciones** —arriba de los días por revisar, porque aquellos son
+días desordenados y estas son marcas que NO existen— y se resuelven con dos
+desenlaces, los dos con motivo: reponerla **con su hora original** o declararla
+improcedente. El aviso baja cuando alguien resolvió, y solo entonces: no hay
+botón para silenciarlo, por decisión de Felipe.
+
+**Dos cosas que solo aparecieron al construirlo:**
+
+- **Reponer entra como `admin_correccion`, no como `terminal`.** El cuerpo de
+  `fn_registrar_marcaje` exige, para origen `terminal`, que quien llama SEA ese
+  terminal (`auth.uid() <> v_terminal_auth`), así que reponer desde el panel
+  habría reventado siempre. Y dice la verdad: esa fila la escribió una persona.
+  Lo que se conserva es la hora.
+- **Si la marca ya había entrado**, reportarla devuelve null y el terminal la
+  borra: la cola se equivocó al apartarla, que es lo de los rechazos por marca
+  atrasada de la 0068.
+
+**Lo que NO hace, y hay que saberlo:** no recoge sola las que ya cayeron. Las dos
+del 13-ago viven en un navegador y solo ese navegador puede subirlas — aparecerán
+la próxima vez que alguien use esa Mac mini, no antes.
+
+---
+
+## 2026-08-25 — Dos sesiones construyeron la misma función (0297 · 0299 · 0301)
+
+Pasó y conviene que quede escrito. El aviso de récords de vacaciones por vencer
+se construyó DOS VECES el mismo día, en dos sesiones que no se vieron: la 0297
+(60 días, los tres roles, y la corrección del sobre-conteo en la hoja de cese) y
+la 0299 (90 días, solo DO). Las dos se fusionaron a `main` y las dos se pegaron.
+Como sus firmas diferían, Postgres guardó dos funciones con el mismo nombre.
+
+Se descubrió contando funciones después de pegar. Quedó la de la 0297, por
+decisión de Felipe, y la 0301 retiró la otra. Costó dos migraciones de más.
+
+**La regla que salió de ahí ya está en `CLAUDE.md`**: antes de empezar algo,
+mirar si otra rama ya lo está haciendo. Y el mismo día, por la misma raíz —doce
+worktrees y cada uno viéndose solo a sí mismo— `siguiente-numero.sh` repartió dos
+veces un número ya ocupado; eso se arregló en el script (ahora hace `fetch` y
+mira el disco de todos los worktrees).
+
+---
+
 ## 2026-08-24 — Un comprobante por cada mes que se paga (0290)
 
 **Aplicada en producción y verificada.** Los 15 comprobantes que había se
