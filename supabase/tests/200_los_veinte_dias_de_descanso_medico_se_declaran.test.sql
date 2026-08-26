@@ -57,10 +57,13 @@ from personas where apellidos = 'Lab' and nombres like 'Db%';
 
 -- Descanso médico de diez días para la enferma y para la de monto fijo. Y una
 -- licencia por maternidad con su subsidio, para el contraste de la prueba 6.
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, subsidio_diario) values
-  ('00000000-0000-0000-0000-0000000007c3', 'descanso_medico', '2026-08-17', '2026-08-26', 'lab', '00000000-0000-0000-0000-0000000007c2', null),
-  ('00000000-0000-0000-0000-0000000007c5', 'descanso_medico', '2026-08-17', '2026-08-26', 'lab', '00000000-0000-0000-0000-0000000007c2', null),
-  ('00000000-0000-0000-0000-0000000007c6', 'maternidad',      '2026-08-17', '2026-08-26', 'lab', '00000000-0000-0000-0000-0000000007c2', 200.00);
+-- Aprobadas por DO (0306): desde esa migración una ausencia sin aprobar no
+-- paga nada, y esta prueba fija el caso YA aprobado — el caso sin aprobar
+-- vive en la 240.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, subsidio_diario, aprobada_por, aprobada_at) values
+  ('00000000-0000-0000-0000-0000000007c3', 'descanso_medico', '2026-08-17', '2026-08-26', 'lab', '00000000-0000-0000-0000-0000000007c2', null, '00000000-0000-0000-0000-0000000007c2', now()),
+  ('00000000-0000-0000-0000-0000000007c5', 'descanso_medico', '2026-08-17', '2026-08-26', 'lab', '00000000-0000-0000-0000-0000000007c2', null, '00000000-0000-0000-0000-0000000007c2', now()),
+  ('00000000-0000-0000-0000-0000000007c6', 'maternidad',      '2026-08-17', '2026-08-26', 'lab', '00000000-0000-0000-0000-0000000007c2', 200.00, '00000000-0000-0000-0000-0000000007c2', now());
 
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado)
 values ('eeeeeeee-0000-0000-0000-0000000007e1', '2026-07-29', '2026-08-28', 'abierto');

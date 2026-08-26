@@ -63,6 +63,30 @@ falla — solo se vuelve ilegible, y estas migraciones se leen. Ya está arregla
 en el script, que ahora compara el portapapeles byte por byte y se niega si no
 coincide; la regla de método queda igual.
 
+**Y en una sesión larga, el md5 se vuelve a pedir JUSTO ANTES DE ENTREGAR.**
+Pedirlo una vez al principio no basta, y el 2026-08-25 costó una avería en
+producción. La sesión preguntó el número libre y la versión vigente al empezar;
+las dos herramientas contestaron bien —el árbol llegaba hasta la 0257— y sobre
+esa respuesta se construyó la 0261 partiendo del cuerpo de la 0254. Mientras
+tanto otra sesión fusionó **cuarenta y cuatro migraciones** al árbol compartido.
+Al pegarla, `fn_planilla_calcular` volvió de 96 354 caracteres a 77 493:
+revirtió la maternidad, el descanso médico, el descanso semanal trabajado y —la
+peor— la **0275, «las vacaciones dejan de pagarse en cero»**.
+
+El md5 SÍ se pidió, y coincidió. Ese es el detalle que enseña: coincidió porque
+se preguntó al principio, y entre la pregunta y la pegada el árbol se movió. Un
+md5 es una foto, no una garantía; caduca en cuanto alguien más trabaja.
+
+Así que la regla se amplía: `donde-vive.sh` y el md5 de producción se vuelven a
+consultar **en el mensaje en que se entrega el SQL**, no en el que se empieza a
+escribirlo. Cuesta un minuto. La otra opción costó repegar la 0293 entera con la
+planilla del mes a tres días de cerrar.
+
+Y la señal que lo delata sin ninguna herramienta: la línea **PLANILLA** de
+`que_falta_pegar.sql` dice qué versión de `fn_planilla_calcular` corre de verdad.
+Si dice «se quedó en la 00NN», producción tiene una función más vieja que el
+repositorio — mírala SIEMPRE después de pegar algo que la reescriba.
+
 **Y el md5 de llegada se mide DESPUÉS de renumerar, nunca antes.** Cuando el
 hook obliga a cambiar el número —pasa a menudo, con varias sesiones tomando
 números a la vez— los marcadores «CAMBIO 00NN» del cuerpo cambian con él, y el
@@ -430,6 +454,28 @@ archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
 ---
 
 ## La red de seguridad (jul-2026)
+
+**Nunca exportes `LC_ALL=C` en la shell que va a llamar a `dame-el-sql.sh`.**
+El 2026-08-25 una sesión lo hizo y el portapapeles salió con los acentos rotos
+—«QU√â PROMETE» por «QUÉ PROMETE», 76 acentos donde el archivo tiene 425—. Eso
+ya está documentado más arriba como accidente de 2026-08-08, y el script se
+arregló entonces para compararse byte por byte y negarse si no coincide.
+
+Lo nuevo, y es lo que hay que recordar: **el script se declaró conforme.** Su
+comprobación corre bajo el mismo locale roto, así que compara texto corrupto
+contra texto corrupto y coinciden. El guardián y el vigilado leían lo mismo.
+
+Un freno solo protege de lo que puede ver. La comprobación buena es externa y
+con el locale explícito:
+
+```bash
+unset LC_ALL; export LANG=en_US.UTF-8 LC_CTYPE=en_US.UTF-8
+./scripts/dame-el-sql.sh 0NNN
+diff <(pbpaste) supabase/migrations/0NNN_*.sql && echo "idéntico"
+```
+
+El SQL corrupto corre igual —nada falla— y deja la migración ilegible. Y estas
+migraciones se leen: son la documentación del negocio.
 
 **Antes de subir a GitHub** corre solo un hook (`scripts/hooks/pre-push`) que
 verifica la **numeración**, **las dos reglas de abajo que se cumplían de memoria**,

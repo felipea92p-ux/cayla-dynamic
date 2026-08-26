@@ -204,96 +204,32 @@ informe baja: no hay papel emitido ni escalón movido.
 
 ---
 
-# Lo del 2026-08-24: una migración corre en producción y no está en `main`
+# ✅ CERRADO el 2026-08-25 — la 0277 ya está en `main`
 
-Salió del aviso de huecos del hook al empujar la 0285, y **es el patrón de la 0177**, con un
-atenuante y un peligro.
+**Lo que fue.** El aviso de huecos del hook al empujar la 0285 destapó que la 0277
+(`cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento`) estaba **aplicada en producción
+desde el 2026-08-23 y no estaba en `main`**: vivía solo en la rama
+`claude/workday-erp-analysis-8c12da`. Es el patrón de la 0177, atenuado porque el archivo sí
+estaba en git.
 
-## El hecho
+**El peligro, que era concreto:** `donde-vive.sh` mira los archivos del repositorio, así que
+señalaba como vigente una versión anterior a la 0277 para `fn_cambiar_regimen_pension`,
+`fn_set_regimen_pension` y `fn_regimen_pension_divergentes`. Quien reescribiera cualquiera de las
+tres copiando de `main` **habría revertido la 0277 en producción, en silencio**.
 
-**La 0277 (`cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento`) está aplicada en
-producción desde el 2026-08-23 y NO está en `main`.** Vive solo en la rama
-`claude/workday-erp-analysis-8c12da`, commiteada el 22 de agosto y subida a GitHub.
+**Cómo se cerró.** Fusionando la rama. Y se verificó entero, no de palabra:
 
-La 0284 de esa misma rama **no** está aplicada. Ese hueco es benigno.
+| comprobación | resultado |
+|---|---|
+| 0277 y 0284 en `main` | ✅ |
+| Huecos de numeración | ✅ ninguno — «numeración sin novedad» |
+| `donde-vive.sh` señala la 0277 como vigente | ✅ |
+| **md5 de producción contra el de `main`** | ✅ **`ed01ed0f903bf13800d3cf282919abe8`, idéntico** — y con los comentarios incluidos, así que se pegó entera |
 
-## El atenuante
-
-**El archivo sí está en git y en GitHub.** No se puede perder, que es lo que hacía grave a la
-0177. Se recupera con `git show 55042af:supabase/migrations/0277_*.sql`.
-
-## El peligro, que es concreto
-
-`main` no describe lo que corre en producción. Y de ahí salen tres cosas:
-
-1. **`donde-vive.sh` miente** sobre `fn_cambiar_regimen_pension`, `fn_set_regimen_pension` y
-   `fn_regimen_pension_divergentes`: mira los archivos del repo, así que señalaría como vigente
-   una versión anterior a la 0277.
-2. **Quien escriba una migración sobre esas tres copiando de `main` revertiría la 0277 en
-   producción**, en silencio. Es exactamente el accidente que `donde-vive.sh` existe para evitar,
-   llegando por un camino que el script no ve.
-3. **El CI no prueba lo que corre.** Reconstruye el esquema desde `main`, así que para esas tres
-   funciones las pgTAP verifican otra cosa.
-
-**Medido: nadie la ha revertido todavía.** Las migraciones que entraron después en `main` —0278 a
-0285— no tocan ninguna de esas tres. El cruce no ha ocurrido.
-
-## Y una buena noticia: cierra un P1 del informe
-
-La 0277 **es** el arreglo del hallazgo «el régimen de pensión se cambia por la única puerta sin
-candado». Su cabecera describe el mismo defecto con las mismas palabras: `fn_set_regimen_pension`
-hacía un `update` y nada más, y `fn_cambiar_regimen_pension` —la que sí escribe el tramo— no la
-llamaba nadie. **Ya está resuelto en producción desde el 23 de agosto.**
-
-## Qué lo cierra
-
-Fusionar esa rama a `main`. Medido: **se fusionaría limpio, cero conflictos**, y trae 8 commits.
-
-## Lo que este caso destapa del freno
-
-El hook avisa del hueco, pero **no distingue tres situaciones que no se parecen en nada**:
-
-- un número saltado al numerar (inofensivo),
-- un número tomado por otra sesión que aún no fusiona (se resuelve solo),
-- **una migración que corre en producción y no está en `main`** (esto).
-
-Hoy las tres dan el mismo aviso gris. La tercera merece otro tono, y se puede distinguir sola:
-el hook ya sabe buscar en todas las ramas, y lo único que le falta es cruzar el hueco con lo que
-`migraciones_aplicadas` dice en producción — que es justo lo que `que_falta_pegar.sql` ya
-consulta.
-
----
-
-# LOTE 3 — Cerrado el 2026-08-25: las tres fugas de lectura
-
-Las tres estaban vivas todavía cuando se retomó el trabajo esta noche —el informe
-las catalogó el 17 de agosto y nadie las había tocado—. Se cerraron en el mismo
-lote, cada una con su migración, su prueba pgTAP adversarial (falla contra el
-código sin el arreglo, pasa con él) y su confirmación por md5 contra producción.
-
-**Terminal (0291).** `personas_select_terminal_roster` (la 0008) seguía viva
-aunque su reemplazo —la vista `terminal_roster` de la 0285— ya estaba construido
-y el frontend ya había migrado. Cerrarla no tocó ninguna pantalla: verificado
-que el terminal no lee `personas` por ningún otro camino.
-
-**Las nueve `SECURITY DEFINER` (0292).** `revoke execute … from authenticated`
-en las nueve. Medido que el camino legítimo —una función con guard que las
-llama por dentro— sigue funcionando: `SECURITY DEFINER` corre como el dueño de
-la función, nunca como quien la llamó.
-
-**El ascenso a Admin (0295, 0296, y una cuarta puerta que el informe no
-había visto: 0300).** El informe original describía UNA puerta —el `update`
-directo de `/admin/equipo`— y una regla insuficiente: «solo se promueve a un
-integrante» no evitaba degradar a un admin, solo evitaba UN síntoma. La
-corrección que se escribió es más general que el hallazgo: `fn_set_rol`
-reimplementa el escalafón completo (quien no es admin no puede dar un rol
-igual o superior al suyo), un trigger cierra el `update` directo distinguiendo
-quién escribe —`SECURITY DEFINER` corre como `postgres`, un `PATCH` de
-PostgREST corre como `authenticated`—, y al revisar el camino completo apareció
-una CUARTA puerta que el informe de agosto no había mirado: `fn_crear_persona`
-aceptaba cualquiera de los cuatro roles, incluido 'admin', al dar de alta a
-una persona NUEVA, sin ningún control. Misma vulnerabilidad, la puerta de
-crear en vez de la de editar. Se cerró con la misma regla, en la 0300.
-
-**Estado: las tres fugas del informe, cerradas. Y una cuarta que ni el informe
-ni el plan original sabían que existía, cerrada también.**
+**Lo que este caso deja escrito.** Nadie tuvo que arreglar código: bastó con que el hook avisara,
+que alguien lo midiera y que se escribiera qué significaba. Pero el aviso **no distingue** tres
+situaciones que no se parecen en nada —un número saltado, uno tomado por otra sesión que aún no
+fusiona, y una migración que corre en producción sin estar en `main`—. Hoy las tres salen del
+mismo gris. La tercera merece rojo, y se puede distinguir sola cruzando el hueco con
+`migraciones_aplicadas`, que es lo que `que_falta_pegar.sql` ya consulta. **Queda propuesto, sin
+hacer.**
