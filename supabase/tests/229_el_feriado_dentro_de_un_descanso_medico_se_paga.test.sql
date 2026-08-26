@@ -66,9 +66,10 @@ where p.apellidos = 'Laboratorio' and p.nombres like 'Once%' and p.nombres <> 'O
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000002930ff', true);
 
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por) values
-  ('00000000-0000-0000-0000-000000293002','descanso_medico','2026-08-17','2026-08-21','parte medico','00000000-0000-0000-0000-0000002930ad'),
-  ('00000000-0000-0000-0000-000000293003','vacaciones',     '2026-08-17','2026-08-21','vacaciones','00000000-0000-0000-0000-0000002930ad');
+-- Aprobada por DO (0306): sin `aprobada_at` el descanso médico no paga.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, aprobada_por, aprobada_at) values
+  ('00000000-0000-0000-0000-000000293002','descanso_medico','2026-08-17','2026-08-21','parte medico','00000000-0000-0000-0000-0000002930ad','00000000-0000-0000-0000-0000002930ad',now()),
+  ('00000000-0000-0000-0000-000000293003','vacaciones',     '2026-08-17','2026-08-21','vacaciones','00000000-0000-0000-0000-0000002930ad', null, null);
 -- OnceSinJustificar se queda sin nada registrado, a propósito.
 
 create temporary table _bol on commit drop as

@@ -39,10 +39,10 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ## 2026-08-25 — La reserva le pagaba de más a quien estuvo de vacaciones (0302)
 
-**Pendiente: pegar la 0302 en producción** (`./scripts/dame-el-sql.sh 302`).
-md5 de partida **confirmado contra el SQL Editor el 2026-08-25**:
-`93531851f35abcdd295fd8fb4aa77922`, 33 892 caracteres — el Postgres local
-reconstruido desde cero devuelve el mismo par.
+**PEGADA EN PRODUCCIÓN el 2026-08-25.** El SQL Editor devolvió `0302 · OK` con
+el md5 de llegada declarado, `866c0a1664afde204ae6d685760afb84`, 36 518
+caracteres. md5 de partida `93531851f35abcdd295fd8fb4aa77922` (33 892), pedido a
+producción antes de escribir.
 
 `fn_provisiones` contaba cada día de **calendario** de una ausencia pagada; la
 boleta cuenta los **laborables**. Los sábados y domingos del tramo entraban dos
@@ -80,27 +80,164 @@ Prueba **236**, seis comprobaciones. Con la función de producción fallan cuatr
 —las cuatro de «boleta = reserva»— y pasan las dos que vigilan que la rama de la
 0135 siga en pie. Ninguna otra de las 159 se apoyaba en el defecto.
 
-### Lo que la 0302 deja abierto a propósito (medido, no supuesto)
+### Lo que la 0302 dejó abierto — RESUELTO el 2026-08-26, ver la 0308
 
-**Maternidad y licencia con goce siguen sin cuadrar**: la reserva devenga
-S/115,32 y la boleta S/36,69. La diferencia **baja** de S/99,59 a S/78,63 con la
-0302 —o sea que no lo empeora— pero no lo cierra, porque la causa es otra: **la
-boleta no tiene rama para esos dos tipos.** Tiene `vacd` para vacaciones y `dmd`
-para descanso médico, y nada más; a quien está de maternidad o de licencia con
-goce le apunta base S/440,32 en un mes de S/1.383,87.
+Aquí se había anotado que maternidad y licencia con goce no cuadraban contra la
+boleta, y que hacía falta averiguar por qué. Ya está medido, y la respuesta
+partió en dos:
 
-Son dos casos distintos y ninguno es el defecto de la 0302:
+- **Maternidad firmada: NO es un defecto y no hay nada que arreglar.** La boleta
+  marca esos días como `dias_maternidad_sin_monto` — o sea que a propósito no
+  les pone sueldo, porque el subsidio lo paga EsSalud y no CAYLA. Y la reserva
+  hace bien en devengar, porque el art. 3.2 c) del D.S. 005-2002-TR cuenta como
+  tiempo efectivamente laborado «los descansos o licencias establecidos por las
+  normas de seguridad social y que originan el pago de subsidios». Los dos
+  números miden cosas distintas; forzarlos a coincidir sería el error. La prueba
+  242 comprueba que SIGAN divergiendo, para que nadie los iguale sin saberlo.
+- **Licencia con goce: sigue abierta, y sin lote.** Está en el catálogo como que
+  paga, y `fn_planilla_calcular` no la paga por ningún camino. Es el error
+  contrario —alguien deja de cobrar lo que le toca— y necesita su propia
+  medición. La 0306 ya la había anotado por su cuenta.
 
-- **Licencia con goce de remuneraciones** — «con goce» significa que la paga el
-  empleador. Que la boleta le ponga cero **parece un defecto contra la persona**
-  y merece su propia migración y su propia medición. *Falta preguntarle a Felipe
-  si CAYLA ha dado alguna, y cuándo.*
-- **Maternidad** — el subsidio lo paga EsSalud, no CAYLA, así que que la boleta
-  no le pague sueldo puede ser correcto. Y aun así la reserva hace bien en
-  devengarla: el art. 3.2 c) del D.S. 005-2002-TR cuenta como tiempo
-  efectivamente laborado «los descansos o licencias establecidos por las normas
-  de seguridad social y que originan el pago de subsidios». Ahí los dos números
-  **miden cosas distintas**, y forzarlos a ser iguales sería el error.
+---
+
+## 2026-08-26 — Ya hay un freno para el par boleta/reserva (prueba 244), y encontró la 0310
+
+**Pendiente: pegar la 0310 en producción, DESPUÉS de la 0308**
+(`./scripts/dame-el-sql.sh 310`). md5 de partida
+`adb0a986b32d26920fb9488a314b4d45`, 38 053 caracteres — que es el md5 de llegada
+declarado por la 0308. Si producción devuelve otro, lo más probable es que la
+0308 todavía no esté pegada.
+
+### El freno
+
+`fn_planilla_calcular` (la boleta) y `fn_provisiones` (la reserva) responden la
+misma pregunta por caminos distintos. **Cinco veces se tocó una mitad sin la
+otra** —0276, 0286, 0293, 0302, 0308— y las cinco costaron plata. Siempre la
+misma forma: alguien arregla una mitad con buen criterio, sus pruebas pasan, el
+CI queda verde, y el par termina diciendo dos cosas distintas sobre la misma
+persona el mismo mes. Se encontraban a mano, de casualidad, y siempre después.
+
+La **prueba 244** es una matriz de doce escenarios donde cada uno declara su
+veredicto esperado, y comprueba **las dos direcciones**: que no se separe lo que
+debe cuadrar, y que no cuadre lo que debe divergir. Esa segunda mitad importa
+tanto como la primera: impide que alguien «arregle» sin querer una divergencia
+correcta.
+
+**No compara ni un importe** — solo la relación entre los dos lados. Así
+sobrevive a cualquier migración que cambie legítimamente cuánto se paga, y solo
+se pone roja cuando el par se separa. Una prueba con importes escritos a mano
+habría que reescribirla cada vez, y una prueba que se reescribe seguido deja de
+leerse.
+
+Dos decisiones de laboratorio que costaron un rato y quedan escritas en la
+prueba para no repetirlas: el periodo es el **mes calendario** (con el 29→28
+real mediría a la vez la divergencia del divisor, que sigue abierta desde la
+0276), y **el sueldo empieza dentro del mes** (`grati_s1` acumula el semestre, y
+con el sueldo vigente desde antes la reserva traía meses que la boleta no —
+S/324,98 que parecían un defecto grave y eran del laboratorio).
+
+### Lo que encontró la primera vez que se corrió (0310)
+
+Tres de los doce escenarios divergían por **S/5,24** y ninguno estaba en la
+lista de divergencias esperadas.
+
+La 0276 puso en la rama de ausencias de `fn_provisiones` una exclusión del
+feriado dentro de un descanso médico, con una razón escrita y correcta: «su
+lateral `dmd` EXCLUYE el feriado desde la 0254». La **0293** quitó esa exclusión
+de `dmd`. La premisa quedó falsa y nadie lo notó, porque **una línea con la
+premisa caducada no falla: solo deja de tener razón.**
+
+Resultado: el feriado dentro de un descanso médico **no lo contaba nadie**. Acá
+se excluía «porque ya lo cuenta el feriado», y `fn_feriado_devengado` lo excluye
+por su cuenta. Es el día sin dueño que la 0262 advirtió y que la 0306 volvió a
+advertir — esta vez llegó por el camino contrario: no se quitó de los dos lados,
+se quitó de uno y el otro se quedó viejo. Y va **contra la persona**.
+
+| Caso | Antes | Con la 0310 |
+|---|---|---|
+| Descanso médico 02–20 con feriado dentro | −5,24 | **0,00** |
+| Descanso médico 09–13 justo sobre el feriado | −5,24 | **0,00** |
+| Ídem en Trujillo, feriado en **domingo** | −5,24 | **0,00** |
+
+**Se comprobó que NO es doble conteo**, que era la duda seria — mi matriz no
+puede ver un defecto que esté en los dos lados a la vez. Medido entre gemelas:
+la boleta hace exactamente lo mismo (4,10 contra 3,12, idéntico en los dos
+lados). Que a quien tuvo parte médico el feriado le prorratee más alto es el
+art. 8 del D. Leg. 713: el bloque incluye `horas_descanso_medico`.
+
+### La prueba 213 se reescribió, y por qué
+
+Su aserción 25 defendía la asimetría que la 0293 dejó sin premisa. Se intentó
+apuntarla contra la boleta y **no vale**: ahí `grati_s2` acumula el semestre y la
+boleta mide un mes, y se separan S/146,78 por el tamaño de la ventana —idéntico
+en las dos gemelas, o sea que no es defecto—. Ese laboratorio no está construido
+para comparar el par. Pasa a vigilar la otra mitad: que el día no se pierda. El
+guardián del par vive en la 244.
+
+### Y una observación que queda anotada, sin lote
+
+Que el feriado prorratee **más alto** para quien estuvo de descanso médico es la
+decisión de la 0293 y está pegada. No la reabro acá — pero conviene saber que
+existe, porque significa que un parte médico sube ligeramente el feriado de ese
+bloque. Está medido y es coherente entre boleta y reserva.
+
+---
+
+## 2026-08-26 — La 0306 arregló media cosa, y la otra media costaba plata (0308)
+
+**Pendiente: pegar la 0308 en producción** (`./scripts/dame-el-sql.sh 308`).
+md5 de partida `866c0a1664afde204ae6d685760afb84`, 36 518 caracteres — es lo que
+devolvió el SQL Editor al pegar la 0302 el mismo día, así que viene de
+producción y es de hoy.
+
+La **0306** (de otra sesión, pegada el 26/08) hizo que `fn_planilla_calcular`
+exigiera `aprobada_at` para pagar el descanso médico y la maternidad. El
+argumento es correcto y está bien escrito: `fn_aprobar_ausencia` existe justo
+para que sea DO quien decide qué convierte días en plata, y no la encargada de
+sede.
+
+Pero solo cambió una mitad del par. **`fn_provisiones` no se enteró**, así que
+un descanso médico registrado y sin firmar pagaba S/0 de sueldo y reservaba como
+si se hubiera pagado el mes entero. Y de ahí sale el depósito:
+`fn_grati_cts_periodo` es la **única** función de la base que llama a
+`fn_provisiones` — comprobado sobre el `prosrc` de todas ellas.
+
+Medido en local, marzo 2026, S/1.950, 19 días del 02 al 20:
+
+| Caso | Antes | Con la 0308 |
+|---|---|---|
+| Vacaciones (así entran: **sin firma**) | 0,00 | **0,00** — intacto |
+| Descanso médico **sin firmar** | 78,63 | **0,00** |
+| Descanso médico firmado | 0,00 | **0,00** |
+| Maternidad **sin firmar** | 78,63 | **0,00** |
+| Maternidad firmada | 78,63 | 78,63 — correcto, ver arriba |
+
+S/78,63 en gratificación por caso; **S/164,34** sumando CTS, vacaciones y la
+bonificación extraordinaria.
+
+**Decidido por Felipe (2026-08-26): que la reserva siga a la boleta.** Las otras
+dos opciones eran revertir esa parte de la 0306 —que devolvería a la sede la
+decisión de qué convierte días en plata— o dejarlo y solo avisar en pantalla,
+que ve el problema pero deja salir la plata igual. Si DO firma tarde, el mes
+cerrado no se toca y la diferencia se paga como retroactivo; desde la 0305 ese
+movimiento puede decir de qué mes viene.
+
+**La regla se le pregunta al catálogo, no se escribe la lista de tipos** — y eso
+no fue elegancia, fue lo que evitó un desastre. Las vacaciones entran a
+`ausencias` por un trigger desde su propia tabla y llegan **siempre con
+`aprobada_at` en null**. Exigir la firma a ciegas le habría puesto la reserva en
+cero a todo el que se toma vacaciones: un defecto mucho peor que el arreglado, y
+contra la persona. `tipos_ausencia.requiere_aprobacion` ya dice que las
+vacaciones no la necesitan. La comprobación 1 de la prueba 242 existe para que
+ese arreglo perezoso no pueda entrar nunca.
+
+**Lo que esto deja anotado como método**, porque es la cuarta vez que pasa
+(0276, 0286, 0293, y ahora 0306→0308): **la boleta y la reserva son dos mitades
+del mismo par y hay que tocarlas juntas.** Una sesión arregló una mitad con buen
+criterio, sus pruebas pasaron, el CI quedó verde, y el par quedó diciendo dos
+cosas distintas sobre la misma persona el mismo mes. Ninguna herramienta de la
+casa lo vio: se descubrió midiendo boleta contra reserva a mano.
 
 ---
 
@@ -207,7 +344,8 @@ manda a reescribir la 0292 desde cero.
 | 1 · las nueve funciones `SECURITY DEFINER` | ✅ cerrado y **aplicado** en producción | migración 0292 · prueba 228 |
 | 2 · ascenderse a Admin | ✅ escrito · **falta pegar**, y no antes de desplegar (ver abajo) | 0295 + 0296 + 0300 · pruebas 232, 235 |
 | 3 · el kiosco, el DNI y el sueldo | ✅ cerrado y **aplicado** | migración 0291 · prueba 227 |
-| 4 a 9 | siguen abiertos, medidos abajo | — |
+| 4 · el candado del mes pagado | ✅ los seis candados cerrados y **aplicados**; quedan 14 usos fuera del candado | migración 0307 · prueba 241 |
+| 5 a 9 | siguen abiertos, medidos abajo | — |
 
 **Lo único que falta pegar en todo el repositorio son la 0295 y la 0296**, y eso
 se pregunta con `./scripts/que-falta-pegar.sh`, no se lee acá.
@@ -310,7 +448,7 @@ de cerrar ya:** el paso que faltaba (migrar el frontend) ya está hecho y
 confirmado. Solo falta `drop policy personas_select_terminal_roster on
 personas;`.
 
-### 4 · El candado del mes pagado se mide con el reloj, no con la jornada — riesgo directo para el cierre del 28, sobre todo en TRU
+### 4 · El candado del mes pagado se mide con el reloj — ✅ LOS SEIS CANDADOS CERRADOS (0307, prueba 241, aplicada el 26/08) · quedan 14 usos fuera del candado
 
 **Dónde:** once funciones (`fn_anular_marcaje`, `fn_corregir_marca`,
 `fn_eliminar_marcaje`, `fn_reactivar_marcaje`, `fn_confirmar_auto_cierre`,
@@ -329,6 +467,29 @@ registro de control de asistencia que lo sustenta sí puede quedar
 contradiciéndolo**, sin aviso. Es exactamente el escenario que la 0240 se
 escribió para resolver, y TRU —que trabaja domingo y cierra tarde— es la sede
 donde más ocurre.
+
+**Reverificado y cerrado a medias el 2026-08-25/26.** Los once seguían con 19
+usos del reloj y cero de `fecha_jornada`. Demostrado contra la base, mismo
+periodo pagado, misma jornada del 28: la entrada de las 20:00 del 28 se frenaba
+y la salida de las 00:30 del 29 **se borraba, 0 filas**.
+
+La **0307** cambió de vara las SEIS comprobaciones de «periodo ya PAGADO»
+—anular, corregir marca, corregir marcaje, eliminar, reactivar y confirmar
+auto-cierre— y puso la regla en una sola función, `fn_fecha_de_jornada`. Está
+aplicada en producción y su prueba es la 241 (11 aserciones).
+
+**Lo que queda, y va en su propia migración:** los otros 14 usos —el resellado
+del día, la búsqueda de la sede del día, `fn_dias_por_revisar` y
+`fn_dia_incoherente`, que no estaba en la lista original de once pero está en el
+mismo camino—. Se dejaron fuera a propósito para no mover funciones que
+sostienen el cierre a tres días de usarlo.
+
+⚠️ **Y antes de escribir esa segunda migración, la trampa:** `fn_corregir_marca`
+tiene un guard que dice «aquí solo se corrige la hora dentro de su mismo día»
+comparando contra el día del RELOJ. Moverlo a la fecha de jornada haría que
+saltara SIEMPRE para una marca de madrugada, dejándola imposible de corregir.
+Ahí hacen falta dos variables, no una. La aserción 10 de la prueba 241 se pone
+roja el día que alguien lo mueva sin verlo.
 
 **Sin reverificar esta noche por tiempo** — el informe de agosto lo midió con
 4 intentos reales en `BEGIN…ROLLBACK`, todos exitosos salvo el primero.

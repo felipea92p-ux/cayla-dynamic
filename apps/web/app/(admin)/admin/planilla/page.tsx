@@ -299,6 +299,9 @@ interface MovForm {
   tipo: ClaseMov;
   concepto: string;
   monto: string;
+  /** CAMBIO 0305 — De qué periodo YA PAGADO viene esta corrección. Vacío es lo
+   *  normal: el movimiento es de este mes y no corrige nada. */
+  origen: string;
 }
 // Grati/CTS que toca en el periodo, calculado por fn_grati_cts_periodo.
 interface GratiCts {
@@ -386,6 +389,9 @@ function TablaPlanilla(props: {
   liquidadas?: Record<string, Liquidada>;
   guardandoMov?: boolean;
   gc?: GratiCts | null;
+  /** CAMBIO 0305 — Periodos ya pagados y anteriores a este, para poder decir de
+   *  cuál viene un retroactivo sin escribirlo en el texto del concepto. */
+  origenes?: { id: string; etiqueta: string }[];
 }) {
   const {
     filas, simulacion, pagado, sedeFiltro, periodoId, ocupado = false,
@@ -394,7 +400,7 @@ function TablaPlanilla(props: {
     rendEdit = {}, onRendChange, onRendBlur, guardandoRend = null,
     movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov, onYaPagado,
     liquidadas = {},
-    guardandoMov = false, gc = null,
+    guardandoMov = false, gc = null, origenes = [],
   } = props;
   // Al elegir grati/CTS en el desplegable, autocompleta concepto y el monto que el
   // sistema calculó para esa persona en este periodo. El resto queda manual.
@@ -403,7 +409,10 @@ function TablaPlanilla(props: {
       const gp = gc.porPersona[f.persona_id];
       const monto = t === "gratificacion" ? gp?.grati : gp?.cts;
       const concepto = t === "gratificacion" ? gc.gratiConcepto : gc.ctsConcepto;
-      onMovForm?.({ tipo: t, concepto: concepto || CLASE_LABEL[t], monto: monto ? String(monto) : "" });
+      // CAMBIO 0305 — `origen` vacío a propósito: una gratificación o una CTS
+      // corresponden a la ventana de ESTE periodo, no corrigen un mes anterior.
+      // Si alguien venía de marcar un origen y cambia a grati, se limpia.
+      onMovForm?.({ tipo: t, concepto: concepto || CLASE_LABEL[t], monto: monto ? String(monto) : "", origen: "" });
     } else {
       onMovForm?.({ ...movForm!, tipo: t });
     }
@@ -789,6 +798,27 @@ function TablaPlanilla(props: {
                               className="w-24 rounded-lg border px-2 py-1.5 text-right text-sm text-tinta disabled:opacity-50"
                             />
                           </label>
+                          {/* CAMBIO 0305 — Solo aparece si HAY meses ya pagados
+                              antes de este. En el primer periodo de la historia
+                              no hay nada que corregir, y un desplegable vacío
+                              solo invita a preguntarse qué falta. */}
+                          {origenes.length > 0 && (
+                            <label className="flex flex-col gap-1 text-xs text-taupe">
+                              ¿Corrige un mes anterior?
+                              <select
+                                value={movForm.origen}
+                                onChange={(e) => onMovForm?.({ ...movForm, origen: e.target.value })}
+                                disabled={pagado || guardandoMov}
+                                title={pagado ? hintPagado : "Si esto paga una diferencia de un mes ya cerrado, dilo acá: queda registrado de dónde viene."}
+                                className="rounded-lg border px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
+                              >
+                                <option value="">No — es de este mes</option>
+                                {origenes.map((o) => (
+                                  <option key={o.id} value={o.id}>{o.etiqueta}</option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
                           <button
                             onClick={() => onAgregarMov?.(f)}
                             disabled={pagado || guardandoMov || ocupado}
@@ -909,7 +939,7 @@ export default function PlanillaPage() {
 
   // Bonos / descuentos: panel abierto + mini-form
   const [movAbierto, setMovAbierto] = useState<string | null>(null);
-  const [movForm, setMovForm] = useState<MovForm>({ tipo: "bono", concepto: "", monto: "" });
+  const [movForm, setMovForm] = useState<MovForm>({ tipo: "bono", concepto: "", monto: "", origen: "" });
   const [guardandoMov, setGuardandoMov] = useState(false);
 
   // Provisiones (plegable)
@@ -977,6 +1007,23 @@ export default function PlanillaPage() {
     })();
   }, [cargarPeriodos]);
 
+  // CAMBIO 0305 — Los meses que un retroactivo puede corregir: PAGADOS y
+  // anteriores al que se está viendo. La base valida lo mismo (fn_agregar_
+  // movimiento), así que esto no es la única defensa — es para no ofrecer una
+  // opción que va a ser rechazada.
+  const origenes = useMemo(() => {
+    if (!proy || !periodos) return [];
+    const actual = periodos.find((p) => p.id === proy.periodo_id);
+    if (!actual) return [];
+    return periodos
+      .filter((p) => p.estado === "pagado" && p.fecha_fin < actual.fecha_ini)
+      .sort((a, b) => b.fecha_fin.localeCompare(a.fecha_fin))
+      .map((p) => ({
+        id: p.id,
+        etiqueta: `${MESES_LARGO[p.mes_etiqueta - 1]} ${p.anio_etiqueta}`,
+      }));
+  }, [proy, periodos]);
+
   const periodoActual = useMemo(
     () => periodos?.find((p) => p.id === periodoSel) ?? null,
     [periodos, periodoSel],
@@ -1015,7 +1062,7 @@ export default function PlanillaPage() {
     // Toda recarga cierra el panel ± y limpia su formulario: si quedara abierto,
     // un guardado posterior actuaría sobre filas/periodo que están por cambiar.
     setMovAbierto(null);
-    setMovForm({ tipo: "bono", concepto: "", monto: "" });
+    setMovForm({ tipo: "bono", concepto: "", monto: "", origen: "" });
     const { data, error } = await supabase.rpc("fn_proyeccion_periodo", { p_periodo_id: id });
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     setCargando(false);
@@ -1054,7 +1101,7 @@ export default function PlanillaPage() {
       reqId.current++; // invalida cualquier carga en vuelo del periodo anterior
       setCargando(false);
       setMovAbierto(null);
-      setMovForm({ tipo: "bono", concepto: "", monto: "" });
+      setMovForm({ tipo: "bono", concepto: "", monto: "", origen: "" });
       setProy(null);
     }
   }, [periodoSel, cargarProyeccion]);
@@ -1418,7 +1465,7 @@ export default function PlanillaPage() {
   // ── Bonos / descuentos ─────────────────────────────────────────────────────
   function toggleMov(personaId: string) {
     setMovAbierto((prev) => (prev === personaId ? null : personaId));
-    setMovForm({ tipo: "bono", concepto: "", monto: "" });
+    setMovForm({ tipo: "bono", concepto: "", monto: "", origen: "" });
   }
 
   async function agregarMovimiento(f: Fila) {
@@ -1441,6 +1488,9 @@ export default function PlanillaPage() {
       p_concepto: concepto,
       p_monto: monto,
       p_categoria: CLASE_A_CATEGORIA[movForm.tipo],
+      // CAMBIO 0305 — vacío significa «no corrige nada», y la base lo espera en
+      // null, no en cadena vacía.
+      p_periodo_origen_id: movForm.origen || null,
     });
     setGuardandoMov(false);
     if (error) {
@@ -2154,6 +2204,7 @@ export default function PlanillaPage() {
                 movAbierto={movAbierto}
                 onToggleMov={toggleMov}
                 movForm={movForm}
+                origenes={origenes}
                 onMovForm={setMovForm}
                 onAgregarMov={(f) => void agregarMovimiento(f)}
                 onQuitarMov={(m) => void quitarMovimiento(m)}

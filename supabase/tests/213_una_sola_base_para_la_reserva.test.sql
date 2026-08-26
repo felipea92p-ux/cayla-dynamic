@@ -126,18 +126,21 @@ delete from jornadas
 -- Y solo UNA tiene el parte. Sus cinco días entran a la base por la rama de
 -- «los días que la ley manda contar aunque nadie marque»; los de su gemela no
 -- entran por ningún lado.
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por)
+-- Aprobada por DO (0306): sin `aprobada_at` el descanso médico no paga.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por, aprobada_por, aprobada_at)
 values ('00000000-0000-0000-0000-000000276012','descanso_medico','2026-08-17','2026-08-21',
-        '00000000-0000-0000-0000-0000002760ad');
+        '00000000-0000-0000-0000-0000002760ad', '00000000-0000-0000-0000-0000002760ad', now());
 
 insert into feriados_descanso_sustitutorio (persona_id, fecha_feriado, fecha_descanso_sustitutorio, estado, acta_ref)
 values ('00000000-0000-0000-0000-00000027600b','2026-05-01','2026-05-07','OTORGADO','ACTA-276');
 insert into feriados_descanso_sustitutorio (persona_id, fecha_feriado, fecha_descanso_sustitutorio, estado)
 values ('00000000-0000-0000-0000-00000027600c','2026-05-01','2026-05-07','PENDIENTE');
 
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por, subsidio_diario)
+-- Aprobada por DO (0306): sin `aprobada_at` la maternidad no paga el subsidio,
+-- y el feriado que cubre dejaría de excluirse acá.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por, subsidio_diario, aprobada_por, aprobada_at)
 values ('00000000-0000-0000-0000-00000027600f','maternidad','2026-04-20','2026-06-30',
-        '00000000-0000-0000-0000-0000002760ad', 45.00);
+        '00000000-0000-0000-0000-0000002760ad', 45.00, '00000000-0000-0000-0000-0000002760ad', now());
 
 create temporary table _bol on commit drop as
 select (e ->> 'persona_id')::uuid as persona_id, e as fila
@@ -350,32 +353,47 @@ select ok(
   (select prosrc not like '%7.5 * (h.horas_mes%' from pg_proc where proname = 'fn_planilla_calcular'),
   'SIN SEGUNDA COPIA · la boleta ya no calcula el prorrateo del feriado por su cuenta');
 
--- ── 9 · UN FERIADO DENTRO DE UN DESCANSO MÉDICO SE CUENTA UNA VEZ ───────────
+-- ── 9 · UN FERIADO DENTRO DE UN DESCANSO MÉDICO NO SE PIERDE ───────────────
 --
--- ESTA ES LA ASERCIÓN QUE DEFIENDE UN DEFECTO QUE ESTA MISMA MIGRACIÓN
--- INTRODUJO Y LUEGO ARREGLÓ, y por eso está escrita con detalle: la primera
--- versión de la 0276 sumaba el feriado a la base sin quitarlo de la rama de
--- ausencias pagadas, así que un feriado caído dentro de un parte médico
--- entraba DOS veces —una como día de descanso médico, otra como feriado—.
--- Medido entonces: S/169.33 donde correspondían S/102.48.
+-- ⇩⇩⇩ REESCRITA POR LA 0310 ⇩⇩⇩ La de antes decía «SE CUENTA UNA VEZ» y estaba
+-- bien escrita. Vale la pena contar por qué caducó, porque el modo en que
+-- caducó es el que se repite en esta casa.
 --
--- CÓMO SE MIDE SIN QUE HAGA FALTA CUADRAR UN NÚMERO A MANO. Dos personas
--- idénticas a las que se les quitó la MISMA semana de jornadas; solo una tiene
--- el parte médico registrado. Se crea el feriado y se mira cuánto sube cada
--- una:
---   · la que NO tiene parte: ese día no lo contaba nadie, así que sube el
---     feriado entero;
---   · la que SÍ lo tiene: ese día ya se lo contaba la rama de ausencias, así
---     que solo puede subir la DIFERENCIA entre el feriado y el día de parte.
--- Con el doble conteo las dos subían lo mismo. Que la del parte suba MENOS es
--- la firma de que el día se cuenta una sola vez.
+-- Nació para defender un defecto que la 0276 introdujo y luego arregló: su
+-- primera versión sumaba el feriado a la base sin quitarlo de la rama de
+-- ausencias, así que un feriado dentro de un parte médico entraba DOS veces —
+-- S/169,33 donde correspondían S/102,48.
+--
+-- Lo medía así: dos gemelas a las que se les quitó la misma semana, solo una
+-- con parte médico; se crea el feriado y la del parte tiene que subir MENOS,
+-- «porque ese día ya se lo contaba la rama de ausencias». Cierto mientras
+-- `fn_provisiones` excluyera el feriado de esa rama, que es lo que la 0276 puso.
+--
+-- La **0293** quitó la exclusión gemela de la boleta —«el feriado dentro de un
+-- descanso médico se paga»— y dejó la de la reserva en pie. Con la exclusión en
+-- un solo lado, ese día **no lo contaba nadie**: S/5,24 por feriado, contra la
+-- persona. La **0310** la retiró, y con las dos alineadas la del parte sube MÁS,
+-- no menos: `fn_feriado_devengado` prorratea el feriado por lo devengado en el
+-- bloque (art. 8 del D. Leg. 713) y ese bloque incluye `horas_descanso_medico`.
+-- Medido en los dos lados a la vez: 4,10 en la boleta contra 3,12 de su gemela.
+--
+-- POR QUÉ ESTA ASERCIÓN NO COMPARA CONTRA LA BOLETA, que sería lo natural.
+-- Se intentó y no vale: acá `grati_s2` acumula el SEMESTRE y la boleta mide UN
+-- MES, así que los dos números se separan S/146,78 —idéntico en las dos
+-- gemelas— por el tamaño de la ventana y no por ningún defecto. Este
+-- laboratorio no está construido para eso.
+--
+-- **El guardián del par vive en la prueba 244**, cuyo laboratorio sí está hecho
+-- para compararlos (mes calendario, y el sueldo empieza dentro del mes para que
+-- nada devengue antes). Ahí es donde se cazaría hoy el defecto original de la
+-- 0276. Lo que queda acá es la otra mitad, la que la 0310 arregló: que el día
+-- no se pierda.
 select cmp_ok(
   (select d.g2 - a.g2 from _gem_despues d join _gem_antes a on a.pid = d.pid
     where d.pid = '00000000-0000-0000-0000-000000276012'),
-  '<',
-  (select d.g2 - a.g2 from _gem_despues d join _gem_antes a on a.pid = d.pid
-    where d.pid = '00000000-0000-0000-0000-000000276013'),
-  'UNA VEZ · a quien tiene parte médico el feriado le sube menos: ese día ya se le contaba');
+  '>',
+  0::numeric,
+  'NO SE PIERDE · el feriado dentro de un parte médico le sube la reserva a quien lo tiene');
 
 -- Y el control que impide que la de arriba pase por el motivo equivocado. Si
 -- alguien "arreglara" esto quitándole el día de ausencia a la rama entera, la
