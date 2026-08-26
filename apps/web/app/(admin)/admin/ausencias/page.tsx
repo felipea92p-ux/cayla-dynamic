@@ -153,6 +153,22 @@ export default function AusenciasPage() {
 
   const tipoSel = tipos.find((t) => t.codigo === tipoCod) ?? null;
 
+  // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
+  //
+  // El 2026-08-26 un descanso médico real no se pudo registrar: Safari pintaba
+  // 26/08/2026 en el campo y no se lo entregaba al formulario — ni por el
+  // evento ni leyendo el DOM. Con el campo vacío por dentro, la validación de
+  // acá y la del servidor (0101) pedían las dos un dato que estaba en pantalla,
+  // y no había salida por ningún lado. Se intentó capturarlo por `onChange`,
+  // por `onBlur` y por el valor del DOM; ninguno lo vio.
+  //
+  // Así que el campo deja de depender de que un evento llegue. Lo que se
+  // MUESTRA y lo que se MANDA son este mismo valor: el que la persona escribió
+  // si lo escribió, y si no, el primer día del descanso — que es cuando se
+  // emite el certificado casi siempre. Visible, editable en un clic, y nunca
+  // vacío mientras haya una fecha de inicio.
+  const fechaDoc = docFecha || (tipoSel?.requiere_documento ? inicio : "");
+
   const cargar = useCallback(async () => {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
@@ -199,7 +215,7 @@ export default function AusenciasPage() {
     // El valor visible manda sobre el estado; ver el comentario de los refs.
     const vProf = (docProf || refDocProf.current?.value || "").trim();
     const vColeg = (docColeg || refDocColeg.current?.value || "").trim();
-    const vFecha = docFecha || refDocFecha.current?.value || "";
+    const vFecha = fechaDoc || refDocFecha.current?.value || "";
     if (vProf !== docProf) setDocProf(vProf);
     if (vColeg !== docColeg) setDocColeg(vColeg);
     if (vFecha !== docFecha) setDocFecha(vFecha);
@@ -503,7 +519,7 @@ export default function AusenciasPage() {
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Fecha de emisión
-                <input ref={refDocFecha} type="date" value={docFecha} onChange={(e) => setDocFecha(e.target.value)} onBlur={(e) => setDocFecha(e.currentTarget.value)} className="rounded-lg border px-3 py-2" />
+                <input ref={refDocFecha} type="date" value={fechaDoc} onChange={(e) => setDocFecha(e.target.value)} onBlur={(e) => setDocFecha(e.currentTarget.value)} className="rounded-lg border px-3 py-2" />
               </label>
               {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
                   admin y líder de DO: un certificado dice el diagnóstico de una
