@@ -97,11 +97,23 @@ La foto anterior del pago sigue intacta todo el rato.
 
 ---
 
-## Pendiente concreto de agosto de 2026
+## Quién está en esta situación HOY — no lo busques aquí
 
-**Rufina Salvatierra**, que cesó el 07/08. Su liquidación ya cubre agosto. Al
-cerrar el periodo del 28/08 el sistema te va a frenar y a nombrarla: resuélvelo
-con el paso 3. Es el único caso vivo — los demás son de julio y ya salieron.
+Este documento no lleva nombres a propósito, y la razón es que ya falló una vez:
+el 14/08 decía «Rufina Salvatierra es el único caso vivo», y el 19/08 en pantalla
+había **cinco** personas con su liquidación pagada y su descuento aplicado. Una
+lista de nombres escrita en un documento envejece entre el día que se escribe y
+el día que se usa, y este documento solo se usa el 28.
+
+**La respuesta está en la propia pantalla**, y ahí no puede caducar: en
+`/admin/planilla`, con el filtro «Mostrar» en **Todos**, cada persona que cesó a
+mitad de mes lleva su aviso al lado —ámbar si falta resolverlo, gris con ✓ si ya
+está—. Eso es el paso 1.
+
+Si quieres el dato antes de abrir la pantalla, la consulta que lo responde sola
+es [`se_pago_dos_veces_a_quien_ya_se_liquido.sql`](../scripts/sql-manual/se_pago_dos_veces_a_quien_ya_se_liquido.sql),
+que cruza las dos fotos —la del periodo y la de la liquidación— y dice, persona
+por persona, si el mes está registrado dos veces o una sola.
 
 ---
 
