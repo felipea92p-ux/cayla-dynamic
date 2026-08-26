@@ -160,7 +160,8 @@ with repo(numero, nombre, nunca) as (values
     (298, 'un_turno_que_cambia_deja_rastro', false),
     (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones', false),
     (300, 'crear_a_alguien_tambien_pasa_por_el_escalafon', false),
-    (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones', false)
+    (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones', false),
+    (302, 'la_ausencia_pagada_se_devenga_por_dias_laborables', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

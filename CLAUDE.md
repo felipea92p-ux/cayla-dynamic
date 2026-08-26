@@ -237,6 +237,27 @@ npx pnpm test         # vitest
 
 ---
 
+## Antes de escribir una función SQL — aunque sea nueva
+
+`donde-vive.sh` no es solo para reescribir: **se corre también antes de CREAR**.
+El 2026-08-25 la 0299 creó `fn_vacaciones_por_vencer` sin comprobar que la
+**0297** ya la había creado dos días antes desde otra rama, con su prueba, su
+banda en la pantalla, su entrada en el menú y sus tipos regenerados. Se
+construyó dos veces la misma función.
+
+Y no quedó en trabajo perdido: las dos tenían todos sus argumentos con valor por
+defecto, así que la llamada sin argumentos encajaba en las dos y Postgres se
+negaba —«function … is not unique»—. **El aviso de vacaciones dejó de mostrarse
+en producción**, y como siempre con las sobrecargas, no falló al pegar la
+migración: falló al abrir la pantalla.
+
+Con varias sesiones trabajando a la vez, «esta función no existe» es una
+suposición, no un hecho. Cuesta dos segundos comprobarlo:
+
+```bash
+./scripts/donde-vive.sh fn_lo_que_vayas_a_crear
+```
+
 ## Antes de reescribir una función SQL
 
 **Nunca copies el cuerpo de una función sin preguntar cuál es la versión vigente:**
