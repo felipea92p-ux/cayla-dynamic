@@ -639,10 +639,30 @@ export default function DocumentacionPage() {
       await cargar();
       return;
     }
-    await supabase.rpc("fn_documento_registrar", {
+    // La segunda mitad del guardado: enlazar al registro el archivo que ya
+    // subió. Su `error` se comprueba por lo mismo que los dos de arriba —
+    // antes NO se comprobaba, y esta pantalla llegaba a decir «archivada» con
+    // el documento registrado y su papel sin enlazar.
+    //
+    // Falla de verdad y no en teoría: la función levanta «Ese documento no
+    // existe o está anulado» si alguien lo anuló entre las dos llamadas, y
+    // cualquier corte de red entre subir el archivo y enlazarlo cae acá.
+    //
+    // Y es la peor forma de fallar que hay en esta pantalla. Lo que se archiva
+    // son papeles con valor legal —la política de movilidad, el cargo del bono,
+    // la declaración de ruta—, y son justamente los que sostienen un pago. Un
+    // registro que consta como archivado y no tiene papel detrás no se nota al
+    // guardarlo: se nota el día que alguien pide el sustento y no está.
+    const { error: eEnlace } = await supabase.rpc("fn_documento_registrar", {
       p_tipo: subiendo.que, p_fecha_firma: fechaFirma, p_persona_id: subiendo.personaId,
       p_storage_path: ruta, p_id: id,
     });
+    if (eEnlace) {
+      setGuardandoDoc(false);
+      setAvisoDoc({ tipo: "error", texto: `El registro se guardó y el archivo subió, pero no se pudo enlazar (${mensajeDeError(eEnlace)}). El documento queda SIN su papel: vuelve a subirlo desde su fila.` });
+      await cargar();
+      return;
+    }
 
     const quien = fila?.persona ?? "la persona";
     setGuardandoDoc(false);

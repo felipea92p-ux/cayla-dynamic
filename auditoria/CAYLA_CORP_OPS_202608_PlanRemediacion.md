@@ -233,3 +233,96 @@ fusiona, y una migración que corre en producción sin estar en `main`—. Hoy l
 mismo gris. La tercera merece rojo, y se puede distinguir sola cruzando el hueco con
 `migraciones_aplicadas`, que es lo que `que_falta_pegar.sql` ya consulta. **Queda propuesto, sin
 hacer.**
+
+---
+
+# Las ausencias que el reglamento manda pagar y la planilla no paga · 2026-08-25
+
+**Sin ningún caso real hoy.** Se revisó a fondo y no hay nada que corregir; queda anotado para
+que quien lo encuentre no repita el camino.
+
+## El hecho
+
+El artículo **23.4** del Reglamento Interno —«Tiempo que se computa aunque no exista marcación»—
+manda computar como tiempo laborado, además de las horas registradas:
+
+| lo que manda computar | ¿el sistema lo hace? |
+|---|---|
+| a) descanso semanal y feriados | ✅ |
+| b) descanso vacacional | ✅ desde la 0177 |
+| c) **licencias y permisos con goce de los artículos 22, 31 y 33** | ⚠️ **solo descanso médico y maternidad** |
+
+`fn_planilla_calcular` menciona exactamente dos tipos: `descanso_medico` y `maternidad`. El tipo
+`licencia_con_goce`, marcado en el catálogo como que PAGA y activo en el desplegable, **no aparece
+en el cálculo ni una vez**. La pantalla avisa al aprobarlo que «esos días entran en su planilla»,
+y no entran.
+
+## Y el tipo `duelo`, que es más fino de lo que parece
+
+Está marcado como que **no paga**, y eso es correcto para el caso común. El artículo 31.4.a solo
+obliga cuando el fallecido es **cónyuge o conviviente, padres, hijos o hermanos** (Ley 31602:
+5 días calendario, no compensables). Para cualquier otro familiar no hay obligación legal.
+
+**El sistema no puede distinguir los dos casos**: `duelo` es siempre no pagado. Así que el día que
+fallezca un familiar directo y se registre `duelo`, tampoco se pagará — y ahí sí la ley obliga.
+
+## Lo medido en producción el 2026-08-25
+
+Tres ausencias de tipos no pagados, **ninguna es un incumplimiento**:
+
+- **Carmen Sanándres** · duelo, 24-25/08 · el fallecido **no era familiar directo**, así que la ley
+  no obliga y el no-pago es correcto. Confirmado por Felipe.
+- **Sandra Ramírez** · estudios, 25-26/08 · el reglamento no lista los estudios entre las licencias
+  con goce del art. 31.4. Correcto.
+- **Chiara Flores** · salud, 04-09/08 · **COMPROBADO el 2026-08-25: quedó bien.** Se dudó porque
+  seis días parecían muchos y, con certificado médico, habría correspondido `descanso_medico`, que
+  sí paga los primeros veinte. Medido: **sin documento profesional, sin colegiatura, sin archivo
+  subido** — así que `salud` es el tipo correcto, el que no paga pero tampoco cuenta como falta.
+  Y el cálculo afinó más de lo que la duda suponía: de los **seis días de calendario, solo cuatro
+  eran laborables suyos**. El domingo 9 y el feriado del 6 no se le descontaron. Tampoco fichó
+  ninguno de esos días, así que la ausencia fue real.
+
+Y de `licencia_con_goce`: **cero registros en toda la historia**.
+
+## Qué haría falta, si alguna vez se decide
+
+Dos piezas, y ninguna urge:
+
+1. Que `licencia_con_goce` se pague, con el mismo mecanismo que ya usan las vacaciones (0177) y el
+   descanso médico (0254): el promedio de lo pagado por día trabajado en el periodo.
+2. Distinguir el duelo por familiar directo del resto. Puede ser un tipo nuevo, o un campo en la
+   ausencia; es una decisión de negocio antes que de código.
+
+**Anotado y sin hacer.** Nadie está perdiendo dinero hoy.
+
+---
+
+# Producción al día · 2026-08-26
+
+Las tres que faltaban se pegaron y se verificaron una por una contra el md5 que cada migración
+declara. No es una impresión: es la cadena completa medida.
+
+| paso | md5 de `fn_provisiones` | quién lo confirmó |
+|---|---|---|
+| tras la 0302 | `866c0a1664afde204ae6d685760afb84` · 36 518 car. | producción, antes de pegar la 0308 |
+| tras la **0308** | `adb0a986b32d26920fb9488a314b4d45` · 38 053 car. | producción al aplicarla — **y es el md5 de partida que la 0310 declaraba** |
+| tras la **0310** | `b40ded0faad67ac72625369d22699562` · 39 308 car. | producción, la migración y el Postgres local: **los tres iguales** |
+
+La **0309** la aplicó otra sesión el mismo día. Con eso se cierra el asunto de su intento fallido
+del 26, cuando murió a media ejecución por una tabla temporal que el SQL Editor no mantiene entre
+sentencias: la versión que entró ya comprueba **antes** de tocar un solo dato.
+
+**Estado al cerrar:**
+
+```
+145 de 145 migraciones aplicadas · 0 pendientes
+fn_planilla_calcular  → 0306, al día con el repositorio
+fn_provisiones        → 0310, al día con el repositorio
+Acentos rotos         → ninguno
+Frontend              → desplegado
+```
+
+Y una comprobación que conviene imitar: la 0310 devolvió además
+`la_0308_sigue_en_su_sitio: 14259` — la posición del marcador «CAMBIO 0308» dentro del cuerpo. En
+una cadena de dos migraciones sobre la misma función, eso es lo que distingue «se apiló encima» de
+«la reescribió y borró la anterior». Sale gratis y responde la única pregunta que importa.

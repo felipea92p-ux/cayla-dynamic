@@ -11,7 +11,7 @@
 -- contar y la prueba no probaría nada.
 -- ============================================================================
 begin;
-select plan(20);
+select plan(23);
 
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
@@ -185,6 +185,55 @@ select isnt(
       and vigente_desde > '2026-06-01'),
   null,
   'CORREGIR · y por eso sigue devengando: el espejo de la vigencia nueva no quedó vacío');
+
+-- ── LA RLS DE ESTA TABLA NO LA COMPROBABA NADIE ────────────────────────────
+-- `educacion_comprobantes` guarda los papeles que sustentan un pago de
+-- educación. Tiene policy desde la 0290 y hasta hoy ninguna prueba cambiaba de
+-- usuario: las veinte de arriba corren enteras como DO, así que si la policy se
+-- rompiera no se enteraría ninguna.
+--
+-- ⚠ `set local role authenticated` NO es decorativo — la misma advertencia del
+-- test 198. pgTAP corre como `postgres`, superusuario, y SE SALTA LA RLS: sin
+-- esa línea la tercera ve los papeles de Ana y la prueba «pasa» al revés.
+set session_replication_role = replica;
+update personas set auth_user_id = '00000000-0000-0000-0000-0000000000ca'
+ where id = '00000000-0000-0000-0000-0000000000c2';
+insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso)
+values ('00000000-0000-0000-0000-0000000000c3', 'ComTercera', 'Laboratorio',
+        '00000000-0000-0000-0000-0000000000c0', 'integrante', 'test-hash',
+        '00000000-0000-0000-0000-0000000000cb', '2025-01-02');
+set session_replication_role = origin;
+
+-- Ana, que es de quien son los papeles.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000ca', true);
+set local role authenticated;
+
+select ok(
+  (select count(*) from educacion_comprobantes) > 0,
+  'RLS · cada quien ve los comprobantes de su propia asignación');
+
+-- Una compañera sin nada que ver con esa asignación.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000cb', true);
+
+select is(
+  (select count(*)::int from educacion_comprobantes),
+  0,
+  'RLS · y una compañera no ve ni uno: son el sustento del pago de otra persona');
+
+-- Aquí la 0290 sí hizo `revoke all` y dejó solo el `select`, al revés que
+-- `contratos_generados` y `asignaciones_regimen_pension`, donde `authenticated`
+-- conserva el INSERT que trae Supabase por defecto. Se prueba igual: lo que
+-- importa es que no entre, no por cuál de los dos frenos.
+select throws_ok(
+  $$ insert into educacion_comprobantes (asignacion_id, storage_path, mes_cubierto)
+     values ((select id from asignaciones_educacion
+               where persona_id = '00000000-0000-0000-0000-0000000000c2' limit 1),
+             'educacion/inventado.pdf', '2026-08-01') $$,
+  '42501', NULL,
+  'RLS · ni puede colgarle un papel a la asignación de otra');
+
+reset role;
+
 
 select * from finish();
 rollback;

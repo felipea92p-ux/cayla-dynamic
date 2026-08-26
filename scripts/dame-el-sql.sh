@@ -62,11 +62,34 @@ fi
 # ── Encontrar el archivo ────────────────────────────────────────────────────
 # Un número busca en migraciones; cualquier otra cosa se toma como ruta.
 if echo "$1" | grep -qE '^[0-9]+$'; then
-  NUM=$(printf "%04d" "$1")
+  # Los ceros de delante se quitan ANTES de formatear. `printf %04d` en /bin/sh
+  # lee un número que empieza por cero como OCTAL, y el problema no es que eso
+  # falle: es CÓMO falla. Medido el 2026-08-26 en esta Mac:
+  #
+  #     0309 → «invalid number»   (el 8 y el 9 no existen en octal). Se ve.
+  #     0173 → 0123               te entrega la 0123 y NO dice nada.
+  #     0177 → 0127               la de las vacaciones, por la 0127.
+  #
+  # El ruidoso da igual, se nota. El silencioso es el que importa: este script
+  # existe para que lo que se pega en producción sea lo que se cree que se pega,
+  # y entregar otra migración con un «✓ se puede pegar» es exactamente lo que no
+  # puede hacer. Su propia ayuda promete «da igual con ceros o sin ellos».
+  PEDIDO=$(echo "$1" | sed 's/^0*//')
+  [ -z "$PEDIDO" ] && PEDIDO=0
+  NUM=$(printf "%04d" "$PEDIDO")
   ARCHIVO=$(ls supabase/migrations/${NUM}_*.sql 2>/dev/null | head -1 || true)
   if [ -z "$ARCHIVO" ]; then
     rojo "✗ No hay ninguna migración $NUM en supabase/migrations."
     gris "  La última es: $(ls -1 supabase/migrations | tail -1)"
+    exit 1
+  fi
+  # Y por si lo de arriba vuelve a romperse algún día: el número del archivo que
+  # se encontró tiene que ser el que se pidió. Es la comprobación barata contra
+  # el único fallo de este script que nadie notaría a tiempo.
+  ENCONTRADO=$(basename "$ARCHIVO" | cut -c1-4)
+  if [ "$ENCONTRADO" != "$NUM" ]; then
+    rojo "✗ Pediste la $NUM y el archivo que salió es la $ENCONTRADO. No entrego nada."
+    gris "  Es un fallo de este script, no tuyo. No pegues nada y avisa."
     exit 1
   fi
 else

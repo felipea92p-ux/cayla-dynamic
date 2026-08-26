@@ -37,6 +37,84 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — Dos horarios ya no pueden cubrir el mismo día (0309)
+
+**PEGADA EN PRODUCCIÓN el 2026-08-26**, y verificada: candado puesto, cero
+solapes, y `fn_set_horario_semanal` sigue viva y ejecutable por `authenticated`
+—o sea que la pantalla de Horarios sigue pudiendo asignar—.
+
+`horarios_asignados` solo tenía un índice **parcial** sobre el tramo abierto
+(`idx_horario_vigente_unico`, `where vigente_hasta is null`). Dos tramos
+cerrados podían pisarse, y cuando dos cubren el mismo día quien decide es un
+`order by vigente_desde desc limit 1`: elige uno **en silencio**, y de esa
+elección sale qué se esperaba de esa persona ese día — si llegó tarde, si salió
+antes, o si faltó. El diagnóstico estaba escrito en la cabecera de la 0209 desde
+hacía tiempo y nadie había vuelto a él.
+
+Medido antes de escribir nada, con `hay_horarios_solapados.sql`: **10 pares en 8
+personas** sobre 113 tramos. Nueve eran el mismo error de convención —el tramo
+anterior cerrando el mismo día en que empieza el siguiente, tomando
+`vigente_hasta` como «el día en que arranca el próximo» cuando es inclusivo— y
+uno era un solape real de cuatro días.
+
+**Nadie cobró de menos por esto.** El arreglo no le cambió el horario a ninguna
+persona ningún día, y no es una deducción: se midió. Gana siempre el de
+`vigente_desde` más reciente, así que el que empieza antes ya estaba tapado en
+los días del solape.
+
+### Lo que costó dos intentos, y es lo que hay que recordar
+
+La primera versión demostraba esa invarianza con una tabla **temporal**:
+guardaba qué tramo mandaba para cada persona y cada día, hacía el arreglo, lo
+recalculaba y comparaba. Pasó las 1652 pruebas del CI y **murió al pegarla**:
+
+    ERROR: 42P01: relation "_horario_antes" does not exist
+
+El SQL Editor no le deja ver esa tabla al bloque que la lee. El CI no lo cazó
+porque aplica con `psql`, y ahí sí sobrevive. **Un freno que depende del entorno
+donde corre no es un freno** — y el entorno donde corre de verdad es el SQL
+Editor, no el contenedor de GitHub.
+
+Y había un segundo defecto, independiente del editor: esa versión **cambiaba los
+datos y después comprobaba**. Si la comprobación fallaba, el `rollback` la
+salvaba; pero pedirle a la red que te salve no es lo mismo que no saltar. La
+versión que se pegó comprueba primero, sin tabla temporal: para cada día que un
+tramo va a perder pregunta si algún tramo posterior ya lo cubría.
+
+Se supo que se podía reintentar limpio porque se midió, no porque se supusiera:
+`scripts/sql-manual/que_paso_con_la_0309.sql` distingue los tres estados
+posibles —aplicó entero, quedó a medias, no entró nada— y dijo que producción
+estaba intacta. Esa consulta queda en el repo: el mismo accidente le puede pasar
+a cualquier migración que toque datos.
+
+La prueba `243` subió a 12 aserciones y ganó lo que le faltaba: **un caso que
+DEBE bloquear**. Un tramo largo pisado por uno corto posterior, donde acortar
+dejaría a alguien sin horario dieciséis días. Un freno probado solo con casos que
+pasan no está probado.
+
+### Y de paso: `dame-el-sql.sh` entregaba la migración equivocada
+
+Se descubrió pidiendo la 0309 con el cero delante. `printf %04d` en `/bin/sh`
+lee un número que empieza por cero como **octal**:
+
+| Pides | Te daba |
+|---|---|
+| `0309` | error «invalid number» — ruidoso, se ve |
+| `0173` | la **0123**, sin decir nada |
+| `0177` (cómo se pagan las vacaciones) | la **0127** (la foto del pago) |
+
+Los dos archivos equivocados existen, así que el script los encontraba, los
+copiaba al portapapeles y decía «✓ Se puede pegar». Su propia ayuda promete «da
+igual con ceros o sin ellos». Arreglado en dos capas: se quitan los ceros antes
+de formatear, y además el número del archivo encontrado tiene que coincidir con
+el pedido o no se entrega nada. La segunda vale más que una prueba — corre en
+cada uso.
+
+**Nunca se entregó una migración equivocada por esto:** el hábito de la casa es
+escribir el número sin ceros, y así siempre funcionó.
+
+---
+
 ## 2026-08-25 — La reserva le pagaba de más a quien estuvo de vacaciones (0302)
 
 **PEGADA EN PRODUCCIÓN el 2026-08-25.** El SQL Editor devolvió `0302 · OK` con
@@ -3370,7 +3448,7 @@ techo repite esto exacto. Está sin decidir si esa función debe pasar a bloquea
 | **Cargar las declaraciones de ruta firmadas** | **de Felipe. Plazo: 28/08/2026.** El sitio donde subirlas ya existe |
 | **Indicador del umbral de 20 trabajadores** — promedio corrido del ejercicio, con aviso al acercarse | nada. **Acordado: se construye después de cerrar el Seguro de Vida Ley** |
 | **Versionar la RMV a S/1,300** cuando se publique el decreto | que salga la norma |
-| **Imprimir y firmar las ~20 renovaciones** — la pieza ya existe (`/admin/contratos`) | **revisión legal del texto**, y tres arreglos de SQL que esperan el md5 de producción |
+| **Imprimir y firmar las ~20 renovaciones** — la pieza ya existe (`/admin/contratos`) y su SQL está al día | **la revisión legal del texto**, que no ha hecho nadie |
 
 ### El generador de contratos, tras la auditoría del 2026-08-24
 
@@ -3392,14 +3470,26 @@ desplegable. Un agujero cerrado en un sitio no está cerrado.
 
 1. **La revisión legal del texto.** No la ha hecho nadie. El plan la dejó marcada
    como obligatoria y sigue sin hacerse.
-2. **Tres arreglos en SQL**, confirmados, que esperan el md5 de `fn_contrato_registrar`
-   y `fn_contrato_anular` pedido **a producción**:
-   - falta la política `UPDATE` del bucket `contratos` — si el RPC falla después
-     de subir el archivo, ese escaneo no se puede volver a subir nunca;
-   - firmar un borrador viejo mueve `personas.fecha_fin_contrato` **hacia atrás**
-     sin ningún freno;
-   - anular un contrato ya firmado no revierte esa fecha: la persona se queda con
-     el vencimiento de un documento declarado nulo.
+2. ~~Tres arreglos en SQL~~ — **cerrados el 2026-08-26 con la 0312**, ya pegada en
+   producción (sus seis comprobaciones en `true`). Eran: la política `UPDATE` que
+   le faltaba al bucket `contratos`, firmar un borrador viejo moviendo
+   `personas.fecha_fin_contrato` hacia atrás, y anular sin devolverla.
+
+   **Lo que enseñó y conviene no olvidar.** La primera versión de esa migración
+   preguntaba «¿es el contrato más reciente sin anular?», calcando el criterio de
+   `fn_contratos_tablero`. Sonaba coherente. Una revisión adversarial de 61
+   agentes la tumbó: esa pregunta **la gana un borrador sin firmar**, así que
+   anular el contrato firmado teniendo una renovación preparada NO devolvía la
+   fecha — el defecto que la migración decía arreglar, sin arreglar, y con la
+   migración convencida de lo contrario. Se reprodujo contra la base antes de
+   aceptarlo.
+
+   La pregunta correcta no era cuál se generó al final sino **de cuál viene la
+   fecha**, y una fecha de vencimiento solo puede venir de un papel firmado. De
+   ahí `fn_contrato_firmado_vigente_de` y `fn_contrato_refrescar_vencimiento`:
+   una sola regla y un solo recálculo, que usan las dos rutas. Ninguna de las dos
+   se concede a `authenticated` — sus usos son internos y conceder abriría por
+   RPC lo que la 0292 cerró.
 
 **Y una decisión de negocio que el código no puede tomar.** El contrato se emite
 siempre bajo el **art. 57** del TUO del D. Leg. 728 —«inicio o incremento de
