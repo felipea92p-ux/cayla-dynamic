@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 237_la_negativa_a_firmar_entrega_el_documento.test.sql
+-- 238_la_negativa_a_firmar_entrega_el_documento.test.sql
 -- ============================================================================
 -- Numeral 55.4 del Reglamento: «Si la colaboradora se niega a firmar, se
 -- levanta acta de negativa suscrita por quien entrega y por un testigo. El acta
