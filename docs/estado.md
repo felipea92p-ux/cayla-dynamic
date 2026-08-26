@@ -101,6 +101,89 @@ partió en dos:
 
 ---
 
+## 2026-08-26 — Ya hay un freno para el par boleta/reserva (prueba 244), y encontró la 0310
+
+**Pendiente: pegar la 0310 en producción, DESPUÉS de la 0308**
+(`./scripts/dame-el-sql.sh 310`). md5 de partida
+`adb0a986b32d26920fb9488a314b4d45`, 38 053 caracteres — que es el md5 de llegada
+declarado por la 0308. Si producción devuelve otro, lo más probable es que la
+0308 todavía no esté pegada.
+
+### El freno
+
+`fn_planilla_calcular` (la boleta) y `fn_provisiones` (la reserva) responden la
+misma pregunta por caminos distintos. **Cinco veces se tocó una mitad sin la
+otra** —0276, 0286, 0293, 0302, 0308— y las cinco costaron plata. Siempre la
+misma forma: alguien arregla una mitad con buen criterio, sus pruebas pasan, el
+CI queda verde, y el par termina diciendo dos cosas distintas sobre la misma
+persona el mismo mes. Se encontraban a mano, de casualidad, y siempre después.
+
+La **prueba 244** es una matriz de doce escenarios donde cada uno declara su
+veredicto esperado, y comprueba **las dos direcciones**: que no se separe lo que
+debe cuadrar, y que no cuadre lo que debe divergir. Esa segunda mitad importa
+tanto como la primera: impide que alguien «arregle» sin querer una divergencia
+correcta.
+
+**No compara ni un importe** — solo la relación entre los dos lados. Así
+sobrevive a cualquier migración que cambie legítimamente cuánto se paga, y solo
+se pone roja cuando el par se separa. Una prueba con importes escritos a mano
+habría que reescribirla cada vez, y una prueba que se reescribe seguido deja de
+leerse.
+
+Dos decisiones de laboratorio que costaron un rato y quedan escritas en la
+prueba para no repetirlas: el periodo es el **mes calendario** (con el 29→28
+real mediría a la vez la divergencia del divisor, que sigue abierta desde la
+0276), y **el sueldo empieza dentro del mes** (`grati_s1` acumula el semestre, y
+con el sueldo vigente desde antes la reserva traía meses que la boleta no —
+S/324,98 que parecían un defecto grave y eran del laboratorio).
+
+### Lo que encontró la primera vez que se corrió (0310)
+
+Tres de los doce escenarios divergían por **S/5,24** y ninguno estaba en la
+lista de divergencias esperadas.
+
+La 0276 puso en la rama de ausencias de `fn_provisiones` una exclusión del
+feriado dentro de un descanso médico, con una razón escrita y correcta: «su
+lateral `dmd` EXCLUYE el feriado desde la 0254». La **0293** quitó esa exclusión
+de `dmd`. La premisa quedó falsa y nadie lo notó, porque **una línea con la
+premisa caducada no falla: solo deja de tener razón.**
+
+Resultado: el feriado dentro de un descanso médico **no lo contaba nadie**. Acá
+se excluía «porque ya lo cuenta el feriado», y `fn_feriado_devengado` lo excluye
+por su cuenta. Es el día sin dueño que la 0262 advirtió y que la 0306 volvió a
+advertir — esta vez llegó por el camino contrario: no se quitó de los dos lados,
+se quitó de uno y el otro se quedó viejo. Y va **contra la persona**.
+
+| Caso | Antes | Con la 0310 |
+|---|---|---|
+| Descanso médico 02–20 con feriado dentro | −5,24 | **0,00** |
+| Descanso médico 09–13 justo sobre el feriado | −5,24 | **0,00** |
+| Ídem en Trujillo, feriado en **domingo** | −5,24 | **0,00** |
+
+**Se comprobó que NO es doble conteo**, que era la duda seria — mi matriz no
+puede ver un defecto que esté en los dos lados a la vez. Medido entre gemelas:
+la boleta hace exactamente lo mismo (4,10 contra 3,12, idéntico en los dos
+lados). Que a quien tuvo parte médico el feriado le prorratee más alto es el
+art. 8 del D. Leg. 713: el bloque incluye `horas_descanso_medico`.
+
+### La prueba 213 se reescribió, y por qué
+
+Su aserción 25 defendía la asimetría que la 0293 dejó sin premisa. Se intentó
+apuntarla contra la boleta y **no vale**: ahí `grati_s2` acumula el semestre y la
+boleta mide un mes, y se separan S/146,78 por el tamaño de la ventana —idéntico
+en las dos gemelas, o sea que no es defecto—. Ese laboratorio no está construido
+para comparar el par. Pasa a vigilar la otra mitad: que el día no se pierda. El
+guardián del par vive en la 244.
+
+### Y una observación que queda anotada, sin lote
+
+Que el feriado prorratee **más alto** para quien estuvo de descanso médico es la
+decisión de la 0293 y está pegada. No la reabro acá — pero conviene saber que
+existe, porque significa que un parte médico sube ligeramente el feriado de ese
+bloque. Está medido y es coherente entre boleta y reserva.
+
+---
+
 ## 2026-08-26 — La 0306 arregló media cosa, y la otra media costaba plata (0308)
 
 **Pendiente: pegar la 0308 en producción** (`./scripts/dame-el-sql.sh 308`).
