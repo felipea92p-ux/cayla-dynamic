@@ -21,7 +21,7 @@
 -- firmar, que es dar por hecho un trámite imposible.
 -- ============================================================================
 begin;
-select plan(14);
+select plan(18);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values ('00000000-0000-0000-0000-00000c07a000', 'ZZCON', 'Sede de laboratorio', true, 'tienda');
@@ -157,6 +157,65 @@ select ok(
   (select count(*) from fn_contratos_tablero()
     where persona_id = '00000000-0000-0000-0000-00000c07a002') = 1,
   'El tablero lista a quien está en planilla, con su contrato al lado');
+
+-- ── LA RLS DE ESTA TABLA NO LA COMPROBABA NADIE ────────────────────────────
+-- `contratos_generados` guarda la remuneración pactada y el PDF firmado de cada
+-- persona. Tiene su policy desde la 0272 y hasta hoy ninguna prueba cambiaba de
+-- usuario, así que las catorce de arriba corren enteras como DO: si la policy
+-- se rompiera, ninguna se enteraría.
+--
+-- ⚠ `set local role authenticated` NO es decorativo — la misma advertencia que
+-- lleva escrita el test 198. pgTAP corre como `postgres`, que es superusuario y
+-- SE SALTA LA RLS: sin esa línea la consulta devuelve las dos filas y la prueba
+-- «pasa» por el motivo equivocado.
+set session_replication_role = replica;
+update personas set rol = 'integrante', auth_user_id = '00000000-0000-0000-0000-00000c07a00a'
+ where id = '00000000-0000-0000-0000-00000c07a002';
+set session_replication_role = origin;
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000c07a00a', true);
+
+set local role authenticated;
+
+select is(
+  (select count(*)::int from contratos_generados
+    where persona_id <> '00000000-0000-0000-0000-00000c07a002'),
+  0,
+  'RLS · una integrante no ve el contrato de nadie más — ni su remuneración ni su escaneo');
+
+select ok(
+  (select count(*) from contratos_generados
+    where persona_id = '00000000-0000-0000-0000-00000c07a002') > 0,
+  'RLS · pero el suyo sí lo ve: la policy protege, no tapa');
+
+-- Escribir no está concedido «por función», como dice el comentario de la 0272:
+-- `authenticated` TIENE el grant de INSERT (viene por defecto en Supabase). Lo
+-- único que lo frena es que la policy sea `for select` y no exista ninguna otra.
+-- Eso es lo que se fija acá: el día que alguien agregue una policy `for all`
+-- pensando que amplía la lectura, esta prueba lo dice.
+select throws_ok(
+  -- La fila va COMPLETA a propósito: si le faltara una columna not-null, sin RLS
+  -- reventaría igual por 23502 y esta prueba «pasaría» sin que la policy hiciera
+  -- nada. Se descubrió corriéndola sin cambiar de rol, que es como se comprueba
+  -- un freno en esta casa.
+  $$ insert into contratos_generados (persona_id, tipo, cargo, sede_id, remuneracion_mensual,
+                                     fecha_inicio, fecha_fin, documento_html, generado_por)
+     values ('00000000-0000-0000-0000-00000c07a002', 'renovacion', 'Asesora',
+             '00000000-0000-0000-0000-00000c07a000', 99999, '2027-01-01', '2027-12-31', '<p>x</p>',
+             '00000000-0000-0000-0000-00000c07a002') $$,
+  '42501', NULL,
+  'RLS · y no puede escribirse un contrato a sí misma, aunque el grant se lo permita');
+
+-- DELETE tampoco tiene policy, así que no borra nada y NO da error: se comprueba
+-- por lo que queda, no por lo que lanza.
+delete from contratos_generados;
+reset role;
+
+select is(
+  (select count(*)::int from contratos_generados),
+  2,
+  'RLS · ni borrar: los dos contratos siguen ahí después de que ella lo intentara');
+
 
 select * from finish();
 rollback;
