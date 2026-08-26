@@ -15,14 +15,20 @@
 -- mismo error de convención —el tramo anterior cerrando el mismo día en que
 -- empieza el siguiente— y uno era un solape real de cuatro días.
 --
--- Esta prueba cubre las DOS mitades de la 0309:
+-- Esta prueba cubre las TRES cosas que la 0309 promete:
 --   · que el candado rechace lo que tiene que rechazar, incluido el caso de
 --     convención que parece inocente;
---   · que el arreglo de los datos NO cambie el horario efectivo de nadie, que es
---     la promesa sobre la que se aceptó tocar datos históricos.
+--   · que la comprobación previa diga «0» sobre datos como los de producción
+--     **y que BLOQUEE** sobre datos donde acortar sí le cambiaría el horario a
+--     alguien — un freno probado solo con casos que pasan no está probado;
+--   · que el arreglo no cambie el horario efectivo de nadie, medido día a día.
+--
+-- La consulta de la comprobación va copiada tal cual de la 0309, igual que el
+-- `update`. Se la escopeta por persona para poder aislar cada caso; la de la
+-- migración es global.
 -- ============================================================================
 begin;
-select plan(10);
+select plan(12);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values ('00000000-0000-0000-0000-000000024300', 'ZZHOR', 'Sede de laboratorio', true, 'tienda');
@@ -117,12 +123,10 @@ select lives_ok(
   'El candado es POR PERSONA: dos personas pueden tener el mismo tramo');
 
 
--- ── 7 y 8 · El arreglo no le cambia el horario a nadie ─────────────────────
+-- ── 7 a 10 · La comprobación previa y el arreglo ───────────────────────────
 --
--- Se reproduce el estado de producción: se quita el candado, se meten los dos
--- solapes que había —el de convención y el real de cuatro días—, se guarda qué
--- tramo mandaba cada día, se corre el MISMO update de la 0309, y se compara.
--- Si el arreglo moviera una sola casilla, esto se pone rojo.
+-- Se quita el candado y se reproduce el estado de producción: el solape de
+-- convención y el real de cuatro días.
 
 alter table horarios_asignados drop constraint horarios_sin_solape;
 
@@ -140,6 +144,79 @@ values
    '2026-08-03', '2026-08-08', '07:00', '13:00', 0, 0, array[1,2,3,4,5,6], 39),
   ('00000000-0000-0000-0000-0000002430b2', '00000000-0000-0000-0000-000000024302',
    '2026-08-05', '2026-08-08', '11:00', '19:00', 0, 0, array[1,2,3,4,5,6], 39);
+
+-- 7 · La comprobación de la 0309, copiada tal cual, dice que no cambiaría nada.
+select is(
+  (with por_perder as (
+     select a.id, a.persona_id, a.vigente_desde, a.vigente_hasta as cierre,
+            (select min(b.vigente_desde) from horarios_asignados b
+              where b.persona_id = a.persona_id and b.vigente_desde > a.vigente_desde)
+              as arranque_del_siguiente
+       from horarios_asignados a
+      where a.vigente_hasta is not null
+        and a.persona_id = '00000000-0000-0000-0000-000000024302'
+   )
+   select count(*)::int
+     from por_perder t
+    cross join lateral generate_series(t.arranque_del_siguiente, t.cierre, interval '1 day') g
+    where t.arranque_del_siguiente is not null
+      and t.cierre >= t.arranque_del_siguiente
+      and not exists (select 1 from horarios_asignados c
+                       where c.persona_id = t.persona_id
+                         and c.vigente_desde > t.vigente_desde
+                         and c.vigente_desde <= g::date
+                         and (c.vigente_hasta is null or c.vigente_hasta >= g::date))),
+  0,
+  'COMPROBACIÓN · sobre datos como los de producción dice 0: acortar no le cambia el horario a nadie');
+
+
+-- 8 · Y AHORA EL CASO QUE DEBE BLOQUEAR. Un freno probado solo con lo que pasa
+-- no está probado. Aquí un tramo largo (01→31 jul) se pisa con uno corto
+-- (10→15 jul) que empieza después. Acortar el largo al día 9 dejaría a esa
+-- persona SIN horario del 16 al 31 — dieciséis días en los que hoy sí manda.
+
+insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso)
+values ('00000000-0000-0000-0000-000000024304', 'HorFreno', 'Lab',
+        '00000000-0000-0000-0000-000000024300', 'x', '2024-01-01');
+
+insert into horarios_asignados
+  (persona_id, vigente_desde, vigente_hasta, hora_entrada, hora_salida,
+   almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horas_semana_objetivo)
+values
+  ('00000000-0000-0000-0000-000000024304', '2026-07-01', '2026-07-31',
+   '09:00', '15:30', 0, 0, array[1,2,3,4,5,6], 39),
+  ('00000000-0000-0000-0000-000000024304', '2026-07-10', '2026-07-15',
+   '10:00', '18:00', 0, 0, array[1,2,3,4,5,6], 39);
+
+select is(
+  (with por_perder as (
+     select a.id, a.persona_id, a.vigente_desde, a.vigente_hasta as cierre,
+            (select min(b.vigente_desde) from horarios_asignados b
+              where b.persona_id = a.persona_id and b.vigente_desde > a.vigente_desde)
+              as arranque_del_siguiente
+       from horarios_asignados a
+      where a.vigente_hasta is not null
+        and a.persona_id = '00000000-0000-0000-0000-000000024304'
+   )
+   select count(*)::int
+     from por_perder t
+    cross join lateral generate_series(t.arranque_del_siguiente, t.cierre, interval '1 day') g
+    where t.arranque_del_siguiente is not null
+      and t.cierre >= t.arranque_del_siguiente
+      and not exists (select 1 from horarios_asignados c
+                       where c.persona_id = t.persona_id
+                         and c.vigente_desde > t.vigente_desde
+                         and c.vigente_desde <= g::date
+                         and (c.vigente_hasta is null or c.vigente_hasta >= g::date))),
+  16,
+  'FRENO · cuenta los 16 días del 16 al 31 de julio en que acortar SÍ dejaría sin horario: la 0309 abortaría');
+
+-- Ese caso queda fuera del resto: el candado de abajo no lo admitiría, y con
+-- razón — es un solape que exige decidir a mano cuál tramo vale.
+delete from horarios_asignados where persona_id = '00000000-0000-0000-0000-000000024304';
+
+
+-- 9 · Y la invarianza medida día a día, no deducida.
 
 create temporary table _antes on commit drop as
 select d::date as fecha,
@@ -181,7 +258,7 @@ select lives_ok(
   'Y con los datos ya arreglados, el candado entra sin protestar');
 
 
--- ── 9 y 10 · LA PREGUNTA QUE MÁS IMPORTA: ¿sigue funcionando la pantalla? ───
+-- ── 11 y 12 · LA PREGUNTA QUE MÁS IMPORTA: ¿sigue funcionando la pantalla? ──
 --
 -- Un candado nuevo sobre una tabla viva puede romper el camino que la escribe, y
 -- eso no se vería hasta que alguien intentara asignar un horario. `fn_set_

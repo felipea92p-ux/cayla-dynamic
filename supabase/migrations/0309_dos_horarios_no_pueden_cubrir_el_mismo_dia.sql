@@ -30,8 +30,8 @@
 -- ── MEDIDO EN PRODUCCIÓN, ANTES DE ESCRIBIR ESTO ────────────────────────────
 --
 -- Con `scripts/sql-manual/hay_horarios_solapados.sql`, el 2026-08-26:
--- **10 pares en 8 personas**, sobre 112 tramos de 23 personas. Y no son todos
--- lo mismo:
+-- **10 pares en 8 personas**, sobre 112 tramos de 23 personas (esa misma noche
+-- ya eran 113 tramos y los mismos 10 pares). Y no son todos lo mismo:
 --
 --   · NUEVE se pisan UN SOLO DÍA, siempre con el mismo patrón: el tramo
 --     anterior cierra el mismo día en que empieza el siguiente. Es una
@@ -47,15 +47,42 @@
 -- víspera del siguiente no le quita cobertura a ningún día que hoy esté
 -- cubriendo de verdad.
 --
--- Se comprobó caso por caso, incluido el de Chiara: hoy el de `29/07` manda del
--- 29 al 01, así que el de `27/07` solo cubre efectivamente el 27 y el 28 — que
--- es exactamente lo que va a cubrir después.
+-- **Pero no se pide que se confíe en eso.** El paso 1 lo COMPRUEBA sobre los
+-- datos reales y aborta antes de tocar nada si no se cumple.
 --
--- **Pero no se pide que se confíe en eso.** La migración lo DEMUESTRA sobre los
--- datos reales, abajo: guarda qué tramo manda para cada persona y cada día del
--- historial, hace el arreglo, vuelve a calcularlo, y **aborta si cambió una sola
--- casilla**. Si alguna vez se pega sobre datos distintos a los medidos y el
--- arreglo sí movería algo, no se aplica.
+-- ── POR QUÉ ESTE ARCHIVO CAMBIÓ DESPUÉS DE FUSIONARSE ───────────────────────
+--
+-- La primera versión demostraba lo mismo de otra forma: guardaba en una tabla
+-- TEMPORAL qué tramo mandaba para cada persona y cada día, hacía el arreglo,
+-- lo recalculaba y comparaba. Pasó las 1652 pruebas del CI y murió al pegarla
+-- en el SQL Editor de Supabase, el 2026-08-26:
+--
+--     ERROR: 42P01: relation "_horario_antes" does not exist
+--
+-- El SQL Editor no le deja ver esa tabla al bloque que la lee. No sé por qué
+-- mecanismo exacto —y no hace falta saberlo—, pero sí se midieron las dos cosas
+-- que importan, con `scripts/sql-manual/que_paso_con_la_0309.sql`:
+--
+--   1. La tabla temporal no sobrevive de una sentencia a la siguiente.
+--   2. Cuando algo falla, el editor DESHACE todo. Producción quedó intacta:
+--      los 10 solapes seguían ahí, sin candado y sin fila en
+--      `migraciones_aplicadas`.
+--
+-- La segunda es la buena noticia: se pudo reintentar limpio. Pero enseña algo
+-- que este repo ya sabía y que aquí se pagó — un freno que depende del entorno
+-- donde corre no es un freno. Y había otro defecto de fondo, independiente del
+-- SQL Editor: la versión vieja **cambiaba los datos y DESPUÉS comprobaba**. Si
+-- la comprobación fallaba, el `rollback` la salvaba; pero pedirle a la red que
+-- te salve no es lo mismo que no saltar.
+--
+-- Esta versión comprueba PRIMERO, sin tabla temporal y sin depender de nada del
+-- entorno: para cada día que un tramo va a perder, pregunta si algún tramo
+-- posterior ya lo cubría. Y esa consulta no es teoría — se corrió contra
+-- producción el 2026-08-26 antes de escribir esto, y devolvió **0**.
+--
+-- Se edita el archivo en vez de escribir una 0311 que la corrija porque la 0309
+-- NUNCA se aplicó en ningún sitio: `migraciones_aplicadas` no tiene su fila. No
+-- hay nada que corregir hacia atrás, solo un archivo que todavía no sirve.
 --
 -- ── LO QUE NO TOCA, A PROPÓSITO ─────────────────────────────────────────────
 --
@@ -75,38 +102,53 @@
 -- ============================================================================
 
 
--- ── 1 · Qué tramo manda hoy, día por día ────────────────────────────────────
+-- ── 1 · La comprobación, ANTES de tocar un solo dato ────────────────────────
 --
--- El universo son todos los días entre el primer tramo y el último, por persona.
--- Con 112 tramos y 23 personas son unas decenas de miles de casillas: nada.
+-- Un tramo A que se pisa con otros va a perder los días que van desde el
+-- arranque del más cercano hasta su propio cierre. Para cada uno de esos días
+-- se pregunta: ¿hay algún tramo que empiece DESPUÉS de A y que cubra ese día?
+--
+--   · Si lo hay, A ya estaba tapado ahí. Perder ese día no cambia nada, porque
+--     manda el de `vigente_desde` más reciente y no era A.
+--   · Si NO lo hay, A era quien mandaba ese día. Acortarlo dejaría a esa
+--     persona sin horario ese día — y de ahí sale si se le cuenta falta.
+--
+-- Basta con mirar los días que se pierden: los demás conservan exactamente la
+-- misma cobertura, porque el `update` de abajo solo ACORTA.
 
--- Tabla temporal SIN `on commit drop`, a propósito. El SQL Editor envuelve todo
--- en una transacción y ahí daría igual, pero pegada sentencia a sentencia —o
--- aplicada con `psql -f`, como la corre el CI y como se probó acá— cada una es
--- su propia transacción y la tabla se borraría ANTES de que el bloque de abajo
--- pudiera leerla. Se borra a mano al final.
-drop table if exists _horario_antes;
-create temporary table _horario_antes as
-with span as (
-  select min(vigente_desde) as ini,
-         greatest(max(coalesce(vigente_hasta, current_date)), current_date) as fin
-    from horarios_asignados
-),
-dias as (
-  select p.persona_id, d::date as fecha
-    from (select distinct persona_id from horarios_asignados) p
-   cross join span s
-   cross join lateral generate_series(s.ini, s.fin, interval '1 day') d
-)
-select d.persona_id, d.fecha,
-       (select h.id
-          from horarios_asignados h
-         where h.persona_id = d.persona_id
-           and h.vigente_desde <= d.fecha
-           and (h.vigente_hasta is null or h.vigente_hasta >= d.fecha)
-         order by h.vigente_desde desc
-         limit 1) as tramo
-  from dias d;
+do $$
+declare v_dias int;
+begin
+  with por_perder as (
+    select a.id, a.persona_id, a.vigente_desde,
+           a.vigente_hasta as cierre,
+           (select min(b.vigente_desde)
+              from horarios_asignados b
+             where b.persona_id    = a.persona_id
+               and b.vigente_desde > a.vigente_desde) as arranque_del_siguiente
+      from horarios_asignados a
+     where a.vigente_hasta is not null          -- el abierto no se toca
+  )
+  select count(*) into v_dias
+    from por_perder t
+   cross join lateral generate_series(t.arranque_del_siguiente, t.cierre,
+                                      interval '1 day') g
+   where t.arranque_del_siguiente is not null
+     and t.cierre >= t.arranque_del_siguiente   -- solo si de verdad se pisan
+     and not exists (
+       select 1
+         from horarios_asignados c
+        where c.persona_id     = t.persona_id
+          and c.vigente_desde  > t.vigente_desde
+          and c.vigente_desde <= g::date
+          and (c.vigente_hasta is null or c.vigente_hasta >= g::date)
+     );
+
+  if v_dias > 0 then
+    raise exception 'El arreglo le cambiaría el horario efectivo a alguien en % día(s)-persona. NO se aplica nada. Estos datos no son los que se midieron el 2026-08-26: hay un tramo que MANDA en días que perdería, así que acortarlo dejaría a esa persona sin horario esos días — y de ahí sale si se le cuenta falta. Míralo con scripts/sql-manual/que_paso_con_la_0309.sql, que cuenta lo mismo sin escribir nada.', v_dias;
+  end if;
+end
+$$;
 
 
 -- ── 2 · El arreglo: cerrar la víspera del siguiente ─────────────────────────
@@ -130,41 +172,14 @@ update horarios_asignados h
    and h.vigente_hasta <> s.limite;
 
 
--- ── 3 · La prueba: que no se movió una sola casilla ─────────────────────────
-
-do $$
-declare v_cambios int;
-begin
-  with despues as (
-    select a.persona_id, a.fecha,
-           (select h.id
-              from horarios_asignados h
-             where h.persona_id = a.persona_id
-               and h.vigente_desde <= a.fecha
-               and (h.vigente_hasta is null or h.vigente_hasta >= a.fecha)
-             order by h.vigente_desde desc
-             limit 1) as tramo
-      from _horario_antes a
-  )
-  select count(*) into v_cambios
-    from _horario_antes a
-    join despues d on d.persona_id = a.persona_id and d.fecha = a.fecha
-   where a.tramo is distinct from d.tramo;
-
-  if v_cambios > 0 then
-    raise exception 'El arreglo cambiaría el horario efectivo en % día(s)-persona. NO se aplica nada. Estos datos no son los que se midieron el 2026-08-26: hay un solape que sí exige decidir cuál tramo vale, y esa decisión cambia si a alguien se le contó tardanza o falta. Míralo con scripts/sql-manual/hay_horarios_solapados.sql antes de volver a intentarlo.', v_cambios;
-  end if;
-
-  raise notice '0309 · horario efectivo idéntico en todas las casillas: el arreglo no le cambió el horario a nadie.';
-end
-$$;
-
-
--- ── 4 · El candado, ahora que se puede ──────────────────────────────────────
+-- ── 3 · El candado, ahora que se puede ──────────────────────────────────────
 --
 -- Misma forma que el de `asignaciones_salario` (0024). El rango es inclusivo en
 -- los dos extremos —'[]'— porque `vigente_hasta` es el último día vigente, no
 -- el primero que ya no lo está. Un tramo abierto llega hasta 'infinity'.
+--
+-- Si algo se hubiera escapado al paso 1, este `alter` falla y no queda nada a
+-- medias: el SQL Editor deshace la pegada entera, comprobado el 2026-08-26.
 
 alter table horarios_asignados drop constraint if exists horarios_sin_solape;
 alter table horarios_asignados add constraint horarios_sin_solape
@@ -180,8 +195,6 @@ comment on constraint horarios_sin_solape on horarios_asignados is
   '(0309). El índice parcial idx_horario_vigente_unico solo cuidaba el tramo '
   'abierto.';
 
-
-drop table if exists _horario_antes;
 
 insert into migraciones_aplicadas (numero, nombre)
 values (309, 'dos_horarios_no_pueden_cubrir_el_mismo_dia')
