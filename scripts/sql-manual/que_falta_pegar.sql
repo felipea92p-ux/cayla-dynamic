@@ -164,7 +164,8 @@ with repo(numero, nombre, nunca) as (values
     (302, 'la_ausencia_pagada_se_devenga_por_dias_laborables', false),
     (303, 'la_negativa_a_firmar_entrega_el_documento', false),
     (304, 'una_marca_apartada_deja_de_vivir_en_un_solo_navegador', false),
-    (305, 'un_retroactivo_dice_de_que_mes_viene', false)
+    (305, 'un_retroactivo_dice_de_que_mes_viene', false),
+    (309, 'dos_horarios_no_pueden_cubrir_el_mismo_dia', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
