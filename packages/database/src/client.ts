@@ -73,3 +73,37 @@ export function createServiceRoleClient(): SupabaseClient<Database> | null {
   if (!url || !llave) return null;
   return createClient<Database>(url, llave, { auth: { persistSession: false } });
 }
+
+/**
+ * Cliente con llave anónima que actúa COMO LA PERSONA que hizo la petición, a
+ * partir del token que ella misma mandó en la cabecera `Authorization`.
+ *
+ * Existe porque una ruta de servidor tiene dos maneras muy distintas de
+ * escribir, y hasta ahora solo tenía la primera:
+ *
+ *   - con `createServiceRoleClient()` escribe como `service_role`, que se
+ *     salta las RLS y, sobre todo, NO ES NADIE: dentro de la base `auth.uid()`
+ *     es null, así que ninguna función puede saber quién pidió el cambio ni
+ *     dejarlo anotado.
+ *   - con este cliente escribe como quien pulsó el botón, y entonces los
+ *     guards `SECURITY DEFINER` del repositorio funcionan igual que cuando la
+ *     llamada viene del navegador — incluida la fila de `correcciones_auditoria`
+ *     que varias de ellas insertan con `fn_persona_actual_id()`.
+ *
+ * Se usa cuando la ruta necesita lo segundo: que la base identifique a la
+ * persona. Para lo que de verdad tiene que saltarse las RLS (leer el padrón
+ * entero, hablar con Auth) sigue estando la llave de servicio.
+ *
+ * El token va en `global.headers` y no por `setSession`: el cliente se crea
+ * nuevo en cada petición y no persiste sesión, así que no hay forma de que la
+ * sesión de una persona se filtre a la petición de otra.
+ */
+export function createUserClient(token: string): SupabaseClient<Database> | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const llave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !llave || !token) return null;
+  return createClient<Database>(url, llave, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+}

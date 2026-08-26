@@ -5,16 +5,12 @@ import { useRouter } from "next/navigation";
 import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { AdminNav } from "../nav";
 
 
 function fechaHoyLima() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
-}
-// Día de la semana (0=domingo … 6=sábado) de un ISO — misma clave que horario_por_dia.
-function dowDe(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 // "HH:MM" en hora Lima para el input de tipo time
 function horaInput(tsISO: string) {
@@ -41,26 +37,23 @@ function selloLima(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
 
-interface TurnoDia { hora_entrada: string | null; es_descanso: boolean; }
-interface HorarioTramo { hora_entrada: string | null; horario_por_dia: Record<string, { e?: string; s?: string; r?: number }> | null; }
-// Contra qué hora se mide la tardanza ese día y de dónde sale. Replica la
-// prioridad del backend (fn_recalcular_jornada): el turno del día manda; solo si
-// no hay turno se cae al horario base. `deTurno` marca el override para resaltarlo.
-function calcularEsperado(fecha: string, turno: TurnoDia | null, horario: HorarioTramo | null): { hora: string | null; origen: string; deTurno: boolean } | null {
-  if (turno) {
-    if (turno.es_descanso) return { hora: null, origen: "descanso (turno del día)", deTurno: true };
-    if (turno.hora_entrada) return { hora: turno.hora_entrada.slice(0, 5), origen: "turno del día", deTurno: true };
-  }
-  if (horario) {
-    const hpd = horario.horario_por_dia;
-    if (hpd) {
-      const d = hpd[String(dowDe(fecha))];
-      if (d?.e) return { hora: d.e.slice(0, 5), origen: "horario base", deTurno: false };
-      return { hora: null, origen: "descanso (horario base)", deTurno: false };
-    }
-    if (horario.hora_entrada) return { hora: horario.hora_entrada.slice(0, 5), origen: "horario base", deTurno: false };
-  }
-  return null; // sin turno ni horario vigente: no hay contra qué medir
+// CAMBIO · esta pantalla calculaba "qué le tocaba ese día" con su propia
+// copia (`calcularEsperado`), y la copia tenía un bug real: la rama legacy
+// devolvía la hora de entrada mirando solo `horario.hora_entrada`, sin
+// comprobar `dias_laborables` — porque la consulta de abajo nunca pedía esa
+// columna. A alguien con un horario del formato viejo se le podía medir
+// tardanza un día que no le tocaba trabajar. Ahora se usa la misma función
+// que ya usan /mio y /admin/horas (jornada-esperada.ts), que sí lo hace bien.
+//
+// Solo cambia CÓMO se calcula `entrada`/`trabaja`; el texto que ve la
+// encargada es el mismo — este mapa reconstruye las frases que ya existían,
+// porque `Esperado.origen` da un código corto ("turno"/"horario"/"legacy"),
+// no la frase para pantalla.
+function textoOrigen(e: Esperado): string {
+  const base = e.origen === "turno" ? "turno del día"
+    : e.origen === "sin_horario" ? "sin horario vigente"
+    : "horario base";
+  return e.trabaja ? base : `descanso (${base})`;
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
@@ -138,7 +131,7 @@ export default function CorreccionesPage() {
   const [auditoriaError, setAuditoriaError] = useState(false); // para no confundir "sin correcciones" con "no cargó"
   // Contra qué hora se mide la tardanza ese día y de dónde sale (turno del día vs
   // horario base) — para que "N min tarde" nunca sea un número sin contexto.
-  const [esperado, setEsperado] = useState<{ hora: string | null; origen: string; deTurno: boolean } | null>(null);
+  const [esperado, setEsperado] = useState<Esperado | null>(null);
   // Levantamiento de tardanza de ese día (perdón por fuerza mayor): si existe, la
   // tardanza se muestra tachada y no cuenta. La hora real NO se toca.
   const [levTardanza, setLevTardanza] = useState<{ motivo: string; observacion: string | null } | null>(null);
@@ -211,9 +204,15 @@ export default function CorreccionesPage() {
         .select("id, campo_modificado, valor_anterior, valor_nuevo, corregido_at, motivo, corregido_por")
         .eq("persona_id", personaId).order("corregido_at", { ascending: false }).limit(30),
       // Contra qué se mide la tardanza ese día: el turno puntual manda sobre el
-      // horario base (misma prioridad que fn_recalcular_jornada). Fallan suave.
-      supabase.from("turnos").select("hora_entrada, es_descanso").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
-      supabase.from("horarios_asignados").select("hora_entrada, horario_por_dia, vigente_desde")
+      // horario base (misma prioridad que fn_recalcular_jornada, espejada en
+      // jornada-esperada.ts). Fallan suave.
+      //
+      // CAMBIO · `horarios_asignados` no traía `dias_laborables`: la rama
+      // legacy de esperadoDelDia necesita esa columna para saber si el día
+      // era laborable, no solo si hay una hora de entrada declarada.
+      supabase.from("turnos").select("hora_entrada, hora_salida, es_descanso").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
+      supabase.from("horarios_asignados")
+        .select("persona_id, vigente_desde, vigente_hasta, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos")
         .eq("persona_id", personaId).lte("vigente_desde", fecha).or(`vigente_hasta.is.null,vigente_hasta.gte.${fecha}`)
         .order("vigente_desde", { ascending: false }).limit(1).maybeSingle(),
       // ¿La tardanza de ese día fue levantada (perdonada por fuerza mayor)?
@@ -228,7 +227,7 @@ export default function CorreccionesPage() {
     // Falla suave: si la consulta no llega, no se inventa un sello que no sabemos si existe.
     setDiaIncoherente(incoh === true);
     setJornada((jor as Jornada) ?? null);
-    setEsperado(calcularEsperado(fecha, turno as TurnoDia | null, horario as HorarioTramo | null));
+    setEsperado(esperadoDelDia(fecha, (turno as TurnoDia) ?? null, (horario as HorarioTramo) ?? null));
     setLevTardanza((levT as { motivo: string; observacion: string | null } | null) ?? null);
     setAuditoriaError(Boolean(errAud));
     setAuditoria(errAud ? [] : ((aud as Auditoria[]) ?? []));
@@ -503,18 +502,18 @@ export default function CorreccionesPage() {
                 Si viene de un turno puntual (pisa el horario base), se resalta. */}
             {esperado && (
               <div className="mb-4 rounded-lg border px-4 py-2.5 text-sm">
-                {esperado.hora ? (
+                {esperado.entrada ? (
                   <>
-                    Entrada esperada ese día: <strong>{esperado.hora}</strong>
-                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${esperado.deTurno ? "bg-ambar/15 text-ambar" : "bg-taupe/15 text-taupe"}`}>
-                      {esperado.origen}
+                    Entrada esperada ese día: <strong>{esperado.entrada}</strong>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${esperado.origen === "turno" ? "bg-ambar/15 text-ambar" : "bg-taupe/15 text-taupe"}`}>
+                      {textoOrigen(esperado)}
                     </span>
-                    {esperado.deTurno && (
+                    {esperado.origen === "turno" && (
                       <span className="ml-2 text-xs text-taupe">— este día tiene un turno propio que manda sobre el horario base. Se cambia en Turnos.</span>
                     )}
                   </>
                 ) : (
-                  <span className="text-taupe">Ese día no mide tardanza: {esperado.origen}.</span>
+                  <span className="text-taupe">Ese día no mide tardanza: {textoOrigen(esperado)}.</span>
                 )}
               </div>
             )}

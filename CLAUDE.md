@@ -220,9 +220,12 @@ Y una cuarta, de agosto de 2026: **«qué le tocaba trabajar ese día» se pregu
 cascada *turno del día → `horario_por_dia` → `dias_laborables`* que espeja
 `fn_recalcular_jornada`, con sus pruebas en `tests/jornada-esperada.test.ts`.
 Vive en `apps/web/lib` y no en `packages/shared` porque hoy solo la usa el panel;
-el día que la necesite el terminal, se muda. Queda una copia más vieja y parcial
-—solo la hora de entrada— en `admin/correcciones/page.tsx` (`calcularEsperado`):
-**unificarlas está pendiente, y mientras tanto no se escribe una tercera.** Esa
+el día que la necesite el terminal, se muda. Hubo una copia más vieja y parcial
+—solo la hora de entrada, y con un bug real: su rama legacy no comprobaba
+`dias_laborables`— en `admin/correcciones/page.tsx` (`calcularEsperado`);
+se unificó el 2026-08-25. **Quedan otras dos sin unificar**
+—`admin/incidencias/page.tsx` (`trabajaEseDia`) y `admin/turnos/page.tsx`
+(`horasDeTramo`, `celda`)— **y mientras tanto no se escribe una quinta.** Esa
 regla decide si a alguien se le cuenta una falta.
 
 ```bash
@@ -233,6 +236,27 @@ npx pnpm test         # vitest
 ```
 
 ---
+
+## Antes de escribir una función SQL — aunque sea nueva
+
+`donde-vive.sh` no es solo para reescribir: **se corre también antes de CREAR**.
+El 2026-08-25 la 0299 creó `fn_vacaciones_por_vencer` sin comprobar que la
+**0297** ya la había creado dos días antes desde otra rama, con su prueba, su
+banda en la pantalla, su entrada en el menú y sus tipos regenerados. Se
+construyó dos veces la misma función.
+
+Y no quedó en trabajo perdido: las dos tenían todos sus argumentos con valor por
+defecto, así que la llamada sin argumentos encajaba en las dos y Postgres se
+negaba —«function … is not unique»—. **El aviso de vacaciones dejó de mostrarse
+en producción**, y como siempre con las sobrecargas, no falló al pegar la
+migración: falló al abrir la pantalla.
+
+Con varias sesiones trabajando a la vez, «esta función no existe» es una
+suposición, no un hecho. Cuesta dos segundos comprobarlo:
+
+```bash
+./scripts/donde-vive.sh fn_lo_que_vayas_a_crear
+```
 
 ## Antes de reescribir una función SQL
 
@@ -431,6 +455,28 @@ para explicar la regla, y castigar a quien la explica sería absurdo.
 Bloquea en vez de avisar, y ahí la distinción es la que el hook ya tenía
 escrita: esto habla de lo que **sale** hacia GitHub, no de lo que hay a medio
 escribir en el disco.
+
+**Y desde el 2026-08-25 corre también el linter, sobre lo que el push agrega**
+(`scripts/hooks/lint-de-lo-nuevo.sh`). ESLint llevaba instalado y configurado
+desde julio, con su tarea de turbo y su script en el `package.json`, y no lo
+ejecutaba nadie: ni el hook, ni GitHub, ni `desplegar.sh`. La auditoría de
+agosto lo encontró con 119 errores; **una semana después eran 131**. Creció en
+doce sin que nadie lo notara, que es exactamente lo que le pasa a un guardián
+instalado y apagado.
+
+Mismo criterio que los dos de arriba: la deuda vieja no frena a nadie, el error
+132 no entra. Y es barato porque no lintea el repositorio entero —solo los
+archivos que el push modifica—, así que un push de puro SQL sale en cuatro
+centésimas.
+
+Ojo con una cosa al tocarlo: **se escribió cuatro veces antes de funcionar, y
+las cuatro veces fallaba en silencio dando el push por bueno**. Colar una ruta
+de `packages/` hace que eslint aborte sin analizar nada; pasarle las rutas sin
+`xargs` las manda como un solo argumento; `${SALIDA#[}` nunca quita el corchete
+porque `[` es un carácter de patrón; y `echo` interpreta los `\n` que el JSON de
+eslint lleva dentro de sus mensajes, así que hay que usar `printf '%s'`. Ninguno
+de los cuatro daba error: todos devolvían «todo bien». Por eso un freno se
+prueba con un caso que DEBE bloquear, no solo con uno que debe pasar.
 
 No verifica una tercera que se probó y se descartó: buscar `horario_por_dia`
 fuera de `jornada-esperada.ts` para cazar las copias de «qué le tocaba trabajar
