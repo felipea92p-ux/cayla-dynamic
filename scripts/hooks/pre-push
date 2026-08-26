@@ -81,6 +81,18 @@ echo "→ lo que main tiene y tú no…"
 echo "→ las reglas de la casa…"
 "$(dirname "$0")/reglas-de-la-casa.sh" || exit 1
 
+# ── Un campo de fecha que arranca vacío y bloquea el envío ─────────────────
+#
+# El 2026-08-26 no se pudo registrar un descanso médico: el campo mostraba la
+# fecha en pantalla y llegaba vacío al formulario, porque Safari la había puesto
+# sin disparar el evento que React escucha. La validación rechazaba un dato que
+# la persona estaba viendo, y reescribirlo no servía. Cinco despliegues.
+#
+# Mismo criterio que los de arriba: solo lo que el push AGREGA. Quedan tres
+# campos así en el repositorio y frenar por ellos volvería este freno un trámite.
+echo "→ fechas que arrancan vacías…"
+"$(dirname "$0")/fecha-que-bloquea.sh" || exit 1
+
 # ── El linter, pero solo sobre lo que este push agrega ─────────────────────
 #
 # ESLint llevaba instalado y apagado desde julio. La auditoría de agosto lo

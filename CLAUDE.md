@@ -252,6 +252,28 @@ se unificó el 2026-08-25. **Quedan otras dos sin unificar**
 (`horasDeTramo`, `celda`)— **y mientras tanto no se escribe una quinta.** Esa
 regla decide si a alguien se le cuenta una falta.
 
+Y una quinta, del 2026-08-26: **un campo de fecha cuyo vacío BLOQUEA el envío
+no puede arrancar en `""`.** Nace con el valor más probable —hoy, o la fecha de
+inicio de lo que se está registrando—, visible y editable en un clic.
+
+No es una preferencia de forma. Ese día no se pudo registrar un descanso médico
+real: el campo «Fecha de emisión» mostraba `26/08/2026` en pantalla y llegaba
+**vacío** al formulario, porque Safari había puesto el valor sin disparar el
+evento que React escucha. La validación de la pantalla y la del servidor pedían
+las dos un dato que estaba delante de los ojos, y no había salida — reescribirlo
+tampoco llegaba, porque el problema no era el valor sino el camino.
+
+Se intentó capturarlo por `onChange`, por `onBlur` y leyendo el valor del DOM.
+**Ninguno de los tres lo vio.** Lo que funcionó fue dejar de preguntar: lo que se
+muestra y lo que se manda pasaron a ser el mismo valor derivado. Costó cinco
+despliegues a producción y una tarde, con la planilla del mes a dos días de
+cerrar.
+
+Lo vigila `scripts/hooks/fecha-que-bloquea.sh`, sobre lo que el push agrega.
+Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados, y
+`simIni` en `planilla`, que solo afecta a una simulación—; la deuda vieja se
+paga en su lote y no a costa de que el freno mienta.
+
 ```bash
 npx pnpm install
 npx pnpm dev          # levanta todo
@@ -501,6 +523,13 @@ para explicar la regla, y castigar a quien la explica sería absurdo.
 Bloquea en vez de avisar, y ahí la distinción es la que el hook ya tenía
 escrita: esto habla de lo que **sale** hacia GitHub, no de lo que hay a medio
 escribir en el disco.
+
+**Y desde el 2026-08-26, las fechas que arrancan vacías**
+(`scripts/hooks/fecha-que-bloquea.sh`). Ver la regla arriba: caza el
+`input[type=date]` que arranca en `""` y cuya validación corta el envío. Se
+probó con un caso que DEBE bloquear antes de entregarlo, y con dos que deben
+pasar —el mismo campo arreglado, y una fecha opcional—, que es la lección que
+dejó el linter cuando se escribió cuatro veces dando el push por bueno.
 
 **Y desde el 2026-08-25 corre también el linter, sobre lo que el push agrega**
 (`scripts/hooks/lint-de-lo-nuevo.sh`). ESLint llevaba instalado y configurado

@@ -17,7 +17,7 @@
 // peruana; el resto no paga porque así lo decidió CAYLA.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
@@ -25,6 +25,7 @@ import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
 
 // ── AQUÍ VIVÍAN TRES NOMBRES DE FUNCIÓN SIN TIPAR ───────────────────────────
 //
@@ -129,14 +130,50 @@ export default function AusenciasPage() {
   const [docProf, setDocProf] = useState("");
   const [docColeg, setDocColeg] = useState("");
   const [docFecha, setDocFecha] = useState("");
+  // LO QUE SE MANDA ES LO QUE SE VE, y por eso hay refs además de estado.
+  //
+  // El 2026-08-26 el formulario rechazó un descanso médico diciendo que
+  // faltaba la fecha de emisión mientras el campo mostraba 26/08/2026 en
+  // pantalla. El navegador tenía la fecha; React no: el valor entró sin que el
+  // evento llegara al componente (Safari lo hace con `input[type=date]` y con
+  // el autorrelleno), así que el estado seguía vacío y la validación —la de
+  // acá y la del servidor— pedía un dato que estaba delante de los ojos.
+  //
+  // Leer del DOM al enviar no puede colar basura: un `input[type=date]`
+  // devuelve "" o una fecha válida, nunca texto a medias.
+  const refDocProf = useRef<HTMLInputElement>(null);
+  const refDocColeg = useRef<HTMLInputElement>(null);
+  const refDocFecha = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [subsidio, setSubsidio] = useState<Subsidio[]>([]);
+  // ausencia → ruta de su certificado en el almacén. Vacío para quien no puede
+  // verlos: el almacén solo responde a admin y líder de DO (0197), así que
+  // quien no tiene ese permiso recibe una lista vacía y no ve ningún botón.
+  // La regla vive en la base, no repetida acá.
+  const [certificados, setCertificados] = useState<Record<string, string>>({});
+  const [adjuntando, setAdjuntando] = useState<string | null>(null);
 
   const [desde, setDesde] = useState(haceMeses(6));
   const [hasta, setHasta] = useState(haceMeses(-6));
 
   const tipoSel = tipos.find((t) => t.codigo === tipoCod) ?? null;
+
+  // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
+  //
+  // El 2026-08-26 un descanso médico real no se pudo registrar: Safari pintaba
+  // 26/08/2026 en el campo y no se lo entregaba al formulario — ni por el
+  // evento ni leyendo el DOM. Con el campo vacío por dentro, la validación de
+  // acá y la del servidor (0101) pedían las dos un dato que estaba en pantalla,
+  // y no había salida por ningún lado. Se intentó capturarlo por `onChange`,
+  // por `onBlur` y por el valor del DOM; ninguno lo vio.
+  //
+  // Así que el campo deja de depender de que un evento llegue. Lo que se
+  // MUESTRA y lo que se MANDA son este mismo valor: el que la persona escribió
+  // si lo escribió, y si no, el primer día del descanso — que es cuando se
+  // emite el certificado casi siempre. Visible, editable en un clic, y nunca
+  // vacío mientras haya una fecha de inicio.
+  const fechaDoc = docFecha || (tipoSel?.requiere_documento ? inicio : "");
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -161,7 +198,37 @@ export default function AusenciasPage() {
     const tt = (t as unknown as Tipo[]) ?? [];
     setTipos(tt);
     setTipoCod((prev) => prev || tt[0]?.codigo || "");
-    setLista((a as unknown as Ausencia[]) ?? []);
+    const ausencias = (a as unknown as Ausencia[]) ?? [];
+    setLista(ausencias);
+
+    // QUÉ CERTIFICADOS HAY, preguntándoselo al almacén y no a la tabla.
+    //
+    // `fn_ausencias` (0101) es anterior a que el certificado existiera (0197) y
+    // no devuelve `doc_storage_path`. Se podría reescribir, pero preguntarle al
+    // almacén tiene una ventaja que no se pierde: encuentra el archivo aunque
+    // la fila no lo tenga anotado, que es justo lo que pasa cuando la subida
+    // funciona y el enlace posterior falla — un caso que esta pantalla admite a
+    // propósito, porque prefiere registrar la ausencia a perderla por un
+    // archivo.
+    //
+    // Solo se pregunta por las personas que tienen alguna ausencia CON
+    // documento en el rango a la vista: son las de descanso médico y
+    // maternidad, no las treinta.
+    const conDocumento = Array.from(new Set(ausencias.filter((x) => x.doc_colegiatura).map((x) => x.persona_id)));
+    if (conDocumento.length > 0) {
+      const mapa: Record<string, string> = {};
+      await Promise.all(conDocumento.map(async (pid) => {
+        const { data: archivos } = await supabase.storage
+          .from("certificados").list(`certificados/${pid}`, { limit: 1000 });
+        for (const f of archivos ?? []) {
+          // El archivo se guarda con el id de la ausencia por nombre.
+          mapa[f.name.replace(/\.[^.]+$/, "")] = `certificados/${pid}/${f.name}`;
+        }
+      }));
+      setCertificados(mapa);
+    } else {
+      setCertificados({});
+    }
     setAlertas((al as unknown as Alerta[]) ?? []);
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
     setPorVencer((pv as unknown as VacacionPorVencer[]) ?? []);
@@ -170,10 +237,104 @@ export default function AusenciasPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
+  /**
+   * Abre el certificado de una ausencia en una pestaña nueva.
+   *
+   * El almacén es privado: la dirección se firma en el momento y caduca en un
+   * minuto. Un certificado dice el diagnóstico de una persona, así que no puede
+   * quedar viviendo en una URL que alguien pegue en un chat.
+   *
+   * La pestaña se abre ANTES de pedir la firma. Si se abriera después, Safari
+   * la trata como una ventana emergente no pedida por nadie y la bloquea — el
+   * clic ya terminó para cuando llega la respuesta.
+   */
+  async function verCertificado(a: Ausencia) {
+    const ruta = certificados[a.id];
+    if (!ruta) return;
+    const pestana = window.open("", "_blank");
+    const { data, error } = await supabase.storage.from("certificados").createSignedUrl(ruta, 60);
+    if (error || !data?.signedUrl) {
+      pestana?.close();
+      setMsg({ tipo: "error", texto: `No se pudo abrir el certificado (${error?.message ?? "sin respuesta"}).` });
+      return;
+    }
+    if (pestana) pestana.location.href = data.signedUrl;
+    else window.open(data.signedUrl, "_blank");
+  }
+
+  /**
+   * Adjunta el certificado a una ausencia YA REGISTRADA.
+   *
+   * Faltaba, y su ausencia convertía en mentira un mensaje que esta pantalla ya
+   * daba: cuando la subida falla, dice «el papel puedes adjuntarlo después» —y
+   * hasta hoy no había por dónde—. El desenlace es corriente: la ausencia se
+   * registra aunque el archivo no suba, a propósito, porque el registro es lo
+   * que evita que esos días cuenten como falta.
+   *
+   * Y hay un segundo camino, el que lo destapó: el archivo se guarda con el id
+   * de SU ausencia, así que si una se anula y se registra otra —«me equivoqué,
+   * son 2 días»— el papel se queda en la anulada. La nueva nace sin él y no
+   * había forma de moverlo.
+   *
+   * Quién puede lo decide `fn_ausencia_adjuntar_certificado` (0197), que además
+   * solo acepta descanso médico y maternidad: no se abre un sitio para guardar
+   * papeles de salud fuera del único que se revisa.
+   */
+  async function adjuntarCertificado(a: Ausencia, archivo: File) {
+    setAdjuntando(a.id);
+    setMsg(null);
+    const paraSubir = await reducirImagen(archivo);
+    const ext = paraSubir.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const ruta = `certificados/${a.persona_id}/${a.id}.${ext}`;
+    const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, paraSubir, setProgreso);
+    setProgreso(null);
+    if (errorSubida) {
+      setAdjuntando(null);
+      setMsg({ tipo: "error", texto: `El certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). La ausencia sigue registrada igual.` });
+      return;
+    }
+    const { error } = await supabase.rpc("fn_ausencia_adjuntar_certificado", {
+      p_ausencia_id: a.id, p_storage_path: ruta,
+    });
+    setAdjuntando(null);
+    if (error) { setMsg({ tipo: "error", texto: `El archivo subió, pero no se pudo enlazar (${error.message}).` }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: `Certificado adjuntado a la ausencia de ${a.nombre}.` });
+  }
+
   async function registrar() {
     if (!personaId) { setMsg({ tipo: "error", texto: "Elige a la persona." }); return; }
     if (!tipoCod) { setMsg({ tipo: "error", texto: "Elige el tipo de ausencia." }); return; }
     if (fin < inicio) { setMsg({ tipo: "error", texto: "La fecha de fin no puede ser anterior a la de inicio." }); return; }
+
+    // Los mismos tres datos que exige `fn_registrar_ausencia` (0101), pero
+    // comprobados acá y DICIENDO CUÁL falta. El aviso del servidor los enumera
+    // juntos, y el 2026-08-26 eso costó un rato: los tres campos se veían
+    // llenos en pantalla y el aviso seguía listándolos todos, así que no había
+    // forma de saber si el que faltaba era el profesional o la fecha. Nombrar
+    // el que falta convierte «no me deja» en «ah, esto».
+    // El valor visible manda sobre el estado; ver el comentario de los refs.
+    const vProf = (docProf || refDocProf.current?.value || "").trim();
+    const vColeg = (docColeg || refDocColeg.current?.value || "").trim();
+    const vFecha = fechaDoc || refDocFecha.current?.value || "";
+    if (vProf !== docProf) setDocProf(vProf);
+    if (vColeg !== docColeg) setDocColeg(vColeg);
+    if (vFecha !== docFecha) setDocFecha(vFecha);
+
+    if (tipoSel?.requiere_documento) {
+      const faltan: string[] = [];
+      if (!vProf) faltan.push("el profesional o institución");
+      if (!vColeg) faltan.push("el número de colegiatura");
+      if (!vFecha) faltan.push("la fecha de emisión");
+      if (faltan.length > 0) {
+        setMsg({
+          tipo: "error",
+          texto: `Falta ${faltan.join(" y ")} — ${tipoSel.nombre} lo exige. Si no tienes ningún documento, regístralo como «Descanso por salud»: no paga, pero tampoco cuenta como falta.`,
+        });
+        return;
+      }
+    }
+
     setGuardando(true);
     setMsg(null);
     const { data: nuevoId, error } = await supabase.rpc("fn_registrar_ausencia", {
@@ -182,11 +343,20 @@ export default function AusenciasPage() {
       p_fecha_inicio: inicio,
       p_fecha_fin: fin,
       p_motivo: motivo.trim() || null,
-      p_doc_profesional: docProf.trim() || null,
-      p_doc_colegiatura: docColeg.trim() || null,
-      p_doc_fecha: docFecha || null,
+      p_doc_profesional: vProf || null,
+      p_doc_colegiatura: vColeg || null,
+      p_doc_fecha: vFecha || null,
     });
-    if (error) { setGuardando(false); setMsg({ tipo: "error", texto: error.message }); return; }
+    // El código va entre paréntesis a propósito. Con los tres datos ya
+    // comprobados arriba, un rechazo del servidor por «falta el documento» ya
+    // no puede ser lo que parece — y sin el código (PGRST202 si la función no
+    // responde, 42501 si es permiso) no hay cómo distinguirlo de un aviso que
+    // se quedó pegado en pantalla.
+    if (error) {
+      setGuardando(false);
+      setMsg({ tipo: "error", texto: error.code ? `${error.message} (${error.code})` : error.message });
+      return;
+    }
 
     // El certificado, si se eligió uno. Va DESPUÉS porque su ruta lleva dentro
     // el id de la ausencia, que hasta acá no existía.
@@ -196,14 +366,20 @@ export default function AusenciasPage() {
     // un archivo que no subió sería el peor intercambio posible. El mensaje lo
     // dice para que nadie crea que no se guardó nada.
     if (archivo && nuevoId) {
-      const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
+      // La foto se reduce ANTES de subir (ver `reducir-imagen.ts`): una foto de
+      // un papel tomada con el celular de la tienda trae más píxeles de los que
+      // el papel tiene información, y cada tope que se amplía solo mueve el
+      // muro más lejos. Si no es imagen o el navegador no puede, sube la
+      // original — ahí se prefiere el papel a los megas.
+      const paraSubir = await reducirImagen(archivo);
+      const ext = paraSubir.name.split(".").pop()?.toLowerCase() ?? "bin";
       const ruta = `certificados/${personaId}/${nuevoId}.${ext}`;
       setProgreso(0);
-      const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, archivo, setProgreso);
+      const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, paraSubir, setProgreso);
       setProgreso(null);
       if (errorSubida) {
         setGuardando(false);
-        setMsg({ tipo: "error", texto: `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.` });
+        setMsg({ tipo: "error", texto: `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.` });
         await cargar();
         return;
       }
@@ -376,7 +552,16 @@ export default function AusenciasPage() {
         )}
 
         {/* Registrar */}
-        <div className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+        {/* El aviso se borra en cuanto se toca cualquier campo, y va en el
+            contenedor y no en cada `onChange` para que ningún campo nuevo se
+            olvide de hacerlo. Antes solo se limpiaba dentro de `registrar()`:
+            corregías lo que el aviso rojo pedía, los campos quedaban llenos, y
+            el aviso seguía ahí diciendo que faltaban. Un error que sobrevive a
+            su corrección se lee como «el sistema me sigue rechazando». */}
+        <div
+          onInput={() => setMsg(null)}
+          className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2"
+        >
           <label className="flex flex-col gap-1 text-sm">
             Persona
             <select value={personaId} onChange={(e) => setPersonaId(e.target.value)} className="rounded-lg border bg-crema px-3 py-2">
@@ -427,15 +612,15 @@ export default function AusenciasPage() {
               </p>
               <label className="flex flex-col gap-1 text-sm">
                 Profesional o institución
-                <input value={docProf} onChange={(e) => setDocProf(e.target.value)} placeholder="ej. Dra. Rojas / Clínica San Pablo" className="rounded-lg border px-3 py-2" />
+                <input ref={refDocProf} value={docProf} onChange={(e) => setDocProf(e.target.value)} onBlur={(e) => setDocProf(e.currentTarget.value)} placeholder="ej. Dra. Rojas / Clínica San Pablo" className="rounded-lg border px-3 py-2" />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 N.º de colegiatura (CMP) o de CITT
-                <input value={docColeg} onChange={(e) => setDocColeg(e.target.value)} placeholder="ej. CMP 12345" className="rounded-lg border px-3 py-2" />
+                <input ref={refDocColeg} value={docColeg} onChange={(e) => setDocColeg(e.target.value)} onBlur={(e) => setDocColeg(e.currentTarget.value)} placeholder="ej. CMP 12345" className="rounded-lg border px-3 py-2" />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Fecha de emisión
-                <input type="date" value={docFecha} onChange={(e) => setDocFecha(e.target.value)} className="rounded-lg border px-3 py-2" />
+                <input ref={refDocFecha} type="date" value={fechaDoc} onChange={(e) => setDocFecha(e.target.value)} onBlur={(e) => setDocFecha(e.currentTarget.value)} className="rounded-lg border px-3 py-2" />
               </label>
               {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
                   admin y líder de DO: un certificado dice el diagnóstico de una
@@ -533,6 +718,14 @@ export default function AusenciasPage() {
                         <>
                           <span className="rounded-full bg-sand px-2 py-0.5 text-xs">anulada</span>
                           <div className="text-xs text-taupe">{a.anulada_motivo}</div>
+                          {/* El papel sigue existiendo aunque la ausencia se
+                              haya anulado, y a veces es justo lo que hay que
+                              mirar para entender por qué se anuló. */}
+                          {certificados[a.id] && (
+                            <button onClick={() => void verCertificado(a)} className="mt-1 rounded border px-2 py-0.5 text-xs hover:bg-sand/50">
+                              Ver documento
+                            </button>
+                          )}
                         </>
                       ) : a.requiere_aprobacion && !a.aprobada ? (
                         <span className="rounded-full bg-ambar/20 px-2 py-0.5 text-xs text-ambar">
@@ -545,6 +738,30 @@ export default function AusenciasPage() {
                     <td className="px-4 py-2">
                       {!a.anulada && (
                         <div className="flex flex-wrap gap-2 text-xs">
+                          {certificados[a.id] ? (
+                            <button onClick={() => void verCertificado(a)} className="rounded border px-2 py-1 hover:bg-sand/50">
+                              Ver documento
+                            </button>
+                          ) : a.doc_colegiatura ? (
+                            // `doc_colegiatura` y no una lista de tipos escrita
+                            // acá: solo el descanso médico y la maternidad
+                            // exigen esos datos, que es exactamente lo que
+                            // `fn_ausencia_adjuntar_certificado` acepta.
+                            <label className="cursor-pointer rounded border px-2 py-1 hover:bg-sand/50">
+                              {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
+                              <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                                className="hidden"
+                                disabled={adjuntando !== null}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  e.target.value = "";   // para poder reintentar con el mismo archivo
+                                  if (f) void adjuntarCertificado(a, f);
+                                }}
+                              />
+                            </label>
+                          ) : null}
                           {esDO && a.requiere_aprobacion && !a.aprobada && (
                             <button onClick={() => void aprobar(a)} disabled={guardando} className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-50">
                               Aprobar
