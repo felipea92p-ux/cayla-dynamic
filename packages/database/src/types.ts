@@ -4090,6 +4090,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_cierre_lima: { Args: { p_fecha: string | null }; Returns: string }
       fn_confirmar_auto_cierre: {
         Args: { p_marcaje_id: string | null; p_motivo?: string | null }
         Returns: {
@@ -4655,7 +4656,7 @@ export type Database = {
         Returns: string
       }
       fn_expediente_generar_tardanza: {
-        Args: { p_persona_id: string | null }
+        Args: { p_mes?: string | null; p_persona_id: string | null }
         Returns: string
       }
       fn_expediente_puede_actuar: {
@@ -4723,6 +4724,10 @@ export type Database = {
       }
       fn_familia_marca: {
         Args: { p_tipo: Database["public"]["Enums"]["tipo_marca"] | null }
+        Returns: string
+      }
+      fn_fecha_de_jornada: {
+        Args: { p_fecha_jornada: string | null; p_timestamp_marca: string | null }
         Returns: string
       }
       fn_fecha_en_periodo_pagado: {
@@ -5512,6 +5517,21 @@ export type Database = {
           suspension_previa_dias: number
         }[]
       }
+      fn_tardanza_escalon_al: {
+        Args: { p_al: string | null; p_persona_id: string | null }
+        Returns: {
+          bloqueado: boolean
+          corte: string
+          doc_previo: string
+          minimo: number
+          nivel_siguiente: string
+          suspension_previa_dias: number
+        }[]
+      }
+      fn_tardanza_ya_documentada: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
       fn_tardanzas_resumen: {
         Args: { p_as_of?: string | null }
         Returns: {
@@ -5546,6 +5566,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      fn_turno_texto: {
+        Args: { p_entrada: string | null; p_es_descanso: boolean | null; p_salida: string | null }
+        Returns: string
       }
       fn_vacaciones_por_atender: { Args: never; Returns: number }
       fn_vacaciones_por_vencer: {

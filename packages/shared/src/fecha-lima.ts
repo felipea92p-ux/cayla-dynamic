@@ -83,3 +83,53 @@ export function horaDecimalLima(cuando: Date | string = new Date()): number {
   const min = Number(p.find((x) => x.type === "minute")?.value ?? 0);
   return h + min / 60;
 }
+
+/**
+ * El nombre del mes de una fecha de Lima, en minúscula: `2026-08-04` → «agosto».
+ *
+ * Va acá y no en la pantalla que lo necesita porque ya se estaba escribiendo
+ * suelto en `admin/disciplina`, y un mes escrito de dos formas es la misma
+ * clase de problema que dos versiones del corte del día: la carta cita el mes
+ * y la pantalla lo nombra, y tienen que decir lo mismo.
+ *
+ * Se formatea con `timeZone: "UTC"` sobre una fecha construida a mediodía UTC
+ * a propósito: la cadena `2026-08-04` YA es una fecha de Lima resuelta, así que
+ * volver a aplicarle la zona la correría un día hacia atrás.
+ */
+export function nombreDelMesLima(fecha: string = hoyLima()): string {
+  const [y, m] = fecha.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, 1)))
+    .toLocaleLowerCase("es-PE");
+}
+
+/** Lo mismo, con la inicial en mayúscula, para abrir un título o una frase. */
+export function nombreDelMesLimaTitulo(fecha: string = hoyLima()): string {
+  const n = nombreDelMesLima(fecha);
+  return n.charAt(0).toLocaleUpperCase("es-PE") + n.slice(1);
+}
+
+/**
+ * Los primeros de los últimos `cuantos` meses en Lima, del más reciente al más
+ * viejo: `["2026-08-01", "2026-07-01", …]`.
+ *
+ * Existe para el selector de mes de Disciplina, que necesita ofrecer el mes en
+ * curso y los anteriores porque el art. 19.4 del Reglamento permite emitir un
+ * documento por hechos de un mes ya cerrado.
+ *
+ * Doce por defecto, y el número no es redondo por gusto: es el horizonte del
+ * propio numeral 19.1 c), que mide el antecedente en los doce meses anteriores
+ * al hecho. Más atrás, el documento seguiría siendo emitible pero ya no habría
+ * antecedente vivo que graduara su escalón.
+ *
+ * La aritmética va sobre año y mes como enteros, sin pasar por `Date`, porque
+ * restarle un mes a un 31 con `setMonth` cae en el mes equivocado.
+ */
+export function mesesRecientesLima(cuantos = 12, fecha: string = hoyLima()): string[] {
+  const [y, m] = fecha.split("-").map(Number);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return Array.from({ length: cuantos }, (_, i) => {
+    const total = y * 12 + (m - 1) - i;
+    return `${Math.floor(total / 12)}-${p2((total % 12) + 1)}-01`;
+  });
+}
