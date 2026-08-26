@@ -1230,3 +1230,22 @@ Producción lo confirma: `con_hueco_antes_de_su_primera_fila = 1`.
 jubilarse.** Con él, su julio recalcula igual que su boleta. Se registra con un
 `insert` deliberado y justificado —no por `fn_cambiar_regimen_pension`, que se
 niega a fechar nada dentro de un periodo pagado, y hace bien.
+
+#### Y ese dato probablemente no haya que preguntárselo a nadie
+
+Felipe no lo recuerda (2026-08-15), pero la base lo sabe. La aritmética:
+
+- La foto del pago de julio guarda `descuento_pension` — lo que se le retuvo.
+- **La base imponible NO depende del régimen**: es básica + asignación familiar
+  + feriados + recargo de sobretiempo. Así que recalcular julio hoy la da bien,
+  aunque el régimen salga mal.
+- `descuento_pension / base` = la tasa exacta que se le aplicó.
+
+Y las tasas son distintas entre sí: Habitat 12.84 · Integra 12.92 · Prima 12.97
+· ONP 13.00 · Profuturo 13.06. Un cociente de tres decimales las separa.
+
+Antes de usarlo hay que comprobar que la división cae limpia sobre una de las
+cinco y no entre dos: con montos de S/80 a S/150 la diferencia entre AFP vecinas
+es de céntimos, y el redondeo de la boleta podría no distinguirlas. Si queda
+ambiguo, se pregunta y punto — pero conviene medirlo antes de dar por perdido
+un dato que la base todavía tiene.
