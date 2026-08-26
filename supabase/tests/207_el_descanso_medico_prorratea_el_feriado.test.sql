@@ -13,10 +13,9 @@
 -- descanso médico salía pagado de menos — y quien pasaba el periodo ENTERO
 -- de descanso médico, en S/0.00. La 0269 lo cierra.
 --
--- NOTA para quien aplique la 0268 después de esta: ese cambio exige
--- `aprobada_at` para que un descanso médico pague. Esta prueba no lo pone
--- porque en esta rama la 0268 todavía no existe — cuando se una, esta prueba
--- (y la 195 y la 200) necesitan la aprobación seteada o dejan de pagar.
+-- La 0306 (la que reemplazó a la 0268, perdida sin commitear) exige
+-- `aprobada_at` para que un descanso médico o una maternidad paguen. Esta
+-- prueba ya lo pone.
 -- ============================================================================
 begin;
 select plan(5);
@@ -72,10 +71,10 @@ select gen_random_uuid(), '00000000-0000-0000-0000-0000000006a3',
 from (values ('entrada'::tipo_marca,      timestamptz '2026-08-05T09:00:00-05:00'),
              ('salida_final'::tipo_marca, timestamptz '2026-08-05T15:30:00-05:00')) m(tipo, ts);
 
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por) values
-  ('00000000-0000-0000-0000-0000000006a4', 'descanso_medico', '2026-08-05', '2026-08-05', 'lab', '00000000-0000-0000-0000-0000000006a2'),
-  ('00000000-0000-0000-0000-0000000006a5', 'vacaciones',       '2026-08-05', '2026-08-05', 'lab', '00000000-0000-0000-0000-0000000006a2'),
-  ('00000000-0000-0000-0000-0000000006a6', 'descanso_medico', '2026-07-29', '2026-08-28', 'lab', '00000000-0000-0000-0000-0000000006a2');
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, motivo, registrada_por, aprobada_por, aprobada_at) values
+  ('00000000-0000-0000-0000-0000000006a4', 'descanso_medico', '2026-08-05', '2026-08-05', 'lab', '00000000-0000-0000-0000-0000000006a2', '00000000-0000-0000-0000-0000000006a2', now()),
+  ('00000000-0000-0000-0000-0000000006a5', 'vacaciones',       '2026-08-05', '2026-08-05', 'lab', '00000000-0000-0000-0000-0000000006a2', null, null),
+  ('00000000-0000-0000-0000-0000000006a6', 'descanso_medico', '2026-07-29', '2026-08-28', 'lab', '00000000-0000-0000-0000-0000000006a2', '00000000-0000-0000-0000-0000000006a2', now());
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000006ff', true);
 

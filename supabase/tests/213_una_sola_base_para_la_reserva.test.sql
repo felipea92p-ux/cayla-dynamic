@@ -126,18 +126,21 @@ delete from jornadas
 -- Y solo UNA tiene el parte. Sus cinco días entran a la base por la rama de
 -- «los días que la ley manda contar aunque nadie marque»; los de su gemela no
 -- entran por ningún lado.
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por)
+-- Aprobada por DO (0306): sin `aprobada_at` el descanso médico no paga.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por, aprobada_por, aprobada_at)
 values ('00000000-0000-0000-0000-000000276012','descanso_medico','2026-08-17','2026-08-21',
-        '00000000-0000-0000-0000-0000002760ad');
+        '00000000-0000-0000-0000-0000002760ad', '00000000-0000-0000-0000-0000002760ad', now());
 
 insert into feriados_descanso_sustitutorio (persona_id, fecha_feriado, fecha_descanso_sustitutorio, estado, acta_ref)
 values ('00000000-0000-0000-0000-00000027600b','2026-05-01','2026-05-07','OTORGADO','ACTA-276');
 insert into feriados_descanso_sustitutorio (persona_id, fecha_feriado, fecha_descanso_sustitutorio, estado)
 values ('00000000-0000-0000-0000-00000027600c','2026-05-01','2026-05-07','PENDIENTE');
 
-insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por, subsidio_diario)
+-- Aprobada por DO (0306): sin `aprobada_at` la maternidad no paga el subsidio,
+-- y el feriado que cubre dejaría de excluirse acá.
+insert into ausencias (persona_id, tipo, fecha_inicio, fecha_fin, registrada_por, subsidio_diario, aprobada_por, aprobada_at)
 values ('00000000-0000-0000-0000-00000027600f','maternidad','2026-04-20','2026-06-30',
-        '00000000-0000-0000-0000-0000002760ad', 45.00);
+        '00000000-0000-0000-0000-0000002760ad', 45.00, '00000000-0000-0000-0000-0000002760ad', now());
 
 create temporary table _bol on commit drop as
 select (e ->> 'persona_id')::uuid as persona_id, e as fila
