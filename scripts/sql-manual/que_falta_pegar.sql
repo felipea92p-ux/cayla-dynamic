@@ -166,7 +166,8 @@ with repo(numero, nombre, nunca) as (values
     (304, 'una_marca_apartada_deja_de_vivir_en_un_solo_navegador', false),
     (305, 'un_retroactivo_dice_de_que_mes_viene', false),
     (306, 'el_descanso_medico_y_la_maternidad_pagan_solo_aprobados', false),
-    (307, 'el_candado_del_mes_pagado_mide_la_jornada', false)
+    (307, 'el_candado_del_mes_pagado_mide_la_jornada', false),
+    (308, 'la_reserva_tampoco_devenga_sin_la_firma_de_do', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
