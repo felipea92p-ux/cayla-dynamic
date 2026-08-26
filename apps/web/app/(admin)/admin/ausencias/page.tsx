@@ -152,6 +152,7 @@ export default function AusenciasPage() {
   // quien no tiene ese permiso recibe una lista vacía y no ve ningún botón.
   // La regla vive en la base, no repetida acá.
   const [certificados, setCertificados] = useState<Record<string, string>>({});
+  const [adjuntando, setAdjuntando] = useState<string | null>(null);
 
   const [desde, setDesde] = useState(haceMeses(6));
   const [hasta, setHasta] = useState(haceMeses(-6));
@@ -259,6 +260,46 @@ export default function AusenciasPage() {
     }
     if (pestana) pestana.location.href = data.signedUrl;
     else window.open(data.signedUrl, "_blank");
+  }
+
+  /**
+   * Adjunta el certificado a una ausencia YA REGISTRADA.
+   *
+   * Faltaba, y su ausencia convertía en mentira un mensaje que esta pantalla ya
+   * daba: cuando la subida falla, dice «el papel puedes adjuntarlo después» —y
+   * hasta hoy no había por dónde—. El desenlace es corriente: la ausencia se
+   * registra aunque el archivo no suba, a propósito, porque el registro es lo
+   * que evita que esos días cuenten como falta.
+   *
+   * Y hay un segundo camino, el que lo destapó: el archivo se guarda con el id
+   * de SU ausencia, así que si una se anula y se registra otra —«me equivoqué,
+   * son 2 días»— el papel se queda en la anulada. La nueva nace sin él y no
+   * había forma de moverlo.
+   *
+   * Quién puede lo decide `fn_ausencia_adjuntar_certificado` (0197), que además
+   * solo acepta descanso médico y maternidad: no se abre un sitio para guardar
+   * papeles de salud fuera del único que se revisa.
+   */
+  async function adjuntarCertificado(a: Ausencia, archivo: File) {
+    setAdjuntando(a.id);
+    setMsg(null);
+    const paraSubir = await reducirImagen(archivo);
+    const ext = paraSubir.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const ruta = `certificados/${a.persona_id}/${a.id}.${ext}`;
+    const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, paraSubir, setProgreso);
+    setProgreso(null);
+    if (errorSubida) {
+      setAdjuntando(null);
+      setMsg({ tipo: "error", texto: `El certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). La ausencia sigue registrada igual.` });
+      return;
+    }
+    const { error } = await supabase.rpc("fn_ausencia_adjuntar_certificado", {
+      p_ausencia_id: a.id, p_storage_path: ruta,
+    });
+    setAdjuntando(null);
+    if (error) { setMsg({ tipo: "error", texto: `El archivo subió, pero no se pudo enlazar (${error.message}).` }); return; }
+    await cargar();
+    setMsg({ tipo: "ok", texto: `Certificado adjuntado a la ausencia de ${a.nombre}.` });
   }
 
   async function registrar() {
@@ -697,11 +738,30 @@ export default function AusenciasPage() {
                     <td className="px-4 py-2">
                       {!a.anulada && (
                         <div className="flex flex-wrap gap-2 text-xs">
-                          {certificados[a.id] && (
+                          {certificados[a.id] ? (
                             <button onClick={() => void verCertificado(a)} className="rounded border px-2 py-1 hover:bg-sand/50">
                               Ver documento
                             </button>
-                          )}
+                          ) : a.doc_colegiatura ? (
+                            // `doc_colegiatura` y no una lista de tipos escrita
+                            // acá: solo el descanso médico y la maternidad
+                            // exigen esos datos, que es exactamente lo que
+                            // `fn_ausencia_adjuntar_certificado` acepta.
+                            <label className="cursor-pointer rounded border px-2 py-1 hover:bg-sand/50">
+                              {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
+                              <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                                className="hidden"
+                                disabled={adjuntando !== null}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  e.target.value = "";   // para poder reintentar con el mismo archivo
+                                  if (f) void adjuntarCertificado(a, f);
+                                }}
+                              />
+                            </label>
+                          ) : null}
                           {esDO && a.requiere_aprobacion && !a.aprobada && (
                             <button onClick={() => void aprobar(a)} disabled={guardando} className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-50">
                               Aprobar
