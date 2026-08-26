@@ -99,6 +99,14 @@ const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf"
 /** Los tres papeles que pueden colgar de un documento (mig. 0206). */
 type TipoPapel = "cargo_firmado" | "acta_negativa" | "descargo";
 
+/** Cómo se dice en pantalla cada medio de entrega. */
+const MEDIO_ENTREGA: Record<string, string> = {
+  fisico: "en mano",
+  correo: "por correo",
+  notarial: "por conducto notarial",
+  acta_negativa: "acta de negativa a firmar",
+};
+
 const NOMBRE_ARCHIVO: Record<TipoPapel, string> = {
   cargo_firmado: "cargo", acta_negativa: "acta", descargo: "descargo",
 };
@@ -129,7 +137,7 @@ interface Doc {
   cargos_comunicados_at: string | null; descargo_vence_at: string | null;
   descargo_acogido: string | null; descargo_valoracion: string | null;
   correlativo: string | null; creado_at: string; firmado_at: string | null;
-  entregado_at: string | null; medio_entrega: string | null;
+  entregado_at: string | null; medio_entrega: string | null; entrega_testigo_nombre: string | null;
   /** El rastro del trámite: cuándo se comunicaron los cargos y —si se
    *  declararon después (mig. 0266)— quién lo declaró y cómo consta. Se lee en
    *  la fila del borrador porque es lo que hay que mirar ANTES de firmar. */
@@ -299,7 +307,7 @@ export default function DisciplinaPage() {
       supabase.rpc("fn_tardanzas_resumen", {}),
       supabase.rpc("fn_faltas_resumen", {}),
       supabase.from("expediente_disciplinario")
-        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion")
+        .select("id, persona_id, tipo_causal, nivel, estado, periodo_desde, periodo_hasta, hechos, suspension_dias, suspension_desde, suspension_hasta, suspension_fechas, fecha_cese, resuelto_at, resuelto_resultado, resuelto_motivo, correlativo, creado_at, firmado_at, entregado_at, medio_entrega, entrega_testigo_nombre, cargos_comunicados_at, descargo_vence_at, descargo_acogido, descargo_valoracion, observacion")
         // ⇩ Entra "entregado": antes desaparecía al entregarse, así que subías el
         //   cargo y no veías que hubiera quedado. Y no había dónde consultar el
         //   papel de una entrega de hace dos meses.
@@ -1431,7 +1439,8 @@ function fechasDe(h: Hecho[]): string {
                       </div>
                       <p className="mt-1 text-xs text-taupe">
                         Entregado {d.entregado_at ? selloLima(d.entregado_at) : "—"}
-                        {d.medio_entrega && ` · ${d.medio_entrega}`}
+                        {d.medio_entrega && ` · ${MEDIO_ENTREGA[d.medio_entrega] ?? d.medio_entrega}`}
+                        {d.entrega_testigo_nombre && ` · testigo: ${d.entrega_testigo_nombre}`}
                         {!papeles.some((a) => a.tipo === "cargo_firmado" || a.tipo === "acta_negativa") && (
                           <span className="text-rojo"> · sin el papel archivado</span>
                         )}
