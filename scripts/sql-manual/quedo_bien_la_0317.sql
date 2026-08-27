@@ -52,4 +52,4 @@ select
     where n.nspname = 'public' and p.proname = 'fn_planilla_calcular')       as sobrecargas,
 
   (select nombre from tipos_ausencia where codigo = 'duelo_familiar_directo') as nombre_del_duelo_directo,
-  (select count(*) = 1 from migraciones_aplicadas where numero = 316)         as quedo_el_rastro;
+  (select count(*) = 1 from migraciones_aplicadas where numero = 317)         as quedo_el_rastro;
