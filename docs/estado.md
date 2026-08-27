@@ -37,6 +37,59 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — La familia de tres, cerrada (0263 · 0316 · 0317)
+
+La planilla paga tres cosas sin que haya marcaje: **descanso médico**, **licencia
+con goce y duelo directo**, y **vacaciones**. Las tres son remuneración y las
+tres tenían que entrar a `bri.base`. Las tres se cayeron por el mismo sitio, una
+detrás de otra: el monto iba a `pago_base` y no a `pb.basica`.
+
+| | lo arregló |
+|---|---|
+| Descanso médico | 0263 |
+| Licencia con goce y duelo directo | **0316**, hoy |
+| Vacaciones | **0317**, hoy · escrita y auditada, **sin pegar** |
+
+**Lo que enseñó la medición**, y costó entender: `pb.basica` —la básica legal, la
+parte del sueldo que sí se declara— **se prorratea por HORAS MARCADAS**. Quien
+está de vacaciones no marca, así que sus días se pagaban íntegros como
+complemento variable, que no es remunerativo. Sueldo 3.000, periodo 29/07→28/08:
+
+| días de vacaciones | básica legal | se declara |
+|---|---|---|
+| 0 | 984,19 | 1.372,25 |
+| 5 | 801,94 | 1.190,00 |
+| 18 | 400,97 | 1.130,00 |
+| 31 (el mes entero) | **0,00** | **1.130,00** ← el piso RMV |
+
+**La simetría que confirma el arreglo.** Cuatro personas idénticas faltando los
+MISMOS cinco días, cambiando solo el tipo. Las tres que pagan, pagan S/483,87:
+
+| | subía su base ANTES | DESPUÉS |
+|---|---|---|
+| Descanso médico | +519,89 | +519,89 |
+| Licencia con goce | +483,87 | +483,87 |
+| **Vacaciones** | **+36,02** | **+483,87** |
+
+Vacaciones y descanso médico ahora dan **la misma base exacta** (1.673,87). Y
+quien pasa el mes entero de vacaciones pasa de aportar S/29 de pensión a S/419 —
+eso es lo que se le dejaba de acreditar a su fondo.
+
+**No mueve ninguna boleta.** Medido en producción: **cero** personas con
+vacaciones en el periodo abierto y **cero** periodos ya pagados afectados. Misma
+ventana que la 0316.
+
+md5 de partida `f6ece4f8…` (la 0316) · de llegada `6838c789a2f2444166f2dbebfd9faa0d`,
+107.341 caracteres. Diff del cuerpo: **cero líneas quitadas**, 3 de código.
+Prueba [`253`](../supabase/tests/253_la_remuneracion_vacacional_tambien_se_declara.test.sql),
+12 aserciones. Suite: 175 archivos, 1748 pruebas, PASS.
+
+**Y se cierra la divergencia que la prueba 251 había declarado.** Decía «defecto
+abierto a propósito… cuando se arregle, esta línea se cae y hay que cambiarla por
+su contraria». Se cayó el mismo día.
+
+---
+
 ## 2026-08-26 — Lo que la revisión adversaria de la 0314 encontró · PENDIENTE
 
 32 agentes, cinco lentes independientes y dos escépticos por hallazgo. **13

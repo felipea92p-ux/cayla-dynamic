@@ -171,23 +171,26 @@ select is((select nombre from tipos_ausencia where codigo = 'duelo_familiar_dire
           'Duelo — familiar directo (cónyuge, padres, hijos, hermanos)',
   'y «cónyuge» lleva tilde, como el resto del catálogo');
 
--- ── 5 · LA DIVERGENCIA DECLARADA, al estilo de la 244 ──────────────────────
+-- ── 5 · LA DIVERGENCIA QUE ESTABA DECLARADA, Y QUE YA SE CERRÓ ─────────────
 --
--- Las VACACIONES tienen el mismo agujero y la 0316 NO lo cierra: se decidió el
--- 2026-08-26 dejarlo para después del cierre del 28, porque ese término sí
--- cambia el neto de quien tomó vacaciones y no había margen para revisarlo con
--- el contador. Está en `docs/hallazgos-abiertos.md` con su medición.
+-- Aquí vivía una comprobación al estilo de la 244: afirmaba que la remuneración
+-- vacacional NO entraba a la base, lo declaraba «defecto abierto a propósito» y
+-- avisaba de que el día que alguien lo arreglara esta línea se caería y habría
+-- que cambiarla por su contraria.
 --
--- Esta comprobación NO celebra el defecto: lo vigila. Cuando alguien lo
--- arregle, estas dos líneas se caerán — y esa caída es el aviso de que hay que
--- venir aquí y cambiarlas por un `>`, igual que la 244 hizo con E09LicGoce.
+-- Se cayó el mismo día. La **0317** lo cerró, unas horas después de la 0316, en
+-- cuanto se midió en producción que no había ni una persona con vacaciones en
+-- el periodo abierto — o sea, que el arreglo no movía ninguna boleta.
+--
+-- Así que ahora dice lo contrario, y con ella la familia queda completa: los
+-- TRES conceptos que la planilla paga sin marcaje entran a la base.
 select is(pg_temp.num('BiLicencia Base','monto_vacaciones'), 0::numeric,
   'montaje: en este escenario nadie está de vacaciones (si no, lo de abajo no mide nada)');
 select ok(
-  (select prosrc not like '%pb.monto_vacaciones, 0), 2)%'
+  (select prosrc like '%pb.monto_vacaciones, 0), 2)%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
-  'DEFECTO ABIERTO A PROPÓSITO: la remuneración vacacional aún no entra a la base. Cuando se arregle, esta línea se cae y hay que cambiarla por su contraria');
+  'y la remuneración vacacional también entra a la base (0317): la familia de tres, completa');
 
 select * from finish();
 rollback;
