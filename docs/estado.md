@@ -48,7 +48,7 @@ detrás de otra: el monto iba a `pago_base` y no a `pb.basica`.
 |---|---|
 | Descanso médico | 0263 |
 | Licencia con goce y duelo directo | **0316**, hoy |
-| Vacaciones | **0317**, hoy · escrita y auditada, **sin pegar** |
+| Vacaciones | **0317**, hoy · **PEGADA Y VERIFICADA** |
 
 **Lo que enseñó la medición**, y costó entender: `pb.basica` —la básica legal, la
 parte del sueldo que sí se declara— **se prorratea por HORAS MARCADAS**. Quien
@@ -82,8 +82,15 @@ mes entero de vacaciones pasa de aportar S/29 de pensión a S/419.
 vacaciones en el periodo abierto y **cero** periodos ya pagados afectados. Misma
 ventana que la 0316.
 
-md5 de partida `f6ece4f8…` (la 0316) · de llegada `6838c789a2f2444166f2dbebfd9faa0d`,
-107.341 caracteres. Diff del cuerpo: **cero líneas quitadas**, 3 de código.
+**PEGADA Y VERIFICADA EN PRODUCCIÓN el 2026-08-26.** md5 de llegada
+`6838c789a2f2444166f2dbebfd9faa0d`, 107.341 caracteres, el esperado al byte, y
+comprobado que no revirtió nada: siguen en pie la 0262, la 0263, la 0275, la
+0314 y la 0316, las cuatro cascadas de días laborables están, y hay **una sola**
+`fn_planilla_calcular`. Su revisión adversaria salió con **cero hallazgos**
+—cinco propuestos, los cinco refutados con medición—.
+
+md5 de partida `f6ece4f8…` (la 0316). Diff del cuerpo: **cero líneas quitadas**,
+3 de código.
 Prueba [`253`](../supabase/tests/253_la_remuneracion_vacacional_tambien_se_declara.test.sql),
 12 aserciones. Suite: 175 archivos, 1748 pruebas, PASS.
 
