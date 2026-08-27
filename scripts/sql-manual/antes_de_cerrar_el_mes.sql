@@ -154,14 +154,35 @@ c6 as (
 -- Sin régimen de pensión cargado el descuento sale S/0.00 y ninguna pantalla lo
 -- dice. Medido: ~S/256/mes por persona. CAYLA es agente de retención: lo que no
 -- se retiene lo termina pagando la empresa. Es lo que pasó en julio con 23.
+-- ⇩⇩⇩ 2026-08-26 ⇩⇩⇩ PREGUNTABA POR LA COLUMNA, Y LA COLUMNA DEJÓ DE MANDAR.
+-- Desde la 0261 el régimen vive en `asignaciones_regimen_pension`, versionado
+-- por fecha, y `personas.regimen_pension` quedó como respaldo. La planilla lo
+-- resuelve así:
+--     coalesce((select h.regimen from asignaciones_regimen_pension h
+--                where h.persona_id = p.id and h.vigente_desde <= p_fin
+--                  and (h.vigente_hasta is null or h.vigente_hasta >= p_fin)
+--                order by h.vigente_desde desc limit 1),
+--              p.regimen_pension)
+-- O sea que a quien tiene su tramo puesto y la columna vacía SÍ se le retiene
+-- —medido: S/124.04 en un caso— y este chequeo la gritaba igual. Un 💸 que no
+-- se apaga tocando lo que señala, en la pantalla donde no puede haber ruido.
+-- Ahora pregunta lo mismo que la planilla: si no hay tramo NI columna, no hay
+-- tasa. Para la divergencia entre las dos —que la 0277 dejó a propósito para
+-- mirar caso por caso— está fn_regimen_pension_divergentes().
 c7 as (
   select 8, 'SIN RÉGIMEN DE PENSIÓN',
          case when count(*) = 0 then '✓  todos lo tienen'
               else '💸 ' || count(*)::text || ' persona(s) sin retención previsional' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos, ' · '),
                   'Nadie en planilla se queda sin descuento por falta de régimen.')
-  from personas p
-  where p.estado = 'activo' and p.en_planilla is true and p.regimen_pension is null
+  from personas p, d
+  where p.estado = 'activo' and p.en_planilla is true
+    and coalesce(
+          (select h.regimen from asignaciones_regimen_pension h
+            where h.persona_id = p.id and h.vigente_desde <= d.fin
+              and (h.vigente_hasta is null or h.vigente_hasta >= d.fin)
+            order by h.vigente_desde desc limit 1),
+          p.regimen_pension::text) is null
 ),
 
 -- ── 8 · Ausencias que se van a pagar en CERO ────────────────────────────────
@@ -195,21 +216,46 @@ c7 as (
 -- Se mira `t.requiere_aprobacion` y no una lista de códigos, por lo mismo que la
 -- 0314: el próximo tipo que alguien cree caería en la misma trampa en silencio.
 -- Lo que NO exige aprobación —las vacaciones— no puede aparecer aquí jamás.
+-- ⇩⇩⇩ 2026-08-26, SEGUNDA CORRECCIÓN DEL MISMO DÍA ⇩⇩⇩
+-- La primera estrechó este chequeo a «falta la firma», y con eso PERDIÓ un caso
+-- que la versión anterior sí cazaba: una MATERNIDAD APROBADA por DO pero sin el
+-- subsidio diario de EsSalud cargado paga S/0.00 igual. El lateral `mat` de
+-- fn_planilla_calcular (0262) solo paga los días con `subsidio_diario` puesto
+-- —el resto los manda a `dias_maternidad_sin_monto`, un contador informativo
+-- que nadie mira— y esa decisión es correcta: el promedio de los 12 meses
+-- previos puede incluir empleadores anteriores a CAYLA, así que inventarlo
+-- daría un número más bajo que el legal con toda la apariencia de estar bien.
+--
+-- Medido en BEGIN…ROLLBACK: dos personas idénticas, las dos con maternidad
+-- 03→14/08 APROBADA, única diferencia el subsidio. Con monto: 12 días, S/720.00.
+-- Sin monto: 0 días, 12 en cero, S/0.00 — y el chequeo decía «✓ ninguna: todas
+-- las que pagan están firmadas».
+--
+-- Son DOS puertas al mismo cero, y hay que mirar las dos: la firma que falta y
+-- el monto que falta. Un guardián que cubre una de las dos es peor que ninguno,
+-- porque da luz verde con la misma cara.
 c8 as (
-  select 9, 'AUSENCIAS QUE PAGARÁN CERO POR FALTARLES LA FIRMA DE DO',
-         case when count(*) = 0 then '✓  ninguna: todas las que pagan están firmadas'
-              else '💸 ' || count(*)::text || ' ausencia(s) SIN FIRMA: saldrán S/0.00' end,
+  select 9, 'AUSENCIAS QUE PAGARÁN CERO: SIN FIRMA DE DO O SIN SU MONTO',
+         case when count(*) = 0 then '✓  ninguna: todas las que pagan están firmadas y con su monto'
+              else '💸 ' || count(*)::text || ' ausencia(s) que saldrán S/0.00' end,
          coalesce(string_agg(p.nombres || ' ' || p.apellidos || ' · ' || a.tipo
-                             || ' ' || a.fecha_inicio::text || '→' || a.fecha_fin::text, ' · '),
-                  'Todo lo que paga en este periodo tiene la firma de DO. Los permisos personales, el duelo por otro familiar y la salud sin documento NO pagan: S/0.00 es su resultado correcto, y por eso no salen aquí.')
+                             || ' ' || a.fecha_inicio::text || '→' || a.fecha_fin::text
+                             || ' · ' || case when a.aprobada_at is null
+                                              then 'SIN FIRMA de DO'
+                                              else 'firmada, pero SIN el subsidio diario de EsSalud cargado' end,
+                             ' · '),
+                  'Todo lo que paga en este periodo tiene la firma de DO y su monto. Los permisos personales, el duelo por otro familiar y la salud sin documento NO pagan: S/0.00 es su resultado correcto, y por eso no salen aquí.')
   from ausencias a
   join personas p on p.id = a.persona_id
   join tipos_ausencia t on t.codigo = a.tipo and t.paga is true, d
   where a.anulada_at is null and a.fecha_inicio <= d.fin and a.fecha_fin >= d.ini
     and p.en_planilla is true
-    -- ⇩⇩⇩ 2026-08-26 ⇩⇩⇩ lo que decide hoy es la firma, no el tipo.
-    and t.requiere_aprobacion is true
-    and a.aprobada_at is null
+    and (
+      -- Puerta 1 · lo que decide hoy es la firma, no el tipo.
+      (t.requiere_aprobacion is true and a.aprobada_at is null)
+      -- Puerta 2 · la maternidad además necesita su monto, o paga cero igual.
+      or (a.tipo = 'maternidad' and a.subsidio_diario is null)
+    )
 ),
 
 -- ── 9 · Quién entró o cesó dentro del periodo ───────────────────────────────
@@ -257,10 +303,26 @@ c11 as (
 -- Un día de vacaciones en el que la persona ADEMÁS marca se paga dos veces.
 -- Medido: hasta S/915 de más en un mes.
 c12 as (
+  -- ⇩⇩⇩ 2026-08-26 ⇩⇩⇩ DECÍA «se pagarán DOS veces», Y DEJÓ DE SER CIERTO.
+  -- El CAMBIO 0286 hizo que el lateral `vacd` excluya el día que además tiene
+  -- jornada con horas > 0 (`and not exists (select 1 from jornadas j …)`), así
+  -- que ese día se paga UNA vez, como trabajado. Medido: dos personas idénticas,
+  -- una fichó 6.5 h en plenas vacaciones — `pago_base` IDÉNTICO en las dos
+  -- (S/645.16), con los días de vacaciones pagados bajando de 5 a 4. La única
+  -- diferencia real son S/12 de movilidad, y son correctos: se devenga por día
+  -- efectivamente asistido.
+  --
+  -- Se conserva el chequeo porque el dato sigue mereciendo una mirada —alguien
+  -- marcó un día que tenía libre, y puede ser un error de registro— pero baja
+  -- de 💸 a ℹ. El 💸 significa plata mal pagada, y gastarlo donde no la hay
+  -- enseña a ignorarlo en la pantalla donde el otro 💸 sí importa. Es la misma
+  -- lección que este archivo ya escribió para el chequeo de movilidad: «un
+  -- semáforo que no se apaga nunca no es un semáforo».
   select 13, 'VACACIONES CON MARCAJE ENCIMA',
          case when count(*) = 0 then '✓  ninguna'
-              else '💸 ' || count(*)::text || ' día(s) que se pagarán DOS veces' end,
-         coalesce(string_agg(distinct p.nombres || ' ' || p.apellidos, ' · '),
+              else 'ℹ  ' || count(*)::text || ' día(s) marcados dentro de vacaciones' end,
+         coalesce(string_agg(distinct p.nombres || ' ' || p.apellidos, ' · ')
+                  || ' — la 0286 ya evita el doble pago: ese día se paga como trabajado, no como vacación. Mirarlo por si el registro está mal, no por la plata.',
                   'Nadie marcó durante sus vacaciones.')
   from vacaciones v join personas p on p.id = v.persona_id
   join jornadas j on j.persona_id = v.persona_id
