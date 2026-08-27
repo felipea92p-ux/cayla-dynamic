@@ -178,9 +178,27 @@ c8 as (
   where g.en_planilla is true
 ),
 -- 9 · VACACIONES QUE NO ENTRAN A LA BASE DE ESSALUD NI DE PENSIÓN
+--
+-- ⇩⇩⇩ 2026-08-26 ⇩⇩⇩ ESTE CHEQUEO PREGUNTABA POR EL RIESGO, NO POR EL HECHO.
+-- Listaba a cualquiera con días de vacaciones, dando por supuesto que la base
+-- no los incluía. La 0317 los incluyó, así que a partir de ese momento gritaba
+-- por TODO EL QUE SE TOMÓ VACACIONES — un falso positivo, y de los que asustan
+-- justo el día del cierre.
+--
+-- Ahora mira el cuerpo vivo de la función en vez de suponer. Si la marca de la
+-- 0317 está, la vacacional entra a la base y no le pega a nadie; si no está,
+-- grita con la lista de a quién le cuesta. Es la misma disciplina que el resto
+-- del repositorio aplica con los md5: preguntarle a producción, no a la
+-- memoria de quien escribió el script.
 c9 as (
   select 9, 'Vacaciones fuera de la base de EsSalud y pensión',
-    coalesce(string_agg(g.quien || ' (' || v.dias_vac || ' días)', ' · '), '')
+    case when exists (
+           select 1 from pg_proc
+            where proname = 'fn_planilla_calcular'
+              and position('CAMBIO 0317' in prosrc) > 0)
+         then ''   -- la 0317 está puesta: la vacacional ya entra a la base
+         else coalesce(string_agg(g.quien || ' (' || v.dias_vac || ' días)', ' · '), '')
+    end
   from vac v join gente g on g.id = v.persona_id
   where g.en_planilla is true and g.sueldo_fijo is not true and v.dias_vac > 0
 ),
