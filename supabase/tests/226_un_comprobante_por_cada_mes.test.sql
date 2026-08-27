@@ -11,7 +11,7 @@
 -- contar y la prueba no probaría nada.
 -- ============================================================================
 begin;
-select plan(23);
+select plan(27);
 
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
@@ -81,6 +81,32 @@ select is(
   2,
   'FALTAN · con un papel de tres meses ya cobrados, faltan dos');
 
+-- ── LAS TRES SUELTAS, QUE HASTA HOY NO LLAMABA NADIE ───────────────────────
+--
+-- La 0290 creó `fn_educacion_papeles`, `fn_educacion_meses_sin_papel` y
+-- `fn_educacion_por_atender`, y **ninguna prueba las llamaba por su nombre**.
+-- `fn_educacion_listar` trae una CUARTA copia inline de la misma lógica, y era
+-- esa copia la que estas pruebas verificaban — o sea que las tres podían
+-- pudrirse sin que nada se pusiera rojo.
+--
+-- Se comparan función CONTRA función, no contra números escritos a mano. El
+-- riesgo no es que una dé mal un número: es que **dos de ellas den números
+-- distintos** y nadie se entere. `fn_educacion_por_atender` es el contador que
+-- le avisa a DO qué papeles hay que perseguir; si dice «0 pendientes» mientras
+-- la lista muestra filas con `meses_sin_papel > 0`, nadie va detrás del papel
+-- que sustenta un pago YA HECHO.
+select is(
+  (select count(*)::int from fn_educacion_meses_sin_papel(
+     (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'))),
+  (select meses_sin_papel from fn_educacion_listar() where persona_id = '00000000-0000-0000-0000-0000000000c2'),
+  'MISMA CUENTA · fn_educacion_meses_sin_papel dice lo mismo que la lista');
+
+select is(
+  (select count(*)::int from fn_educacion_papeles(
+     (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'))),
+  (select papeles from fn_educacion_listar() where persona_id = '00000000-0000-0000-0000-0000000000c2'),
+  'MISMA CUENTA · fn_educacion_papeles dice lo mismo que la lista');
+
 
 -- ── 3 · Adjuntar los que faltan ────────────────────────────────────────────
 select lives_ok($$
@@ -94,6 +120,22 @@ select is(
     where persona_id = '00000000-0000-0000-0000-0000000000c2'),
   1,
   'FALTAN · ahora falta uno solo');
+
+-- Y siguen coincidiendo DESPUÉS de mover el dato. Una sola foto no prueba nada:
+-- dos funciones pueden acertar el mismo número por casualidad en un estado y
+-- separarse en el siguiente.
+select is(
+  (select count(*)::int from fn_educacion_meses_sin_papel(
+     (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'))),
+  (select meses_sin_papel from fn_educacion_listar() where persona_id = '00000000-0000-0000-0000-0000000000c2'),
+  'MISMA CUENTA · y siguen coincidiendo tras adjuntar el segundo papel');
+
+-- EL CONTADOR DEL MENÚ contra la lista que abre esa misma pantalla. Es la
+-- comprobación que de verdad importa de las cuatro.
+select is(
+  fn_educacion_por_atender(),
+  (select count(*)::int from fn_educacion_listar() where meses_sin_papel > 0),
+  'EL CONTADOR · fn_educacion_por_atender dice lo mismo que la lista que abre');
 
 select throws_like($$
   select fn_educacion_adjuntar_comprobante(
