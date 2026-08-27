@@ -178,6 +178,7 @@ with repo(numero, nombre, nunca) as (values
     (316, 'lo_que_se_paga_por_licencia_tambien_se_declara', false),
     (317, 'la_remuneracion_vacacional_tambien_se_declara', false),
     (318, 'reabrir_el_dia_no_toca_la_salida_de_anoche', false),
+    (319, 'que_cambio_respecto_al_mes_pasado', false),
     (320, 'la_marca_real_gana_a_la_que_adivino_el_robot', false)
 ),
 diff as (

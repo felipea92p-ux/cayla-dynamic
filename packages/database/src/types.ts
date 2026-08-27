@@ -4121,11 +4121,50 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_contrato_firmado_vigente_de: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          anulado_at: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          cargo: string
+          comunicado_mtpe_at: string | null
+          copia_entregada_at: string | null
+          documento_html: string
+          fecha_fin: string
+          fecha_firma: string | null
+          fecha_inicio: string
+          generado_at: string
+          generado_por: string
+          horas_semanales: number | null
+          id: string
+          persona_id: string
+          registrado_por: string | null
+          remuneracion_mensual: number
+          sede_id: string
+          storage_path: string | null
+          tipo: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "contratos_generados"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       fn_contrato_marcar_tramite: {
         Args: { p_fecha?: string | null; p_id: string | null; p_tramite: string | null }
         Returns: undefined
       }
       fn_contrato_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_contrato_refrescar_vencimiento: {
+        Args: {
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_puede_borrar?: boolean | null
+        }
+        Returns: string
+      }
       fn_contrato_registrar: {
         Args: {
           p_cargo?: string | null
@@ -5033,6 +5072,10 @@ export type Database = {
           total_ahora: number
           total_foto: number
         }[]
+      }
+      fn_planilla_variacion: {
+        Args: { p_periodo_id: string | null; p_previo_id?: string | null }
+        Returns: Json
       }
       fn_poblacion_obligada: { Args: never; Returns: string[] }
       fn_politica_salarial_vigente: { Args: never; Returns: Json }
