@@ -973,7 +973,7 @@ que sustenta un pago ya hecho.
 que llamen directo a las tres funciones sueltas y comparen contra la columna
 `meses_sin_papel`.
 
-### 9 · Tablas nuevas con datos sensibles, con RLS pero sin ninguna prueba que confirme que protege — patrón, nuevo esta noche
+### 9 · ~~Tablas nuevas con datos sensibles, con RLS pero sin ninguna prueba que confirme que protege~~ — ✅ CERRADO (prueba 252, 2026-08-26)
 
 **Dónde:** `contratos_generados` + el bucket "contratos" (0272/0287, sueldos y
 PDFs firmados) · `asignaciones_regimen_pension` (0261, régimen de pensión) ·
@@ -988,9 +988,31 @@ authenticated`). Sin ese segundo usuario en estas tres, un error futuro en
 cualquiera de las tres policies no lo detectaría ningún pgTAP — se enteraría
 alguien mirando por accidente el sueldo o el contrato de otra persona.
 
-**Propuesta:** sumar el patrón del test 198 a los tests 223 (contratos), 214
-(régimen de pensión) y 226 (educación): tras crear el dato como admin, cambiar
-a una persona sin ese rol y comprobar `count(*) = 0`.
+**Propuesta original:** sumar el patrón del test 198 a los tests 223, 214 y 226.
+
+**Cómo se cerró, y en qué se cambió la propuesta.** En vez de repartir las
+aserciones por tres archivos, se escribió **una prueba dedicada, la 252**, que
+dice el invariante una sola vez y donde agregar una cuarta tabla sensible es
+obvio. Repartirlas habría dejado la regla escrita en tres sitios — que es
+exactamente la clase de duplicación que este repo paga caro.
+
+Ocho comprobaciones, y no solo las negativas: para cada tabla se comprueba
+**también que quien SÍ debe ver, ve**. Una policy que bloquea a todo el mundo
+pasaría las negativas y estaría igual de rota.
+
+Lo que se aprendió midiendo, y queda escrito en la prueba:
+
+- **`asignaciones_regimen_pension` no tiene cláusula de «tu propia fila»**: su
+  policy dice solo `fn_es_admin_o_lider()`, así que ni la propia persona ve la
+  tabla cruda. Se comprueba a propósito, para que si alguien le agrega el «o es
+  tuya», la prueba se lo diga.
+- La comprobación 1 verifica, como superusuario, que **las tres filas existen**.
+  Sin ella, las demás miran `count(*) = 0` y un cero pasa igual si el laboratorio
+  no se construyó.
+
+**Se comprobó que tiene dientes**: apagando la RLS de `contratos_generados`, la
+comprobación 2 se pone roja. Sin esa vuelta no se sabría si la prueba puede
+fallar.
 
 ---
 
