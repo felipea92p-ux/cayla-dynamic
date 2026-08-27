@@ -12,7 +12,7 @@
 // salida_final.
 // ============================================================================
 import { describe, expect, it } from "vitest";
-import { marcasDeLaJornadaEnCurso } from "@/lib/terminal/jornada-en-curso";
+import { jornadaEnCursoPorPersona, marcasDeLaJornadaEnCurso } from "@/lib/terminal/jornada-en-curso";
 import { determinarSiguienteAccion, type MarcajeDelDia } from "@cayla-dynamic/shared";
 
 const entrada = (t: string): MarcajeDelDia => ({ tipo: "entrada", timestamp: t });
@@ -58,5 +58,89 @@ describe("marcasDeLaJornadaEnCurso", () => {
 
   it("sin nada ayer ni hoy, no hay jornada en curso", () => {
     expect(marcasDeLaJornadaEnCurso([], [])).toEqual([]);
+  });
+});
+
+// ============================================================================
+// Y LA MITAD QUE FALTABA: A QUÉ JORNADA PERTENECE CADA MARCA
+// ============================================================================
+// `marcasDeLaJornadaEnCurso` ya estaba probada, y decide bien. Lo que nadie
+// probaba es lo que le llega: el reparto entre «ayer» y «hoy». Vivía dentro de
+// `cargarMarcajesHoyPorPersona`, que hace red, y repartía por la fecha de
+// CALENDARIO del `timestamp_marca`.
+//
+// Ahí estaba el defecto. Quien cierra tienda a las 00:30 tiene su salida
+// guardada con `fecha_jornada` del día anterior —eso lo hace bien la 0240— pero
+// por calendario esa salida cae en el cubo de HOY. Al marcar su entrada de la
+// mañana, la máquina de estados veía un `salida_final` y respondía «cerrado»:
+// el terminal le decía «Ya cerraste tu día. ¿Volviste a entrar?» a alguien que
+// acababa de llegar, y el único botón hacia adelante ANULABA la salida real de
+// anoche.
+//
+// Medido contra el Postgres local: 9,50 h y S/109,62 perdidos, y el día anterior
+// reabierto sin entrada. La otra mitad del arreglo vive en la migración 0317.
+// ============================================================================
+const dia = (ts: string) => ts.slice(0, 10); // el «calendario» para estas pruebas
+
+describe("jornadaEnCursoPorPersona", () => {
+  const ANA = "ana";
+
+  it("la salida de las 00:30 pertenece a AYER, aunque el calendario diga hoy", () => {
+    // Entra el 25 a las 15:00 y cierra tienda a las 00:30 del 26. La salida
+    // lleva fecha_jornada del 25 — que es lo que la 0240 guarda.
+    const filas = [
+      { persona_id: ANA, tipo: "entrada" as const, timestamp_marca: "2026-08-25T20:00:00Z", fecha_jornada: null },
+      { persona_id: ANA, tipo: "salida_final" as const, timestamp_marca: "2026-08-26T05:30:00Z", fecha_jornada: "2026-08-25" },
+    ];
+    // Todavía no ha marcado nada del 26: no hay jornada en curso, y por eso el
+    // terminal le va a ofrecer ENTRADA.
+    const mapa = jornadaEnCursoPorPersona(filas, "2026-08-26", dia);
+    expect(mapa.get(ANA) ?? []).toEqual([]);
+    expect(determinarSiguienteAccion(mapa.get(ANA) ?? [])).toEqual({ modo: "unico", tipo: "entrada" });
+  });
+
+  it("y tras marcar su entrada de la mañana, el terminal NO dice «ya cerraste»", () => {
+    // Éste es el caso que costaba S/109,62: con el reparto por calendario, la
+    // salida de las 00:30 entraba aquí y la respuesta era «cerrado».
+    const filas = [
+      { persona_id: ANA, tipo: "entrada" as const, timestamp_marca: "2026-08-25T20:00:00Z", fecha_jornada: null },
+      { persona_id: ANA, tipo: "salida_final" as const, timestamp_marca: "2026-08-26T05:30:00Z", fecha_jornada: "2026-08-25" },
+      { persona_id: ANA, tipo: "entrada" as const, timestamp_marca: "2026-08-26T13:00:00Z", fecha_jornada: null },
+    ];
+    const enCurso = jornadaEnCursoPorPersona(filas, "2026-08-26", dia).get(ANA) ?? [];
+    expect(enCurso).toHaveLength(1);
+    expect(enCurso[0].tipo).toBe("entrada");
+    expect(determinarSiguienteAccion(enCurso).modo).not.toBe("cerrado");
+  });
+
+  it("sin fecha_jornada manda el calendario: el caso NORMAL, no el defensivo", () => {
+    // Las entradas no llevan `fecha_jornada`. Si el `??` se leyera como un
+    // adorno defensivo y alguien lo quitara, dejaría de funcionar lo corriente.
+    const filas = [
+      { persona_id: ANA, tipo: "entrada" as const, timestamp_marca: "2026-08-26T14:00:00Z", fecha_jornada: null },
+    ];
+    const enCurso = jornadaEnCursoPorPersona(filas, "2026-08-26", dia).get(ANA) ?? [];
+    expect(enCurso).toHaveLength(1);
+  });
+
+  it("no se rompe el caso que arregló la 0240: a las 00:30 sin cerrar, sigue la de ayer", () => {
+    // La trampa al revés. Si esto se rompiera, a quien cierra tienda a la
+    // medianoche se le ofrecería ENTRADA y volvería el día fantasma.
+    const filas = [
+      { persona_id: ANA, tipo: "entrada" as const, timestamp_marca: "2026-08-25T20:00:00Z", fecha_jornada: null },
+    ];
+    const enCurso = jornadaEnCursoPorPersona(filas, "2026-08-26", dia).get(ANA) ?? [];
+    expect(enCurso).toHaveLength(1);
+    expect(JSON.stringify(determinarSiguienteAccion(enCurso))).toContain("salida");
+  });
+
+  it("cada persona por su cuenta: la noche de una no mueve la de la otra", () => {
+    const filas = [
+      { persona_id: "ana", tipo: "salida_final" as const, timestamp_marca: "2026-08-26T05:30:00Z", fecha_jornada: "2026-08-25" },
+      { persona_id: "bea", tipo: "entrada" as const, timestamp_marca: "2026-08-26T14:00:00Z", fecha_jornada: null },
+    ];
+    const mapa = jornadaEnCursoPorPersona(filas, "2026-08-26", dia);
+    expect(mapa.get("ana") ?? []).toEqual([]);
+    expect(mapa.get("bea") ?? []).toHaveLength(1);
   });
 });
