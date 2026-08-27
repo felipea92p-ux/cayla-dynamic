@@ -37,6 +37,65 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-26 — La pregunta que ningún freno hacía (0318) · SIN PEGAR
+
+Todos los frenos del cierre son de **regla**: ¿cuadra?, ¿a quién le toca esta
+norma?, ¿va a cobrar dos veces? Buenos los tres, y con el mismo límite: solo
+encuentran lo que alguien ya sabía preguntar. No había ninguna pregunta de
+**forma** — ¿esto se parece al mes pasado?
+
+Y tres hallazgos ya confirmados en [`hallazgos-abiertos.md`](hallazgos-abiertos.md)
+son de forma, no de regla. Se ven sin conocer la norma que los produce: «cobra
+S/0 y el mes pasado cobró un sueldo» (S/1.509,64), «cobra el mes íntegro y
+trabajó doce días» (S/1.306,45) y «cobra días posteriores a su cese» (S/193,55).
+Los tres costaron auditorías de decenas de agentes. Una tabla ordenada por |Δ|
+los pone arriba en dos segundos.
+
+**`fn_planilla_variacion(periodo)` + panel «Qué cambió respecto al mes pasado»**
+en `/admin/planilla`, encima de la tabla. Solo lee, no bloquea nada, y **no toca
+`fn_planilla_calcular` ni una línea** — por eso no entra en el ritual de md5 y no
+compite con el cierre del 28.
+
+⚠️ **No arregla ninguno de esos tres hallazgos: los hace visibles.** Siguen
+abiertos y siguen costando lo que costaban.
+
+**La decisión de diseño:** los dos lados se le piden a `fn_proyeccion_periodo`,
+no a `fn_planilla_calcular`. Esa función ya sabe —desde la 0313— que un mes
+pagado se LEE de su foto. Preguntar directo al cálculo habría comparado el
+presente contra un pasado que nunca ocurrió, mintiendo justo donde promete
+avisar. Verificado: `previo_fuente = 'foto'`.
+
+**Y la segunda:** `avisos` y `explica` son dos listas, no una. Aquí el falso
+positivo es el peor error, así que «cesó», «ingresó», «le cambió el sueldo» y
+«más ausencias» van al lado del aviso, no en vez de él. La fila que hay que
+mirar es la que aparece **sin nada en gris**.
+
+**Lo que la medición cambió antes de entregarla** (auditoría en `BEGIN…ROLLBACK`
+con siete escenarios, y cinco intentos de tumbarla):
+
+- Quien pasaba de S/0 a S/1.918 no levantaba ningún aviso: `salto` es ciego con
+  el previo en 0 porque no hay porcentaje. Nace `empieza_a_cobrar`.
+- `cobra_igual_trabajo_menos` se disparaba con **cualquier ausencia aprobada**.
+  Vacaciones, descanso médico y maternidad pagan SIN marcaje: dejan el total
+  quieto y las horas en cero — la forma exacta del defecto que persigue. En la
+  auditoría, quien pasó el periodo entero de vacaciones se libró por un 4,4 %, o
+  sea por suerte. Ahora exige `aus_act <= aus_prev`.
+- Una fila de puros ceros ocupaba sitio.
+
+Umbrales en `configuracion.planilla_variacion_umbrales`, no en el cuerpo.
+
+Prueba [`254`](../supabase/tests/254_que_cambio_respecto_al_mes_pasado.test.sql),
+14 aserciones, **vista en rojo a propósito**: quitando la guarda de ausencias
+falla la 9 y solo la 9. Suite: 177 archivos, 1774 pruebas, PASS con el esquema
+reconstruido desde cero. Panel verificado en el navegador.
+
+**Falta pegarla en producción.** Antes: `./scripts/donde-vive.sh
+fn_planilla_variacion` para confirmar que sigue sin existir —la 0297/0299 enseñó
+que dos sesiones pueden crear la misma función el mismo día— y
+`./scripts/dame-el-sql.sh 318`.
+
+---
+
 ## 2026-08-26 — La familia de tres, cerrada (0263 · 0316 · 0317)
 
 La planilla paga tres cosas sin que haya marcaje: **descanso médico**, **licencia
