@@ -175,7 +175,8 @@ with repo(numero, nombre, nunca) as (values
     (313, 'un_mes_ya_pagado_se_lee_no_se_recalcula', false),
     (314, 'el_duelo_de_un_familiar_directo_se_paga_y_las_licencias_tambien', false),
     (315, 'anon_deja_de_depender_de_una_regla_por_defecto', false),
-    (316, 'lo_que_se_paga_por_licencia_tambien_se_declara', false)
+    (316, 'lo_que_se_paga_por_licencia_tambien_se_declara', false),
+    (317, 'la_remuneracion_vacacional_tambien_se_declara', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -322,8 +323,10 @@ select * from (
              when 'cce36e70ae3d5f58d2fb9d063a451b16' then '✗ 0306 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'c8070bb865e977d2d0e6b1bb4bac58d2' then '⚠ se quedó en la 0314 — falta pegar lo posterior'
              when 'c60b66ae4c1eca9515f4e3b79be82c4d' then '✗ 0314 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'f6ece4f8e21a8171b0d393ddf47cd1ce' then '0316 — al día con el repositorio'
+             when 'f6ece4f8e21a8171b0d393ddf47cd1ce' then '⚠ se quedó en la 0316 — falta pegar lo posterior'
              when '151ceaa7d2745e13718dbd5e53ca472f' then '✗ 0316 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '6838c789a2f2444166f2dbebfd9faa0d' then '0317 — al día con el repositorio'
+             when '00cd2aae9b8d01b943bb99c06eaa3727' then '✗ 0317 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
