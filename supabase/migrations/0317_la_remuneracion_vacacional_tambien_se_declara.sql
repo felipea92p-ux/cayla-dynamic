@@ -13,18 +13,29 @@
 --
 -- LA MEDICION QUE LO ENSENA
 --
---   Cuatro personas identicas, mismo sueldo y mismo horario, faltando los
---   MISMOS cinco dias. Lo unico que cambia es el tipo de la ausencia. Las tres
---   que pagan, pagan exactamente S/483,87:
+--   Cuatro personas identicas, mismo sueldo (S/3.000) y mismo horario,
+--   faltando los MISMOS cinco dias. Lo unico que cambia es el tipo de la
+--   ausencia. Las tres que pagan, pagan exactamente S/483,87. Y OJO: medido con
+--   la configuracion REAL de produccion, es decir `sueldo_base_legal = salario`
+--   —al 2026-08-08, 22 de 22 personas—, no con el DEFAULT de 1130:
 --
---     tipo                        paga        su base sube
---     falta sin justificar          0,00            0,00
---     descanso medico (0263)      483,87          519,89
---     licencia con goce (0316)    483,87          483,87
---     VACACIONES                  483,87           36,02   ← el defecto
+--     tipo                       base declarada    vs quien trabajo
+--     control (trabajo todo)        3.000,96              —
+--     descanso medico (0263)        3.000,96            0,00   ya estaba bien
+--     licencia con goce (0316)      2.964,94          -36,02   (ver abajo)
+--     VACACIONES                    2.517,09         -483,87   ← el defecto
 --
---   Y esos S/36,02 ni siquiera son por las vacaciones: son el feriado del mes,
---   que si las cuenta en su prorrateo.
+--   Los -483,87 son exactamente el monto que se le pago de vacaciones: se paga
+--   entero y no se declara nada de el.
+--
+--   Los -36,02 de la licencia son OTRA cosa y no los arregla esta migracion:
+--   es el prorrateo del feriado, que cuenta las vacaciones y el descanso medico
+--   en su formula pero NO la licencia con goce. Esta catalogado aparte en
+--   docs/hallazgos-abiertos.md.
+--
+--   DESPUES de esta migracion, vacaciones y control dan la MISMA base exacta
+--   (3.000,96) y el MISMO aporte de pension (S/390,13 contra los S/327,22 de
+--   antes). Que es lo correcto: se devenga igual trabajando que de vacaciones.
 --
 -- POR QUE SE CAIA, QUE ES LO QUE COSTO ENTENDER
 --
@@ -34,16 +45,18 @@
 --   remunerativo por decision sustentada con el contador
 --   (docs/analisis-estructura-remunerativa-2026-07-30.md).
 --
---   Medido, la progresion es brutal — sueldo S/3.000, periodo 29/07 al 28/08:
+--   Medido con la configuracion real de produccion, sueldo S/3.000, periodo
+--   29/07 al 28/08:
 --
---     dias de vacaciones    basica legal     se declara
---              0              984,19          1.372,25
---              5              801,94          1.190,00
---             18              400,97          1.130,00
---             31 (el mes)       0,00          1.130,00   ← el piso RMV
+--     dias de vacaciones    basica legal     se declaraba
+--              0             2.612,90          3.000,96
+--              5             2.129,03          2.517,09
+--             31 (el mes)        0,00          1.130,00   ← el piso RMV
 --
---   Quien pasa el periodo entero de vacaciones cobra S/3.000 y se le declara
---   sobre S/1.130, que es solo el piso legal. Su basica legal es CERO.
+--   Quien pasa el periodo ENTERO de vacaciones cobra S/3.000 y se le declaraba
+--   sobre S/1.130, que es solo el piso legal. Su basica legal es CERO, porque no
+--   marco ni una hora. Su aporte de pension eran S/29,03 sobre S/3.000 cobrados;
+--   con esta migracion pasan a S/419,03.
 --
 -- POR QUE ENTRA, Y NO ES DISCUTIBLE
 --

@@ -69,6 +69,18 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingr
 insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
 select id, 'colibri', 3000, '2024-01-01' from personas where apellidos = 'Vac' and rol is distinct from 'admin';
 
+-- ⚠️ ESTO ESPEJA PRODUCCION, y no es un detalle. `sueldo_base_legal` tiene
+-- DEFAULT 1130 (la RMV), pero en CAYLA se declara el sueldo INTEGRO: medido el
+-- 2026-08-08, 22 de 22 personas con `sueldo_base_legal = salario`, o sea
+-- complemento variable CERO.
+--
+-- Un fixture que se quede con el default mide otra empresa. Al escribir esta
+-- prueba se midió primero con el default y las cifras salieron distintas —la
+-- base caía al piso RMV donde en producción no cae— y una de las aserciones
+-- decía lo contrario de lo que dice ahora. Se corrigió antes de entregarla.
+update personas set sueldo_base_legal = 3000
+ where apellidos = 'Vac' and rol is distinct from 'admin';
+
 insert into horarios_asignados
   (persona_id, vigente_desde, hora_entrada, hora_salida, almuerzo_min_minutos,
    almuerzo_max_minutos, dias_laborables, horas_semana_objetivo)
@@ -148,20 +160,45 @@ select cmp_ok(pg_temp.num('VdMesEntero Vac','descuento_afp'), '>', 300::numeric,
 
 -- ── 4 · LO QUE NO DEBE MOVERSE ─────────────────────────────────────────────
 
-select is(pg_temp.num('VdFijoVac Vac','base_essalud'),
-          pg_temp.num('VdFijoControl Vac','base_essalud'),
-  'a quien tiene sueldo fijo NO le nace una base: la suya es cero a propósito');
+-- A quien tiene sueldo fijo la 0317 NO le suma nada: la guarda
+-- `sueldo_fijo is not true` lo excluye, igual que excluye a los otros tres
+-- términos. Si el término se le colara, su base sería la de su espejo — y no lo
+-- es. Eso es lo que comprueba este `<`.
+--
+-- ⚠️ Y OJO CON LEER ESTA DESIGUALDAD COMO UN ÉXITO: es un DEFECTO SEPARADO y
+-- preexistente. Medido el 2026-08-26: quien tiene sueldo fijo cobra S/3.000
+-- pase lo que pase, pero su base declarada se prorratea por HORAS MARCADAS, así
+-- que faltar se la baja aunque cobre igual — y da lo mismo que la falta esté
+-- justificada como vacaciones o no lo esté (las dos dan 2.129,03 contra los
+-- 2.612,90 de quien trabajó el mes entero). Encima declara de menos incluso
+-- trabajando todo el mes: cobra 3.000 y declara 2.612,90.
+--
+-- No lo arregla esta migración porque es otro defecto con otra lógica —la base
+-- de un sueldo fijo debería salir de su sueldo, no de un prorrateo por horas— y
+-- afecta a más casos que las vacaciones. Queda en docs/hallazgos-abiertos.md.
+select cmp_ok(pg_temp.num('VdFijoVac Vac','base_essalud'), '<',
+              pg_temp.num('VdFijoControl Vac','base_essalud'),
+  'a quien tiene sueldo fijo la 0317 NO le suma nada: la guarda lo excluye');
 
-select is(pg_temp.num('VdFijoVac Vac','base_essalud'), 1130::numeric,
-  'la suya se queda en el piso RMV, que es de donde no debe moverse');
+-- Y LA QUE MÁS DICE DE TODAS: quien estuvo de vacaciones y quien trabajó el mes
+-- entero declaran EXACTAMENTE LO MISMO. Es el enunciado del arreglo — se devenga
+-- igual trabajando que gozando el descanso (RIT 30.8: gozarlo no puede reducir
+-- ingresos). Antes de la 0317 la de vacaciones declaraba S/483,87 menos.
+select is(pg_temp.num('VdVacaciones Vac','base_essalud'),
+          pg_temp.num('VdControl Vac','base_essalud'),
+  'quien estuvo de vacaciones declara lo MISMO que quien trabajó el mes entero');
 
 select cmp_ok(pg_temp.num('VdMaternidad Vac','base_essalud'), '<=',
               pg_temp.num('VdControl Vac','base_essalud'),
   'la maternidad sigue fuera: es subsidio de EsSalud, no remuneración (0262)');
 
-select cmp_ok(pg_temp.num('VdDescMedico Vac','base_essalud'), '>',
+-- Con la configuración real (base legal = salario) el descanso médico y quien
+-- trabajó declaran LO MISMO, que es justo lo que la 0263 vino a conseguir. Se
+-- comprueba con `>=` y no con `=` para que siga valiendo el día que alguien
+-- vuelva a poner complemento variable, donde el descanso médico declara MÁS.
+select cmp_ok(pg_temp.num('VdDescMedico Vac','base_essalud'), '>=',
               pg_temp.num('VdControl Vac','base_essalud'),
-  'el descanso médico sigue entrando: la 0317 no revirtió la 0263');
+  'el descanso médico no pierde base frente a quien trabajó: la 0263 sigue en pie');
 
 -- ── 5 · La familia completa, que es lo que esta migración cierra ───────────
 

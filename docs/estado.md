@@ -52,28 +52,31 @@ detrás de otra: el monto iba a `pago_base` y no a `pb.basica`.
 
 **Lo que enseñó la medición**, y costó entender: `pb.basica` —la básica legal, la
 parte del sueldo que sí se declara— **se prorratea por HORAS MARCADAS**. Quien
-está de vacaciones no marca, así que sus días se pagaban íntegros como
-complemento variable, que no es remunerativo. Sueldo 3.000, periodo 29/07→28/08:
+está de vacaciones no marca, así que su base baja aunque cobre igual.
 
-| días de vacaciones | básica legal | se declara |
+⚠️ **Y una corrección de método, contra mí.** La primera medición se hizo con
+`sueldo_base_legal` en su DEFAULT de 1.130, y dio cifras que exageraban el
+defecto. En CAYLA se declara el sueldo íntegro —22 de 22 personas al
+2026-08-08—, así que hubo que rehacerla con esa configuración. Además, una
+segunda medición salió mostrando que «no cambiaba nada»: era un artefacto de
+haber reconstruido el Postgres local CON la 0317 ya aplicada, así que el «antes»
+no era antes. Se rehízo aplicando la 0316 dentro de la transacción. **Un
+resultado de laboratorio solo vale si el fixture espeja producción y si el
+«antes» es de verdad el antes.**
+
+**Las cifras buenas**, con la configuración real, sueldo 3.000:
+
+| | base declarada | vs quien trabajó |
 |---|---|---|
-| 0 | 984,19 | 1.372,25 |
-| 5 | 801,94 | 1.190,00 |
-| 18 | 400,97 | 1.130,00 |
-| 31 (el mes entero) | **0,00** | **1.130,00** ← el piso RMV |
+| Control (trabajó todo) | 3.000,96 | — |
+| Descanso médico | 3.000,96 | 0 — ya estaba bien |
+| Licencia con goce | 2.964,94 | **−36,02** ← el feriado corto, otro hallazgo |
+| **Vacaciones** | **2.517,09** | **−483,87** ← el defecto |
 
-**La simetría que confirma el arreglo.** Cuatro personas idénticas faltando los
-MISMOS cinco días, cambiando solo el tipo. Las tres que pagan, pagan S/483,87:
-
-| | subía su base ANTES | DESPUÉS |
-|---|---|---|
-| Descanso médico | +519,89 | +519,89 |
-| Licencia con goce | +483,87 | +483,87 |
-| **Vacaciones** | **+36,02** | **+483,87** |
-
-Vacaciones y descanso médico ahora dan **la misma base exacta** (1.673,87). Y
-quien pasa el mes entero de vacaciones pasa de aportar S/29 de pensión a S/419 —
-eso es lo que se le dejaba de acreditar a su fondo.
+Después de la 0317, **vacaciones y control dan la misma base exacta** (3.000,96)
+y el mismo aporte de pensión (390,13 contra los 327,22 de antes). Que es lo
+correcto: se devenga igual trabajando que gozando el descanso. Y quien pasa el
+mes entero de vacaciones pasa de aportar S/29 de pensión a S/419.
 
 **No mueve ninguna boleta.** Medido en producción: **cero** personas con
 vacaciones en el periodo abierto y **cero** periodos ya pagados afectados. Misma

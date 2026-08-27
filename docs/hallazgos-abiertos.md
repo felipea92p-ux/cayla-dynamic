@@ -1303,6 +1303,52 @@ nadie ha decidido que se acumulen las tres. **Pendiente de medir.**
 
 ---
 
+## El sueldo fijo declara según las horas que marcó, aunque cobre siempre lo mismo (abierto)
+
+**Encontrado el 2026-08-26** al auditar la 0317, montando el caso que esa
+migración NO debía tocar.
+
+Quien tiene `sueldo_fijo` cobra su sueldo íntegro pase lo que pase — es la
+definición del concepto. Pero su **base declarada** sale de `pb.basica`, que se
+prorratea por **horas marcadas**. Así que faltar se la baja aunque el pago no se
+mueva.
+
+**Medido**, tres personas con sueldo fijo de S/3.000, periodo 29/07→28/08:
+
+| | cobra | se declara | pensión (ONP) |
+|---|---|---|---|
+| Trabaja el mes entero | 3 000,00 | **2 612,90** | 339,68 |
+| 5 días de vacaciones | 3 000,00 | **2 129,03** | 276,77 |
+| 5 días de falta sin justificar | 3 000,00 | **2 129,03** | 276,77 |
+
+Dos cosas distintas están mal, y conviene separarlas:
+
+1. **Declara de menos incluso trabajando todo el mes**: cobra 3 000 y declara
+   2 612,90. La diferencia es el prorrateo por el divisor de 6,5 h.
+2. **Faltar le baja la base**, y da exactamente igual que la falta esté
+   justificada como vacaciones o no lo esté: las dos dan 2 129,03. Para el resto
+   del sistema esa distinción sí importa; aquí no.
+
+**Por qué la 0317 no lo arregla.** Los cuatro términos que suman a `bri.base`
+—maternidad (0262), descanso médico (0263), licencia con goce (0316) y
+vacaciones (0317)— llevan la guarda `sueldo_fijo is not true`, palabra por
+palabra. Está puesta por la regla de la casa desde la 0193: estos términos
+**completan** una base declarada, nunca **crean** una donde no la hay. Quitarla
+para el sueldo fijo sería tocar los cuatro a la vez y por el motivo equivocado.
+
+**El arreglo, si se hace, es otro:** que la base de quien tiene sueldo fijo salga
+de su sueldo y no de un prorrateo por horas, igual que su pago. Es una decisión
+de estructura, no una línea.
+
+**Lo primero es medir la población**, que aquí no se sabe: cuántas personas
+tienen `sueldo_fijo = true` **y** `sueldo_base_legal` puesto. Si `sueldo_base_legal`
+es null para todas ellas, `pb.basica` vale 0, su base es el piso RMV y este
+hallazgo es teórico. La prueba
+[`253`](../supabase/tests/253_la_remuneracion_vacacional_tambien_se_declara.test.sql)
+lo deja documentado en su aserción 7.
+
+---
+
 ## Nueve licencias legales distintas entran por la misma puerta (abierto · no afecta al pago)
 
 **Encontrado el 2026-08-26** al verificar las citas legales de la 0316 contra
