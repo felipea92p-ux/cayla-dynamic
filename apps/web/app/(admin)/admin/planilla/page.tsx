@@ -85,6 +85,85 @@ interface Desvio {
   total_ahora: number | null;
   diferencia: number;
 }
+// ── Qué cambió respecto al mes pasado (0318) ────────────────────────────────
+// Sale de `fn_planilla_variacion`. Los dos lados se los pide esa función a
+// `fn_proyeccion_periodo`, así que un periodo ya pagado se compara por lo que se
+// PAGÓ —su foto congelada— y no por lo que se recalcularía hoy.
+//
+// Las etiquetas viven aquí y no en `packages/shared/labels.ts` a propósito: no
+// son un catálogo de la base que otra pantalla pueda necesitar, son los códigos
+// que devuelve esa función y solo los pinta este panel. Su fuente de verdad es
+// la migración 0318; si aparece un aviso nuevo, se agrega ahí y aquí.
+type AvisoVariacion =
+  | "salio"
+  | "entro"
+  | "cobra_cero"
+  | "empieza_a_cobrar"
+  | "trabajo_y_no_cobra"
+  | "salto"
+  | "cobra_igual_trabajo_menos";
+
+type ExplicaVariacion = "ceso" | "ingreso" | "sueldo_cambio" | "mas_ausencias" | "menos_ausencias";
+
+const AVISO_LABEL: Record<AvisoVariacion, string> = {
+  salio: "Ya no aparece",
+  entro: "No estaba el mes pasado",
+  cobra_cero: "Cobra S/ 0",
+  empieza_a_cobrar: "Empieza a cobrar",
+  trabajo_y_no_cobra: "Trabajó y no cobra",
+  salto: "Salto",
+  cobra_igual_trabajo_menos: "Cobra igual, trabajó menos",
+};
+
+const EXPLICA_LABEL: Record<ExplicaVariacion, string> = {
+  ceso: "cesó",
+  ingreso: "ingresó",
+  sueldo_cambio: "le cambió el sueldo",
+  mas_ausencias: "más ausencias",
+  menos_ausencias: "menos ausencias",
+};
+
+interface FilaVariacion {
+  persona_id: string;
+  nombre: string;
+  sede: string | null;
+  total_actual: number;
+  total_previo: number;
+  delta: number;
+  delta_pct: number | null;
+  horas_actual: number;
+  horas_previo: number;
+  ausencias_actual: number;
+  ausencias_previo: number;
+  avisos: AvisoVariacion[];
+  explica: ExplicaVariacion[];
+}
+
+interface Variacion {
+  sin_previo: boolean;
+  periodo_desde: string;
+  periodo_hasta: string;
+  periodo_dias?: number;
+  previo_desde?: string;
+  previo_hasta?: string;
+  previo_dias?: number;
+  previo_estado?: "abierto" | "pagado";
+  previo_fuente?: string;
+  periodos_de_distinto_largo?: boolean;
+  resumen: {
+    personas_actual: number;
+    personas_previo: number;
+    entraron?: number;
+    salieron?: number;
+    total_actual?: number;
+    total_previo?: number;
+    total_delta?: number;
+    horas_actual?: number;
+    horas_previo?: number;
+  };
+  filas: FilaVariacion[];
+}
+
 interface Feriado {
   fecha: string;
   nombre: string;
@@ -903,6 +982,9 @@ export default function PlanillaPage() {
   const [guardandoPeriodo, setGuardandoPeriodo] = useState(false);
   // Desvíos de un periodo YA pagado: qué personas cambiaron de cifra desde el pago.
   const [desvios, setDesvios] = useState<Desvio[] | null>(null);
+  const [variacion, setVariacion] = useState<Variacion | null>(null);
+  const [mostrandoVariacion, setMostrandoVariacion] = useState(false);
+  const [variacionTodas, setVariacionTodas] = useState(false);
   const [guardandoBono, setGuardandoBono] = useState(false);
 
   // Crear periodo (primero / encadenado)
@@ -1043,6 +1125,33 @@ export default function PlanillaPage() {
   }, [supabase, puedeVer, periodoActual]);
 
   useEffect(() => { void cargarDesvios(); }, [cargarDesvios]);
+
+  // ── Qué cambió respecto al mes pasado (0318) ───────────────────────────────
+  // A diferencia de los desvíos, esto se pregunta SIEMPRE: la comparación con
+  // el periodo anterior sirve sobre todo ANTES de pagar, que es cuando todavía
+  // se puede corregir. `fn_planilla_variacion` resuelve sola cuál es el periodo
+  // anterior y devuelve `sin_previo` si no hay ninguno.
+  //
+  // Devuelve el dato en vez de escribirlo, y quien lo escribe es el efecto de
+  // abajo. Es distinto del resto de cargas de esta pantalla a propósito: así el
+  // `setState` nunca ocurre de forma síncrona dentro del efecto —lo que el
+  // linter marca con razón— y, sobre todo, una respuesta que llega tarde ya no
+  // puede pisar a la del periodo que el usuario acaba de elegir.
+  const pedirVariacion = useCallback(async (): Promise<Variacion | null> => {
+    if (!puedeVer || !periodoActual) return null;
+    const { data, error } = await supabase.rpc("fn_planilla_variacion", {
+      p_periodo_id: periodoActual.id,
+    });
+    // Si falla, queda en desconocido y el panel no se dibuja. Un panel vacío
+    // que parece «no hay nada que mirar» es peor que un panel ausente.
+    return error ? null : ((data as unknown as Variacion) ?? null);
+  }, [supabase, puedeVer, periodoActual]);
+
+  useEffect(() => {
+    let vigente = true;
+    void pedirVariacion().then((v) => { if (vigente) setVariacion(v); });
+    return () => { vigente = false; };
+  }, [pedirVariacion]);
 
   // Inicio encadenado del siguiente periodo: día siguiente al último cierre
   const inicioEncadenado = periodos && periodos.length > 0 ? sumarDias(periodos[0].fecha_fin, 1) : null;
@@ -2177,6 +2286,169 @@ export default function PlanillaPage() {
                 Descargar CSV
               </button>
             </div>
+
+            {/* ── Qué cambió respecto al mes pasado (0318) ──────────────────
+                Se pone ANTES de la tabla a propósito: la tabla dice cuánto
+                cobra cada quien y esto dice a quién hay que mirar. Leer treinta
+                filas buscando la que se movió es justo lo que este panel evita. */}
+            {variacion && !variacion.sin_previo && (() => {
+              const conAviso = variacion.filas.filter((f) => f.avisos.length > 0);
+              const visibles = variacionTodas ? variacion.filas : conAviso;
+              return (
+                <div className="mb-4 max-w-4xl rounded-lg border bg-papel p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Qué cambió respecto al mes pasado</p>
+                      <p className="mt-0.5 text-xs text-taupe">
+                        Contra el periodo {fechaCorta(variacion.previo_desde!)} –{" "}
+                        {fechaCorta(variacion.previo_hasta!)}
+                        {variacion.previo_fuente === "foto"
+                          ? " · ya pagado, se compara por lo que se pagó"
+                          : " · todavía abierto, su cifra aún se mueve"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setMostrandoVariacion((v) => !v)}
+                      className="text-sm text-taupe hover:text-tinta hover:underline"
+                    >
+                      {mostrandoVariacion ? "▾ Ocultar" : "▸ Ver detalle"}
+                    </button>
+                  </div>
+
+                  <p className="mt-2 text-sm">
+                    {conAviso.length === 0 ? (
+                      <span className="text-verde">Nada llama la atención este periodo.</span>
+                    ) : (
+                      <span className="text-rojo">
+                        {conAviso.length === 1
+                          ? "1 persona con algo que mirar"
+                          : `${conAviso.length} personas con algo que mirar`}
+                        .
+                      </span>
+                    )}{" "}
+                    <span className="text-taupe">
+                      El total del equipo va de {formatSoles(variacion.resumen.total_previo ?? 0)} a{" "}
+                      {formatSoles(variacion.resumen.total_actual ?? 0)} (
+                      {(variacion.resumen.total_delta ?? 0) > 0 ? "+" : ""}
+                      {formatSoles(variacion.resumen.total_delta ?? 0)}).
+                    </span>
+                  </p>
+
+                  {/* Los periodos de CAYLA duran entre 20 y 46 días. Si los dos
+                      lados no miden lo mismo, se dice ANTES que ninguna cifra:
+                      medio informe se explica solo con eso. */}
+                  {variacion.periodos_de_distinto_largo && (
+                    <p className="mt-2 rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+                      Ojo: los dos periodos no duran lo mismo ({variacion.periodo_dias} días contra{" "}
+                      {variacion.previo_dias}). Parte de lo que se ve aquí es el calendario, no un cambio real.
+                    </p>
+                  )}
+
+                  {mostrandoVariacion && (
+                    <>
+                      {visibles.length === 0 ? (
+                        <p className="mt-3 text-sm text-taupe">
+                          Nadie levantó un aviso.{" "}
+                          <button
+                            onClick={() => setVariacionTodas(true)}
+                            className="font-medium underline"
+                          >
+                            Ver a todo el equipo igualmente
+                          </button>
+                        </p>
+                      ) : (
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="w-full min-w-[46rem] text-sm">
+                            <thead>
+                              <tr className="bg-sand/60 text-left text-xs">
+                                <th className="px-3 py-2 font-normal">Persona</th>
+                                <th className="px-3 py-2 text-right font-normal">Mes pasado</th>
+                                <th className="px-3 py-2 text-right font-normal">Este mes</th>
+                                <th className="px-3 py-2 text-right font-normal">Diferencia</th>
+                                <th className="px-3 py-2 text-right font-normal" title="Horas marcadas. Las ausencias pagadas no marcan: por eso una caída a cero puede ser normal.">
+                                  Horas
+                                </th>
+                                <th className="px-3 py-2 font-normal">Qué pasa</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {visibles.map((f) => (
+                                <tr key={f.persona_id} className="border-b border-sand/60 align-top">
+                                  <td className="px-3 py-2">
+                                    <span className="font-medium">{f.nombre}</span>
+                                    {f.sede && <span className="ml-1.5 text-xs text-taupe">{f.sede}</span>}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums text-taupe">
+                                    {formatSoles(f.total_previo)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums">{formatSoles(f.total_actual)}</td>
+                                  <td
+                                    className={`px-3 py-2 text-right tabular-nums font-medium ${
+                                      f.avisos.length > 0 ? "text-rojo" : "text-taupe"
+                                    }`}
+                                  >
+                                    {f.delta > 0 ? "+" : ""}
+                                    {formatSoles(f.delta)}
+                                    {f.delta_pct !== null && (
+                                      <span className="ml-1 text-xs font-normal opacity-70">
+                                        ({f.delta_pct > 0 ? "+" : ""}
+                                        {f.delta_pct}%)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-right tabular-nums text-xs text-taupe">
+                                    {f.horas_previo.toFixed(0)} → {f.horas_actual.toFixed(0)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      {f.avisos.map((a) => (
+                                        <span
+                                          key={a}
+                                          className="rounded-lg bg-rojo/12 px-2 py-0.5 text-xs text-rojo-profundo"
+                                        >
+                                          {AVISO_LABEL[a] ?? a}
+                                        </span>
+                                      ))}
+                                      {/* La explicación NO es un aviso y no se pinta como tal:
+                                          va en gris, al lado, para que quien lea la fila no
+                                          tenga que ir a otra pantalla a descartar el susto. */}
+                                      {f.explica.length > 0 && (
+                                        <span className="text-xs text-taupe">
+                                          {f.explica.map((e) => EXPLICA_LABEL[e] ?? e).join(" · ")}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      <label className="mt-3 flex items-center gap-2 text-xs text-taupe">
+                        <input
+                          type="checkbox"
+                          checked={variacionTodas}
+                          onChange={(e) => setVariacionTodas(e.target.checked)}
+                        />
+                        Mostrar también a quien no levantó ningún aviso
+                      </label>
+                      <p className="mt-2 text-xs text-taupe">
+                        Esto no bloquea nada ni corrige nada: es una lista. Un aviso con una explicación al lado
+                        casi siempre está bien; el que hay que mirar es el que aparece solo.
+                      </p>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Derivado, no un estado más: si hay periodo y todavía no hay
+                respuesta, es que se está pidiendo. */}
+            {periodoActual && !variacion && (
+              <p className="mb-4 text-sm text-taupe">Comparando con el mes pasado…</p>
+            )}
 
             {/* Tabla del periodo */}
             {cargando && !proy ? (
