@@ -845,7 +845,7 @@ predicado correcto (`prosecdef + grant a authenticated + recibe p_persona_id +
 sin guard en el cuerpo` — no "todo prosecdef", eso ya se probó y dio 14 falsos
 positivos).
 
-### 2 · Una `lider_do` puede ascenderse a Admin sola, en tres clics y sin dejar rastro — ESCRITO (0295 + 0296 + 0300), falta pegar · leer el aviso de la 0296 arriba
+### 2 · ~~Una `lider_do` puede ascenderse a Admin sola, en tres clics y sin dejar rastro~~ — ✅ CERRADO (0295 + 0296 + 0300, las tres confirmadas en producción el 2026-08-25)
 
 **Dónde:** `apps/web/app/(admin)/admin/equipo/page.tsx:422-431` escribe `rol`
 directo a la tabla `personas` vía `.update()`; el desplegable que lo alimenta
@@ -968,7 +968,13 @@ argumento para limpiarlos es de cumplimiento y de higiene, no de fuga.
 trabajando en paralelo tiene su propio costo y riesgo, y por eso no se propone
 a ciegas. Pero no corre prisa: no hay incendio.
 
-### 6 · El descanso médico sigue pagando sin que DO lo apruebe
+### 6 · ~~El descanso médico sigue pagando sin que DO lo apruebe~~ — ✅ CERRADO (0306 + 0308, pegadas el 2026-08-26)
+
+**Cerrado en dos mitades, y la segunda hizo falta.** La 0306 (otra sesión) hizo
+que `fn_planilla_calcular` exigiera `aprobada_at`. Pero `fn_provisiones` no se
+enteró, así que un descanso médico sin firmar pagaba S/0 de sueldo **y reservaba
+como si se hubiera pagado el mes entero** — S/164,34 por caso, y de ahí sale el
+depósito. Lo cerró la **0308**. Prueba 242.
 
 **Dónde:** los laterales de ausencias en `fn_planilla_calcular` filtran
 `anulada_at is null` y nunca miran `aprobada_at`. `fn_registrar_ausencia` deja
