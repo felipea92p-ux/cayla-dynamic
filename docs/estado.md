@@ -394,6 +394,82 @@ partió en dos:
 
 ---
 
+## 2026-08-26 — Los cuatro P1 del terminal, medidos uno por uno (0318 y 0320)
+
+**Las dos PEGADAS EN PRODUCCIÓN el 2026-08-26**, con md5 de llegada exacto.
+
+El informe de agosto dejó cuatro P1 «sin reverificar por tiempo». Se
+reverificaron midiendo, no leyendo — y esa disciplina ya había pagado dos veces
+el mismo día: el pendiente 7 estaba hecho y el 5 estaba exagerado.
+
+### 1 · El botón «¿Volviste a entrar?» borraba la salida de anoche — CERRADO
+
+Era cierto. Medido con el caso exacto del informe: Ana entra el martes 15:00 y
+cierra tienda a las 00:30 del miércoles. La 0240 lo guarda **bien**
+—`fecha_jornada` = martes, 9,50 h cerradas— y aun así:
+
+| | Antes | Tras pulsar el botón |
+|---|---|---|
+| Jornada del martes | 9,50 h, cerrada | **sin horas, abierta** |
+| Lo que paga la boleta | **S/ 109,62** | **S/ 0,00** |
+
+**Dos mitades, arregladas juntas.** El terminal repartía por fecha de calendario
+y nunca leía `fecha_jornada` (PR #90, función pura `jornadaEnCursoPorPersona`,
+cinco pruebas); y `fn_reabrir_dia` buscaba la salida igual (**0318**).
+
+Lo que casi sale mal: el arreglo obvio era exigir `fecha_jornada = hoy`. Habría
+dejado **sin poder reabrir a todo el mundo** — las marcas normales no llevan esa
+columna, solo la que cruza medianoche. El `null` es el caso corriente. La
+comprobación 4 de la prueba 254 existe para que ese remedio peor no entre: pasaría
+las otras tres.
+
+### 2 · El auto-cierre llegaba primero y la salida se rechazaba — CERRADO (0320)
+
+También cierto, y el más caro. `fn_auto_cierre` corre cada 15 minutos y cierra
+la jornada pasadas `auto_cierre_horas` (3) desde la hora **programada**. La rama
+de la 0240 solo adoptaba la salida tardía si la jornada seguía `abierta`, así
+que **la promesa nº 1 de esa migración solo valía 3 horas**.
+
+Medido, horario 13:00–21:00: trabajó **11,50 h**, le quedaban **8,00 h** puestas
+por el robot, y su salida real se rechazaba con *el mismo error que la 0240 cita
+como lo que resuelve*. El agravante, también medido: el terminal le ofrecía
+ENTRADA, la aceptaba, y nacía el día fantasma.
+
+**Decidido por Felipe:** que la marca real gane a la del robot. Frente a subir
+`auto_cierre_horas` —encoge la ventana pero no la cierra— o dejarlo como aviso
+manual para DO.
+
+Adoptar no bastaba: la `salida_final` sintética seguía ahí. Se **anula, no se
+borra**, con su rastro en `correcciones_auditoria`. Y muy acotado: solo
+`origen='auto_cierre'`, solo si DO no la confirmó, solo fuera de un mes pagado,
+y dentro del tope de 16 h de la 0240.
+
+**La comprobación 6 de la prueba 256 es la que fija el límite:** si DO ya
+confirmó ese auto-cierre, la marca no se toca. Un arreglo que anulara «cualquier
+salida del robot» habría pasado las otras cinco y pisado el criterio de una
+persona.
+
+### Lo que queda de los cuatro
+
+El P1 de `fn_dia_incoherente` / `fn_siguiente_tipo_esperado` y el de la
+incidencia sin nombre **no se han reverificado**. Vienen del informe, no de una
+medición de hoy.
+
+### Dos cosas de método que costaron y conviene no reaprender
+
+**El contenedor local dejó de servir.** Otras sesiones lo reconstruían en bucle;
+ocho intentos seguidos no dieron una base estable, y la batería de la 0320 la
+corrió **el CI**, no esta Mac. Es el instrumento a usar cuando el local no da: la
+suya está limpia y aislada.
+
+**Y el md5 de llegada se puede calcular sobre el ARCHIVO** cuando no hay base:
+es el texto entre `AS $function$` y el `$function$` final. Antes de fiarse se
+validó contra la 0318, cuyo md5 ya había confirmado producción — mismo hash y
+misma longitud al carácter. Después producción confirmó también el de la 0320.
+El método sirve; validarlo contra un valor conocido, primero.
+
+---
+
 ## 2026-08-26 — Una imagen de Supabase abrió 105 funciones, y el CI lo cazó (0315)
 
 **PEGADA EN PRODUCCIÓN el 2026-08-26.** El SQL Editor devolvió `0315 · OK`, 258
