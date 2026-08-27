@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-08-26 — La pregunta que ningún freno hacía (0319) · SIN PEGAR
+## 2026-08-27 — La pregunta que ningún freno hacía (0319) · PEGADA Y VERIFICADA
 
 Todos los frenos del cierre son de **regla**: ¿cuadra?, ¿a quién le toca esta
 norma?, ¿va a cobrar dos veces? Buenos los tres, y con el mismo límite: solo
@@ -89,10 +89,25 @@ Prueba [`255`](../supabase/tests/255_que_cambio_respecto_al_mes_pasado.test.sql)
 falla la 9 y solo la 9. Suite: 177 archivos, 1774 pruebas, PASS con el esquema
 reconstruido desde cero. Panel verificado en el navegador.
 
-**Falta pegarla en producción.** Antes: `./scripts/donde-vive.sh
-fn_planilla_variacion` para confirmar que sigue sin existir —la 0297/0299 enseñó
-que dos sesiones pueden crear la misma función el mismo día— y
-`./scripts/dame-el-sql.sh 319`.
+**PEGADA Y VERIFICADA EN PRODUCCIÓN el 2026-08-27.** Antes de dársela: PR
+[#94](https://github.com/felipea92p-ux/cayla-dynamic/pull/94) fusionado a
+`main` con sus cuatro comprobaciones en verde —incluidas las de base de
+datos—, la migración idéntica byte por byte entre `origin/main` y el disco, y
+el portapapeles comprobado FUERA del script, con el locale explícito (155
+acentos a cada lado) — la comprobación externa que la casa exige desde que el
+guardián se declaró conforme comparando texto corrupto contra texto corrupto.
+
+Las cinco columnas de la comprobación final salieron en `true`: existe sin
+sobrecargas, compara contra la foto de `fn_proyeccion_periodo` y no contra el
+recálculo, están los umbrales, la pantalla la puede llamar, y quedó el rastro
+en `migraciones_aplicadas`.
+
+No hubo md5 que pedir: esta migración no reescribe ninguna función existente,
+solo crea `fn_planilla_variacion` — así que ni el ritual de partida ni el de
+llegada aplican aquí.
+
+⚠️ **Y sigue en pie la advertencia de arriba: esto no arregla los tres
+hallazgos, los hace visibles.** Nada cambió en `hallazgos-abiertos.md`.
 
 ---
 
