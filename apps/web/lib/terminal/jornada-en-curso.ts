@@ -35,3 +35,54 @@ export function marcasDeLaJornadaEnCurso(
   const ayerSigueAbierta = !deAyer.some((m) => m.tipo === "salida_final");
   return ayerSigueAbierta ? deAyer : [];
 }
+
+/**
+ * A QUÉ JORNADA PERTENECE CADA MARCA, y de ahí cuál es la que está en curso.
+ *
+ * Es la mitad de terminal del defecto que la 0317 arregla en la base. Quien
+ * cierra tienda a las 00:30 tiene su salida guardada con `fecha_jornada` del día
+ * ANTERIOR —eso lo hace bien la 0240— pero este archivo repartía las marcas por
+ * la fecha de CALENDARIO del `timestamp_marca`, así que esa salida caía en el
+ * cubo de HOY.
+ *
+ * Consecuencia medida: al marcar su entrada de la mañana, la máquina de estados
+ * veía un `salida_final` en la lista de hoy y respondía «cerrado». El terminal
+ * mostraba «Ya cerraste tu día. ¿Volviste a entrar?» y el único botón hacia
+ * adelante anulaba la salida REAL de anoche — 9,50 h y S/109,62 medidos, y el
+ * día del martes reabierto sin entrada.
+ *
+ * La regla es de una línea: **manda `fecha_jornada` si la hay, y solo si no la
+ * hay se mira el calendario.** Las entradas no la llevan, y por eso el
+ * `coalesce` no es un adorno defensivo: es el caso normal.
+ *
+ * Se saca aquí, a una función pura, porque antes vivía dentro de
+ * `cargarMarcajesHoyPorPersona`, que hace red — y por eso no la probaba nadie.
+ */
+export function jornadaEnCursoPorPersona(
+  filas: {
+    persona_id: string;
+    tipo: MarcajeDelDia["tipo"];
+    timestamp_marca: string;
+    fecha_jornada?: string | null;
+  }[],
+  hoy: string,
+  diaDelTimestamp: (ts: string) => string,
+): Map<string, MarcajeDelDia[]> {
+  const ayer = new Map<string, MarcajeDelDia[]>();
+  const hoyMap = new Map<string, MarcajeDelDia[]>();
+
+  for (const m of filas) {
+    const dia = m.fecha_jornada ?? diaDelTimestamp(m.timestamp_marca);
+    const destino = dia === hoy ? hoyMap : ayer;
+    const lista = destino.get(m.persona_id) ?? [];
+    lista.push({ tipo: m.tipo, timestamp: m.timestamp_marca });
+    destino.set(m.persona_id, lista);
+  }
+
+  const mapa = new Map<string, MarcajeDelDia[]>();
+  for (const personaId of new Set([...ayer.keys(), ...hoyMap.keys()])) {
+    const enCurso = marcasDeLaJornadaEnCurso(ayer.get(personaId) ?? [], hoyMap.get(personaId) ?? []);
+    if (enCurso.length > 0) mapa.set(personaId, enCurso);
+  }
+  return mapa;
+}

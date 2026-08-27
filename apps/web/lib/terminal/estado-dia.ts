@@ -8,7 +8,7 @@ import {
   type SiguienteAccion,
 } from "@cayla-dynamic/shared";
 import { obtenerPendientes } from "./offline-db";
-import { marcasDeLaJornadaEnCurso } from "./jornada-en-curso";
+import { jornadaEnCursoPorPersona } from "./jornada-en-curso";
 import { topeDeRed } from "./tope-de-red";
 
 /**
@@ -50,12 +50,18 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
       persona_id: string;
       tipo: MarcajeDelDia["tipo"];
       timestamp_marca: string;
+      // ⇩ SIN ESTA COLUMNA EL TERMINAL BORRA HORAS. Quien cierra tienda a las
+      // 00:30 tiene su salida guardada con la `fecha_jornada` del día anterior;
+      // repartiendo por el calendario del `timestamp_marca`, esa salida caía en
+      // el cubo de HOY y el terminal le decía «ya cerraste tu día» a quien
+      // acababa de llegar. Ver `jornadaEnCursoPorPersona`.
+      fecha_jornada: string | null;
     };
     let data: FilaMarcaje[] | null = null;
     try {
       const res = await supabase
         .from("marcajes")
-        .select("persona_id, tipo, timestamp_marca")
+        .select("persona_id, tipo, timestamp_marca, fecha_jornada")
         .abortSignal(topeDeRed())
         // Las anuladas (mig. 0081) no existen para el estado del día. Sin este
         // filtro, anular la entrada de alguien dejaba al terminal creyéndolo
@@ -74,20 +80,8 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
     // navegador: el corte del día es el de Lima, y esa respuesta tiene un solo
     // sitio (fecha-lima.ts).
     const hoyStr = fechaLimaHoy();
-    const porPersonaAyer = new Map<string, MarcajeDelDia[]>();
-    const porPersonaHoy = new Map<string, MarcajeDelDia[]>();
-    for (const m of data ?? []) {
-      const destino = fechaLima(m.timestamp_marca) === hoyStr ? porPersonaHoy : porPersonaAyer;
-      const lista = destino.get(m.persona_id) ?? [];
-      lista.push({ tipo: m.tipo, timestamp: m.timestamp_marca });
-      destino.set(m.persona_id, lista);
-    }
-    for (const personaId of new Set([...porPersonaAyer.keys(), ...porPersonaHoy.keys()])) {
-      const enCurso = marcasDeLaJornadaEnCurso(
-        porPersonaAyer.get(personaId) ?? [],
-        porPersonaHoy.get(personaId) ?? [],
-      );
-      if (enCurso.length > 0) mapa.set(personaId, enCurso);
+    for (const [personaId, enCurso] of jornadaEnCursoPorPersona(data ?? [], hoyStr, fechaLima)) {
+      mapa.set(personaId, enCurso);
     }
   }
 
