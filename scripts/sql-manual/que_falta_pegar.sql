@@ -176,7 +176,8 @@ with repo(numero, nombre, nunca) as (values
     (314, 'el_duelo_de_un_familiar_directo_se_paga_y_las_licencias_tambien', false),
     (315, 'anon_deja_de_depender_de_una_regla_por_defecto', false),
     (316, 'lo_que_se_paga_por_licencia_tambien_se_declara', false),
-    (317, 'la_remuneracion_vacacional_tambien_se_declara', false)
+    (317, 'la_remuneracion_vacacional_tambien_se_declara', false),
+    (318, 'que_cambio_respecto_al_mes_pasado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
