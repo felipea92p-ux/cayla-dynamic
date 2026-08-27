@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-08-26 — La pregunta que ningún freno hacía (0318) · SIN PEGAR
+## 2026-08-26 — La pregunta que ningún freno hacía (0319) · SIN PEGAR
 
 Todos los frenos del cierre son de **regla**: ¿cuadra?, ¿a quién le toca esta
 norma?, ¿va a cobrar dos veces? Buenos los tres, y con el mismo límite: solo
@@ -84,7 +84,7 @@ con siete escenarios, y cinco intentos de tumbarla):
 
 Umbrales en `configuracion.planilla_variacion_umbrales`, no en el cuerpo.
 
-Prueba [`254`](../supabase/tests/254_que_cambio_respecto_al_mes_pasado.test.sql),
+Prueba [`255`](../supabase/tests/255_que_cambio_respecto_al_mes_pasado.test.sql),
 14 aserciones, **vista en rojo a propósito**: quitando la guarda de ausencias
 falla la 9 y solo la 9. Suite: 177 archivos, 1774 pruebas, PASS con el esquema
 reconstruido desde cero. Panel verificado en el navegador.
@@ -92,7 +92,7 @@ reconstruido desde cero. Panel verificado en el navegador.
 **Falta pegarla en producción.** Antes: `./scripts/donde-vive.sh
 fn_planilla_variacion` para confirmar que sigue sin existir —la 0297/0299 enseñó
 que dos sesiones pueden crear la misma función el mismo día— y
-`./scripts/dame-el-sql.sh 318`.
+`./scripts/dame-el-sql.sh 319`.
 
 ---
 

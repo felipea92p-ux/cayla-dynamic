@@ -4,9 +4,9 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 254_que_cambio_respecto_al_mes_pasado.test.sql
+-- 255_que_cambio_respecto_al_mes_pasado.test.sql
 -- ============================================================================
--- Fija la 0318: el informe de variación contra el periodo anterior.
+-- Fija la 0319: el informe de variación contra el periodo anterior.
 --
 -- ── LO QUE ESTA PRUEBA CUIDA DE VERDAD ─────────────────────────────────────
 --
@@ -31,7 +31,7 @@
 --      del 2 % la prueba pasaría por casualidad —el caso se libra por cómo le
 --      salieron las cuentas, no por la guarda— y una prueba que pasa por
 --      casualidad no fija nada. Se descubrió midiendo: en la auditoría de la
---      0318 el caso de vacaciones se salvó por un 4,4 %.
+--      0319 el caso de vacaciones se salvó por un 4,4 %.
 --
 -- ── Y LA TERCERA, QUE ES DE DISEÑO ─────────────────────────────────────────
 --

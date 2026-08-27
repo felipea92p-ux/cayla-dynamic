@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0318 — Qué cambió respecto al mes pasado
+-- 0319 — Qué cambió respecto al mes pasado
 -- ----------------------------------------------------------------------------
 -- EL PROBLEMA
 --
@@ -434,7 +434,7 @@ revoke execute on function fn_planilla_variacion(uuid, uuid) from public, anon;
 -- sabría si esta migración llegó a producción.
 
 insert into migraciones_aplicadas (numero, nombre)
-values (318, 'que_cambio_respecto_al_mes_pasado')
+values (319, 'que_cambio_respecto_al_mes_pasado')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
@@ -445,7 +445,7 @@ notify pgrst, 'reload schema';
 -- select. Las cinco columnas tienen que salir en `true`.
 
 select
-  '0318 · OK'                                                  as migracion,
+  '0319 · OK'                                                  as migracion,
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'fn_planilla_variacion') = 1
                                                                as existe_y_sin_sobrecargas,
@@ -457,5 +457,5 @@ select
                                                                as estan_los_umbrales,
   has_function_privilege('authenticated',
     'fn_planilla_variacion(uuid, uuid)', 'execute')            as la_pantalla_la_puede_llamar,
-  (select count(*) from migraciones_aplicadas where numero = 318) = 1
+  (select count(*) from migraciones_aplicadas where numero = 319) = 1
                                                                as quedo_el_rastro;

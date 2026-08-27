@@ -85,7 +85,7 @@ interface Desvio {
   total_ahora: number | null;
   diferencia: number;
 }
-// ── Qué cambió respecto al mes pasado (0318) ────────────────────────────────
+// ── Qué cambió respecto al mes pasado (0319) ────────────────────────────────
 // Sale de `fn_planilla_variacion`. Los dos lados se los pide esa función a
 // `fn_proyeccion_periodo`, así que un periodo ya pagado se compara por lo que se
 // PAGÓ —su foto congelada— y no por lo que se recalcularía hoy.
@@ -93,7 +93,7 @@ interface Desvio {
 // Las etiquetas viven aquí y no en `packages/shared/labels.ts` a propósito: no
 // son un catálogo de la base que otra pantalla pueda necesitar, son los códigos
 // que devuelve esa función y solo los pinta este panel. Su fuente de verdad es
-// la migración 0318; si aparece un aviso nuevo, se agrega ahí y aquí.
+// la migración 0319; si aparece un aviso nuevo, se agrega ahí y aquí.
 type AvisoVariacion =
   | "salio"
   | "entro"
@@ -1126,7 +1126,7 @@ export default function PlanillaPage() {
 
   useEffect(() => { void cargarDesvios(); }, [cargarDesvios]);
 
-  // ── Qué cambió respecto al mes pasado (0318) ───────────────────────────────
+  // ── Qué cambió respecto al mes pasado (0319) ───────────────────────────────
   // A diferencia de los desvíos, esto se pregunta SIEMPRE: la comparación con
   // el periodo anterior sirve sobre todo ANTES de pagar, que es cuando todavía
   // se puede corregir. `fn_planilla_variacion` resuelve sola cuál es el periodo
@@ -2287,7 +2287,7 @@ export default function PlanillaPage() {
               </button>
             </div>
 
-            {/* ── Qué cambió respecto al mes pasado (0318) ──────────────────
+            {/* ── Qué cambió respecto al mes pasado (0319) ──────────────────
                 Se pone ANTES de la tabla a propósito: la tabla dice cuánto
                 cobra cada quien y esto dice a quién hay que mirar. Leer treinta
                 filas buscando la que se movió es justo lo que este panel evita. */}
