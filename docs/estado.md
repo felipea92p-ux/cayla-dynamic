@@ -991,7 +991,7 @@ prorrateo del feriado dentro de una licencia, medido en −S/22.17). Antes de
 escribirla: `donde-vive.sh fn_planilla_calcular` y el md5 de producción, igual
 que siempre.
 
-### 7 · `guardarDocumento()` muestra "archivado" con éxito aunque la segunda mitad del guardado haya fallado — nuevo esta noche
+### 7 · ~~`guardarDocumento()` muestra "archivado" aunque la segunda mitad haya fallado~~ — ✅ CERRADO por otra sesión (commit `8ace032`, 2026-08-26 11:24)
 
 **Dónde:** `apps/web/app/(admin)/admin/documentacion/page.tsx:642-651`. La
 primera llamada a `fn_documento_registrar` (crear el registro) sí chequea
@@ -1007,7 +1007,14 @@ aplicado a un documento con valor legal (política, movilidad, bono).
 **Propuesta:** destructurar `error` de la segunda llamada y, si falla, avisar
 en vez de mostrar éxito — mismo patrón que ya usa el primer bloque.
 
-### 8 · La regla "qué mes de educación falta un comprobante" está escrita 3-5 veces, casi sin prueba — nuevo esta noche
+**Cerrado, y mejor de lo propuesto.** Otra sesión lo arregló el mismo día y
+encontró que el defecto estaba **tres veces**, no una: «tres guardados que
+decían "listo" cuando la segunda mitad había fallado». El aviso que quedó no
+dice solo que falló — dice qué quedó a medias y qué hacer: «El registro se
+guardó y el archivo subió, pero no se pudo enlazar. El documento queda SIN su
+papel: vuelve a subirlo desde su fila».
+
+### 8 · ~~La regla "qué mes de educación falta un comprobante" está escrita 3-5 veces, casi sin prueba~~ — ✅ CERRADO (prueba 226 ampliada, 2026-08-26)
 
 **Dónde:** `supabase/migrations/0290_un_comprobante_por_mes_y_no_uno_por_
 asignacion.sql` crea `fn_educacion_papeles` (:328), `fn_educacion_meses_
@@ -1022,9 +1029,21 @@ copias, el contador del menú puede decir "0 pendientes" mientras la lista
 real muestra filas con `meses_sin_papel > 0` — y nadie va detrás del papel
 que sustenta un pago ya hecho.
 
-**Propuesta:** sobre el mismo laboratorio del test 226, sumar 3-4 aserciones
-que llamen directo a las tres funciones sueltas y comparen contra la columna
-`meses_sin_papel`.
+**Cerrado con cuatro comprobaciones nuevas en el test 226**, sobre su mismo
+laboratorio. La duplicación NO se tocó —siguen siendo cinco copias— pero ahora
+**separarse cuesta rojo**, que era el riesgo real.
+
+Se escribieron comparando **función contra función**, no contra números a mano:
+el peligro no es que una dé mal un número, es que dos den números distintos y
+nadie se entere. La cuarta es la que importa: `fn_educacion_por_atender()` —el
+contador que le avisa a DO qué papeles perseguir— contra
+`fn_educacion_listar()`, que es la lista que abre esa misma pantalla.
+
+**Se comprobó que tiene dientes**: rompiendo el contador para que siempre diga
+«0 pendientes», la comprobación 14 se pone roja.
+
+**Lo que sigue abierto, y es de otro tamaño:** unificar las cinco copias. Hoy no
+duele porque hay quien avise si se separan.
 
 ### 9 · ~~Tablas nuevas con datos sensibles, con RLS pero sin ninguna prueba que confirme que protege~~ — ✅ CERRADO (prueba 252, 2026-08-26)
 
