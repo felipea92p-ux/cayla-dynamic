@@ -4358,6 +4358,7 @@ export type Database = {
           fecha: string
           marcas: number
           nombre: string
+          periodo_pagado: boolean
           persona_id: string
           sede: string
         }[]

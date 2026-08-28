@@ -75,7 +75,7 @@ function familiaDe(tipo: TipoMarca): "entrada" | "salida" | "retorno" {
 const TIPOS_DE_LA_FAMILIA = (tipo: TipoMarca): TipoMarca[] =>
   (Object.keys(TIPO_MARCA_LABELS) as TipoMarca[]).filter((t) => familiaDe(t) === familiaDe(tipo));
 /** Día que el sistema selló solo, por haber quedado con una secuencia imposible (mig. 0068). */
-interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; }
+interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; periodo_pagado: boolean; }
 
 /** Una marca que la persona hizo y el terminal no pudo enviar. No es un marcaje:
  *  lo será si alguien la repone desde acá, con su hora original. */
@@ -502,32 +502,67 @@ export default function CorreccionesPage() {
           </div>
         )}
 
-        {porRevisar.length > 0 && (
-          <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
-            <p className="text-sm font-medium text-tinta">
-              {porRevisar.length === 1
-                ? "1 día quedó con una secuencia imposible"
-                : `${porRevisar.length} días quedaron con una secuencia imposible`}
-            </p>
-            <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
-              Ocurre cuando la terminal pierde señal y una marca llega tarde. No se perdió nada:
-              solo hay que ordenar el día. Toca uno para cargarlo.
-            </p>
-            <ul className="flex flex-col">
-              {porRevisar.map((d) => (
-                <li key={`${d.persona_id}-${d.fecha}`}>
-                  <button
-                    onClick={() => { setPersonaId(d.persona_id); setFecha(d.fecha); setCargado(false); }}
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-ambar/10"
-                  >
-                    <span className="font-medium text-tinta">{d.nombre}</span>
-                    <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {porRevisar.length > 0 && (() => {
+          const accionables = porRevisar.filter((d) => !d.periodo_pagado);
+          const historicos = porRevisar.filter((d) => d.periodo_pagado);
+          return (
+            <>
+              {accionables.length > 0 && (
+                <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
+                  <p className="text-sm font-medium text-tinta">
+                    {accionables.length === 1
+                      ? "1 día quedó con una secuencia imposible"
+                      : `${accionables.length} días quedaron con una secuencia imposible`}
+                  </p>
+                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+                    Ocurre cuando la terminal pierde señal y una marca llega tarde. No se perdió nada:
+                    solo hay que ordenar el día. Toca uno para cargarlo.
+                  </p>
+                  <ul className="flex flex-col">
+                    {accionables.map((d) => (
+                      <li key={`${d.persona_id}-${d.fecha}`}>
+                        <button
+                          onClick={() => { setPersonaId(d.persona_id); setFecha(d.fecha); setCargado(false); }}
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-ambar/10"
+                        >
+                          <span className="font-medium text-tinta">{d.nombre}</span>
+                          <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {historicos.length > 0 && (
+                <div className="mb-6 max-w-3xl rounded-xl border border-taupe/30 bg-taupe/5 p-4">
+                  <p className="text-sm font-medium text-tinta">
+                    {historicos.length === 1
+                      ? "1 día histórico quedó con una secuencia imposible"
+                      : `${historicos.length} días históricos quedaron con una secuencia imposible`}
+                  </p>
+                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+                    Su periodo de planilla ya está pagado: no se puede anular ninguna de sus marcas sin
+                    reabrir el periodo primero, y arreglar el orden no cambiaría ninguna hora ya pagada.
+                    Se muestran solo para que quede constancia, no piden acción.
+                  </p>
+                  <ul className="flex flex-col">
+                    {historicos.map((d) => (
+                      <li key={`${d.persona_id}-${d.fecha}`}>
+                        <button
+                          onClick={() => { setPersonaId(d.persona_id); setFecha(d.fecha); setCargado(false); }}
+                          className="w-full rounded-lg px-3 py-2 text-left text-sm text-taupe transition-colors hover:bg-taupe/10"
+                        >
+                          <span className="font-medium">{d.nombre}</span>
+                          <span> · {d.sede} · {d.fecha}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">
