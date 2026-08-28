@@ -179,7 +179,8 @@ with repo(numero, nombre, nunca) as (values
     (317, 'la_remuneracion_vacacional_tambien_se_declara', false),
     (318, 'reabrir_el_dia_no_toca_la_salida_de_anoche', false),
     (319, 'que_cambio_respecto_al_mes_pasado', false),
-    (320, 'la_marca_real_gana_a_la_que_adivino_el_robot', false)
+    (320, 'la_marca_real_gana_a_la_que_adivino_el_robot', false),
+    (321, 'dias_por_revisar_distingue_periodo_pagado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
