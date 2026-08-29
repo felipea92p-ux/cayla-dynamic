@@ -212,6 +212,26 @@ describe("ventanaMasCargada", () => {
     expect(ventanaMasCargada([], "2026-08-03", "2026-08-09")?.horas).toBe(0);
   });
 
+  // ── El caso de Lizzelott: la ventana no puede cruzar un descanso ──────────
+  // Incidencias avisó «53.2 h en 7 días» el 24/08/2026. Esa cifra sale de sumar
+  // la cola de una racha (18-22 ago, 45.36 h) con el arranque de la siguiente
+  // (24-25 ago), puenteando por encima del descanso del 23 — algo que ninguna
+  // semana real trabajó. La boleta nunca pagó sobretiempo porque el ciclo real
+  // jamás llegó a 48. Ver `sobretiempo_ciclo_por_ciclo.sql` para el cálculo por
+  // ciclos que sí respeta el corte.
+  it("el caso de Lizzelott: un descanso en medio no deja que la ventana sume dos rachas", () => {
+    const dias = [
+      d("2026-08-18", 11.75), d("2026-08-19", 7.77), d("2026-08-20", 10.70),
+      d("2026-08-21", 7.81), d("2026-08-22", 7.33),
+      // 23: descanso, sin fila
+      d("2026-08-24", 7.85), d("2026-08-25", 7.75),
+    ];
+    const v = ventanaMasCargada(dias, "2026-08-18", "2026-08-25");
+    expect(v!.horas).toBeLessThanOrEqual(MAXIMO_LEGAL_SEMANAL);
+    expect(v!.horas).toBeCloseTo(45.36, 2);
+    expect(v!.fin).toBe("2026-08-22");
+  });
+
   // ── El exceso que caducó antes de que nadie lo viera ──────────────────────
   // Incidencias evaluaba SOLO ventanas que terminaran en los últimos 7 días. Un
   // exceso cuya ventana cerró antes desaparecía de la pantalla para siempre: no

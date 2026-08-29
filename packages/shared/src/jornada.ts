@@ -156,6 +156,16 @@ export function avisoDeRacha(fechas: readonly string[], hoy: string): AvisoRacha
  * calendario dan 48 y 48 —ninguna se pasa— pero cualquier ventana de siete días
  * de esa racha suma 56. Medir por calendario deja pasar justo el caso que hay
  * que ver.
+ *
+ * Pero «ventana móvil» no significa cruzar por encima de un descanso. Un día sin
+ * horas registradas CORTA la racha, igual que corta el ciclo en el cálculo de
+ * planilla (`ot_islas` en `sobretiempo_ciclo_por_ciclo.sql`) — si no se corta acá
+ * también, la ventana suma la cola de una racha de trabajo con el arranque de la
+ * siguiente, separadas por un descanso real, y reporta horas que ninguna semana
+ * de verdad trabajó. Pasó el 2026-08-29 con Lizzelott Ramírez: 18-22 ago (45.36 h)
+ * más 24-25 ago (15.6 h), puenteadas sobre el descanso del 23, dieron una alerta
+ * de «53.2 h en 7 días» que la boleta nunca pagó porque el ciclo real jamás llegó
+ * a 48.
  */
 export function ventanaMasCargada(
   dias: readonly { fecha: string; horas: number }[],
@@ -170,11 +180,14 @@ export function ventanaMasCargada(
   const tope = new Date(`${hasta}T00:00:00Z`);
   while (cursor <= tope) {
     const fin = cursor.toISOString().slice(0, 10);
-    // La ventana es el día y los seis anteriores: siete días consecutivos.
+    // La ventana es el día y los seis anteriores, pero solo mientras sigan
+    // siendo racha: un día sin horas la corta, no se sigue sumando más atrás.
     let suma = 0;
     const atras = new Date(cursor);
     for (let i = 0; i < 7; i++) {
-      suma += porFecha.get(atras.toISOString().slice(0, 10)) ?? 0;
+      const horasDia = porFecha.get(atras.toISOString().slice(0, 10)) ?? 0;
+      if (horasDia <= 0) break;
+      suma += horasDia;
       atras.setUTCDate(atras.getUTCDate() - 1);
     }
     if (mejor === null || suma > mejor.horas) mejor = { fin, horas: suma };
