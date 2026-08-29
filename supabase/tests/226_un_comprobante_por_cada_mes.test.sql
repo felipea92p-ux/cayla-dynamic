@@ -13,6 +13,20 @@
 begin;
 select plan(27);
 
+-- Los tres meses que cubre la asignación de la prueba son relativos a HOY, no
+-- 2026-06/07/08 fijos. Una fecha de calendario absoluta caduca el día que el
+-- reloj real la alcanza y la pasa —le pasó a esta prueba el 2026-08-29, un día
+-- después de escrita, cuando `fn_educacion_registrar` dejó de tener «hoy»
+-- dentro de la ventana declarada—. Anclarlo a `fn_hoy_lima()` conserva la
+-- misma forma (tres periodos consecutivos, uno con papel de menos) para
+-- siempre, sea cual sea el día real en que esto corra.
+create temp table _fechas as
+select
+  fn_educacion_mes_del_periodo(fn_hoy_lima())                                as bucket_0,
+  (fn_educacion_mes_del_periodo(fn_hoy_lima()) - interval '1 month')::date   as bucket_1,
+  (fn_educacion_mes_del_periodo(fn_hoy_lima()) - interval '2 months')::date  as bucket_2,
+  (fn_educacion_mes_del_periodo(fn_hoy_lima()) + 27)                         as fin_bucket_0;
+
 -- ── Semilla ─────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000000c0', 'ZZCOM', 'Sede de laboratorio 290', true);
@@ -51,7 +65,7 @@ select is(
 select lives_ok($$
   select fn_educacion_registrar(
     '00000000-0000-0000-0000-0000000000c2'::uuid, 'Instituto de laboratorio', 200::numeric,
-    'trabajador', '2026-06-01'::date, '2026-08-28'::date,
+    'trabajador', (select bucket_2 from _fechas), (select fin_bucket_0 from _fechas),
     null, 'educacion/c2/junio.pdf', null, null, null) $$,
   'ALTA · se registra con su comprobante');
 
@@ -66,7 +80,7 @@ select is(
   (select c.mes_cubierto from educacion_comprobantes c
      join asignaciones_educacion a on a.id = c.asignacion_id
     where a.persona_id = '00000000-0000-0000-0000-0000000000c2'),
-  '2026-06-01'::date,
+  (select bucket_2 from _fechas),
   'ALTA · y respalda el mes del periodo en que empieza la vigencia');
 
 select is(
@@ -112,7 +126,7 @@ select is(
 select lives_ok($$
   select fn_educacion_adjuntar_comprobante(
     (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'),
-    'educacion/c2/julio.pdf', '2026-07-01'::date, null) $$,
+    'educacion/c2/julio.pdf', (select bucket_1 from _fechas), null) $$,
   'ADJUNTAR · un segundo papel entra sin tocar la asignación');
 
 select is(
@@ -140,7 +154,7 @@ select is(
 select throws_like($$
   select fn_educacion_adjuntar_comprobante(
     (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'),
-    'educacion/c2/enero27.pdf', '2027-01-01'::date, null) $$,
+    'educacion/c2/fuera_de_rango.pdf', (select bucket_0 + interval '6 months' from _fechas)::date, null) $$,
   '%no paga el mes%',
   'ADJUNTAR · un recibo de un mes que esa vigencia no cobra se rechaza: no sostiene nada');
 
@@ -150,7 +164,8 @@ select throws_like($$
   select fn_educacion_quitar_comprobante(
     (select c.id from educacion_comprobantes c
        join asignaciones_educacion a on a.id = c.asignacion_id
-      where a.persona_id = '00000000-0000-0000-0000-0000000000c2' and c.mes_cubierto = '2026-07-01'),
+      where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
+        and c.mes_cubierto = (select bucket_1 from _fechas)),
     null) $$,
   '%por qué se quita%',
   'QUITAR · sin motivo no se quita: esa fila deja de tener con qué defenderse');
@@ -159,7 +174,8 @@ select lives_ok($$
   select fn_educacion_quitar_comprobante(
     (select c.id from educacion_comprobantes c
        join asignaciones_educacion a on a.id = c.asignacion_id
-      where a.persona_id = '00000000-0000-0000-0000-0000000000c2' and c.mes_cubierto = '2026-07-01'),
+      where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
+        and c.mes_cubierto = (select bucket_1 from _fechas)),
     'se subió el recibo equivocado') $$,
   'QUITAR · con motivo sí');
 
@@ -191,17 +207,24 @@ select is(
 -- vigencia vieja y abre una nueva. Sin copiar los papeles, la nueva nacería sin
 -- sustento — y sin sustento no devenga. Arreglar una errata habría dejado a
 -- alguien sin cobrar, en silencio.
+--
+-- fn_educacion_registrar ancla `v_desde` de la corrección a HOY (no hay
+-- periodos_planilla sembrados en esta prueba, así que cae al respaldo de
+-- fn_educacion_desde_cuando_puede_regir()). Por eso la vigencia del alta ya se
+-- extendió hasta `fin_bucket_0` —el último día del periodo de hoy—: si
+-- terminara antes de hoy, como pasaba con el 28 de agosto fijo, la corrección
+-- no tendría ningún periodo abierto donde aterrizar.
 select fn_educacion_adjuntar_comprobante(
   (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'),
-  'educacion/c2/junio.pdf', '2026-06-01'::date, null);
+  'educacion/c2/junio.pdf', (select bucket_2 from _fechas), null);
 select fn_educacion_adjuntar_comprobante(
   (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'),
-  'educacion/c2/agosto.pdf', '2026-08-01'::date, null);
+  'educacion/c2/agosto.pdf', (select bucket_0 from _fechas), null);
 
 select lives_ok($$
   select fn_educacion_registrar(
     '00000000-0000-0000-0000-0000000000c2'::uuid, 'Instituto de laboratorio', 240::numeric,
-    'trabajador', '2026-06-01'::date, '2026-08-28'::date,
+    'trabajador', (select bucket_2 from _fechas), (select fin_bucket_0 from _fechas),
     null, null, null,
     (select id from asignaciones_educacion where persona_id = '00000000-0000-0000-0000-0000000000c2'),
     'el comprobante decía 240 y se registró 200') $$,
@@ -217,14 +240,14 @@ select is(
   (select count(*)::int from educacion_comprobantes c
      join asignaciones_educacion a on a.id = c.asignacion_id
     where a.persona_id = '00000000-0000-0000-0000-0000000000c2'
-      and a.vigente_desde > '2026-06-01'),
+      and a.vigente_desde > (select bucket_2 from _fechas)),
   1,
   'CORREGIR · la vigencia nueva se quedó con el papel del mes que sí paga, y solo ese');
 
 select isnt(
   (select comprobante_url from asignaciones_educacion
     where persona_id = '00000000-0000-0000-0000-0000000000c2'
-      and vigente_desde > '2026-06-01'),
+      and vigente_desde > (select bucket_2 from _fechas)),
   null,
   'CORREGIR · y por eso sigue devengando: el espejo de la vigencia nueva no quedó vacío');
 
