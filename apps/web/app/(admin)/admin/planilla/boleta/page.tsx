@@ -280,13 +280,16 @@ function BoletaContenido() {
   // son nueve las que van a hacerla, y este repositorio ya juntó 35 copias de la
   // misma condición de permiso antes de aprenderlo. Ahí está también el porqué
   // de que un dato ausente NO convierta a nadie en locador.
-  // PENDIENTE (0322): un practicante también cae aquí en `true` — es lo más
-  // seguro que hay hoy (nunca lo llama "trabajador"), pero el CUERPO del
-  // documento sigue usando lenguaje de honorarios ("servicio", "cliente") que
-  // tampoco le corresponde a una modalidad formativa. El título ya dice bien
-  // "Constancia de subvención" (arriba). Falta una tercera rama de copy
-  // dedicada — no se construyó en esta migración, ver docs/estado.md.
-  const esLocador = esPrestadorDeServicios(f.en_planilla);
+  //
+  // CAMBIO 0322 (completado): un practicante tiene `en_planilla=false`, así que
+  // `esPrestadorDeServicios` también lo marcaría `true` — pero un convenio de
+  // modalidad formativa (Ley 28518) no es una locación de servicios, y llamarlo
+  // así en un papel que la persona se lleva es tan falso como llamarlo
+  // "trabajador". Se excluye acá con `!esPracticante`, y tiene su PROPIA rama de
+  // copy más abajo (label del pago, deslinde legal, bloque de EsSalud) en vez de
+  // heredar la de un locador.
+  const esPracticante = f.tipo_vinculo === "practicante";
+  const esLocador = esPrestadorDeServicios(f.en_planilla) && !esPracticante;
 
   const totalObj = f.objetivos_total ?? 10;
   // pctObj y nivelPlus se fueron con la fila del «Incentivo Variable por Metas»
@@ -521,7 +524,10 @@ function BoletaContenido() {
             </p>
           )}
           <p className="text-sm text-taupe">
-            {esLocador
+            {/* CAMBIO 0322: la escala de sueldo es de trabajadores, igual que
+                para un locador (ver el comentario de arriba, 0182) — un
+                practicante tampoco ocupa un peldaño de esa escala. */}
+            {esLocador || esPracticante
               ? f.sede
               : `${f.sede} · ${f.rango ? (RANGO_LABEL[f.rango] ?? f.rango) : "sin rango"}`}
           </p>
@@ -546,9 +552,15 @@ function BoletaContenido() {
                   «proporcional», y se entienden sin explicación. */}
               <div className="flex justify-between gap-4">
                 <dt className="font-medium">
-                  {esLocador
-                    ? "Honorarios pactados (mes completo)"
-                    : "Remuneración Básica Legal (mes completo)"}
+                  {/* CAMBIO 0322: ni "honorarios" (locador) ni "remuneración"
+                      (trabajador) — un practicante cobra una SUBVENCIÓN
+                      económica (art. 45, Ley 28518), que es su propio término
+                      legal y no un sinónimo de los otros dos. */}
+                  {esPracticante
+                    ? "Subvención pactada (mes completo)"
+                    : esLocador
+                      ? "Honorarios pactados (mes completo)"
+                      : "Remuneración Básica Legal (mes completo)"}
                 </dt>
                 <dd className="font-medium">{formatSoles(baseLegal)}</dd>
               </div>
@@ -576,11 +588,15 @@ function BoletaContenido() {
                     que se le entrega. Con cero horas marcadas quedaba además
                     «(0 h) …… S/ 652.17», que se lee como un error de cálculo
                     aunque el número esté bien. */}
-                {esLocador
-                  ? sueldoFijo
-                    ? "Honorarios del mes (monto fijo pactado)"
-                    : `Honorarios por las horas prestadas (${fmtHorasHumano(f.horas_mes)})`
-                  : `Remuneración Básica proporcional (${fmtHorasHumano(f.horas_mes)})`}
+                {/* CAMBIO 0322: la misma razón que la fila de arriba —
+                    "subvención", no "honorarios" ni "remuneración". */}
+                {esPracticante
+                  ? `Subvención por las horas del periodo (${fmtHorasHumano(f.horas_mes)})`
+                  : esLocador
+                    ? sueldoFijo
+                      ? "Honorarios del mes (monto fijo pactado)"
+                      : `Honorarios por las horas prestadas (${fmtHorasHumano(f.horas_mes)})`
+                    : `Remuneración Básica proporcional (${fmtHorasHumano(f.horas_mes)})`}
                 {/* La sublínea de un locador NO compara contra «el mes completo».
                     Esa comparación es la que insinúa un sueldo mensual del que
                     este mes se pagó una parte, y quien factura por hora no tiene
@@ -1102,6 +1118,51 @@ function BoletaContenido() {
               <li>
                 <span className="font-medium">Impuesto a la renta:</span> el de cuarta categoría
                 es de cargo del prestador. CAYLA retiene únicamente cuando la ley lo exige.
+              </li>
+            </ul>
+          </div>
+        ) : esPracticante ? (
+          // ── LA VERSIÓN DEL PRACTICANTE (0322) ──────────────────────────────
+          // Ni la del locador (le sobra Código Civil 1764, "tú organizas tu
+          // tiempo" es FALSO —el convenio SÍ fija una jornada— y "emites tu
+          // recibo" también, porque un practicante no emite nada) ni la del
+          // trabajador (le sobra PLAME como boleta oficial y "remuneración
+          // computable": una subvención no lo es). Cinco puntos, con la misma
+          // regla de las otras dos versiones: sin cifras, y los derechos que
+          // el sistema todavía no calcula solo se dicen igual — omitirlos
+          // sería negarle a la persona un derecho real por una limitación de
+          // esta pantalla, y eso pesa distinto que un adorno de más.
+          <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
+            <p className="mb-3 font-medium">Sobre este documento</p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>
+                <span className="font-medium">Es un convenio de modalidad formativa.</span> Lo
+                acordado entre CAYLA y quien hace sus prácticas se rige por la Ley N.° 28518,
+                Ley sobre Modalidades Formativas Laborales. No es un contrato de trabajo.
+              </li>
+              <li>
+                <span className="font-medium">Tu jornada la fija el convenio</span> — hasta 30
+                horas semanales si tus prácticas son preprofesionales, hasta 48 si son
+                profesionales (art. 44). Que alguien supervise tus prácticas es parte de la
+                modalidad formativa, no un indicio de que esto sea otra cosa.
+              </li>
+              <li>
+                <span className="font-medium">Este documento es tu constancia de subvención.</span>{" "}
+                No emites ningún recibo: CAYLA te declara ante SUNAT en su propio registro de
+                personal en formación, distinto al de un trabajador o un locador.
+              </li>
+              <li>
+                <span className="font-medium">
+                  Por eso aquí no hay gratificación, CTS, vacaciones ni aporte a tu pensión.
+                </span>{" "}
+                Son derechos propios de un contrato de trabajo (art. 47). Si tus prácticas
+                superan los 12 meses continuos sí te corresponde un descanso de 15 días, y media
+                subvención adicional por cada 6 meses continuos — son derechos tuyos aunque este
+                sistema todavía no los calcule solo: pídelos si se cumplen.
+              </li>
+              <li>
+                <span className="font-medium">Tu subvención no genera retención de impuesto a la renta.</span>{" "}
+                No es remuneración de cuarta ni de quinta categoría (art. 47).
               </li>
             </ul>
           </div>
