@@ -138,6 +138,7 @@ interface Persona {
 const ETIQUETA_VINCULO: Record<string, string> = {
   rxh: "recibo por honorarios",
   no_trabajador: "no trabajador",
+  practicante: "practicante — modalidad formativa",
 };
 
 // Una tarifa de movilidad vigente. `sede_codigo` en null es la general — la que

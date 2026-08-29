@@ -47,8 +47,17 @@ export function esPrestadorDeServicios(enPlanilla: boolean | null | undefined): 
  * Vive aquí y no en `labels.ts` porque no es una etiqueta de catálogo: es la
  * consecuencia directa de la regla de arriba, y las dos tienen que moverse
  * juntas. Si algún día se separan, alguien va a cambiar una sola.
+ *
+ * `tipoVinculo` es OPCIONAL y de solo un valor especial (0322): un practicante
+ * no es "prestador de servicios" —esa palabra es de un locador— así que sin
+ * este dato un practicante recibiría el nombre de un RxH, que es incorrecto
+ * pero no peligroso (sigue sin llamarlo "boleta"). Con el dato, se corrige.
  */
-export function nombreDelDocumentoDePago(enPlanilla: boolean | null | undefined): string {
+export function nombreDelDocumentoDePago(
+  enPlanilla: boolean | null | undefined,
+  tipoVinculo?: string | null,
+): string {
+  if (tipoVinculo === "practicante") return "Constancia de subvención";
   return esPrestadorDeServicios(enPlanilla)
     ? "Detalle de servicios prestados"
     : "Boleta interna de pago";

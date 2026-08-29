@@ -190,11 +190,20 @@ function BoletaContenido() {
   // por qué; aquí solo se arma el texto. Acepta null mientras cargan los datos,
   // que es lo que permite llamarlo arriba sin romper el orden de los hooks.
   const filaTitulo = proy?.filas.find((x) => x.persona_id === personaId);
+  // El título del PDF va abreviado ("Boleta interna", no "Boleta interna de
+  // pago") — por eso es su propia versión corta y no una transformación de
+  // `nombreDelDocumentoDePago`. CAMBIO 0322: un practicante suma su propia
+  // rama — antes cualquiera con en_planilla=false caía en "Servicios
+  // prestados", que es el nombre de un locador (RxH), no el suyo.
+  const tituloDocumento =
+    filaTitulo?.tipo_vinculo === "practicante"
+      ? "Constancia de subvención"
+      : filaTitulo?.en_planilla === false
+        ? "Servicios prestados"
+        : "Boleta interna";
   useTituloDocumento(
     proy && filaTitulo
-      ? `${filaTitulo.nombre} — ${
-          filaTitulo.en_planilla === false ? "Servicios prestados" : "Boleta interna"
-        } ${MESES_LARGO[proy.mes_etiqueta - 1]} ${proy.anio_etiqueta}`
+      ? `${filaTitulo.nombre} — ${tituloDocumento} ${MESES_LARGO[proy.mes_etiqueta - 1]} ${proy.anio_etiqueta}`
       : null,
   );
 
@@ -271,6 +280,12 @@ function BoletaContenido() {
   // son nueve las que van a hacerla, y este repositorio ya juntó 35 copias de la
   // misma condición de permiso antes de aprenderlo. Ahí está también el porqué
   // de que un dato ausente NO convierta a nadie en locador.
+  // PENDIENTE (0322): un practicante también cae aquí en `true` — es lo más
+  // seguro que hay hoy (nunca lo llama "trabajador"), pero el CUERPO del
+  // documento sigue usando lenguaje de honorarios ("servicio", "cliente") que
+  // tampoco le corresponde a una modalidad formativa. El título ya dice bien
+  // "Constancia de subvención" (arriba). Falta una tercera rama de copy
+  // dedicada — no se construyó en esta migración, ver docs/estado.md.
   const esLocador = esPrestadorDeServicios(f.en_planilla);
 
   const totalObj = f.objetivos_total ?? 10;
@@ -461,7 +476,7 @@ function BoletaContenido() {
             </p>
           </div>
           <div className="text-right">
-            <p className="etiqueta text-taupe">{nombreDelDocumentoDePago(f.en_planilla)}</p>
+            <p className="etiqueta text-taupe">{nombreDelDocumentoDePago(f.en_planilla, f.tipo_vinculo)}</p>
             <p className="font-serif text-lg">
               {MESES_LARGO[proy.mes_etiqueta - 1]} {proy.anio_etiqueta}
             </p>
