@@ -57,7 +57,17 @@ export default function RootLayout({
       lang="es"
       className={`${dmSans.variable} ${ebGaramond.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">
+        {/* Safari de iPhone no dispara `:active` en toques salvo que el documento
+            tenga un listener de touch propio — sin esto, los botones y enlaces que
+            "prenden" al presionar con el dedo solo lo hacían con mouse. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "document.addEventListener('touchstart', function(){}, {passive:true});",
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

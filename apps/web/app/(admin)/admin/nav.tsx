@@ -8,8 +8,8 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import {
-  LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Hourglass,
-  Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, Store, KeyRound,
+  LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
+  Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
   BookText, UserRound, ScrollText,
   LogOut, Menu, X, type LucideIcon,
@@ -44,7 +44,7 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // La ruta sigue siendo /admin/horas —hay enlaces vivos— pero el nombre no
     // decía lo que hay ahí: el desempeño de TODO el equipo, sin entrar a nadie.
     // Con «Horas» el camino que se usaba era Equipo → persona → ficha → pestaña.
-    { href: "/admin/horas", label: "Desempeño", Icon: Hourglass, roles: SEDE },
+    { href: "/admin/horas", label: "Desempeño", Icon: Gauge, roles: SEDE },
   ] },
   { label: "Personas", items: [
     { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },
@@ -70,7 +70,7 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/feriados", label: "Feriados", Icon: CalendarCheck, roles: DO },
   ] },
   { label: "Gestión", items: [
-    { href: "/admin/areas", label: "Áreas", Icon: Store, roles: DO },
+    { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
     { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
     { href: "/admin/reporte-sede", label: "Hoja de sede", Icon: FileText, roles: SEDE },
     { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound },
@@ -183,8 +183,8 @@ export function AdminNav() {
                 {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px bg-sand" />}
                 {g.items.map((it) => (
                   <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${
-                      esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/30 hover:text-tinta"}`}>
+                    className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition active:scale-[0.97] ${
+                      esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
                     <it.Icon size={15} strokeWidth={1.8} aria-hidden />
                     {it.label}
                     {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
@@ -225,12 +225,12 @@ export function AdminNav() {
             </span>
           )}
           <button onClick={cerrarSesion}
-            className="hidden items-center gap-1.5 text-sm text-taupe transition-colors hover:text-tinta xl:flex">
+            className="hidden items-center gap-1.5 text-sm text-taupe transition hover:text-rojo active:scale-[0.97] active:text-rojo-profundo xl:flex">
             <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
           </button>
           <button onClick={() => setAbierto((a) => !a)}
             aria-label={abierto ? "Cerrar menú" : "Abrir menú"} aria-expanded={abierto}
-            className="rounded-lg border border-sand p-2 text-tinta xl:hidden">
+            className="rounded-lg border border-sand p-2 text-tinta transition hover:border-taupe/40 hover:bg-sand/40 active:scale-[0.97] active:bg-sand/60 xl:hidden">
             {abierto ? <X size={20} strokeWidth={1.8} /> : <Menu size={20} strokeWidth={1.8} />}
           </button>
         </div>
@@ -247,10 +247,10 @@ export function AdminNav() {
               <div className="grid gap-0.5">
                 {g.items.map((it) => (
                   <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm ${
+                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition active:scale-[0.97] ${
                       esActivo(pathname, it.href)
                         ? "bg-sand/60 font-medium text-tinta"
-                        : "text-taupe hover:bg-sand/40 hover:text-tinta"}`}>
+                        : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
                     <it.Icon size={17} strokeWidth={1.8} aria-hidden />
                     {it.label}
                     {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
@@ -279,7 +279,7 @@ export function AdminNav() {
             </p>
           )}
           <button onClick={cerrarSesion}
-            className="mt-2 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe hover:text-tinta">
+            className="mt-2 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe transition hover:border-rojo/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo">
             <LogOut size={17} strokeWidth={1.8} aria-hidden /> Cerrar sesión
           </button>
         </nav>
