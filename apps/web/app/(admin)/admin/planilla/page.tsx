@@ -1010,6 +1010,10 @@ export default function PlanillaPage() {
   // Activos / ya no están / todos. Arranca en "activos" porque es lo que se mira
   // el 99 % de las veces; el aviso de abajo cubre el 1 % peligroso.
   const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
+  // RxH (en_planilla === false) vive en su propia pestaña: no son trabajadores
+  // en planilla, son locadores por honorarios, y hasta ahora salían mezclados
+  // como filas de la misma tabla con "Honorarios" en vez de rango.
+  const [tablaTab, setTablaTab] = useState<"planilla" | "honorarios">("planilla");
 
   // Objetivos: valor en edición por persona (solo las filas tocadas)
   const [objEdit, setObjEdit] = useState<Record<string, string>>({});
@@ -1739,6 +1743,25 @@ export default function PlanillaPage() {
     ),
     [simProy, sedeFiltro, estadoFiltro],
   );
+  // Partidas de la misma lista, por la pestaña Planilla / Honorarios (RxH).
+  const filasPlanillaTab = useMemo(
+    () => filasVisibles.filter((f) => f.en_planilla !== false),
+    [filasVisibles],
+  );
+  const filasHonorariosTab = useMemo(
+    () => filasVisibles.filter((f) => f.en_planilla === false),
+    [filasVisibles],
+  );
+  const simFilasPlanillaTab = useMemo(
+    () => simFilasVisibles.filter((f) => f.en_planilla !== false),
+    [simFilasVisibles],
+  );
+  const simFilasHonorariosTab = useMemo(
+    () => simFilasVisibles.filter((f) => f.en_planilla === false),
+    [simFilasVisibles],
+  );
+  const filasTabActiva = tablaTab === "planilla" ? filasPlanillaTab : filasHonorariosTab;
+  const simFilasTabActiva = tablaTab === "planilla" ? simFilasPlanillaTab : simFilasHonorariosTab;
   const provTotales = useMemo(
     () =>
       filasVisibles.reduce(
@@ -2450,12 +2473,40 @@ export default function PlanillaPage() {
               <p className="mb-4 text-sm text-taupe">Comparando con el mes pasado…</p>
             )}
 
+            {/* Pestaña Planilla / Honorarios (RxH). Un RxH no está en planilla
+                —es un locador por honorarios, no tiene jornada (ver
+                CLAUDE.md, exclusiones de sobretiempo)— y hasta ahora salía
+                como una fila más de esta misma tabla, con "Honorarios" en
+                vez de rango. Se separan aquí para que la tabla de arriba sea
+                de verdad la planilla, y siguen editables en su pestaña:
+                boleta, movimientos y el aviso de retención de 4ta no
+                cambian. */}
+            {proy && (
+              <div className="mb-3 flex gap-1 border-b border-sand">
+                {(["planilla", "honorarios"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTablaTab(t)}
+                    className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
+                      tablaTab === t
+                        ? "border border-b-0 border-sand bg-papel text-tinta"
+                        : "text-taupe hover:text-tinta"
+                    }`}
+                  >
+                    {t === "planilla"
+                      ? `Planilla (${filasPlanillaTab.length})`
+                      : `Honorarios · RxH (${filasHonorariosTab.length})`}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Tabla del periodo */}
             {cargando && !proy ? (
               <Cargando />
             ) : proy ? (
               <TablaPlanilla
-                filas={filasVisibles}
+                filas={filasTabActiva}
                 simulacion={false}
                 pagado={pagado}
                 sedeFiltro={sedeFiltro}
@@ -2613,7 +2664,7 @@ export default function PlanillaPage() {
                         Sin bonos ni descuentos (esos viven en cada periodo oficial).
                       </div>
                       <TablaPlanilla
-                        filas={simFilasVisibles}
+                        filas={simFilasTabActiva}
                         simulacion={true}
                         pagado={false}
                         sedeFiltro={sedeFiltro}
