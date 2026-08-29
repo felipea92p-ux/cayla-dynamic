@@ -180,7 +180,8 @@ with repo(numero, nombre, nunca) as (values
     (318, 'reabrir_el_dia_no_toca_la_salida_de_anoche', false),
     (319, 'que_cambio_respecto_al_mes_pasado', false),
     (320, 'la_marca_real_gana_a_la_que_adivino_el_robot', false),
-    (321, 'dias_por_revisar_distingue_periodo_pagado', false)
+    (321, 'dias_por_revisar_distingue_periodo_pagado', false),
+    (322, 'se_crea_la_categoria_practicante', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -329,8 +330,10 @@ select * from (
              when 'c60b66ae4c1eca9515f4e3b79be82c4d' then '✗ 0314 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'f6ece4f8e21a8171b0d393ddf47cd1ce' then '⚠ se quedó en la 0316 — falta pegar lo posterior'
              when '151ceaa7d2745e13718dbd5e53ca472f' then '✗ 0316 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '6838c789a2f2444166f2dbebfd9faa0d' then '0317 — al día con el repositorio'
+             when '6838c789a2f2444166f2dbebfd9faa0d' then '⚠ se quedó en la 0317 — falta pegar lo posterior'
              when '00cd2aae9b8d01b943bb99c06eaa3727' then '✗ 0317 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'c86ef4707f51bf57024efac7eea41643' then '0322 — al día con el repositorio'
+             when '71b1779aa219c4ea7b01d9a062563552' then '✗ 0322 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
