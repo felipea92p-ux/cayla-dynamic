@@ -103,6 +103,7 @@ export default function LiquidacionesPage() {
   const [diferencias, setDiferencias] = useState<Diferencia[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const [nota, setNota] = useState("");
+  const [miFirma, setMiFirma] = useState<string | null>(null);
 
   const puede = puedeVerPlanilla(rol);
 
@@ -121,6 +122,17 @@ export default function LiquidacionesPage() {
   }, [router, supabase]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // La firma es la que cada quien subió en su propio perfil (fn_mi_firma) — la
+  // misma que ya se usa en los memos leves y en política salarial. Sin firma
+  // propia guardada, esto queda en null y las dos vistas simplemente no la
+  // muestran: no hay firma genérica de reemplazo.
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase.rpc("fn_mi_firma");
+      if (typeof data === "string" && data.startsWith("data:image")) setMiFirma(data);
+    })();
+  }, [supabase]);
 
   async function abrir(personaId: string) {
     if (abierta === personaId) { setAbierta(null); setDetalle(null); setDiferencias([]); return; }
@@ -212,7 +224,7 @@ export default function LiquidacionesPage() {
             vacio="Nadie con liquidación pendiente. El plazo de 48 horas corre desde el cese, así que esto se llena solo el día que alguien cese."
             filas={enPlazo} abierta={abierta} onAbrir={abrir}
             detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-            ocupado={ocupado} onPagar={pagar} urgente
+            ocupado={ocupado} onPagar={pagar} miFirma={miFirma} urgente
           />
 
           {vencidas.length > 0 && (
@@ -220,7 +232,7 @@ export default function LiquidacionesPage() {
               titulo={`Pasadas de plazo · ${vencidas.length}`}
               vacio="" filas={vencidas} abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={pagar} urgente
+              ocupado={ocupado} onPagar={pagar} miFirma={miFirma} urgente
             />
           )}
 
@@ -229,26 +241,26 @@ export default function LiquidacionesPage() {
               titulo={`Pagadas · ${pagadas.length}`}
               vacio="" filas={pagadas} abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={pagar}
+              ocupado={ocupado} onPagar={pagar} miFirma={miFirma}
             />
           )}
         </div>
 
         {/* ── La hoja que se imprime y se firma ──────────────────────────── */}
-        {detalle && <Hoja d={detalle} />}
+        {detalle && <Hoja d={detalle} miFirma={miFirma} />}
       </main>
     </div>
   );
 }
 
 function Bloque({
-  titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, nota, setNota, ocupado, onPagar, urgente,
+  titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, nota, setNota, ocupado, onPagar, miFirma, urgente,
 }: {
   titulo: string; vacio: string; filas: Pendiente[];
   abierta: string | null; onAbrir: (id: string) => void;
   detalle: Detalle | null; diferencias: Diferencia[];
   nota: string; setNota: (v: string) => void;
-  ocupado: boolean; onPagar: (id: string) => void; urgente?: boolean;
+  ocupado: boolean; onPagar: (id: string) => void; miFirma: string | null; urgente?: boolean;
 }) {
   return (
     <div className="mb-4 overflow-hidden rounded-2xl border border-sand bg-papel">
@@ -297,7 +309,7 @@ function Bloque({
               {abierta === f.persona_id && detalle && (
                 <Desglose
                   d={detalle} diferencias={diferencias} pagada={f.pagada}
-                  nota={nota} setNota={setNota} ocupado={ocupado}
+                  nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
                   onPagar={() => onPagar(f.persona_id)}
                 />
               )}
@@ -346,10 +358,11 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
 }
 
 function Desglose({
-  d, diferencias, pagada, nota, setNota, ocupado, onPagar,
+  d, diferencias, pagada, nota, setNota, ocupado, onPagar, miFirma,
 }: {
   d: Detalle; diferencias: Diferencia[]; pagada: boolean;
   nota: string; setNota: (v: string) => void; ocupado: boolean; onPagar: () => void;
+  miFirma: string | null;
 }) {
   return (
     <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
@@ -419,7 +432,8 @@ function Desglose({
           </>
         )}
         {pagada && (
-          <span className="text-xs text-taupe">
+          <span className="flex items-center gap-2 text-xs text-taupe">
+            {miFirma && <img src={miFirma} alt="Firma" className="h-6 w-auto" />}
             Ya congelada. Volver a marcarla guarda una versión nueva; la anterior queda como histórico.
           </span>
         )}
@@ -432,7 +446,7 @@ function Desglose({
 // Solo se ve al imprimir. Lleva el desglose entero porque quien se va suele
 // revisar, y un total sin explicar obliga a discutirlo de palabra — además de
 // ser lo que hay que exhibir si reclama después.
-function Hoja({ d }: { d: Detalle }) {
+function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
   const hoy = hoyLima();
   return (
     <div className="hidden print:block">
@@ -476,6 +490,7 @@ function Hoja({ d }: { d: Detalle }) {
           <div className="mt-1">{s(d.persona)}</div>
         </div>
         <div>
+          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
           <div className="w-56 border-t border-black pt-1">Por CAYLA</div>
           <div className="mt-1">Fecha: {fechaLarga(hoy)}</div>
         </div>
