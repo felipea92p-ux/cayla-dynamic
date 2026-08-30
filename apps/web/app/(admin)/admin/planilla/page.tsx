@@ -689,9 +689,11 @@ function TablaPlanilla(props: {
                   <td className="px-4 py-2">
                     {f.salario_ref !== null ? (
                       <span className="whitespace-nowrap">
-                        {f.en_planilla === false
-                          ? "Honorarios"
-                          : ((f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—")}
+                        {f.tipo_vinculo === "practicante"
+                          ? "Subvención"
+                          : f.en_planilla === false
+                            ? "Honorarios"
+                            : ((f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—")}
                         {" · "}{formatSoles(f.salario_ref)}
                       </span>
                     ) : (
