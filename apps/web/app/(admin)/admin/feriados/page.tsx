@@ -97,6 +97,10 @@ export default function FeriadosPage() {
   const puedeGestionar = puedeGestionarCatalogos(rol);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Solo para resolver nombres en "Descansos registrados": ese historial incluye
+  // a quien ya no está activa, y `personas` (abajo) se filtra a activas a
+  // propósito porque es la que arma el checklist para registrar días NUEVOS.
+  const [personasTodas, setPersonasTodas] = useState<Persona[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [laborados, setLaborados] = useState<Laborado[]>([]);
@@ -142,9 +146,10 @@ export default function FeriadosPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }, { data: ac }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: pt }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }, { data: ac }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, sede_base_id")
         .eq("estado", "activo").eq("en_planilla", true).order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id").order("nombres"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
       supabase.from("feriados").select("fecha, nombre").order("fecha", { ascending: false }).limit(40),
       supabase.rpc("fn_feriados_laborados", { p_desde: desde, p_hasta: hasta }),
@@ -159,6 +164,7 @@ export default function FeriadosPage() {
       return;
     }
     setPersonas((p as Persona[]) ?? []);
+    setPersonasTodas((pt as Persona[]) ?? []);
     setSedes((sd as Sede[]) ?? []);
     setFeriados((f as Feriado[]) ?? []);
     setLaborados(eL ? [] : ((l as unknown as Laborado[]) ?? []));
@@ -170,8 +176,8 @@ export default function FeriadosPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   const nombrePorId = useMemo(
-    () => new Map(personas.map((x) => [x.id, `${x.nombres} ${x.apellidos}`])),
-    [personas],
+    () => new Map(personasTodas.map((x) => [x.id, `${x.nombres} ${x.apellidos}`])),
+    [personasTodas],
   );
   const visibles = useMemo(
     () => (sedeFiltro ? personas.filter((p) => p.sede_base_id === sedeFiltro) : personas),
