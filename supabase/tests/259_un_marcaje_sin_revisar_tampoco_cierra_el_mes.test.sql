@@ -13,18 +13,24 @@
 -- correcciones` pero no impedía cerrar el mes: sus horas se pagaban con la
 -- secuencia rota tal cual.
 --
+-- Escrita sobre la fn_planilla_congelar de la 0323 (4 argumentos, con
+-- `p_grupo`), no sobre la de la 0284 (3 argumentos) — la 0323 se fusionó a
+-- `main` y se pegó en producción mientras se escribía esta migración. Por eso
+-- las 12 y 13 prueban algo que la 220 (para la 0284) no necesitaba: que el
+-- freno nuevo respeta el aislamiento por grupo que ya trajo la 0323.
+--
 -- El fixture pone `estado_revision = 'pendiente_revision'` con un update
 -- directo, a propósito: lo que se prueba es el FRENO que lee esa bandera, no
 -- `fn_dia_incoherente`, que ya tiene sus propias pruebas.
 --
 -- Las 1 a 6 prueban el freno mismo, igual que la 220 para la 0284. Las 7 a 9
--- prueban el alcance: SOLO el periodo que se cierra, ni arrastre de otro
--- periodo ni bloqueo del retroactivo. Las 10 y 11 prueban que usa
--- `fn_fecha_de_jornada` (0307) y no el reloj — un turno que cruza medianoche
--- se cuenta en el periodo de SU jornada, no en el del calendario.
+-- prueban el alcance temporal: SOLO el periodo que se cierra, ni arrastre de
+-- otro periodo ni bloqueo del retroactivo. Las 10 y 11 prueban que usa
+-- `fn_fecha_de_jornada` (0307) y no el reloj. Las 12 y 13 prueban el
+-- aislamiento por grupo (0323): un pendiente de RxH no frena planilla.
 -- ============================================================================
 begin;
-select plan(11);
+select plan(13);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values ('00000000-0000-0000-0000-000000025900', 'ZZREV', 'Sede de laboratorio', true, 'tienda');
@@ -52,6 +58,17 @@ values ('00000000-0000-0000-0000-000000025902', '2024-01-01', '09:00', '15:30', 
           "3":{"e":"09:00","s":"15:30","r":0},"4":{"e":"09:00","s":"15:30","r":0},
           "5":{"e":"09:00","s":"15:30","r":0},"6":{"e":"09:00","s":"15:30","r":0}}'::jsonb);
 
+-- Una persona de RxH, para las 12 y 13. sueldo_fijo=true, igual que el
+-- fixture de la propia 258 (la de la 0323): no necesita horario ni marcajes
+-- limpios para aparecer en `v_calc->'filas'`, así que el suyo solo existe
+-- para tener ALGO que marcar pendiente_revision.
+insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso, tipo_vinculo, sueldo_fijo)
+values ('00000000-0000-0000-0000-000000025903', 'PenRxh', 'Lab',
+        '00000000-0000-0000-0000-000000025900', 'x', '2024-01-01', 'rxh', true);
+
+insert into asignaciones_salario (persona_id, rango, salario_mensual_soles, vigente_desde)
+values ('00000000-0000-0000-0000-000000025903', 'colibri', 1500, '2024-01-01');
+
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000259ff', true);
 
 -- Un día limpio en el periodo A (04/05) y uno en el B (02/06).
@@ -72,6 +89,8 @@ update marcajes set estado_revision = 'pendiente_revision'
 
 
 -- ── 1 a 3 · Con un marcaje sin revisar, el mes no cierra ────────────────────
+-- fn_planilla_congelar sin cuarto argumento usa el default p_grupo='planilla',
+-- que es el grupo de PenRevisa.
 
 select throws_ok(
   $$ select fn_planilla_congelar('00000000-0000-0000-0000-0000002590a1', 'pago', null) $$,
@@ -171,6 +190,33 @@ select throws_ok(
 select lives_ok(
   $$ select fn_planilla_congelar('00000000-0000-0000-0000-0000002590b1', 'pago', null) $$,
   'Y por eso mismo NO cuenta para el periodo B, aunque su reloj marque el 29');
+
+update marcajes set estado_revision = 'revisada'
+ where persona_id = '00000000-0000-0000-0000-000000025902'
+   and timestamp_marca = '2026-05-29T00:30:00-05:00';
+
+
+-- ── 12 y 13 · El freno se aísla por grupo, igual que los otros dos (0323) ───
+-- PenRxh es 'rxh', no 'planilla'. Un marcaje suyo sin revisar en el periodo A
+-- no puede frenar congelar 'planilla' — el grupo por defecto—, pero sí tiene
+-- que frenar si se congela 'rxh' explícitamente.
+
+insert into marcajes (client_uuid, persona_id, sede_id, tipo, timestamp_marca)
+values (gen_random_uuid(), '00000000-0000-0000-0000-000000025903', '00000000-0000-0000-0000-000000025900', 'entrada',      '2026-05-10T09:00:00-05:00'),
+       (gen_random_uuid(), '00000000-0000-0000-0000-000000025903', '00000000-0000-0000-0000-000000025900', 'salida_final', '2026-05-10T15:00:00-05:00');
+
+update marcajes set estado_revision = 'pendiente_revision'
+ where persona_id = '00000000-0000-0000-0000-000000025903'
+   and timestamp_marca = '2026-05-10T15:00:00-05:00';
+
+select lives_ok(
+  $$ select fn_planilla_congelar('00000000-0000-0000-0000-0000002590a1', 'pago', null) $$,
+  'Un marcaje pendiente de RxH no frena congelar planilla del mismo periodo');
+
+select throws_ok(
+  $$ select fn_planilla_congelar('00000000-0000-0000-0000-0000002590a1', 'pago', null, 'rxh') $$,
+  null, null,
+  'Pero sí frena congelar RxH, que es el grupo al que de verdad pertenece');
 
 
 select * from finish();

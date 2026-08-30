@@ -4,37 +4,50 @@
 --
 -- QUÉ PROMETE
 --   Que un periodo de planilla no se pueda congelar mientras queden marcajes
---   `pendiente_revision` dentro de las fechas de ESE periodo. Es el tercer
---   freno de `fn_planilla_congelar`, junto a la liquidación ya cobrada (0243/
---   0244) y la hora que puso el auto-cierre sin confirmar (0284).
+--   `pendiente_revision` dentro de las fechas de ESE periodo, PARA EL GRUPO
+--   que se está congelando. Es el tercer freno de `fn_planilla_congelar`,
+--   junto a la liquidación ya cobrada (0243/0244) y la hora que puso el
+--   auto-cierre sin confirmar (0284).
 --
 -- QUÉ ASUME
---   · Que `fn_planilla_congelar` es la de la 0284, confirmada con
---     `./scripts/donde-vive.sh fn_planilla_congelar`. El cuerpo no se copió a
---     mano de un archivo cualquiera de los ocho que la definen: se tomó del
---     que el script señaló como vigente, y se le insertó una declaración y un
---     bloque, sin tocar una sola línea de lo demás.
---
---     md5 de partida — PEDIDO A PRODUCCIÓN el 2026-08-29, no copiado del
---     local (la Mac tenía un Postgres compartido con otra sesión y, por
---     una vez, el propio `donde-vive.sh` dio un md5 LOCAL que no coincidía
---     con ninguno de los dos que arrojó producción — ni tal-cual ni sin
---     comentarios. En vez de copiar igual, se midió: se extrajo el cuerpo
---     directamente del texto de la 0284 —líneas 99 a 348, sin tocar ninguna
---     base de datos— y se le calculó el mismo md5 que corre la consulta del
---     SQL Editor. Coincidió con producción byte a byte: tal-cual
---     645667b844f2e977534fbad6829632c5, 15503 caracteres. El Postgres local
---     estaba desincronizado con este worktree —no producción con el
---     repositorio—, y no hizo falta resetearlo para confirmarlo.
+--   · Que `fn_planilla_congelar` es la de la 0323 (4 argumentos, con
+--     `p_grupo`), no la de la 0284 (3 argumentos) — ver el aviso de abajo.
 --   · Que `marcajes.fecha_jornada` (0240) es la fecha correcta para decidir a
 --     qué periodo pertenece un marcaje que cruza medianoche, y que
 --     `fn_fecha_de_jornada(timestamp_marca, fecha_jornada)` (0307) es la
---     única función que la resuelve — se reusa tal cual, sin escribir una
---     segunda copia de ese `coalesce`.
+--     única función que la resuelve — se reusa tal cual.
 --   · Que `marcajes.estado_revision = 'pendiente_revision'` (0001) es la
 --     bandera que `fn_registrar_marcaje` (0320) sella cuando `fn_dia_
 --     incoherente` (0082) encuentra una secuencia entrada/salida que no
 --     cuadra, o cuando una marca cae en un periodo ya pagado (0207).
+--   · Que `personas.tipo_vinculo` (0085) es el dato que dice a qué grupo
+--     pertenece cada persona — el mismo que usa la 0323 en sus otros dos
+--     frenos, ahí leído de `v_calc->'filas'`; acá se lee directo de
+--     `personas` porque esta consulta no pasa por `v_calc`.
+--
+--   md5 de partida de `fn_planilla_congelar` — PEDIDO A PRODUCCIÓN el
+--   2026-08-29, DESPUÉS de que la 0323 se pegó (Felipe confirmó que ya
+--   estaba pegada y cerrada antes de escribir esto). Confirmado exacto:
+--   tal-cual 7a66a410278e86724092adf360904535, 16359 caracteres.
+--
+--   ⚠ POR QUÉ ESTA MIGRACIÓN SE ESCRIBIÓ DOS VECES. La primera versión
+--   partió de la 0284 (3 argumentos) porque, al empezar, esa era la última
+--   definición EN ESTE WORKTREE — la 0323 se fusionó a `main` mientras se
+--   escribía. `donde-vive.sh` no lo detectó porque solo mira NÚMEROS, no
+--   ARIDAD: un `create or replace function f(a,b,c)` no reemplaza a un
+--   `f(a,b,c,d)` — Postgres los trata como dos funciones distintas que
+--   coexisten. La primera versión habría creado una tercera sobrecarga muerta,
+--   a la que nada llama (la 0323 ya actualizó a `fn_periodo_pagado`,
+--   `fn_repagar_periodo` y `fn_planilla_congelar_pendientes` para llamar con
+--   4 argumentos), dando la falsa sensación de que el freno existe cuando en
+--   los hechos ninguna llamada real pasaría por él. Se cazó ANTES de pegar
+--   nada, comparando el md5 de partida contra producción — la misma
+--   disciplina que ya documentan la 0286 y la 0289, aplicada esta vez a un
+--   cambio de ARIDAD en vez de a un cambio de NÚMERO. Lección para la próxima
+--   vez que dos migraciones toquen la misma función: `donde-vive.sh` avisa de
+--   colisiones de número, no de firma — mirar también si el `create or
+--   replace` de la más nueva declara los mismos argumentos que el de la
+--   anterior.
 --
 -- ── LO QUE HAY HOY, MEDIDO ANTES DE ESCRIBIR ESTO ───────────────────────────
 --
@@ -71,13 +84,22 @@
 -- Mismo argumento que la 0284: esa función pesa decenas de miles de
 -- caracteres y calcula todos los sueldos — no es el sitio para agregar un
 -- freno de cierre. `fn_planilla_congelar` ya es el cuello por el que pasan
--- `fn_periodo_pagado` (0096) y `fn_repagar_periodo` (0098); un tercer freno
--- ahí hereda las mismas dos puertas sin tocarlas.
+-- `fn_periodo_pagado`, `fn_repagar_periodo` y `fn_planilla_congelar_
+-- pendientes` (los tres actualizados por la 0323 para pasar `p_grupo`); un
+-- tercer freno ahí hereda las tres puertas sin tocar ninguna.
+--
+-- ── FILTRADO POR `p_grupo`, IGUAL QUE LOS OTROS DOS FRENOS DE LA 0323 ──────
+--
+-- Un marcaje pendiente de alguien de RxH no puede frenar congelar planilla,
+-- y viceversa: cada grupo se congela con SUS propios pendientes, ni más ni
+-- menos, mismo criterio que ya aplican el freno de la liquidación y el de la
+-- hora inventada desde la 0323.
 --
 -- ── EL RETROACTIVO SE AVISA, NO SE FRENA (a propósito, igual que 0243/0284) ──
 --
--- `fn_planilla_congelar_pendientes` (0096) recongela periodos históricos que
--- nunca tuvieron foto — de antes de que este sistema existiera. Es
+-- `fn_planilla_congelar_pendientes` (0096, actualizada por la 0323 para
+-- recorrer cada grupo con gente en el periodo) recongela periodos históricos
+-- que nunca tuvieron foto — de antes de que este sistema existiera. Es
 -- razonable, y hasta probable, que haya marcajes viejos sellados
 -- `pendiente_revision` que nadie va a revisar nunca porque el mes ya se pagó
 -- hace tiempo. Frenar ahí rompería el backfill histórico entero, que es
@@ -86,13 +108,29 @@
 --
 -- ── CÓMO SE REVIERTE ────────────────────────────────────────────────────────
 --
---   Pegar el cuerpo de `fn_planilla_congelar` de la 0284 (líneas 93-349 de
+--   Pegar el cuerpo de `fn_planilla_congelar` de la 0323 (líneas 312-589 de
 --   ese archivo). No toca datos, no toca tablas: revertir no pierde nada.
 --
 -- ============================================================================
 
 
-CREATE OR REPLACE FUNCTION public.fn_planilla_congelar(p_periodo_id uuid, p_origen text, p_autor uuid)
+-- ── 0 · Comprobar ANTES de tocar nada ────────────────────────────────────────
+-- Mismo patrón que la 0323: si producción no está en la versión de partida
+-- declarada arriba, esta migración no aplica NADA.
+do $$
+declare v_md5 text; v_len int;
+begin
+  select md5(p.prosrc), length(p.prosrc) into v_md5, v_len
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'fn_planilla_congelar' and p.pronargs = 4;
+  if v_md5 is distinct from '7a66a410278e86724092adf360904535' then
+    raise exception '0326 · PARA. fn_planilla_congelar(4 args) en esta base es % (% caracteres), se esperaba 7a66a410278e86724092adf360904535 (16359, el cuerpo de la 0323). No se aplicó nada. Compruébalo con ./scripts/donde-vive.sh fn_planilla_congelar.', v_md5, v_len;
+  end if;
+end
+$$;
+
+
+CREATE OR REPLACE FUNCTION public.fn_planilla_congelar(p_periodo_id uuid, p_origen text, p_autor uuid, p_grupo text DEFAULT 'planilla')
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -107,6 +145,12 @@ declare
   v_pendientes text;   -- CAMBIO 0284
   v_sin_revisar text;   -- CAMBIO 0326
 begin
+  -- CAMBIO 0323 · esta función ahora congela UN grupo a la vez, no el
+  -- periodo entero. p_grupo decide qué personas de `v_calc->'filas'` entran.
+  if p_grupo not in ('planilla','prueba','rxh','no_trabajador','practicante') then
+    raise exception 'Grupo inválido: %. Los válidos son planilla, prueba, rxh, no_trabajador, practicante.', p_grupo;
+  end if;
+
   -- `for update` sobre el periodo: dos personas pulsando «Pagado» a la vez no
   -- pueden calcular ambas la versión 1 y chocar contra la llave primaria.
   select * into v_per from periodos_planilla where id = p_periodo_id for update;
@@ -167,6 +211,10 @@ begin
   -- puede salir se termina saltando con `--no-verify`. La red principal contra el
   -- doble pago es la parte (A), que cubre el otro orden entero.
   -- ── fin CAMBIO 0244 ───────────────────────────────────────────────────────
+  --
+  -- CAMBIO 0323 · `f->>'tipo_vinculo' = p_grupo` en las tres consultas de este
+  -- freno y del siguiente: un pendiente o una liquidación de OTRO grupo no
+  -- debe frenar congelar este.
   select string_agg(x.frase, ' · ' order by x.frase) into v_cobradas
   from (
     select 'A ' || lq.persona || ' ya se le pagó su liquidación el '
@@ -188,6 +236,7 @@ begin
       and lq.monto_periodo > 0
       and coalesce((f->>'total')::numeric, 0) > 0
       and coalesce((f->>'descuentos')::numeric, 0) < lq.monto_periodo   -- CAMBIO 0244
+      and f->>'tipo_vinculo' = p_grupo   -- CAMBIO 0323
   ) x;
 
   if v_cobradas is not null then
@@ -272,6 +321,7 @@ begin
            row_number() over (order by (f->>'nombre')) as rn
     from jsonb_array_elements(coalesce(v_calc->'filas', '[]'::jsonb)) f
     where coalesce((f->>'dias_pendientes')::int, 0) > 0
+      and f->>'tipo_vinculo' = p_grupo   -- CAMBIO 0323
   ) x;
 
   if v_pendientes is not null then
@@ -307,6 +357,11 @@ begin
   -- un marcaje pendiente, no marcajes sueltos: dos marcas pendientes del
   -- mismo día son un solo día por revisar, igual que cuenta la 0284.
   --
+  -- FILTRADO POR `p_grupo` (`p.tipo_vinculo = p_grupo`, directo de `personas`
+  -- — esta consulta no pasa por `v_calc`, así que no hay `f->>'tipo_vinculo'`
+  -- del que leer): mismo criterio que los otros dos frenos desde la 0323, un
+  -- pendiente de otro grupo no frena congelar este.
+  --
   -- SOLO EL PERIODO QUE SE ESTÁ CERRANDO: se filtra contra
   -- `v_per.fecha_ini .. v_per.fecha_fin`, nunca contra el histórico completo
   -- — arrastre de periodos ya cerrados no bloquea este cierre, y `/admin/
@@ -329,6 +384,7 @@ begin
       join personas p on p.id = m.persona_id
       where m.estado_revision = 'pendiente_revision'
         and m.anulada_at is null
+        and p.tipo_vinculo = p_grupo   -- CAMBIO 0326, mismo criterio que la 0323
         and fn_fecha_de_jornada(m.timestamp_marca, m.fecha_jornada)
               between v_per.fecha_ini and v_per.fecha_fin
       group by p.id, p.nombres, p.apellidos
@@ -353,11 +409,12 @@ begin
   end if;
   -- ── fin CAMBIO 0326 ─────────────────────────────────────────────────────────
 
+  -- CAMBIO 0323 · el version es por (periodo, grupo), no por periodo a secas.
   select coalesce(max(version), 0) + 1 into v_ver
-  from planilla_pagada_detalle where periodo_id = p_periodo_id;
+  from planilla_pagada_detalle where periodo_id = p_periodo_id and grupo = p_grupo;
 
   insert into planilla_pagada_detalle (
-    periodo_id, persona_id, version, congelada_por, origen,
+    periodo_id, grupo, persona_id, version, congelada_por, origen,
     nombre, sede_codigo, area_codigo, rango, salario_ref,
     horas_mes, dias_trabajados,
     pago_base, monto_feriados, monto_plus, asignacion_familiar,
@@ -371,6 +428,7 @@ begin
   )
   select
     p_periodo_id,
+    p_grupo,   -- CAMBIO 0323
     (f->>'persona_id')::uuid,
     v_ver,
     p_autor,
@@ -406,7 +464,8 @@ begin
     coalesce((f->>'provision_total')::numeric, 0),
     f
   from jsonb_array_elements(coalesce(v_calc->'filas', '[]'::jsonb)) f
-  left join personas pe on pe.id = (f->>'persona_id')::uuid;
+  left join personas pe on pe.id = (f->>'persona_id')::uuid
+  where f->>'tipo_vinculo' = p_grupo;   -- CAMBIO 0323
 
   get diagnostics v_n = row_count;
   return v_n;
