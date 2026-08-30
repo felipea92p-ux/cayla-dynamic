@@ -583,7 +583,10 @@ select ok(
   'PERMISOS · y sin sesion no se ve la liquidacion de nadie');
 
 select ok(
-  not has_function_privilege('authenticated', 'fn_planilla_congelar(uuid, text, uuid)', 'execute'),
+  -- CAMBIO 0323 · fn_planilla_congelar gana un cuarto parámetro (p_grupo,
+  -- con valor por defecto) para congelar un grupo a la vez; la firma que
+  -- hay que nombrar aquí es la de 4 argumentos, no la vieja de 3.
+  not has_function_privilege('authenticated', 'fn_planilla_congelar(uuid, text, uuid, text)', 'execute'),
   'PERMISOS · a fn_planilla_congelar no se llega desde el navegador: solo por sus cuatro llamadores');
 
 

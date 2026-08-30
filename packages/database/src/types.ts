@@ -2610,6 +2610,52 @@ export type Database = {
         }
         Relationships: []
       }
+      periodo_grupo_pago: {
+        Row: {
+          estado: string
+          grupo: string
+          pagado_at: string | null
+          pagado_por: string | null
+          periodo_id: string
+        }
+        Insert: {
+          estado?: string
+          grupo: string
+          pagado_at?: string | null
+          pagado_por?: string | null
+          periodo_id: string
+        }
+        Update: {
+          estado?: string
+          grupo?: string
+          pagado_at?: string | null
+          pagado_por?: string | null
+          periodo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "periodo_grupo_pago_pagado_por_fkey"
+            columns: ["pagado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "periodo_grupo_pago_pagado_por_fkey"
+            columns: ["pagado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "periodo_grupo_pago_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       periodos_planilla: {
         Row: {
           creado_por: string | null
@@ -2685,6 +2731,7 @@ export type Database = {
           nombres: string
           personal_direccion: boolean
           pin_hash: string
+          practicante_modalidad: string | null
           regimen_pension: string | null
           retencion_4ta: string | null
           rol: Database["public"]["Enums"]["rol_usuario"]
@@ -2725,6 +2772,7 @@ export type Database = {
           nombres: string
           personal_direccion?: boolean
           pin_hash: string
+          practicante_modalidad?: string | null
           regimen_pension?: string | null
           retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
@@ -2765,6 +2813,7 @@ export type Database = {
           nombres?: string
           personal_direccion?: boolean
           pin_hash?: string
+          practicante_modalidad?: string | null
           regimen_pension?: string | null
           retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
@@ -2813,6 +2862,7 @@ export type Database = {
           descuentos: number
           dias_trabajados: number
           fila: Json
+          grupo: string
           horas_mes: number
           monto_descanso_semanal: number
           monto_educacion: number
@@ -2849,6 +2899,7 @@ export type Database = {
           descuentos?: number
           dias_trabajados?: number
           fila: Json
+          grupo: string
           horas_mes?: number
           monto_descanso_semanal?: number
           monto_educacion?: number
@@ -2885,6 +2936,7 @@ export type Database = {
           descuentos?: number
           dias_trabajados?: number
           fila?: Json
+          grupo?: string
           horas_mes?: number
           monto_descanso_semanal?: number
           monto_educacion?: number
@@ -3148,6 +3200,7 @@ export type Database = {
       }
       reversas_pago: {
         Row: {
+          grupo: string | null
           id: string
           motivo: string
           pagado_at_previo: string | null
@@ -3157,6 +3210,7 @@ export type Database = {
           tipo: string
         }
         Insert: {
+          grupo?: string | null
           id?: string
           motivo: string
           pagado_at_previo?: string | null
@@ -3166,6 +3220,7 @@ export type Database = {
           tipo?: string
         }
         Update: {
+          grupo?: string | null
           id?: string
           motivo?: string
           pagado_at_previo?: string | null
@@ -3673,84 +3728,111 @@ export type Database = {
       }
       v_planilla_pagada: {
         Row: {
+          aporte_essalud: number | null
           area_codigo: string | null
           asignacion_familiar: number | null
           bonos: number | null
           congelada_at: string | null
           congelada_por: string | null
           costo_total: number | null
+          descuento_pension: number | null
           descuentos: number | null
           dias_trabajados: number | null
           fila: Json | null
+          grupo: string | null
           horas_mes: number | null
+          monto_descanso_semanal: number | null
+          monto_educacion: number | null
           monto_feriados: number | null
+          monto_movilidad: number | null
           monto_plus: number | null
+          monto_sobretiempo: number | null
           nombre: string | null
           origen: string | null
           pago_base: number | null
           periodo_id: string | null
           persona_id: string | null
+          provision_bonif_extraordinaria: number | null
           provision_cts: number | null
           provision_gratificacion: number | null
           provision_total: number | null
           provision_vacaciones: number | null
           rango: string | null
+          retencion_4ta: number | null
           salario_ref: number | null
           sede_codigo: string | null
           total: number | null
           version: number | null
         }
         Insert: {
+          aporte_essalud?: number | null
           area_codigo?: string | null
           asignacion_familiar?: number | null
           bonos?: number | null
           congelada_at?: string | null
           congelada_por?: string | null
           costo_total?: number | null
+          descuento_pension?: number | null
           descuentos?: number | null
           dias_trabajados?: number | null
           fila?: Json | null
+          grupo?: string | null
           horas_mes?: number | null
+          monto_descanso_semanal?: number | null
+          monto_educacion?: number | null
           monto_feriados?: number | null
+          monto_movilidad?: number | null
           monto_plus?: number | null
+          monto_sobretiempo?: number | null
           nombre?: string | null
           origen?: string | null
           pago_base?: number | null
           periodo_id?: string | null
           persona_id?: string | null
+          provision_bonif_extraordinaria?: number | null
           provision_cts?: number | null
           provision_gratificacion?: number | null
           provision_total?: number | null
           provision_vacaciones?: number | null
           rango?: string | null
+          retencion_4ta?: number | null
           salario_ref?: number | null
           sede_codigo?: string | null
           total?: number | null
           version?: number | null
         }
         Update: {
+          aporte_essalud?: number | null
           area_codigo?: string | null
           asignacion_familiar?: number | null
           bonos?: number | null
           congelada_at?: string | null
           congelada_por?: string | null
           costo_total?: number | null
+          descuento_pension?: number | null
           descuentos?: number | null
           dias_trabajados?: number | null
           fila?: Json | null
+          grupo?: string | null
           horas_mes?: number | null
+          monto_descanso_semanal?: number | null
+          monto_educacion?: number | null
           monto_feriados?: number | null
+          monto_movilidad?: number | null
           monto_plus?: number | null
+          monto_sobretiempo?: number | null
           nombre?: string | null
           origen?: string | null
           pago_base?: number | null
           periodo_id?: string | null
           persona_id?: string | null
+          provision_bonif_extraordinaria?: number | null
           provision_cts?: number | null
           provision_gratificacion?: number | null
           provision_total?: number | null
           provision_vacaciones?: number | null
           rango?: string | null
+          retencion_4ta?: number | null
           salario_ref?: number | null
           sede_codigo?: string | null
           total?: number | null
@@ -5040,8 +5122,18 @@ export type Database = {
         Args: { p_comentario: string | null; p_fecha: string | null }
         Returns: undefined
       }
+      fn_periodo_grupos_estado: {
+        Args: { p_periodo_id: string | null }
+        Returns: {
+          estado: string
+          grupo: string
+          pagado_at: string
+          pagado_por_nombre: string
+          personas: number
+        }[]
+      }
       fn_periodo_pagado: {
-        Args: { p_pagado: boolean | null; p_periodo_id: string | null }
+        Args: { p_grupo?: string | null; p_pagado: boolean | null; p_periodo_id: string | null }
         Returns: undefined
       }
       fn_periodos: { Args: never; Returns: Json }
@@ -5060,7 +5152,12 @@ export type Database = {
         Returns: Json
       }
       fn_planilla_congelar: {
-        Args: { p_autor: string | null; p_origen: string | null; p_periodo_id: string | null }
+        Args: {
+          p_autor: string | null
+          p_grupo?: string | null
+          p_origen: string | null
+          p_periodo_id: string | null
+        }
         Returns: number
       }
       fn_planilla_congelar_pendientes: { Args: never; Returns: number }
@@ -5260,7 +5357,7 @@ export type Database = {
         Returns: Json
       }
       fn_repagar_periodo: {
-        Args: { p_motivo: string | null; p_periodo_id: string | null }
+        Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
         Returns: Json
       }
       fn_resellar_dia: {
@@ -5268,7 +5365,7 @@ export type Database = {
         Returns: undefined
       }
       fn_revertir_pago: {
-        Args: { p_motivo: string | null; p_periodo_id: string | null }
+        Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
         Returns: undefined
       }
       fn_revisiones_pedidas: {
@@ -5455,6 +5552,10 @@ export type Database = {
           p_persona_id: string | null
           p_total?: number | null
         }
+        Returns: undefined
+      }
+      fn_set_practicante_modalidad: {
+        Args: { p_modalidad: string | null; p_persona_id: string | null }
         Returns: undefined
       }
       fn_set_regimen_pension: {

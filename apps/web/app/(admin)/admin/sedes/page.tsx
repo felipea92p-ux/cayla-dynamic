@@ -7,6 +7,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 type TipoSede = "central" | "taller" | "tienda";
@@ -29,11 +30,11 @@ export default function SedesPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeGestionarCatalogos(rol);
+  const { avisar } = useToast();
 
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [editandoCodigo, setEditandoCodigo] = useState<string | null>(null);
@@ -53,10 +54,9 @@ export default function SedesPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   const edicionHabilitada = !cargaError;
-  const avisar = (tipo: "ok" | "error", texto: string) => setMensaje({ tipo, texto });
 
-  function empezarAlta() { setMostrandoAlta(true); setEditandoCodigo(null); setForm(FORM_VACIO); setMensaje(null); }
-  function empezarEdicion(s: Sede) { setEditandoCodigo(s.codigo); setMostrandoAlta(false); setForm({ codigo: s.codigo, nombre: s.nombre, tipo: s.tipo }); setMensaje(null); }
+  function empezarAlta() { setMostrandoAlta(true); setEditandoCodigo(null); setForm(FORM_VACIO); }
+  function empezarEdicion(s: Sede) { setEditandoCodigo(s.codigo); setMostrandoAlta(false); setForm({ codigo: s.codigo, nombre: s.nombre, tipo: s.tipo }); }
   function cancelarForm() { setMostrandoAlta(false); setEditandoCodigo(null); setForm(FORM_VACIO); }
 
   async function guardarSede() {
@@ -171,11 +171,6 @@ export default function SedesPage() {
           </div>
         ) : (
           <>
-            {mensaje && (
-              <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-                {mensaje.texto}
-              </div>
-            )}
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las sedes: {cargaError}.{" "}
