@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -144,10 +147,10 @@ export default function SedesPage() {
         </span>
       </label>
       <div className="flex items-end gap-3 sm:col-span-2">
-        <button onClick={guardarSede} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+        <Boton variante="primario" onClick={guardarSede} disabled={guardando}>
           {guardando ? "Guardando…" : modo === "alta" ? "Agregar sede" : "Guardar cambios"}
-        </button>
-        <button onClick={cancelarForm} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+        </Boton>
+        <Boton variante="secundario" onClick={cancelarForm}>Cancelar</Boton>
       </div>
     </div>
   );
@@ -159,7 +162,7 @@ export default function SedesPage() {
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl">Sedes</h1>
           {puedeGestionar && edicionHabilitada && !mostrandoAlta && !editandoCodigo && (
-            <button onClick={empezarAlta} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema">+ Agregar sede</button>
+            <Boton variante="primario" onClick={empezarAlta}>+ Agregar sede</Boton>
           )}
         </div>
 
@@ -179,7 +182,7 @@ export default function SedesPage() {
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las sedes: {cargaError}.{" "}
-                <button onClick={() => void cargar()} className="font-medium underline">Reintentar</button>
+                <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
               </div>
             )}
 
@@ -189,46 +192,40 @@ export default function SedesPage() {
             {cargando ? (
               <Cargando />
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm">
-                  <thead className="bg-sand/70 text-left text-taupe">
-                    <tr>
-                      <th className="px-4 py-2 font-normal">Nombre</th>
-                      <th className="px-4 py-2 font-normal">Código</th>
-                      <th className="px-4 py-2 font-normal">Qué es</th>
-                      <th className="px-4 py-2 font-normal">Estado</th>
-                      <th className="px-4 py-2 font-normal">Acciones</th>
+              <Tabla>
+                <TablaEncabezado>
+                  <Th>Nombre</Th>
+                  <Th>Código</Th>
+                  <Th>Qué es</Th>
+                  <Th>Estado</Th>
+                  <Th>Acciones</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {sedes.map((s) => (
+                    <tr key={s.codigo} className={`border-t ${s.activa ? "" : "text-taupe"}`}>
+                      <td className="px-4 py-2">{s.nombre}</td>
+                      <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
+                      <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
+                      <td className="px-4 py-2">
+                        <Insignia atenuada={!s.activa}>{s.activa ? "activa" : "inactiva"}</Insignia>
+                      </td>
+                      <td className="px-4 py-2">
+                        {edicionHabilitada && (
+                          <div className="flex flex-wrap gap-2">
+                            <Boton variante="secundario" tamano="sm" onClick={() => router.push(`/admin/reporte-sede?sede=${s.codigo}`)}>Hoja</Boton>
+                            <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(s)}>Editar</Boton>
+                            {s.activa ? (
+                              <Boton variante="peligro" tamano="sm" onClick={() => cambiarActiva(s, false)}>Desactivar</Boton>
+                            ) : (
+                              <Boton variante="secundario" tamano="sm" onClick={() => cambiarActiva(s, true)}>Reactivar</Boton>
+                            )}
+                          </div>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {sedes.map((s) => (
-                      <tr key={s.codigo} className={`border-t ${s.activa ? "" : "text-taupe"}`}>
-                        <td className="px-4 py-2">{s.nombre}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
-                        <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
-                        <td className="px-4 py-2">
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${s.activa ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
-                            {s.activa ? "activa" : "inactiva"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">
-                          {edicionHabilitada && (
-                            <div className="flex flex-wrap gap-2 text-xs">
-                              <button onClick={() => router.push(`/admin/reporte-sede?sede=${s.codigo}`)} className="rounded border px-2 py-1 hover:bg-sand/50">Hoja</button>
-                              <button onClick={() => empezarEdicion(s)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                              {s.activa ? (
-                                <button onClick={() => cambiarActiva(s, false)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Desactivar</button>
-                              ) : (
-                                <button onClick={() => cambiarActiva(s, true)} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </Tabla>
             )}
 
             <p className="mt-4 max-w-2xl text-xs text-taupe">
