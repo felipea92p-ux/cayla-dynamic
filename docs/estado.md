@@ -79,6 +79,15 @@ después. En este caso el resultado cuadra igual, pero la próxima migración qu
 reescriba `fn_planilla_calcular` debería volver a pedirlo ANTES, como manda la
 regla de la casa: que haya salido bien esta vez no es garantía la próxima.
 
+**Confirmado aparte, el mismo 2026-08-29, con `donde-vive.sh` y una consulta
+directa contra producción** (es una foto de HOY, no reemplaza el chequeo ANTES
+que le faltó a esta migración, pero cierra la duda que dejó abierta):
+`que_falta_pegar.sql` dice «PLANILLA: fn_planilla_calcular — 0322, al día con
+el repositorio», y el md5 pedido directo al SQL Editor de producción salió
+**`c86ef4707f51bf57024efac7eea41643`, idéntico al de esta Mac** —107.906
+caracteres, comentarios incluidos—. Producción no quedó con una versión
+distinta ni con acentos rotos.
+
 **Lo que NO se construyó, a propósito, y sigue pendiente:**
 
 - **El horario máximo de 30h/48h no se hace cumplir solo.** Hoy se arma a mano,
@@ -246,7 +255,7 @@ su contraria». Se cayó el mismo día.
 
 ---
 
-## 2026-08-26 — Lo que la revisión adversaria de la 0314 encontró · PENDIENTE
+## 2026-08-26 — Lo que la revisión adversaria de la 0314 encontró · ✅ CERRADO (0316 y 0317, arriba)
 
 32 agentes, cinco lentes independientes y dos escépticos por hallazgo. **13
 propuestos, 9 refutados con medición, 4 en pie** — y los cuatro son en realidad
@@ -316,6 +325,9 @@ probada pegando el archivo dos veces; y la coherencia de `chk_foto_cuadra`,
   migración y avisando al contador, porque ese término sí cambia el neto de
   quien las tomó. La prueba 251 lo vigila al estilo de la 244: declara el
   defecto como abierto y se caerá el día que alguien lo arregle.
+
+**Cerrado el 2026-08-27 con la 0317** (ver la entrada de arriba, «La familia de
+tres, cerrada») — la prueba 251 se cayó ese mismo día, como estaba previsto.
 
 ---
 

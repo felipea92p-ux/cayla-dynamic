@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { TZ_LIMA, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -90,6 +91,7 @@ function finDeMes(): string {
 
 export default function FeriadosPage() {
   const router = useRouter();
+  const { avisar } = useToast();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const puedeGestionar = puedeGestionarCatalogos(rol);
@@ -116,7 +118,6 @@ export default function FeriadosPage() {
   );
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [actas, setActas] = useState<Acta[]>([]);
   const [refActa, setRefActa] = useState("");
@@ -153,7 +154,7 @@ export default function FeriadosPage() {
       supabase.rpc("fn_actas_descanso"),
     ]);
     if (eP) {
-      setMsg({ tipo: "error", texto: mensajeDeError(eP, "cargar") });
+      avisar("error", mensajeDeError(eP, "cargar"));
       setCargando(false);
       return;
     }
@@ -164,7 +165,7 @@ export default function FeriadosPage() {
     setRegistros((r as Registro[]) ?? []);
     setActas(Array.isArray(ac) ? (ac as unknown as Acta[]) : []);
     setCargando(false);
-  }, [supabase, router, desde, hasta]);
+  }, [supabase, router, desde, hasta, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -213,13 +214,12 @@ export default function FeriadosPage() {
    * subir— dejaría la lista mintiendo.
    */
   async function subirActa(file: File) {
-    if (!refActa) { setMsg({ tipo: "error", texto: "Elige a qué acuerdo pertenece el acta." }); return; }
+    if (!refActa) { avisar("error", "Elige a qué acuerdo pertenece el acta."); return; }
     if (file.size > MAX_ACTA_BYTES) {
-      setMsg({ tipo: "error", texto: `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo es ${MAX_ACTA_BYTES / 1024 / 1024} MB.` });
+      avisar("error", `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo es ${MAX_ACTA_BYTES / 1024 / 1024} MB.`);
       return;
     }
     setSubiendo(true);
-    setMsg(null);
 
     // La referencia va en la ruta pasada por un filtro: es texto que escribe una
     // persona ("Acta 2026-07-28 Taller LIM") y no puede decidir en qué carpeta
@@ -234,7 +234,7 @@ export default function FeriadosPage() {
     setProgresoActa(null);
     if (fallo) {
       setSubiendo(false);
-      setMsg({ tipo: "error", texto: `El acta no subió (${fallo}). Vuelve a intentarlo.` });
+      avisar("error", `El acta no subió (${fallo}). Vuelve a intentarlo.`);
       return;
     }
 
@@ -244,9 +244,9 @@ export default function FeriadosPage() {
       p_nombre: file.name,
     });
     setSubiendo(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `Acta guardada para “${refActa}”.` });
+    avisar("ok", `Acta guardada para “${refActa}”.`);
   }
 
   /**
@@ -269,30 +269,30 @@ export default function FeriadosPage() {
     // quedarse a medias.
     const { data, error } = await supabase.rpc("fn_acta_descanso_ubicacion", { p_referencia: referencia });
     const fila = Array.isArray(data) ? data[0] : null;
-    if (error || !fila) { setMsg({ tipo: "error", texto: error?.message ?? "Esa acta no tiene archivo." }); return; }
+    if (error || !fila) { avisar("error", error?.message ?? "Esa acta no tiene archivo."); return; }
 
     if (fila.storage_path) {
       // URL firmada de vida corta: el bucket es privado.
       const { data: firma, error: eF } = await supabase.storage.from("actas").createSignedUrl(fila.storage_path, 120);
-      if (eF || !firma) { setMsg({ tipo: "error", texto: `No se pudo abrir: ${eF?.message ?? "sin URL"}` }); return; }
+      if (eF || !firma) { avisar("error", `No se pudo abrir: ${eF?.message ?? "sin URL"}`); return; }
       if (!window.open(firma.signedUrl, "_blank", "noopener,noreferrer")) {
-        setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio." });
+        avisar("error", "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio.");
       }
       return;
     }
 
-    if (!fila.dataurl) { setMsg({ tipo: "error", texto: "Esa acta no tiene archivo." }); return; }
+    if (!fila.dataurl) { avisar("error", "Esa acta no tiene archivo."); return; }
     let url: string;
     try {
       url = URL.createObjectURL(await (await fetch(fila.dataurl)).blob());
     } catch {
-      setMsg({ tipo: "error", texto: "No se pudo preparar el archivo para abrirlo. Vuelve a intentarlo." });
+      avisar("error", "No se pudo preparar el archivo para abrirlo. Vuelve a intentarlo.");
       return;
     }
     const w = window.open(url, "_blank", "noopener,noreferrer");
     if (!w) {
       URL.revokeObjectURL(url);
-      setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio." });
+      avisar("error", "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio.");
       return;
     }
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -322,10 +322,9 @@ export default function FeriadosPage() {
   // Guarda de a uno y va acumulando el resultado. Secuencial a propósito: si algo
   // falla quiero saber EXACTAMENTE en qué persona y en qué pareja, no un error suelto.
   async function registrarLote() {
-    if (elegidas.size === 0) { setMsg({ tipo: "error", texto: "Elige al menos una persona." }); return; }
-    if (parejasCompletas.length === 0) { setMsg({ tipo: "error", texto: "Agrega al menos una pareja de feriado y día libre." }); return; }
+    if (elegidas.size === 0) { avisar("error", "Elige al menos una persona."); return; }
+    if (parejasCompletas.length === 0) { avisar("error", "Agrega al menos una pareja de feriado y día libre."); return; }
     setGuardando(true);
-    setMsg(null);
     setResultados([]);
 
     const salida: Resultado[] = [];
@@ -352,21 +351,20 @@ export default function FeriadosPage() {
     const ok = salida.filter((x) => !x.error).length;
     const mal = salida.length - ok;
     await cargar();
-    setMsg(
-      mal === 0
-        ? { tipo: "ok", texto: `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.` }
-        : { tipo: "error", texto: `${ok} guardado${ok === 1 ? "" : "s"}, ${mal} rechazado${mal === 1 ? "" : "s"}. El detalle está abajo.` },
-    );
+    if (mal === 0) {
+      avisar("ok", `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.`);
+    } else {
+      avisar("error", `${ok} guardado${ok === 1 ? "" : "s"}, ${mal} rechazado${mal === 1 ? "" : "s"}. El detalle está abajo.`);
+    }
   }
 
   async function quitar(id: string) {
     setGuardando(true);
-    setMsg(null);
     const { error } = await supabase.rpc("fn_quitar_descanso_sustitutorio", { p_id: id });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Registro quitado. Ese feriado vuelve a pagar sobretasa." });
+    avisar("ok", "Registro quitado. Ese feriado vuelve a pagar sobretasa.");
   }
 
   if (rol !== null && !puedeGestionar) {
@@ -391,12 +389,6 @@ export default function FeriadosPage() {
           sobretasa de la planilla del periodo, y evita que ese día le salga como{" "}
           <strong>falta injustificada</strong> por no marcar.
         </p>
-
-        {msg && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
-          </div>
-        )}
 
         {/* Registrar por lotes */}
         <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
