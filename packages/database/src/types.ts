@@ -2685,6 +2685,7 @@ export type Database = {
           nombres: string
           personal_direccion: boolean
           pin_hash: string
+          practicante_modalidad: string | null
           regimen_pension: string | null
           retencion_4ta: string | null
           rol: Database["public"]["Enums"]["rol_usuario"]
@@ -2725,6 +2726,7 @@ export type Database = {
           nombres: string
           personal_direccion?: boolean
           pin_hash: string
+          practicante_modalidad?: string | null
           regimen_pension?: string | null
           retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
@@ -2765,6 +2767,7 @@ export type Database = {
           nombres?: string
           personal_direccion?: boolean
           pin_hash?: string
+          practicante_modalidad?: string | null
           regimen_pension?: string | null
           retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
@@ -5455,6 +5458,10 @@ export type Database = {
           p_persona_id: string | null
           p_total?: number | null
         }
+        Returns: undefined
+      }
+      fn_set_practicante_modalidad: {
+        Args: { p_modalidad: string | null; p_persona_id: string | null }
         Returns: undefined
       }
       fn_set_regimen_pension: {
