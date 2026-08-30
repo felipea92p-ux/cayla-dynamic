@@ -8,11 +8,12 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
+import { AtajosTeclado } from "@/components/atajos-teclado";
 import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText,
+  BookText, UserRound, ScrollText, Keyboard,
   LogOut, Menu, Search, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
@@ -124,6 +125,7 @@ export function AdminNav() {
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
+  const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
 
@@ -256,6 +258,10 @@ export function AdminNav() {
             <span className="hidden xl:inline">Buscar</span>
             <kbd className="hidden rounded border border-sand bg-sand/50 px-1 font-sans text-[10px] text-taupe xl:inline">⌘K</kbd>
           </button>
+          <button onClick={() => setAyudaAbierta(true)} aria-label="Atajos de teclado" title="Atajos de teclado (?)"
+            className="hidden rounded-md border border-sand p-1.5 text-taupe transition hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo xl:flex">
+            <Keyboard size={15} strokeWidth={1.8} aria-hidden />
+          </button>
           <button onClick={() => setAbierto((a) => !a)}
             aria-label={abierto ? "Cerrar menú" : "Abrir menú"} aria-expanded={abierto}
             className="rounded-lg border border-sand p-2 text-tinta transition hover:border-taupe/40 hover:bg-sand/40 active:scale-[0.97] active:bg-sand/60 xl:hidden">
@@ -317,6 +323,7 @@ export function AdminNav() {
           Este menú, en cambio, solo lo pinta una pantalla real del panel. */}
       <AcusesPendientes />
       <BuscadorGlobal grupos={grupos} abierto={buscadorAbierto} onCerrar={() => setBuscadorAbierto(false)} />
+      <AtajosTeclado grupos={grupos} abierto={ayudaAbierta} setAbierto={setAyudaAbierta} />
     </header>
   );
 }
