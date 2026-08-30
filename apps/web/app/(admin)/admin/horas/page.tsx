@@ -50,6 +50,7 @@ import { AdminNav } from "../nav";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { hoyLima, TZ_LIMA } from "@cayla-dynamic/shared";
 import { type Area, AREAS_FALLBACK, parseAreas, areaCorto, areaNombre } from "@/lib/areas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
@@ -510,10 +511,13 @@ function DesempenoContenido() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [fSede, setFSede] = useState("");
-  const [fArea, setFArea] = useState("");
+  // Sede, área e "incluir inactivas" se acuerdan de la última vez; la fecha y
+  // la búsqueda por nombre no — son de esta visita, no de cómo se mira siempre
+  // esta pantalla.
+  const [fSede, setFSede] = useFiltroGuardado("horas.sede", "");
+  const [fArea, setFArea] = useFiltroGuardado("horas.area", "");
   const [fBusca, setFBusca] = useState("");
-  const [verInactivas, setVerInactivas] = useState(false);
+  const [verInactivas, setVerInactivas] = useFiltroGuardado("horas.verInactivas", false);
   const [orden, setOrden] = useState<Orden>({ col: "atencion", asc: true });
 
   // El día abierto. Es lo único que esta pantalla «selecciona».

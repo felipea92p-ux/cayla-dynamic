@@ -8,6 +8,7 @@ import { AdminNav } from "../nav";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -157,10 +158,13 @@ export default function EquipoPage() {
   // Filtros. Con ~30 personas y sin ninguno, encontrar a alguien era leer la
   // tabla entera. El de estado arranca en "activos": esconder a quien ya no está
   // en ESTA pantalla no tiene riesgo (en Planilla sí lo tendría, y allí se avisa).
+  //
+  // Sede, área y estado se acuerdan de la última vez (useFiltroGuardado);
+  // `busca` no — es texto de esta visita, no una forma de mirar la pantalla.
   const [busca, setBusca] = useState("");
-  const [fSede, setFSede] = useState("todas");
-  const [fArea, setFArea] = useState("todas");
-  const [fEstado, setFEstado] = useState<FiltroEstado>("activos");
+  const [fSede, setFSede] = useFiltroGuardado("equipo.sede", "todas");
+  const [fArea, setFArea] = useFiltroGuardado("equipo.area", "todas");
+  const [fEstado, setFEstado] = useFiltroGuardado<FiltroEstado>("equipo.estado", "activos");
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
