@@ -184,7 +184,9 @@ with repo(numero, nombre, nunca) as (values
     (322, 'se_crea_la_categoria_practicante', false),
     (323, 'pagar_planilla_y_rxh_por_separado', false),
     (324, 'la_practicante_dice_su_modalidad', false),
-    (326, 'un_marcaje_sin_revisar_tampoco_cierra_el_mes', false)
+    (325, 'un_convenio_de_practicas_tambien_termina', false),
+    (326, 'un_marcaje_sin_revisar_tampoco_cierra_el_mes', false),
+    (327, 'el_candado_de_horas_pasa_a_ser_por_grupo', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
