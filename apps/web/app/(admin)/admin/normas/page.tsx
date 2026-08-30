@@ -6,6 +6,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -150,12 +151,12 @@ export default function NormasPage() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
   /**
-   * Los errores de constancia se avisan DONDE se produjeron, no arriba.
+   * Los errores de constancia se avisan DONDE se produjeron, no en el toast.
    *
-   * `msg` es un aviso de página y se pinta debajo del subtítulo. Para lo que es
-   * de la pantalla —cargar, publicar, crear un tipo— está bien; para la
+   * El toast global sirve para lo que es de la pantalla —cargar, publicar,
+   * crear un tipo—; para la
    * constancia era el sitio equivocado. El caso que lo demuestra: el formulario
    * del cargo en papel se abre desde una fila del seguimiento y se dibuja DESPUÉS
    * de esa lista, que con el equipo completo son ~24 filas — unos 700 px entre el
@@ -247,7 +248,7 @@ export default function NormasPage() {
     // faltaba (migración 0204). Un falso «no hay documentos» sería lo mismo.
     const { data, error } = await supabase.rpc("fn_documentos_vigentes");
     if (error) {
-      setMsg({ tipo: "error", texto: mensajeDeError(error, "cargar los documentos") });
+      avisar("error", mensajeDeError(error, "cargar los documentos"));
       setCargando(false);
       return;
     }
@@ -255,14 +256,14 @@ export default function NormasPage() {
     setDocs(lista);
     if (lista.length && abierto === null) setAbierto(lista[0].documento_id);
     setCargando(false);
-  }, [supabase, abierto]);
+  }, [supabase, abierto, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
   /**
    * Un aviso de constancia se trae a la vista y se lleva el foco al campo.
    *
-   * En un efecto y no junto al `setMsg…` por dos razones medidas en el navegador:
+   * En un efecto y no junto al `setMsgConstancia…` por dos razones medidas en el navegador:
    * `BloqueConstancia` se define dentro de esta pantalla, así que cada render le
    * da identidad nueva y React REMONTA el campo — enfocar en el mismo tick apunta
    * al nodo que se va, y con `requestAnimationFrame` tampoco llega. Y el aviso
@@ -308,12 +309,12 @@ export default function NormasPage() {
     setArchivoDoc(null);
     if (!f) return;
     if (f.size > MAX_BYTES_DOC) {
-      setMsg({ tipo: "error", texto: `“${f.name}” pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es 2 MB. ¿Seguro que es el documento?` });
+      avisar("error", `“${f.name}” pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es 2 MB. ¿Seguro que es el documento?`);
       return;
     }
     const texto = await f.text();
     if (!texto.trim()) {
-      setMsg({ tipo: "error", texto: "El archivo está vacío." });
+      avisar("error", "El archivo está vacío.");
       return;
     }
     setArchivoDoc({ nombre: f.name, texto });
@@ -321,7 +322,6 @@ export default function NormasPage() {
     // no haya dos verdades sobre cómo se llama.
     const h1 = texto.split("\n").find((l) => l.trim().startsWith("# "));
     if (h1 && !tituloDoc) setTituloDoc(h1.replace(/^#\s*/, "").trim());
-    setMsg(null);
   }
 
   /**
@@ -347,14 +347,13 @@ export default function NormasPage() {
     setTextoPegado(t);
     if (!t.trim()) { setArchivoDoc(null); return; }
     if (t.length > MAX_BYTES_DOC) {
-      setMsg({ tipo: "error", texto: `El texto pegado es enorme (${(t.length / 1048576).toFixed(1)} MB). ¿Seguro que es el documento?` });
+      avisar("error", `El texto pegado es enorme (${(t.length / 1048576).toFixed(1)} MB). ¿Seguro que es el documento?`);
       setArchivoDoc(null);
       return;
     }
     setArchivoDoc({ nombre: "Texto pegado", texto: t });
     const h1 = t.split("\n").find((l) => l.trim().startsWith("# "));
     if (h1 && !tituloDoc) setTituloDoc(h1.replace(/^#\s*/, "").trim());
-    setMsg(null);
   }
 
   /** El código a partir del nombre: la tabla exige `^[a-z0-9_]{2,40}$`, así que
@@ -371,14 +370,14 @@ export default function NormasPage() {
     const nombre = tipoNuevo.nombre.trim();
     const codigo = codigoDesde(nombre);
     if (codigo.length < 2) {
-      setMsg({ tipo: "error", texto: "El nombre tiene que tener al menos dos letras o números." });
+      avisar("error", "El nombre tiene que tener al menos dos letras o números.");
       return;
     }
     if (tipos.some((t) => t.codigo === codigo)) {
-      setMsg({ tipo: "error", texto: `Ya existe un documento con ese nombre (${codigo}).` });
+      avisar("error", `Ya existe un documento con ese nombre (${codigo}).`);
       return;
     }
-    setOcupado(true); setMsg(null);
+    setOcupado(true);
     // `orden` al final, y a partir del 100: los seis documentos que vinieron con
     // el sistema ocupan del 10 al 60, así que uno nuevo se coloca detrás sin
     // desplazar a ninguno. No se calcula del máximo real porque esta consulta
@@ -387,22 +386,19 @@ export default function NormasPage() {
     const { error } = await supabase.from("documentos_tipos")
       .insert({ codigo, nombre, orden, requiere_acuse: tipoNuevo.acuse });
     setOcupado(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "crear el tipo de documento") }); return; }
+    if (error) { avisar("error", mensajeDeError(error, "crear el tipo de documento")); return; }
     const { data } = await supabase.from("documentos_tipos")
       .select("codigo, nombre, requiere_acuse").eq("activo", true).order("orden");
     setTipos((data as Tipo[]) ?? []);
     setTipoElegido(codigo);
     setCreandoTipo(false); setTipoNuevo({ nombre: "", acuse: true });
-    setMsg({
-      tipo: "ok",
-      texto: `«${nombre}» ya se puede publicar${tipoNuevo.acuse ? ", y pedirá constancia a cada integrante" : ", para consulta y sin constancia"}.`,
-    });
+    avisar("ok", `«${nombre}» ya se puede publicar${tipoNuevo.acuse ? ", y pedirá constancia a cada integrante" : ", para consulta y sin constancia"}.`);
   }
 
   async function publicar() {
-    if (!archivoDoc) { setMsg({ tipo: "error", texto: "Falta el documento: sube el archivo o pega el texto." }); return; }
-    if (!tituloDoc.trim()) { setMsg({ tipo: "error", texto: "Falta el título con el que se va a mostrar." }); return; }
-    setOcupado(true); setMsg(null);
+    if (!archivoDoc) { avisar("error", "Falta el documento: sube el archivo o pega el texto."); return; }
+    if (!tituloDoc.trim()) { avisar("error", "Falta el título con el que se va a mostrar."); return; }
+    setOcupado(true);
     const { data, error } = await supabase.rpc("fn_publicar_documento", {
       p_tipo: tipoElegido,
       p_titulo: tituloDoc.trim(),
@@ -412,7 +408,7 @@ export default function NormasPage() {
       p_etiqueta: etiquetaDoc.trim() || null,
     });
     setOcupado(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "publicar el documento") }); return; }
+    if (error) { avisar("error", mensajeDeError(error, "publicar el documento")); return; }
     // El título TAMBIÉN se limpia, y esto no es aseo.
     //
     // `elegirArchivo` rellena el título con el «# » del archivo solo si el campo
@@ -435,12 +431,9 @@ export default function NormasPage() {
     const pideAcuse = tipos.find((t) => t.codigo === tipoElegido)?.requiere_acuse ?? true;
     setPublicando(false); setArchivoDoc(null); setNotasDoc(""); setTituloDoc(""); setTextoPegado(""); setEtiquetaDoc("");
     await cargar();
-    setMsg({
-      tipo: "ok",
-      texto: pideAcuse
-        ? `Publicada la versión ${String(data)}. Desde ahora cada integrante deja su constancia, y quien no tenga cuenta la deja en papel.`
-        : `Publicada la versión ${String(data)}. Queda publicada para consulta: este documento no pide constancia a nadie.`,
-    });
+    avisar("ok", pideAcuse
+      ? `Publicada la versión ${String(data)}. Desde ahora cada integrante deja su constancia, y quien no tenga cuenta la deja en papel.`
+      : `Publicada la versión ${String(data)}. Queda publicada para consulta: este documento no pide constancia a nadie.`);
   }
 
   async function cargarAcuses(documentoId: string) {
@@ -469,7 +462,7 @@ export default function NormasPage() {
       setMsgConstancia("Escribe tu nombre y tu apellido para dejar constancia.");
       return;
     }
-    setOcupado(true); setMsg(null); setMsgConstancia(null);
+    setOcupado(true); setMsgConstancia(null);
     const { error } = await supabase.rpc("fn_acusar_documento", {
       p_documento_id: d.documento_id,
       p_nombre_declarado: nombreDeclarado.trim(),
@@ -477,7 +470,7 @@ export default function NormasPage() {
     setOcupado(false);
     if (error) { setMsgConstancia(mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Constancia registrada. No hace falta hacer nada más hasta que se publique una versión nueva." });
+    avisar("ok", "Constancia registrada. No hace falta hacer nada más hasta que se publique una versión nueva.");
   }
 
   async function guardarPapel() {
@@ -490,7 +483,7 @@ export default function NormasPage() {
       setMsgPapel(`“${archivo.name}” pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
     }
-    setOcupado(true); setMsg(null); setMsgPapel(null);
+    setOcupado(true); setMsgPapel(null);
     // La ruta cuelga del documento y de la persona: así no hay forma de
     // archivar el cargo contra la versión equivocada.
     const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
@@ -520,7 +513,7 @@ export default function NormasPage() {
     setPapelPara(null); setArchivo(null); setNotaPapel(""); setMsgPapel(null);
     await cargar();
     await cargarAcuses(doc);
-    setMsg({ tipo: "ok", texto: "Constancia en papel registrada, con su cargo archivado." });
+    avisar("ok", "Constancia en papel registrada, con su cargo archivado.");
   }
 
   async function verCargo(path: string) {
@@ -623,7 +616,7 @@ export default function NormasPage() {
                         onClick={() => {
                           setPapelPara({ doc: d.documento_id, persona: f.persona_id, nombre: f.nombre });
                           setArchivo(null); setFechaPapel(hoyLima()); setNotaPapel("");
-                          setMsg(null); setMsgPapel(null);
+                          setMsgPapel(null);
                         }}
                         className="rounded border border-tinta/30 px-2 py-0.5 text-tinta hover:bg-sand/40">
                         registrar su cargo en papel
@@ -734,12 +727,6 @@ export default function NormasPage() {
           Los documentos que rigen para todo el equipo. Aquí se leen, y aquí queda la constancia
           de que se recibieron — con la <strong>versión</strong>, que es lo que un papel firmado no dice.
         </p>
-
-        {msg && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
-          </div>
-        )}
 
         {/* ── Publicar, sólo para quien puede ── */}
         {puedeGestionar && (
