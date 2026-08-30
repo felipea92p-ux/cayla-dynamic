@@ -9,7 +9,7 @@ import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
 import {
-  LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
+  LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
   BookText, UserRound, ScrollText,
@@ -36,6 +36,12 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // le devuelve casi vacío. No era una fuga; era una pantalla que no es suya y
     // que se lee como que el sistema no tiene datos.
     { href: "/admin/dashboard", label: "Dashboard", Icon: LayoutDashboard, roles: SEDE },
+    // Junta en una sola vista los tres contadores de abajo (educación,
+    // ausencias, incidencias) — mismas RPC, mismo criterio de "por atender"
+    // que cada una ya usa por su cuenta. No lleva contador propio: sería un
+    // cuarto número compitiendo con los tres que ya explica, y el criterio de
+    // esta casa es que un aviso que aparece en todos lados deja de ser aviso.
+    { href: "/admin/bandeja", label: "Bandeja", Icon: Inbox, roles: SEDE },
   ] },
   { label: "Asistencia", items: [
     { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE },
