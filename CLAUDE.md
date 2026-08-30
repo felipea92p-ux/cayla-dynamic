@@ -460,6 +460,7 @@ art. 19 e) y f).
 |---|---|
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
 | `cerrar-el-mes-sin-pagar-dos-veces.md` | El día 28, al cerrar la planilla: qué avisa el sistema cuando alguien cesó a mitad de mes y ya cobró su liquidación, y qué apretar. |
+| `prueba-restauracion-backup.md` | Cómo comprobar, con `scripts/probar-restauracion-backup.sh`, que el respaldo de producción se puede restaurar de verdad — no solo que existe. |
 | `terminales-mac-mini.md` | Manual para dejar la Mac mini de una sede como terminal. |
 | `trabajar-en-dos-maquinas.md` | Ir y venir entre MacBook y Mac mini sin perder trabajo. |
 | `disciplina-tardanzas-faltas/` | Marco legal peruano, plantillas de cartas, RIT. El `09` es el que se usa el día que alguien presenta un descargo. |
