@@ -182,6 +182,7 @@ with repo(numero, nombre, nunca) as (values
     (320, 'la_marca_real_gana_a_la_que_adivino_el_robot', false),
     (321, 'dias_por_revisar_distingue_periodo_pagado', false),
     (322, 'se_crea_la_categoria_practicante', false),
+    (323, 'pagar_planilla_y_rxh_por_separado', false),
     (324, 'la_practicante_dice_su_modalidad', false)
 ),
 diff as (
