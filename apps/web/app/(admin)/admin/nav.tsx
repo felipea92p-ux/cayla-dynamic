@@ -7,12 +7,13 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
+import { BuscadorGlobal } from "@/components/buscador-global";
 import {
   LayoutDashboard, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
   BookText, UserRound, ScrollText,
-  LogOut, Menu, X, type LucideIcon,
+  LogOut, Menu, Search, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
@@ -21,7 +22,7 @@ import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/sha
 const DO = ROLES_DO;
 const SEDE = ROLES_CON_PANEL;
 
-type Item = { href: string; label: string; Icon: LucideIcon; roles?: readonly string[] };
+export type Item = { href: string; label: string; Icon: LucideIcon; roles?: readonly string[] };
 
 const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   { items: [
@@ -116,8 +117,23 @@ export function AdminNav() {
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
+  const [buscadorAbierto, setBuscadorAbierto] = useState(false);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
+
+  // ⌘K / Ctrl+K abre el buscador desde cualquier pantalla del panel, escribiendo
+  // o no. No se guarda "cerrado antes" en ningún lado: cada apertura arranca
+  // igual, como Equipo arranca su propio filtro en blanco cada vez.
+  useEffect(() => {
+    function alPresionar(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setBuscadorAbierto(true);
+      }
+    }
+    window.addEventListener("keydown", alPresionar);
+    return () => window.removeEventListener("keydown", alPresionar);
+  }, []);
 
   useEffect(() => {
     if (!ROLES_DO.includes(rol ?? "")) { setEducacionPorAtender(0); return; }
@@ -228,6 +244,12 @@ export function AdminNav() {
             className="hidden items-center gap-1.5 text-sm text-taupe transition hover:text-rojo active:scale-[0.97] active:text-rojo-profundo xl:flex">
             <LogOut size={15} strokeWidth={1.8} aria-hidden /> Cerrar sesión
           </button>
+          <button onClick={() => setBuscadorAbierto(true)} aria-label="Buscar"
+            className="flex items-center gap-1.5 rounded-md border border-sand px-2.5 py-1.5 text-sm text-taupe transition hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo">
+            <Search size={15} strokeWidth={1.8} aria-hidden />
+            <span className="hidden xl:inline">Buscar</span>
+            <kbd className="hidden rounded border border-sand bg-sand/50 px-1 font-sans text-[10px] text-taupe xl:inline">⌘K</kbd>
+          </button>
           <button onClick={() => setAbierto((a) => !a)}
             aria-label={abierto ? "Cerrar menú" : "Abrir menú"} aria-expanded={abierto}
             className="rounded-lg border border-sand p-2 text-tinta transition hover:border-taupe/40 hover:bg-sand/40 active:scale-[0.97] active:bg-sand/60 xl:hidden">
@@ -288,6 +310,7 @@ export function AdminNav() {
           «nueva clave», donde todavía no hay sesión a la que preguntarle nada.
           Este menú, en cambio, solo lo pinta una pantalla real del panel. */}
       <AcusesPendientes />
+      <BuscadorGlobal grupos={grupos} abierto={buscadorAbierto} onCerrar={() => setBuscadorAbierto(false)} />
     </header>
   );
 }
