@@ -96,3 +96,22 @@ export function leCorrespondeCuspp(
   if (regimen === "" || regimen === "onp" || regimen === "jubilada") return false;
   return true;
 }
+
+/**
+ * El máximo legal de horas semanales de una practicante, art. 44 Ley 28518.
+ * 30h para preprofesional (mientras estudia, convenio tripartito con su
+ * centro educativo), 48h para profesional (ya egresó). `null` cuando no es
+ * practicante, o cuando lo es pero todavía no se le fijó la modalidad — en
+ * ambos casos no hay contra qué avisar, y `null` (nunca un número inventado)
+ * es lo que le dice a quien arma el horario que falta un dato, no que no
+ * hay límite.
+ */
+export function maximoSemanalPracticante(
+  tipoVinculo: string | null | undefined,
+  modalidad: string | null | undefined,
+): number | null {
+  if (tipoVinculo !== "practicante") return null;
+  if (modalidad === "preprofesional") return 30;
+  if (modalidad === "profesional") return 48;
+  return null;
+}
