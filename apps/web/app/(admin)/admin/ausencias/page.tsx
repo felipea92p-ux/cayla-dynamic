@@ -26,6 +26,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
+import { useToast } from "@/components/toast";
 
 // ── AQUÍ VIVÍAN TRES NOMBRES DE FUNCIÓN SIN TIPAR ───────────────────────────
 //
@@ -118,7 +119,7 @@ export default function AusenciasPage() {
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [porVencer, setPorVencer] = useState<VacacionPorVencer[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
 
   // Formulario
@@ -190,7 +191,7 @@ export default function AusenciasPage() {
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
     if (eP || eA) {
-      setMsg({ tipo: "error", texto: `No se pudieron cargar las ausencias: ${(eP ?? eA)!.message}` });
+      avisar("error", `No se pudieron cargar las ausencias: ${(eP ?? eA)!.message}`);
       setCargando(false);
       return;
     }
@@ -233,7 +234,7 @@ export default function AusenciasPage() {
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
     setPorVencer((pv as unknown as VacacionPorVencer[]) ?? []);
     setCargando(false);
-  }, [supabase, router, desde, hasta]);
+  }, [supabase, router, desde, hasta, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -255,7 +256,7 @@ export default function AusenciasPage() {
     const { data, error } = await supabase.storage.from("certificados").createSignedUrl(ruta, 60);
     if (error || !data?.signedUrl) {
       pestana?.close();
-      setMsg({ tipo: "error", texto: `No se pudo abrir el certificado (${error?.message ?? "sin respuesta"}).` });
+      avisar("error", `No se pudo abrir el certificado (${error?.message ?? "sin respuesta"}).`);
       return;
     }
     if (pestana) pestana.location.href = data.signedUrl;
@@ -282,7 +283,6 @@ export default function AusenciasPage() {
    */
   async function adjuntarCertificado(a: Ausencia, archivo: File) {
     setAdjuntando(a.id);
-    setMsg(null);
     const paraSubir = await reducirImagen(archivo);
     const ext = paraSubir.name.split(".").pop()?.toLowerCase() ?? "bin";
     const ruta = `certificados/${a.persona_id}/${a.id}.${ext}`;
@@ -290,22 +290,22 @@ export default function AusenciasPage() {
     setProgreso(null);
     if (errorSubida) {
       setAdjuntando(null);
-      setMsg({ tipo: "error", texto: `El certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). La ausencia sigue registrada igual.` });
+      avisar("error", `El certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). La ausencia sigue registrada igual.`);
       return;
     }
     const { error } = await supabase.rpc("fn_ausencia_adjuntar_certificado", {
       p_ausencia_id: a.id, p_storage_path: ruta,
     });
     setAdjuntando(null);
-    if (error) { setMsg({ tipo: "error", texto: `El archivo subió, pero no se pudo enlazar (${error.message}).` }); return; }
+    if (error) { avisar("error", `El archivo subió, pero no se pudo enlazar (${error.message}).`); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `Certificado adjuntado a la ausencia de ${a.nombre}.` });
+    avisar("ok", `Certificado adjuntado a la ausencia de ${a.nombre}.`);
   }
 
   async function registrar() {
-    if (!personaId) { setMsg({ tipo: "error", texto: "Elige a la persona." }); return; }
-    if (!tipoCod) { setMsg({ tipo: "error", texto: "Elige el tipo de ausencia." }); return; }
-    if (fin < inicio) { setMsg({ tipo: "error", texto: "La fecha de fin no puede ser anterior a la de inicio." }); return; }
+    if (!personaId) { avisar("error", "Elige a la persona."); return; }
+    if (!tipoCod) { avisar("error", "Elige el tipo de ausencia."); return; }
+    if (fin < inicio) { avisar("error", "La fecha de fin no puede ser anterior a la de inicio."); return; }
 
     // Los mismos tres datos que exige `fn_registrar_ausencia` (0101), pero
     // comprobados acá y DICIENDO CUÁL falta. El aviso del servidor los enumera
@@ -327,16 +327,15 @@ export default function AusenciasPage() {
       if (!vColeg) faltan.push("el número de colegiatura");
       if (!vFecha) faltan.push("la fecha de emisión");
       if (faltan.length > 0) {
-        setMsg({
-          tipo: "error",
-          texto: `Falta ${faltan.join(" y ")} — ${tipoSel.nombre} lo exige. Si no tienes ningún documento, regístralo como «Descanso por salud»: no paga, pero tampoco cuenta como falta.`,
-        });
+        avisar(
+          "error",
+          `Falta ${faltan.join(" y ")} — ${tipoSel.nombre} lo exige. Si no tienes ningún documento, regístralo como «Descanso por salud»: no paga, pero tampoco cuenta como falta.`,
+        );
         return;
       }
     }
 
     setGuardando(true);
-    setMsg(null);
     const { data: nuevoId, error } = await supabase.rpc("fn_registrar_ausencia", {
       p_persona_id: personaId,
       p_tipo: tipoCod,
@@ -354,7 +353,7 @@ export default function AusenciasPage() {
     // se quedó pegado en pantalla.
     if (error) {
       setGuardando(false);
-      setMsg({ tipo: "error", texto: error.code ? `${error.message} (${error.code})` : error.message });
+      avisar("error", error.code ? `${error.message} (${error.code})` : error.message);
       return;
     }
 
@@ -379,7 +378,7 @@ export default function AusenciasPage() {
       setProgreso(null);
       if (errorSubida) {
         setGuardando(false);
-        setMsg({ tipo: "error", texto: `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.` });
+        avisar("error", `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.`);
         await cargar();
         return;
       }
@@ -388,7 +387,7 @@ export default function AusenciasPage() {
       });
       if (eAdj) {
         setGuardando(false);
-        setMsg({ tipo: "error", texto: `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${eAdj.message}).` });
+        avisar("error", `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${eAdj.message}).`);
         await cargar();
         return;
       }
@@ -397,12 +396,12 @@ export default function AusenciasPage() {
     setGuardando(false);
     setMotivo(""); setDocProf(""); setDocColeg(""); setDocFecha(""); setArchivo(null);
     await cargar();
-    setMsg({
-      tipo: "ok",
-      texto: tipoSel?.requiere_aprobacion
+    avisar(
+      "ok",
+      tipoSel?.requiere_aprobacion
         ? "Registrada. Como es un tipo que se paga, queda pendiente de aprobación de Desarrollo Organizacional."
         : "Registrada. Esos días dejan de contar como falta injustificada.",
-    });
+    );
   }
 
   async function anular(a: Ausencia) {
@@ -411,13 +410,13 @@ export default function AusenciasPage() {
         "No se borra: queda en el historial con el motivo. ¿Por qué se anula?",
     );
     if (m === null) return;
-    if (m.trim().length < 4) { setMsg({ tipo: "error", texto: "El motivo es obligatorio (mínimo 4 caracteres)." }); return; }
+    if (m.trim().length < 4) { avisar("error", "El motivo es obligatorio (mínimo 4 caracteres)."); return; }
     setGuardando(true);
     const { error } = await supabase.rpc("fn_anular_ausencia", { p_id: a.id, p_motivo: m.trim() });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { avisar("error", error.message); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Ausencia anulada. Esos días vuelven a contarse como antes." });
+    avisar("ok", "Ausencia anulada. Esos días vuelven a contarse como antes.");
   }
 
   async function aprobar(a: Ausencia) {
@@ -428,9 +427,9 @@ export default function AusenciasPage() {
     setGuardando(true);
     const { error } = await supabase.rpc("fn_aprobar_ausencia", { p_id: a.id });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { avisar("error", error.message); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Aprobada." });
+    avisar("ok", "Aprobada.");
   }
 
   if (rol !== null && !puedeGestionar) {
@@ -455,12 +454,6 @@ export default function AusenciasPage() {
           expediente disciplinario. En CAYLA ningún permiso se paga, salvo los dos que la ley obliga a pagar:
           descanso médico con documento y maternidad.
         </p>
-
-        {msg && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
-          </div>
-        )}
 
         {/* ── RÉCORDS DE VACACIONES POR VENCER (0299) ──────────────────────
             VA EN ROJO Y VA PRIMERA, y las dos cosas a propósito.
@@ -552,16 +545,7 @@ export default function AusenciasPage() {
         )}
 
         {/* Registrar */}
-        {/* El aviso se borra en cuanto se toca cualquier campo, y va en el
-            contenedor y no en cada `onChange` para que ningún campo nuevo se
-            olvide de hacerlo. Antes solo se limpiaba dentro de `registrar()`:
-            corregías lo que el aviso rojo pedía, los campos quedaban llenos, y
-            el aviso seguía ahí diciendo que faltaban. Un error que sobrevive a
-            su corrección se lee como «el sistema me sigue rechazando». */}
-        <div
-          onInput={() => setMsg(null)}
-          className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2"
-        >
+        <div className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
             Persona
             <select value={personaId} onChange={(e) => setPersonaId(e.target.value)} className="rounded-lg border bg-crema px-3 py-2">

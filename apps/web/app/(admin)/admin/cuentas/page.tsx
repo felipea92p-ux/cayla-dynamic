@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { CargandoFila, SinDatos } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
@@ -52,10 +53,11 @@ export default function CuentasPage() {
   const rol = yo?.rol ?? null;
   const esAdmin = puedeGestionarCatalogos(rol);
 
+  const { avisar } = useToast();
+
   // cambiar mi contraseña
   const [nueva, setNueva] = useState("");
   const [confirma, setConfirma] = useState("");
-  const [msgMia, setMsgMia] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardandoMia, setGuardandoMia] = useState(false);
 
   // gestión de cuentas
@@ -73,6 +75,10 @@ export default function CuentasPage() {
   const [claveGenerada, setClaveGenerada] = useState<Record<string, string>>({});
   const [procesando, setProcesando] = useState<string | null>(null);
   const [tanda, setTanda] = useState(false);
+  // Se queda local a propósito, sin pasar al toast global: `enTanda` la reusa
+  // como progreso en vivo ("Enviando 3 de 10…"), actualizándola en cada vuelta
+  // del lote. Un toast por vuelta sería una fila de avisos apilándose y
+  // apagándose solos — acá hace falta un estado que se pise a sí mismo.
   const [msgGestion, setMsgGestion] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const token = useCallback(async () => {
@@ -112,16 +118,15 @@ export default function CuentasPage() {
   }, [router, esAdmin, listar]);
 
   async function cambiarMiClave() {
-    setMsgMia(null);
-    if (nueva.length < 6) { setMsgMia({ tipo: "error", texto: "La contraseña debe tener al menos 6 caracteres." }); return; }
-    if (nueva !== confirma) { setMsgMia({ tipo: "error", texto: "Las contraseñas no coinciden." }); return; }
+    if (nueva.length < 6) { avisar("error", "La contraseña debe tener al menos 6 caracteres."); return; }
+    if (nueva !== confirma) { avisar("error", "Las contraseñas no coinciden."); return; }
     setGuardandoMia(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.auth.updateUser({ password: nueva });
     setGuardandoMia(false);
-    if (error) { setMsgMia({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     setNueva(""); setConfirma("");
-    setMsgMia({ tipo: "ok", texto: "Tu contraseña se cambió correctamente." });
+    avisar("ok", "Tu contraseña se cambió correctamente.");
   }
 
   async function promover(p: Promovible) {
@@ -214,7 +219,7 @@ export default function CuentasPage() {
         <AdminNav />
         <main className="flex-1 p-6">
           <h1 className="mb-1 font-serif text-2xl">Mi cuenta</h1>
-          <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, msgMia, guardandoMia, cambiarMiClave }} />
+          <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
         </main>
       </div>
     );
@@ -227,7 +232,7 @@ export default function CuentasPage() {
         <h1 className="mb-1 font-serif text-2xl">Cuentas</h1>
         <p className="mb-6 text-sm text-taupe">Cambia tu contraseña y gestiona los accesos del equipo al panel.</p>
 
-        <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, msgMia, guardandoMia, cambiarMiClave }} />
+        <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
 
         <h2 className="mb-3 mt-8 font-serif text-lg">Gestionar cuentas del equipo</h2>
         {msgGestion && (
@@ -461,11 +466,10 @@ export default function CuentasPage() {
 }
 
 function SeccionMiClave({
-  nueva, setNueva, confirma, setConfirma, msgMia, guardandoMia, cambiarMiClave,
+  nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave,
 }: {
   nueva: string; setNueva: (s: string) => void;
   confirma: string; setConfirma: (s: string) => void;
-  msgMia: { tipo: "ok" | "error"; texto: string } | null;
   guardandoMia: boolean; cambiarMiClave: () => void;
 }) {
   return (
@@ -476,7 +480,6 @@ function SeccionMiClave({
           className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
         <input type="password" placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)}
           className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
-        {msgMia && <p className={`text-sm ${msgMia.tipo === "ok" ? "text-verde" : "text-rojo"}`}>{msgMia.texto}</p>}
         <button onClick={cambiarMiClave} disabled={guardandoMia}
           className="self-start rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
           {guardandoMia ? "Guardando…" : "Cambiar contraseña"}

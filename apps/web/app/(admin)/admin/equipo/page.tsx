@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
@@ -151,7 +152,7 @@ export default function EquipoPage() {
   const [retenciones4ta, setRetenciones4ta] = useState<Map<string, { modo: string; hasta: string }>>(new Map());
   const [retencionesOk, setRetencionesOk] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
 
   // Filtros. Con ~30 personas y sin ninguno, encontrar a alguien era leer la
   // tabla entera. El de estado arranca en "activos": esconder a quien ya no está
@@ -242,7 +243,7 @@ export default function EquipoPage() {
       ),
     );
     if (personasError || sedesError) {
-      setMensaje({ tipo: "error", texto: mensajeDeError((personasError ?? sedesError)!, "cargar el equipo") });
+      avisar("error", mensajeDeError((personasError ?? sedesError)!, "cargar el equipo"));
     }
     // Fin de contrato: consulta APARTE y tolerante, no una columna más del select
     // de arriba. Si la 0144 todavía no está aplicada en producción, pedir una
@@ -291,7 +292,7 @@ export default function EquipoPage() {
       }),
     );
     setCargando(false);
-  }, [router]);
+  }, [router, avisar]);
 
   useEffect(() => {
     void cargar();
@@ -357,10 +358,6 @@ export default function EquipoPage() {
 
   function codigoSede(id: string) {
     return sedes.find((s) => s.id === id)?.codigo ?? "?";
-  }
-
-  function avisar(tipo: "ok" | "error", texto: string) {
-    setMensaje({ tipo, texto });
   }
 
   async function crearPersona() {
@@ -648,7 +645,6 @@ export default function EquipoPage() {
     setSalEditId(null);
     setHistId(null);
     setMostrandoAlta(false);
-    setMensaje(null);
     // Si su contrato ya venció, se proponen ESA fecha y ESE motivo: es el caso
     // que el panel viene avisando, y volver a escribirlo a mano invita a
     // equivocarse. En cualquier otro caso el motivo arranca SIN elegir — un
@@ -1370,7 +1366,7 @@ export default function EquipoPage() {
           {!mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); setSalEditId(null); setHistId(null); setCeseId(null); }}
+                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null); }}
                 className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
               >
                 + Agregar persona
@@ -1378,12 +1374,6 @@ export default function EquipoPage() {
             </div>
           )}
         </div>
-
-        {mensaje && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {mensaje.texto}
-          </div>
-        )}
 
         {puedeSalarios && salariosEstado === "error" && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">

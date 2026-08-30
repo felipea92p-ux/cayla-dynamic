@@ -9,6 +9,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { type Area, AREA_DEFAULT, parseAreas, slugDeNombre } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { useToast } from "@/components/toast";
 
 interface FormArea {
   nombre: string;
@@ -22,13 +23,13 @@ export default function AreasPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeGestionarCatalogos(rol);
+  const { avisar } = useToast();
 
   const [areas, setAreas] = useState<Area[]>([]);
   const [cargando, setCargando] = useState(true);
   // Si fn_areas falla mostramos el respaldo local, pero NO dejamos editar:
   // guardar sobre datos de respaldo pisaría los valores reales del servidor.
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [editandoCodigo, setEditandoCodigo] = useState<string | null>(null);
@@ -56,22 +57,16 @@ export default function AreasPage() {
 
   const edicionHabilitada = !cargaError;
 
-  function avisar(tipo: "ok" | "error", texto: string) {
-    setMensaje({ tipo, texto });
-  }
-
   function empezarAlta() {
     setMostrandoAlta(true);
     setEditandoCodigo(null);
     setForm(FORM_VACIO);
-    setMensaje(null);
   }
 
   function empezarEdicion(a: Area) {
     setEditandoCodigo(a.codigo);
     setMostrandoAlta(false);
     setForm({ nombre: a.nombre, operativa: a.operativa, orden: String(a.orden) });
-    setMensaje(null);
   }
 
   function cancelarForm() {
@@ -217,16 +212,6 @@ export default function AreasPage() {
           </div>
         ) : (
           <>
-            {mensaje && (
-              <div
-                className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${
-                  mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"
-                }`}
-              >
-                {mensaje.texto}
-              </div>
-            )}
-
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudo cargar el catálogo desde el servidor: {cargaError}. Se muestra el respaldo
