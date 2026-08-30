@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -1024,7 +1025,7 @@ export default function PlanillaPage() {
   const [liquidadas, setLiquidadas] = useState<Record<string, Liquidada>>({});
   const [cargando, setCargando] = useState(false);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
 
   const [sedeFiltro, setSedeFiltro] = useState("todas");
@@ -1086,10 +1087,6 @@ export default function PlanillaPage() {
       if (!data.session) router.replace("/admin/login");
     });
   }, [supabase, router]);
-
-  function avisar(tipo: "ok" | "error", texto: string) {
-    setMensaje({ tipo, texto });
-  }
 
   // ── Periodos ───────────────────────────────────────────────────────────────
   const cargarPeriodos = useCallback(async (): Promise<PeriodoInfo[] | null> => {
@@ -1974,7 +1971,6 @@ export default function PlanillaPage() {
                 value={periodoSel ?? ""}
                 onChange={(e) => {
                   setPeriodoSel(e.target.value);
-                  setMensaje(null);
                 }}
                 className="rounded-lg border bg-crema px-3 py-1.5 text-sm"
                 aria-label="Periodo de pago"
@@ -1999,7 +1995,6 @@ export default function PlanillaPage() {
               <button
                 onClick={() => {
                   setMostrandoNuevo((v) => !v);
-                  setMensaje(null);
                 }}
                 className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50"
               >
@@ -2017,12 +2012,6 @@ export default function PlanillaPage() {
             </>
           )}
         </div>
-
-        {mensaje && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {mensaje.texto}
-          </div>
-        )}
 
         {errorPeriodos && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">

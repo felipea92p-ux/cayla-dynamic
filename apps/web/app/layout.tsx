@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { EB_Garamond, DM_Sans } from "next/font/google";
+import { ToastProvider } from "@/components/toast";
 import "./globals.css";
 
 // Serif del alma del sistema (títulos, datos con carácter).
@@ -66,7 +67,9 @@ export default function RootLayout({
             __html: "document.addEventListener('touchstart', function(){}, {passive:true});",
           }}
         />
-        {children}
+        {/* Envuelve TODO —admin, terminal, lo mío— para que `useToast()` esté
+            disponible desde cualquier pantalla, sin volver a montarlo por ruta. */}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 
@@ -71,13 +72,13 @@ function analizar(h?: Horario): { porDia: PorDia; dias: number[]; uniforme: bool
 
 export default function HorariosPage() {
   const router = useRouter();
+  const { avisar } = useToast();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [horarios, setHorarios] = useState<Map<string, Horario>>(new Map());
   const [sedes, setSedes] = useState<Record<string, string>>({});
   const [cargando, setCargando] = useState(true);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [editando, setEditando] = useState<Persona | null>(null);
   const [modoPorDia, setModoPorDia] = useState(false);
@@ -110,7 +111,7 @@ export default function HorariosPage() {
       supabase.rpc("fn_personas_funciones"),
     ]);
     if (errP || errH || errS) {
-      setMensaje({ tipo: "error", texto: mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios") });
+      avisar("error", mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios"));
       setCargando(false);
       return; // no pisa `personas`/`horarios`/`sedes` con datos parciales
     }
@@ -127,7 +128,7 @@ export default function HorariosPage() {
     setHorarios(new Map(((h as Horario[]) ?? []).map((x) => [x.persona_id, x])));
     setSedes(Object.fromEntries(((s as any[]) ?? []).map((x) => [x.id, x.codigo])));
     setCargando(false);
-  }, [router]);
+  }, [router, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -148,7 +149,6 @@ export default function HorariosPage() {
     setRefri(a.r);
     setModoPorDia(!a.uniforme);
     setDesde(hoyLima());
-    setMensaje(null);
   }
 
   function toggleDia(v: number) {
@@ -197,21 +197,21 @@ export default function HorariosPage() {
     if (!editando) return;
     const horario = construirHorario();
     const keys = Object.keys(horario);
-    if (keys.length === 0) { setMensaje({ tipo: "error", texto: "Marca al menos un día de trabajo." }); return; }
+    if (keys.length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
     const faltaEntrada = modoPorDia ? Object.values(porDia).some((v) => !v.e) : !entrada;
     const faltaSalida = modoPorDia ? Object.values(porDia).some((v) => !v.s) : !salida;
-    if (faltaEntrada) { setMensaje({ tipo: "error", texto: "Falta la hora de entrada de algún día." }); return; }
-    if (faltaSalida) { setMensaje({ tipo: "error", texto: "Falta la hora de salida de algún día." }); return; }
+    if (faltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
+    if (faltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
       p_persona_id: editando.id, p_vigente_desde: desde, p_horario: horario,
     });
     setGuardando(false);
-    if (error) { setMensaje({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     setEditando(null);
     await cargar();
-    setMensaje({ tipo: "ok", texto: "Horario guardado. Las tardanzas desde esa fecha se recalcularon." });
+    avisar("ok", "Horario guardado. Las tardanzas desde esa fecha se recalcularon.");
   }
 
   if (rol !== null && !puedeEditar) {
@@ -241,10 +241,6 @@ export default function HorariosPage() {
           con su refrigerio, y se repite cada semana. La hora de entrada define la tardanza. Al cambiar un
           horario, elige la fecha desde la que aplica — el anterior se conserva y no altera tardanzas pasadas.
         </p>
-
-        {mensaje && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>{mensaje.texto}</div>
-        )}
 
         {cargando ? <Cargando /> : porSede.map((sede) => {
           const deSede = editables.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
