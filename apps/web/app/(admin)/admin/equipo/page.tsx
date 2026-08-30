@@ -84,6 +84,9 @@ interface Persona {
   // Qué es esta persona para el sistema (0085). Decide si acumula gratificación,
   // CTS y vacaciones, si recibe movilidad y si genera EsSalud (0117 y 0119).
   tipo_vinculo: string;
+  // Solo tiene sentido con tipo_vinculo='practicante' (0324): preprofesional
+  // (30h/semana) o profesional (48h/semana), art. 44 Ley 28518.
+  practicante_modalidad: string | null;
   // Qué ES esta persona para CAYLA: «Socia», «Asesor» (0182). Es lo que se
   // MUESTRA, y no decide ningún permiso — eso sigue siendo `rol`. Vacío = la
   // pantalla cae a la etiqueta del rol, como antes de la 0182.
@@ -105,6 +108,7 @@ interface FormPersona {
   email: string;
   conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador | practicante — se escribe por RPC fn_set_tipo_vinculo
+  practicanteModalidad: string; // "" | preprofesional | profesional — solo si tipoVinculo=practicante; se escribe por RPC fn_set_practicante_modalidad
   cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
@@ -120,7 +124,7 @@ interface FormPersona {
   constancia4ta: string;  // fecha hasta la que vale su constancia del F.V. 1609
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "" };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -275,15 +279,15 @@ export default function EquipoPage() {
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
-      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; cargo?: string | null; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
-        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", cargo: f.cargo ?? null, fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
+      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; practicante_modalidad?: string | null; cargo?: string | null; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
+        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", practicante_modalidad: f.practicante_modalidad ?? null, cargo: f.cargo ?? null, fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "practicante_modalidad" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
         const extra = funciones.get(p.id);
-        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", cargo: extra?.cargo ?? null, fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
+        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", practicante_modalidad: extra?.practicante_modalidad ?? null, cargo: extra?.cargo ?? null, fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
       }),
     );
     setCargando(false);
@@ -550,6 +554,25 @@ export default function EquipoPage() {
         return;
       }
     }
+    // Modalidad de practicante (0324): mismo patrón dirty-check, y va DESPUÉS
+    // del cambio de vínculo por la misma razón que la retención de 4ta más
+    // abajo — la RPC valida contra el vínculo que ya está escrito en la base,
+    // no contra el del form. Si en este mismo guardado la persona DEJÓ de ser
+    // practicante, se manda vacío a propósito: la RPC de tipo de vínculo ya
+    // limpió la modalidad sola, y forzarla aquí solo repetiría el trabajo.
+    const modalidadNueva = form.tipoVinculo === "practicante" ? form.practicanteModalidad : "";
+    const modalidadOriginal = personas.find((p) => p.id === editandoId)?.practicante_modalidad ?? "";
+    if (puedeSalarios && funcionesOk && modalidadNueva !== modalidadOriginal && form.tipoVinculo === "practicante") {
+      const { error: errorModalidad } = await supabase.rpc("fn_set_practicante_modalidad", {
+        p_persona_id: editandoId,
+        p_modalidad: modalidadNueva || null,
+      });
+      if (errorModalidad) {
+        setGuardando(false);
+        avisar("error", "Datos guardados, pero la modalidad de practicante no se pudo cambiar: " + errorModalidad.message);
+        return;
+      }
+    }
     // Fecha de término del contrato: mismo patrón dirty-check. Dos cosas que no
     // son obvias leyendo la llamada:
     //  · VACÍO NO ES "no tocar": es borrarla, que es lo que corresponde cuando el
@@ -706,6 +729,7 @@ export default function EquipoPage() {
       email: p.email ?? "",
       conHijos: p.con_hijos,
       tipoVinculo: p.tipo_vinculo ?? "planilla",
+      practicanteModalidad: p.practicante_modalidad ?? "",
       cargo: p.cargo ?? "",
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
       visibleTodasSedes: p.visible_todas_sedes,
@@ -1048,6 +1072,35 @@ export default function EquipoPage() {
                   : form.tipoVinculo === "practicante"
                     ? "Convenio de prácticas (Ley 28518): no es relación laboral. Cobra sus horas y SÍ genera EsSalud, pero NO acumula gratificación, CTS, vacaciones ni AFP, y tampoco se le mide disciplina. Jornada máxima 30h/semana (preprofesional) u 48h/semana (profesional) — el sistema todavía no la hace cumplir sola, revísala al armar su horario."
                     : "Ni asistencia ni beneficios."}
+          </span>
+        </label>
+      )}
+      {/* ── LA MODALIDAD DE LA PRACTICANTE (0324) ───────────────────────────
+          Solo aparece para quien es practicante, porque solo entonces tiene
+          sentido: decide el máximo legal contra el que la pantalla de
+          Horarios va a avisar (30h preprofesional, 48h profesional — art. 44,
+          Ley 28518). Arranca vacío a propósito, igual que "sin retenerle" en
+          la de al lado: no hay una modalidad por defecto razonable, y elegir
+          una por la persona sería inventar un dato legal. */}
+      {puedeSalarios && form.tipoVinculo === "practicante" && (
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          <span>Modalidad</span>
+          <select
+            value={form.practicanteModalidad}
+            onChange={(e) => setForm({ ...form, practicanteModalidad: e.target.value })}
+            disabled={modo === "edicion" && !funcionesOk}
+            className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+          >
+            <option value="">Sin definir todavía</option>
+            <option value="preprofesional">Preprofesional — estudiante, máx. 30h/semana</option>
+            <option value="profesional">Profesional — egresada, máx. 48h/semana</option>
+          </select>
+          <span className="text-xs text-taupe">
+            {form.practicanteModalidad === ""
+              ? "Sin esto, Horarios no puede avisar si su jornada se pasa del máximo legal — no adivina un número, solo avisa que falta el dato."
+              : form.practicanteModalidad === "preprofesional"
+                ? "Sigue matriculada; el convenio es con ella, la empresa Y su universidad o instituto (tripartito). No mayor a 6h/día ni 30h/semana."
+                : "Ya egresó; el convenio es solo con ella y la empresa. No mayor a 8h/día ni 48h/semana."}
           </span>
         </label>
       )}
