@@ -103,10 +103,17 @@ values (gen_random_uuid(), '00000000-0000-0000-0000-000000000202',
 
 
 -- ── 1-2 · La pregunta, dicha una sola vez ───────────────────────────────────
-select ok(fn_fecha_en_periodo_pagado('2026-06-15'::date),
+-- CAMBIO ENTREGA 2 (0327): fn_fecha_en_periodo_pagado gana un segundo
+-- argumento, el persona_id — mira el grupo (tipo_vinculo) de ESA persona en
+-- vez del periodo entero. DosciPersona es 'planilla' por defecto y el
+-- periodo de junio no tiene ninguna fila en periodo_grupo_pago todavía
+-- (nunca se congeló por grupo en este montaje), así que cae en la
+-- compatibilidad hacia atrás de la 0327: se lee por el agregado del
+-- periodo, igual que antes de esta migración.
+select ok(fn_fecha_en_periodo_pagado('2026-06-15'::date, '00000000-0000-0000-0000-000000000202'::uuid),
   'HELPER · una fecha de junio cae dentro de un periodo pagado');
 
-select ok(fn_fecha_en_periodo_pagado('2026-07-15'::date) is not true,
+select ok(fn_fecha_en_periodo_pagado('2026-07-15'::date, '00000000-0000-0000-0000-000000000202'::uuid) is not true,
   'HELPER · una fecha de julio, con su periodo abierto, no');
 
 
