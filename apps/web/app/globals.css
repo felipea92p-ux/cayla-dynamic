@@ -65,6 +65,15 @@ a.bg-tinta:hover {
 .aletea { animation: aletea 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .aletea { animation: none; } }
 
+/* El "respiro" de los esqueletos de carga (EsqueletoTabla) — opacidad que sube
+   y baja, no un brillo que cruza la pantalla: más quieto, a tono con el resto. */
+@keyframes respira {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.pulso-carga { animation: respira 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pulso-carga { animation: none; opacity: 0.75; } }
+
 /* Isotipo recoloreable: usa el PNG de línea como máscara y lo tiñe con color plano. */
 .colibri {
   display: inline-block;
