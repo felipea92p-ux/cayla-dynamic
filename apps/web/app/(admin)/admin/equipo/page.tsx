@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
@@ -1443,7 +1443,9 @@ export default function EquipoPage() {
         )}
 
         {cargando ? (
-          <Cargando texto="Cargando el equipo…" />
+          <EsqueletoTabla
+            anchos={["w-36", "w-16", "w-20", "w-24", ...(puedeSalarios ? ["w-20"] : []), "w-40", "w-16", "w-24"]}
+          />
         ) : visibles.length === 0 ? (
           <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
             Ninguna persona coincide con lo que buscas.{" "}

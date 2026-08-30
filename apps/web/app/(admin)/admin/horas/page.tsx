@@ -47,7 +47,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { hoyLima, TZ_LIMA } from "@cayla-dynamic/shared";
@@ -924,7 +924,12 @@ function DesempenoContenido() {
           </div>
         )}
         {desde > hasta && <p className="mb-4 text-sm text-rojo">El «desde» es posterior al «hasta».</p>}
-        {cargando && <Cargando />}
+        {cargando && (
+          <EsqueletoTabla
+            anchos={["w-36", "w-16", "w-14", "w-14", "w-14", "w-12", "w-16", ...(hayObjetivos ? ["w-14"] : [])]}
+            franjaFinal={hayCuadricula ? Math.min(fechas.length, 16) : undefined}
+          />
+        )}
         {!cargando && !error && filas.length === 0 && <p className="text-sm text-taupe">Sin actividad en este periodo.</p>}
         {!cargando && !error && filas.length > 0 && vista.length === 0 && (
           <p className="text-sm text-taupe">Ninguna persona coincide con estos filtros.</p>
