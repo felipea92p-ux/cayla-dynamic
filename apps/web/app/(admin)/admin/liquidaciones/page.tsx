@@ -134,10 +134,7 @@ export default function LiquidacionesPage() {
     })();
   }, [supabase]);
 
-  async function abrir(personaId: string) {
-    if (abierta === personaId) { setAbierta(null); setDetalle(null); setDiferencias([]); return; }
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setMsg(null); setNota("");
-
+  async function cargarDetalle(personaId: string) {
     const [liq, dif] = await Promise.all([
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
       supabase.rpc("fn_liquidacion_diferencias", { p_persona_id: personaId }),
@@ -145,6 +142,12 @@ export default function LiquidacionesPage() {
     if (liq.error) { setMsg({ tipo: "error", texto: mensajeDeError(liq.error) }); return; }
     setDetalle(liq.data as Detalle);
     setDiferencias((dif.data as Diferencia[]) ?? []);
+  }
+
+  async function abrir(personaId: string) {
+    if (abierta === personaId) { setAbierta(null); setDetalle(null); setDiferencias([]); return; }
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setMsg(null); setNota("");
+    await cargarDetalle(personaId);
   }
 
   async function pagar(personaId: string) {
@@ -156,7 +159,8 @@ export default function LiquidacionesPage() {
     setOcupado(false);
     if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
     await cargar();
-    await abrir(personaId); await abrir(personaId);   // recarga el detalle abierto
+    setAbierta(personaId); setDetalle(null); setDiferencias([]);
+    await cargarDetalle(personaId);
     const v = (data as { version?: number } | null)?.version;
     setMsg({ tipo: "ok", texto:
       `Liquidación congelada${v && v > 1 ? ` (versión ${v})` : ""}. La cifra pagada ya no cambia sola: si un recálculo posterior difiere, se avisa.` });

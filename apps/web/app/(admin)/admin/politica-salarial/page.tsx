@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
@@ -36,8 +37,6 @@ import {
 // física. Lo que se guarda —quién, cuándo y QUÉ VERSIÓN— prueba más que una
 // firma a mano, que no dice qué versión se firmó.
 
-const DO = ["admin", "lider_do"];
-
 interface Vigente {
   publicada: boolean;
   version?: number;
@@ -63,7 +62,7 @@ function fechaLarga(iso: string): string {
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "America/Lima",
+    timeZone: TZ_LIMA,
   }).format(new Date(iso));
 }
 
@@ -74,7 +73,7 @@ function fechaHora(iso: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "America/Lima",
+    timeZone: TZ_LIMA,
   }).format(new Date(iso));
 }
 
@@ -176,7 +175,7 @@ function BloqueVista({ b }: { b: Bloque }) {
 export default function PoliticaSalarialPage() {
   useTituloDocumento("Política salarial");
   const persona = usePersonaActual();
-  const esDO = persona !== null && DO.includes(persona.rol);
+  const esDO = persona !== null && ROLES_DO.includes(persona.rol);
 
   const [cuadro, setCuadro] = useState<Cuadro | null>(null);
   const [vigente, setVigente] = useState<Vigente | null>(null);
@@ -217,7 +216,7 @@ export default function PoliticaSalarialPage() {
     const vf = (cfg.data?.valor ?? null) as { persona_id?: string } | null;
     setEsFirmante(Boolean(vf?.persona_id) && vf?.persona_id === yo.data);
 
-    if (persona !== null && DO.includes(persona.rol)) {
+    if (persona !== null && ROLES_DO.includes(persona.rol)) {
       const { data: a } = await supabase.rpc("fn_acuses_politica_salarial");
       setAcuses((a as { personas?: FilaAcuse[] } | null)?.personas ?? []);
     }
@@ -239,7 +238,7 @@ export default function PoliticaSalarialPage() {
         day: "numeric",
         month: "long",
         year: "numeric",
-        timeZone: "America/Lima",
+        timeZone: TZ_LIMA,
       }).format(new Date()),
     [],
   );

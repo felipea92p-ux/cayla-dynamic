@@ -149,6 +149,7 @@ function IncidenciasContenido() {
   const [desde, setDesde] = useState(haceDias(30));
   const [hasta, setHasta] = useState(HOY);
   const [filas, setFilas] = useState<Fila[]>([]);
+  const [codigoPorSedeId, setCodigoPorSedeId] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -514,6 +515,7 @@ function IncidenciasContenido() {
     // definida, ¿cuántas supervisor_sede están programadas? Misma cascada
     // turno del día → horario_por_dia → legacy que usa admin/turnos.
     const codigoPorSede = new Map(((sedesData as { id: string; codigo: string }[] | null) ?? []).map((s) => [s.id, s.codigo]));
+    setCodigoPorSedeId(codigoPorSede);
     const sedePorEncargada = new Map(((encargadasData as { id: string; sede_base_id: string }[] | null) ?? []).map((p) => [p.id, p.sede_base_id]));
     const turnoPorClave = new Map(
       ((turnosData as { persona_id: string; fecha: string; hora_entrada: string | null; hora_salida: string | null; es_descanso: boolean }[] | null) ?? [])
@@ -642,15 +644,14 @@ function IncidenciasContenido() {
     await cargar();
   }
 
-  // Encargada: solo su sede.
+  // Encargada: solo su sede. RLS ya limita a su sede; esto es una salvaguarda visual.
   const visibles = useMemo(() => {
     if (rol === "supervisor_sede" && yo) {
-      // filtra por sede base de la encargada (comparando por código no disponible aquí);
-      // RLS ya limita a su sede, así que esto es una salvaguarda visual mínima.
-      return filas;
+      const miCodigo = codigoPorSedeId.get(yo.sedeBaseId);
+      return filas.filter((f) => f.sede === miCodigo);
     }
     return filas;
-  }, [filas, rol, yo]);
+  }, [filas, rol, yo, codigoPorSedeId]);
 
   // Vista filtrada por persona (viene del perfil vía ?persona=id). Filtra en memoria
   // lo ya cargado; personaId null (incidencias de sede) queda fuera al filtrar por persona.

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
+import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, hoyLima, rangoDelDiaLima, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -10,9 +10,6 @@ import { AdminNav } from "../nav";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 
-function fechaHoyLima() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
-}
 // "HH:MM" en hora Lima para el input de tipo time
 function horaInput(tsISO: string) {
   return new Intl.DateTimeFormat("en-GB", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(tsISO));
@@ -140,7 +137,7 @@ export default function CorreccionesPage() {
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [personaId, setPersonaId] = useState("");
-  const [fecha, setFecha] = useState(fechaHoyLima());
+  const [fecha, setFecha] = useState(hoyLima());
   const [marcajes, setMarcajes] = useState<Marcaje[]>([]);
   const [jornada, setJornada] = useState<Jornada | null>(null);
   const [auditoria, setAuditoria] = useState<Auditoria[]>([]); // últimas correcciones de esta persona
@@ -247,8 +244,7 @@ export default function CorreccionesPage() {
     setCargando(true);
     setMensaje(null);
     const supabase = createAdminSupabaseClient();
-    const inicio = `${fecha}T00:00:00-05:00`;
-    const fin = `${fecha}T23:59:59-05:00`;
+    const { inicio, fin } = rangoDelDiaLima(fecha);
     const [{ data: incoh }, { data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }] = await Promise.all([
       supabase.rpc("fn_dia_incoherente", { p_persona_id: personaId, p_fecha: fecha }),
       supabase.from("marcajes")

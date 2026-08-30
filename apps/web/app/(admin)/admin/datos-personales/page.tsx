@@ -101,6 +101,9 @@ export default function DatosPersonalesPage() {
   // El correo vive en `personas`, no en la ficha: es el usuario de acceso.
   const [email, setEmail] = useState("");
   const [dhNuevo, setDhNuevo] = useState({ ...DH_VACIO });
+  // LO QUE SE MANDA ES LO QUE SE VE: mismo respaldo que `refDocFecha` en
+  // ausencias/page.tsx, contra el mismo bug de Safari con `input[type=date]`.
+  const refDhFecha = useRef<HTMLInputElement>(null);
   const [dhAbierto, setDhAbierto] = useState(false);
   // Qué familiar se está editando. `null` = se está creando uno nuevo. El
   // formulario es el MISMO para las dos cosas: `fn_set_derechohabiente` ya hace
@@ -354,7 +357,9 @@ export default function DatosPersonalesPage() {
       setMsg({ tipo: "error", texto: "El nombre y el apellido del familiar son obligatorios." });
       return;
     }
-    if (dhNuevo.vinculo === "hijo" && !dhNuevo.fecha_nacimiento) {
+    const vFecha = dhNuevo.fecha_nacimiento || refDhFecha.current?.value || "";
+    if (vFecha !== dhNuevo.fecha_nacimiento) setDhNuevo((d) => ({ ...d, fecha_nacimiento: vFecha }));
+    if (dhNuevo.vinculo === "hijo" && !vFecha) {
       setMsg({ tipo: "error", texto: "La fecha de nacimiento de una hija o hijo es obligatoria: es lo que define hasta cuándo lo cubre EsSalud." });
       return;
     }
@@ -364,7 +369,7 @@ export default function DatosPersonalesPage() {
       p_nombres: dhNuevo.nombres.trim(), p_apellidos: dhNuevo.apellidos.trim(),
       p_vinculo: dhNuevo.vinculo,
       p_documento: dhNuevo.documento.trim() || null,
-      p_fecha_nacimiento: dhNuevo.fecha_nacimiento || null,
+      p_fecha_nacimiento: vFecha || null,
       p_essalud: dhNuevo.essalud, p_vida_ley: dhNuevo.vida_ley, p_nota: null,
     });
     setGuardando(false);
@@ -1016,7 +1021,7 @@ export default function DatosPersonalesPage() {
                               Fecha de nacimiento
                               {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-amber-700">· obligatoria</span>}
                             </span>
-                            <input type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} className="rounded-lg border px-3 py-2" />
+                            <input ref={refDhFecha} type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} onBlur={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.currentTarget.value }))} className="rounded-lg border px-3 py-2" />
                           </label>
                           <div className="flex flex-col gap-2 text-sm sm:self-end">
                             <label className="flex items-center gap-2">

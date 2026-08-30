@@ -54,6 +54,12 @@ const FIRMANTE_POR_DEFECTO = { nombre: "", dni: "", cargo: "Gerencia General" };
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
+// "2026-07-28" + 1 → "2026-07-29" (aritmética en UTC: sin sorpresas de zona)
+function sumarDias(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 interface Persona {
   id: string;
   nombres: string;
@@ -412,9 +418,7 @@ export default function ContratosPage() {
     setCiudadEditada("");
 
     if (tipo === "renovacion" && p.fecha_fin_contrato) {
-      const siguiente = new Date(`${p.fecha_fin_contrato}T00:00:00`);
-      siguiente.setDate(siguiente.getDate() + 1);
-      setFechaInicio(siguiente.toISOString().slice(0, 10));
+      setFechaInicio(sumarDias(p.fecha_fin_contrato, 1));
     } else {
       setFechaInicio(hoyLima());
     }
