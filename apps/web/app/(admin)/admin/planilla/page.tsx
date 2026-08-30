@@ -1004,7 +1004,6 @@ export default function PlanillaPage() {
   const [variacion, setVariacion] = useState<Variacion | null>(null);
   const [mostrandoVariacion, setMostrandoVariacion] = useState(false);
   const [variacionTodas, setVariacionTodas] = useState(false);
-  const [guardandoBono, setGuardandoBono] = useState(false);
 
   // Crear periodo (primero / encadenado)
   const [primerIni, setPrimerIni] = useState("");
@@ -1416,37 +1415,6 @@ export default function PlanillaPage() {
         : `Copia nueva guardada. El total ${d > 0 ? "subió" : "bajó"} ${formatSoles(Math.abs(d))}.`,
     );
     await Promise.all([cargarPeriodos(), cargarProyeccion(), cargarDesvios()]);
-  }
-
-  async function calcularBonoPuntualidad() {
-    if (!periodoActual) return;
-    if (
-      !window.confirm(
-        "Esto calcula el bono de puntualidad de todo el periodo y lo agrega como bono automático " +
-          "a cada persona que no tuvo tardanzas. Si ya lo habías calculado antes en este periodo, se " +
-          "reemplaza (no se duplica). ¿Continuar?",
-      )
-    )
-      return;
-    setGuardandoBono(true);
-    const { data, error } = await supabase.rpc("fn_calcular_bono_puntualidad", {
-      p_periodo_id: periodoActual.id,
-    });
-    setGuardandoBono(false);
-    if (error) {
-      avisar("error", mensajeDeError(error, "calcular el bono de puntualidad"));
-      return;
-    }
-    const r = data as unknown as { poblacion: number; puntuales: number; monto_por_persona: number };
-    avisar(
-      "ok",
-      r.poblacion === 0
-        ? "No hay días trabajados en este periodo todavía: nadie califica."
-        : r.puntuales === 0
-          ? `Nadie logró cero tardanzas de las ${r.poblacion} personas con días trabajados: no se agregó ningún bono.`
-          : `${r.puntuales} de ${r.poblacion} personas lograron cero tardanzas → ${formatSoles(r.monto_por_persona)} cada una.`,
-    );
-    await cargarProyeccion();
   }
 
   // ── Feriados (gestión anual, se conserva de la v1) ─────────────────────────
@@ -1970,7 +1938,7 @@ export default function PlanillaPage() {
     );
   }
 
-  const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo || guardandoBono;
+  const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo;
 
   return (
     <div className="flex min-h-screen flex-col">
