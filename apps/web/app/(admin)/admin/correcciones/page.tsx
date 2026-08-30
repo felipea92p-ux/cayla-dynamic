@@ -8,6 +8,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { AdminNav } from "../nav";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 
 
 function fechaHoyLima() {
@@ -158,7 +159,7 @@ export default function CorreccionesPage() {
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
   // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
   // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
   const [porRevisar, setPorRevisar] = useState<DiaPorRevisar[]>([]);
@@ -212,7 +213,7 @@ export default function CorreccionesPage() {
     const motivo = window.prompt(pregunta, "");
     if (motivo === null) return;
     if (motivo.trim().length < 3) {
-      setMensaje({ tipo: "error", texto: "Escribe el motivo: esto decide si un día de trabajo queda registrado o no." });
+      avisar("error", "Escribe el motivo: esto decide si un día de trabajo queda registrado o no.");
       return;
     }
 
@@ -227,25 +228,24 @@ export default function CorreccionesPage() {
       // El error de fn_registrar_marcaje sube tal cual: si el día está en un
       // periodo pagado, por ejemplo, hay que reabrirlo antes — y eso es lo que
       // dice el mensaje. La marca NO queda como resuelta.
-      setMensaje({ tipo: "error", texto: mensajeDeError(error, "resolver la marca apartada") });
+      avisar("error", mensajeDeError(error, "resolver la marca apartada"));
       return;
     }
 
     const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
     setApartadas((ap as unknown as MarcaApartada[]) ?? []);
-    setMensaje({
-      tipo: "ok",
-      texto: resolucion === "repuesta"
+    avisar(
+      "ok",
+      resolucion === "repuesta"
         ? `Marca registrada con su hora original. El aviso del terminal bajará solo en unos minutos.`
         : `Declarada improcedente. No se registró ningún marcaje, y queda el motivo en el historial.`,
-    });
+    );
     if (m.persona_id === personaId && m.fecha === fecha) void cargarDia();
   }
 
   const cargarDia = useCallback(async () => {
     if (!personaId) return;
     setCargando(true);
-    setMensaje(null);
     const supabase = createAdminSupabaseClient();
     const inicio = `${fecha}T00:00:00-05:00`;
     const fin = `${fecha}T23:59:59-05:00`;
@@ -295,7 +295,7 @@ export default function CorreccionesPage() {
     setHorasEditadas(Object.fromEntries(((mk as Marcaje[]) ?? []).map((m) => [m.id, horaInput(m.timestamp_marca)])));
     setCargado(true);
     setCargando(false);
-  }, [personaId, fecha]);
+  }, [personaId, fecha, avisar]);
 
   // Deep-link: al llegar con ?persona=<id>&fecha=<YYYY-MM-DD> (desde un incidente del
   // dashboard), precarga esa persona y fecha y abre el día listo para corregir.
@@ -317,8 +317,6 @@ export default function CorreccionesPage() {
       setAutoCargar(false);
     }
   }, [autoCargar, personaId, cargarDia]);
-
-  function avisar(tipo: "ok" | "error", texto: string) { setMensaje({ tipo, texto }); }
 
   const MOTIVOS_TARD = [
     { valor: "fuerza_mayor", label: "Fuerza mayor" },
@@ -552,12 +550,6 @@ export default function CorreccionesPage() {
             {cargando ? "Cargando…" : "Ver el día"}
           </button>
         </div>
-
-        {mensaje && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {mensaje.texto}
-          </div>
-        )}
 
         {cargado && personaSel && (
           <div className="max-w-3xl">
