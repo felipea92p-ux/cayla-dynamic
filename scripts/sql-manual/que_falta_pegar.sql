@@ -181,7 +181,8 @@ with repo(numero, nombre, nunca) as (values
     (319, 'que_cambio_respecto_al_mes_pasado', false),
     (320, 'la_marca_real_gana_a_la_que_adivino_el_robot', false),
     (321, 'dias_por_revisar_distingue_periodo_pagado', false),
-    (322, 'se_crea_la_categoria_practicante', false)
+    (322, 'se_crea_la_categoria_practicante', false),
+    (326, 'un_marcaje_sin_revisar_tampoco_cierra_el_mes', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
