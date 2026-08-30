@@ -8,6 +8,7 @@ import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, typ
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
@@ -464,24 +465,15 @@ export default function TurnosPage() {
   const { avisar } = useToast();
 
   const [sedes, setSedes] = useState<Sede[]>([]);
-  const [sedeSel, setSedeSel] = useState<string>("");
+  // Se acuerda de la última vez (useFiltroGuardado); la semana que se mira no
+  // —`lunes`, abajo— porque persistirla mostraría la semana pasada al volver.
+  const [sedeSel, setSedeSel] = useFiltroGuardado("turnos.sede", "");
   const [lunes, setLunes] = useState<string>(() => lunesDeLaSemana(hoyLima()));
-  // Vista Día (línea de tiempo por persona) o Vista Semana (mapa de calor
-  // hora × día, para comparar cobertura entre los 7 días de un vistazo).
-  // Recuerda la preferencia entre visitas.
-  // La preferencia guardada se lee DESPUÉS de montar (no en el primer render):
-  // el HTML llega del servidor con "dia" y leer localStorage durante la
-  // hidratación haría chocar servidor y navegador (error de hidratación).
   // Tres vistas: Día = detalle por persona de un día · Semana = siluetas resumen
   // por día · Integrada = la sábana hora×día de toda la semana (quién cubre cada
-  // franja de un vistazo). Recuerda la preferencia entre visitas.
+  // franja de un vistazo). Se acuerda de la preferencia entre visitas.
   type Vista = "dia" | "semana" | "integrada";
-  const [vista, setVistaRaw] = useState<Vista>("dia");
-  useEffect(() => {
-    const v = localStorage.getItem("turnos_vista");
-    if (v === "semana" || v === "integrada") setVistaRaw(v);
-  }, []);
-  const setVista = (v: Vista) => { setVistaRaw(v); localStorage.setItem("turnos_vista", v); };
+  const [vista, setVista] = useFiltroGuardado<Vista>("turnos.vista", "dia");
   // Panel de la Vista Integrada: al tocar una celda (una franja de un día) se
   // abre mostrando quién cubre esa media hora, con acceso a editar por persona.
   const [panel, setPanel] = useState<{ fecha: string; franjaIdx: number } | null>(null);
