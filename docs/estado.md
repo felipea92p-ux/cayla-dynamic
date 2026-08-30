@@ -37,6 +37,78 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-29 — Se crea la categoría practicante (0322) · PEGADA Y VERIFICADA
+
+`personas.tipo_vinculo` gana un quinto valor: **`'practicante'`**, para dar de
+alta a alguien bajo un convenio de modalidad formativa (Ley N.° 28518 —
+prácticas preprofesionales y profesionales). No es relación laboral: cobra sus
+horas igual que cualquiera, CAYLA se acoge a EsSalud por decisión propia
+(art. 47), pero **no** genera gratificación, CTS, vacaciones ni aporte a
+pensión (AFP/ONP), y **no** se le mide disciplina — la misma razón que a un
+RxH: fiscalizar conducta es indicio de subordinación (art. 9, D.S. 003-97-TR),
+justo lo que un convenio formativo no puede parecer.
+
+**Por qué costó una sola línea de `fn_planilla_calcular`:** `en_planilla` ya es
+una columna generada (`tipo_vinculo in ('planilla','prueba')`, 0085), así que
+para un practicante ya sale `false` — y eso apaga solas la gratificación, la
+CTS, las vacaciones, el AFP, la movilidad, la educación, la asignación
+familiar y el conteo de asistencia, sin tocar nada nuevo. Lo único que tenía
+su propio interruptor —no dependía de `bri.base`— era el aporte de EsSalud, y
+ese es el único término que cambia: `pe.en_planilla or pe.tipo_vinculo =
+'practicante'`.
+
+**Auditado contra el Postgres local:** 1784 pruebas pgTAP en verde, más un caso
+real dentro de `BEGIN…ROLLBACK` (practicante contra un control de planilla,
+mismo sueldo y mismas horas) que confirma `pago_base` idéntico, EsSalud
+generándose y AFP en cero.
+
+**PEGADA Y VERIFICADA EN PRODUCCIÓN el 2026-08-29** — PR
+[#97](https://github.com/felipea92p-ux/cayla-dynamic/pull/97) fusionado a
+`main`, la migración entregada con `dame-el-sql.sh` (idéntica byte por byte
+entre `origin/main` y el disco, portapapeles comprobado por fuera del script
+con el locale explícito) y la consulta final de la propia 0322 devolvió sus
+ocho columnas en `true` en el SQL Editor de producción — incluidas las cuatro
+que confirman que la base sobre la que se copió `fn_planilla_calcular` era la
+vigente (0317) y no revirtió ni la vacacional, ni el descanso médico, ni la
+licencia, ni la maternidad.
+
+⚠️ **No tengo registro de que el md5 de partida se haya comparado contra
+producción ANTES de pegar** —el encabezado de la 0322 lo declaraba como
+pendiente de confirmar—, solo de que el autochequeo de LLEGADA salió bien
+después. En este caso el resultado cuadra igual, pero la próxima migración que
+reescriba `fn_planilla_calcular` debería volver a pedirlo ANTES, como manda la
+regla de la casa: que haya salido bien esta vez no es garantía la próxima.
+
+**Lo que NO se construyó, a propósito, y sigue pendiente:**
+
+- **El horario máximo de 30h/48h no se hace cumplir solo.** Hoy se arma a mano,
+  persona por persona, en `/admin/horarios` (ya se puede — es un horario por
+  persona, no por sede, así que no afecta a nadie más de tienda). Pero el aviso
+  de exceso de jornada en `admin/incidencias` sigue comparando siempre contra
+  48h fijas (`MAXIMO_LEGAL_SEMANAL`): si una practicante preprofesional (tope
+  legal 30h) cubre un turno extra y llega a 35h, el sistema no lo señala. Para
+  que lo haga falta que el sistema sepa distinguir preprofesional de
+  profesional — hoy `tipo_vinculo='practicante'` no dice cuál de las dos es.
+- **El aviso de vencimiento del convenio** (12 meses, con el riesgo de
+  desnaturalización si se renueva sin contenido formativo real) no existe.
+- ~~**El cuerpo del documento de pago seguía en lenguaje de honorarios de
+  RxH**~~ — **CERRADO el mismo día.** El título ya decía bien "Constancia de
+  subvención" desde la 0322, pero el cuerpo (`admin/planilla/boleta`) heredaba
+  la rama de RxH completa: "locación de servicios", "tú organizas tu propio
+  tiempo" (falso — el convenio SÍ fija jornada), "emite tu recibo por
+  honorarios" (un practicante no emite nada) y ocultaba el aporte de EsSalud
+  que la 0322 sí genera para él (el bloque "Además, CAYLA paga por ti" estaba
+  condicionado a `!esLocador`, y un practicante entraba en `esLocador=true` por
+  tener `en_planilla=false`). Se separó `esPracticante` de `esLocador` y se
+  escribió su propia rama de copy, con Ley 28518 en vez de Código Civil 1764.
+
+**Preguntas para Dante, sin responder todavía:** si ya existe un convenio marco
+firmado con algún centro educativo; si el monto de subvención va a ser siempre
+la RMV exacta o CAYLA paga por encima; y si hay algún caso ya cerca de los 12
+meses que obligue a construir el aviso de vencimiento antes que después.
+
+---
+
 ## 2026-08-27 — La pregunta que ningún freno hacía (0319) · PEGADA Y VERIFICADA
 
 Todos los frenos del cierre son de **regla**: ¿cuadra?, ¿a quién le toca esta

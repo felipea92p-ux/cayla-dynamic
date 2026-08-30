@@ -104,7 +104,7 @@ interface FormPersona {
   funcion: string; // código de área (ver lib/areas)
   email: string;
   conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
-  tipoVinculo: string; // planilla | prueba | rxh | no_trabajador — se escribe por RPC fn_set_tipo_vinculo
+  tipoVinculo: string; // planilla | prueba | rxh | no_trabajador | practicante — se escribe por RPC fn_set_tipo_vinculo
   cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
@@ -115,6 +115,7 @@ interface FormPersona {
   // Retención de renta de 4ta categoría (0245). Solo tiene sentido para `rxh`:
   // la cuarta categoría es del trabajador independiente. Vacío = no se retiene.
   // Se escribe por RPC fn_set_retencion_4ta, que valida el vínculo y audita.
+  // No aplica a `practicante` (0322): su subvención no genera renta de 4ta.
   retencion4ta: string;   // "" | automatica | siempre
   constancia4ta: string;  // fecha hasta la que vale su constancia del F.V. 1609
 }
@@ -1034,6 +1035,7 @@ export default function EquipoPage() {
             <option value="planilla">Planilla — contrato de trabajo</option>
             <option value="prueba">Prueba — días de prueba, aún sin contrato</option>
             <option value="rxh">Recibo por honorarios</option>
+            <option value="practicante">Practicante — modalidad formativa (Ley 28518)</option>
             <option value="no_trabajador">No trabajador — accionista sin servicios</option>
           </select>
           <span className="text-xs text-taupe">
@@ -1043,7 +1045,9 @@ export default function EquipoPage() {
                 ? "Días de prueba antes de contratar: se le pagan sus horas y se le mide asistencia, pero NO acumula beneficios (decisión registrada en la 0085). Si se queda, pásala a Planilla — quien trabaja sin estar registrado es infracción muy grave (num. 25.20 del RLGIT)."
                 : form.tipoVinculo === "rxh"
                   ? "Locación de servicios: cobra sus horas, pero NO acumula beneficios, NO recibe movilidad y NO genera EsSalud. Tampoco se le mide disciplina — es lo que sostiene que no sea una relación laboral."
-                  : "Ni asistencia ni beneficios."}
+                  : form.tipoVinculo === "practicante"
+                    ? "Convenio de prácticas (Ley 28518): no es relación laboral. Cobra sus horas y SÍ genera EsSalud, pero NO acumula gratificación, CTS, vacaciones ni AFP, y tampoco se le mide disciplina. Jornada máxima 30h/semana (preprofesional) u 48h/semana (profesional) — el sistema todavía no la hace cumplir sola, revísala al armar su horario."
+                    : "Ni asistencia ni beneficios."}
           </span>
         </label>
       )}

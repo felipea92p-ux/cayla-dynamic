@@ -195,6 +195,10 @@ export interface Fila {
   // es parte de lo que desnaturaliza una locación de servicios (0182). El dato
   // de `rango` se conserva porque es de donde sale cuánto se le transfiere.
   en_planilla: boolean | null;
+  // Ya viaja en el JSON de fn_planilla_calcular desde la 0117; se expone acá
+  // (0322) para que la boleta pueda distinguir a un practicante de un RxH —
+  // los dos tienen en_planilla=false, pero no son el mismo documento.
+  tipo_vinculo: string | null;
   horas_mes: number;
   dias_trabajados: number;
   dias_pendientes: number;
