@@ -9,6 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { useToast } from "@/components/toast";
 
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
@@ -78,6 +79,7 @@ export default function DatosPersonalesPage() {
   // encargada, así que aquí se muestran de solo lectura en vez de dejar que el
   // guardado falle con un error que nadie entiende.
   const puedeIdentidad = puedeVerIdentidad(rol);
+  const { avisar } = useToast();
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -123,7 +125,6 @@ export default function DatosPersonalesPage() {
   const [cargaFallida, setCargaFallida] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [q, setQ] = useState("");
   const [soloSinFicha, setSoloSinFicha] = useState(false);
   const fichaRef = useRef<HTMLDivElement>(null);
@@ -158,7 +159,7 @@ export default function DatosPersonalesPage() {
     const fallo = eP ?? eS ?? eD ?? eDH;
     if (fallo) {
       setCargaFallida(true);
-      setMsg({ tipo: "error", texto: `No se pudieron cargar las fichas: ${fallo.message}. No guardes nada hasta recargar: lo que ves puede no ser lo que hay.` });
+      avisar("error", `No se pudieron cargar las fichas: ${fallo.message}. No guardes nada hasta recargar: lo que ves puede no ser lo que hay.`);
       setCargando(false);
       return;
     }
@@ -192,7 +193,7 @@ export default function DatosPersonalesPage() {
     setFichas(new Map(((dp as Ficha[]) ?? []).map((x) => [x.persona_id, x])));
     setDerechos((dh as Derechohabiente[]) ?? []);
     setCargando(false);
-  }, [supabase, router]);
+  }, [supabase, router, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -205,7 +206,7 @@ export default function DatosPersonalesPage() {
   // borrarle el correo a alguien que sí lo tenía. Lo frenó el candado de la
   // 0198 —que solo cuida el correo—; el resto de la ficha ya se había escrito.
   function seleccionar(id: string, forzarScroll = false) {
-    setSel(id); setMsg(null); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO }); setDhEditando(null);
+    setSel(id); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO }); setDhEditando(null);
     // En móvil la ficha queda debajo de la lista: la traemos a la vista
     // (respetando la preferencia de "reducir movimiento" del sistema).
     // `forzarScroll` es para quien entra desde el bloque de arriba, donde la
@@ -269,22 +270,22 @@ export default function DatosPersonalesPage() {
   async function guardar() {
     if (!sel) return;
     if (cargaFallida) {
-      setMsg({ tipo: "error", texto: "No se guarda: las fichas no llegaron a cargar y guardar ahora borraría los datos que ya existen. Recarga la página." });
+      avisar("error", "No se guarda: las fichas no llegaron a cargar y guardar ahora borraría los datos que ya existen. Recarga la página.");
       return;
     }
     // El motivo del DNI se exige aquí y no solo en la base, para que el aviso
     // llegue antes de intentar guardar y no como un error del servidor.
     if (dniCambio && !motivoDni.trim()) {
-      setMsg({ tipo: "error", texto: "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos." });
+      avisar("error", "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos.");
       return;
     }
     // Por lo mismo, y con más razón: sin fecha el régimen no se puede guardar, y
     // llegar hasta el servidor significaría guardar la ficha y fallar después.
     if (regimenCambio && !regimenDesde) {
-      setMsg({ tipo: "error", texto: "Escribe desde cuándo rige el régimen de pensión nuevo: esa fecha decide a qué periodo se le aplica el descuento." });
+      avisar("error", "Escribe desde cuándo rige el régimen de pensión nuevo: esa fecha decide a qué periodo se le aplica el descuento.");
       return;
     }
-    setGuardando(true); setMsg(null);
+    setGuardando(true);
 
     // Los quince campos de la ficha SIEMPRE se mandan completos: la función de
     // la base es un upsert que reemplaza, no un update parcial. Si se omite uno,
@@ -310,7 +311,7 @@ export default function DatosPersonalesPage() {
       p_discapacidad_conadis: form.discapacidad_conadis.trim() || null,
       p_cuspp: form.cuspp.trim() || null,   // CAMBIO 0198
     });
-    if (error) { setGuardando(false); setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { setGuardando(false); avisar("error", mensajeDeError(error)); return; }
 
     // Identidad: solo si de verdad cambió, para no ensuciar la auditoría con
     // guardados que no cambian nada.
@@ -318,7 +319,7 @@ export default function DatosPersonalesPage() {
       const { error: eDni } = await supabase.rpc("fn_set_documento", {
         p_persona_id: sel, p_documento: dni.trim(), p_motivo: motivoDni.trim(),
       });
-      if (eDni) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}` }); return; }
+      if (eDni) { setGuardando(false); avisar("error", `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}`); return; }
     }
     if (regimenCambio) {
       // CAMBIO 0277 — Antes esto llamaba a `fn_set_regimen_pension`, que escribía
@@ -331,7 +332,7 @@ export default function DatosPersonalesPage() {
         p_persona_id: sel, p_regimen: regimen || null,
         p_desde: regimenDesde, p_nota: null,
       });
-      if (eReg) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}` }); return; }
+      if (eReg) { setGuardando(false); avisar("error", `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}`); return; }
     }
     // El correo va por su propia función (0198): con cuenta creada la base lo
     // rechaza, porque cambiarlo acá no cambiaría el acceso.
@@ -339,26 +340,26 @@ export default function DatosPersonalesPage() {
       const { error: eMail } = await supabase.rpc("fn_set_email", {
         p_persona_id: sel, p_email: email.trim() || null,
       });
-      if (eMail) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el correo no: ${mensajeDeError(eMail)}` }); return; }
+      if (eMail) { setGuardando(false); avisar("error", `La ficha se guardó, pero el correo no: ${mensajeDeError(eMail)}`); return; }
     }
 
     setGuardando(false);
     await cargar();
     setMotivoDni("");
-    setMsg({ tipo: "ok", texto: regimenCambio ? `Ficha guardada. El régimen nuevo rige desde el ${regimenDesde} y ya cambia lo que se le descuenta.` : "Ficha guardada." });
+    avisar("ok", regimenCambio ? `Ficha guardada. El régimen nuevo rige desde el ${regimenDesde} y ya cambia lo que se le descuenta.` : "Ficha guardada.");
   }
 
   async function agregarDerechohabiente() {
     if (!sel) return;
     if (!dhNuevo.nombres.trim() || !dhNuevo.apellidos.trim()) {
-      setMsg({ tipo: "error", texto: "El nombre y el apellido del familiar son obligatorios." });
+      avisar("error", "El nombre y el apellido del familiar son obligatorios.");
       return;
     }
     if (dhNuevo.vinculo === "hijo" && !dhNuevo.fecha_nacimiento) {
-      setMsg({ tipo: "error", texto: "La fecha de nacimiento de una hija o hijo es obligatoria: es lo que define hasta cuándo lo cubre EsSalud." });
+      avisar("error", "La fecha de nacimiento de una hija o hijo es obligatoria: es lo que define hasta cuándo lo cubre EsSalud.");
       return;
     }
-    setGuardando(true); setMsg(null);
+    setGuardando(true);
     const { error } = await supabase.rpc("fn_set_derechohabiente", {
       p_id: dhEditando, p_persona_id: sel,
       p_nombres: dhNuevo.nombres.trim(), p_apellidos: dhNuevo.apellidos.trim(),
@@ -368,18 +369,17 @@ export default function DatosPersonalesPage() {
       p_essalud: dhNuevo.essalud, p_vida_ley: dhNuevo.vida_ley, p_nota: null,
     });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     const editaba = dhEditando !== null;
     setDhNuevo({ ...DH_VACIO }); setDhAbierto(false); setDhEditando(null);
     await cargar();
-    setMsg({ tipo: "ok", texto: editaba ? "Familiar corregido." : "Familiar agregado." });
+    avisar("ok", editaba ? "Familiar corregido." : "Familiar agregado.");
   }
 
   /** Carga un familiar ya registrado en el formulario, para corregirlo. */
   function editarDerechohabiente(d: Derechohabiente) {
     setDhEditando(d.id);
     setDhAbierto(true);
-    setMsg(null);
     setDhNuevo({
       nombres: d.nombres, apellidos: d.apellidos, vinculo: d.vinculo,
       documento: d.documento ?? "", fecha_nacimiento: d.fecha_nacimiento ?? "",
@@ -389,12 +389,12 @@ export default function DatosPersonalesPage() {
 
   async function cerrarDerechohabiente(id: string, nombre: string) {
     if (!window.confirm(`¿Cerrar a ${nombre}? No se borra: queda registrado hasta hoy, así que el periodo en que estuvo cubierto sigue explicándose.`)) return;
-    setGuardando(true); setMsg(null);
+    setGuardando(true);
     const { error } = await supabase.rpc("fn_cerrar_derechohabiente", { p_id: id, p_hasta: null });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `${nombre} quedó cerrado con la fecha de hoy.` });
+    avisar("ok", `${nombre} quedó cerrado con la fecha de hoy.`);
   }
 
   const lista = personas.filter((p) =>
@@ -567,7 +567,7 @@ export default function DatosPersonalesPage() {
       `cayla-padron-${new Date().toISOString().slice(0, 10)}.csv`,
       generarCsv(filas, Object.keys(filas[0] ?? {})),
     );
-    setMsg({ tipo: "ok", texto: `Descargadas ${filas.length} fichas. Lleva DNI, dirección y cuentas bancarias: compártelo por un canal que puedas revocar y bórralo al terminar.` });
+    avisar("ok", `Descargadas ${filas.length} fichas. Lleva DNI, dirección y cuentas bancarias: compártelo por un canal que puedas revocar y bórralo al terminar.`);
   }
 
   if (rol !== null && !puede) {
@@ -710,12 +710,6 @@ export default function DatosPersonalesPage() {
               ))}
             </ul>
           </section>
-        )}
-
-        {msg && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
-          </div>
         )}
 
         <div className="grid gap-6 md:grid-cols-[260px_1fr]">
