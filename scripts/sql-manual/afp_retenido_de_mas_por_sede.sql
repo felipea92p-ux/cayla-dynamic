@@ -46,5 +46,5 @@ select nombre as persona, sede, regimen,
        round(base * 0.11370, 2)                       as le_tocaba_en_mixta,
        round(retenido - round(base * 0.11370, 2), 2)  as diferencia
 from retenido
-where sede = 'TRU'
+where sede = 'AQP'
 order by diferencia desc;
