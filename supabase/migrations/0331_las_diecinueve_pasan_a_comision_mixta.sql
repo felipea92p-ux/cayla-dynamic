@@ -10,6 +10,10 @@
 -- QUÉ ASUME, Y ES LO ÚNICO QUE HAY QUE DISCUTIR
 --   · Que la **0328** está aplicada: sin sus cuatro filas de tasa, esta
 --     migración no encuentra a dónde mover a nadie y aborta antes de tocar nada.
+--   · Que la `fn_planilla_calcular` que corre en la base donde se pegue LEE el
+--     historial de `asignaciones_regimen_pension` (0261). No se da por supuesto:
+--     se comprueba contra el catálogo antes de tocar nada, porque es lo único
+--     que sostiene la promesa de no mover un mes pagado. Ver «Freno 0».
 --   · Que **nadie del equipo se afilió al SPP antes de febrero de 2013**.
 --     Decisión de Felipe el 2026-08-31, después de que el contador avisara del
 --     error: «Todos son jóvenes, no creo que nadie se haya afiliado antes de
@@ -124,6 +128,41 @@ declare
   v_movidas int := 0;
   v_faltan  int;
 begin
+  -- ── Freno 0 · ¿esta base LEE el historial de régimen? ─────────────────────
+  --
+  -- Es el freno más importante de los tres, y el menos obvio. Todo lo que hace
+  -- esta migración para no tocar los meses pagados —el tramo del pasado, el
+  -- tramo nuevo desde el periodo abierto— descansa en que `fn_planilla_calcular`
+  -- resuelva el régimen por `asignaciones_regimen_pension`, que es lo que
+  -- introdujo la 0261.
+  --
+  -- Si la función que corre en esta base fuera ANTERIOR a la 0261, leería solo
+  -- `personas.regimen_pension` y los tramos serían decoración: el `update` de la
+  -- columna del paso 3 alcanzaría TODOS los meses, incluidos los depositados.
+  -- Diecinueve boletas ya pagadas cambiarían de cifra en silencio, y la planilla
+  -- cerrada dejaría de cuadrar con lo que salió del banco.
+  --
+  -- No es paranoia de laboratorio: este repositorio ya se llevó ese susto. El
+  -- 2026-08-25 producción corría `fn_planilla_calcular` cuarenta y cuatro
+  -- migraciones por detrás del repo sin que nadie lo notara, y la 0261 es
+  -- exactamente el tipo de cambio que una repegada vieja revierte en silencio.
+  -- La comprobación cuesta una consulta al catálogo y se hace ACÁ, en la base
+  -- donde se va a aplicar, en vez de confiar en que el archivo del repo describa
+  -- lo que corre en producción.
+  -- Se exige que la lean TODAS las sobrecargas, no que la lea alguna. Con un
+  -- `exists` bastaría una sola para dar el visto bueno, y si conviven dos
+  -- versiones —que es como se manifestó el choque de la 0297 con la 0299— la
+  -- que se ejecuta puede ser justamente la que no la lee. Y `is not true` en vez
+  -- de `not (...)` por la regla de la casa: sin filas, `bool_and` devuelve null,
+  -- y un null no puede pasar por autorizado.
+  if coalesce(
+       (select bool_and(p.prosrc like '%asignaciones_regimen_pension%')
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+       false) is not true then
+    raise exception '0331 · la fn_planilla_calcular de esta base NO lee asignaciones_regimen_pension, así que le falta la cascada de la 0261. Sin ella el régimen sale solo de la columna y esta migración reescribiría los meses YA PAGADOS de 19 personas. NO se aplica nada. Revisa qué versión de fn_planilla_calcular corre acá (la línea PLANILLA de que_falta_pegar.sql lo dice).';
+  end if;
+
   -- ── Freno 1 · sin la 0328 no hay a dónde mover a nadie ────────────────────
   -- Se comprueba ANTES de tocar nada. Sin esto, los tramos nuevos violarían el
   -- CHECK de códigos y la migración moriría a mitad — dejando a unos movidos y
