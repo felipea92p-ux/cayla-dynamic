@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../../../nav";
 import { Cargando } from "@/components/cargando";
+import { Marca } from "@/components/marca";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { EMPRESA, TZ_LIMA, type Rol } from "@cayla-dynamic/shared";
 import { AREAS_FALLBACK, areaNombre, parseAreas, type Area } from "@/lib/areas";
@@ -402,10 +403,11 @@ export default function MemoPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AdminNav />
-      <style>{`@media print { header, .no-print { display: none !important; } .memo { border: 0 !important; margin: 0 !important; padding: 0 !important; max-width: 100% !important; color: #1a1a1a !important; } .memo table, .memo thead, .memo tr, .memo .firma { break-inside: avoid; } } .memo p { margin: 0 0 10px; text-align: justify; } .memo h2 { font-size: 15px; margin: 0 0 4px; } @page { margin: 18mm; }`}</style>
-      <main className="flex-1 p-6">
-        <div className="no-print mb-4 flex max-w-[760px] items-center justify-between">
+      <div className="print:hidden">
+        <AdminNav />
+      </div>
+      <main className="flex-1 p-6 print:p-0">
+        <div className="mb-4 flex max-w-[760px] items-center justify-between print:hidden">
           <button onClick={() => router.push("/admin/disciplina")} className="text-sm text-taupe hover:text-tinta">← Volver a Disciplina</button>
           {doc && !err && (
             <button onClick={() => window.print()} className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema">
@@ -419,35 +421,35 @@ export default function MemoPage() {
         ) : err ? (
           <p className="max-w-[760px] rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
         ) : doc && (
-          <div className="memo mx-auto max-w-[760px] rounded-lg border bg-white p-10 font-serif text-[13px] leading-relaxed text-tinta">
+          <div className="memo hoja mx-auto max-w-[760px] rounded-lg border border-sand p-10 font-serif text-[13px] leading-relaxed text-tinta print:rounded-none print:border-0 print:p-0">
             {esNivel4 && (
-              <p className="no-print mb-4 rounded bg-amber-100 px-3 py-2 text-xs text-amber-800">
+              <p className="mb-4 rounded bg-ambar/15 px-3 py-2 text-xs text-ambar print:hidden">
                 Documento de Nivel 4. Antes de emitirlo, valídalo con un abogado laboralista y entrégalo en físico o por vía notarial (nunca por correo).
               </p>
             )}
             {doc.estado === "borrador" && (
-              // SIN `no-print`, y es deliberado. Este aviso llevaba la clase y
-              // se borraba justo en el papel: en pantalla ponía «borrador», e
-              // impreso no ponía nada. Imprimir un borrador para revisarlo es
-              // legítimo y por eso no se deshabilita el botón — lo que no puede
-              // pasar es que el papel no diga lo que es.
-              <p className="mb-4 rounded border border-amber-300 bg-amber-100 px-3 py-2 text-xs text-amber-900">
+              // SIN `print:hidden`, y es deliberado. Este aviso llevaba la
+              // clase y se borraba justo en el papel: en pantalla ponía
+              // «borrador», e impreso no ponía nada. Imprimir un borrador para
+              // revisarlo es legítimo y por eso no se deshabilita el botón —
+              // lo que no puede pasar es que el papel no diga lo que es.
+              <p className="mb-4 rounded border border-ambar/40 bg-ambar/15 px-3 py-2 text-xs text-ambar">
                 <strong>BORRADOR — sin numerar y sin firmar.</strong> No tiene validez como
                 documento entregado. Fírmalo en la pantalla de Disciplina para asignarle su número.
               </p>
             )}
             {firmanteIlegible && (
-              <p className="no-print mb-4 rounded bg-sand/50 px-3 py-2 text-xs text-taupe">
+              <p className="mb-4 rounded bg-sand/50 px-3 py-2 text-xs text-taupe print:hidden">
                 No se pudo leer la ficha de quien firma este documento —lo normal es que sea de
                 otra sede—, así que abajo figura el representante legal de la empresa. Si lo
                 suscribió otra persona, compruébalo antes de entregarlo.
               </p>
             )}
 
-            <div className="mb-4 flex items-start justify-between border-b pb-3">
+            <div className="mb-4 flex items-start justify-between border-b border-sand pb-3 print:mb-3 print:pb-2">
               <div>
-                <p className="font-medium">{EMPRESA.nombre}</p>
-                <p className="text-taupe">RUC N.° {EMPRESA.ruc}</p>
+                <Marca tono="tinta" isotipo="rojo" />
+                <p className="mt-2 text-xs text-taupe">{EMPRESA.nombre} · RUC {EMPRESA.ruc}</p>
               </div>
               <div className="text-right">
                 <p className="font-medium">{doc.correlativo ?? "BORRADOR — sin numerar"}</p>
@@ -487,7 +489,7 @@ export default function MemoPage() {
               </table>
             )}
 
-            <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px]">
+            <div className="firma mt-10 grid grid-cols-2 gap-8 text-[12px] print:break-inside-avoid">
               <div>
                 <div className="flex h-28 items-end justify-center">
                   {firmaUrl && !esNivel4 && (

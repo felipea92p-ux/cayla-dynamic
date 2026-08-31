@@ -2491,6 +2491,7 @@ export type Database = {
           cumplido: boolean
           descripcion: string
           id: string
+          indicaciones: string | null
           mes: number
           orden: number
           persona_id: string
@@ -2502,6 +2503,7 @@ export type Database = {
           cumplido?: boolean
           descripcion: string
           id?: string
+          indicaciones?: string | null
           mes: number
           orden?: number
           persona_id: string
@@ -2513,6 +2515,7 @@ export type Database = {
           cumplido?: boolean
           descripcion?: string
           id?: string
+          indicaciones?: string | null
           mes?: number
           orden?: number
           persona_id?: string
@@ -5174,13 +5177,18 @@ export type Database = {
         Args: {
           p_anio: number | null
           p_descripcion: string | null
+          p_indicaciones?: string | null
           p_mes: number | null
           p_persona_id: string | null
         }
         Returns: Json
       }
       fn_objetivo_editar: {
-        Args: { p_descripcion: string | null; p_item_id: string | null }
+        Args: {
+          p_descripcion: string | null
+          p_indicaciones?: string | null
+          p_item_id: string | null
+        }
         Returns: undefined
       }
       fn_objetivo_eliminar: { Args: { p_item_id: string | null }; Returns: undefined }
@@ -5242,6 +5250,10 @@ export type Database = {
       fn_personas_funciones: { Args: never; Returns: Json }
       fn_planilla_calcular: {
         Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
+        Returns: Json
+      }
+      fn_planilla_calcular_persona: {
+        Args: { p_periodo_id: string | null; p_persona_id: string | null }
         Returns: Json
       }
       fn_planilla_congelar: {

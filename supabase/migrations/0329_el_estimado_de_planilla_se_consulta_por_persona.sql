@@ -189,3 +189,7 @@ comment on function public.fn_planilla_calcular_persona(uuid, uuid) is
 
 revoke execute on function public.fn_planilla_calcular_persona(uuid, uuid) from public, anon;
 grant  execute on function public.fn_planilla_calcular_persona(uuid, uuid) to authenticated;
+
+insert into migraciones_aplicadas (numero, nombre)
+values (329, 'el_estimado_de_planilla_se_consulta_por_persona')
+on conflict (numero) do nothing;

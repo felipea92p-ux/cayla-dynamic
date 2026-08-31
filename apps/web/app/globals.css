@@ -21,6 +21,49 @@
   --font-serif: var(--font-eb-garamond), ui-serif, Georgia, "Times New Roman", serif;
 }
 
+/* ── Modo oscuro ────────────────────────────────────────────────
+   Mismos nueve nombres, valores distintos: como el resto de la pantalla se
+   pinta con `bg-crema`, `text-tinta`, etc. —nunca con un hex suelto—, redefinir
+   estas variables basta para que toda la app cambie de tema sin tocar un solo
+   componente. Misma filosofía que la paleta clara: nunca negro absoluto, sin
+   gradientes ni sombras — acá "tinta sobre papel" se invierte a "papel sobre
+   tinta", no se vuelve blanco-sobre-negro.
+
+   Tres formas de decidir el tema, en orden de prioridad:
+     1. `data-tema="oscuro"` u `data-tema="claro"` en <html> — elegido a mano
+        con el selector del menú, y guardado en localStorage por `useTema`.
+     2. Sin atributo: sigue `prefers-color-scheme` del sistema operativo.
+     3. Ninguno de los dos: la paleta de arriba (clara) de toda la vida.
+
+   El script de `app/layout.tsx` pone el atributo ANTES de pintar, para que no
+   haya un parpadeo del tema equivocado al cargar (mismo motivo que el shim de
+   touchstart de esa misma pantalla: algo que solo se puede resolver antes de
+   que React monte). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --color-crema: #1c1a16;
+    --color-papel: #26221d;
+    --color-tinta: #ede7db;
+    --color-rojo: #d4634a;
+    --color-rojo-profundo: #e8836b;
+    --color-sand: #332e27;
+    --color-taupe: #ab9080;
+    --color-verde: #85a476;
+    --color-ambar: #c99a4a;
+  }
+}
+:root[data-tema="oscuro"] {
+  --color-crema: #1c1a16;
+  --color-papel: #26221d;
+  --color-tinta: #ede7db;
+  --color-rojo: #d4634a;
+  --color-rojo-profundo: #e8836b;
+  --color-sand: #332e27;
+  --color-taupe: #ab9080;
+  --color-verde: #85a476;
+  --color-ambar: #c99a4a;
+}
+
 @layer base {
   /* La línea fina es el único elemento decorativo: por defecto, Sand. */
   *,
@@ -176,7 +219,7 @@ a.bg-tinta:hover {
   text-align: center;
 }
 .contrato .linea {
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--color-tinta);
   height: 3.2rem;
   margin: 0 0 0.3rem;
   position: relative;
@@ -201,6 +244,22 @@ a.bg-tinta:hover {
   margin-top: 1.2rem;
 }
 
+/* ── El memo disciplinario ───────────────────────────────────────
+   Vivía como un <style> local en disciplina/memo/[id]/page.tsx, con reglas de
+   impresión que ya decía @media print de acá abajo (tr { break-inside: avoid })
+   y un color de texto fijo que ya no hace falta: el texto sigue --color-tinta,
+   y esa variable se fuerza a su valor claro al imprimir sin importar el tema
+   de pantalla (ver @media print). Solo quedan las dos reglas que de verdad son
+   propias del memo. */
+.memo p {
+  margin: 0 0 10px;
+  text-align: justify;
+}
+.memo h2 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
 /* ── El papel ────────────────────────────────────────────────────
    No había ni una regla de impresión en el proyecto, así que la boleta salía
    siendo la pantalla apretada en una hoja: se partía en dos páginas y el total
@@ -208,6 +267,30 @@ a.bg-tinta:hover {
    La boleta se imprime y se ENTREGA, así que el papel es un destino de primera
    clase, no un descarte del diseño de pantalla. */
 @media print {
+  /* El papel es siempre de día, elija quien elija tema en pantalla: un
+     documento se imprime, se firma y se archiva, y tiene que leerse igual
+     dentro de dos años en un tema que puede que ni exista ya. Sin esto, quien
+     imprime en modo oscuro se lleva texto casi-blanco sobre fondo blanco —
+     técnicamente el aviso de abajo lo fuerza a `#fff`, pero nada más lo sabría.
+
+     Selector repetido con la misma especificidad que las reglas de tema de
+     arriba (0,1,0,1: un atributo) y NO solo `:root`, que perdería el empate
+     por especificidad contra `:root[data-tema="oscuro"]` aunque este bloque
+     vaya después en el archivo. */
+  :root,
+  :root[data-tema="claro"],
+  :root[data-tema="oscuro"] {
+    --color-crema: #f5f0e8;
+    --color-papel: #fbf8f2;
+    --color-tinta: #1a1a18;
+    --color-rojo: #b8412d;
+    --color-rojo-profundo: #8b2a1f;
+    --color-sand: #e8e0d0;
+    --color-taupe: #805c4c;
+    --color-verde: #5b754f;
+    --color-ambar: #8d6726;
+  }
+
   @page {
     size: A4;
     margin: 14mm;

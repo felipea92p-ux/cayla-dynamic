@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
+import { SelectorTema } from "@/components/selector-tema";
 import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
@@ -673,6 +674,7 @@ export default function MioPage() {
           )}
           <button onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
             className="text-xs text-taupe underline">Salir</button>
+          <SelectorTema />
         </div>
       </header>
 
@@ -988,7 +990,12 @@ export default function MioPage() {
               {objetivos.map((o) => (
                 <li key={o.id} className="flex items-start gap-2">
                   <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
-                  <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                  <div>
+                    <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                    {o.indicaciones && (
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-taupe">{o.indicaciones}</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

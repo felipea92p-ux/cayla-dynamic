@@ -33,17 +33,26 @@
 -- anterior. Esta prueba fija esa forma, que es la única que protege a los dos
 -- tipos de persona a la vez.
 --
--- ── LO QUE ESTA PRUEBA DEJA ANOTADO Y NO ARREGLA ────────────────────────────
+-- ── Y LA PUERTA DE LA PANTALLA, QUE TENÍA EL MISMO AGUJERO ──────────────────
 --
--- `fn_cambiar_regimen_pension` tiene el mismo agujero: cambiarle el régimen
--- desde la pantalla a alguien sin tramo le reescribe los meses pagados por esta
--- misma vía. Su freno de la 0203 comprueba que la FECHA no caiga en un periodo
--- pagado, y en este caso la fecha está bien — lo que alcanza al pasado es el
--- `update` de la columna. El caso 4 de abajo lo demuestra en vez de describirlo,
--- para que quien lo arregle tenga el escenario ya escrito.
+-- `fn_cambiar_regimen_pension` lo tenía igual: cambiarle el régimen desde la
+-- pantalla a alguien sin tramo le reescribía los meses pagados por esta misma
+-- vía. Su freno de la 0203 comprueba que la FECHA no caiga en un periodo
+-- pagado, y en este caso la fecha está bien — lo que alcanzaba al pasado era el
+-- `update` de la columna, que no tiene fecha ninguna.
+--
+-- Lo cerró la **0332**, agregándole a la función la mitad que le faltaba: sin
+-- tramo abierto que cerrar, escribe el del PASADO con el régimen anterior. El
+-- bloque 2 de abajo ya no describe el defecto — lo impide.
+--
+-- Queda un borde, y esta prueba NO lo cubre porque sigue vivo: quien no tiene
+-- tramo Y tiene la columna en `null`. «Sin régimen» no se puede escribir como
+-- tramo (`regimen` es NOT NULL), así que cargarle uno por primera vez todavía
+-- le mueve un mes pagado, de la tasa genérica a la del régimen nuevo. Cerrarlo
+-- pide un cambio de esquema; está razonado en la cabecera de la 0332.
 -- ============================================================================
 begin;
-select plan(7);
+select plan(8);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-0000000005a0', 'ZZ331', 'Sede de laboratorio', true);
@@ -170,11 +179,12 @@ select is(
 
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 2 · El agujero que sigue abierto en fn_cambiar_regimen_pension
+-- 2 · La puerta de la pantalla: fn_cambiar_regimen_pension (cerrado por la 0332)
 -- ════════════════════════════════════════════════════════════════════════════
--- Escenario listo para quien lo arregle: una tercera persona sin historial a la
--- que se le cambia el régimen por la puerta de la pantalla, con una fecha que el
--- freno de la 0203 acepta porque cae en el periodo ABIERTO.
+-- Una tercera persona sin historial a la que se le cambia el régimen por la
+-- puerta de la pantalla, con una fecha que el freno de la 0203 acepta porque
+-- cae en el periodo ABIERTO. Antes de la 0332 esto le movía marzo de 12.92 % a
+-- 11.37 %; medido el 2026-08-31 contra el Postgres local.
 
 insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingreso, funcion, regimen_pension)
 values ('00000000-0000-0000-0000-0000000005a4', 'CasPuerta', 'Lab',
@@ -205,10 +215,19 @@ select lives_ok(
   'la función acepta el cambio — su freno mira la fecha, y la fecha está bien'
 );
 
--- NO se comprueba qué le pasa a marzo. Hoy le cambia, y afirmar eso en una
--- prueba convertiría el defecto en una promesa: quien lo arregle vería fallar
--- una prueba en verde y creería que rompió algo. Queda descrito en la cabecera y
--- con el escenario armado, que es lo que hace falta para arreglarlo.
+-- ── Y AQUÍ ESTABA EL DEFECTO ────────────────────────────────────────────────
+-- Esta es la línea que la versión anterior de esta prueba dejó sin escribir, a
+-- propósito: mientras el defecto vivía, afirmar 12.92 % habría hecho fallar una
+-- prueba en verde. La 0332 lo arregló, así que ahora sí se afirma — y es la
+-- línea que impide que el arreglo se pierda en la próxima reescritura de la
+-- función. Sin el tramo del pasado, marzo cae a 0.11370.
+select is(
+  (select round((f->>'tasa_afp')::numeric, 5)
+     from jsonb_array_elements(fn_planilla_calcular('2026-03-01','2026-03-31')->'filas') f
+    where f->>'persona_id' = '00000000-0000-0000-0000-0000000005a4'),
+  0.12920,
+  'y su mes pagado SIGUE en 12.92 % después del cambio — la 0332'
+);
 
 select * from finish();
 rollback;
