@@ -990,7 +990,12 @@ export default function MioPage() {
               {objetivos.map((o) => (
                 <li key={o.id} className="flex items-start gap-2">
                   <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
-                  <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                  <div>
+                    <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                    {o.indicaciones && (
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-taupe">{o.indicaciones}</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

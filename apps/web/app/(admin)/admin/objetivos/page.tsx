@@ -58,9 +58,11 @@ function ObjetivosContenido() {
   const [cargado, setCargado] = useState(false);
 
   const [nuevoTexto, setNuevoTexto] = useState("");
+  const [nuevasIndicaciones, setNuevasIndicaciones] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [textoEdicion, setTextoEdicion] = useState("");
+  const [indicacionesEdicion, setIndicacionesEdicion] = useState("");
 
   useEffect(() => {
     const supabase = createAdminSupabaseClient();
@@ -135,6 +137,7 @@ function ObjetivosContenido() {
       p_anio: anio,
       p_mes: mes,
       p_descripcion: texto,
+      p_indicaciones: nuevasIndicaciones.trim() || null,
     });
     setGuardando(false);
     if (error) {
@@ -142,6 +145,7 @@ function ObjetivosContenido() {
       return;
     }
     setNuevoTexto("");
+    setNuevasIndicaciones("");
     await cargar();
   }
 
@@ -169,6 +173,7 @@ function ObjetivosContenido() {
     const { error } = await supabase.rpc("fn_objetivo_editar", {
       p_item_id: item.id,
       p_descripcion: texto,
+      p_indicaciones: indicacionesEdicion.trim() || null,
     });
     setGuardando(false);
     if (error) {
@@ -318,52 +323,68 @@ function ObjetivosContenido() {
                 </li>
               ) : (
                 items.map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <li key={item.id} className="flex items-start gap-3 px-4 py-2.5">
                     <input
                       type="checkbox"
                       checked={item.cumplido}
                       disabled={!puedeGestionar}
                       onChange={(e) => void marcar(item, e.target.checked)}
-                      className="h-4 w-4 rounded border"
+                      className="mt-1 h-4 w-4 rounded border"
                     />
                     {editandoId === item.id ? (
-                      <>
+                      <div className="flex-1">
                         <input
                           value={textoEdicion}
                           onChange={(e) => setTextoEdicion(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") void guardarEdicion(item);
                             if (e.key === "Escape") setEditandoId(null);
                           }}
                           autoFocus
                           maxLength={300}
-                          className="flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
+                          placeholder="El objetivo"
+                          className="w-full rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
                         />
-                        <button
-                          onClick={() => void guardarEdicion(item)}
-                          disabled={guardando}
-                          className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-50"
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          onClick={() => setEditandoId(null)}
-                          className="rounded-lg border px-3 py-1.5 text-xs"
-                        >
-                          Cancelar
-                        </button>
-                      </>
+                        <textarea
+                          value={indicacionesEdicion}
+                          onChange={(e) => setIndicacionesEdicion(e.target.value)}
+                          placeholder="Indicaciones (opcional) — el detalle que ayuda a cumplirlo"
+                          maxLength={2000}
+                          rows={2}
+                          className="mt-2 w-full rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
+                        />
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={() => void guardarEdicion(item)}
+                            disabled={guardando}
+                            className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-50"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => setEditandoId(null)}
+                            className="rounded-lg border px-3 py-1.5 text-xs"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <>
-                        <span className={`flex-1 text-sm ${item.cumplido ? "text-taupe line-through" : ""}`}>
-                          {item.descripcion}
-                        </span>
+                        <div className="flex-1">
+                          <span className={`text-sm ${item.cumplido ? "text-taupe line-through" : ""}`}>
+                            {item.descripcion}
+                          </span>
+                          {item.indicaciones && (
+                            <p className="mt-0.5 whitespace-pre-wrap text-xs text-taupe">{item.indicaciones}</p>
+                          )}
+                        </div>
                         {puedeGestionar && (
-                          <div className="flex gap-2 text-xs">
+                          <div className="flex shrink-0 gap-2 text-xs">
                             <button
                               onClick={() => {
                                 setEditandoId(item.id);
                                 setTextoEdicion(item.descripcion);
+                                setIndicacionesEdicion(item.indicaciones ?? "");
                               }}
                               className="rounded border px-2 py-1 hover:bg-sand/50"
                             >
@@ -386,21 +407,26 @@ function ObjetivosContenido() {
 
             {/* Agregar */}
             {puedeGestionar && (
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 rounded-2xl border border-sand bg-papel p-3">
                 <input
                   value={nuevoTexto}
                   onChange={(e) => setNuevoTexto(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void agregar();
-                  }}
                   placeholder="ej. Completar la capacitación de atención al cliente"
                   maxLength={300}
-                  className="flex-1 rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
+                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
+                />
+                <textarea
+                  value={nuevasIndicaciones}
+                  onChange={(e) => setNuevasIndicaciones(e.target.value)}
+                  placeholder="Indicaciones (opcional) — el detalle que ayuda a cumplirlo: qué se espera, cómo se mide, con quién coordinar"
+                  maxLength={2000}
+                  rows={2}
+                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
                 />
                 <button
                   onClick={() => void agregar()}
                   disabled={guardando || !nuevoTexto.trim()}
-                  className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                  className="self-start rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
                 >
                   {guardando ? "Agregando…" : "+ Agregar"}
                 </button>
