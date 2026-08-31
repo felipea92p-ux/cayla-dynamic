@@ -9,6 +9,7 @@ import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
 import { AtajosTeclado } from "@/components/atajos-teclado";
+import { SelectorTema } from "@/components/selector-tema";
 import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
@@ -262,6 +263,7 @@ export function AdminNav() {
             className="hidden rounded-md border border-sand p-1.5 text-taupe transition hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo xl:flex">
             <Keyboard size={15} strokeWidth={1.8} aria-hidden />
           </button>
+          <SelectorTema />
           <button onClick={() => setAbierto((a) => !a)}
             aria-label={abierto ? "Cerrar menú" : "Abrir menú"} aria-expanded={abierto}
             className="rounded-lg border border-sand p-2 text-tinta transition hover:border-taupe/40 hover:bg-sand/40 active:scale-[0.97] active:bg-sand/60 xl:hidden">

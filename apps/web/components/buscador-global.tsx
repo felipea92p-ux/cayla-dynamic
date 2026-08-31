@@ -108,7 +108,7 @@ export function BuscadorGlobal({
 
   return (
     <>
-      <div onClick={onCerrar} className="fixed inset-0 z-40 bg-tinta/20" aria-hidden />
+      <div onClick={onCerrar} className="fixed inset-0 z-40 bg-black/20" aria-hidden />
       <div role="dialog" aria-label="Buscar en Dynamic"
         className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 overflow-hidden rounded-xl border border-sand bg-papel shadow-xl">
         <div className="flex items-center gap-2.5 border-b border-sand px-4 py-3">
