@@ -37,6 +37,31 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-31 — Texto de apoyo por objetivo del mes (0335) · PEGADA Y VERIFICADA
+
+Felipe pidió poder dejar, en cada objetivo del checklist mensual (0032), unas
+indicaciones más completas además de la descripción corta — el detalle que
+ayuda a la integrante a entender qué se espera exactamente. Se gestionan en
+`/admin/objetivos` (agregar y editar) y se muestran a la propia persona en
+`/mio`. No pagan nada, igual que el resto del checklist desde la 0171.
+
+**La auditoría empírica de la migración encontró la misma clase de bug que
+rompió el aviso de vacaciones el 2026-08-25 (0297/0299):** `create or replace
+function` con un parámetro nuevo por defecto **no reemplaza** la función
+vieja — crea una segunda sobrecarga, y la llamada con el número de argumentos
+original queda ambigua (`function ... is not unique`). Pasaba con
+`fn_objetivo_agregar` y `fn_objetivo_editar`, que ganaron un quinto y tercer
+parámetro respectivamente. Se corrigió con `drop function` explícito antes de
+recrearlas, con sus grants. Lo cazó correr la migración contra Postgres local
+con datos reales — la misma auditoría que este archivo pide siempre antes de
+entregar SQL que toca algo que alguien usa.
+
+PR [#137](https://github.com/felipea92p-ux/cayla-dynamic/pull/137) fusionado,
+desplegado a producción por el merge automático de Vercel sobre `main`, y
+Felipe confirmó que funciona.
+
+---
+
 ## 2026-08-31 — La comisión mixta deja de cobrarse como flujo (0328/0331) · PEGADA Y VERIFICADA
 
 El contador encontró que se le retenía a casi todo el equipo la comisión de

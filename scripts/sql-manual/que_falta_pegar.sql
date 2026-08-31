@@ -192,7 +192,8 @@ with repo(numero, nombre, nunca) as (values
     (330, 'una_persona_puede_pedir_sus_vacaciones', false),
     (331, 'las_diecinueve_pasan_a_comision_mixta', false),
     (332, 'cambiar_el_regimen_no_reescribe_un_mes_pagado', false),
-    (334, 'desempeno_suma_ausencias_del_periodo', false)
+    (334, 'desempeno_suma_ausencias_del_periodo', false),
+    (335, 'objetivos_texto_de_apoyo', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
