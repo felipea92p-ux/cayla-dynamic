@@ -188,8 +188,12 @@ with repo(numero, nombre, nunca) as (values
     (326, 'un_marcaje_sin_revisar_tampoco_cierra_el_mes', false),
     (327, 'el_candado_de_horas_pasa_a_ser_por_grupo', false),
     (328, 'la_comision_mixta_deja_de_cobrarse_como_flujo', false),
+    (329, 'el_estimado_de_planilla_se_consulta_por_persona', false),
+    (330, 'una_persona_puede_pedir_sus_vacaciones', false),
     (331, 'las_diecinueve_pasan_a_comision_mixta', false),
-    (333, 'el_generador_de_contratos_hace_convenios_de_practicas', false)
+    (332, 'cambiar_el_regimen_no_reescribe_un_mes_pagado', false),
+    (333, 'el_generador_de_contratos_hace_convenios_de_practicas', false),
+    (335, 'objetivos_texto_de_apoyo', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

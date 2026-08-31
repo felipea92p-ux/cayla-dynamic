@@ -42,10 +42,16 @@ export const metadata: Metadata = {
   },
 };
 
-// La crema tiñe la barra del navegador en el móvil, para que la app no arranque
-// con una franja blanca encima de su propio fondo.
+// La crema (o su equivalente oscuro) tiñe la barra del navegador en el móvil,
+// para que la app no arranque con una franja blanca encima de su propio fondo.
+// Los dos colores cubren el caso SISTEMA; quien elige el tema a mano desde el
+// selector no cambia esta franja hasta la próxima carga — es cosmético, no
+// vale la pena una segunda vía solo para eso.
 export const viewport: Viewport = {
-  themeColor: "#f5f0e8",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f0e8" },
+    { media: "(prefers-color-scheme: dark)", color: "#1c1a16" },
+  ],
 };
 
 export default function RootLayout({
@@ -57,8 +63,27 @@ export default function RootLayout({
     <html
       lang="es"
       className={`${dmSans.variable} ${ebGaramond.variable} h-full antialiased`}
+      // El script de abajo pone `data-tema` en este mismo elemento antes de
+      // que React hidrate — a propósito, es lo que evita el parpadeo. React no
+      // tiene forma de saber eso de antemano y sin este aviso lo reporta como
+      // un error de hidratación, aunque el HTML esté bien.
+      suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col font-sans">
+        {/* Pone `data-tema` en <html> ANTES de que se pinte nada, para que quien
+            eligió "oscuro" a mano no vea un parpadeo de la paleta clara al
+            cargar la página. Sin esto, `useTema` (que sí es seguro para
+            hidratación) solo aplicaría el tema guardado DESPUÉS del primer
+            render de React — un parpadeo real, no cosmético, en cada carga. Si
+            no hay nada guardado, no toca el atributo y manda `prefers-color-scheme`
+            —la regla ya escrita en globals.css—, así que tampoco hace falta
+            preguntarle nada al sistema operativo desde acá. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('cayla-tema');if(t==='claro'||t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}",
+          }}
+        />
         {/* Safari de iPhone no dispara `:active` en toques salvo que el documento
             tenga un listener de touch propio — sin esto, los botones y enlaces que
             "prenden" al presionar con el dedo solo lo hacían con mouse. */}

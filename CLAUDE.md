@@ -274,6 +274,51 @@ Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados,
 `simIni` en `planilla`, que solo afecta a una simulación—; la deuda vieja se
 paga en su lote y no a costa de que el freno mienta.
 
+Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los nueve
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos nueve
+nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
+oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
+Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
+así que al construir el modo oscuro esos sitios se quedaban como un parche
+claro pegado en medio de una pantalla ya oscura.
+
+Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
+de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de
+la base") y un par de tarjetas (`bg-white`). Dos de esos sitios no eran un
+descuido sino que corrigieron algo peor, y por eso importa distinguir un color
+suelto de un color que solo PARECE suelto: cuatro botones de
+`admin/contratos/page.tsx` tenían `bg-tinta` con `text-white` en vez de
+`text-crema` —`bg-tinta` se aclara en oscuro, así que el texto blanco fijo se
+habría vuelto ilegible sobre un botón que dejó de ser oscuro— y cuatro
+overlays de modal (buscador, atajos, acuses pendientes, cerrar el día en
+`admin/horas`) usaban `bg-tinta/NN` como scrim: en oscuro eso ACLARA el fondo
+en vez de oscurecerlo, lo contrario de lo que un scrim tiene que hacer. Esos
+pasan a `bg-black/NN`, que sí oscurece en los dos temas — el criterio que ya
+usaban los modales de turnos, incidencias, horarios y correcciones.
+
+Y la excepción, que hay que distinguir con cuidado porque son DOS excepciones
+distintas, no una:
+
+- Los documentos con la clase `.hoja` —boleta, contrato, documentación, Hoja
+  de sede, el memo disciplinario desde el 2026-08-31— NO llevan un color
+  fijo: en pantalla siguen el tema como cualquier otra pantalla (`.hoja` no
+  pinta nada por sí sola), y solo se fuerzan a la paleta clara AL IMPRIMIR,
+  por la regla ya escrita en `@media print` de `globals.css`. Es la forma
+  correcta: nadie necesita ver un contrato en modo oscuro mientras lo revisa
+  en pantalla, pero el papel que sale de la impresora sí tiene que ser
+  siempre el mismo, para siempre.
+- Política salarial (y la vista previa "así se verá en el memo" de una firma)
+  usan `bg-white`/`slate-*` fijos A PROPÓSITO, en pantalla y en papel, sin
+  pasar por `.hoja` ni por los tokens. Ahí sí es deliberado que ni siquiera la
+  pantalla cambie: es un documento legal que se muestra tal cual a quien lo
+  firma, y esa pantalla no tiene por qué mirarse distinto según quién la abra.
+
+La lección de las dos: nunca asumir cuál aplica sin mirar si el contenedor
+lleva `.hoja` o un color fijo — la resolvió al construir el memo, que hasta
+entonces caía en la segunda categoría sin que hubiera una razón para eso, solo
+porque nunca se había actualizado.
+
 ```bash
 npx pnpm install
 npx pnpm dev          # levanta todo

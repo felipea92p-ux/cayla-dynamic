@@ -1221,7 +1221,7 @@ export default function ContratosPage() {
               )}
 
               <button
-                className="rounded bg-tinta px-4 py-2 text-sm text-white disabled:opacity-50"
+                className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
                 disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
                 onClick={generarBorrador}
               >
@@ -1357,7 +1357,7 @@ export default function ContratosPage() {
                   type="file"
                   accept="image/*,application/pdf"
                   onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-white"
+                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-crema"
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm">
@@ -1374,7 +1374,7 @@ export default function ContratosPage() {
             {progreso !== null && <p className="text-xs">{progreso}%</p>}
             <div className="space-x-2">
               <button
-                className="rounded bg-tinta px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                className="rounded bg-tinta px-3 py-1.5 text-sm text-crema disabled:opacity-50"
                 disabled={guardandoFirma}
                 onClick={guardarFirma}
               >
@@ -1397,7 +1397,7 @@ export default function ContratosPage() {
               onChange={(e) => setMotivoAnular(e.target.value)}
             />
             <div className="space-x-2">
-              <button className="rounded bg-rojo px-3 py-1.5 text-sm text-white" onClick={anular}>
+              <button className="rounded bg-rojo px-3 py-1.5 text-sm text-crema" onClick={anular}>
                 Confirmar anulación
               </button>
               <button className="text-sm" onClick={() => setAnulando(null)}>
@@ -1412,7 +1412,7 @@ export default function ContratosPage() {
           de ocho páginas, y buscarlos al final obliga a recorrerlo entero. */}
       {documentoAbierto && (
         <div className="mx-auto mt-6 flex max-w-3xl items-center gap-3 print:hidden">
-          <button className="rounded bg-tinta px-4 py-2 text-sm text-white" onClick={imprimir}>
+          <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={imprimir}>
             Imprimir / Guardar como PDF
           </button>
           <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>

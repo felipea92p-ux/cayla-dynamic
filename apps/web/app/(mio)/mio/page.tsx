@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
+import { SelectorTema } from "@/components/selector-tema";
 import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
@@ -110,6 +111,17 @@ interface Revision {
   respuesta: string | null;
 }
 
+/** Una petición suya de vacaciones. La escribe `fn_solicitar_vacaciones`. */
+interface SolicitudVacacion {
+  id: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  comentario: string | null;
+  estado: "pendiente" | "aprobada" | "rechazada" | "cancelada";
+  pedida_at: string;
+  respuesta: string | null;
+}
+
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre",
@@ -210,6 +222,15 @@ export default function MioPage() {
     dias_pendientes: number; records_sin_gozar: number; records_vencidos: number;
     vence_el: string | null; dias_para_vencer: number | null;
   } | null>(null);
+  const [solicitudesVacas, setSolicitudesVacas] = useState<SolicitudVacacion[]>([]);
+  // El rango del formulario de pedir vacaciones. Arranca en mañana y en un
+  // solo día — nunca en "": un campo de fecha que arranca vacío y bloquea el
+  // envío es justo el error que ya costó caro acá (ver CLAUDE.md, 2026-08-26).
+  const [desdeSolicitud, setDesdeSolicitud] = useState(corrimiento(1));
+  const [hastaSolicitud, setHastaSolicitud] = useState(corrimiento(1));
+  const [comentarioSolicitud, setComentarioSolicitud] = useState("");
+  const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
+  const [avisoSolicitud, setAvisoSolicitud] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [perdonadas, setPerdonadas] = useState<Set<string>>(new Set());
   const [tramos, setTramos] = useState<HorarioTramo[]>([]);
@@ -395,6 +416,49 @@ export default function MioPage() {
       });
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
+
+  // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
+  // por la misma razón que `vacas`: depende solo de quién es, no del rango de
+  // fechas que esté mirando en la cuadrícula del mes.
+  const cargarSolicitudesVacas = useCallback(async () => {
+    if (!yo?.id) { setSolicitudesVacas([]); return; }
+    const { data } = await supabase
+      .from("solicitudes_vacaciones")
+      .select("id, fecha_inicio, fecha_fin, comentario, estado, pedida_at, respuesta")
+      .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
+      .order("pedida_at", { ascending: false });
+    setSolicitudesVacas((data as SolicitudVacacion[]) ?? []);
+  }, [supabase, yo]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas]);
+
+  /** Pedir un rango de vacaciones. No dice si alcanza el saldo: eso lo decide
+   *  el servidor con el mismo cálculo que ya se le muestra arriba. */
+  async function pedirVacaciones(e: FormEvent) {
+    e.preventDefault();
+    setAvisoSolicitud(null);
+    setEnviandoSolicitud(true);
+    const { error } = await supabase.rpc("fn_solicitar_vacaciones", {
+      p_fecha_inicio: desdeSolicitud,
+      p_fecha_fin: hastaSolicitud,
+      p_comentario: comentarioSolicitud.trim() || null,
+    });
+    setEnviandoSolicitud(false);
+    if (error) { setAvisoSolicitud({ tipo: "error", texto: error.message }); return; }
+    setAvisoSolicitud({ tipo: "ok", texto: "Pedido. Te avisamos cuando Desarrollo Organizacional responda." });
+    setComentarioSolicitud("");
+    await cargarSolicitudesVacas();
+  }
+
+  /** Retirar una solicitud propia mientras siga pendiente. */
+  async function retirarSolicitudVacas(id: string) {
+    setEnviandoSolicitud(true);
+    const { error } = await supabase.rpc("fn_cancelar_solicitud_vacaciones", { p_id: id });
+    setEnviandoSolicitud(false);
+    if (error) { setAvisoSolicitud({ tipo: "error", texto: error.message }); return; }
+    await cargarSolicitudesVacas();
+  }
 
   /** El periodo de pago en curso, para el botón. Del 29 al 28 — leído, no calculado. */
   async function irAlPeriodoDePago() {
@@ -610,6 +674,7 @@ export default function MioPage() {
           )}
           <button onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
             className="text-xs text-taupe underline">Salir</button>
+          <SelectorTema />
         </div>
       </header>
 
@@ -925,7 +990,12 @@ export default function MioPage() {
               {objetivos.map((o) => (
                 <li key={o.id} className="flex items-start gap-2">
                   <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
-                  <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                  <div>
+                    <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
+                    {o.indicaciones && (
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-taupe">{o.indicaciones}</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -953,9 +1023,76 @@ export default function MioPage() {
               : "."}
           </p>
           <p className="mt-2 text-xs text-taupe">
-            Después de esa fecha esos días ya no se pueden tomar como descanso. Si quieres
-            programarlas, habla con tu encargada.
+            Después de esa fecha esos días ya no se pueden tomar como descanso. Pídelas abajo
+            antes de que llegue esa fecha.
           </p>
+        </section>
+      )}
+
+      {/* ── Pedir vacaciones ─────────────────────────────────────────────────
+          Solo si le aplican (`vacas` viene null cuando no aplica o no hay
+          sesión resuelta todavía). No dice si el saldo alcanza para el rango
+          elegido: eso lo decide `fn_solicitar_vacaciones` con el mismo cálculo
+          que ya se le mostró arriba, y su respuesta es la que se ve abajo. */}
+      {vacas && (
+        <section className="mb-6 rounded-2xl border border-sand p-5 text-sm">
+          <h2 className="mb-3 font-serif text-lg">Pedir vacaciones</h2>
+          <p className="mb-3 text-taupe">
+            Tienes <strong>{vacas.dias_pendientes} días</strong> pendientes. Elige el rango y avisa —tu
+            encargada no la aprueba, la aprueba Desarrollo Organizacional.
+          </p>
+          <form onSubmit={(e) => void pedirVacaciones(e)} className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-xs text-taupe">Desde
+              <input type="date" value={desdeSolicitud} min={hoyLima()} max={hastaSolicitud}
+                onChange={(e) => setDesdeSolicitud(e.target.value)}
+                className="rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm text-tinta" required />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-taupe">Hasta
+              <input type="date" value={hastaSolicitud} min={desdeSolicitud}
+                onChange={(e) => setHastaSolicitud(e.target.value)}
+                className="rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm text-tinta" required />
+            </label>
+            <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-taupe">Comentario (opcional)
+              <input type="text" value={comentarioSolicitud} onChange={(e) => setComentarioSolicitud(e.target.value)}
+                placeholder="Lo que quieras que sepa Desarrollo Organizacional"
+                className="rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm text-tinta" />
+            </label>
+            <button type="submit" disabled={enviandoSolicitud}
+              className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+              {enviandoSolicitud ? "Enviando…" : "Pedir"}
+            </button>
+          </form>
+          {avisoSolicitud && (
+            <p className={`mt-2 text-xs ${avisoSolicitud.tipo === "ok" ? "text-verde" : "text-rojo"}`}>
+              {avisoSolicitud.texto}
+            </p>
+          )}
+
+          {solicitudesVacas.length > 0 && (
+            <ul className="mt-4 space-y-2 border-t border-sand pt-3">
+              {solicitudesVacas.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span>
+                    {diaYMes(s.fecha_inicio)}{s.fecha_fin !== s.fecha_inicio ? ` – ${diaYMes(s.fecha_fin)}` : ""}
+                    {" · "}
+                    <span className={
+                      s.estado === "aprobada" ? "text-verde"
+                      : s.estado === "rechazada" ? "text-rojo"
+                      : s.estado === "cancelada" ? "text-taupe"
+                      : "text-ambar"
+                    }>
+                      {s.estado === "pendiente" ? "por resolver" : s.estado}
+                    </span>
+                    {s.respuesta && <span className="text-taupe"> — «{s.respuesta}»</span>}
+                  </span>
+                  {s.estado === "pendiente" && (
+                    <button onClick={() => void retirarSolicitudVacas(s.id)} disabled={enviandoSolicitud}
+                      className="text-taupe underline disabled:opacity-50">retirar</button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

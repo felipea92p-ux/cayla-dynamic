@@ -37,6 +37,31 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-31 — Texto de apoyo por objetivo del mes (0335) · PEGADA Y VERIFICADA
+
+Felipe pidió poder dejar, en cada objetivo del checklist mensual (0032), unas
+indicaciones más completas además de la descripción corta — el detalle que
+ayuda a la integrante a entender qué se espera exactamente. Se gestionan en
+`/admin/objetivos` (agregar y editar) y se muestran a la propia persona en
+`/mio`. No pagan nada, igual que el resto del checklist desde la 0171.
+
+**La auditoría empírica de la migración encontró la misma clase de bug que
+rompió el aviso de vacaciones el 2026-08-25 (0297/0299):** `create or replace
+function` con un parámetro nuevo por defecto **no reemplaza** la función
+vieja — crea una segunda sobrecarga, y la llamada con el número de argumentos
+original queda ambigua (`function ... is not unique`). Pasaba con
+`fn_objetivo_agregar` y `fn_objetivo_editar`, que ganaron un quinto y tercer
+parámetro respectivamente. Se corrigió con `drop function` explícito antes de
+recrearlas, con sus grants. Lo cazó correr la migración contra Postgres local
+con datos reales — la misma auditoría que este archivo pide siempre antes de
+entregar SQL que toca algo que alguien usa.
+
+PR [#137](https://github.com/felipea92p-ux/cayla-dynamic/pull/137) fusionado,
+desplegado a producción por el merge automático de Vercel sobre `main`, y
+Felipe confirmó que funciona.
+
+---
+
 ## 2026-08-31 — La comisión mixta deja de cobrarse como flujo (0328/0331) · PEGADA Y VERIFICADA
 
 El contador encontró que se le retenía a casi todo el equipo la comisión de
@@ -59,11 +84,31 @@ Ramírez, Carmen Sanándres y Felipe Alvarez (él mismo)— con su sede inferida
 por descarte, sin confirmar por consulta (no llegó a hacer falta: ya están
 pagadas). Tema cerrado.
 
-**Nota de esta rama (Contratos/Practicantes): el hueco de numeración 0329/0330
-que este bloque avisaba ya está explicado** — no fue un pegado sin archivo:
-0332 quedó tomado por otra rama en paralelo y esta rama saltó directo a la
-0333 (`el_generador_de_contratos_hace_convenios_de_practicas`), confirmado con
-`./scripts/siguiente-numero.sh` antes de escribirla.
+**El hueco de numeración 0329/0330 que avisó el push, ya resuelto.** Las dos
+existían — escritas y commiteadas, pero cada una en una rama de otra sesión
+concurrente, sin fusionar a `main`:
+
+- **0329** (el estimado de planilla se consulta por persona) ya estaba
+  fusionada (PR #129) cuando se miró; nada que hacer.
+- **0330** (una persona pide sus vacaciones, DO aprueba o rechaza) vivía
+  **solo en este Mac**, sin subir a GitHub — el patrón de la 0177, a tiempo.
+  Felipe confirmó que SÍ está aplicada en producción
+  (`migraciones_aplicadas` trae la fila 330). Se respaldó la rama, se abrió
+  el PR #130 y se fusionó: el repo vuelve a coincidir con lo que corre en
+  producción. No se pegó SQL nuevo — ya estaba pegado.
+
+De paso, al revisar la 0331 se encontró y confirmó inofensivo el PR #123:
+un caso límite en CI (la base de pruebas arranca sin ningún
+`periodos_planilla`, cosa que no pasa en producción). No afecta nada de lo
+ya pegado ni de lo ya pagado arriba.
+
+**Nota de la rama Contratos/Practicantes: el hueco 0333/0334 también está
+explicado**, mismo patrón — no un pegado sin archivo: 0332 quedó tomado por
+otra rama en paralelo y esta rama saltó directo a la 0333
+(`el_generador_de_contratos_hace_convenios_de_practicas`), confirmado con
+`./scripts/siguiente-numero.sh` antes de escribirla y revisado por otra
+sesión (`liquidacion-paola-fin-mes-aab080`) contra todo `main` antes de
+fusionar.
 
 ---
 

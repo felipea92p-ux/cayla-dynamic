@@ -10,6 +10,7 @@ export interface ObjetivoItem {
   id: string;
   persona_id: string;
   descripcion: string;
+  indicaciones: string | null;
   cumplido: boolean;
   orden: number;
 }

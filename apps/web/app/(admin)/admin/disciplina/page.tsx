@@ -994,7 +994,7 @@ function fechasDe(h: Hecho[]): string {
                 hoy era imposible. Las dos advertencias que lo acotan no las
                 puede decidir el código, así que se dicen acá. */}
             {mesTard !== primeroDeMesLima() && (
-              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <p className="mt-2 rounded-lg bg-ambar/10 px-3 py-2 text-xs text-ambar">
                 Estás mirando un <strong>mes ya cerrado</strong>. El numeral 19.4 permite emitir el
                 documento por hechos de un mes concluido, pero el art. 52 dice que una demora
                 injustificada equivale a condonación — y un hecho condonado no sustenta sanción ni
@@ -1020,7 +1020,7 @@ function fechasDe(h: Hecho[]): string {
                   <span>
                     <strong>{t.nombre}</strong> <span className="text-taupe">· {t.sede}</span>
                     {t.tardanzas_mes > 0 && (
-                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "aviso" ? "bg-amber-100 text-amber-800" : "bg-rojo/10 text-rojo"}`}>
+                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${t.umbral === "aviso" ? "bg-ambar/15 text-ambar" : "bg-rojo/10 text-rojo"}`}>
                         {t.tardanzas_mes}
                         {t.umbral === "aviso"
                           ? ` de ${t.minimo} en ${nombreDelMesLima(mesTard)} · aviso`
@@ -1086,7 +1086,7 @@ function fechasDe(h: Hecho[]): string {
                 <li key={f.persona_id} id={`falta-${f.persona_id}`} className={`flex flex-wrap items-center justify-between gap-3 scroll-mt-24 px-4 py-3 text-sm transition-colors ${resaltado === `falta-${f.persona_id}` ? "bg-rojo/10" : ""}`}>
                   <span>
                     <strong>{f.nombre}</strong> <span className="text-taupe">· {f.sede}</span>
-                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${f.nivel === "rojo" ? "bg-rojo/10 text-rojo" : "bg-amber-100 text-amber-800"}`}>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${f.nivel === "rojo" ? "bg-rojo/10 text-rojo" : "bg-ambar/15 text-ambar"}`}>
                       {f.consecutivas} consec · {f.en_30} en 30d · {f.en_180} en 180d
                     </span>
                   </span>

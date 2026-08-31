@@ -1063,7 +1063,7 @@ export default function EquipoPage() {
             value={form.tipoVinculo}
             onChange={(e) => setForm({ ...form, tipoVinculo: e.target.value })}
             disabled={modo === "edicion" && !funcionesOk}
-            className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+            className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
           >
             <option value="planilla">Planilla — contrato de trabajo</option>
             <option value="prueba">Prueba — días de prueba, aún sin contrato</option>
@@ -1098,7 +1098,7 @@ export default function EquipoPage() {
             value={form.practicanteModalidad}
             onChange={(e) => setForm({ ...form, practicanteModalidad: e.target.value })}
             disabled={modo === "edicion" && !funcionesOk}
-            className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+            className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
           >
             <option value="">Sin definir todavía</option>
             <option value="preprofesional">Preprofesional — estudiante, máx. 30h/semana</option>
@@ -1132,7 +1132,7 @@ export default function EquipoPage() {
               value={form.retencion4ta}
               onChange={(e) => setForm({ ...form, retencion4ta: e.target.value })}
               disabled={modo === "edicion" && !retencionesOk}
-              className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+              className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
             >
               <option value="">No retenerle</option>
               <option value="automatica">Automática — 8 % solo si el recibo pasa de S/1,500</option>
@@ -1153,7 +1153,7 @@ export default function EquipoPage() {
               value={form.constancia4ta}
               onChange={(e) => setForm({ ...form, constancia4ta: e.target.value })}
               disabled={modo === "edicion" && !retencionesOk}
-              className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+              className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
             />
             <span className="text-xs text-taupe">
               Su constancia del Formulario Virtual 1609. Mientras esté vigente NO se le
@@ -1227,11 +1227,11 @@ export default function EquipoPage() {
           Base declarada (S/)
           <input type="number" min="0" step="10" value={salForm.salario}
             onChange={(e) => setSalForm({ ...salForm, salario: e.target.value })}
-            className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-amber-400" : ""}`} />
+            className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-ambar" : ""}`} />
           {/* Lo que va al PLAME y lo que el sistema paga. Se puede pisar cuando se
               acordó otra cosa; el aviso deja constancia de que fue deliberado. */}
           {fueraDeLaBase && (
-            <span className="text-[11px] text-amber-800">
+            <span className="text-[11px] text-ambar">
               Fuera de la base del rango: {RANGO_LABEL[salForm.rango] ?? salForm.rango} declara{" "}
               {formatSoles(baseDeclaradaDe(salForm.rango) ?? 0)}. Convendría escribir el motivo abajo.
             </span>
@@ -1308,7 +1308,7 @@ export default function EquipoPage() {
             ))}
           </select>
           {ceseForm.motivo === "despido" && (
-            <span className="text-[11px] text-amber-800">
+            <span className="text-[11px] text-ambar">
               Un despido exige carta de preaviso, seis días de descargo y carta de despido (D.S. 003-97-TR).
               Si el contrato simplemente llegó a su fecha, el motivo es «terminó su contrato»: eso no exige
               ninguno de esos papeles.
