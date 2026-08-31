@@ -274,6 +274,36 @@ Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados,
 `simIni` en `planilla`, que solo afecta a una simulación—; la deuda vieja se
 paga en su lote y no a costa de que el freno mienta.
 
+Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los nueve
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos nueve
+nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
+oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
+Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
+así que al construir el modo oscuro esos sitios se quedaban como un parche
+claro pegado en medio de una pantalla ya oscura.
+
+Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
+de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de
+la base") y un par de tarjetas (`bg-white`). Dos de esos sitios no eran un
+descuido sino que corrigieron algo peor, y por eso importa distinguir un color
+suelto de un color que solo PARECE suelto: cuatro botones de
+`admin/contratos/page.tsx` tenían `bg-tinta` con `text-white` en vez de
+`text-crema` —`bg-tinta` se aclara en oscuro, así que el texto blanco fijo se
+habría vuelto ilegible sobre un botón que dejó de ser oscuro— y cuatro
+overlays de modal (buscador, atajos, acuses pendientes, cerrar el día en
+`admin/horas`) usaban `bg-tinta/NN` como scrim: en oscuro eso ACLARA el fondo
+en vez de oscurecerlo, lo contrario de lo que un scrim tiene que hacer. Esos
+pasan a `bg-black/NN`, que sí oscurece en los dos temas — el criterio que ya
+usaban los modales de turnos, incidencias, horarios y correcciones.
+
+Y la excepción, deliberada y no un hueco: los documentos que se imprimen y se
+firman —boleta, contrato, memo disciplinario, política salarial, la vista
+previa "así se verá en el memo" de una firma— se quedan con `bg-white` o sus
+propios colores fijos A PROPÓSITO, en pantalla y en papel, sin importar el
+tema. Un documento firmado tiene que leerse igual dentro de dos años, en un
+tema que para entonces puede que ni exista.
+
 ```bash
 npx pnpm install
 npx pnpm dev          # levanta todo
