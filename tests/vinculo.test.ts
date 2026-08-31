@@ -82,6 +82,19 @@ describe("leCorrespondeCuspp — tres descartes por tres razones distintas", () 
     expect(leCorrespondeCuspp(true, "habitat")).toBe(true);
   });
 
+  // CAMBIO 0328 · los cuatro códigos de comisión mixta son la MISMA AFP con otro
+  // esquema de cobro, no otro sistema previsional: la cuenta individual existe
+  // igual y el CUSPP la identifica igual. Se comprueba porque la función mira el
+  // código como texto, así que un sufijo nuevo es justo la forma en que podría
+  // dejar de reconocerlos — y dejar de pedir el CUSPP no falla en ninguna
+  // pantalla, falla en la PLAME.
+  it("y a quien está en la misma AFP con comisión mixta, también", () => {
+    expect(leCorrespondeCuspp(true, "integra_mixta")).toBe(true);
+    expect(leCorrespondeCuspp(true, "profuturo_mixta")).toBe(true);
+    expect(leCorrespondeCuspp(true, "prima_mixta")).toBe(true);
+    expect(leCorrespondeCuspp(true, "habitat_mixta")).toBe(true);
+  });
+
   it("a una locadora NO, aunque tenga una AFP cargada", () => {
     // El caso real de Catherine y Claudia: régimen puesto y vínculo por
     // honorarios. Que tengan AFP no la convierte en asunto de CAYLA.

@@ -22,6 +22,7 @@ import {
   TZ_LIMA,
   esPrestadorDeServicios,
   nombreDelDocumentoDePago,
+  nombreRegimenPension,
   puedeVerPlanilla,
 } from "@cayla-dynamic/shared";
 
@@ -809,11 +810,15 @@ function BoletaContenido() {
               <tr className="border-t border-sand">
                 <td className="py-2 text-rojo">
                   Descuento —{" "}
-                  {f.regimen_pension === "onp"
-                    ? "ONP"
-                    : f.regimen_pension
-                      ? `AFP ${f.regimen_pension.charAt(0).toUpperCase()}${f.regimen_pension.slice(1)}`
-                      : "Pensión"}
+                  {/* CAMBIO 0328 · el nombre se pide a `shared`. Armarlo aquí con
+                      charAt(0).toUpperCase() alcanzaba mientras hubo un solo
+                      código por AFP; con `integra_mixta` imprimía «AFP
+                      Integra_mixta» en el documento que la persona firma. Y el
+                      esquema de comisión importa justo en esta línea: es lo que
+                      permite cotejar la boleta contra el estado de cuenta de la
+                      AFP, que es donde el error de la 0114 se habría visto un
+                      año antes. */}
+                  {nombreRegimenPension(f.regimen_pension) ?? "Pensión"}
                   {f.tasa_afp ? ` (${(f.tasa_afp * 100).toFixed(2)}%)` : ""}
                   {/* CAMBIO del 2026-08-19 · antes decía «va a tu fondo de
                       pensión». De ese porcentaje solo el 10 % entra a la cuenta
