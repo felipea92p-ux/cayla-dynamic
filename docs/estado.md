@@ -37,6 +37,36 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-31 — La comisión mixta deja de cobrarse como flujo (0328/0331) · PEGADA Y VERIFICADA
+
+El contador encontró que se le retenía a casi todo el equipo la comisión de
+AFP **sobre flujo** (12.84%–13.06%) cuando, por afiliarse al SPP desde 2013,
+están en **comisión mixta** — 0% sobre el sueldo desde feb-2023 (Ley 29903).
+Correspondía 11.37% (10% aporte + 1.37% prima). La 0114 lo había dejado
+anotado como no modelado; quedó sin hacer.
+
+**0328** agrega las cuatro tasas `_mixta`. **0331** reasigna a las 19/20
+personas que estaban en flujo, con efecto desde el 29/07/2026 — no toca
+ningún periodo ya pagado. Las dos, pegadas y verificadas en producción:
+`queda_alguien_en_flujo = 0`.
+
+**Lo retenido de más en el único periodo pagado con diferencia (29/07–28/08):
+S/304.47, 18 personas.** No se devuelve por planilla — el contador dijo que
+"devolución AFP" no tiene concepto en la PLAME — Felipe lo transfiere directo,
+por fuera, sede por sede. Confirmado y pagado: **TRU (9, S/157.54)** y
+**AQP (5, S/68.70)**. Quedan 4 —Joselyn Gavilan, Lizzelott Ramírez, Carmen
+Sanándres y Felipe Alvarez (él mismo)— con su monto ya calculado pero **su
+sede sin confirmar por consulta** (se infirió CCO/LIM por descarte, no se
+verificó). Antes de cerrar esto del todo, correr
+`scripts/sql-manual/afp_retenido_de_mas_por_sede.sql` con `sede in ('CCO','LIM')`.
+
+**Pendiente aparte, sin relación con esto:** el push de hoy avisó un hueco de
+numeración sin explicar, **0329 y 0330** (0328 y 0331 sí existen). Puede ser
+algo aplicado en producción sin archivo en el repo — el patrón de la 0177.
+Revisar con `./scripts/que-falta-pegar.sh` antes de asumir que no es nada.
+
+---
+
 ## 2026-08-29 — Se crea la categoría practicante (0322) · PEGADA Y VERIFICADA
 
 `personas.tipo_vinculo` gana un quinto valor: **`'practicante'`**, para dar de
