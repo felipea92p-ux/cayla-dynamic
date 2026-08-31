@@ -22,6 +22,9 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -620,9 +623,9 @@ export default function AusenciasPage() {
           )}
 
           <div className="flex items-end gap-3 sm:col-span-2">
-            <button onClick={registrar} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+            <Boton variante="primario" onClick={registrar} disabled={guardando}>
               {guardando ? "Guardando…" : "Registrar ausencia"}
-            </button>
+            </Boton>
             {tipoSel && (
               <span className="text-xs text-taupe">
                 {tipoSel.paga
@@ -652,19 +655,16 @@ export default function AusenciasPage() {
             No hay ausencias registradas en ese rango de fechas.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-sand">
-            <table className="w-full text-sm">
-              <thead className="bg-sand/70 text-left text-taupe">
-                <tr>
-                  <th className="px-4 py-2 font-normal">Persona</th>
-                  <th className="px-4 py-2 font-normal">Tipo</th>
-                  <th className="px-4 py-2 font-normal">Fechas</th>
-                  <th className="px-4 py-2 text-right font-normal">Días</th>
-                  <th className="px-4 py-2 font-normal">Estado</th>
-                  <th className="px-4 py-2 font-normal">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Tabla>
+            <TablaEncabezado>
+              <Th>Persona</Th>
+              <Th>Tipo</Th>
+              <Th>Fechas</Th>
+              <Th className="text-right">Días</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </TablaEncabezado>
+            <tbody>
                 {lista.map((a) => (
                   <tr key={a.id} className={`border-t bg-papel ${a.anulada ? "text-taupe/60" : ""}`}>
                     <td className="px-4 py-2">
@@ -673,7 +673,7 @@ export default function AusenciasPage() {
                     </td>
                     <td className="px-4 py-2">
                       {a.tipo_nombre}
-                      {a.paga && <span className="ml-1.5 rounded-full bg-sand px-2 py-0.5 text-xs">se paga</span>}
+                      {a.paga && <Insignia className="ml-1.5">se paga</Insignia>}
                       {a.motivo && <div className="text-xs text-taupe">{a.motivo}</div>}
                       {a.doc_colegiatura && (
                         <div className="text-xs text-taupe">
@@ -694,32 +694,30 @@ export default function AusenciasPage() {
                     <td className="px-4 py-2">
                       {a.anulada ? (
                         <>
-                          <span className="rounded-full bg-sand px-2 py-0.5 text-xs">anulada</span>
+                          <Insignia>anulada</Insignia>
                           <div className="text-xs text-taupe">{a.anulada_motivo}</div>
                           {/* El papel sigue existiendo aunque la ausencia se
                               haya anulado, y a veces es justo lo que hay que
                               mirar para entender por qué se anuló. */}
                           {certificados[a.id] && (
-                            <button onClick={() => void verCertificado(a)} className="mt-1 rounded border px-2 py-0.5 text-xs hover:bg-sand/50">
+                            <Boton variante="secundario" tamano="sm" className="mt-1" onClick={() => void verCertificado(a)}>
                               Ver documento
-                            </button>
+                            </Boton>
                           )}
                         </>
                       ) : a.requiere_aprobacion && !a.aprobada ? (
-                        <span className="rounded-full bg-ambar/20 px-2 py-0.5 text-xs text-ambar">
-                          pendiente de aprobar
-                        </span>
+                        <Insignia variante="advertencia">pendiente de aprobar</Insignia>
                       ) : (
-                        <span className="rounded-full bg-sand px-2 py-0.5 text-xs">vigente</span>
+                        <Insignia>vigente</Insignia>
                       )}
                     </td>
                     <td className="px-4 py-2">
                       {!a.anulada && (
                         <div className="flex flex-wrap gap-2 text-xs">
                           {certificados[a.id] ? (
-                            <button onClick={() => void verCertificado(a)} className="rounded border px-2 py-1 hover:bg-sand/50">
+                            <Boton variante="secundario" tamano="sm" onClick={() => void verCertificado(a)}>
                               Ver documento
-                            </button>
+                            </Boton>
                           ) : a.doc_colegiatura ? (
                             // `doc_colegiatura` y no una lista de tipos escrita
                             // acá: solo el descanso médico y la maternidad
@@ -741,21 +739,20 @@ export default function AusenciasPage() {
                             </label>
                           ) : null}
                           {esDO && a.requiere_aprobacion && !a.aprobada && (
-                            <button onClick={() => void aprobar(a)} disabled={guardando} className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-50">
+                            <Boton variante="secundario" tamano="sm" onClick={() => void aprobar(a)} disabled={guardando}>
                               Aprobar
-                            </button>
+                            </Boton>
                           )}
-                          <button onClick={() => void anular(a)} disabled={guardando} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10 disabled:opacity-50">
+                          <Boton variante="peligro" tamano="sm" onClick={() => void anular(a)} disabled={guardando}>
                             Anular
-                          </button>
+                          </Boton>
                         </div>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+          </Tabla>
         )}
 
         <p className="mt-4 max-w-3xl text-xs text-taupe">
