@@ -981,6 +981,32 @@ export function documentoDesdeGuardado(guardado: string): Documento | null {
   }
 }
 
+/**
+ * ¿El documento que se publicaría HOY dice algo distinto al que ya está
+ * publicado? Compara todo salvo `fecha`, que siempre difiere sin que eso
+ * signifique nada.
+ *
+ * Existe porque `fn_cuadro_categorias()` —y por lo tanto la huella que se
+ * guarda al publicar— incluye datos que el documento nunca muestra: cuántas
+ * personas hay hoy en cada categoría y el rango real de sueldos de quien ya
+ * está en planilla. Esos dos son el respaldo de `remuneracion()` para cuando
+ * no hay monto declarado (ver esa función arriba), pero cuando SÍ lo hay —el
+ * caso normal— no aparecen en ningún lado del papel. Una alta, una baja o un
+ * cambio de categoría mueve esos números y, con ellos, la huella, sin que una
+ * sola palabra del documento cambie. Pedirle a todo el equipo que vuelva a
+ * dejar constancia de un texto idéntico no prueba nada nuevo: solo entrena a
+ * la gente a aceptar sin leer.
+ *
+ * Comparar el DOCUMENTO —lo que en verdad se lee y se firma— en vez del
+ * `Cuadro` crudo es además la forma consistente con el resto de este archivo:
+ * un solo camino (`construirDocumento`) decide qué es cierto, y acá se compara
+ * su salida consigo misma en dos momentos, no una réplica de su lógica.
+ */
+export function documentoTieneCambios(actual: Documento, publicado: Documento): boolean {
+  const sinFecha = (d: Documento) => JSON.stringify({ ...d, fecha: undefined });
+  return sinFecha(actual) !== sinFecha(publicado);
+}
+
 export function documentoATexto(doc: Documento): string {
   const out: string[] = [];
   out.push(doc.titulo.toUpperCase());

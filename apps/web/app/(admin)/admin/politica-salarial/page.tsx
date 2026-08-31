@@ -13,6 +13,7 @@ import {
   construirDocumento,
   documentoAJson,
   documentoDesdeGuardado,
+  documentoTieneCambios,
   type Bloque,
   type Cuadro,
   type Documento,
@@ -42,6 +43,14 @@ interface Vigente {
   version?: number;
   documento?: string;
   publicada_at?: string;
+  /**
+   * La huella cruda de `fn_politica_salarial_vigente`: compara TODO el cuadro,
+   * personas y rangos internos incluidos. Se usa solo como respaldo para una
+   * versión publicada antes de que el documento se guardara como JSON (texto
+   * plano, sin estructura que comparar) — para todo lo demás manda
+   * `documentoTieneCambios`, más abajo, que compara lo que el papel dice de
+   * verdad y no lo que la base guarda por dentro.
+   */
   desactualizada: boolean;
   mi_acuse: { acusado_at: string; nombre: string } | null;
   total_personas?: number;
@@ -259,6 +268,26 @@ export default function PoliticaSalarialPage() {
     [cuadro],
   );
 
+  // El documento tal como quedó congelado en la última versión publicada, si
+  // se pudo parsear como JSON (documentoDesdeGuardado devuelve null para las
+  // versiones viejas guardadas como texto plano).
+  const publicadoDoc: Documento | null = useMemo(
+    () => (vigente?.documento ? documentoDesdeGuardado(vigente.documento) : null),
+    [vigente],
+  );
+
+  // Si lo que se publicaría hoy dice lo mismo que lo ya publicado, no hace
+  // falta pedirle al equipo que vuelva a acusar recibo de un texto idéntico —
+  // aunque la huella cruda del servidor haya cambiado por algo que el
+  // documento no muestra (ver documentoTieneCambios). Para una versión vieja
+  // sin JSON que comparar, se usa esa huella cruda como respaldo.
+  const desactualizada = useMemo(() => {
+    if (vigente === null || !vigente.publicada) return false;
+    if (docVivo === null) return false;
+    if (publicadoDoc === null) return vigente.desactualizada;
+    return documentoTieneCambios(docVivo, publicadoDoc);
+  }, [vigente, docVivo, publicadoDoc]);
+
   const publicar = async () => {
     if (docVivo === null) return;
     setGuardando(true);
@@ -396,7 +425,7 @@ export default function PoliticaSalarialPage() {
                     hoja de constancias
                   </a>
                 </p>
-                {vigente.desactualizada && (
+                {desactualizada && (
                   <p className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                     El cuadro cambió después de publicar: alguna categoría, remuneración o tarifa
                     ya no coincide con el documento que el equipo recibió. Publica una versión
@@ -409,7 +438,7 @@ export default function PoliticaSalarialPage() {
                   disabled={guardando}
                   className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
-                  {vigente.desactualizada ? "Publicar versión nueva" : "Volver a publicar"}
+                  {desactualizada ? "Publicar versión nueva" : "Volver a publicar"}
                 </button>
               </>
             )}
@@ -417,7 +446,7 @@ export default function PoliticaSalarialPage() {
         )}
 
         {/* ── El documento ── */}
-        {vigente !== null && vigente.publicada && !vigente.desactualizada ? (
+        {vigente !== null && vigente.publicada && !desactualizada ? (
           // Lo publicado, tal cual se comunicó. NO se regenera desde las tablas:
           // si se regenerara, cambiar una banda haría que las constancias
           // apuntaran a un texto que nadie leyó.
@@ -428,19 +457,15 @@ export default function PoliticaSalarialPage() {
           // versiones anteriores se guardaron como texto plano: para esas,
           // `documentoDesdeGuardado` devuelve null y se muestran tal cual — se
           // ven peor, pero son las que la gente firmó y no se tocan.
-          (() => {
-            const publicado = documentoDesdeGuardado(vigente.documento ?? "");
-            if (publicado === null) {
-              return (
-                <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
-                  <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
-                    {vigente.documento}
-                  </pre>
-                </article>
-              );
-            }
-            return <DocumentoVista doc={publicado} firmaUrl={esFirmante ? firmaUrl : null} />;
-          })()
+          publicadoDoc !== null ? (
+            <DocumentoVista doc={publicadoDoc} firmaUrl={esFirmante ? firmaUrl : null} />
+          ) : (
+            <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
+              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
+                {vigente.documento}
+              </pre>
+            </article>
+          )
         ) : (
           docVivo !== null && (
             <DocumentoVista doc={docVivo} firmaUrl={esFirmante ? firmaUrl : null} />
