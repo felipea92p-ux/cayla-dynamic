@@ -100,7 +100,7 @@ export const VINCULOS_DERECHOHABIENTE = [
 export type VinculoDerechohabiente = (typeof VINCULOS_DERECHOHABIENTE)[number];
 
 /**
- * Regímenes pensionarios cargados en `tasas_pension` (migración 0114).
+ * Regímenes pensionarios cargados en `tasas_pension` (migraciones 0114 y 0328).
  *
  * Esta lista es solo para PINTAR el desplegable. La verdad vive en la tabla, y
  * `fn_cambiar_regimen_pension` valida contra ella — así que si mañana entra una
@@ -113,9 +113,30 @@ export type VinculoDerechohabiente = (typeof VINCULOS_DERECHOHABIENTE)[number];
  */
 export const REGIMENES_PENSION = [
   "onp",
+  // ⇩ CAMBIO 0328 ⇩ CADA AFP APARECE DOS VECES, Y ES A PROPÓSITO.
+  //
+  // La ley reconoce dos esquemas de comisión y cobran distinto:
+  //
+  //   comisión MIXTA  · 0 % sobre el sueldo desde febrero de 2023. La AFP cobra
+  //     su comisión contra el saldo del fondo, no por la boleta. Se retiene
+  //     11.37 % (10 % de aporte + 1.37 % de prima), igual en las cuatro.
+  //   comisión SOBRE FLUJO · la AFP cobra su comisión del sueldo. Se retiene
+  //     entre 12.84 % y 13.06 % según la AFP.
+  //
+  // La mixta va PRIMERA en cada par porque es el caso normal: quien se afilió
+  // al SPP desde 2013 está en mixta obligatoriamente (Ley 29903), y en flujo
+  // solo siguen quienes ya estaban afiliados antes y pidieron quedarse.
+  //
+  // Hasta la 0328 solo existía el esquema de flujo, así que a quien estaba en
+  // mixta se le retenía cada mes una comisión que su AFP no le cobra. Lo
+  // encontró el contador el 2026-08-31.
+  "profuturo_mixta",
   "profuturo",
+  "prima_mixta",
   "prima",
+  "integra_mixta",
   "integra",
+  "habitat_mixta",
   "habitat",
   // Ya percibe pensión de jubilación, así que NO aporta (0190). Va en la lista
   // a propósito: si no se pudiera elegir, la única forma de expresarlo sería
