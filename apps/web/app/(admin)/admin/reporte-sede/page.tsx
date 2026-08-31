@@ -10,7 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 
@@ -193,7 +193,7 @@ function ReporteSedeContenido() {
         nombre: `${p.nombres} ${p.apellidos}`,
         estadoHoy: hoyJ?.estado ?? "sin_marcar",
         esOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
-        esEncargada: p.rol === "supervisor_sede" || Boolean(f?.enc),
+        esEncargada: esRolEncargada(p.rol) || Boolean(f?.enc),
         dias: reales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length,
         horas: js.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0),
         tardanzas: js.filter((j) => (j.minutos_tarde ?? 0) > 0).length,

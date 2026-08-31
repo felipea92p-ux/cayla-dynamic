@@ -90,6 +90,18 @@ export function puedeOperarEquipo(rol: RolPosible): boolean {
   return tiene(DO_Y_ENCARGADA, rol);
 }
 
+/** Solo la encargada de sede — no DO. Ver `esRolEncargada` más abajo. */
+const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
+
+/**
+ * Es el rol de encargada de sede — no si hoy actúa como tal en una pantalla
+ * (eso puede sumar una marca local, `es_encargada_piso`), sino si el rol en
+ * base es ese. Para esa pregunta puntual, no la de permiso.
+ */
+export function esRolEncargada(rol: RolPosible): boolean {
+  return tiene(SOLO_ENCARGADA, rol);
+}
+
 /**
  * ALCANCE, no permiso: quién ve las cuatro sedes y quién solo la suya.
  *

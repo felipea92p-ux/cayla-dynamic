@@ -12,7 +12,7 @@ import { useToast } from "@/components/toast";
 import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
 
-function hoyLima(): { anio: number; mes: number } {
+function mesActualLima(): { anio: number; mes: number } {
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
   return { anio: Number(f.slice(0, 4)), mes: Number(f.slice(5, 7)) };
 }
@@ -35,7 +35,7 @@ function ObjetivosContenido() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const hoy = useMemo(hoyLima, []);
+  const hoy = useMemo(() => mesActualLima(), []);
   const { avisar } = useToast();
 
   // Enlace directo: /admin/objetivos?persona=<uuid>&anio=2026&mes=9 llega con

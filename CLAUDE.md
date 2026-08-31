@@ -244,11 +244,11 @@ Y una cuarta, de agosto de 2026: **«qué le tocaba trabajar ese día» se pregu
 cascada *turno del día → `horario_por_dia` → `dias_laborables`* que espeja
 `fn_recalcular_jornada`, con sus pruebas en `tests/jornada-esperada.test.ts`.
 Vive en `apps/web/lib` y no en `packages/shared` porque hoy solo la usa el panel;
-el día que la necesite el terminal, se muda. Hubo una copia más vieja y parcial
-—solo la hora de entrada, y con un bug real: su rama legacy no comprobaba
-`dias_laborables`— en `admin/correcciones/page.tsx` (`calcularEsperado`);
-se unificó el 2026-08-25. **Quedan otras dos sin unificar**
-—`admin/incidencias/page.tsx` (`trabajaEseDia`) y `admin/turnos/page.tsx`
+el día que la necesite el terminal, se muda. Hubo dos copias más viejas y
+parciales: en `admin/correcciones/page.tsx` (`calcularEsperado`), solo la hora
+de entrada y con un bug real —su rama legacy no comprobaba `dias_laborables`—,
+y en `admin/incidencias/page.tsx` (`trabajaEseDia`), solo booleano. Las dos se
+unificaron el 2026-08-25. **Queda una sin unificar** —`admin/turnos/page.tsx`
 (`horasDeTramo`, `celda`)— **y mientras tanto no se escribe una quinta.** Esa
 regla decide si a alguien se le cuenta una falta.
 
@@ -460,6 +460,7 @@ art. 19 e) y f).
 |---|---|
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
 | `cerrar-el-mes-sin-pagar-dos-veces.md` | El día 28, al cerrar la planilla: qué avisa el sistema cuando alguien cesó a mitad de mes y ya cobró su liquidación, y qué apretar. |
+| `prueba-restauracion-backup.md` | Cómo comprobar, con `scripts/probar-restauracion-backup.sh`, que el respaldo de producción se puede restaurar de verdad — no solo que existe. |
 | `terminales-mac-mini.md` | Manual para dejar la Mac mini de una sede como terminal. |
 | `trabajar-en-dos-maquinas.md` | Ir y venir entre MacBook y Mac mini sin perder trabajo. |
 | `disciplina-tardanzas-faltas/` | Marco legal peruano, plantillas de cartas, RIT. El `09` es el que se usa el día que alguien presenta un descargo. |
