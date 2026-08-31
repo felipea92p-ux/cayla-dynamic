@@ -7,13 +7,17 @@
 import type { ButtonHTMLAttributes } from "react";
 import { cx } from "./cx";
 
-type Variante = "primario" | "secundario" | "peligro" | "enlace";
+type Variante = "primario" | "secundario" | "peligro" | "sutil" | "enlace";
 type Tamano = "sm" | "md";
 
 const CHROME: Record<Variante, string> = {
   primario: "rounded-lg bg-tinta text-crema hover:bg-rojo-profundo",
   secundario: "rounded-lg border hover:bg-sand/50",
   peligro: "rounded-lg border border-rojo/30 text-rojo hover:bg-rojo/10",
+  // Para acciones de bajo énfasis (marcar/desmarcar, agregar una fila, ver un
+  // documento): a diferencia de "secundario" no rellena el fondo al pasar el
+  // mouse, solo oscurece el texto.
+  sutil: "rounded-lg border border-sand text-taupe hover:text-tinta",
   enlace: "underline underline-offset-2 hover:text-taupe",
 };
 
