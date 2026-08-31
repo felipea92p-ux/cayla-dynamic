@@ -610,10 +610,10 @@ export default function DatosPersonalesPage() {
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-taupe">
           {label}
-          {esAntiguo && <span className="ml-1 text-[11px] text-amber-700">· valor antiguo, elige uno de la lista</span>}
+          {esAntiguo && <span className="ml-1 text-[11px] text-ambar">· valor antiguo, elige uno de la lista</span>}
         </span>
         <select value={actual} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className={`rounded-lg border bg-crema px-3 py-2 ${esAntiguo ? "border-amber-400" : ""}`}>
+          className={`rounded-lg border bg-crema px-3 py-2 ${esAntiguo ? "border-ambar" : ""}`}>
           <option value="">—</option>
           {esAntiguo && <option value={actual}>{actual} (como estaba)</option>}
           {opciones.map((o) => (
@@ -725,7 +725,7 @@ export default function DatosPersonalesPage() {
                 <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
                 {sinFicha > 0 && (
                   <button onClick={() => setSoloSinFicha((v) => !v)} aria-pressed={soloSinFicha}
-                    className={`rounded-full px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-amber-200 text-amber-900" : "text-amber-800 hover:bg-amber-100"}`}>
+                    className={`rounded-full px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-ambar/25 text-ambar" : "text-ambar hover:bg-ambar/15"}`}>
                     {sinFicha} sin ficha
                   </button>
                 )}
@@ -752,7 +752,7 @@ export default function DatosPersonalesPage() {
                       <span>{p.nombres} {p.apellidos}</span>
                       <span className="flex items-center gap-1 text-xs text-taupe">
                         {sedes.get(p.sede_base_id)}
-                        {!fichas.has(p.id) && <span className="rounded-full bg-amber-100 px-1.5 text-amber-800">sin ficha</span>}
+                        {!fichas.has(p.id) && <span className="rounded-full bg-ambar/15 px-1.5 text-ambar">sin ficha</span>}
                       </span>
                     </button>
                   </li>
@@ -787,17 +787,17 @@ export default function DatosPersonalesPage() {
                         </span>
                         <input value={dni} disabled={!puedeIdentidad}
                           onChange={(e) => setDni(e.target.value)}
-                          className={`rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${dniCambio ? "border-amber-400" : ""}`} />
+                          className={`rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${dniCambio ? "border-ambar" : ""}`} />
                       </label>
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}
                       {dniCambio && (
                         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                          <span className="text-amber-800">
+                          <span className="text-ambar">
                             Motivo del cambio de DNI (obligatorio) — de {personaSel.documento ?? "vacío"} a {dni.trim()}
                           </span>
                           <input value={motivoDni} onChange={(e) => setMotivoDni(e.target.value)}
                             placeholder="Por ejemplo: corregido contra la constancia de alta del T-Registro"
-                            className="rounded-lg border border-amber-400 px-3 py-2" />
+                            className="rounded-lg border border-ambar px-3 py-2" />
                           <span className="text-[11px] text-taupe">
                             Este número se imprime en los memos disciplinarios y en los documentos de respaldo, así que el cambio queda registrado con su motivo.
                           </span>
@@ -821,7 +821,7 @@ export default function DatosPersonalesPage() {
                         </span>
                         <select value={regimen} disabled={!puedeIdentidad}
                           onChange={(e) => setRegimen(e.target.value)}
-                          className={`rounded-lg border bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${regimenCambio ? "border-amber-400" : ""}`}>
+                          className={`rounded-lg border bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${regimenCambio ? "border-ambar" : ""}`}>
                           <option value="">— todavía no se sabe</option>
                           {REGIMENES_PENSION.map((r) => (
                             <option key={r} value={r}>{REGIMEN_PENSION_LABELS[r]}</option>
@@ -866,8 +866,8 @@ export default function DatosPersonalesPage() {
                           <span className="text-taupe">Rige desde</span>
                           <input type="date" value={regimenDesde} disabled={!puedeIdentidad}
                             onChange={(e) => setRegimenDesde(e.target.value)}
-                            className="rounded-lg border border-amber-400 bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
-                          <span className="text-[11px] text-amber-800">
+                            className="rounded-lg border border-ambar bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+                          <span className="text-[11px] text-ambar">
                             {periodoAbiertoIni
                               ? `El descuento cambia desde esta fecha, y queda registrado quién lo cambió. Viene puesta la del periodo abierto (${periodoAbiertoIni}); si eliges una de un periodo ya pagado, la base la rechaza — ese mes ya se pagó con el régimen anterior.`
                               : "No se pudo leer cuál es el periodo abierto, así que hay que escribir la fecha. Tiene que caer fuera de todo periodo ya pagado."}
@@ -1037,7 +1037,7 @@ export default function DatosPersonalesPage() {
                           <label className="flex flex-col gap-1 text-sm">
                             <span className="text-taupe">
                               Fecha de nacimiento
-                              {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-amber-700">· obligatoria</span>}
+                              {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-ambar">· obligatoria</span>}
                             </span>
                             <input ref={refDhFecha} type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} onBlur={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.currentTarget.value }))} className="rounded-lg border px-3 py-2" />
                           </label>

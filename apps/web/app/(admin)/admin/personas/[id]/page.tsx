@@ -393,7 +393,7 @@ export default function PerfilPersonaPage() {
                       dirección
                     </span>
                   )}
-                  {!persona.en_planilla && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">fuera de planilla</span>}
+                  {!persona.en_planilla && <span className="ml-2 rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">fuera de planilla</span>}
                 </p>
                 <p className="mt-0.5 text-xs text-taupe">DNI {persona.documento ?? "—"} · Ingresó {fechaCorta(persona.fecha_ingreso)}</p>
               </div>
@@ -469,7 +469,7 @@ export default function PerfilPersonaPage() {
                             </span>
                             <span className="flex items-center gap-2 text-xs text-taupe">
                               {selloLima(d.firmado_at ?? d.creado_at)}
-                              <span className={`rounded-full px-2 py-0.5 ${d.estado === "anulado" ? "bg-sand/50 text-taupe" : d.estado === "borrador" ? "bg-amber-100 text-amber-800" : "bg-sand/60 text-tinta"}`}>{ESTADO_DOC[d.estado] ?? d.estado}</span>
+                              <span className={`rounded-full px-2 py-0.5 ${d.estado === "anulado" ? "bg-sand/50 text-taupe" : d.estado === "borrador" ? "bg-ambar/15 text-ambar" : "bg-sand/60 text-tinta"}`}>{ESTADO_DOC[d.estado] ?? d.estado}</span>
                               <Link href={`/admin/disciplina/memo/${d.id}`} className="text-tinta hover:underline">ver</Link>
                             </span>
                           </li>

@@ -7,6 +7,11 @@ import { useEffect } from "react";
 // esta pantalla se muestra sola. Lleva estilos propios (inline) porque reemplaza
 // TODO, incluido el <html> y la hoja de estilos. Casi nunca se ve — pero cuando
 // pasa, salva la cara en vez de mostrar una pantalla en blanco.
+//
+// El modo oscuro acá SOLO sigue al sistema operativo (el `<style>` de abajo),
+// nunca al selector de la app: leer `localStorage` a mano en la pantalla que
+// existe justamente porque algo más ya reventó sería cambiar robustez por
+// pulir un detalle que casi nadie va a ver.
 export default function GlobalError({
   error,
   reset,
@@ -22,7 +27,17 @@ export default function GlobalError({
 
   return (
     <html lang="es">
+      <head>
+        <style>{`
+          @media (prefers-color-scheme: dark) {
+            .global-error-body { background: #1c1a16 !important; color: #ede7db !important; }
+            .global-error-detalle { color: #ab9080 !important; }
+            .global-error-boton { background: #ede7db !important; color: #1c1a16 !important; }
+          }
+        `}</style>
+      </head>
       <body
+        className="global-error-body"
         style={{
           margin: 0,
           minHeight: "100vh",
@@ -49,6 +64,7 @@ export default function GlobalError({
           Algo salió mal
         </h1>
         <p
+          className="global-error-detalle"
           style={{
             maxWidth: "22rem",
             fontSize: "14px",
@@ -61,6 +77,7 @@ export default function GlobalError({
           intentarlo.
         </p>
         <button
+          className="global-error-boton"
           onClick={reset}
           style={{
             border: "none",

@@ -1097,7 +1097,7 @@ function DesempenoContenido() {
       {/* ── El día ─────────────────────────────────────────────────────────── */}
       {sel && filaSel && diaSel && (
         <>
-          <div onClick={cerrarDia} className="fixed inset-0 z-40 bg-tinta/20" aria-hidden />
+          <div onClick={cerrarDia} className="fixed inset-0 z-40 bg-black/20" aria-hidden />
           <aside role="dialog" aria-label={`${filaSel.nombre}, ${fechaLarga(diaSel.fecha)}`}
             className="fixed inset-y-0 right-0 z-50 w-full max-w-[460px] overflow-y-auto border-l border-sand bg-crema shadow-xl">
             <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-sand bg-crema px-5 py-4">

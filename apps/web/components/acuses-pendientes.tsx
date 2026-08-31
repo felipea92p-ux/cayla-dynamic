@@ -112,7 +112,7 @@ export function AcusesPendientes() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="acuses-titulo"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-tinta/40 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
     >
       <div className="w-full max-w-lg rounded-2xl border border-sand bg-crema p-6 shadow-xl">
         <h2 id="acuses-titulo" className="font-serif text-xl text-tinta">
@@ -127,7 +127,7 @@ export function AcusesPendientes() {
 
         <ul className="mt-4 space-y-2">
           {pendientes.map((x) => (
-            <li key={x.href + x.titulo} className="rounded-xl border border-sand bg-white/50 p-3">
+            <li key={x.href + x.titulo} className="rounded-xl border border-sand bg-papel/50 p-3">
               <p className="text-sm font-medium text-tinta">{x.titulo}</p>
               {x.detalle && <p className="mt-0.5 text-xs text-taupe">{x.detalle}</p>}
               <Link
