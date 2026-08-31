@@ -297,12 +297,27 @@ en vez de oscurecerlo, lo contrario de lo que un scrim tiene que hacer. Esos
 pasan a `bg-black/NN`, que sí oscurece en los dos temas — el criterio que ya
 usaban los modales de turnos, incidencias, horarios y correcciones.
 
-Y la excepción, deliberada y no un hueco: los documentos que se imprimen y se
-firman —boleta, contrato, memo disciplinario, política salarial, la vista
-previa "así se verá en el memo" de una firma— se quedan con `bg-white` o sus
-propios colores fijos A PROPÓSITO, en pantalla y en papel, sin importar el
-tema. Un documento firmado tiene que leerse igual dentro de dos años, en un
-tema que para entonces puede que ni exista.
+Y la excepción, que hay que distinguir con cuidado porque son DOS excepciones
+distintas, no una:
+
+- Los documentos con la clase `.hoja` —boleta, contrato, documentación, Hoja
+  de sede, el memo disciplinario desde el 2026-08-31— NO llevan un color
+  fijo: en pantalla siguen el tema como cualquier otra pantalla (`.hoja` no
+  pinta nada por sí sola), y solo se fuerzan a la paleta clara AL IMPRIMIR,
+  por la regla ya escrita en `@media print` de `globals.css`. Es la forma
+  correcta: nadie necesita ver un contrato en modo oscuro mientras lo revisa
+  en pantalla, pero el papel que sale de la impresora sí tiene que ser
+  siempre el mismo, para siempre.
+- Política salarial (y la vista previa "así se verá en el memo" de una firma)
+  usan `bg-white`/`slate-*` fijos A PROPÓSITO, en pantalla y en papel, sin
+  pasar por `.hoja` ni por los tokens. Ahí sí es deliberado que ni siquiera la
+  pantalla cambie: es un documento legal que se muestra tal cual a quien lo
+  firma, y esa pantalla no tiene por qué mirarse distinto según quién la abra.
+
+La lección de las dos: nunca asumir cuál aplica sin mirar si el contenedor
+lleva `.hoja` o un color fijo — la resolvió al construir el memo, que hasta
+entonces caía en la segunda categoría sin que hubiera una razón para eso, solo
+porque nunca se había actualizado.
 
 ```bash
 npx pnpm install
