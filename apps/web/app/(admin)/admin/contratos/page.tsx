@@ -406,10 +406,7 @@ export default function ContratosPage() {
   useEffect(() => {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
-    // Una practicante no tiene "nuevo ingreso" ni "renovación" — su único
-    // documento es el convenio (0333). Se fija sola, sin que quien usa la
-    // pantalla tenga que saber por qué el desplegable de tipo desaparece.
-    setTipo(p.tipo_vinculo === "practicante" ? "convenio_practicas" : tipoQueCorresponde(p.fecha_ingreso, hoyLima()));
+    setTipo(tipoQueCorresponde(p.fecha_ingreso, hoyLima()));
     // `personas` fuera de las dependencias por la misma razón que el efecto de
     // abajo: `cargar()` la devuelve con otra referencia y repondría el tipo
     // que quien usa la pantalla acaba de elegir a mano.
@@ -479,6 +476,15 @@ export default function ContratosPage() {
   ]);
 
   const persona = personas.find((p) => p.id === personaId) ?? null;
+  // Una practicante no tiene "nuevo ingreso" ni "renovación" — su único
+  // documento es el convenio (0333), y esto NO se resuelve reponiendo `tipo`
+  // desde un efecto (ver el de abajo, que solo mira `fecha_ingreso`): es un
+  // valor DERIVADO del render, para no encadenar un segundo `setState` por
+  // cada cambio de persona. `tipo` sigue siendo la fuente para nuevo/
+  // renovación/adendum — elegibles a mano — y esto solo la reemplaza cuando
+  // la persona es practicante, sin que quien usa la pantalla tenga que saber
+  // por qué el desplegable de tipo desaparece.
+  const tipoEfectivo = persona?.tipo_vinculo === "practicante" ? "convenio_practicas" : tipo;
   const datoPersonal = persona ? (datosPersonales.find((d) => d.persona_id === persona.id) ?? null) : null;
   const salarioVigente = persona
     ? (salarios.find((s) => s.persona_id === persona.id)?.salario_mensual_soles ?? null)
@@ -495,8 +501,8 @@ export default function ContratosPage() {
     ? (sedes.find((s) => s.id === persona.sede_base_id)?.ciudad ?? null)
     : null;
   const ciudadFinal = (ciudadEditada.trim() || ciudadDeLaSede) ?? null;
-  const esAdendum = tipo === "adendum";
-  const esConvenio = tipo === "convenio_practicas";
+  const esAdendum = tipoEfectivo === "adendum";
+  const esConvenio = tipoEfectivo === "convenio_practicas";
   // `coalesce(sede_fisica, sede_base)` — el mismo criterio de
   // `fn_planilla_calcular` (0166). Leerlo solo de la sede base le imprimía a
   // quien tiene base Central y trabaja en AQP la tarifa de Central, que no
@@ -506,7 +512,7 @@ export default function ContratosPage() {
   const datosParaGenerar: DatosContrato | null =
     persona && datoPersonal?.nombre_dni && persona.documento && salarioVigente !== null && fechaInicio && fechaFin
       ? {
-          tipo,
+          tipo: tipoEfectivo,
           nombreDni: datoPersonal.nombre_dni,
           documento: persona.documento,
           direccion: datoPersonal.direccion,
@@ -656,7 +662,7 @@ export default function ContratosPage() {
     const html = construirContrato(datosParaGenerar);
     const { data: id, error } = await supabase.rpc("fn_contrato_registrar", {
       p_persona_id: persona.id,
-      p_tipo: tipo,
+      p_tipo: datosParaGenerar.tipo,
       p_cargo: datosParaGenerar.cargo,
       p_sede_id: persona.sede_base_id,
       p_remuneracion_mensual: datosParaGenerar.remuneracionMensual,
