@@ -37,6 +37,48 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-31 — La comisión mixta deja de cobrarse como flujo (0328/0331) · PEGADA Y VERIFICADA
+
+El contador encontró que se le retenía a casi todo el equipo la comisión de
+AFP **sobre flujo** (12.84%–13.06%) cuando, por afiliarse al SPP desde 2013,
+están en **comisión mixta** — 0% sobre el sueldo desde feb-2023 (Ley 29903).
+Correspondía 11.37% (10% aporte + 1.37% prima). La 0114 lo había dejado
+anotado como no modelado; quedó sin hacer.
+
+**0328** agrega las cuatro tasas `_mixta`. **0331** reasigna a las 19/20
+personas que estaban en flujo, con efecto desde el 29/07/2026 — no toca
+ningún periodo ya pagado. Las dos, pegadas y verificadas en producción:
+`queda_alguien_en_flujo = 0`.
+
+**Lo retenido de más en el único periodo pagado con diferencia (29/07–28/08):
+S/304.47, 18 personas — PAGADO EN TOTAL, 2026-08-31.** No se devolvió por
+planilla — el contador dijo que "devolución AFP" no tiene concepto en la
+PLAME — Felipe lo transfirió directo, por fuera, sede por sede: TRU (9,
+S/157.54), AQP (5, S/68.70) y las 4 restantes —Joselyn Gavilan, Lizzelott
+Ramírez, Carmen Sanándres y Felipe Alvarez (él mismo)— con su sede inferida
+por descarte, sin confirmar por consulta (no llegó a hacer falta: ya están
+pagadas). Tema cerrado.
+
+**El hueco de numeración 0329/0330 que avisó el push, ya resuelto.** Las dos
+existían — escritas y commiteadas, pero cada una en una rama de otra sesión
+concurrente, sin fusionar a `main`:
+
+- **0329** (el estimado de planilla se consulta por persona) ya estaba
+  fusionada (PR #129) cuando se miró; nada que hacer.
+- **0330** (una persona pide sus vacaciones, DO aprueba o rechaza) vivía
+  **solo en este Mac**, sin subir a GitHub — el patrón de la 0177, a tiempo.
+  Felipe confirmó que SÍ está aplicada en producción
+  (`migraciones_aplicadas` trae la fila 330). Se respaldó la rama, se abrió
+  el PR #130 y se fusionó: el repo vuelve a coincidir con lo que corre en
+  producción. No se pegó SQL nuevo — ya estaba pegado.
+
+De paso, al revisar la 0331 se encontró y confirmó inofensivo el PR #123:
+un caso límite en CI (la base de pruebas arranca sin ningún
+`periodos_planilla`, cosa que no pasa en producción). No afecta nada de lo
+ya pegado ni de lo ya pagado arriba.
+
+---
+
 ## 2026-08-29 — Se crea la categoría practicante (0322) · PEGADA Y VERIFICADA
 
 `personas.tipo_vinculo` gana un quinto valor: **`'practicante'`**, para dar de
