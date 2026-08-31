@@ -67,6 +67,53 @@
 --   decide quién puede pedirle un cálculo — eso es trabajo de arquitectura
 --   aparte, no algo para resolver de paso en un primer cambio chico.
 --
+-- CÓMO SE ABRIRÍA (diseño, 2026-08-31 — sin implementar: no es urgente, no
+--   corrige nada roto, es conveniencia). Partir `fn_planilla_calcular` en un
+--   NÚCLEO sin guard más un envoltorio por cada llamador, para que cada uno
+--   decida su propia autorización sin duplicar ni una CTE:
+--
+--   `fn_planilla_calcular_nucleo(p_ini, p_fin, p_periodo_id)` — copia
+--   MECÁNICA (corte, nunca reescritura) del cuerpo actual de
+--   `fn_planilla_calcular` sin el guard. Protegida por tres capas, calcando
+--   lo que la 0090 ya dejó para sus dos funciones prohibidas:
+--     · `revoke execute ... from public, anon, authenticated` (el cinturón).
+--     · Un guard DENTRO del cuerpo, con el idioma que la 0296 ya dejó
+--       probado: `if current_user <> 'postgres' then raise exception ...`.
+--       Dentro de una función SECURITY DEFINER, `current_user` es el dueño
+--       de la función (`postgres`) sea quien sea la sesión que llamó; una
+--       llamada directa de PostgREST llega como `authenticated`. Si un
+--       futuro barrido de grants la reabre —el modo exacto en que falló la
+--       0076—, una llamada directa sigue muriendo: el guard no depende del
+--       grant, que es justo lo que la 0090 exige.
+--     · Alta en `funciones_nunca_para_authenticated` (la lista negra que la
+--       0090 creó para esto mismo).
+--
+--   `fn_planilla_calcular` pasa a ser un envoltorio delgado: MISMO guard,
+--   mismo mensaje, misma posición, y al final `return
+--   fn_planilla_calcular_nucleo(...)`. Ningún llamador actual
+--   (`fn_simular_planilla`, `fn_proyeccion_periodo`, `fn_periodos`,
+--   `/admin/planilla`) nota el cambio: misma firma, mismos grants.
+--
+--   Esta función (`fn_planilla_calcular_persona`) cambia su guard de
+--   "siempre admin/líder" a "admin/líder ve a cualquiera; una persona ve
+--   solo la suya" —`if not (fn_es_admin_o_lider() is true or p_persona_id =
+--   fn_persona_actual_id()) then raise ...`— y en la rama en vivo pasa a
+--   llamar a `fn_planilla_calcular_nucleo`, no a `fn_planilla_calcular` (que
+--   la seguiría rechazando igual que hoy). La rama foto no cambia.
+--
+--   COSTO REAL: toca `fn_planilla_calcular` —la función más versionada del
+--   repo, 55 migraciones a esta fecha—, así que exige `donde-vive.sh` + md5
+--   de PRODUCCIÓN antes de escribir una sola línea, y otra vez justo antes
+--   de entregar (la lección de la 0261). La extracción debe hacerse como
+--   corte literal del cuerpo vigente —nunca un retipeo— verificado con un
+--   diff contra el original que solo quite el bloque del guard. Y pide
+--   pruebas nuevas: que el resultado para admin/líder no cambia ni un
+--   carácter tras el refactor, que `fn_planilla_calcular_nucleo` rechaza una
+--   llamada directa desde `authenticated`, y que el self-service en vivo por
+--   fin funciona (Bea ve la suya, Cati sigue sin ver la de Bea). No se
+--   prioriza salvo que Felipe lo pida: el beneficio es conveniencia, el
+--   riesgo es la función más sensible del repo.
+--
 -- CÓMO SE REVIERTE: `drop function if exists
 --   public.fn_planilla_calcular_persona(uuid, uuid);` — no toca ninguna
 --   tabla ni ninguna otra función.
