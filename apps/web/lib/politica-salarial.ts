@@ -17,6 +17,14 @@
 // No tenerlos: infracción muy grave, numeral 25.22 del RLGIT.
 // No informarlos: numeral 25.23.
 //
+// «Al trabajador» es la palabra que importa: `fn_cuadro_categorias()` (0141)
+// solo cuenta a quien tiene `en_planilla = true`, y eso es a propósito, no un
+// vacío por cerrar. Ni un locador RxH ni una practicante (0322, Ley 28518
+// art. 47; RIT numeral 2.6) son trabajadores — la Ley 30709 no les alcanza, y
+// extender este documento a ellos declararía una obligación que no existe.
+// Decidido con Felipe el 2026-08-31 (ver docs/estado.md); no se reabre sin
+// una razón nueva.
+//
 // ── LA REGLA QUE ORDENA TODA LA REDACCIÓN ───────────────────────────────────
 //
 // El papel no puede decir nada que la planilla desmienta. Por eso las bandas, el

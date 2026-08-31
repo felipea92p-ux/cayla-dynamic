@@ -192,6 +192,7 @@ with repo(numero, nombre, nunca) as (values
     (330, 'una_persona_puede_pedir_sus_vacaciones', false),
     (331, 'las_diecinueve_pasan_a_comision_mixta', false),
     (332, 'cambiar_el_regimen_no_reescribe_un_mes_pagado', false),
+    (333, 'el_generador_de_contratos_hace_convenios_de_practicas', false),
     (335, 'objetivos_texto_de_apoyo', false)
 ),
 diff as (

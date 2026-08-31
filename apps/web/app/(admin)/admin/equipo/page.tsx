@@ -969,9 +969,14 @@ export default function EquipoPage() {
           form.finContrato !== "" && form.fechaIngreso !== "" && form.finContrato < form.fechaIngreso;
         return (
           <div className="flex flex-col gap-1 text-sm sm:col-span-2">
+            {/* Misma columna para una practicante (0333): fragmentar "cuándo
+                termina esto" en dos campos habría sido peor que reusar uno
+                con la etiqueta equivocada. Solo cambia el texto — el candado
+                de la base (`fn_set_fin_contrato`) ya funciona igual para
+                cualquier tipo_vinculo. */}
             <label className="flex flex-col gap-1">
               <span>
-                Último día que trabaja por contrato{" "}
+                {form.tipoVinculo === "practicante" ? "Último día de su convenio" : "Último día que trabaja por contrato"}{" "}
                 <span className="text-taupe">(el último día que viene, no el siguiente)</span>
               </span>
               <input
@@ -989,8 +994,12 @@ export default function EquipoPage() {
               {!finesOk
                 ? "No se pudo leer la fecha que tiene guardada, así que el campo está deshabilitado para no pisarla. Recarga la página; si sigue igual, avisa a Felipe."
                 : cesada
-                  ? "Ya está inactiva: su contrato terminó, no hay término que prever."
-                  : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
+                  ? form.tipoVinculo === "practicante"
+                    ? "Ya está inactiva: su convenio terminó, no hay término que prever."
+                    : "Ya está inactiva: su contrato terminó, no hay término que prever."
+                  : form.tipoVinculo === "practicante"
+                    ? "El convenio de prácticas no es indefinido: siempre tiene un plazo (Ley 28518, art. 30). Anotar la fecha NO la da de baja — sigue activa hasta ese día. Dar de baja es «Desactivar», y va aparte."
+                    : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
             </span>
             {antesDelIngreso && (
               <span className="text-xs text-rojo">
