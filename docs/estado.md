@@ -59,10 +59,23 @@ Ramírez, Carmen Sanándres y Felipe Alvarez (él mismo)— con su sede inferida
 por descarte, sin confirmar por consulta (no llegó a hacer falta: ya están
 pagadas). Tema cerrado.
 
-**Pendiente aparte, sin relación con esto:** el push de hoy avisó un hueco de
-numeración sin explicar, **0329 y 0330** (0328 y 0331 sí existen). Puede ser
-algo aplicado en producción sin archivo en el repo — el patrón de la 0177.
-Revisar con `./scripts/que-falta-pegar.sh` antes de asumir que no es nada.
+**El hueco de numeración 0329/0330 que avisó el push, ya resuelto.** Las dos
+existían — escritas y commiteadas, pero cada una en una rama de otra sesión
+concurrente, sin fusionar a `main`:
+
+- **0329** (el estimado de planilla se consulta por persona) ya estaba
+  fusionada (PR #129) cuando se miró; nada que hacer.
+- **0330** (una persona pide sus vacaciones, DO aprueba o rechaza) vivía
+  **solo en este Mac**, sin subir a GitHub — el patrón de la 0177, a tiempo.
+  Felipe confirmó que SÍ está aplicada en producción
+  (`migraciones_aplicadas` trae la fila 330). Se respaldó la rama, se abrió
+  el PR #130 y se fusionó: el repo vuelve a coincidir con lo que corre en
+  producción. No se pegó SQL nuevo — ya estaba pegado.
+
+De paso, al revisar la 0331 se encontró y confirmó inofensivo el PR #123:
+un caso límite en CI (la base de pruebas arranca sin ningún
+`periodos_planilla`, cosa que no pasa en producción). No afecta nada de lo
+ya pegado ni de lo ya pagado arriba.
 
 ---
 
