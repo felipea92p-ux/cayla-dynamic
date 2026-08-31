@@ -37,6 +37,72 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-31 — La comisión mixta deja de cobrarse como flujo (0328/0331) · PEGADA Y VERIFICADA
+
+El contador encontró que se le retenía a casi todo el equipo la comisión de
+AFP **sobre flujo** (12.84%–13.06%) cuando, por afiliarse al SPP desde 2013,
+están en **comisión mixta** — 0% sobre el sueldo desde feb-2023 (Ley 29903).
+Correspondía 11.37% (10% aporte + 1.37% prima). La 0114 lo había dejado
+anotado como no modelado; quedó sin hacer.
+
+**0328** agrega las cuatro tasas `_mixta`. **0331** reasigna a las 19/20
+personas que estaban en flujo, con efecto desde el 29/07/2026 — no toca
+ningún periodo ya pagado. Las dos, pegadas y verificadas en producción:
+`queda_alguien_en_flujo = 0`.
+
+**Lo retenido de más en el único periodo pagado con diferencia (29/07–28/08):
+S/304.47, 18 personas.** No se devuelve por planilla — el contador dijo que
+"devolución AFP" no tiene concepto en la PLAME — Felipe lo transfiere directo,
+por fuera, sede por sede. **Pagado: TRU (9, S/157.54)** y las 4 sin sede
+confirmada por consulta —Joselyn Gavilan, Lizzelott Ramírez, Carmen Sanándres
+y Felipe Alvarez (él mismo)—. **Pendiente: AQP (5, S/68.70)** — Paola Cahuana,
+Sasha Fernandez, Mateo Zarate, Sandra Ramírez, Luana Rodríguez Herrera.
+
+**Nota de esta rama (Contratos/Practicantes): el hueco de numeración 0329/0330
+que este bloque avisaba ya está explicado** — no fue un pegado sin archivo:
+0332 quedó tomado por otra rama en paralelo y esta rama saltó directo a la
+0333 (`el_generador_de_contratos_hace_convenios_de_practicas`), confirmado con
+`./scripts/siguiente-numero.sh` antes de escribirla.
+
+---
+
+## 2026-08-31 — El generador de contratos hace convenios de prácticas (0333) · VERIFICADO LOCAL
+
+Cerraba la lista de pendientes de Practicantes: `/admin/contratos` filtraba
+`en_planilla = true`, así que una practicante era estructuralmente invisible
+—no había ningún documento que entregarle desde el sistema—. La mitad de las
+cláusulas del contrato de planilla son directamente falsas para un convenio
+de modalidad formativa (causa objetiva D.Leg 728, jornada 48h fija, período
+de prueba, régimen disciplinario), así que se construyó `documentoConvenio()`
+como una rama aparte del generador —mismo patrón que ya usa `documentoAdendum`—,
+grounded en Ley 28518 arts. 15/30/42/44/45/47 y con el mismo tono ya
+establecido en la boleta de un practicante (PR #98).
+
+**El único cambio de esquema:** el CHECK de `contratos_generados.tipo` gana
+`'convenio_practicas'`, y `fn_contrato_registrar`/`fn_contratos_tablero` lo
+admiten — sin columnas nuevas: institución educativa y plan de capacitación
+se piden en pantalla y entran ya redactados al `documento_html`, igual que la
+causa objetiva de un contrato normal.
+
+Verificado con datos de prueba en el navegador de punta a punta: la
+practicante aparece en el tablero, "Tipo" se fija solo en "Convenio de
+prácticas", el bloqueo de subvención por debajo de la RMV vigente frena la
+generación y se libera al corregir el sueldo, el documento generado no
+contiene NINGÚN término de contrato de trabajo, y queda archivado
+correctamente como "pendiente de firma". 1853 pruebas pgTAP + 422 de Vitest
+en verde.
+
+⚠️ **Igual que el contrato de planilla, no tuvo revisión legal de un
+abogado.** Se construyó con la misma seriedad, ni más ni menos — ver el
+encabezado de `contrato-texto.ts`.
+
+Con esto, los cinco pendientes originales de Practicantes quedan resueltos:
+motivo de cese (0325), jornada 30h/48h (0324), política salarial (no aplica,
+más arriba), y ahora Contratos. Queda solo el aviso de vencimiento del
+convenio a los 12 meses, sin empezar.
+
+---
+
 ## 2026-08-31 — La política salarial NO se extiende a practicantes · DECIDIDO, NO SE REABRE
 
 Tras crear la categoría practicante (0322), quedó en la lista de pendientes
