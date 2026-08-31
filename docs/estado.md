@@ -37,6 +37,31 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-31 — La política salarial NO se extiende a practicantes · DECIDIDO, NO SE REABRE
+
+Tras crear la categoría practicante (0322), quedó en la lista de pendientes
+«la 0141 excluye a quien no está en planilla del cuadro de categorías». Se
+investigó a fondo y **no es un vacío: es correcto tal como está.**
+
+El documento «Cuadro de categorías y política salarial» (0141) existe
+específicamente para cumplir la Ley 30709 / D.S. 002-2018-TR, que obliga a
+informar la política salarial **al trabajador** (art. 25.22/25.23 RLGIT). Un
+practicante no es trabajador — ni por la Ley 28518 (art. 47, citada en la
+0322) ni por el propio Reglamento Interno de esta empresa (numeral 2.6). La
+obligación legal que la 0141 cumple sencillamente no le alcanza, igual que ya
+no alcanzaba a un locador RxH antes de que existiera la categoría practicante.
+
+**Confirmado con Felipe por `AskUserQuestion` el 2026-08-31: nada que
+arreglar.** Se ofrecieron tres caminos —dejarlo así, crear un documento propio
+de subvención como práctica voluntaria (no legal), o posponerlo— y eligió el
+primero.
+
+Si alguien vuelve a encontrar este "pendiente" en una lista vieja de gaps de
+Practicantes: ya se investigó y se cerró. No se abre de nuevo sin una razón
+nueva.
+
+---
+
 ## 2026-08-29 — Se crea la categoría practicante (0322) · PEGADA Y VERIFICADA
 
 `personas.tipo_vinculo` gana un quinto valor: **`'practicante'`**, para dar de
