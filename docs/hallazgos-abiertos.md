@@ -128,6 +128,20 @@ mismo que plata perdida.
   horas marcadas para el estado PENDIENTE, perdiendo el arreglo que la 0072 hizo
   a propósito. Deja sin registrar el acuerdo previo del feriado — y el próximo es
   el **30/08/2026**, domingo, que es el día que TRU sí trabaja.
+- **T-02/0004-2026-CAYLA (Mateo Zarate) incumple el 19.2 d): su segunda
+  suspensión por tardanzas salió igual a la primera** — 1 día cada una,
+  entregadas 2026-07-25 (T-02/0002) y 2026-08-17 (T-02/0004), cuando la
+  segunda tenía que ser MAYOR que la anterior. Es anterior a la 0294 —el
+  candado que esto habría rechazado no existía todavía— y las dos ya se
+  cumplieron sin marcar esos días, así que no hay plata de más ni de menos
+  que ajustar: el defecto es que el documento se funda en el 19.2 d) y lo
+  incumple en su parte resolutiva, lo que lo debilita como antecedente
+  graduado. **Decisión (Felipe, 2026-08-31): no se anula ni se reemite** — ya
+  se cumplió, y corregirlo significaría volver a sancionar por días que ya
+  pasaron. Se deja anotado para quien mire su legajo después. Encontrado con
+  [`suspensiones_fuera_del_tope.sql`](../scripts/sql-manual/suspensiones_fuera_del_tope.sql),
+  que audita esto para cualquier persona y se puede volver a correr cuando se
+  quiera.
 
 ### Latentes confirmados · hoy no cuestan nada
 
