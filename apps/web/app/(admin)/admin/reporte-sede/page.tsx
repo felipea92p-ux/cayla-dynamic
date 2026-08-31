@@ -5,11 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
+import { Marca } from "@/components/marca";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima } from "@cayla-dynamic/shared";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -180,7 +181,7 @@ function ReporteSedeContenido() {
         nombre: `${p.nombres} ${p.apellidos}`,
         estadoHoy: hoyJ?.estado ?? "sin_marcar",
         esOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
-        esEncargada: p.rol === "supervisor_sede" || Boolean(f?.enc),
+        esEncargada: esRolEncargada(p.rol) || Boolean(f?.enc),
         dias: reales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length,
         horas: js.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0),
         tardanzas: js.filter((j) => (j.minutos_tarde ?? 0) > 0).length,
@@ -227,23 +228,12 @@ function ReporteSedeContenido() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AdminNav />
-      <main className="flex-1 p-6 sm:p-8">
-        <style>{`
-          .solo-print{display:none}
-          @page{margin:15mm}
-          @media print{
-            header,.no-print{display:none!important}
-            .solo-print{display:flex!important}
-            body{background:#fff!important}
-            main{padding:0!important}
-            section{break-inside:avoid;background:#fff!important}
-            .colibri{print-color-adjust:exact;-webkit-print-color-adjust:exact}
-          }
-        `}</style>
-
+      <div className="print:hidden">
+        <AdminNav />
+      </div>
+      <main className="flex-1 p-6 sm:p-8 print:p-0">
         {/* Controles — no salen en el PDF */}
-        <div className="no-print mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
           <div>
             <h1 className="font-serif text-2xl leading-tight">Hoja de sede</h1>
             <p className="mt-1 text-sm text-taupe">El estado de una sede en una página: hoy, el mes y lo que necesita atención.</p>
@@ -279,27 +269,27 @@ function ReporteSedeContenido() {
           </div>
         )}
 
-        {/* Cabecera impresa */}
-        {sede && (
-          <div className="solo-print mb-6 items-center gap-3 border-b border-sand pb-4">
-            <span className="colibri w-10 text-rojo" aria-hidden />
-            <div>
-              <div className="font-serif text-xl">Estado de sede · {sede.nombre}</div>
-              <div className="text-xs text-taupe">CAYLA · Dynamic · {mesLabel} · generado {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" })}</div>
-            </div>
-          </div>
-        )}
-
         {cargando && !cargado ? (
           <Cargando texto="Armando la hoja…" />
         ) : cargado && sede && (
-          <>
+          <div className="hoja">
+            {/* Cabecera — solo en el PDF: en pantalla ya está la del menú, y
+                repetir las dos ahí se ve como que la pantalla no sabe cuál usar. */}
+            <div className="mb-6 hidden items-start justify-between border-b border-sand pb-4 print:flex print:mb-4 print:pb-3">
+              <Marca tono="tinta" isotipo="rojo" />
+              <div className="text-right">
+                <p className="etiqueta text-taupe">Hoja de sede</p>
+                <p className="font-serif text-lg">{sede.nombre}</p>
+                <p className="text-xs text-taupe">{mesLabel} · generado {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" })}</p>
+              </div>
+            </div>
+
             <h2 className="mb-4 font-serif text-2xl">
               {sede.nombre} <span className="text-lg font-normal text-taupe">· {mesLabel}</span>
             </h2>
 
             {/* HOY */}
-            <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5">
+            <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5 print:break-inside-avoid print:bg-white">
               <div className="etiqueta text-verde">Hoy · {activos.length} trabajando de {filas.length}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {activos.length === 0 ? <span className="text-sm text-taupe">Nadie marcado todavía.</span> :
@@ -316,7 +306,7 @@ function ReporteSedeContenido() {
             </section>
 
             {/* EL MES */}
-            <section className="mb-6">
+            <section className="mb-6 print:break-inside-avoid">
               <h3 className="mb-2 font-serif text-lg">El mes · {mesLabel}</h3>
               <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
                 <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
@@ -349,7 +339,7 @@ function ReporteSedeContenido() {
             </section>
 
             {/* ATENCIÓN */}
-            <section className="rounded-2xl border border-sand bg-rojo/[0.04] p-5">
+            <section className="rounded-2xl border border-sand bg-rojo/[0.04] p-5 print:break-inside-avoid print:bg-white">
               <div className="etiqueta mb-2 text-rojo">Necesita atención</div>
               {tardAlerta.length === 0 && faltaAlerta.length === 0 ? (
                 <p className="text-sm text-taupe">Nada pendiente en disciplina. Buena señal.</p>
@@ -369,7 +359,7 @@ function ReporteSedeContenido() {
                 </ul>
               )}
             </section>
-          </>
+          </div>
         )}
       </main>
     </div>
