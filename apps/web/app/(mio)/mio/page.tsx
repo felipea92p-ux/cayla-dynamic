@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
+import { SelectorTema } from "@/components/selector-tema";
 import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
@@ -673,6 +674,7 @@ export default function MioPage() {
           )}
           <button onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
             className="text-xs text-taupe underline">Salir</button>
+          <SelectorTema />
         </div>
       </header>
 
