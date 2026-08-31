@@ -34,7 +34,7 @@ function ObjetivosContenido() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const hoy = useMemo(mesActualLima, []);
+  const hoy = useMemo(() => mesActualLima(), []);
 
   // Enlace directo: /admin/objetivos?persona=<uuid>&anio=2026&mes=9 llega con
   // la persona y el mes ya elegidos. Lo usa Desempeño, donde ves que a alguien
