@@ -7,6 +7,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
@@ -113,12 +114,12 @@ export default function EducacionPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeVerPlanilla(rol);
+  const { avisar } = useToast();
 
   const [filas, setFilas] = useState<Fila[]>([]);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -162,8 +163,6 @@ export default function EducacionPage() {
   }, [router]);
 
   useEffect(() => { void cargar(); }, [cargar]);
-
-  const avisar = (tipo: "ok" | "error", texto: string) => setMensaje({ tipo, texto });
 
   const candidato = useMemo(
     () => candidatos.find((c) => c.persona_id === form.personaId) ?? null,
@@ -219,11 +218,11 @@ export default function EducacionPage() {
     candidato?.tope != null && saldo != null && saldo < candidato.tope;
 
   function empezarAlta() {
-    setMostrandoAlta(true); setEditandoId(null); setArchivo(null); setMensaje(null);
+    setMostrandoAlta(true); setEditandoId(null); setArchivo(null);
     setForm({ ...FORM_VACIO, vigenteDesde: hoyLima().slice(0, 8) + "01" });
   }
   function empezarEdicion(f: Fila) {
-    setEditandoId(f.id); setMostrandoAlta(false); setArchivo(null); setMensaje(null);
+    setEditandoId(f.id); setMostrandoAlta(false); setArchivo(null);
     setForm({
       personaId: f.persona_id, institucion: f.institucion,
       costoDeclarado: String(f.costo_declarado),
@@ -239,7 +238,7 @@ export default function EducacionPage() {
       avisar("error", `“${f.name}” pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es ${mb(limite.bytes)}. Si es una foto, vuelve a tomarla en menor calidad.`);
       return;
     }
-    setArchivo(f); setMensaje(null);
+    setArchivo(f);
   }
 
   async function guardar() {
@@ -706,11 +705,6 @@ export default function EducacionPage() {
               comprobante lo sostenga</strong>. Por eso el papel se guarda aquí y no en una carpeta aparte.
             </p>
 
-            {mensaje && (
-              <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-                {mensaje.texto}
-              </div>
-            )}
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las asignaciones: {cargaError}.{" "}

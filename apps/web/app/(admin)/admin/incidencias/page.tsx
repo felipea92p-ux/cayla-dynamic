@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
@@ -745,6 +745,11 @@ function IncidenciasContenido() {
             🎉 Sin incidencias en el periodo. Todo en orden.
           </div>
         )}
+
+        {/* Antes esta lista no tenía ningún estado de carga: mientras `cargando`
+            era true, `vista` estaba vacía y `porSede.map` no dibujaba nada — la
+            pantalla se quedaba en blanco hasta que llegaban los datos. */}
+        {cargando && <EsqueletoSecciones anchos={["w-32", "w-24", "w-24", "w-12", "w-12", "w-20"]} />}
 
         {porSede.map((sede) => {
           const deSede = vista.filter((f) => f.sede === sede);

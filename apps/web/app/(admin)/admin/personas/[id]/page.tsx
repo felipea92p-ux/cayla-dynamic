@@ -11,6 +11,7 @@ import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
+import { useToast } from "@/components/toast";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -62,6 +63,7 @@ export default function PerfilPersonaPage() {
   // la sección para que a la encargada no le aparezca "sin salario" — que sería mentira).
   const puedeSalario = puedeVerPlanilla(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const { avisar } = useToast();
 
   const [tab, setTab] = useState<Tab>("ficha");
 
@@ -76,7 +78,6 @@ export default function PerfilPersonaPage() {
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [subiendoFirma, setSubiendoFirma] = useState(false);
-  const [firmaMsg, setFirmaMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -204,7 +205,7 @@ export default function PerfilPersonaPage() {
   }, [esMiPerfil, supabase, id]);
 
   async function subirFirma(file: File) {
-    setSubiendoFirma(true); setFirmaMsg(null);
+    setSubiendoFirma(true);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -280,9 +281,9 @@ export default function PerfilPersonaPage() {
       const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl });
       if (error) throw error;
       setMiFirma(dataUrl);
-      setFirmaMsg({ tipo: "ok", texto: "Firma guardada. Aparecerá en los memos leves que firmes." });
+      avisar("ok", "Firma guardada. Aparecerá en los memos leves que firmes.");
     } catch (e) {
-      setFirmaMsg({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo guardar la firma." });
+      avisar("error", e instanceof Error ? e.message : "No se pudo guardar la firma.");
     } finally {
       setSubiendoFirma(false);
     }
@@ -290,7 +291,7 @@ export default function PerfilPersonaPage() {
   async function quitarFirma() {
     setSubiendoFirma(true);
     const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
-    if (!error) { setMiFirma(null); setFirmaMsg({ tipo: "ok", texto: "Firma quitada." }); }
+    if (!error) { setMiFirma(null); avisar("ok", "Firma quitada."); }
     setSubiendoFirma(false);
   }
 
@@ -480,7 +481,6 @@ export default function PerfilPersonaPage() {
                     <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                       <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
                       <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
-                      {firmaMsg && <div className={`mb-3 rounded-lg px-3 py-2 text-sm ${firmaMsg.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>{firmaMsg.texto}</div>}
                       <div className="flex flex-wrap items-center gap-4">
                         {miFirma ? (
                           <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">

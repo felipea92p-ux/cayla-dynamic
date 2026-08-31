@@ -10,6 +10,7 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { useToast } from "@/components/toast";
 import { hoyLima, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
   construirContrato,
@@ -254,7 +255,7 @@ export default function ContratosPage() {
   const [anulando, setAnulando] = useState<string | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
 
-  const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
 
   const sedeCodigo = useMemo(() => new Map(sedes.map((s) => [s.id, s.codigo])), [sedes]);
   const sedeNombreMap = useMemo(() => new Map(sedes.map((s) => [s.id, s.nombre])), [sedes]);
@@ -578,14 +579,14 @@ export default function ContratosPage() {
 
   async function generarBorrador() {
     if (!datosParaGenerar || !persona) {
-      setAviso({
-        tipo: "error",
-        texto: "Faltan datos para generar el contrato: revisa DNI, nombre legal (Ficha personal), sueldo vigente y las fechas.",
-      });
+      avisar(
+        "error",
+        "Faltan datos para generar el contrato: revisa DNI, nombre legal (Ficha personal), sueldo vigente y las fechas.",
+      );
       return;
     }
     if (bloqueos.length > 0) {
-      setAviso({ tipo: "error", texto: bloqueos[0] });
+      avisar("error", bloqueos[0]);
       return;
     }
     setGenerando(true);
@@ -605,13 +606,13 @@ export default function ContratosPage() {
     });
     setGenerando(false);
     if (error || !id) {
-      setAviso({ tipo: "error", texto: mensajeDeError(error, "generar el contrato") });
+      avisar("error", mensajeDeError(error, "generar el contrato"));
       return;
     }
     setDocumentoAbierto(null);
     setBorrador({ id: id as string, html });
     await cargar();
-    setAviso({ tipo: "ok", texto: "Borrador generado. Revísalo, imprímelo y fírmalo; después sube el escaneo desde el historial." });
+    avisar("ok", "Borrador generado. Revísalo, imprímelo y fírmalo; después sube el escaneo desde el historial.");
   }
 
   function imprimir() {
@@ -622,21 +623,20 @@ export default function ContratosPage() {
     setSubiendoPara(id);
     setArchivo(null);
     setFechaFirma(hoyLima());
-    setAviso(null);
   }
 
   async function guardarFirma() {
     if (!subiendoPara) return;
     if (!archivo) {
-      setAviso({ tipo: "error", texto: "Falta el escaneo firmado." });
+      avisar("error", "Falta el escaneo firmado.");
       return;
     }
     if (archivo.size > MAX_BYTES) {
-      setAviso({ tipo: "error", texto: `"${archivo.name}" pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
+      avisar("error", `"${archivo.name}" pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
     }
     if (!fechaFirma) {
-      setAviso({ tipo: "error", texto: "Indica en qué fecha se firmó." });
+      avisar("error", "Indica en qué fecha se firmó.");
       return;
     }
 
@@ -648,7 +648,7 @@ export default function ContratosPage() {
     setProgreso(null);
     if (fallo) {
       setGuardandoFirma(false);
-      setAviso({ tipo: "error", texto: `El archivo no subió (${fallo}). Vuelve a intentarlo.` });
+      avisar("error", `El archivo no subió (${fallo}). Vuelve a intentarlo.`);
       return;
     }
     const { error } = await supabase.rpc("fn_contrato_registrar", {
@@ -658,29 +658,29 @@ export default function ContratosPage() {
     });
     setGuardandoFirma(false);
     if (error) {
-      setAviso({ tipo: "error", texto: mensajeDeError(error, "registrar la firma") });
+      avisar("error", mensajeDeError(error, "registrar la firma"));
       return;
     }
     setSubiendoPara(null);
     await cargar();
-    setAviso({ tipo: "ok", texto: "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó." });
+    avisar("ok", "Contrato firmado registrado. La fecha de vencimiento de la persona se actualizó.");
   }
 
   async function anular() {
     if (!anulando) return;
     if (motivoAnular.trim().length < 3) {
-      setAviso({ tipo: "error", texto: "Escribe por qué se anula." });
+      avisar("error", "Escribe por qué se anula.");
       return;
     }
     const { error } = await supabase.rpc("fn_contrato_anular", { p_id: anulando, p_motivo: motivoAnular.trim() });
     if (error) {
-      setAviso({ tipo: "error", texto: mensajeDeError(error, "anular el contrato") });
+      avisar("error", mensajeDeError(error, "anular el contrato"));
       return;
     }
     setAnulando(null);
     setMotivoAnular("");
     await cargar();
-    setAviso({ tipo: "ok", texto: "Contrato anulado. Sigue guardado en el historial." });
+    avisar("ok", "Contrato anulado. Sigue guardado en el historial.");
   }
 
   /**
@@ -696,11 +696,10 @@ export default function ContratosPage() {
       .eq("id", id)
       .maybeSingle();
     if (error || !data) {
-      setAviso({ tipo: "error", texto: mensajeDeError(error, "abrir el contrato") });
+      avisar("error", mensajeDeError(error, "abrir el contrato"));
       return;
     }
     setDocumentoAbierto((data as { documento_html: string }).documento_html);
-    setAviso(null);
   }
 
   /** Anota que se entregó la copia o que se comunicó al MTPE. */
@@ -711,22 +710,21 @@ export default function ContratosPage() {
       p_fecha: hoyLima(),
     });
     if (error) {
-      setAviso({ tipo: "error", texto: mensajeDeError(error, "anotar el trámite") });
+      avisar("error", mensajeDeError(error, "anotar el trámite"));
       return;
     }
     await cargar();
-    setAviso({
-      tipo: "ok",
-      texto:
-        tramite === "copia"
-          ? "Anotada la entrega de copia a la colaboradora."
-          : "Anotada la comunicación a la Autoridad Administrativa de Trabajo.",
-    });
+    avisar(
+      "ok",
+      tramite === "copia"
+        ? "Anotada la entrega de copia a la colaboradora."
+        : "Anotada la comunicación a la Autoridad Administrativa de Trabajo.",
+    );
   }
 
   async function verDocumento(path: string) {
     const fallo = await abrirArchivoFirmado(supabase, "contratos", path);
-    if (fallo) setAviso({ tipo: "error", texto: fallo });
+    if (fallo) avisar("error", fallo);
   }
 
   useTituloDocumento(persona ? `${persona.nombres} ${persona.apellidos} — Contrato de trabajo` : null);
@@ -807,12 +805,6 @@ export default function ContratosPage() {
             El contrato de cada integrante: generarlo, imprimirlo, archivarlo firmado.
           </p>
         </header>
-
-        {aviso && (
-          <p className={`rounded-lg px-4 py-3 text-sm ${aviso.tipo === "error" ? "bg-rojo/10 text-rojo" : "bg-verde/10 text-verde"}`}>
-            {aviso.texto}
-          </p>
-        )}
 
         {/* EL TABLERO VA PRIMERO, Y PARTE DE LAS PERSONAS.
             El historial de abajo arranca de los contratos generados, así que

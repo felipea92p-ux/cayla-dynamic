@@ -9,6 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -304,6 +305,7 @@ export default function DocumentacionPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puede = puedeGestionarCatalogos(rol);
+  const { avisar } = useToast();
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [tipo, setTipo] = useState<TipoDoc>("ruta");
@@ -376,7 +378,6 @@ export default function DocumentacionPage() {
   const [notaDoc, setNotaDoc] = useState("");
   const [progresoDoc, setProgresoDoc] = useState<number | null>(null);
   const [guardandoDoc, setGuardandoDoc] = useState(false);
-  const [avisoDoc, setAvisoDoc] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
@@ -421,9 +422,8 @@ export default function DocumentacionPage() {
     // El bono necesita su monto, y sin él ninguna hoja acredita nada: eso frena
     // el lote entero porque le falta a todo el mundo a la vez.
     if (que === "bono" && bonoMonto === null) {
-      setAvisoDoc({ tipo: "error", texto:
-        "No hay monto de bono de onomástico vigente en el sistema, así que las constancias " +
-        "saldrían sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico)." });
+      avisar("error", "No hay monto de bono de onomástico vigente en el sistema, así que las constancias " +
+        "saldrían sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico).");
       return;
     }
 
@@ -436,9 +436,8 @@ export default function DocumentacionPage() {
     const quienes = candidatas.filter((per) => !fuera.includes(per));
 
     if (quienes.length === 0) {
-      setAvisoDoc({ tipo: "error", texto:
-        "Ninguna de estas personas tiene tarifa de movilidad vigente en su sede, así que no " +
-        "hay ninguna declaración que imprimir." });
+      avisar("error", "Ninguna de estas personas tiene tarifa de movilidad vigente en su sede, así que no " +
+        "hay ninguna declaración que imprimir.");
       return;
     }
 
@@ -477,14 +476,14 @@ export default function DocumentacionPage() {
     }
     const desglose = [...porSedeDelLote].map(([cod, n]) => `${cod} ${n}`).join(" · ");
 
-    setAvisoDoc(fuera.length === 0
-      ? { tipo: "ok", texto:
-          `${ordenadas.length} ${ordenadas.length === 1 ? "hoja" : "hojas"} a la impresora, `
-          + `agrupadas por sede: ${desglose}.` }
-      : { tipo: "error", texto:
-          `Se imprimieron ${ordenadas.length} (${desglose}). Quedaron fuera ${fuera.length}: ` +
-          fuera.map((per) => `${per.nombres} ${per.apellidos}`).join(", ") +
-          " — su sede no tiene tarifa de movilidad vigente, así que su declaración saldría sin monto." });
+    if (fuera.length === 0) {
+      avisar("ok", `${ordenadas.length} ${ordenadas.length === 1 ? "hoja" : "hojas"} a la impresora, `
+        + `agrupadas por sede: ${desglose}.`);
+    } else {
+      avisar("error", `Se imprimieron ${ordenadas.length} (${desglose}). Quedaron fuera ${fuera.length}: ` +
+        fuera.map((per) => `${per.nombres} ${per.apellidos}`).join(", ") +
+        " — su sede no tiene tarifa de movilidad vigente, así que su declaración saldría sin monto.");
+    }
   }
 
   function imprimirFila(personaId: string, que: TipoDoc) {
@@ -499,16 +498,14 @@ export default function DocumentacionPage() {
     // sin suma no acredita nada. Va antes que la de ruta porque no depende de la
     // ficha de la persona — falta el parámetro para todo el mundo a la vez.
     if (que === "bono" && bonoMonto === null) {
-      setAvisoDoc({ tipo: "error", texto:
-        "No hay monto de bono de onomástico vigente en el sistema, así que la constancia " +
+      avisar("error", "No hay monto de bono de onomástico vigente en el sistema, así que la constancia " +
         "saldría sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico) " +
-        "y vuelve a imprimir." });
+        "y vuelve a imprimir.");
       return;
     }
     if (que === "ruta" && ficha && tarifaDeSede(ficha.sede_base_id) === null) {
-      setAvisoDoc({ tipo: "error", texto:
-        `La sede ${sedes.get(ficha.sede_base_id) ?? "de esta persona"} no tiene tarifa de movilidad vigente, ` +
-        "así que su declaración saldría sin monto. Créala en parámetros laborales y vuelve a imprimir." });
+      avisar("error", `La sede ${sedes.get(ficha.sede_base_id) ?? "de esta persona"} no tiene tarifa de movilidad vigente, ` +
+        "así que su declaración saldría sin monto. Créala en parámetros laborales y vuelve a imprimir.");
       return;
     }
     setTipo(que);
@@ -525,7 +522,6 @@ export default function DocumentacionPage() {
     // hoy. Proponer hoy era empujar al error: el formulario ofrecía de entrada
     // el único valor que el propio sistema iba a marcar en rojo.
     setFechaFirma(que === "politica" ? fechaDeLaPolitica : hoyLima());
-    setAvisoDoc(null);
     // El formulario es uno solo y vive arriba; el botón que lo abre puede estar
     // veinte filas más abajo. Sin esto, quien hace clic en la última fila no ve
     // que pasó nada y vuelve a hacer clic.
@@ -563,11 +559,11 @@ export default function DocumentacionPage() {
   async function anularDocumento(id: string, motivo: string) {
     const { error } = await supabase.rpc("fn_documento_anular", { p_id: id, p_motivo: motivo });
     if (error) {
-      setAvisoDoc({ tipo: "error", texto: mensajeDeError(error, "anular el documento") });
+      avisar("error", mensajeDeError(error, "anular el documento"));
       return;
     }
     setAnulando(null);
-    setAvisoDoc({ tipo: "ok", texto: "Documento anulado. Sigue guardado en el historial." });
+    avisar("ok", "Documento anulado. Sigue guardado en el historial.");
     await cargar();
   }
 
@@ -578,23 +574,23 @@ export default function DocumentacionPage() {
   // privado y así sigue siéndolo.
   async function verDocumento(path: string) {
     const fallo = await abrirArchivoFirmado(supabase, "documentos", path);
-    if (fallo) setAvisoDoc({ tipo: "error", texto: fallo });
+    if (fallo) avisar("error", fallo);
   }
 
   async function guardarDocumento() {
     if (!subiendo) return;
     if (!archivoDoc) {
-      setAvisoDoc({ tipo: "error", texto: subiendo.negativa
+      avisar("error", subiendo.negativa
         ? "Falta el acta de la negativa. Sin el papel con el testigo, no queda constancia de que se ofreció."
-        : `Falta el archivo ${ETIQUETA_SUBIDA[subiendo.que].deQue} firmado.` });
+        : `Falta el archivo ${ETIQUETA_SUBIDA[subiendo.que].deQue} firmado.`);
       return;
     }
     if (archivoDoc.size > MAX_BYTES_DOC) {
-      setAvisoDoc({ tipo: "error", texto: `“${archivoDoc.name}” pesa ${(archivoDoc.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
+      avisar("error", `“${archivoDoc.name}” pesa ${(archivoDoc.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
     }
     if (!fechaFirma) {
-      setAvisoDoc({ tipo: "error", texto: "Indica en qué fecha se firmó (o en qué fecha se dejó constancia de la negativa)." });
+      avisar("error", "Indica en qué fecha se firmó (o en qué fecha se dejó constancia de la negativa).");
       return;
     }
 
@@ -631,7 +627,7 @@ export default function DocumentacionPage() {
     });
     if (error || !id) {
       setGuardandoDoc(false);
-      setAvisoDoc({ tipo: "error", texto: mensajeDeError(error, "guardar") });
+      avisar("error", mensajeDeError(error, "guardar"));
       return;
     }
 
@@ -642,7 +638,7 @@ export default function DocumentacionPage() {
     setProgresoDoc(null);
     if (fallo) {
       setGuardandoDoc(false);
-      setAvisoDoc({ tipo: "error", texto: `El registro se guardó pero el archivo no subió (${fallo}). Vuelve a intentarlo desde su fila.` });
+      avisar("error", `El registro se guardó pero el archivo no subió (${fallo}). Vuelve a intentarlo desde su fila.`);
       await cargar();
       return;
     }
@@ -666,7 +662,7 @@ export default function DocumentacionPage() {
     });
     if (eEnlace) {
       setGuardandoDoc(false);
-      setAvisoDoc({ tipo: "error", texto: `El registro se guardó y el archivo subió, pero no se pudo enlazar (${mensajeDeError(eEnlace)}). El documento queda SIN su papel: vuelve a subirlo desde su fila.` });
+      avisar("error", `El registro se guardó y el archivo subió, pero no se pudo enlazar (${mensajeDeError(eEnlace)}). El documento queda SIN su papel: vuelve a subirlo desde su fila.`);
       await cargar();
       return;
     }
@@ -675,13 +671,13 @@ export default function DocumentacionPage() {
     setGuardandoDoc(false);
     setSubiendo(null);
     await cargar();
-    setAvisoDoc({ tipo: "ok", texto: subiendo.negativa
+    avisar("ok", subiendo.negativa
       ? `Negativa registrada para ${quien}. Queda constancia de que se ofreció; no habilita el pago de movilidad.`
       : subiendo.que === "politica"
         ? "Política de movilidad archivada. Ya sostiene a todo el equipo."
         : subiendo.que === "bono"
           ? `Cargo del bono de ${quien} archivado.`
-          : `Declaración de ${quien} archivada.` });
+          : `Declaración de ${quien} archivada.`);
   }
 
   const cargar = useCallback(async () => {
@@ -1556,13 +1552,6 @@ export default function DocumentacionPage() {
               arriba— habría abierto un formulario invisible el día que el
               tablero venga vacío. Un formulario que existe pero no se ve es
               peor que uno que falta: quien lo usa cree que hizo clic mal. */}
-          {avisoDoc && !subiendo && (
-            <div className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
-              avisoDoc.tipo === "ok" ? "border-sand text-tinta" : "border-rojo text-rojo"}`}>
-              {avisoDoc.texto}
-            </div>
-          )}
-
           {subiendo && (
             <div ref={panelRef} className="mb-6 rounded-lg border border-sand bg-sand/20 p-4">
               <h3 className="mb-1 text-sm font-medium">
@@ -1612,15 +1601,6 @@ export default function DocumentacionPage() {
                       aria-label="Subiendo el documento" />
                   </div>
                   <span className="text-xs text-taupe">Subiendo — {progresoDoc}%</span>
-                </div>
-              )}
-
-              {/* El error de guardar sale junto al botón que lo produjo. Antes
-                  salía en la cabecera del tablero, a media pantalla de distancia
-                  del formulario que había fallado. */}
-              {avisoDoc && (
-                <div className={`mt-3 text-sm ${avisoDoc.tipo === "ok" ? "text-tinta" : "text-rojo"}`}>
-                  {avisoDoc.texto}
                 </div>
               )}
 

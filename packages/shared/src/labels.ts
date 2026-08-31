@@ -28,6 +28,7 @@ export const MOTIVO_CESE_LABELS: Record<MotivoCese, string> = {
   fin_contrato: "Terminó su contrato y no se renovó",
   fin_periodo_prueba: "No pasó el periodo de prueba",
   fin_servicio_rxh: "Terminó el servicio (recibo por honorarios)",
+  fin_convenio_practicas: "Terminó su convenio de prácticas",
   mutuo_acuerdo: "Salida de mutuo acuerdo",
   despido: "Despido con causa (exige preaviso, descargo y carta)",
   por_revisar: "Todavía no está claro — por revisar",

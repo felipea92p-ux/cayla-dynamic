@@ -7,6 +7,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { instanteEntrega } from "@/lib/admin/instante-entrega";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -237,6 +238,7 @@ export default function DisciplinaPage() {
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const puede = puedeOperarEquipo(rol);
+  const { avisar } = useToast();
 
   const [tardanzas, setTardanzas] = useState<TardanzaRow[]>([]);
   const [faltas, setFaltas] = useState<FaltaRow[]>([]);
@@ -250,7 +252,6 @@ export default function DisciplinaPage() {
   const [cargando, setCargando] = useState(true);
   const [resaltado, setResaltado] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [medio, setMedio] = useState<Record<string, string>>({});
 
   // ── El cargo firmado ────────────────────────────────────────────────────
@@ -340,7 +341,7 @@ export default function DisciplinaPage() {
       eF ? mensajeDeError(eF, "cargar el semáforo de faltas") : null,
       eD ? mensajeDeError(eD, "cargar el legajo") : null,
     ].filter(Boolean);
-    if (fallos.length) setMsg({ tipo: "error", texto: fallos.join(" · ") });
+    if (fallos.length) avisar("error", fallos.join(" · "));
     setFalloTard(!!eT);
     setFalloFaltas(!!eF);
     // El doble casteo no es pereza: `packages/database/src/types.ts` es un
@@ -394,7 +395,7 @@ export default function DisciplinaPage() {
       ((sc as { persona_id: string; motivo: string }[]) ?? []).map((x) => [x.persona_id, x.motivo]),
     ));
     setCargando(false);
-  }, [supabase, router, mesTard]);
+  }, [supabase, router, mesTard, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -418,7 +419,7 @@ export default function DisciplinaPage() {
   }, [cargando]);
 
   async function generar(tipo: "tardanza" | "falta", personaId: string) {
-    setOcupado(personaId); setMsg(null);
+    setOcupado(personaId);
     // Las dos RPC dejaron de tener la misma forma: el generador de tardanzas
     // recibe el mes que se documenta y el de faltas no, porque la escala de
     // faltas no se cuenta por mes calendario.
@@ -427,9 +428,9 @@ export default function DisciplinaPage() {
           { p_persona_id: personaId, p_mes: mesTard })
       : await supabase.rpc("fn_expediente_generar_falta", { p_persona_id: personaId });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Borrador generado. Revísalo abajo y fírmalo cuando esté listo." });
+    avisar("ok", "Borrador generado. Revísalo abajo y fírmalo cuando esté listo.");
     const suave = typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setTimeout(() => borradoresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 80);
   }
@@ -450,16 +451,16 @@ export default function DisciplinaPage() {
       "que se le imputa y el detalle de la medición. El sistema guarda la fecha; el " +
       "documento lo entregas tú.",
     )) return;
-    setOcupado(d.id); setMsg(null);
+    setOcupado(d.id);
     const { data, error } = await supabase.rpc("fn_expediente_comunicar_cargos", {
       p_id: d.id, p_dias: 2, p_nota: null,
     });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
     // Sin punto final: `selloLima` ya termina en «p. m.» y el punto detrás se
     // lee «p. m..».
-    setMsg({ tipo: "ok", texto: `Cargos comunicados · su plazo de descargo vence el ${selloLima(String(data))}` });
+    avisar("ok", `Cargos comunicados · su plazo de descargo vence el ${selloLima(String(data))}`);
   }
 
   /**
@@ -489,10 +490,10 @@ export default function DisciplinaPage() {
       "dilo: es más débil que un cargo firmado y el expediente tiene que decirlo así.",
     );
     if (!constancia || constancia.trim().length < 15) {
-      setMsg({ tipo: "error", texto: "Falta decir cómo consta, y con detalle: va a ser la única prueba de que esa comunicación existió." });
+      avisar("error", "Falta decir cómo consta, y con detalle: va a ser la única prueba de que esa comunicación existió.");
       return;
     }
-    setOcupado(d.id); setMsg(null);
+    setOcupado(d.id);
     // `instanteEntrega` fija el mediodía de Lima para un día pasado y nunca
     // devuelve un instante futuro — el mismo problema que ya resolvía al
     // archivar un cargo.
@@ -500,9 +501,9 @@ export default function DisciplinaPage() {
       p_id: d.id, p_fecha: instanteEntrega(dia, null), p_constancia: constancia.trim(), p_dias: 2,
     });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(String(data))}` });
+    avisar("ok", `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(String(data))}`);
   }
 
   /**
@@ -520,20 +521,20 @@ export default function DisciplinaPage() {
           : "¿Qué parte se acoge y qué parte no? Queda escrito en el documento (art. 19.3).",
       );
       if (!valoracion || valoracion.trim().length < 10) {
-        setMsg({ tipo: "error", texto: "Hace falta el motivo, y con algo de detalle: es lo que se lee si alguien discute la sanción." });
+        avisar("error", "Hace falta el motivo, y con algo de detalle: es lo que se lee si alguien discute la sanción.");
         return;
       }
     }
-    setOcupado(d.id); setMsg(null);
+    setOcupado(d.id);
     const { error } = await supabase.rpc("fn_expediente_valorar_descargo", {
       p_id: d.id, p_acogido: acogido, p_valoracion: valoracion,
     });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: acogido === "total"
+    avisar("ok", acogido === "total"
       ? "Descargo acogido. Si ya no corresponde sancionar, anula el borrador."
-      : "Valoración guardada. Ya se puede firmar." });
+      : "Valoración guardada. Ya se puede firmar.");
   }
 
   async function firmar(id: string) {
@@ -545,12 +546,12 @@ export default function DisciplinaPage() {
       ? `¿Firmar este documento como ${f.nombre} (${f.cargo})? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.`
       : "¿Firmar este documento? Le asigna su número oficial y deja de ser un borrador. Después podrás entregarlo o, si hizo falta, anularlo.";
     if (!window.confirm(aviso)) return;
-    setOcupado(id); setMsg(null);
+    setOcupado(id);
     const { data, error } = await supabase.rpc("fn_expediente_firmar", { p_id: id, p_firmante_id: elegido ?? null });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `Firmado — documento ${data ?? ""}. Ya puedes entregarlo.` });
+    avisar("ok", `Firmado — documento ${data ?? ""}. Ya puedes entregarlo.`);
   }
 
   async function abrirCargo(id: string, tipo: TipoPapel) {
@@ -559,7 +560,6 @@ export default function DisciplinaPage() {
     setFechaEntrega(hoyLima());
     setNotaCargo("");
     setTestigoCargo("");
-    setMsg(null);
   }
 
   async function guardarCargo() {
@@ -575,25 +575,25 @@ export default function DisciplinaPage() {
     const actaEntrega = subiendoCargo.tipo === "acta_negativa" && doc?.estado === "firmado";
     const pideFecha = (subiendoCargo.tipo === "cargo_firmado" && doc?.estado === "firmado") || actaEntrega;
     if (!archivoCargo) {
-      setMsg({ tipo: "error", texto: FALTA_PAPEL[subiendoCargo.tipo] });
+      avisar("error", FALTA_PAPEL[subiendoCargo.tipo]);
       return;
     }
     if (archivoCargo.size > MAX_BYTES_CARGO) {
-      setMsg({ tipo: "error", texto: `“${archivoCargo.name}” pesa ${(archivoCargo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
+      avisar("error", `“${archivoCargo.name}” pesa ${(archivoCargo.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
     }
     if (pideFecha && !fechaEntrega) {
-      setMsg({ tipo: "error", texto: "Indica la fecha de entrega: desde ahí corren los plazos de descargo." });
+      avisar("error", "Indica la fecha de entrega: desde ahí corren los plazos de descargo.");
       return;
     }
     // La base lo rechaza igual, pero enterarse después de subir el archivo es
     // una vuelta entera para escribir un nombre.
     if (actaEntrega && !testigoCargo.trim()) {
-      setMsg({ tipo: "error", texto: "Escribe el nombre del testigo: el acta la suscriben quien entrega y un testigo (num. 55.4 del RIT). Sin testigo no hay acta, y sin acta no hay entrega." });
+      avisar("error", "Escribe el nombre del testigo: el acta la suscriben quien entrega y un testigo (num. 55.4 del RIT). Sin testigo no hay acta, y sin acta no hay entrega.");
       return;
     }
 
-    setOcupado(subiendoCargo.id); setMsg(null);
+    setOcupado(subiendoCargo.id);
     // El archivo va a "<id del documento>/…": es lo que valida
     // fn_expediente_puede_adjuntar, así que no hay forma de colgarlo del memo
     // equivocado.
@@ -605,7 +605,7 @@ export default function DisciplinaPage() {
     setProgresoCargo(null);
     if (fallo) {
       setOcupado(null);
-      setMsg({ tipo: "error", texto: `El archivo no subió (${fallo}). Vuelve a intentarlo.` });
+      avisar("error", `El archivo no subió (${fallo}). Vuelve a intentarlo.`);
       return;
     }
 
@@ -625,7 +625,7 @@ export default function DisciplinaPage() {
     });
     if (error) {
       setOcupado(null);
-      setMsg({ tipo: "error", texto: mensajeDeError(error) });
+      avisar("error", mensajeDeError(error));
       return;
     }
 
@@ -643,7 +643,7 @@ export default function DisciplinaPage() {
       if (falloEntrega) {
         setOcupado(null);
         await cargar();
-        setMsg({ tipo: "error", texto: `El acta quedó archivada, pero el documento NO se marcó entregado (${mensajeDeError(falloEntrega)}). Vuelve a intentarlo desde «entregar sin papel».` });
+        avisar("error", `El acta quedó archivada, pero el documento NO se marcó entregado (${mensajeDeError(falloEntrega)}). Vuelve a intentarlo desde «entregar sin papel».`);
         return;
       }
     }
@@ -651,8 +651,7 @@ export default function DisciplinaPage() {
 
     setSubiendoCargo(null);
     await cargar();
-    setMsg({ tipo: "ok", texto:
-      subiendoCargo.tipo === "acta_negativa"
+    avisar("ok", subiendoCargo.tipo === "acta_negativa"
         ? actaEntrega
           ? "Acta archivada y documento ENTREGADO. La negativa a firmar produce los mismos efectos que la firma (num. 55.4), así que desde hoy corren los plazos y cuenta para el escalón siguiente."
           : "Acta de negativa archivada contra el documento."
@@ -660,7 +659,7 @@ export default function DisciplinaPage() {
           ? "Descargo archivado en el legajo. Es la pieza que prueba que se respetó el plazo del art. 31."
           : pideFecha
             ? "Cargo archivado y documento marcado como entregado. Ya no hace falta guardarlo en ninguna carpeta."
-            : "Cargo archivado contra el documento. La fecha de entrega registrada no cambió." });
+            : "Cargo archivado contra el documento. La fecha de entrega registrada no cambió.");
   }
 
   /**
@@ -682,7 +681,7 @@ export default function DisciplinaPage() {
         : "El documento sigue entregado y sigue contando como antecedente doce meses."),
     );
     if (!motivo || motivo.trim().length < 10) return;
-    setOcupado(d.id); setMsg(null);
+    setOcupado(d.id);
     // ⚠️ ESTE COMENTARIO YA NO ERA VERDAD, y se corrige el 2026-08-14. Decía que
     // `packages/database/src/types.ts` no conocía `fn_expediente_resolver` y que
     // regenerarlo rompía Ausencias, Correcciones y Datos personales. Lo primero
@@ -696,28 +695,28 @@ export default function DisciplinaPage() {
       p_id: d.id, p_resultado: resultado, p_motivo: motivo.trim(),
     });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: resultado === "archivado"
+    avisar("ok", resultado === "archivado"
       ? "Procedimiento archivado. El semáforo deja de pedir una decisión ya tomada."
-      : "Anotado que se resolvió con despido. La carta se emite aparte." });
+      : "Anotado que se resolvió con despido. La carta se emite aparte.");
   }
 
   async function verAdjunto(path: string) {
     // URL firmada de vida corta: el bucket es privado y estos papeles son los
     // más delicados del sistema.
     const fallo = await abrirArchivoFirmado(supabase, "expedientes", path);
-    if (fallo) setMsg({ tipo: "error", texto: fallo });
+    if (fallo) avisar("error", fallo);
   }
 
   async function entregar(id: string) {
     const m = medio[id] ?? "fisico";
-    setOcupado(id); setMsg(null);
+    setOcupado(id);
     const { error } = await supabase.rpc("fn_expediente_entregar", { p_id: id, p_medio: m });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Marcado como entregado. Guarda el cargo firmado en el legajo." });
+    avisar("ok", "Marcado como entregado. Guarda el cargo firmado en el legajo.");
   }
 
   /**
@@ -748,7 +747,7 @@ export default function DisciplinaPage() {
     // borrador, y si la firma se retrasaba, la suspensión caía en días ya
     // trabajados. Es el defecto que obligó a anular la T-02/0001 en julio.
     const desde = desdeElegido ?? d.suspension_desde ?? addDias(hoyLima(), 1);
-    setOcupado(d.id); setMsg(null);
+    setOcupado(d.id);
 
     const { data, error } = await supabase.rpc("fn_expediente_set_suspension", {
       p_id: d.id, p_dias: dias, p_desde: desde,
@@ -758,7 +757,7 @@ export default function DisciplinaPage() {
     // error de verdad y se muestra tal cual.
     if (error && error.code !== "PGRST202") {
       setOcupado(null);
-      setMsg({ tipo: "error", texto: mensajeDeError(error) });
+      avisar("error", mensajeDeError(error));
       return;
     }
 
@@ -769,11 +768,11 @@ export default function DisciplinaPage() {
         && addDias(fechas[0], fechas.length - 1) !== fechas[fechas.length - 1];
       await cargar();
       if (fechas.length) {
-        setMsg({ tipo: "ok", texto: salta
+        avisar("ok", salta
           ? `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")} — se saltan sus días de descanso, que no cuentan como sanción.`
           // Sin punto final: `fechaCorta` ya termina en punto («18-ago.») y el
           // segundo se lee como una errata.
-          : `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")}` });
+          : `Suspensión fijada en ${fechas.map(fechaCorta).join(", ")}`);
       }
       return;
     }
@@ -783,24 +782,23 @@ export default function DisciplinaPage() {
       p_id: d.id, p_suspension_dias: dias, p_suspension_desde: desde, p_suspension_hasta: addDias(desde, dias - 1),
     });
     setOcupado(null);
-    if (eViejo) { setMsg({ tipo: "error", texto: mensajeDeError(eViejo) }); return; }
+    if (eViejo) { avisar("error", mensajeDeError(eViejo)); return; }
     await cargar();
-    setMsg({ tipo: "error", texto:
-      "Días fijados por CALENDARIO: falta aplicar la migración 0075 en esta base. "
-      + "Comprueba a mano que ninguno caiga en su día de descanso — si cae, la suspensión no se cumple ese día y el memo diría algo falso." });
+    avisar("error", "Días fijados por CALENDARIO: falta aplicar la migración 0075 en esta base. "
+      + "Comprueba a mano que ninguno caiga en su día de descanso — si cae, la suspensión no se cumple ese día y el memo diría algo falso.");
   }
 
   /** La fecha de cese que declarará la carta de despido (art. 32 LPCL, mig. 0205). */
   async function guardarFechaCese(d: Doc, fecha: string) {
     if (!fecha || fecha === d.fecha_cese) return;
-    setOcupado(d.id); setMsg(null);
+    setOcupado(d.id);
     const { error } = await supabase.rpc("fn_expediente_editar_borrador", {
       p_id: d.id, p_fecha_cese: fecha,
     });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `Fecha de cese fijada en ${fechaCorta(fecha)}. Es la que imprimirá la carta.` });
+    avisar("ok", `Fecha de cese fijada en ${fechaCorta(fecha)}. Es la que imprimirá la carta.`);
   }
 
   // Volver un memo firmado a borrador para cambiar quién lo suscribe (mig. 0131).
@@ -811,12 +809,12 @@ export default function DisciplinaPage() {
       "Pierde su número oficial actual; al volver a firmarlo se le asigna uno nuevo. " +
       "Solo se puede mientras no se haya entregado.",
     )) return;
-    setOcupado(id); setMsg(null);
+    setOcupado(id);
     const { error } = await supabase.rpc("fn_expediente_reabrir", { p_id: id });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Vuelto a borrador. Arriba, en Borradores, elige el firmante correcto y fírmalo de nuevo." });
+    avisar("ok", "Vuelto a borrador. Arriba, en Borradores, elige el firmante correcto y fírmalo de nuevo.");
   }
 
   /**
@@ -848,14 +846,14 @@ export default function DisciplinaPage() {
         : "Motivo de la anulación (queda registrado en el documento):",
     );
     if (!motivo || motivo.trim().length < 3) return;
-    setOcupado(id); setMsg(null);
+    setOcupado(id);
     const { error } = await supabase.rpc("fn_expediente_anular", { p_id: id, p_motivo: motivo.trim() });
     setOcupado(null);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: entregado
+    avisar("ok", entregado
       ? "Documento anulado. Queda el rastro con tu motivo — ahora comunícaselo a la persona por escrito."
-      : "Documento anulado." });
+      : "Documento anulado.");
   }
 
   const borradores = docs.filter((d) => d.estado === "borrador");
@@ -946,12 +944,6 @@ function fechasDe(h: Hecho[]): string {
           El sistema detecta quién cruzó un umbral y <strong>arma el borrador del memo</strong> con las pruebas puestas;
           tú lo revisas y firmas. Tardanza y falta van <strong>separadas</strong>: pesan distinto en la escala.
         </p>
-
-        {msg && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
-          </div>
-        )}
 
         {/* Semáforo de tardanzas */}
         <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">

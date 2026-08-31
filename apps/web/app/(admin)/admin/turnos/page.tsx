@@ -8,6 +8,8 @@ import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, typ
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
+import { useToast } from "@/components/toast";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
@@ -460,26 +462,18 @@ export default function TurnosPage() {
   const rol = yo?.rol ?? null;
   const esAdmin = puedeVerTodasLasSedes(rol);
   const puedeVer = puedeOperarEquipo(rol);
+  const { avisar } = useToast();
 
   const [sedes, setSedes] = useState<Sede[]>([]);
-  const [sedeSel, setSedeSel] = useState<string>("");
+  // Se acuerda de la última vez (useFiltroGuardado); la semana que se mira no
+  // —`lunes`, abajo— porque persistirla mostraría la semana pasada al volver.
+  const [sedeSel, setSedeSel] = useFiltroGuardado("turnos.sede", "");
   const [lunes, setLunes] = useState<string>(() => lunesDeLaSemana(hoyLima()));
-  // Vista Día (línea de tiempo por persona) o Vista Semana (mapa de calor
-  // hora × día, para comparar cobertura entre los 7 días de un vistazo).
-  // Recuerda la preferencia entre visitas.
-  // La preferencia guardada se lee DESPUÉS de montar (no en el primer render):
-  // el HTML llega del servidor con "dia" y leer localStorage durante la
-  // hidratación haría chocar servidor y navegador (error de hidratación).
   // Tres vistas: Día = detalle por persona de un día · Semana = siluetas resumen
   // por día · Integrada = la sábana hora×día de toda la semana (quién cubre cada
-  // franja de un vistazo). Recuerda la preferencia entre visitas.
+  // franja de un vistazo). Se acuerda de la preferencia entre visitas.
   type Vista = "dia" | "semana" | "integrada";
-  const [vista, setVistaRaw] = useState<Vista>("dia");
-  useEffect(() => {
-    const v = localStorage.getItem("turnos_vista");
-    if (v === "semana" || v === "integrada") setVistaRaw(v);
-  }, []);
-  const setVista = (v: Vista) => { setVistaRaw(v); localStorage.setItem("turnos_vista", v); };
+  const [vista, setVista] = useFiltroGuardado<Vista>("turnos.vista", "dia");
   // Panel de la Vista Integrada: al tocar una celda (una franja de un día) se
   // abre mostrando quién cubre esa media hora, con acceso a editar por persona.
   const [panel, setPanel] = useState<{ fecha: string; franjaIdx: number } | null>(null);
@@ -512,7 +506,6 @@ export default function TurnosPage() {
   const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
   const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
   const [cargando, setCargando] = useState(true);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   // edición de celda
   const [edit, setEdit] = useState<{ personaId: string; fecha: string } | null>(null);
@@ -569,7 +562,7 @@ export default function TurnosPage() {
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (pErr || hErr || tErr || mErr) {
-      setMsg({ tipo: "error", texto: mensajeDeError((pErr ?? hErr ?? tErr ?? mErr)!, "cargar la semana") });
+      avisar("error", mensajeDeError((pErr ?? hErr ?? tErr ?? mErr)!, "cargar la semana"));
       setCargando(false);
       return; // no pisa personas/horarios/turnos/metas con datos parciales/vacíos
     }
@@ -591,7 +584,7 @@ export default function TurnosPage() {
     setMetasTarde(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_tarde ?? x.meta ?? 0])));
     setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
     setCargando(false);
-  }, [supabase, sedeSel, lunes]);
+  }, [supabase, sedeSel, lunes, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -661,20 +654,19 @@ export default function TurnosPage() {
     setEdit({ personaId, fecha });
     setEntrada(c.tipo === "turno" || c.tipo === "default" ? c.entrada : "");
     setSalida((c.tipo === "turno" || c.tipo === "default") && c.salida ? c.salida : "");
-    setMsg(null);
   }
 
   async function ejecutar(fn: () => PromiseLike<{ error: any }>) {
     setGuardando(true);
     const { error } = await fn();
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     setEdit(null);
     await cargar();
   }
 
   const guardarTurno = () => {
-    if (!edit || !entrada) { setMsg({ tipo: "error", texto: "Pon al menos la hora de entrada." }); return; }
+    if (!edit || !entrada) { avisar("error", "Pon al menos la hora de entrada."); return; }
     return ejecutar(() => supabase.rpc("fn_set_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha, p_hora_entrada: entrada, p_hora_salida: salida || null }));
   };
   // "De aquí en adelante": el cambio NO es puntual, es la nueva regla. Toma el
@@ -683,7 +675,7 @@ export default function TurnosPage() {
   // Además quita el turno puntual, que dejaría de tener sentido: la regla lo cubre.
   const guardarDesdeAqui = async () => {
     if (!edit) return;
-    if (!entrada || !salida) { setMsg({ tipo: "error", texto: "Para cambiar el horario base necesito entrada y salida." }); return; }
+    if (!entrada || !salida) { avisar("error", "Para cambiar el horario base necesito entrada y salida."); return; }
     const tr = tramoVigente(horarios.get(edit.personaId), edit.fecha);
     const semanal = horarioSemanalDesdeTramo(tr);
     const dow = String(diaSemana(edit.fecha));
@@ -703,14 +695,14 @@ export default function TurnosPage() {
       ? (await supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha })).error
       : null;
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     setEdit(null);
     await cargar();
     if (eQuitar) {
-      setMsg({ tipo: "error", texto: `El horario base de los ${DIAS_PLURAL[Number(dow)]} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${mensajeDeError(eQuitar)} Mientras siga ahí, ese día manda el turno y no el horario base.` });
+      avisar("error", `El horario base de los ${DIAS_PLURAL[Number(dow)]} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${mensajeDeError(eQuitar)} Mientras siga ahí, ese día manda el turno y no el horario base.`);
       return;
     }
-    setMsg({ tipo: "ok", texto: `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.` });
+    avisar("ok", `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.`);
   };
   const marcarDescanso = () => edit && ejecutar(() => supabase.rpc("fn_set_descanso", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
   const quitar = () => edit && ejecutar(() => supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
@@ -726,7 +718,7 @@ export default function TurnosPage() {
       p_sede_id: sedeSel, p_dia_semana: dia,
       p_meta_manana: metas.get(dia) ?? 0, p_meta_tarde: metasTarde.get(dia) ?? 0,
     });
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "guardar la meta") }); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta")); await cargar(); }
   }
 
   function editarMetaEncargadas(dia: number, valor: string) {
@@ -736,7 +728,7 @@ export default function TurnosPage() {
   async function comprometerMetaEncargadas(dia: number, valor: string) {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
     const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "guardar la meta de encargadas") }); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de encargadas")); await cargar(); }
   }
 
   if (rol !== null && !puedeVer) {
@@ -783,8 +775,6 @@ export default function TurnosPage() {
             </div>
           </div>
         </div>
-
-        {msg && <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>{msg.texto}</div>}
 
         {funcionesFallo && !cargando && (
           <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">

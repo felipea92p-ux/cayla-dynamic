@@ -47,8 +47,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { EsqueletoTabla } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { hoyLima, TZ_LIMA } from "@cayla-dynamic/shared";
 import { type Area, AREAS_FALLBACK, parseAreas, areaCorto, areaNombre } from "@/lib/areas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
@@ -496,6 +498,7 @@ function Tile({ label, valor, pie, tono = "neutral" }: { label: string; valor: s
 
 function DesempenoContenido() {
   const router = useRouter();
+  const { avisar } = useToast();
   const searchParams = useSearchParams();
   const personaEnlace = searchParams.get("persona");
 
@@ -508,10 +511,13 @@ function DesempenoContenido() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [fSede, setFSede] = useState("");
-  const [fArea, setFArea] = useState("");
+  // Sede, área e "incluir inactivas" se acuerdan de la última vez; la fecha y
+  // la búsqueda por nombre no — son de esta visita, no de cómo se mira siempre
+  // esta pantalla.
+  const [fSede, setFSede] = useFiltroGuardado("horas.sede", "");
+  const [fArea, setFArea] = useFiltroGuardado("horas.area", "");
   const [fBusca, setFBusca] = useState("");
-  const [verInactivas, setVerInactivas] = useState(false);
+  const [verInactivas, setVerInactivas] = useFiltroGuardado("horas.verInactivas", false);
   const [orden, setOrden] = useState<Orden>({ col: "atencion", asc: true });
 
   // El día abierto. Es lo único que esta pantalla «selecciona».
@@ -522,7 +528,6 @@ function DesempenoContenido() {
   const [motivo, setMotivo] = useState("");
   const [obs, setObs] = useState("");
   const [guardando, setGuardando] = useState(false);
-  const [avisoPanel, setAvisoPanel] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const fechas = useMemo(() => (desde <= hasta ? fechasDelRango(desde, hasta) : []), [desde, hasta]);
   const hayCuadricula = fechas.length > 0 && fechas.length <= MAX_DIAS_CUADRICULA;
@@ -787,11 +792,11 @@ function DesempenoContenido() {
     // Abrir un día desde la cuadrícula despliega también su desempeño: el día
     // se entiende mirando los de alrededor, no solo.
     setAbierta(personaId);
-    setMotivo(""); setObs(""); setAvisoPanel(null);
+    setMotivo(""); setObs("");
   }, []);
   const cerrarDia = useCallback(() => {
     setSel(null);
-    setMotivo(""); setObs(""); setAvisoPanel(null);
+    setMotivo(""); setObs("");
   }, []);
 
   useEffect(() => {
@@ -810,7 +815,7 @@ function DesempenoContenido() {
     const lista = tipo === "tardanza" ? MOTIVOS_TARDANZA : MOTIVOS_FALTA;
     const m = motivo || lista[0].valor;
     if (m === "otro" && obs.trim().length < 3) {
-      setAvisoPanel({ tipo: "error", texto: "Para «Otro» la observación es obligatoria." });
+      avisar("error", "Para «Otro» la observación es obligatoria.");
       return;
     }
     setGuardando(true);
@@ -819,8 +824,8 @@ function DesempenoContenido() {
       ? await supabase.rpc("fn_levantar_tardanza", { p_persona_id: sel.personaId, p_fecha: sel.fecha, p_motivo: m, p_observacion: obs.trim() || null })
       : await supabase.rpc("fn_set_justificacion", { p_persona_id: sel.personaId, p_fecha: sel.fecha, p_motivo: m, p_observacion: obs.trim() || null });
     setGuardando(false);
-    if (e) { setAvisoPanel({ tipo: "error", texto: e.message }); return; }
-    setAvisoPanel({ tipo: "ok", texto: tipo === "tardanza" ? "Tardanza justificada. La hora real no se tocó." : "Falta justificada." });
+    if (e) { avisar("error", e.message); return; }
+    avisar("ok", tipo === "tardanza" ? "Tardanza justificada. La hora real no se tocó." : "Falta justificada.");
     setObs(""); setMotivo("");
     await cargar();
   }
@@ -831,8 +836,8 @@ function DesempenoContenido() {
     const { error: e } = await createAdminSupabaseClient()
       .rpc("fn_quitar_justificacion", { p_persona_id: sel.personaId, p_fecha: sel.fecha });
     setGuardando(false);
-    if (e) { setAvisoPanel({ tipo: "error", texto: e.message }); return; }
-    setAvisoPanel({ tipo: "ok", texto: "Justificación retirada. El día vuelve a contar como falta." });
+    if (e) { avisar("error", e.message); return; }
+    avisar("ok", "Justificación retirada. El día vuelve a contar como falta.");
     await cargar();
   }
 
@@ -923,7 +928,12 @@ function DesempenoContenido() {
           </div>
         )}
         {desde > hasta && <p className="mb-4 text-sm text-rojo">El «desde» es posterior al «hasta».</p>}
-        {cargando && <Cargando />}
+        {cargando && (
+          <EsqueletoTabla
+            anchos={["w-36", "w-16", "w-14", "w-14", "w-14", "w-12", "w-16", ...(hayObjetivos ? ["w-14"] : [])]}
+            franjaFinal={hayCuadricula ? Math.min(fechas.length, 16) : undefined}
+          />
+        )}
         {!cargando && !error && filas.length === 0 && <p className="text-sm text-taupe">Sin actividad en este periodo.</p>}
         {!cargando && !error && filas.length > 0 && vista.length === 0 && (
           <p className="text-sm text-taupe">Ninguna persona coincide con estos filtros.</p>
@@ -1165,12 +1175,6 @@ function DesempenoContenido() {
                   <p className="mt-3 rounded-lg bg-verde/10 px-3 py-2">Trabajó en un día que su horario marca como descanso.</p>
                 )}
               </div>
-
-              {avisoPanel && (
-                <p className={`rounded-lg px-3 py-2 ${avisoPanel.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>
-                  {avisoPanel.texto}
-                </p>
-              )}
 
               {/* Justificar. Va por las mismas RPC que Incidencias — no hay una
                   segunda forma de perdonar un día en este sistema. */}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { formatSoles } from "@/lib/rangos";
@@ -89,6 +90,7 @@ const s = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
 export default function LiquidacionesPage() {
   const router = useRouter();
+  const { avisar } = useToast();
   const rol = useRolActual();
   const supabase = createAdminSupabaseClient();
 
@@ -96,7 +98,6 @@ export default function LiquidacionesPage() {
   const [avisos, setAvisos] = useState<AvisoVinculo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [abierta, setAbierta] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Detalle | null>(null);
@@ -139,31 +140,31 @@ export default function LiquidacionesPage() {
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
       supabase.rpc("fn_liquidacion_diferencias", { p_persona_id: personaId }),
     ]);
-    if (liq.error) { setMsg({ tipo: "error", texto: mensajeDeError(liq.error) }); return; }
+    if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
     setDetalle(liq.data as Detalle);
     setDiferencias((dif.data as Diferencia[]) ?? []);
   }
 
   async function abrir(personaId: string) {
     if (abierta === personaId) { setAbierta(null); setDetalle(null); setDiferencias([]); return; }
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setMsg(null); setNota("");
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setNota("");
     await cargarDetalle(personaId);
   }
 
   async function pagar(personaId: string) {
-    setOcupado(true); setMsg(null);
+    setOcupado(true);
     const { data, error } = await supabase.rpc("fn_liquidacion_pagar", {
       p_persona_id: personaId,
       p_nota: nota.trim() || null,
     });
     setOcupado(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
     setAbierta(personaId); setDetalle(null); setDiferencias([]);
     await cargarDetalle(personaId);
     const v = (data as { version?: number } | null)?.version;
-    setMsg({ tipo: "ok", texto:
-      `Liquidación congelada${v && v > 1 ? ` (versión ${v})` : ""}. La cifra pagada ya no cambia sola: si un recálculo posterior difiere, se avisa.` });
+    avisar("ok",
+      `Liquidación congelada${v && v > 1 ? ` (versión ${v})` : ""}. La cifra pagada ya no cambia sola: si un recálculo posterior difiere, se avisa.`);
   }
 
   if (cargando) return <Cargando />;
@@ -202,12 +203,6 @@ export default function LiquidacionesPage() {
           {cargaError && (
             <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
               No se pudo leer la lista: {cargaError}
-            </p>
-          )}
-
-          {msg && (
-            <p className={`mb-4 rounded-lg border p-3 text-sm ${msg.tipo === "ok" ? "border-sand" : "border-rojo bg-rojo/5 text-rojo"}`}>
-              {msg.texto}
             </p>
           )}
 

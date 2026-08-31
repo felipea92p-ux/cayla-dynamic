@@ -144,6 +144,7 @@ export const MOTIVOS_CESE = [
   "fin_contrato",
   "fin_periodo_prueba",
   "fin_servicio_rxh",
+  "fin_convenio_practicas",
   "mutuo_acuerdo",
   "despido",
   "por_revisar",

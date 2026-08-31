@@ -8,6 +8,7 @@ import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
 
@@ -35,6 +36,7 @@ function ObjetivosContenido() {
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const hoy = useMemo(() => mesActualLima(), []);
+  const { avisar } = useToast();
 
   // Enlace directo: /admin/objetivos?persona=<uuid>&anio=2026&mes=9 llega con
   // la persona y el mes ya elegidos. Lo usa Desempeño, donde ves que a alguien
@@ -54,7 +56,6 @@ function ObjetivosContenido() {
   const [resumen, setResumen] = useState<ResumenMes[]>([]);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [nuevoTexto, setNuevoTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -107,24 +108,19 @@ function ObjetivosContenido() {
       supabase.rpc("fn_objetivos_resumen", { p_anio: anio, p_mes: mes }),
     ]);
     if (error) {
-      setMensaje({ tipo: "error", texto: mensajeDeError(error) });
+      avisar("error", mensajeDeError(error));
     } else {
       setItems(((data as unknown as ObjetivoItem[] | null) ?? []).slice());
       setResumen((res as unknown as ResumenMes[] | null) ?? []);
-      setMensaje(null);
     }
     setCargado(true);
     setCargando(false);
-  }, [personaId, anio, mes]);
+  }, [personaId, anio, mes, avisar]);
 
   useEffect(() => {
     setCargado(false);
     if (personaId) void cargar();
   }, [personaId, anio, mes, cargar]);
-
-  function avisar(tipo: "ok" | "error", texto: string) {
-    setMensaje({ tipo, texto });
-  }
 
   async function agregar() {
     const texto = nuevoTexto.trim();
@@ -259,16 +255,6 @@ function ObjetivosContenido() {
             </select>
           </label>
         </div>
-
-        {mensaje && (
-          <div
-            className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${
-              mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"
-            }`}
-          >
-            {mensaje.texto}
-          </div>
-        )}
 
         {!personaId ? (
           <p className="text-sm text-taupe">Elige una persona para ver o gestionar sus objetivos.</p>
