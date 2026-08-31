@@ -103,6 +103,9 @@ export default function DatosPersonalesPage() {
   // El correo vive en `personas`, no en la ficha: es el usuario de acceso.
   const [email, setEmail] = useState("");
   const [dhNuevo, setDhNuevo] = useState({ ...DH_VACIO });
+  // LO QUE SE MANDA ES LO QUE SE VE: mismo respaldo que `refDocFecha` en
+  // ausencias/page.tsx, contra el mismo bug de Safari con `input[type=date]`.
+  const refDhFecha = useRef<HTMLInputElement>(null);
   const [dhAbierto, setDhAbierto] = useState(false);
   // Qué familiar se está editando. `null` = se está creando uno nuevo. El
   // formulario es el MISMO para las dos cosas: `fn_set_derechohabiente` ya hace
@@ -355,7 +358,9 @@ export default function DatosPersonalesPage() {
       avisar("error", "El nombre y el apellido del familiar son obligatorios.");
       return;
     }
-    if (dhNuevo.vinculo === "hijo" && !dhNuevo.fecha_nacimiento) {
+    const vFecha = dhNuevo.fecha_nacimiento || refDhFecha.current?.value || "";
+    if (vFecha !== dhNuevo.fecha_nacimiento) setDhNuevo((d) => ({ ...d, fecha_nacimiento: vFecha }));
+    if (dhNuevo.vinculo === "hijo" && !vFecha) {
       avisar("error", "La fecha de nacimiento de una hija o hijo es obligatoria: es lo que define hasta cuándo lo cubre EsSalud.");
       return;
     }
@@ -365,7 +370,7 @@ export default function DatosPersonalesPage() {
       p_nombres: dhNuevo.nombres.trim(), p_apellidos: dhNuevo.apellidos.trim(),
       p_vinculo: dhNuevo.vinculo,
       p_documento: dhNuevo.documento.trim() || null,
-      p_fecha_nacimiento: dhNuevo.fecha_nacimiento || null,
+      p_fecha_nacimiento: vFecha || null,
       p_essalud: dhNuevo.essalud, p_vida_ley: dhNuevo.vida_ley, p_nota: null,
     });
     setGuardando(false);
@@ -823,11 +828,35 @@ export default function DatosPersonalesPage() {
                           ))}
                         </select>
                       </label>
+                      {/* CAMBIO 0328 — Dos correcciones en tres líneas de texto.
+                          La primera: decía que sin régimen «se le descuenta la
+                          tasa genérica del 13 %», y no es cierto desde la 0115.
+                          El interruptor global `configuracion.tasa_afp` vale 0 a
+                          propósito, así que a quien no tiene régimen NO se le
+                          descuenta NADA. Decir 13 % hacía que un dato faltante
+                          pareciera un dato razonable, y por eso podía quedarse
+                          años sin llenar sin que nadie sintiera urgencia.
+                          La segunda: se nombra el esquema de comisión, porque es
+                          lo que se venía eligiendo sin saber que se elegía. */}
                       <p className="self-end text-[11px] text-taupe">
                         {regimen === ""
-                          ? "Sin régimen se le descuenta la tasa genérica del 13 %. Conviene poner el verdadero: sale en su boleta."
+                          ? "Mientras esté vacío NO se le descuenta pensión: ni AFP ni ONP. No es un descuento genérico, es cero. Hay que poner el verdadero — sale en su boleta y lo declara el contador."
                           : "Se descuenta de su remuneración asegurable y va a su fondo de pensión — no se queda en CAYLA."}
                       </p>
+                      {/* La comisión mixta es el caso normal y hasta la 0328 no se
+                          podía ni elegir: quien se afilió al SPP desde 2013 entró
+                          a mixta obligatoriamente. Elegir el esquema equivocado no
+                          da error en ninguna pantalla — solo retiene de más o de
+                          menos cada mes, así que la única defensa es que quien
+                          llena la ficha sepa dónde se comprueba. */}
+                      {regimen.endsWith("_mixta") || ["profuturo", "prima", "integra", "habitat"].includes(regimen) ? (
+                        <p className="self-end text-[11px] text-taupe sm:col-span-2">
+                          <b>Mixta o sobre flujo</b> no se adivina por la AFP: es cómo cobra su comisión.
+                          En <b>mixta</b> no cobra nada del sueldo (se retiene 11.37 %) y se cobra contra el
+                          fondo; en <b>flujo</b> la cobra del sueldo. Quien se afilió desde 2013 está en
+                          mixta. Se confirma en AFPnet o en el estado de cuenta de la persona.
+                        </p>
+                      ) : null}
                       {/* CAMBIO 0277 — La fecha solo aparece cuando hay algo que
                           fechar. Un campo permanente pediría una decisión en cada
                           guardado de ficha, y la mayoría de los guardados no
@@ -1010,7 +1039,7 @@ export default function DatosPersonalesPage() {
                               Fecha de nacimiento
                               {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-amber-700">· obligatoria</span>}
                             </span>
-                            <input type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} className="rounded-lg border px-3 py-2" />
+                            <input ref={refDhFecha} type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} onBlur={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.currentTarget.value }))} className="rounded-lg border px-3 py-2" />
                           </label>
                           <div className="flex flex-col gap-2 text-sm sm:self-end">
                             <label className="flex items-center gap-2">

@@ -23,7 +23,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
-import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
 import { useToast } from "@/components/toast";
@@ -48,12 +48,6 @@ function fmt(iso: string | null | undefined): string {
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return iso;
   return `${d}/${m}/${y}`;
-}
-// Hoy en Lima. Con new Date().toISOString() (UTC) a partir de las 19:00 daría mañana.
-function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ_LIMA, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
 }
 function haceMeses(n: number): string {
   const [y, m, d] = hoyLima().split("-").map(Number);

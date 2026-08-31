@@ -79,35 +79,40 @@ export default function PerfilPersonaPage() {
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [subiendoFirma, setSubiendoFirma] = useState(false);
 
-  const cargar = useCallback(async () => {
-    setCargando(true); setErr(null);
-    const { data: sesion } = await supabase.auth.getSession();
-    if (!sesion.session) { router.replace("/admin/login"); return; }
-    const { data: p, error: eP } = await supabase.from("personas")
-      .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion")
-      .eq("id", id).maybeSingle();
-    if (eP || !p) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); return; }
-    setPersona(p as Persona);
-    const [{ data: s }, { data: dp }, { data: sal }, { data: dd }] = await Promise.all([
-      supabase.from("sedes").select("id, codigo"),
-      supabase.from("datos_personales")
-        .select("nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
-        .eq("persona_id", id).maybeSingle(),
-      supabase.rpc("fn_historial_salario", { p_persona_id: id }),
-      supabase.from("expediente_disciplinario")
-        .select("id, correlativo, tipo_causal, nivel, estado, creado_at, firmado_at")
-        .eq("persona_id", id).order("creado_at", { ascending: false }),
-    ]);
-    const smap = new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo]));
-    setSede(smap.get((p as Persona).sede_base_id) ?? "");
-    setFicha((dp as Ficha) ?? null);
-    const hist = (sal as Salario[]) ?? [];
-    setSalario(hist.find((x) => !x.vigente_hasta) ?? hist[0] ?? null);
-    setDocs((dd as DocLite[]) ?? []);
-    setCargando(false);
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      setCargando(true); setErr(null);
+      const { data: sesion } = await supabase.auth.getSession();
+      if (!sesion.session) { router.replace("/admin/login"); return; }
+      const { data: p, error: eP } = await supabase.from("personas")
+        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion")
+        .eq("id", id).maybeSingle();
+      if (eP || !p) { if (vivo) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); } return; }
+      if (vivo) setPersona(p as Persona);
+      const [{ data: s }, { data: dp }, { data: sal, error: eSal }, { data: dd }] = await Promise.all([
+        supabase.from("sedes").select("id, codigo"),
+        supabase.from("datos_personales")
+          .select("nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
+          .eq("persona_id", id).maybeSingle(),
+        supabase.rpc("fn_historial_salario", { p_persona_id: id }),
+        supabase.from("expediente_disciplinario")
+          .select("id, correlativo, tipo_causal, nivel, estado, creado_at, firmado_at")
+          .eq("persona_id", id).order("creado_at", { ascending: false }),
+      ]);
+      if (eSal) { if (vivo) { setErr("No se pudo cargar el historial de salario."); setCargando(false); } return; }
+      const smap = new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo]));
+      if (vivo) {
+        setSede(smap.get((p as Persona).sede_base_id) ?? "");
+        setFicha((dp as Ficha) ?? null);
+        const hist = (sal as Salario[]) ?? [];
+        setSalario(hist.find((x) => !x.vigente_hasta) ?? hist[0] ?? null);
+        setDocs((dd as DocLite[]) ?? []);
+        setCargando(false);
+      }
+    })();
+    return () => { vivo = false; };
   }, [supabase, router, id]);
-
-  useEffect(() => { void cargar(); }, [cargar]);
 
   // El nombre con el que se guarda el PDF de la ficha. Ver
   // use-titulo-documento.ts. Lleva el DNI cuando está cargado, porque una ficha

@@ -187,7 +187,9 @@ with repo(numero, nombre, nunca) as (values
     (325, 'un_convenio_de_practicas_tambien_termina', false),
     (326, 'un_marcaje_sin_revisar_tampoco_cierra_el_mes', false),
     (327, 'el_candado_de_horas_pasa_a_ser_por_grupo', false),
-    (329, 'el_estimado_de_planilla_se_consulta_por_persona', false)
+    (328, 'la_comision_mixta_deja_de_cobrarse_como_flujo', false),
+    (329, 'el_estimado_de_planilla_se_consulta_por_persona', false),
+    (331, 'las_diecinueve_pasan_a_comision_mixta', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

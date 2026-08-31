@@ -5,19 +5,30 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
+import { Marca } from "@/components/marca";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { loQueNoSePudo, sePuedeEntregar } from "@/lib/admin/lo-que-no-se-pudo";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima, primeroDeMesLima } from "@cayla-dynamic/shared";
 
 const CORTE_TARDE = 14.25; // mismo corte mañana/tarde que Turnos/Dashboard
-const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
-function mesActual(): string { return hoyLima().slice(0, 7); } // yyyy-mm
-function finDeMes(mes: string): string {
-  const [y, m] = mes.split("-").map(Number);
-  return `${mes}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+function fmtDia(iso: string, opts: Intl.DateTimeFormatOptions): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { ...opts, timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+}
+// Etiqueta del periodo elegido. Antes esta pantalla solo aceptaba mes
+// calendario completo, así que un solo nombre de mes alcanzaba. Ahora el
+// rango es libre —puede ser el periodo de planilla, una semana, un solo
+// día— y la etiqueta tiene que decirlo sin mentir por omisión.
+function rangoLabel(desde: string, hasta: string): string {
+  if (desde === hasta) return fmtDia(desde, { day: "numeric", month: "long", year: "numeric" });
+  const mismoAnio = desde.slice(0, 4) === hasta.slice(0, 4);
+  const mismoMes = mismoAnio && desde.slice(5, 7) === hasta.slice(5, 7);
+  if (mismoMes) return `${Number(desde.slice(8, 10))}–${fmtDia(hasta, { day: "numeric", month: "long", year: "numeric" })}`;
+  const izq = fmtDia(desde, mismoAnio ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" });
+  return `${izq} – ${fmtDia(hasta, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 function diaSemanaDe(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number);
@@ -51,7 +62,8 @@ function ReporteSedeContenido() {
 
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [sedeId, setSedeId] = useState<string>("");
-  const [mes, setMes] = useState(mesActual());
+  const [desde, setDesde] = useState(primeroDeMesLima());
+  const [hasta, setHasta] = useState(hoyLima());
   const [filas, setFilas] = useState<Fila[]>([]);
   const [meta, setMeta] = useState<Meta>({ man: 0, tar: 0, enc: 0 });
   const [tardAlerta, setTardAlerta] = useState<TardRow[]>([]);
@@ -95,11 +107,9 @@ function ReporteSedeContenido() {
   }, [supabase, router, searchParams]);
 
   const cargar = useCallback(async () => {
-    if (!sedeId) return;
+    if (!sedeId || !desde || !hasta || hasta < desde) return;
     setCargando(true);
     const hoy = hoyLima();
-    const desde = `${mes}-01`;
-    const hasta = mes === mesActual() ? hoy : finDeMes(mes);
     const diaHoy = diaSemanaDe(hoy);
     const codigoSede = sedes.find((s) => s.id === sedeId)?.codigo ?? "";
 
@@ -132,8 +142,11 @@ function ReporteSedeContenido() {
       supabase.rpc("fn_personas_funciones"),
       supabase.rpc("fn_areas"),
       supabase.from("metas_cobertura").select("sede_id, meta, meta_tarde, meta_encargadas").eq("dia_semana", diaHoy).eq("sede_id", sedeId),
-      supabase.rpc("fn_tardanzas_resumen", {}),
-      supabase.rpc("fn_faltas_resumen", {}),
+      // `p_as_of` es el fin del rango elegido, no la fecha de hoy: sin esto,
+      // mirar un periodo cerrado mostraba en «Necesita atención» el estado de
+      // HOY con el umbral de hoy, no el del periodo que se está archivando.
+      supabase.rpc("fn_tardanzas_resumen", { p_as_of: hasta }),
+      supabase.rpc("fn_faltas_resumen", { p_as_of: hasta }),
     ]);
 
     // Qué se cayó, con el nombre de la columna que alimenta — no el de la RPC.
@@ -180,7 +193,7 @@ function ReporteSedeContenido() {
         nombre: `${p.nombres} ${p.apellidos}`,
         estadoHoy: hoyJ?.estado ?? "sin_marcar",
         esOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
-        esEncargada: p.rol === "supervisor_sede" || Boolean(f?.enc),
+        esEncargada: esRolEncargada(p.rol) || Boolean(f?.enc),
         dias: reales.filter((j) => (j.horas_trabajadas ?? 0) > 0).length,
         horas: js.reduce((s, j) => s + (j.horas_trabajadas ?? 0), 0),
         tardanzas: js.filter((j) => (j.minutos_tarde ?? 0) > 0).length,
@@ -195,7 +208,7 @@ function ReporteSedeContenido() {
     setFaltaAlerta(((faltasResumen as FaltaRow[]) ?? []).filter((f) => f.sede === codigoSede && f.nivel === "rojo"));
     setCargado(true);
     setCargando(false);
-  }, [supabase, sedeId, mes, sedes]);
+  }, [supabase, sedeId, desde, hasta, sedes]);
 
   useEffect(() => { if (sedeId) void cargar(); }, [sedeId, cargar]);
 
@@ -205,13 +218,14 @@ function ReporteSedeContenido() {
   const opPiso = filas.filter((f) => f.esOperativa && f.estadoHoy === "abierta").length;
   const encPiso = filas.filter((f) => f.esEncargada && f.estadoHoy === "abierta").length;
   const metaOp = tramoTarde ? meta.tar : meta.man;
-  const mesLabel = `${MESES[Number(mes.slice(5, 7)) - 1]} ${mes.slice(0, 4)}`;
+  const rango = rangoLabel(desde, hasta);
+  const hoy = hoyLima();
 
   // El nombre con el que se guarda el PDF. Ver use-titulo-documento.ts.
-  // Aquí el mes va DELANTE, al contrario que en la boleta: estos reportes se
-  // archivan por periodo y se comparan entre sedes, así que ordenados por mes
-  // quedan agrupados solos en la carpeta.
-  useTituloDocumento(sede ? `Reporte ${mesLabel} — ${sede.nombre}` : null);
+  // Aquí el periodo va DELANTE, al contrario que en la boleta: estos reportes
+  // se archivan por periodo y se comparan entre sedes, así que ordenados por
+  // fecha quedan agrupados solos en la carpeta.
+  useTituloDocumento(sede ? `Reporte ${rango} — ${sede.nombre}` : null);
 
   const Cobertura = ({ label, n, m }: { label: string; n: number; m: number }) => {
     const sinMeta = m <= 0; const ok = !sinMeta && n >= m;
@@ -227,26 +241,15 @@ function ReporteSedeContenido() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AdminNav />
-      <main className="flex-1 p-6 sm:p-8">
-        <style>{`
-          .solo-print{display:none}
-          @page{margin:15mm}
-          @media print{
-            header,.no-print{display:none!important}
-            .solo-print{display:flex!important}
-            body{background:#fff!important}
-            main{padding:0!important}
-            section{break-inside:avoid;background:#fff!important}
-            .colibri{print-color-adjust:exact;-webkit-print-color-adjust:exact}
-          }
-        `}</style>
-
+      <div className="print:hidden">
+        <AdminNav />
+      </div>
+      <main className="flex-1 p-6 sm:p-8 print:p-0">
         {/* Controles — no salen en el PDF */}
-        <div className="no-print mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
           <div>
             <h1 className="font-serif text-2xl leading-tight">Hoja de sede</h1>
-            <p className="mt-1 text-sm text-taupe">El estado de una sede en una página: hoy, el mes y lo que necesita atención.</p>
+            <p className="mt-1 text-sm text-taupe">El estado de una sede en una página: hoy, el periodo elegido y lo que necesita atención.</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1 text-sm">Sede
@@ -254,8 +257,15 @@ function ReporteSedeContenido() {
                 {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-sm">Mes
-              <input type="month" value={mes} onChange={(e) => { setMes(e.target.value); setCargado(false); }} className="rounded-xl border border-sand bg-crema px-3 py-2" />
+            <label className="flex flex-col gap-1 text-sm">Desde
+              <input type="date" value={desde} max={hasta}
+                onChange={(e) => { const v = e.target.value; setDesde(v); if (v > hasta) setHasta(v); setCargado(false); }}
+                className="rounded-xl border border-sand bg-crema px-3 py-2" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">Hasta
+              <input type="date" value={hasta} min={desde} max={hoy}
+                onChange={(e) => { const v = e.target.value; setHasta(v); if (v < desde) setDesde(v); setCargado(false); }}
+                className="rounded-xl border border-sand bg-crema px-3 py-2" />
             </label>
             {/* Sin todos los datos NO se imprime. El papel se firma y se lleva a
                 la sede: un cero que en realidad es «no se pudo consultar» dice por
@@ -279,27 +289,27 @@ function ReporteSedeContenido() {
           </div>
         )}
 
-        {/* Cabecera impresa */}
-        {sede && (
-          <div className="solo-print mb-6 items-center gap-3 border-b border-sand pb-4">
-            <span className="colibri w-10 text-rojo" aria-hidden />
-            <div>
-              <div className="font-serif text-xl">Estado de sede · {sede.nombre}</div>
-              <div className="text-xs text-taupe">CAYLA · Dynamic · {mesLabel} · generado {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" })}</div>
-            </div>
-          </div>
-        )}
-
         {cargando && !cargado ? (
           <Cargando texto="Armando la hoja…" />
         ) : cargado && sede && (
-          <>
+          <div className="hoja">
+            {/* Cabecera — solo en el PDF: en pantalla ya está la del menú, y
+                repetir las dos ahí se ve como que la pantalla no sabe cuál usar. */}
+            <div className="mb-6 hidden items-start justify-between border-b border-sand pb-4 print:flex print:mb-4 print:pb-3">
+              <Marca tono="tinta" isotipo="rojo" />
+              <div className="text-right">
+                <p className="etiqueta text-taupe">Hoja de sede</p>
+                <p className="font-serif text-lg">{sede.nombre}</p>
+                <p className="text-xs text-taupe">{rango} · generado {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" })}</p>
+              </div>
+            </div>
+
             <h2 className="mb-4 font-serif text-2xl">
-              {sede.nombre} <span className="text-lg font-normal text-taupe">· {mesLabel}</span>
+              {sede.nombre} <span className="text-lg font-normal text-taupe">· {rango}</span>
             </h2>
 
             {/* HOY */}
-            <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5">
+            <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5 print:break-inside-avoid print:bg-white">
               <div className="etiqueta text-verde">Hoy · {activos.length} trabajando de {filas.length}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {activos.length === 0 ? <span className="text-sm text-taupe">Nadie marcado todavía.</span> :
@@ -315,9 +325,9 @@ function ReporteSedeContenido() {
               </div>
             </section>
 
-            {/* EL MES */}
-            <section className="mb-6">
-              <h3 className="mb-2 font-serif text-lg">El mes · {mesLabel}</h3>
+            {/* EL PERIODO */}
+            <section className="mb-6 print:break-inside-avoid">
+              <h3 className="mb-2 font-serif text-lg">El periodo · {rango}</h3>
               <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
                 <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
                   <thead className="bg-sand/70 text-left text-taupe">
@@ -349,7 +359,7 @@ function ReporteSedeContenido() {
             </section>
 
             {/* ATENCIÓN */}
-            <section className="rounded-2xl border border-sand bg-rojo/[0.04] p-5">
+            <section className="rounded-2xl border border-sand bg-rojo/[0.04] p-5 print:break-inside-avoid print:bg-white">
               <div className="etiqueta mb-2 text-rojo">Necesita atención</div>
               {tardAlerta.length === 0 && faltaAlerta.length === 0 ? (
                 <p className="text-sm text-taupe">Nada pendiente en disciplina. Buena señal.</p>
@@ -369,7 +379,7 @@ function ReporteSedeContenido() {
                 </ul>
               )}
             </section>
-          </>
+          </div>
         )}
       </main>
     </div>

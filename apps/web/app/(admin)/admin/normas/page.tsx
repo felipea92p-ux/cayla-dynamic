@@ -10,7 +10,7 @@ import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
-import { TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { ROLES_DO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { Documento } from "@/components/documento";
 
 // Normas: los documentos que rigen para todo el equipo, y la prueba de que se
@@ -37,7 +37,6 @@ import { Documento } from "@/components/documento";
 // que el acuse es trámite, y el día que llegue el reglamento nadie lo leería.
 // Lo decide `documentos_tipos.requiere_acuse`, que se administra en la base.
 
-const DO = ["admin", "lider_do"];
 const MAX_BYTES_CARGO = 50 * 1024 * 1024;
 const TIPOS_CARGO = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 
@@ -146,7 +145,7 @@ function comoSeLlamaLaVersion(d: Doc): string {
 export default function NormasPage() {
   useTituloDocumento("Normas");
   const yo = usePersonaActual();
-  const puedeGestionar = yo !== null && DO.includes(yo.rol);
+  const puedeGestionar = yo !== null && ROLES_DO.includes(yo.rol);
 
   const [docs, setDocs] = useState<Doc[]>([]);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -241,6 +240,12 @@ export default function NormasPage() {
       document.getElementById(`doc-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, [cargando, docs]);
 
+  // Abrir el primero solo en la primera carga: `cargar` no depende de `abierto`
+  // —lo haría recrearse en cada plegado/desplegado y disparar un refetch por
+  // cada clic—, así que esta bandera es lo que distingue "primera carga" de
+  // "ya se cargó antes" sin leer `abierto` de un cierre que quedaría obsoleto.
+  const primeraCargaRef = useRef(true);
+
   const cargar = useCallback(async () => {
     setCargando(true);
     // ⚠️ El error SÍ se mira. La pantalla de Disciplina no lo miraba y durante
@@ -254,9 +259,12 @@ export default function NormasPage() {
     }
     const lista = (data as unknown as Doc[]) ?? [];
     setDocs(lista);
-    if (lista.length && abierto === null) setAbierto(lista[0].documento_id);
+    if (lista.length && primeraCargaRef.current) {
+      setAbierto((prev) => (prev === null ? lista[0].documento_id : prev));
+    }
+    primeraCargaRef.current = false;
     setCargando(false);
-  }, [supabase, abierto, avisar]);
+  }, [supabase, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
