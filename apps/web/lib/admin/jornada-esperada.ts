@@ -23,10 +23,20 @@
 // así que un día de descanso guardado como `{}` en vez de ausente habría contado
 // como trabajado. Las dos se unificaron el 2026-08-25.
 //
-// QUEDA UNA COPIA SIN UNIFICAR, y CLAUDE.md ya prohíbe una quinta:
-// `admin/turnos/page.tsx` (`horasDeTramo` y `celda`, para dibujar la grilla de
-// turnos). Antes de escribir una función nueva que responda «¿le tocaba
-// trabajar ese día?», usar ésta.
+// `admin/turnos/page.tsx` (`horasDeTramo` y `celda`, la grilla de turnos) se
+// unificó el 2026-08-31 — era la última copia, y CLAUDE.md ya prohíbe una quinta.
+// Su matiz: la grilla necesitaba DOS respuestas distintas para la salida de un
+// turno puntual sin `hora_salida` propia — la cruda (para precargar el formulario
+// de edición, que nunca debe mostrar una hora inventada como si alguien la
+// hubiera tecleado) y la de esta cascada (`Esperado.salida`, que si hace falta
+// cae al horario base — es la única rama de la cascada que de verdad infiere
+// algo; la del horario base sin turno nunca inventa, ver más abajo). `celda`
+// guarda las dos por separado (`salida` cruda y `salidaEstimada` de la cascada)
+// y decide caso por caso cuál usar: el formulario, la cruda; el cálculo de
+// cobertura y el dibujo de la barra, la estimada.
+//
+// Antes de escribir una función nueva que responda «¿le tocaba trabajar ese
+// día?», usar ésta.
 
 export interface TurnoDia {
   hora_entrada: string | null;
@@ -34,15 +44,25 @@ export interface TurnoDia {
   es_descanso: boolean;
 }
 
-export interface HorarioTramo {
-  persona_id: string;
-  vigente_desde: string;
-  vigente_hasta: string | null;
+/**
+ * Los campos de un horario que hace falta conocer para la cascada — sin
+ * vigencia ni persona, que solo le interesan a `horarioVigente` (quién elige
+ * QUÉ tramo rige, un problema distinto). Separado para que una pantalla como
+ * `admin/turnos/page.tsx`, que ya trae sus propios tramos con otro shape,
+ * pueda usar la cascada sin tener que adoptar `HorarioTramo` completo.
+ */
+export interface HorarioBase {
   hora_entrada: string | null;
   hora_salida: string | null;
   dias_laborables: number[] | null;
   horario_por_dia: Record<string, { e?: string; s?: string; r?: number }> | null;
   almuerzo_min_minutos: number | null;
+}
+
+export interface HorarioTramo extends HorarioBase {
+  persona_id: string;
+  vigente_desde: string;
+  vigente_hasta: string | null;
 }
 
 export interface Esperado {
@@ -53,11 +73,13 @@ export interface Esperado {
   salida: string | null;
   /** Horas de la jornada ya sin refrigerio. 0 si no le tocaba o no se sabe. */
   horas: number;
+  /** Minutos de refrigerio de ese día — para dibujar el hueco en una barra. Ya está descontado de `horas`, esto es solo para mostrarlo. */
+  refrigerioMin: number;
   /** De dónde salió la respuesta, para poder decirlo en pantalla. */
   origen: "turno" | "horario" | "legacy" | "sin_horario";
 }
 
-const NADA: Esperado = { trabaja: false, entrada: null, salida: null, horas: 0, origen: "sin_horario" };
+const NADA: Esperado = { trabaja: false, entrada: null, salida: null, horas: 0, refrigerioMin: 0, origen: "sin_horario" };
 
 /** Día de la semana de una fecha ISO, 0=domingo … 6=sábado, en hora de Lima. */
 export function dowDe(iso: string): number {
@@ -96,41 +118,47 @@ export function horasEntre(entrada: string, salida: string, refrigerioMin: numbe
  * Qué le tocaba ese día. `turno` es el turno puntual de esa fecha (o null), y
  * `horario` el tramo de horario base vigente (o null).
  */
-export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: HorarioTramo | null): Esperado {
+export function esperadoDelDia(fecha: string, turno: TurnoDia | null, horario: HorarioBase | null): Esperado {
   const dow = String(dowDe(fecha));
   const delDia = horario?.horario_por_dia?.[dow] ?? null;
   // El refrigerio del día sale del horario base aunque el turno lo pise: un
   // turno guarda entrada y salida, nunca cuánto se almuerza.
   const refrigerio = delDia?.r ?? horario?.almuerzo_min_minutos ?? 0;
 
-  // 1 · El turno del día manda.
+  // 1 · El turno del día manda. Es la ÚNICA rama que de verdad infiere algo: si
+  //     el turno no trajo su propia salida, cae al horario base para no dejar
+  //     la jornada sin fin conocido. Quien muestre este resultado en un campo
+  //     editable (no solo en un cálculo) debe decidir si le sirve una salida
+  //     inferida o si prefiere la cruda del turno — ver `admin/turnos/page.tsx`.
   if (turno) {
-    if (turno.es_descanso) return { trabaja: false, entrada: null, salida: null, horas: 0, origen: "turno" };
+    if (turno.es_descanso) return { trabaja: false, entrada: null, salida: null, horas: 0, refrigerioMin: refrigerio, origen: "turno" };
     if (turno.hora_entrada) {
       const e = turno.hora_entrada.slice(0, 5);
       const s = turno.hora_salida?.slice(0, 5) ?? delDia?.s?.slice(0, 5) ?? horario?.hora_salida?.slice(0, 5) ?? null;
-      return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, origen: "turno" };
+      return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, refrigerioMin: refrigerio, origen: "turno" };
     }
   }
 
   if (!horario) return NADA;
 
   // 2 · El horario base por día. Un día AUSENTE del jsonb es descanso — y eso
-  //     es una respuesta, no un «no sé»: por eso no se cae al legacy.
+  //     es una respuesta, no un «no sé»: por eso no se cae al legacy. Y si el
+  //     día SÍ está pero sin `.s`, tampoco se inventa una salida de otro lado:
+  //     esta rama no tiene, a propósito, el mismo fallback que la del turno.
   if (horario.horario_por_dia) {
-    if (!delDia?.e) return { trabaja: false, entrada: null, salida: null, horas: 0, origen: "horario" };
+    if (!delDia?.e) return { trabaja: false, entrada: null, salida: null, horas: 0, refrigerioMin: refrigerio, origen: "horario" };
     const e = delDia.e.slice(0, 5);
     const s = delDia.s?.slice(0, 5) ?? null;
-    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, origen: "horario" };
+    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, refrigerioMin: refrigerio, origen: "horario" };
   }
 
   // 3 · El resumen legacy, para los horarios que nunca se migraron al jsonb.
   if (horario.dias_laborables && horario.hora_entrada) {
     const toca = horario.dias_laborables.includes(Number(dow));
-    if (!toca) return { trabaja: false, entrada: null, salida: null, horas: 0, origen: "legacy" };
+    if (!toca) return { trabaja: false, entrada: null, salida: null, horas: 0, refrigerioMin: refrigerio, origen: "legacy" };
     const e = horario.hora_entrada.slice(0, 5);
     const s = horario.hora_salida?.slice(0, 5) ?? null;
-    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, origen: "legacy" };
+    return { trabaja: true, entrada: e, salida: s, horas: s ? horasEntre(e, s, refrigerio) : 0, refrigerioMin: refrigerio, origen: "legacy" };
   }
 
   return NADA;

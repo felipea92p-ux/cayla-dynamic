@@ -9,6 +9,7 @@ import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { esperadoDelDia } from "@/lib/admin/jornada-esperada";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -40,7 +41,7 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; }
-interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; }
+interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; almuerzo_min_minutos: number | null; }
 // De los tramos de una persona, el vigente en `fecha` (mismo criterio que fn_recalcular_jornada).
 function tramoVigente(lista: Horario[] | undefined, fecha: string): Horario | undefined {
   if (!lista) return undefined;
@@ -51,9 +52,14 @@ function tramoVigente(lista: Horario[] | undefined, fecha: string): Horario | un
 interface Turno { es_descanso: boolean; hora_entrada: string | null; hora_salida: string | null; }
 interface Sede { id: string; codigo: string; nombre: string }
 
+// `salida` es lo que hay REALMENTE registrado (o "" si nada) — lo único que
+// debe precargar el formulario de edición. `salidaEstimada` es la de la
+// cascada de jornada-esperada.ts: si el turno no trajo su propia hora, cae al
+// horario base. Cobertura y dibujo usan la estimada; el formulario, la cruda
+// — así nunca se guarda una hora inventada como si alguien la hubiera tecleado.
 type Celda =
-  | { tipo: "turno"; entrada: string; salida: string | null; refrigerio?: number }
-  | { tipo: "default"; entrada: string; salida: string | null; refrigerio?: number }
+  | { tipo: "turno"; entrada: string; salida: string | null; salidaEstimada: string | null; refrigerio?: number }
+  | { tipo: "default"; entrada: string; salida: string | null; salidaEstimada: string | null; refrigerio?: number }
   | { tipo: "descanso" }
   | { tipo: "libre" };
 
@@ -224,14 +230,12 @@ function horarioSemanalDesdeTramo(tr: Horario | undefined): Record<string, { e: 
   }
   return out;
 }
-// Horas que ESE tramo de horario define para un día de la semana ({e:null} = descansa).
-function horasDeTramo(tr: Horario, dow: string): { e: string | null; s: string | null } {
-  if (tr.horario_por_dia) {
-    const d = tr.horario_por_dia[dow];
-    return d ? { e: hhmm(d.e), s: hhmm(d.s) } : { e: null, s: null };
-  }
-  if ((tr.dias_laborables ?? []).includes(Number(dow))) return { e: hhmm(tr.hora_entrada), s: hhmm(tr.hora_salida) };
-  return { e: null, s: null };
+// Horas que ESE tramo de horario define para un día concreto ({e:null} = descansa).
+// Delega en la cascada de jornada-esperada.ts (turno null: solo interesa el
+// horario base) — ver el encabezado de ese archivo.
+function horasDeTramo(tr: Horario, fecha: string): { e: string | null; s: string | null } {
+  const r = esperadoDelDia(fecha, null, tr);
+  return r.trabaja ? { e: r.entrada, s: r.salida } : { e: null, s: null };
 }
 
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
@@ -257,13 +261,13 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     if (ids.length === 0) { setDivs([]); return; }
     const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", hoy).order("fecha"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").in("persona_id", ids),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta, almuerzo_min_minutos").in("persona_id", ids),
     ]);
     if (eT || eH) { setError(true); return; }
     const hMap = new Map<string, Horario[]>();
     for (const h of (horarios as any[]) ?? []) {
       const arr = hMap.get(h.persona_id) ?? [];
-      arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null });
+      arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null, almuerzo_min_minutos: h.almuerzo_min_minutos ?? null });
       hMap.set(h.persona_id, arr);
     }
     tramosRef.current = hMap;
@@ -271,8 +275,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     for (const t of (turnos as any[]) ?? []) {
       const tramos = hMap.get(t.persona_id);
       const tramo = tramoVigente(tramos, t.fecha);
-      const dow = String(diaSemana(t.fecha));
-      const base = tramo ? horasDeTramo(tramo, dow) : null;
+      const base = tramo ? horasDeTramo(tramo, t.fecha) : null;
       const tE = t.es_descanso ? null : hhmm(t.hora_entrada);
       const tS = t.es_descanso ? null : hhmm(t.hora_salida);
       // ¿Coincide con algún horario ANTERIOR (ya reemplazado) de esa persona? Entonces
@@ -281,7 +284,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       // a propósito (excepción real) — por eso NO se limpian en automático.
       const espejo = (tramos ?? []).some((x) => {
         if (x === tramo) return false;
-        const h = horasDeTramo(x, dow);
+        const h = horasDeTramo(x, t.fecha);
         return tE === null ? h.e === null : h.e === tE && h.s === tS;
       });
       const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
@@ -322,7 +325,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     const dow = String(diaSemana(d.fecha));
     if (d.tE) {
       const previo = tramo?.horario_por_dia?.[dow];
-      const baseS = tramo ? horasDeTramo(tramo, dow).s : null;
+      const baseS = tramo ? horasDeTramo(tramo, d.fecha).s : null;
       semanal[dow] = { e: d.tE, s: d.tS ?? baseS ?? d.tE, ...(previo?.r != null ? { r: previo.r } : {}) };
     } else {
       delete semanal[dow]; // el turno era descanso ⇒ ese día sale de su horario
@@ -561,7 +564,7 @@ export default function TurnosPage() {
       { data: ar, error: arErr },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).order("nombres"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta, almuerzo_min_minutos").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
       supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
@@ -582,7 +585,7 @@ export default function TurnosPage() {
     const mapH = new Map<string, Horario[]>();
     for (const x of (h as any[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
-      arr.push({ hora_entrada: x.hora_entrada, hora_salida: x.hora_salida, dias_laborables: x.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: x.horario_por_dia ?? null, vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta ?? null });
+      arr.push({ hora_entrada: x.hora_entrada, hora_salida: x.hora_salida, dias_laborables: x.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: x.horario_por_dia ?? null, vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta ?? null, almuerzo_min_minutos: x.almuerzo_min_minutos ?? null });
       mapH.set(x.persona_id, arr);
     }
     setHorarios(mapH);
@@ -596,23 +599,17 @@ export default function TurnosPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   const celda = useCallback((personaId: string, fecha: string): Celda => {
-    const t = turnos.get(`${personaId}|${fecha}`);
-    if (t) return t.es_descanso ? { tipo: "descanso" } : { tipo: "turno", entrada: hhmm(t.hora_entrada), salida: hhmm(t.hora_salida) };
-    const h = tramoVigente(horarios.get(personaId), fecha);
-    if (h) {
-      const dow = String(diaSemana(fecha));
-      if (h.horario_por_dia) {
-        const d = h.horario_por_dia[dow];
-        // el refrigerio (r, en minutos) solo se conoce para el horario base con
-        // jsonb — un turno puntual (arriba) no guarda esa hora, así que su barra
-        // queda sin hueco (dato que no tenemos, mejor no inventarlo).
-        if (d) return { tipo: "default", entrada: hhmm(d.e), salida: hhmm(d.s), refrigerio: d.r };
-        return { tipo: "libre" }; // ese día no está en el horario base = descanso
-      }
-      // legacy sin jsonb: hora única + dias_laborables
-      if ((h.dias_laborables ?? []).includes(diaSemana(fecha))) return { tipo: "default", entrada: hhmm(h.hora_entrada), salida: hhmm(h.hora_salida) };
-    }
-    return { tipo: "libre" };
+    const t = turnos.get(`${personaId}|${fecha}`) ?? null;
+    if (t?.es_descanso) return { tipo: "descanso" };
+    const h = tramoVigente(horarios.get(personaId), fecha) ?? null;
+    const r = esperadoDelDia(fecha, t, h);
+    if (!r.trabaja) return { tipo: "libre" }; // no le toca (o no hay contra qué medirlo) = descansa en esta grilla
+    // `salida` es lo REALMENTE registrado — nunca la inferida. Si hay turno,
+    // viene tal cual del turno (puede quedar vacía). Si no hay turno, la propia
+    // cascada de jornada-esperada.ts ya no inventa nada en esa rama (ver su
+    // encabezado), así que su resultado ES el dato real.
+    const salida = t ? hhmm(t.hora_salida) : (r.salida ?? "");
+    return { tipo: t ? "turno" : "default", entrada: r.entrada!, salida, salidaEstimada: r.salida, refrigerio: r.refrigerioMin || undefined };
   }, [turnos, horarios]);
 
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
@@ -625,7 +622,7 @@ export default function TurnosPage() {
       const c = celda(p.id, fecha);
       if (c.tipo !== "turno" && c.tipo !== "default") continue;
       const e = horaADecimal(c.entrada);
-      const s = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+      const s = c.salidaEstimada ? horaADecimal(c.salidaEstimada) : HORA_FIN;
       for (let i = 0; i < franjas.length; i++) {
         const hi = horaInicio + i * tamHoras, hf = hi + tamHoras;
         if (e < hf && s > hi) franjas[i]++;
@@ -651,7 +648,7 @@ export default function TurnosPage() {
       const c = celda(p.id, fecha);
       if (c.tipo !== "turno" && c.tipo !== "default") return false;
       const e = horaADecimal(c.entrada);
-      const s = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+      const s = c.salidaEstimada ? horaADecimal(c.salidaEstimada) : HORA_FIN;
       return e < hf && s > hi;
     });
   }, [personas, celda]);
@@ -1019,7 +1016,7 @@ export default function TurnosPage() {
                   const c = personas.find((p) => { if (!esOperativa(p)) return false; const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && horaADecimal(cel.entrada) >= CORTE_TARDE; });
                   if (c) candidato = `Ej. adelanta a ${c.nombres}.`;
                 } else if (r.redistribuir === "retrasar") {
-                  const c = personas.find((p) => { if (!esOperativa(p)) return false; const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && cel.salida !== null && cel.salida !== undefined && horaADecimal(cel.salida) <= CORTE_TARDE + 1; });
+                  const c = personas.find((p) => { if (!esOperativa(p)) return false; const cel = celda(p.id, iso); return (cel.tipo === "turno" || cel.tipo === "default") && cel.salidaEstimada !== null && horaADecimal(cel.salidaEstimada) <= CORTE_TARDE + 1; });
                   if (c) candidato = `Ej. retrasa la salida de ${c.nombres}.`;
                 }
                 return (
@@ -1098,15 +1095,15 @@ export default function TurnosPage() {
                           <span className="relative h-7 flex-1">
                             {(c.tipo === "turno" || c.tipo === "default") && (() => {
                               const left = pctEnRango(horaADecimal(c.entrada));
-                              const right = pctEnRango(c.salida ? horaADecimal(c.salida) : HORA_FIN);
+                              const right = pctEnRango(c.salidaEstimada ? horaADecimal(c.salidaEstimada) : HORA_FIN);
                               const claseColor = `${operativa ? "bg-verde" : "bg-ambar"} ${c.tipo === "default" ? "opacity-50" : ""}`;
-                              const tituloBase = `${c.entrada}${c.salida ? `–${c.salida}` : ""}`;
+                              const tituloBase = `${c.entrada}${c.salidaEstimada ? `–${c.salidaEstimada}` : ""}`;
                               // Hueco de refrigerio: no sabemos la hora exacta en que empieza (el
                               // sistema solo guarda cuántos minutos dura), así que se dibuja
                               // aproximado, centrado a la mitad del turno — no es literal.
                               if (c.refrigerio && c.refrigerio > 0) {
                                 const durHoras = c.refrigerio / 60;
-                                const salidaDec = c.salida ? horaADecimal(c.salida) : HORA_FIN;
+                                const salidaDec = c.salidaEstimada ? horaADecimal(c.salidaEstimada) : HORA_FIN;
                                 const centro = (horaADecimal(c.entrada) + salidaDec) / 2;
                                 const huecoIni = pctEnRango(centro - durHoras / 2);
                                 const huecoFin = pctEnRango(centro + durHoras / 2);

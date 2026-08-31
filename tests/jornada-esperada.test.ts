@@ -114,6 +114,46 @@ describe("esperadoDelDia — la cascada", () => {
       { ...AQP, horario_por_dia: { "1": { e: "09:00", s: "19:00", r: 0 } } });
     expect(noche.horas).toBe(8);
   });
+
+  it("un turno sin su propia hora de salida cae al horario base — es la única rama que infiere algo", () => {
+    const sinSalida = esperadoDelDia("2026-08-10", { hora_entrada: "14:00", hora_salida: null, es_descanso: false }, AQP);
+    expect(sinSalida.trabaja).toBe(true);
+    expect(sinSalida.entrada).toBe("14:00");
+    expect(sinSalida.salida).toBe("19:00"); // heredada del horario_por_dia de ese lunes
+    expect(sinSalida.origen).toBe("turno"); // el origen sigue diciendo "turno": no distingue cruda de inferida
+  });
+
+  it("sin salida propia y sin ese día en horario_por_dia, el fallback llega hasta el último nivel: hora_salida del tramo", () => {
+    const sinDiaEnJsonb = esperadoDelDia("2026-08-09" /* domingo, AQP no trabaja */,
+      { hora_entrada: "10:00", hora_salida: null, es_descanso: false }, AQP);
+    expect(sinDiaEnJsonb.salida).toBe("19:00"); // horario.hora_salida (legacy, nivel-tramo), no null
+  });
+
+  it("el horario base SIN turno nunca inventa una salida que no tiene: a diferencia del turno, esta rama no tiene fallback", () => {
+    const sinS: HorarioTramo = { ...AQP, horario_por_dia: { "1": { e: "09:00" } } }; // el lunes sin `.s`
+    const r = esperadoDelDia("2026-08-10", null, sinS);
+    expect(r.trabaja).toBe(true);
+    expect(r.salida).toBeNull();
+    expect(r.horas).toBe(0); // sin salida no se puede medir cuánto dura
+  });
+});
+
+describe("esperadoDelDia — refrigerioMin", () => {
+  it("toma el refrigerio del día si lo tiene, y si no, el del tramo", () => {
+    expect(esperadoDelDia("2026-08-10", null, AQP).refrigerioMin).toBe(60); // AQP lunes trae r:60
+    const sinR: HorarioTramo = { ...AQP, horario_por_dia: { "1": { e: "09:00", s: "19:00" } } }; // sin r ese día
+    expect(esperadoDelDia("2026-08-10", null, sinR).refrigerioMin).toBe(45); // cae a almuerzo_min_minutos del tramo
+  });
+
+  it("el turno hereda el refrigerio del horario base aunque pise la hora", () => {
+    const conTurno = esperadoDelDia("2026-08-10",
+      { hora_entrada: "14:00", hora_salida: "21:00", es_descanso: false }, AQP);
+    expect(conTurno.refrigerioMin).toBe(60);
+  });
+
+  it("sin horario, el refrigerio es 0 — no hay de dónde sacarlo", () => {
+    expect(esperadoDelDia("2026-08-10", null, null).refrigerioMin).toBe(0);
+  });
 });
 
 describe("horarioVigente", () => {
@@ -150,9 +190,9 @@ describe("fechasDelRango", () => {
 // En qué quedó un día. Esta es la regla que decide el color del cuadrito y lo
 // que se cuenta: un fallo acá acusa de faltar a quien no faltó.
 // ─────────────────────────────────────────────────────────────────────────────
-const TOCABA: Esperado = { trabaja: true, entrada: "09:00", salida: "19:00", horas: 9, origen: "horario" };
-const DESCANSO: Esperado = { trabaja: false, entrada: null, salida: null, horas: 0, origen: "horario" };
-const SIN_HORARIO: Esperado = { trabaja: false, entrada: null, salida: null, horas: 0, origen: "sin_horario" };
+const TOCABA: Esperado = { trabaja: true, entrada: "09:00", salida: "19:00", horas: 9, refrigerioMin: 60, origen: "horario" };
+const DESCANSO: Esperado = { trabaja: false, entrada: null, salida: null, horas: 0, refrigerioMin: 0, origen: "horario" };
+const SIN_HORARIO: Esperado = { trabaja: false, entrada: null, salida: null, horas: 0, refrigerioMin: 0, origen: "sin_horario" };
 
 function dia(over: Partial<Parameters<typeof estadoDelDia>[0]> = {}) {
   return estadoDelDia({
