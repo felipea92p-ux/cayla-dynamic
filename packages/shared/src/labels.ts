@@ -69,17 +69,62 @@ export const VINCULO_DERECHOHABIENTE_LABELS: Record<VinculoDerechohabiente, stri
 /**
  * Nombre de cada régimen y la tasa que descuenta hoy, para que el desplegable
  * diga cuánta plata mueve elegir uno y no solo su nombre. Las tasas son las de
- * la migración 0114 (aporte + comisión sobre flujo + prima).
+ * las migraciones 0114 y 0328 (aporte + comisión + prima).
  */
 export const REGIMEN_PENSION_LABELS: Record<RegimenPension, string> = {
   onp: "ONP — Sistema Nacional (13.00 %)",
-  profuturo: "AFP Profuturo (13.06 %)",
-  prima: "AFP Prima (12.97 %)",
-  integra: "AFP Integra (12.92 %)",
-  habitat: "AFP Habitat (12.84 %)",
+  // ⇩ CAMBIO 0328 ⇩ EL ESQUEMA DE COMISIÓN SE DICE EN LA ETIQUETA.
+  //
+  // Antes decían solo «AFP Integra (12.92 %)», y esa etiqueta era la única cara
+  // visible de un supuesto que nadie había elegido: que todo el mundo paga
+  // comisión sobre flujo. Quien llenaba la ficha veía el nombre de la AFP de la
+  // persona, lo elegía, y con eso le quedaba puesta una comisión que su AFP
+  // quizá no le cobra. Con las dos opciones a la vista y nombradas, elegir mal
+  // exige equivocarse a propósito.
+  //
+  // Las cuatro mixtas comparten porcentaje —11.37 %— porque en mixta la AFP no
+  // cobra nada del sueldo desde febrero de 2023: solo quedan el aporte de 10 % y
+  // la prima de 1.37 %, iguales en las cuatro. Que se repita no es un descuido:
+  // es el dato.
+  profuturo_mixta: "AFP Profuturo — comisión mixta (11.37 %)",
+  profuturo: "AFP Profuturo — comisión sobre flujo (13.06 %)",
+  prima_mixta: "AFP Prima — comisión mixta (11.37 %)",
+  prima: "AFP Prima — comisión sobre flujo (12.97 %)",
+  integra_mixta: "AFP Integra — comisión mixta (11.37 %)",
+  integra: "AFP Integra — comisión sobre flujo (12.92 %)",
+  habitat_mixta: "AFP Habitat — comisión mixta (11.37 %)",
+  habitat: "AFP Habitat — comisión sobre flujo (12.84 %)",
   // Sin porcentaje porque no hay ninguno que mostrar: no se le descuenta nada.
   jubilada: "Jubilada — ya cobra su pensión, no aporta",
 };
+
+/**
+ * Cómo se nombra el régimen en la BOLETA, que es otro sitio y otra necesidad.
+ *
+ * Ahí la tasa ya se imprime aparte, así que repetirla en el nombre sobra; lo que
+ * NO sobra es decir el esquema de comisión, porque es justo lo que la persona
+ * necesita para cotejar su boleta contra su estado de cuenta de la AFP.
+ *
+ * Existe como función y no como otro `Record` porque la boleta recibe el código
+ * como `string | null` —viene del JSON de la planilla, no del tipo— y porque un
+ * régimen que se cargue en `tasas_pension` antes de que esta constante lo nombre
+ * tiene que salir legible igual. Eso es lo que hace el último renglón: es la
+ * misma promesa que ya hace `fn_cambiar_regimen_pension` al validar contra la
+ * tabla y no contra una lista escrita a mano (0277).
+ *
+ * Antes de la 0328 la boleta armaba el nombre a mano con `charAt(0).toUpperCase()`.
+ * Con un solo código por AFP eso alcanzaba; con `integra_mixta` habría impreso
+ * «AFP Integra_mixta» en el documento que la persona firma.
+ */
+export function nombreRegimenPension(regimen: string | null | undefined): string | null {
+  const codigo = (regimen ?? "").trim();
+  if (codigo === "") return null;
+  if (codigo === "onp") return "ONP";
+  if (codigo === "jubilada") return "Jubilada";
+  const [afp, esquema] = codigo.split("_");
+  const nombre = `AFP ${afp.charAt(0).toUpperCase()}${afp.slice(1)}`;
+  return esquema === "mixta" ? `${nombre} — comisión mixta` : nombre;
+}
 
 /**
  * Cómo se nombra cada escalón disciplinario en un documento y en pantalla.
