@@ -190,7 +190,8 @@ with repo(numero, nombre, nunca) as (values
     (328, 'la_comision_mixta_deja_de_cobrarse_como_flujo', false),
     (329, 'el_estimado_de_planilla_se_consulta_por_persona', false),
     (330, 'una_persona_puede_pedir_sus_vacaciones', false),
-    (331, 'las_diecinueve_pasan_a_comision_mixta', false)
+    (331, 'las_diecinueve_pasan_a_comision_mixta', false),
+    (332, 'cambiar_el_regimen_no_reescribe_un_mes_pagado', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

@@ -99,7 +99,7 @@ export function AtajosTeclado({
 
   return (
     <>
-      <div onClick={() => setAbierto(false)} className="fixed inset-0 z-40 bg-tinta/20" aria-hidden />
+      <div onClick={() => setAbierto(false)} className="fixed inset-0 z-40 bg-black/20" aria-hidden />
       <div role="dialog" aria-label="Atajos de teclado"
         className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 overflow-hidden rounded-xl border border-sand bg-papel shadow-xl">
         <div className="flex items-center justify-between border-b border-sand px-4 py-3">
