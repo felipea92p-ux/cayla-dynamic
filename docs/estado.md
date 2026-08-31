@@ -51,12 +51,13 @@ ningún periodo ya pagado. Las dos, pegadas y verificadas en producción:
 `queda_alguien_en_flujo = 0`.
 
 **Lo retenido de más en el único periodo pagado con diferencia (29/07–28/08):
-S/304.47, 18 personas.** No se devuelve por planilla — el contador dijo que
-"devolución AFP" no tiene concepto en la PLAME — Felipe lo transfiere directo,
-por fuera, sede por sede. **Pagado: TRU (9, S/157.54)** y las 4 sin sede
-confirmada por consulta —Joselyn Gavilan, Lizzelott Ramírez, Carmen Sanándres
-y Felipe Alvarez (él mismo)—. **Pendiente: AQP (5, S/68.70)** — Paola Cahuana,
-Sasha Fernandez, Mateo Zarate, Sandra Ramírez, Luana Rodríguez Herrera.
+S/304.47, 18 personas — PAGADO EN TOTAL, 2026-08-31.** No se devolvió por
+planilla — el contador dijo que "devolución AFP" no tiene concepto en la
+PLAME — Felipe lo transfirió directo, por fuera, sede por sede: TRU (9,
+S/157.54), AQP (5, S/68.70) y las 4 restantes —Joselyn Gavilan, Lizzelott
+Ramírez, Carmen Sanándres y Felipe Alvarez (él mismo)— con su sede inferida
+por descarte, sin confirmar por consulta (no llegó a hacer falta: ya están
+pagadas). Tema cerrado.
 
 **Nota de esta rama (Contratos/Practicantes): el hueco de numeración 0329/0330
 que este bloque avisaba ya está explicado** — no fue un pegado sin archivo:
