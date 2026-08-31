@@ -3342,6 +3342,98 @@ export type Database = {
         }
         Relationships: []
       }
+      solicitudes_vacaciones: {
+        Row: {
+          ausencia_id: string | null
+          comentario: string | null
+          estado: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+          resuelta_at: string | null
+          resuelta_por: string | null
+        }
+        Insert: {
+          ausencia_id?: string | null
+          comentario?: string | null
+          estado?: string
+          fecha_fin: string
+          fecha_inicio: string
+          id?: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+        }
+        Update: {
+          ausencia_id?: string | null
+          comentario?: string | null
+          estado?: string
+          fecha_fin?: string
+          fecha_inicio?: string
+          id?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitudes_vacaciones_ausencia_id_fkey"
+            columns: ["ausencia_id"]
+            isOneToOne: false
+            referencedRelation: "ausencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_ausencia_id_fkey"
+            columns: ["ausencia_id"]
+            isOneToOne: false
+            referencedRelation: "justificaciones_asistencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_ausencia_id_fkey"
+            columns: ["ausencia_id"]
+            isOneToOne: false
+            referencedRelation: "vacaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tardanzas_justificadas: {
         Row: {
           creado_at: string
@@ -4150,6 +4242,10 @@ export type Database = {
           p_regimen: string | null
         }
         Returns: Json
+      }
+      fn_cancelar_solicitud_vacaciones: {
+        Args: { p_id: string | null }
+        Returns: undefined
       }
       fn_cargo_de_rol: {
         Args: { p_rol: Database["public"]["Enums"]["rol_usuario"] | null }
@@ -5361,6 +5457,10 @@ export type Database = {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_resolver_solicitud_vacaciones: {
+        Args: { p_aprobar: boolean | null; p_id: string | null; p_respuesta?: string | null }
+        Returns: undefined
+      }
       fn_revertir_pago: {
         Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
         Returns: undefined
@@ -5637,6 +5737,32 @@ export type Database = {
         Returns: {
           motivo: string
           persona_id: string
+        }[]
+      }
+      fn_solicitar_vacaciones: {
+        Args: {
+          p_comentario?: string | null
+          p_fecha_fin: string | null
+          p_fecha_inicio: string | null
+        }
+        Returns: string
+      }
+      fn_solicitudes_vacaciones: {
+        Args: { p_solo_pendientes?: boolean | null }
+        Returns: {
+          comentario: string
+          dias: number
+          estado: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          nombre: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string
+          resuelta_at: string
+          resuelta_por_nombre: string
+          sede: string
         }[]
       }
       fn_subir_acta_descanso: {
