@@ -102,6 +102,76 @@ un caso límite en CI (la base de pruebas arranca sin ningún
 `periodos_planilla`, cosa que no pasa en producción). No afecta nada de lo
 ya pegado ni de lo ya pagado arriba.
 
+**Nota de la rama Contratos/Practicantes: el hueco 0333/0334 también está
+explicado**, mismo patrón — no un pegado sin archivo: 0332 quedó tomado por
+otra rama en paralelo y esta rama saltó directo a la 0333
+(`el_generador_de_contratos_hace_convenios_de_practicas`), confirmado con
+`./scripts/siguiente-numero.sh` antes de escribirla y revisado por otra
+sesión (`liquidacion-paola-fin-mes-aab080`) contra todo `main` antes de
+fusionar.
+
+---
+
+## 2026-08-31 — El generador de contratos hace convenios de prácticas (0333) · VERIFICADO LOCAL
+
+Cerraba la lista de pendientes de Practicantes: `/admin/contratos` filtraba
+`en_planilla = true`, así que una practicante era estructuralmente invisible
+—no había ningún documento que entregarle desde el sistema—. La mitad de las
+cláusulas del contrato de planilla son directamente falsas para un convenio
+de modalidad formativa (causa objetiva D.Leg 728, jornada 48h fija, período
+de prueba, régimen disciplinario), así que se construyó `documentoConvenio()`
+como una rama aparte del generador —mismo patrón que ya usa `documentoAdendum`—,
+grounded en Ley 28518 arts. 15/30/42/44/45/47 y con el mismo tono ya
+establecido en la boleta de un practicante (PR #98).
+
+**El único cambio de esquema:** el CHECK de `contratos_generados.tipo` gana
+`'convenio_practicas'`, y `fn_contrato_registrar`/`fn_contratos_tablero` lo
+admiten — sin columnas nuevas: institución educativa y plan de capacitación
+se piden en pantalla y entran ya redactados al `documento_html`, igual que la
+causa objetiva de un contrato normal.
+
+Verificado con datos de prueba en el navegador de punta a punta: la
+practicante aparece en el tablero, "Tipo" se fija solo en "Convenio de
+prácticas", el bloqueo de subvención por debajo de la RMV vigente frena la
+generación y se libera al corregir el sueldo, el documento generado no
+contiene NINGÚN término de contrato de trabajo, y queda archivado
+correctamente como "pendiente de firma". 1853 pruebas pgTAP + 422 de Vitest
+en verde.
+
+⚠️ **Igual que el contrato de planilla, no tuvo revisión legal de un
+abogado.** Se construyó con la misma seriedad, ni más ni menos — ver el
+encabezado de `contrato-texto.ts`.
+
+Con esto, los cinco pendientes originales de Practicantes quedan resueltos:
+motivo de cese (0325), jornada 30h/48h (0324), política salarial (no aplica,
+más arriba), y ahora Contratos. Queda solo el aviso de vencimiento del
+convenio a los 12 meses, sin empezar.
+
+---
+
+## 2026-08-31 — La política salarial NO se extiende a practicantes · DECIDIDO, NO SE REABRE
+
+Tras crear la categoría practicante (0322), quedó en la lista de pendientes
+«la 0141 excluye a quien no está en planilla del cuadro de categorías». Se
+investigó a fondo y **no es un vacío: es correcto tal como está.**
+
+El documento «Cuadro de categorías y política salarial» (0141) existe
+específicamente para cumplir la Ley 30709 / D.S. 002-2018-TR, que obliga a
+informar la política salarial **al trabajador** (art. 25.22/25.23 RLGIT). Un
+practicante no es trabajador — ni por la Ley 28518 (art. 47, citada en la
+0322) ni por el propio Reglamento Interno de esta empresa (numeral 2.6). La
+obligación legal que la 0141 cumple sencillamente no le alcanza, igual que ya
+no alcanzaba a un locador RxH antes de que existiera la categoría practicante.
+
+**Confirmado con Felipe por `AskUserQuestion` el 2026-08-31: nada que
+arreglar.** Se ofrecieron tres caminos —dejarlo así, crear un documento propio
+de subvención como práctica voluntaria (no legal), o posponerlo— y eligió el
+primero.
+
+Si alguien vuelve a encontrar este "pendiente" en una lista vieja de gaps de
+Practicantes: ya se investigó y se cerró. No se abre de nuevo sin una razón
+nueva.
+
 ---
 
 ## 2026-08-29 — Se crea la categoría practicante (0322) · PEGADA Y VERIFICADA
