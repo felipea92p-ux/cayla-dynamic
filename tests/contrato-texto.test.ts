@@ -76,6 +76,9 @@ function datos(cambios: Partial<DatosContrato> = {}): DatosContrato {
     firmanteNombre: "Firmante Apellido",
     firmanteDni: "87654321",
     firmanteCargo: "Gerencia General",
+    practicanteModalidad: null,
+    institucionEducativa: null,
+    planCapacitacionTexto: "",
     ...cambios,
   };
 }
@@ -137,6 +140,73 @@ describe("construirContrato", () => {
     const html = construirContrato(datos({ cargo: 'Asesora <script>alert("x")</script>' }));
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+// ── El convenio de prácticas (0333) no es un contrato de trabajo ───────────
+// La mitad de las cláusulas del contrato de planilla son directamente falsas
+// para una practicante (0322: no es relación laboral, no tiene causa
+// objetiva, no tiene período de prueba, no se le mide disciplina). Esta
+// prueba cuida las dos mitades: que el convenio diga lo que le corresponde, y
+// que NO herede por accidente el lenguaje del contrato de trabajo.
+describe("documentoConvenio", () => {
+  function datosConvenio(cambios: Partial<DatosContrato> = {}): DatosContrato {
+    return datos({
+      tipo: "convenio_practicas",
+      practicanteModalidad: "preprofesional",
+      institucionEducativa: null,
+      planCapacitacionTexto: "Apoyo en el área de sistemas.",
+      ...cambios,
+    });
+  }
+
+  it("dice modalidad formativa y subvención, nunca contrato de trabajo ni remuneración", () => {
+    const html = datosConvenio();
+    const texto = construirContrato(html);
+    expect(texto).toContain("CONVENIO DE MODALIDAD FORMATIVA");
+    expect(texto).toContain("Ley N.° 28518");
+    expect(texto).toContain("LA PRACTICANTE");
+    expect(texto).toContain("subvención económica");
+    expect(texto).not.toContain("CONTRATO DE TRABAJO");
+    expect(texto).not.toContain("LA COLABORADORA");
+    expect(texto).not.toContain("D.Leg. 728");
+  });
+
+  it("no lleva causa objetiva, período de prueba ni régimen disciplinario del contrato de planilla", () => {
+    const texto = construirContrato(datosConvenio());
+    expect(texto).not.toContain("CAUSA OBJETIVA");
+    expect(texto).not.toContain("PERÍODO DE PRUEBA");
+    expect(texto).not.toContain("RÉGIMEN DISCIPLINARIO");
+    expect(texto).not.toContain("FALTAS GRAVES");
+    // La causa objetiva de relleno del formulario (fixture `datos()`, texto
+    // literal "causa") no debe colarse ni por accidente: el convenio no lee
+    // `causaObjetivaTexto` en absoluto.
+    expect(texto).not.toContain(">causa<");
+  });
+
+  it("la jornada depende de la modalidad, nunca 48h fijas como en un contrato", () => {
+    const preprofesional = construirContrato(datosConvenio({ practicanteModalidad: "preprofesional" }));
+    const profesional = construirContrato(datosConvenio({ practicanteModalidad: "profesional" }));
+    expect(preprofesional).toContain("30 horas semanales");
+    expect(profesional).toContain("48 horas semanales");
+  });
+
+  it("sin modalidad asignada, avisa en el propio documento en vez de inventar una jornada", () => {
+    const texto = construirContrato(datosConvenio({ practicanteModalidad: null }));
+    expect(texto).toContain("FALTA ASIGNAR LA MODALIDAD");
+  });
+
+  it("firma como LA PRACTICANTE en el cuerpo y en cada anexo — nunca LA COLABORADORA", () => {
+    const texto = construirContrato(datosConvenio());
+    expect(texto.match(/LA PRACTICANTE/g)!.length).toBeGreaterThan(3);
+    expect(texto).not.toContain("LA COLABORADORA");
+  });
+
+  it("el Anexo I es el plan de capacitación, no las funciones del cargo", () => {
+    const texto = construirContrato(datosConvenio({ planCapacitacionTexto: "Apoyo específico en X." }));
+    expect(texto).toContain("ANEXO I — PLAN DE CAPACITACIÓN ESPECÍFICO");
+    expect(texto).toContain("Apoyo específico en X.");
+    expect(texto).not.toContain("ANEXO I — FUNCIONES DEL CARGO");
   });
 });
 

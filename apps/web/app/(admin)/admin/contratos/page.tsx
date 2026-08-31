@@ -11,7 +11,7 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { useToast } from "@/components/toast";
-import { hoyLima, puedeGestionarContratos } from "@cayla-dynamic/shared";
+import { hoyLima, maximoSemanalPracticante, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
   construirContrato,
   formatearFecha,
@@ -79,6 +79,13 @@ interface Persona {
   // Las dos exclusiones que la planilla sí respeta y el contrato no miraba.
   personal_direccion: boolean;
   sueldo_fijo: boolean;
+  // Decide qué documento le corresponde (0333): planilla/prueba generan un
+  // contrato de trabajo, practicante genera un convenio de modalidad
+  // formativa. `en_planilla` es la columna generada — no se recalcula acá.
+  en_planilla: boolean;
+  tipo_vinculo: string;
+  // Solo tiene sentido con tipo_vinculo='practicante' (0324): decide 30h/48h.
+  practicante_modalidad: string | null;
 }
 interface Sede {
   id: string;
@@ -144,6 +151,7 @@ const TIPO_CONTRATO: Record<string, string> = {
   nuevo: "Nuevo ingreso",
   renovacion: "Renovación",
   adendum: "Adendum",
+  convenio_practicas: "Convenio de prácticas",
 };
 
 /**
@@ -202,6 +210,8 @@ export default function ContratosPage() {
   const [salarios, setSalarios] = useState<Salario[]>([]);
   const [movilidadTarifas, setMovilidadTarifas] = useState<Parametro[]>([]);
   const [bonoOnomastico, setBonoOnomastico] = useState<number | null>(null);
+  // Piso de la subvención de un convenio de prácticas (Ley 28518, art. 45).
+  const [rmvVigente, setRmvVigente] = useState<number | null>(null);
   const [ritVersion, setRitVersion] = useState<string | null>(null);
   const [ritFecha, setRitFecha] = useState<string | null>(null);
   const [firmante, setFirmante] = useState(FIRMANTE_POR_DEFECTO);
@@ -219,10 +229,13 @@ export default function ContratosPage() {
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
 
   const [personaId, setPersonaId] = useState("");
-  const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum">("renovacion");
+  const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas">("renovacion");
   const [cargoEditado, setCargoEditado] = useState("");
   const [causaEditada, setCausaEditada] = useState("");
   const [funcionesEditadas, setFuncionesEditadas] = useState("");
+  // Solo para tipo === "convenio_practicas" (0333).
+  const [institucionEducativaEditada, setInstitucionEducativaEditada] = useState("");
+  const [planCapacitacionEditado, setPlanCapacitacionEditado] = useState("");
   const [activosLibre, setActivosLibre] = useState("");
   const [adendumEditado, setAdendumEditado] = useState("");
   const [ciudadEditada, setCiudadEditada] = useState("");
@@ -283,22 +296,27 @@ export default function ContratosPage() {
 
     const hoy = hoyLima();
     const [ps, ss, dp, sal, params, rit, ctr, tab, cfg, fichas, firma, yo] = await Promise.all([
+      // Sin `.eq("en_planilla", true)`: una practicante también genera un
+      // documento acá (su convenio, 0333) aunque `en_planilla` le salga
+      // false. Se filtra en el cliente por `en_planilla || tipo_vinculo ===
+      // "practicante"` — mismo criterio que ya usa `vinculo.ts` y la boleta,
+      // no un `.or()` de PostgREST nuevo que aprender.
       supabase
         .from("personas")
-        .select("id, nombres, apellidos, documento, cargo, sede_base_id, sede_fisica_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad, personal_direccion, sueldo_fijo")
+        .select("id, nombres, apellidos, documento, cargo, sede_base_id, sede_fisica_id, email, fecha_ingreso, fecha_fin_contrato, cobra_movilidad, personal_direccion, sueldo_fijo, en_planilla, tipo_vinculo, practicante_modalidad")
         .eq("estado", "activo")
-        .eq("en_planilla", true)
         .order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo, ciudad"),
       supabase.from("datos_personales").select("persona_id, nombre_dni, direccion"),
       supabase.from("asignaciones_salario").select("persona_id, salario_mensual_soles").is("vigente_hasta", null),
-      // Movilidad y bono: la fila vigente HOY. Sin fila aplicable, cae a
+      // Movilidad, bono y RMV: la fila vigente HOY. Sin fila aplicable, cae a
       // null y el contrato lo dice en vez de inventar un monto — misma
-      // regla que /admin/documentacion.
+      // regla que /admin/documentacion. La RMV es el piso de la subvención
+      // de un convenio de prácticas (Ley 28518, art. 45).
       supabase
         .from("parametros_laborales")
         .select("clave, valor, sede_codigo")
-        .in("clave", ["movilidad_diaria", "bono_onomastico"])
+        .in("clave", ["movilidad_diaria", "bono_onomastico", "rmv"])
         .lte("vigente_desde", hoy)
         .is("vigente_hasta", null),
       // La versión vigente del RIT. Se lee de la tabla, no se escribe a
@@ -323,7 +341,9 @@ export default function ContratosPage() {
       supabase.rpc("fn_persona_actual_id"),
     ]);
 
-    setPersonas((ps.data as Persona[]) ?? []);
+    setPersonas(
+      ((ps.data as Persona[]) ?? []).filter((p) => p.en_planilla || p.tipo_vinculo === "practicante"),
+    );
     setSedes((ss.data as Sede[]) ?? []);
     setDatosPersonales((dp.data as DatoPersonal[]) ?? []);
     setSalarios((sal.data as Salario[]) ?? []);
@@ -348,6 +368,8 @@ export default function ContratosPage() {
     setMovilidadTarifas(paramsData.filter((p) => p.clave === "movilidad_diaria"));
     const bono = paramsData.find((p) => p.clave === "bono_onomastico");
     setBonoOnomastico(bono ? Number(bono.valor) : null);
+    const rmv = paramsData.find((p) => p.clave === "rmv");
+    setRmvVigente(rmv ? Number(rmv.valor) : null);
 
     const ritFila = ((rit.data as { version: number; etiqueta_version: string | null; vigente_desde: string }[] | null) ?? [])[0];
     // `version` es un CORRELATIVO interno —cuántas veces se ha publicado un
@@ -384,7 +406,10 @@ export default function ContratosPage() {
   useEffect(() => {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
-    setTipo(tipoQueCorresponde(p.fecha_ingreso, hoyLima()));
+    // Una practicante no tiene "nuevo ingreso" ni "renovación" — su único
+    // documento es el convenio (0333). Se fija sola, sin que quien usa la
+    // pantalla tenga que saber por qué el desplegable de tipo desaparece.
+    setTipo(p.tipo_vinculo === "practicante" ? "convenio_practicas" : tipoQueCorresponde(p.fecha_ingreso, hoyLima()));
     // `personas` fuera de las dependencias por la misma razón que el efecto de
     // abajo: `cargar()` la devuelve con otra referencia y repondría el tipo
     // que quien usa la pantalla acaba de elegir a mano.
@@ -417,6 +442,8 @@ export default function ContratosPage() {
     setSinActivosAdicionales(false);
     setAdendumEditado("");
     setCiudadEditada("");
+    setInstitucionEducativaEditada("");
+    setPlanCapacitacionEditado("");
 
     if (tipo === "renovacion" && p.fecha_fin_contrato) {
       setFechaInicio(sumarDias(p.fecha_fin_contrato, 1));
@@ -445,6 +472,8 @@ export default function ContratosPage() {
     sinActivosAdicionales,
     adendumEditado,
     ciudadEditada,
+    institucionEducativaEditada,
+    planCapacitacionEditado,
     fechaInicio,
     fechaFin,
   ]);
@@ -467,6 +496,7 @@ export default function ContratosPage() {
     : null;
   const ciudadFinal = (ciudadEditada.trim() || ciudadDeLaSede) ?? null;
   const esAdendum = tipo === "adendum";
+  const esConvenio = tipo === "convenio_practicas";
   // `coalesce(sede_fisica, sede_base)` — el mismo criterio de
   // `fn_planilla_calcular` (0166). Leerlo solo de la sede base le imprimía a
   // quien tiene base Central y trabaja en AQP la tarifa de Central, que no
@@ -502,6 +532,12 @@ export default function ContratosPage() {
           firmanteNombre: firmante.nombre,
           firmanteDni: firmante.dni,
           firmanteCargo: firmante.cargo,
+          practicanteModalidad:
+            persona.practicante_modalidad === "preprofesional" || persona.practicante_modalidad === "profesional"
+              ? persona.practicante_modalidad
+              : null,
+          institucionEducativa: institucionEducativaEditada.trim() || null,
+          planCapacitacionTexto: planCapacitacionEditado,
         }
       : null;
 
@@ -518,24 +554,28 @@ export default function ContratosPage() {
   // natural antes de escribir— deja "" , que no es el placeholder, y el Anexo I
   // salía en blanco. Un anexo de funciones vacío es el que se cita («la función
   // 14 del Anexo I») el día que haya que sustentar un incumplimiento.
-  if (persona && !esAdendum && (funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER || funcionesEditadas.trim() === "")) {
+  if (persona && !esAdendum && !esConvenio && (funcionesEditadas.trim() === FUNCIONES_PLACEHOLDER || funcionesEditadas.trim() === "")) {
     bloqueos.push('Completa "Funciones del cargo" — está vacío o sigue con el texto de relleno.');
   }
   // La causa objetiva arranca con una nota dirigida a quien usa el panel. Esa
   // nota entra TAL CUAL a la cláusula PRIMERA (`<p>${d.causaObjetivaTexto}</p>`):
   // un contrato firmado que lleva dentro «[REVISAR antes de imprimir…]» no solo
   // queda en ridículo, debilita justo la cláusula que sustenta la modalidad
-  // temporal ante una inspección.
-  if (persona && causaEditada.includes("[REVISAR")) {
+  // temporal ante una inspección. Un convenio no usa `causaObjetivaTexto`
+  // (no tiene causa objetiva — no es un contrato de trabajo), así que esta
+  // nota de relleno no es asunto suyo.
+  if (persona && !esConvenio && causaEditada.includes("[REVISAR")) {
     bloqueos.push("Revisa y quita la nota «[REVISAR antes de imprimir…]» de la causa objetiva.");
   }
   // Un beneficio con monto es un monto REAL o no se imprime. Sin tarifa vigente
   // el contrato decía «asignación diaria de movilidad (S/ 0.00)», que promete
-  // por escrito un beneficio de cero.
-  if (persona && !esAdendum && persona.cobra_movilidad && movilidadTarifa === null) {
+  // por escrito un beneficio de cero. Ninguno de los dos aplica a un convenio:
+  // movilidad y bono de onomástico son beneficios de planilla (en_planilla),
+  // y una practicante no está en planilla (0322).
+  if (persona && !esAdendum && !esConvenio && persona.cobra_movilidad && movilidadTarifa === null) {
     bloqueos.push("No hay tarifa de movilidad vigente para su sede: publícala antes de generar el contrato.");
   }
-  if (persona && !esAdendum && !(bonoOnomastico && bonoOnomastico > 0)) {
+  if (persona && !esAdendum && !esConvenio && !(bonoOnomastico && bonoOnomastico > 0)) {
     bloqueos.push("No hay monto vigente del bono de onomástico: publícalo antes de generar el contrato.");
   }
   // Las dos exclusiones de pago que el texto no sabe describir todavía. El
@@ -543,14 +583,26 @@ export default function ContratosPage() {
   // proporcional a las horas; a personal de dirección la ley lo excluye
   // (art. 5, D.S. 007-2002-TR) y a sueldo fijo su pago no depende de horas.
   // Se bloquea en vez de improvisar un texto: un contrato es para firmarlo.
-  if (persona && !esAdendum && persona.personal_direccion) {
+  // Un convenio nunca declara jornada de 48h fija con sobretiempo — su
+  // cláusula de jornada ya depende de la modalidad, no de estos dos flags.
+  if (persona && !esAdendum && !esConvenio && persona.personal_direccion) {
     bloqueos.push("Está marcada como personal de dirección: el texto de jornada y sobretiempo no le corresponde. Revísalo con criterio legal antes de generar.");
   }
-  if (persona && !esAdendum && persona.sueldo_fijo) {
+  if (persona && !esAdendum && !esConvenio && persona.sueldo_fijo) {
     bloqueos.push("Cobra sueldo fijo: la cláusula de remuneración proporcional a las horas no le corresponde. Revísalo con criterio legal antes de generar.");
   }
-  if (persona && !esAdendum && activosLibre.trim() === "" && !sinActivosAdicionales) {
+  if (persona && !esAdendum && !esConvenio && activosLibre.trim() === "" && !sinActivosAdicionales) {
     bloqueos.push("Marca la casilla de activos, o completa el ajuste específico del Anexo IV.");
+  }
+  // ── Lo que sí exige un convenio, y nada de lo anterior sabe pedir ─────────
+  if (persona && esConvenio && planCapacitacionEditado.trim() === "") {
+    bloqueos.push("Completa el plan de capacitación específico — un convenio no tiene funciones, tiene un plan de capacitación (Ley 28518, art. 15).");
+  }
+  if (persona && esConvenio && persona.practicante_modalidad !== "preprofesional" && persona.practicante_modalidad !== "profesional") {
+    bloqueos.push("Asígnale modalidad (preprofesional o profesional) en Equipo antes de generar su convenio — decide su jornada máxima (30h/48h).");
+  }
+  if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
+    bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
   }
   // La ciudad no bloquea —el documento lo dice en su propio texto— pero avisar
   // acá evita descubrirlo recién al leer el PDF impreso.
@@ -568,12 +620,23 @@ export default function ContratosPage() {
   // Avisa, no bloquea: renovar pasado el tope puede ser una decisión tomada a
   // sabiendas, y quien la tome tiene que verlo escrito antes de firmar.
   const avisos: string[] = [];
-  if (persona && !esAdendum && fechaFin) {
+  if (persona && !esAdendum && !esConvenio && fechaFin) {
     const anios = (new Date(`${fechaFin}T00:00:00`).getTime() - new Date(`${persona.fecha_ingreso}T00:00:00`).getTime()) / 31_557_600_000;
     if (anios > 5) {
       avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años a plazo fijo, sobre el tope de CINCO del artículo 74. El vínculo quedaría desnaturalizado a indefinido por el artículo 77.`);
     } else if (anios > 3) {
       avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años bajo la modalidad del artículo 57, cuyo máximo es de TRES. Conviene cambiar de modalidad o pasar a indefinido.`);
+    }
+  }
+  // El tope del convenio (12 meses continuos, Ley 28518 art. 30 y ss.) tiene
+  // una excepción legal real —que el centro de formación determine una
+  // extensión mayor— que este sistema no puede verificar solo. Avisa, no
+  // bloquea: mismo criterio que ya eligió la 0324 para la jornada 30h/48h
+  // ("Dynamic avisa, nunca sanciona solo").
+  if (persona && esConvenio && fechaInicio && fechaFin) {
+    const meses = (new Date(`${fechaFin}T00:00:00`).getTime() - new Date(`${fechaInicio}T00:00:00`).getTime()) / 2_629_800_000;
+    if (meses > 12) {
+      avisos.push(`Este convenio duraría ${meses.toFixed(1)} meses, sobre el tope de DOCE meses continuos (Ley 28518, art. 30). Solo es válido si el centro de formación sustenta por escrito una extensión mayor — de lo contrario, arriesga desnaturalización.`);
     }
   }
 
@@ -825,10 +888,11 @@ export default function ContratosPage() {
                   f.estado === "sin_contrato"
                     ? estadoSinContrato(f)
                     : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
-                const tipoFila = tipoQueCorresponde(
-                  personas.find((p) => p.id === f.persona_id)?.fecha_ingreso,
-                  hoyLima(),
-                );
+                const personaFila = personas.find((p) => p.id === f.persona_id);
+                const tipoFila =
+                  personaFila?.tipo_vinculo === "practicante"
+                    ? "convenio_practicas"
+                    : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
                 return (
                   <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
                     <span className="min-w-0 flex-1 truncate">{f.persona}</span>
@@ -855,7 +919,7 @@ export default function ContratosPage() {
                           setTipo(tipoFila);
                         }}
                       >
-                        {tipoFila === "nuevo" ? "generar" : "renovar"}
+                        {tipoFila === "convenio_practicas" ? "generar convenio" : tipoFila === "nuevo" ? "generar" : "renovar"}
                       </button>
                     ) : (
                       <button
@@ -891,15 +955,26 @@ export default function ContratosPage() {
             </label>
             <label className="text-sm">
               Tipo
-              <select
-                className="mt-1 w-full rounded border border-sand p-2"
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value as "nuevo" | "renovacion" | "adendum")}
-              >
-                <option value="renovacion">Renovación</option>
-                <option value="nuevo">Nuevo ingreso</option>
-                <option value="adendum">Adendum</option>
-              </select>
+              {persona?.tipo_vinculo === "practicante" ? (
+                // Una practicante solo tiene un documento posible — no
+                // "nuevo ingreso" ni "renovación", que son conceptos de un
+                // contrato de trabajo (0333). Se fija sola y no se elige.
+                <input
+                  className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                  value="Convenio de prácticas"
+                  disabled
+                />
+              ) : (
+                <select
+                  className="mt-1 w-full rounded border border-sand p-2"
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value as "nuevo" | "renovacion" | "adendum")}
+                >
+                  <option value="renovacion">Renovación</option>
+                  <option value="nuevo">Nuevo ingreso</option>
+                  <option value="adendum">Adendum</option>
+                </select>
+              )}
             </label>
           </div>
 
@@ -949,7 +1024,9 @@ export default function ContratosPage() {
                 </span>
               </label>
               {/* Un adendum no repite el contrato ni sus anexos, así que los
-                  campos que solo alimentan al contrato no se piden. */}
+                  campos que solo alimentan al contrato no se piden. Un
+                  convenio (0333) no tiene causa objetiva ni funciones — tiene
+                  un plan de capacitación específico (Ley 28518, art. 15). */}
               {esAdendum ? (
                 <label className="block text-sm">
                   Qué se modifica del contrato vigente — una modificación por línea
@@ -961,6 +1038,64 @@ export default function ContratosPage() {
                     onChange={(e) => setAdendumEditado(e.target.value)}
                   />
                 </label>
+              ) : esConvenio ? (
+                <>
+                  <label className="block text-sm">
+                    Modalidad
+                    <input
+                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                      disabled
+                      value={
+                        persona.practicante_modalidad === "preprofesional"
+                          ? "Preprofesional — 30h/semana (art. 44)"
+                          : persona.practicante_modalidad === "profesional"
+                            ? "Profesional — 48h/semana (art. 44)"
+                            : "Sin asignar — ve a Equipo y elígela primero"
+                      }
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Institución educativa (solo aplica de verdad a una preprofesional — vacío no bloquea)
+                    <input
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      placeholder="Ej.: Universidad Nacional de Trujillo"
+                      value={institucionEducativaEditada}
+                      onChange={(e) => setInstitucionEducativaEditada(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Plan de capacitación específico (Anexo I) — una por línea; se numeran solas
+                    <textarea
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      rows={3}
+                      placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
+                      value={planCapacitacionEditado}
+                      onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Anexo IV — ajuste de activos para esta persona (uno por línea)
+                    <textarea
+                      className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
+                      rows={2}
+                      value={activosLibre}
+                      disabled={sinActivosAdicionales}
+                      onChange={(e) => setActivosLibre(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={sinActivosAdicionales}
+                      onChange={(e) => {
+                        setSinActivosAdicionales(e.target.checked);
+                        if (e.target.checked) setActivosLibre("");
+                      }}
+                    />
+                    Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
+                    de la sede
+                  </label>
+                </>
               ) : (
                 <>
                   <label className="block text-sm">
@@ -1020,17 +1155,26 @@ export default function ContratosPage() {
                   <dd>{salarioVigente !== null ? `S/ ${salarioVigente.toFixed(2)}` : "sin asignación vigente"}</dd>
                 </div>
                 <div>
-                  <dt className="font-semibold">Jornada del contrato</dt>
-                  <dd>48 horas semanales (el máximo legal — ver cláusula QUINTA)</dd>
+                  <dt className="font-semibold">Jornada del {esConvenio ? "convenio" : "contrato"}</dt>
+                  <dd>
+                    {esConvenio
+                      ? (() => {
+                          const max = maximoSemanalPracticante("practicante", persona.practicante_modalidad);
+                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta asignar modalidad en Equipo";
+                        })()
+                      : "48 horas semanales (el máximo legal — ver cláusula QUINTA)"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="font-semibold">Movilidad</dt>
                   <dd>
-                    {persona.cobra_movilidad
-                      ? movilidadTarifa !== null
-                        ? `S/ ${movilidadTarifa}/día`
-                        : "sin tarifa vigente para su sede"
-                      : "no cobra"}
+                    {esConvenio
+                      ? "no aplica — no está en planilla (0322)"
+                      : persona.cobra_movilidad
+                        ? movilidadTarifa !== null
+                          ? `S/ ${movilidadTarifa}/día`
+                          : "sin tarifa vigente para su sede"
+                        : "no cobra"}
                   </dd>
                 </div>
                 <div>

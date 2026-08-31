@@ -96,6 +96,9 @@ const DATOS_CONTRATO: DatosContrato = {
   firmanteNombre: "Quien Firma",
   firmanteDni: "11111111",
   firmanteCargo: "Gerencia General",
+  practicanteModalidad: null,
+  institucionEducativa: null,
+  planCapacitacionTexto: "",
 };
 
 describe("el contrato de trabajo", () => {

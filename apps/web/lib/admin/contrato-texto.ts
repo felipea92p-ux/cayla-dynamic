@@ -26,11 +26,16 @@
 // (el mismo que redactó el contrato de Angie) debería revisar el texto final
 // una vez generado para una persona real. Esta pieza construye la
 // herramienta; no reemplaza esa revisión.
+//
+// Lo mismo vale para `documentoConvenio` (0333): se redactó sobre la Ley
+// N.° 28518 y su reglamento, con el mismo tono ya usado en la boleta de un
+// practicante (PR #98), pero tampoco tuvo revisión legal de un abogado —
+// misma seriedad que el contrato de planilla, ni más ni menos.
 
-import { EMPRESA } from "@cayla-dynamic/shared";
+import { EMPRESA, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 
 export interface DatosContrato {
-  tipo: "nuevo" | "renovacion" | "adendum";
+  tipo: "nuevo" | "renovacion" | "adendum" | "convenio_practicas";
 
   // La persona
   nombreDni: string;
@@ -51,6 +56,19 @@ export interface DatosContrato {
   ciudad: string | null;
   causaObjetivaTexto: string;
   funcionesTexto: string;
+
+  /**
+   * Solo para `tipo: "convenio_practicas"` (0333). `practicanteModalidad`
+   * decide 30h/48h semanales (Ley 28518 art. 44, ver
+   * `maximoSemanalPracticante`). `institucionEducativa` solo aplica de
+   * verdad a una preprofesional (art. 30 y ss.) — vacío no bloquea, un
+   * profesional no la necesita. `planCapacitacionTexto` reemplaza al Anexo I
+   * de funciones: un convenio no tiene "funciones de un cargo", tiene un
+   * plan de capacitación específico (art. 15).
+   */
+  practicanteModalidad: "preprofesional" | "profesional" | null;
+  institucionEducativa: string | null;
+  planCapacitacionTexto: string;
 
   // Plazo — la jornada es siempre de 48h, el máximo legal; no se declara un
   // número calculado del horario, que es solo la disposición operativa de hoy.
@@ -226,6 +244,8 @@ function escapado(d: DatosContrato): DatosContrato {
     ciudad: d.ciudad ? escapeHtml(d.ciudad) : null,
     causaObjetivaTexto: escapeHtml(d.causaObjetivaTexto),
     funcionesTexto: escapeHtml(d.funcionesTexto),
+    institucionEducativa: d.institucionEducativa ? escapeHtml(d.institucionEducativa) : null,
+    planCapacitacionTexto: escapeHtml(d.planCapacitacionTexto),
     activosPrincipales: escapeHtml(d.activosPrincipales),
     activosLibre: escapeHtml(d.activosLibre),
     adendumTexto: escapeHtml(d.adendumTexto),
@@ -311,8 +331,13 @@ function enLaCiudadDe(d: DatosContrato): string {
  * contrato modelo en papel: un anexo que se separa de su contrato y no lleva
  * firma no se puede atribuir a nadie, y el Anexo IV —el que sostiene el
  * reclamo de devolución de los equipos— es justo el que más se separa.
+ *
+ * `etiquetaPersona` existe por el convenio de prácticas (0333): a quien firma
+ * no se le puede llamar "LA COLABORADORA" en un documento cuyo primer párrafo
+ * dice que no es una relación laboral (Ley 28518 art. 47) — sería el mismo
+ * error de lenguaje que la 0322 evitó en la boleta.
  */
-function bloqueFirmas(d: DatosContrato): string {
+function bloqueFirmas(d: DatosContrato, etiquetaPersona = "LA COLABORADORA"): string {
   return `
     <div class="firmas">
       <div>
@@ -321,7 +346,7 @@ function bloqueFirmas(d: DatosContrato): string {
       </div>
       <div>
         <p class="linea">&nbsp;</p>
-        <p><strong>LA COLABORADORA</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento}</p>
+        <p><strong>${etiquetaPersona}</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento}</p>
       </div>
     </div>`;
 }
@@ -339,9 +364,9 @@ function encabezadoAnexo(d: DatosContrato, titulo: string, subtitulo: string): s
 }
 
 /** El pie que cierra cada anexo: su bloque de firma y el sello de la empresa. */
-function pieAnexo(d: DatosContrato): string {
+function pieAnexo(d: DatosContrato, etiquetaPersona?: string): string {
   return `
-    ${bloqueFirmas(d)}
+    ${bloqueFirmas(d, etiquetaPersona)}
     <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>`;
 }
 
@@ -586,18 +611,20 @@ function clausulaDisciplina(d: DatosContrato): string {
     Reglamento aprobado por Decreto Supremo N.° 001-96-TR.</p>`;
 }
 
-function anexoIV(d: DatosContrato): string {
+function anexoIV(d: DatosContrato, etiquetaPersona = "LA COLABORADORA"): string {
   return `
     <section class="anexo">
     ${encabezadoAnexo(
       d,
       "ANEXO IV — CONSTANCIA DE RECEPCIÓN Y RESPONSABILIDAD DE ACTIVOS",
-      "Cláusula Octava del presente contrato",
+      d.tipo === "convenio_practicas"
+        ? "Cláusula del presente convenio sobre custodia de activos"
+        : "Cláusula Octava del presente contrato",
     )}
-    <p>Conforme a la Cláusula Octava del presente contrato, LA COLABORADORA deja
-    constancia de la recepción de los bienes de propiedad de LA EMPRESA que se
-    detallan a continuación, correspondientes a la sede ${d.sedeNombre} y
-    asignados para el ejercicio de sus funciones y bajo su custodia:</p>
+    <p>${etiquetaPersona} deja constancia de la recepción de los bienes de
+    propiedad de LA EMPRESA que se detallan a continuación, correspondientes a
+    la sede ${d.sedeNombre} y asignados para el ejercicio de sus funciones y
+    bajo su custodia:</p>
     <p><strong>Activos principales de la sede:</strong> ${d.activosPrincipales}</p>
     <p><strong>Ajuste específico para esta persona:</strong></p>
     ${
@@ -606,15 +633,14 @@ function anexoIV(d: DatosContrato): string {
           // de equipos con su número de serie se cita («el bien 3 del Anexo
           // IV») cuando hay que reclamar la devolución de uno.
           listaDesdeTexto(d.activosLibre)
-        : "<p>LA COLABORADORA no tiene activos adicionales bajo su custodia, más allá de los generales de la sede detallados líneas arriba.</p>"
+        : `<p>${etiquetaPersona} no tiene activos adicionales bajo su custodia, más allá de los generales de la sede detallados líneas arriba.</p>`
     }
     <p>Todos los bienes detallados son de propiedad exclusiva de LA EMPRESA y se
-    entregan únicamente para el desempeño de las funciones de LA COLABORADORA. LA
-    COLABORADORA se obliga a custodiarlos y conservarlos con la diligencia
-    debida, y a devolverlos al extinguirse el vínculo laboral por cualquier
-    causa, en buen estado de conservación salvo el desgaste natural por uso
-    normal.</p>
-    ${pieAnexo(d)}
+    entregan únicamente para el desempeño de las funciones de ${etiquetaPersona}.
+    ${etiquetaPersona} se obliga a custodiarlos y conservarlos con la diligencia
+    debida, y a devolverlos al término del vínculo por cualquier causa, en buen
+    estado de conservación salvo el desgaste natural por uso normal.</p>
+    ${pieAnexo(d, etiquetaPersona)}
     </section>`;
 }
 
@@ -666,10 +692,171 @@ function documentoAdendum(d: DatosContrato): string {
   </article>`;
 }
 
+/**
+ * El convenio de modalidad formativa (Ley N.° 28518) para tipo_vinculo =
+ * 'practicante' (0322/0333) — NO un contrato de trabajo. Documento aparte
+ * desde el encabezado, igual que `documentoAdendum`: no es una rama dentro
+ * de las cláusulas de planilla, porque casi ninguna le queda bien (0322 y el
+ * encabezado de la 0333 detallan por qué). El tono y las cuatro promesas
+ * legales centrales —no es contrato de trabajo, jornada según modalidad,
+ * es una subvención no una remuneración, no genera beneficios laborales— son
+ * las mismas que ya lee la practicante en su "Constancia de subvención"
+ * (boleta, PR #98): un documento no puede prometer lo que el otro niega.
+ */
+function documentoConvenio(d: DatosContrato): string {
+  const horasMax = maximoSemanalPracticante("practicante", d.practicanteModalidad);
+  const modalidadTexto = d.practicanteModalidad === "profesional" ? "PROFESIONALES" : "PREPROFESIONALES";
+  const institucion = d.institucionEducativa
+    ? `<p>La presente modalidad formativa se desarrolla en el marco de los estudios que LA PRACTICANTE cursa en
+       ${d.institucionEducativa}, entidad que suscribe o avala el presente convenio en su calidad de centro de
+       formación profesional, conforme al artículo 15 de la Ley N.° 28518.</p>`
+    : "";
+
+  return `
+  <article class="contrato">
+    <header>
+      <p class="empresa">${EMPRESA.nombre}</p>
+      <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
+      <h1>CONVENIO DE MODALIDAD FORMATIVA — PRÁCTICAS ${modalidadTexto}</h1>
+      <p class="norma">(Ley N.° 28518, Ley sobre Modalidades Formativas Laborales, y su Reglamento aprobado
+      por Decreto Supremo N.° 007-2005-TR)</p>
+    </header>
+
+    <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Convenio de
+    Modalidad Formativa entre:</p>
+
+    <h3>I. DATOS DE LA EMPRESA</h3>
+    <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
+    ${EMPRESA.domicilio}, debidamente representada por su representante legal, Sr(a). ${d.firmanteNombre},
+    identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA.</p>
+
+    <h3>II. DATOS DE LA PRACTICANTE</h3>
+    <p>${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}${
+      d.direccion ? `, con domicilio en ${d.direccion}` : ""
+    }, a quien en adelante se denominará LA PRACTICANTE.</p>
+    ${institucion}
+
+    <p>Ambas partes declaran expresamente que el presente convenio <strong>no genera relación laboral</strong>
+    entre LA PRACTICANTE y LA EMPRESA (Ley N.° 28518, artículo 47), y se celebra sin vicios de voluntad.</p>
+
+    <h3>PRIMERA. OBJETO Y PLAN DE CAPACITACIÓN ESPECÍFICO</h3>
+    <p>LA PRACTICANTE desarrolla sus prácticas ${modalidadTexto.toLowerCase()} en el puesto de
+    ${d.cargo}, en la sede ${d.sedeNombre}, conforme al plan específico de capacitación que se detalla en el
+    ANEXO I — Plan de Capacitación Específico, el cual forma parte integrante del presente convenio
+    (Ley N.° 28518, artículo 15).</p>
+
+    <h3>SEGUNDA. PLAZO</h3>
+    <p>El convenio inicia el ${formatearFecha(d.fechaInicio)} y culmina el ${formatearFecha(d.fechaFin)}, fecha en
+    la cual quedará extinguido automáticamente sin necesidad de comunicación previa, salvo renovación expresa por
+    escrito.</p>
+    <p>Las partes dejan constancia de que la duración de la modalidad formativa no debe exceder de doce (12) meses
+    continuos, salvo que el centro de formación profesional determine, por norma o reglamento propio, una extensión
+    mayor — en cuyo caso deberá sustentarse por escrito. Superar dicho plazo sin sustento arriesga que la relación se
+    considere desnaturalizada, con las consecuencias laborales que ello implica.</p>
+
+    <h3>TERCERA. JORNADA</h3>
+    <p>La jornada de LA PRACTICANTE ${
+      horasMax !== null
+        ? `no excede de ${horasMax} horas semanales, conforme al artículo 44 de la Ley N.° 28518 (${
+            d.practicanteModalidad === "profesional" ? "48 horas para prácticas profesionales" : "30 horas para prácticas preprofesionales, mientras cursa estudios"
+          })`
+        : `<strong>[FALTA ASIGNAR LA MODALIDAD DE LA PRACTICANTE EN EQUIPO — preprofesional (30h) o profesional
+          (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`
+    }. Los horarios serán determinados por LA EMPRESA de acuerdo a sus necesidades operativas, dentro del máximo
+    establecido en este párrafo, y compatibles con las obligaciones académicas de LA PRACTICANTE cuando corresponda.</p>
+    <p>Que LA EMPRESA supervise, oriente y evalúe el desarrollo de las prácticas es parte propia de la modalidad
+    formativa (Ley N.° 28518, artículo 8) y no constituye, por sí sola, indicio de subordinación laboral.</p>
+
+    <h3>CUARTA. SUBVENCIÓN ECONÓMICA</h3>
+    <p>LA EMPRESA otorga a LA PRACTICANTE una subvención económica mensual de S/ ${soles(d.remuneracionMensual)}
+    (${numeroALetras(d.remuneracionMensual)} soles), no menor a la Remuneración Mínima Vital vigente para una
+    jornada completa (Ley N.° 28518, artículo 45). La subvención económica <strong>no constituye remuneración</strong>,
+    no está sujeta a descuentos, aportes ni retención del impuesto a la renta de cuarta ni de quinta categoría.</p>
+    <p>El pago se realizará mediante depósito bancario dentro de los primeros cinco (05) días hábiles del mes
+    siguiente al período de prácticas.</p>
+
+    <h3>QUINTA. COBERTURA DE SALUD</h3>
+    <p>LA EMPRESA cubre los riesgos de enfermedad y accidentes de LA PRACTICANTE mediante su afiliación a EsSalud
+    (Ley N.° 28518, artículo 42.8) — decisión propia de LA EMPRESA, que no le corresponde por defecto a toda
+    modalidad formativa. LA PRACTICANTE goza asimismo de descanso semanal y de los días feriados no laborables,
+    debidamente subvencionados (artículo 42.4).</p>
+
+    <h3>SEXTA. LO QUE ESTE CONVENIO NO GENERA</h3>
+    <p>Por no tratarse de una relación laboral, el presente convenio <strong>no genera</strong> gratificaciones,
+    Compensación por Tiempo de Servicios (CTS), vacaciones proporcionales, ni aporte a un sistema pensionario
+    (AFP u ONP) — salvo que LA PRACTICANTE decida afiliarse voluntariamente, en cuyo caso el aporte corre por su
+    cuenta (Ley N.° 28518, artículo 47).</p>
+    <p>Si la modalidad formativa supera los doce (12) meses continuos, corresponde a LA PRACTICANTE un descanso
+    subvencionado de quince (15) días, y una subvención adicional equivalente a la mitad de la mensual por cada
+    seis (6) meses continuos de duración — derechos que rigen aunque no se calculen automáticamente en el sistema
+    de planilla de LA EMPRESA, y que LA PRACTICANTE puede exigir de cumplirse la condición.</p>
+
+    <h3>SÉPTIMA. NO SUJECIÓN AL REGLAMENTO INTERNO DE TRABAJO</h3>
+    <p>Conforme al numeral 2.6 del Reglamento Interno de Trabajo de LA EMPRESA (versión ${d.ritVersion}, vigente
+    desde el ${d.ritFecha}), LA PRACTICANTE no tiene la condición de trabajadora, no mantiene relación laboral con
+    LA EMPRESA y no está comprendida por dicho Reglamento — se rige por el presente convenio y por la Ley N.° 28518.
+    Ello no excluye las obligaciones de seguridad y salud en el trabajo, que sí alcanzan a LA PRACTICANTE desde el
+    primer día conforme al artículo 68 de la Ley N.° 29783, Ley de Seguridad y Salud en el Trabajo.</p>
+
+    <h3>OCTAVA. CONDUCTA Y CUSTODIA DE ACTIVOS</h3>
+    <p>LA PRACTICANTE se obliga a mantener conducta ética, respetuosa y acorde a la imagen de LA EMPRESA durante el
+    desarrollo de sus prácticas. Los bienes que LA EMPRESA le entregue bajo su custodia se detallan en el
+    ANEXO IV — Constancia de Recepción y Responsabilidad de Activos, el cual forma parte integrante del presente
+    convenio.</p>
+
+    <h3>NOVENA. USO DE IMAGEN</h3>
+    <p>LA PRACTICANTE autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías o
+    videos tomados durante el desarrollo de sus prácticas o en actividades institucionales en la sede
+    ${d.sedeNombre}, con fines corporativos o institucionales, sin compensación adicional, respetando siempre su
+    dignidad e integridad personal, en los límites de la Ley N.° 29733, Ley de Protección de Datos Personales.</p>
+
+    <h3>DÉCIMA. CONFIDENCIALIDAD</h3>
+    <p>Toda información relacionada con procesos internos, inventarios, proveedores, estrategias comerciales, datos
+    de clientes, precios, márgenes, información financiera y cualquier información sensible de LA EMPRESA tiene
+    carácter estrictamente confidencial. LA PRACTICANTE se obliga a no divulgarla, reproducirla ni utilizarla para
+    fines distintos a sus prácticas, durante la vigencia del presente convenio y hasta veinticuatro (24) meses
+    después de su culminación.</p>
+
+    <h3>DÉCIMA PRIMERA. VIDEOVIGILANCIA</h3>
+    <p>LA EMPRESA cuenta con sistemas de videovigilancia en las instalaciones del centro de trabajo, debidamente
+    señalizados, que operan de forma permanente con fines de seguridad, control operativo y verificación de
+    incidencias, conforme a la Ley N.° 29733. LA PRACTICANTE declara conocer y aceptar su existencia mediante la
+    firma del presente convenio.</p>
+
+    <h3>DÉCIMA SEGUNDA. PROTECCIÓN DE DATOS PERSONALES</h3>
+    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a LA PRACTICANTE que sus datos personales serán
+    tratados con las finalidades exclusivas de gestión del presente convenio, cumplimiento de obligaciones legales,
+    comunicaciones internas y emisión de constancias. LA PRACTICANTE otorga su consentimiento expreso mediante la
+    firma del presente convenio.</p>
+
+    <h3>DÉCIMA TERCERA. RESOLUCIÓN ANTICIPADA DEL CONVENIO</h3>
+    <p>El presente convenio podrá resolverse anticipadamente por mutuo acuerdo, por decisión de LA PRACTICANTE
+    comunicada con razonable anticipación, o por incumplimiento grave y reiterado de las obligaciones aquí
+    pactadas por cualquiera de las partes. Al no existir relación laboral, la resolución del presente convenio no
+    genera indemnización por cese ni beneficios sociales — sin perjuicio de la subvención y demás derechos
+    devengados hasta la fecha de resolución.</p>
+
+    <p>En señal de conformidad, las partes firman el presente convenio en ${enLaCiudadDe(d)}, el
+    ${formatearFecha(d.fechaInicio)}, en tres (3) ejemplares de igual tenor.</p>
+
+    ${bloqueFirmas(d, "LA PRACTICANTE")}
+    <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>
+
+    <section class="anexo">
+      ${encabezadoAnexo(d, "ANEXO I — PLAN DE CAPACITACIÓN ESPECÍFICO", `${d.cargo} — Sede ${d.sedeNombre}`)}
+      ${listaDesdeTexto(d.planCapacitacionTexto)}
+      ${pieAnexo(d, "LA PRACTICANTE")}
+    </section>
+
+    ${anexoIV(d, "LA PRACTICANTE")}
+  </article>`;
+}
+
 /** Arma el HTML completo del contrato — el texto que se congela en `contratos_generados.documento_html`. */
 export function construirContrato(datosSinEscapar: DatosContrato): string {
   const d = escapado(datosSinEscapar);
   if (d.tipo === "adendum") return documentoAdendum(d);
+  if (d.tipo === "convenio_practicas") return documentoConvenio(d);
   const titulo = "CONTRATO DE TRABAJO SUJETO A MODALIDAD TEMPORAL POR INICIO O INCREMENTO DE ACTIVIDAD";
 
   return `
