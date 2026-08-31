@@ -193,7 +193,16 @@ begin
   end if;
 
   if v_desde is null then
-    raise exception '0331 · no hay ningún periodo de planilla, así que no sé desde cuándo aplicar el cambio.';
+    -- Base recién creada (CI, `supabase db reset`, un clon nuevo): no hay
+    -- ningún periodo, ni abierto ni pagado, así que no hay NADA que proteger —
+    -- cualquier fecha es segura. En producción esto nunca pasa (hay periodos
+    -- desde el origen de la empresa); esta rama solo existe para que la
+    -- migración se pueda reconstruir desde cero. Agregado el 2026-08-31 porque
+    -- sin esto `supabase db start`/`db reset` abortaba en CUALQUIER base
+    -- vacía —incluido el runner de GitHub Actions, que puso `main` en rojo
+    -- (job `db-tests`, desde el commit que trajo esta migración).
+    v_desde := (now() at time zone 'America/Lima')::date;
+    v_periodo := '(base sin ningún periodo — nada que proteger, se usa hoy)';
   end if;
 
   -- ── A quién ───────────────────────────────────────────────────────────────
