@@ -7,7 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
-import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima } from "@cayla-dynamic/shared";
 
 const REFRESCO_MS = 30_000;
 // Corte mañana/tarde de la meta de cobertura — mismo valor fijo que Turnos (14:15).
@@ -273,7 +273,7 @@ export default function DashboardPage() {
         salidaTemprana: salidaTempranaPorPersona.get(p.id) ?? null,
         enPausaSinRetorno: j?.tiene_salida_no_retornada ?? false,
         esOperativa: esOperativaEn(areasList, f?.funcion ?? AREA_DEFAULT),
-        esEncargada: p.rol === "supervisor_sede" || Boolean(f?.enc),
+        esEncargada: esRolEncargada(p.rol) || Boolean(f?.enc),
       };
     });
 

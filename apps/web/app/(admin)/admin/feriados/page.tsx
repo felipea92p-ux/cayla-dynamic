@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -9,12 +9,8 @@ import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
-import { TZ_LIMA, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { hoyLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
-
-function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
-}
 // Fechas planas (sin hora): se formatean en UTC para que no se corran un día.
 function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
@@ -136,6 +132,9 @@ export default function FeriadosPage() {
   const [sedeFiltro, setSedeFiltro] = useState("");
   const [elegidas, setElegidas] = useState<Set<string>>(new Set());
   const [parejas, setParejas] = useState<Pareja[]>([{ feriado: "", descanso: "" }]);
+  // Resguardo del bug de Safari (ver ausencias/page.tsx): el date picker a veces
+  // no dispara onChange, así que onBlur re-lee el valor real del input.
+  const refsDescanso = useRef<Array<HTMLInputElement | null>>([]);
   const [estado, setEstado] = useState<string>("PENDIENTE");
   const [actaRef, setActaRef] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -328,14 +327,21 @@ export default function FeriadosPage() {
   // Guarda de a uno y va acumulando el resultado. Secuencial a propósito: si algo
   // falla quiero saber EXACTAMENTE en qué persona y en qué pareja, no un error suelto.
   async function registrarLote() {
+    // Último respaldo antes de enviar: si el onBlur no llegó a disparar (el
+    // campo nunca perdió el foco), lee el valor real del input del DOM en vez
+    // del estado, igual que ausencias/page.tsx hace con `vFecha` al guardar.
+    const parejasEfectivas = parejas
+      .map((p, i) => ({ ...p, descanso: p.descanso || refsDescanso.current[i]?.value || "" }))
+      .filter((p) => p.feriado && p.descanso);
+
     if (elegidas.size === 0) { avisar("error", "Elige al menos una persona."); return; }
-    if (parejasCompletas.length === 0) { avisar("error", "Agrega al menos una pareja de feriado y día libre."); return; }
+    if (parejasEfectivas.length === 0) { avisar("error", "Agrega al menos una pareja de feriado y día libre."); return; }
     setGuardando(true);
     setResultados([]);
 
     const salida: Resultado[] = [];
     for (const personaId of elegidas) {
-      for (const par of parejasCompletas) {
+      for (const par of parejasEfectivas) {
         const { error } = await supabase.rpc("fn_otorgar_descanso_sustitutorio", {
           p_persona_id: personaId,
           p_fecha_feriado: par.feriado,
@@ -356,11 +362,17 @@ export default function FeriadosPage() {
     setResultados(salida);
     const ok = salida.filter((x) => !x.error).length;
     const mal = salida.length - ok;
+    const incompletas = parejas.length - parejasEfectivas.length;
     await cargar();
-    if (mal === 0) {
+    const avisoIncompletas = incompletas > 0
+      ? ` ${incompletas} pareja${incompletas === 1 ? "" : "s"} de fecha quedó${incompletas === 1 ? "" : "aron"} sin completar y no se ${incompletas === 1 ? "envió" : "enviaron"}.`
+      : "";
+    if (mal === 0 && incompletas === 0) {
       avisar("ok", `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.`);
+    } else if (mal === 0) {
+      avisar("error", `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.${avisoIncompletas}`);
     } else {
-      avisar("error", `${ok} guardado${ok === 1 ? "" : "s"}, ${mal} rechazado${mal === 1 ? "" : "s"}. El detalle está abajo.`);
+      avisar("error", `${ok} guardado${ok === 1 ? "" : "s"}, ${mal} rechazado${mal === 1 ? "" : "s"}. El detalle está abajo.${avisoIncompletas}`);
     }
   }
 
@@ -442,7 +454,9 @@ export default function FeriadosPage() {
                     ))}
                   </select>
                   <span className="text-taupe">→</span>
-                  <input type="date" value={par.descanso} onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
+                  <input ref={(el) => { refsDescanso.current[i] = el; }} type="date" value={par.descanso}
+                    onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
+                    onBlur={(e) => cambiarPareja(i, "descanso", e.currentTarget.value)}
                     className="rounded-lg border px-3 py-2 text-sm" />
                   <span className="min-w-20 text-xs capitalize text-taupe">
                     {par.descanso ? diaSemana(par.descanso) : ""}
