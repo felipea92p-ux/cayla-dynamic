@@ -689,9 +689,11 @@ function TablaPlanilla(props: {
                   <td className="px-4 py-2">
                     {f.salario_ref !== null ? (
                       <span className="whitespace-nowrap">
-                        {f.en_planilla === false
-                          ? "Honorarios"
-                          : ((f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—")}
+                        {f.tipo_vinculo === "practicante"
+                          ? "Subvención"
+                          : f.en_planilla === false
+                            ? "Honorarios"
+                            : ((f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—")}
                         {" · "}{formatSoles(f.salario_ref)}
                       </span>
                     ) : (
@@ -1004,7 +1006,6 @@ export default function PlanillaPage() {
   const [variacion, setVariacion] = useState<Variacion | null>(null);
   const [mostrandoVariacion, setMostrandoVariacion] = useState(false);
   const [variacionTodas, setVariacionTodas] = useState(false);
-  const [guardandoBono, setGuardandoBono] = useState(false);
 
   // Crear periodo (primero / encadenado)
   const [primerIni, setPrimerIni] = useState("");
@@ -1388,7 +1389,7 @@ export default function PlanillaPage() {
   // vuelve a apretar el botón ahí.
   async function repagarPeriodo() {
     if (!periodoActual) return;
-    const etiqueta = TIPO_VINCULO_LABEL[tablaTab];
+    const etiqueta = TIPO_VINCULO_LABEL[tablaTabEfectiva];
     const motivo = window.prompt(
       `Vas a recalcular «${etiqueta}» y guardar una copia nueva de su desglose.\n` +
         "La copia anterior se conserva y queda registrado quién lo hizo y por qué.\n\n" +
@@ -1403,7 +1404,7 @@ export default function PlanillaPage() {
     const { data, error } = await supabase.rpc("fn_repagar_periodo", {
       p_periodo_id: periodoActual.id,
       p_motivo: motivo.trim(),
-      p_grupo: tablaTab,
+      p_grupo: tablaTabEfectiva,
     });
     setGuardandoPeriodo(false);
     if (error) { avisar("error", mensajeDeError(error, "volver a pagar")); return; }
@@ -1416,37 +1417,6 @@ export default function PlanillaPage() {
         : `Copia nueva guardada. El total ${d > 0 ? "subió" : "bajó"} ${formatSoles(Math.abs(d))}.`,
     );
     await Promise.all([cargarPeriodos(), cargarProyeccion(), cargarDesvios()]);
-  }
-
-  async function calcularBonoPuntualidad() {
-    if (!periodoActual) return;
-    if (
-      !window.confirm(
-        "Esto calcula el bono de puntualidad de todo el periodo y lo agrega como bono automático " +
-          "a cada persona que no tuvo tardanzas. Si ya lo habías calculado antes en este periodo, se " +
-          "reemplaza (no se duplica). ¿Continuar?",
-      )
-    )
-      return;
-    setGuardandoBono(true);
-    const { data, error } = await supabase.rpc("fn_calcular_bono_puntualidad", {
-      p_periodo_id: periodoActual.id,
-    });
-    setGuardandoBono(false);
-    if (error) {
-      avisar("error", mensajeDeError(error, "calcular el bono de puntualidad"));
-      return;
-    }
-    const r = data as unknown as { poblacion: number; puntuales: number; monto_por_persona: number };
-    avisar(
-      "ok",
-      r.poblacion === 0
-        ? "No hay días trabajados en este periodo todavía: nadie califica."
-        : r.puntuales === 0
-          ? `Nadie logró cero tardanzas de las ${r.poblacion} personas con días trabajados: no se agregó ningún bono.`
-          : `${r.puntuales} de ${r.poblacion} personas lograron cero tardanzas → ${formatSoles(r.monto_por_persona)} cada una.`,
-    );
-    await cargarProyeccion();
   }
 
   // ── Feriados (gestión anual, se conserva de la v1) ─────────────────────────
@@ -1825,15 +1795,29 @@ export default function PlanillaPage() {
     }
     return m;
   }, [simFilasVisibles]);
-  const filasTabActiva = filasPorGrupo.get(tablaTab) ?? [];
-  const simFilasTabActiva = simFilasPorGrupo.get(tablaTab) ?? [];
+  // Pestañas a mostrar: "planilla" siempre (es la de por defecto, y así nunca
+  // se queda la pantalla sin ninguna pestaña visible), las otras 4 solo si
+  // tienen a alguien en ESTE periodo — Felipe lo pidió así: "prueba",
+  // "practicante" y "no_trabajador" casi nunca tienen a nadie.
+  const tabsVisibles = useMemo(
+    () => TIPOS_VINCULO.filter((g) => g === "planilla" || (filasPorGrupo.get(g)?.length ?? 0) > 0),
+    [filasPorGrupo],
+  );
+  // Derivado, no sincronizado por efecto: si la pestaña elegida se quedó sin
+  // nadie (cambió de periodo, o se movió a alguien de grupo) y por eso ya no
+  // está en `tabsVisibles`, esta pantalla se COMPORTA como si estuviera en
+  // "planilla" sin necesidad de un setState en un effect — `setTablaTab` solo
+  // lo escriben los clics de las pestañas.
+  const tablaTabEfectiva = tabsVisibles.includes(tablaTab) ? tablaTab : "planilla";
+  const filasTabActiva = filasPorGrupo.get(tablaTabEfectiva) ?? [];
+  const simFilasTabActiva = simFilasPorGrupo.get(tablaTabEfectiva) ?? [];
   // El estado de pago de la pestaña activa — sale de fn_periodo_grupos_estado
   // (0323). Ausente (base sin la 0323, o simulación) se lee como "abierto":
   // el defecto seguro es seguir pidiendo confirmación, no dar por pagado algo
   // que la base nunca dijo.
   const grupoActivo = useMemo(
-    () => grupos?.find((g) => g.grupo === tablaTab) ?? null,
-    [grupos, tablaTab],
+    () => grupos?.find((g) => g.grupo === tablaTabEfectiva) ?? null,
+    [grupos, tablaTabEfectiva],
   );
   const grupoActivoPagado = grupoActivo?.estado === "pagado";
   const provTotales = useMemo(
@@ -1956,7 +1940,7 @@ export default function PlanillaPage() {
     );
   }
 
-  const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo || guardandoBono;
+  const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -2163,7 +2147,7 @@ export default function PlanillaPage() {
                   disabled={guardandoPeriodo}
                   className="mt-3 rounded-lg bg-ambar px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                 >
-                  {guardandoPeriodo ? "Guardando…" : `Recalcular y volver a pagar «${TIPO_VINCULO_LABEL[tablaTab]}»`}
+                  {guardandoPeriodo ? "Guardando…" : `Recalcular y volver a pagar «${TIPO_VINCULO_LABEL[tablaTabEfectiva]}»`}
                 </button>
                 <p className="mt-2 text-xs opacity-80">
                   Recalcula solo el grupo de la pestaña donde estás parado — si el desvío es de otro grupo, cambia de
@@ -2498,15 +2482,17 @@ export default function PlanillaPage() {
                 dentro de "planilla" y "honorarios" respectivamente— tiene su
                 propia pestaña, su propio candado de pago y su propia foto
                 congelada. Siguen editables ahí: boleta, movimientos y el
-                aviso de retención de 4ta no cambian. */}
+                aviso de retención de 4ta no cambian.
+                Solo se muestran las que tienen a alguien este periodo —
+                "planilla" siempre, las otras 4 casi nunca tienen gente. */}
             {proy && (
               <div className="mb-3 flex flex-wrap gap-1 border-b border-sand">
-                {TIPOS_VINCULO.map((g) => (
+                {tabsVisibles.map((g) => (
                   <button
                     key={g}
                     onClick={() => setTablaTab(g)}
                     className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
-                      tablaTab === g
+                      tablaTabEfectiva === g
                         ? "border border-b-0 border-sand bg-papel text-tinta"
                         : "text-taupe hover:text-tinta"
                     }`}
@@ -2529,24 +2515,24 @@ export default function PlanillaPage() {
                     <span className="text-sm text-taupe">
                       Pagado{grupoActivo?.pagado_at ? ` el ${fechaLima(grupoActivo.pagado_at)}` : ""}
                       {grupoActivo?.pagado_por_nombre ? ` por ${grupoActivo.pagado_por_nombre}` : ""} — el desglose de
-                      «{TIPO_VINCULO_LABEL[tablaTab]}» quedó congelado; es la cifra que va a Costos.
+                      «{TIPO_VINCULO_LABEL[tablaTabEfectiva]}» quedó congelado; es la cifra que va a Costos.
                     </span>
                     <button
-                      onClick={() => void marcarPagado(tablaTab, false)}
+                      onClick={() => void marcarPagado(tablaTabEfectiva, false)}
                       disabled={guardandoPeriodo}
                       className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50 disabled:opacity-50"
                     >
-                      Reabrir «{TIPO_VINCULO_LABEL[tablaTab]}»
+                      Reabrir «{TIPO_VINCULO_LABEL[tablaTabEfectiva]}»
                     </button>
                   </>
                 ) : (
                   <button
-                    onClick={() => void marcarPagado(tablaTab, true)}
+                    onClick={() => void marcarPagado(tablaTabEfectiva, true)}
                     disabled={guardandoPeriodo || cargando || filasTabActiva.length === 0}
                     title={filasTabActiva.length === 0 ? "No hay nadie de este grupo en el periodo." : undefined}
                     className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                   >
-                    {guardandoPeriodo ? "Guardando…" : `Marcar «${TIPO_VINCULO_LABEL[tablaTab]}» como PAGADO`}
+                    {guardandoPeriodo ? "Guardando…" : `Marcar «${TIPO_VINCULO_LABEL[tablaTabEfectiva]}» como PAGADO`}
                   </button>
                 )}
               </div>

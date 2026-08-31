@@ -2899,7 +2899,7 @@ export type Database = {
           descuentos?: number
           dias_trabajados?: number
           fila: Json
-          grupo: string
+          grupo?: string
           horas_mes?: number
           monto_descanso_semanal?: number
           monto_educacion?: number
@@ -4142,10 +4142,6 @@ export type Database = {
         Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
         Returns: number
       }
-      fn_calcular_bono_puntualidad: {
-        Args: { p_periodo_id: string | null }
-        Returns: Json
-      }
       fn_cambiar_regimen_pension: {
         Args: {
           p_desde: string | null
@@ -4560,14 +4556,15 @@ export type Database = {
           tope: number
         }[]
       }
-      fn_educacion_cerrar:
-        | { Args: { p_hasta: string | null; p_id: string | null }; Returns: undefined }
-        | {
-            Args: { p_hasta: string | null; p_id: string | null; p_motivo?: string | null }
-            Returns: undefined
-          }
+      fn_educacion_cerrar: {
+        Args: { p_hasta: string | null; p_id: string | null; p_motivo?: string | null }
+        Returns: undefined
+      }
       fn_educacion_desde_cuando_puede_regir: { Args: never; Returns: string }
-      fn_educacion_fecha_pagada: { Args: { p_fecha: string | null }; Returns: boolean }
+      fn_educacion_fecha_pagada: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
       fn_educacion_limite_comprobante: {
         Args: never
         Returns: {
@@ -4853,7 +4850,7 @@ export type Database = {
         Returns: string
       }
       fn_fecha_en_periodo_pagado: {
-        Args: { p_fecha: string | null }
+        Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: boolean
       }
       fn_feriado_devengado: {

@@ -31,6 +31,80 @@ export function CargandoFila({ columnas, texto = "Cargando…" }: { columnas: nu
   );
 }
 
+/** El bloque que "respira" mientras carga — la pieza de los esqueletos de abajo. */
+function Hueso({ className = "" }: { className?: string }) {
+  return <span aria-hidden className={`pulso-carga inline-block rounded bg-sand/70 ${className}`} />;
+}
+
+/**
+ * El esqueleto de una tabla: la forma de la tabla final, sin sus datos. Para
+ * las pantallas donde `<Cargando/>` reemplazaba TODA la tabla por un colibrí
+ * solo —Equipo, Desempeño— y la persona perdía de vista dónde iba a aparecer
+ * lo que espera, sobre todo si ya conoce la pantalla y sabe qué columna mirar.
+ *
+ * `anchos` es un ancho de Tailwind por columna (p. ej. `["w-32","w-16"]`):
+ * columnas angostas como "Estado" no tienen por qué respirar tan ancho como
+ * "Nombre". `franjaFinal` es para Desempeño, la única tabla con una franja de
+ * cuadritos —uno por día— después de sus columnas normales.
+ */
+export function EsqueletoTabla({
+  anchos,
+  filas = 8,
+  franjaFinal,
+}: {
+  anchos: string[];
+  filas?: number;
+  franjaFinal?: number;
+}) {
+  return (
+    <div role="status" aria-label="Cargando" className="overflow-hidden rounded-2xl border border-sand bg-papel">
+      <table className="w-full text-sm">
+        <tbody>
+          {Array.from({ length: filas }).map((_, i) => (
+            <tr key={i} className={i > 0 ? "border-t border-sand" : ""}>
+              {anchos.map((ancho, j) => (
+                <td key={j} className="px-4 py-3"><Hueso className={`h-3.5 ${ancho}`} /></td>
+              ))}
+              {franjaFinal !== undefined && (
+                <td className="px-3 py-3">
+                  <div className="flex gap-[3px]">
+                    {Array.from({ length: franjaFinal }).map((_, k) => (
+                      <Hueso key={k} className="h-4 w-[14px] shrink-0" />
+                    ))}
+                  </div>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Varias `EsqueletoTabla`, cada una con su título — para las pantallas que
+ * agrupan su lista en secciones (Incidencias, una por sede). */
+export function EsqueletoSecciones({
+  secciones = 2,
+  anchos,
+  filas = 3,
+}: {
+  secciones?: number;
+  anchos: string[];
+  filas?: number;
+}) {
+  return (
+    <div role="status" aria-label="Cargando" className="flex flex-col gap-8">
+      {Array.from({ length: secciones }).map((_, s) => (
+        <div key={s}>
+          <Hueso className="mb-3 h-5 w-40" />
+          <EsqueletoTabla anchos={anchos} filas={filas} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Cuando no hay nada que mostrar. Distinto de la carga: acá el sistema YA
  * respondió y la respuesta es "no hay". Confundir las dos deja a la persona
