@@ -113,6 +113,22 @@ function fmtMinutos(m: number): string {
   if (m < 60) return `${m} min`;
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
+// "2023-06-15" medido al "2026-08-31" → "3 a. 2 m.". Aritmética de string, no
+// de Date: mismo motivo que el resto del archivo — un año-mes-día no tiene
+// huso horario del que protegerse, y restarlo como Date sí puede desfasarse.
+function antiguedad(fechaIngreso: string, hasta: string): string {
+  const [ay, am, ad] = fechaIngreso.split("-").map(Number);
+  const [by, bm, bd] = hasta.split("-").map(Number);
+  let anios = by - ay;
+  let meses = bm - am;
+  if (bd < ad) meses--;
+  if (meses < 0) { anios--; meses += 12; }
+  if (anios <= 0 && meses <= 0) return "recién ingresa";
+  if (anios === 0) return `${meses} mes${meses === 1 ? "" : "es"}`;
+  if (meses === 0) return `${anios} año${anios === 1 ? "" : "s"}`;
+  return `${anios} a. ${meses} m.`;
+}
+
 function fechaLarga(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
@@ -154,6 +170,10 @@ interface Fila {
   sede: string;
   area: string;
   activa: boolean;
+  fechaIngreso: string | null;
+  ausenciasDias: number;
+  ausenciasRegistros: number;
+  ausenciasPorTipo: Record<string, number>;
   dias: Dia[];
   diasEsperados: number;      // los que le tocaban Y no tenían motivo para faltar
   diasTrabajados: number;
@@ -236,7 +256,15 @@ function explicarDia(d: Dia, nombre: string): string {
   return partes.join(" · ");
 }
 
-type Columna = "atencion" | "nombre" | "sede" | "asistencia" | "horas" | "tardanzas" | "faltas" | "revisar" | "objetivos";
+// "3 d Vacaciones · 2 d Descanso médico (con documento)" — el título del
+// cuadrito, para no gastar una columna aparte por cada tipo posible.
+function desgloseAusencias(porTipo: Record<string, number>): string {
+  const entradas = Object.entries(porTipo);
+  if (entradas.length === 0) return "Sin ausencias en el periodo.";
+  return entradas.map(([tipo, dias]) => `${dias} d ${tipo}`).join(" · ");
+}
+
+type Columna = "atencion" | "nombre" | "sede" | "asistencia" | "horas" | "tardanzas" | "faltas" | "revisar" | "objetivos" | "ausencias";
 type Orden = { col: Columna; asc: boolean };
 
 function comparar(a: Fila, b: Fila, col: Columna, asc: boolean): number {
@@ -262,6 +290,7 @@ function comparar(a: Fila, b: Fila, col: Columna, asc: boolean): number {
     case "faltas": return s * (a.faltas - b.faltas) || nom();
     case "revisar": return s * (porRevisar(a) - porRevisar(b)) || nom();
     case "objetivos": return s * (objPct(a) - objPct(b)) || nom();
+    case "ausencias": return s * (a.ausenciasDias - b.ausenciasDias) || nom();
   }
 }
 
@@ -362,6 +391,32 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
             Ir a Turnos, en la semana del {fechaLarga(diasSospechosos[0].fecha)} →
           </Link>
         </p>
+      )}
+
+      {/* Del total de `ausencias` en el rango, sin pasar por la cascada de
+          horario/turnos — por eso puede no coincidir con "días con motivo" de
+          arriba: ese cuenta solo días que le tocaba trabajar, este cuenta
+          cualquier día de la ausencia, caiga o no en su horario. */}
+      {f.ausenciasDias > 0 && (
+        <div className="rounded-2xl border border-sand bg-papel p-4">
+          <h3 className="mb-2 font-serif text-lg">
+            Ausencias del periodo
+            <span className="ml-2 text-sm font-normal text-taupe">
+              · {f.ausenciasDias} día{f.ausenciasDias === 1 ? "" : "s"} en {f.ausenciasRegistros} registro{f.ausenciasRegistros === 1 ? "" : "s"}
+            </span>
+          </h3>
+          <ul className="space-y-1 text-sm">
+            {Object.entries(f.ausenciasPorTipo).map(([tipo, dias]) => (
+              <li key={tipo} className="flex justify-between gap-4">
+                <span>{tipo}</span>
+                <span className="text-taupe">{dias} día{dias === 1 ? "" : "s"}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/admin/ausencias" className="mt-2 inline-block text-xs text-rojo hover:underline">
+            Ver el detalle en Ausencias →
+          </Link>
+        </div>
       )}
 
       <div className="rounded-2xl border border-sand bg-papel p-4">
@@ -549,9 +604,10 @@ function DesempenoContenido() {
       { data: horariosData },
       { data: turnosData },
       { data: areasData, error: areasError },
+      { data: ausenciasResumenData },
     ] = await Promise.all([
       supabase.from("personas")
-        .select("id, nombres, apellidos, estado, funcion, sedes:sede_base_id(codigo)")
+        .select("id, nombres, apellidos, estado, funcion, fecha_ingreso, sedes:sede_base_id(codigo)")
         .order("nombres"),
       // Por lotes: PostgREST corta en 1000 filas y devuelve 200 OK sin avisar.
       // El order por fecha+persona no es cosmético: sin un orden estable, dos
@@ -575,6 +631,7 @@ function DesempenoContenido() {
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso")
         .gte("fecha", desde).lte("fecha", hasta),
       supabase.rpc("fn_areas"),
+      supabase.rpc("fn_ausencias_resumen", { p_desde: desde, p_hasta: hasta }),
     ]);
 
     if (errPersonas || errJornadas) {
@@ -618,6 +675,10 @@ function DesempenoContenido() {
       if (o.cumplido) a.cumplidos++;
       objPor.set(o.persona_id, a);
     }
+    const ausenciasPor = new Map<string, { dias: number; registros: number; porTipo: Record<string, number> }>();
+    for (const a of ((ausenciasResumenData as unknown as { persona_id: string; dias_total: number; registros: number; por_tipo: Record<string, number> }[] | null) ?? [])) {
+      ausenciasPor.set(a.persona_id, { dias: a.dias_total, registros: a.registros, porTipo: a.por_tipo ?? {} });
+    }
 
     const hoy = hoyLima();
     const listaFechas = desde <= hasta ? fechasDelRango(desde, hasta) : [];
@@ -626,12 +687,17 @@ function DesempenoContenido() {
     for (const p of personas ?? []) {
       const pid = p.id;
       const tramos = horariosPor.get(pid) ?? [];
+      const ausRes = ausenciasPor.get(pid);
       const f: Fila = {
         personaId: pid,
         nombre: `${p.nombres} ${p.apellidos}`,
         sede: (p as unknown as { sedes?: { codigo: string } }).sedes?.codigo ?? "?",
         area: (p as unknown as { funcion: string }).funcion ?? "",
         activa: (p as unknown as { estado: string }).estado === "activo",
+        fechaIngreso: (p as unknown as { fecha_ingreso: string | null }).fecha_ingreso ?? null,
+        ausenciasDias: ausRes?.dias ?? 0,
+        ausenciasRegistros: ausRes?.registros ?? 0,
+        ausenciasPorTipo: ausRes?.porTipo ?? {},
         dias: [], diasEsperados: 0, diasTrabajados: 0, diasConMotivo: 0,
         horasEsperadas: 0, horasConMotivo: 0, diasSinTurno: 0,
         horasTotales: 0, horasReales: 0, horasAgregadas: 0, agregados: 0,
@@ -712,9 +778,14 @@ function DesempenoContenido() {
 
     // Quien no tiene nada que mostrar en el rango no ocupa una fila; se dice
     // cuánta gente quedó fuera para que no desaparezca en silencio.
+    // `ausenciasDias` entra acá a propósito: sin esto, alguien de licencia todo
+    // el periodo —cero días trabajados, cero esperados, nada que revisar—
+    // desaparecía de la tabla en silencio, que es justo a quien más le importa
+    // que la nueva columna de Ausencias le muestre algo.
     const conAlgo = out.filter((r) =>
       r.diasTrabajados > 0 || r.agregados > 0 || r.incompletas > 0 ||
-      r.faltas > 0 || r.faltasJustificadas > 0 || r.diasEsperados > 0);
+      r.faltas > 0 || r.faltasJustificadas > 0 || r.diasEsperados > 0 ||
+      r.ausenciasDias > 0);
     setSinActividad(out.filter((r) => r.activa).length - conAlgo.filter((r) => r.activa).length);
     setFilas(conAlgo);
 
@@ -755,6 +826,7 @@ function DesempenoContenido() {
   const sedes = useMemo(() => [...new Set(filas.map((f) => f.sede))].sort(), [filas]);
   const areasPresentes = useMemo(() => [...new Set(filas.map((f) => f.area))].filter(Boolean).sort(), [filas]);
   const hayObjetivos = useMemo(() => filas.some((f) => f.objTotal > 0), [filas]);
+  const hayAusencias = useMemo(() => filas.some((f) => f.ausenciasDias > 0), [filas]);
 
   const vista = useMemo(() => {
     const q = plano(fBusca.trim());
@@ -779,6 +851,8 @@ function DesempenoContenido() {
     peor: vista.reduce((m, f) => Math.max(m, f.peorTardanza), 0),
     faltas: vista.reduce((s, f) => s + f.faltas, 0),
     porRevisar: vista.reduce((s, f) => s + porRevisar(f), 0),
+    ausenciasDias: vista.reduce((s, f) => s + f.ausenciasDias, 0),
+    conAusencia: vista.filter((f) => f.ausenciasDias > 0).length,
   }), [vista]);
 
   const filaSel = useMemo(() => (sel ? filas.find((f) => f.personaId === sel.personaId) ?? null : null), [filas, sel]);
@@ -905,7 +979,7 @@ function DesempenoContenido() {
           </div>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           <Tile label="Horas del periodo" valor={`${totales.horas.toFixed(0)} h`}
             pie={
               totales.esperadas === 0
@@ -918,6 +992,8 @@ function DesempenoContenido() {
           <Tile label="Tardanzas" valor={String(totales.tardanzas)} tono="alerta"
             pie={totales.peor > 0 ? `la peor, ${fmtMinutos(totales.peor)}` : undefined} />
           <Tile label="Por revisar" valor={String(totales.porRevisar)} tono="alerta" pie="marcajes sin cerrar" />
+          <Tile label="Ausencias" valor={`${totales.ausenciasDias} d`}
+            pie={totales.conAusencia > 0 ? `${totales.conAusencia} persona${totales.conAusencia === 1 ? "" : "s"}` : "nadie en el periodo"} />
           <Tile label="Personas" valor={String(vista.length)} pie={`de ${filas.length} con actividad`} />
         </div>
 
@@ -930,7 +1006,7 @@ function DesempenoContenido() {
         {desde > hasta && <p className="mb-4 text-sm text-rojo">El «desde» es posterior al «hasta».</p>}
         {cargando && (
           <EsqueletoTabla
-            anchos={["w-36", "w-16", "w-14", "w-14", "w-14", "w-12", "w-16", ...(hayObjetivos ? ["w-14"] : [])]}
+            anchos={["w-36", "w-16", "w-14", "w-14", "w-14", "w-12", "w-16", ...(hayAusencias ? ["w-14"] : []), ...(hayObjetivos ? ["w-14"] : [])]}
             franjaFinal={hayCuadricula ? Math.min(fechas.length, 16) : undefined}
           />
         )}
@@ -952,6 +1028,7 @@ function DesempenoContenido() {
                     <Th col="tardanzas" orden={orden} setOrden={setOrden} num title="Cuántas, y la peor del periodo">Tardanzas</Th>
                     <Th col="faltas" orden={orden} setOrden={setOrden} num>Faltas</Th>
                     <Th col="revisar" orden={orden} setOrden={setOrden} num>Revisar</Th>
+                    {hayAusencias && <Th col="ausencias" orden={orden} setOrden={setOrden} num title="Días de ausencia en el periodo (vacaciones, descanso médico, permisos…)">Ausencias</Th>}
                     {hayObjetivos && <Th col="objetivos" orden={orden} setOrden={setOrden} num>Objetivos</Th>}
                     {hayCuadricula && (
                       <th className="px-3 py-1 text-left font-normal">
@@ -981,7 +1058,10 @@ function DesempenoContenido() {
                         <span aria-hidden className="mr-1.5 inline-block w-2 text-taupe">{abierta === f.personaId ? "▾" : "▸"}</span>
                         {f.nombre}
                         {!f.activa && <span className="ml-2 rounded-full bg-taupe/15 px-2 py-0.5 text-[10px] text-taupe">inactiva</span>}
-                        <div className="text-[11px] text-taupe">{f.area ? areaCorto(areas, f.area) : "sin área"}</div>
+                        <div className="text-[11px] text-taupe">
+                          {f.area ? areaCorto(areas, f.area) : "sin área"}
+                          {f.fechaIngreso && <> · {antiguedad(f.fechaIngreso, hasta)}</>}
+                        </div>
                       </td>
                       <td className="px-3 py-1.5 text-taupe">{f.sede}</td>
                       <td className="px-3 py-1.5 text-right">
@@ -1007,6 +1087,11 @@ function DesempenoContenido() {
                       <td className="px-3 py-1.5 text-right">
                         {porRevisar(f) > 0 ? <span className="text-ambar">{porRevisar(f)}</span> : <span className="text-taupe/50">—</span>}
                       </td>
+                      {hayAusencias && (
+                        <td className="px-3 py-1.5 text-right" title={desgloseAusencias(f.ausenciasPorTipo)}>
+                          {f.ausenciasDias > 0 ? <span>{f.ausenciasDias} d</span> : <span className="text-taupe/50">—</span>}
+                        </td>
+                      )}
                       {hayObjetivos && (
                         <td className="px-3 py-1.5 text-right">
                           {f.objTotal === 0 ? <span className="text-taupe/40">—</span>
@@ -1033,7 +1118,7 @@ function DesempenoContenido() {
                     </tr>
                     {abierta === f.personaId && (
                       <tr>
-                        <td colSpan={7 + (hayObjetivos ? 1 : 0) + (hayCuadricula ? 1 : 0)} className="p-0">
+                        <td colSpan={7 + (hayAusencias ? 1 : 0) + (hayObjetivos ? 1 : 0) + (hayCuadricula ? 1 : 0)} className="p-0">
                           <DetallePersona
                             f={f}
                             meta={f.diasEsperados > 0 ? f.horasEsperadas / f.diasEsperados : 0}

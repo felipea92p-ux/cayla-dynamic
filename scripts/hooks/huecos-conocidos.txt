@@ -82,19 +82,6 @@
 0259  Abandonado. Fue el descanso médico en la base; se movió a 0263 por la misma razón.
 0268  Número reservado y nunca commiteado. Iba a ser 0268_un_descanso_medico_sin_firma_de_do_deja_de_pagarse.sql, escrito por otra sesión el 2026-08-18 y aún sin commitear cuando otra sesión empujó la 0269 — el commit d632333 lo cuenta al renumerar la prueba de la 0269 de 206 a 207. Comprobado el 2026-08-19: el archivo no existe en ninguna rama, ninguna rama lo tuvo nunca, y no está en el disco de ninguno de los diez worktrees. Y contra producción, en el mismo registro que trajo el resultado de que falta la 0271: `migraciones_aplicadas` salta de la 267 a la 269, así que nunca se aplicó. No hay nada que recuperar. Si esa idea vuelve, toma un número nuevo con ./scripts/siguiente-numero.sh.
 
-# ── 0333 y 0334 · en ramas sin fusionar, comprobado el 2026-08-31 ───────────
-#
-# Mismo caso que el bloque de retail de arriba: no faltan, están ESCRITAS,
-# commiteadas y empujadas a origin — solo que `main` todavía no las tiene.
-#
-# Comprobado con `git ls-tree -r` sobre las dos ramas (locales y en
-# refs/remotes/origin): el archivo existe en cada una, tal cual se lista abajo.
-# No es el patrón de la 0177/0243 —una migración que solo vive en un disco,
-# sin commitear en ningún lado—: acá el commit ya está en GitHub, solo falta
-# el merge.
-#
-# El día que cualquiera de las dos se fusione, su línea sobra y
-# numeracion.sh lo va a avisar solo (el aviso «ya no son huecos»).
-
-0333  El generador de contratos hace convenios de prácticas. Rama claude/practicantes-branch-merge-c415c6, en origin.
-0334  Desempeño suma ausencias del periodo. Rama claude/buk-cayla-dynamic-analysis-5be9ec, en origin.
+# La 0333 se fusionó a main el 2026-08-31 (PR #117); la 0334 va en esta misma
+# rama y se fusiona con ella. Ninguna de las dos es un hueco ya — por eso no
+# quedan líneas para ellas acá, ver el aviso del propio numeracion.sh.

@@ -4204,6 +4204,15 @@ export type Database = {
           ventana_dias: number
         }[]
       }
+      fn_ausencias_resumen: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: {
+          dias_total: number
+          persona_id: string
+          por_tipo: Json
+          registros: number
+        }[]
+      }
       fn_ausencias_subsidio: {
         Args: { p_anio?: number | null }
         Returns: {

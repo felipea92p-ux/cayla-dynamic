@@ -77,6 +77,41 @@ Con esto, los cinco pendientes originales de Practicantes quedan cerrados.
 
 ---
 
+## 2026-08-31 — El pendiente que dejó la 0294 queda cerrado: auditoría de suspensiones fuera de tope · CERRADO
+
+La PR [#64](https://github.com/felipea92p-ux/cayla-dynamic/pull/64) (migración
+0294) dejó escrito que los documentos disciplinarios ya firmados o entregados
+"no se revisan solos" — que si alguna suspensión pasada se pasó del tope del
+RIT, había que buscarla a mano. Se escribió esa búsqueda:
+[`suspensiones_fuera_del_tope.sql`](../scripts/sql-manual/suspensiones_fuera_del_tope.sql)
+(PR [#141](https://github.com/felipea92p-ux/cayla-dynamic/pull/141)), verificada
+contra el Postgres local con los tres casos reales —el de 10 días de Arequipa y
+los dos de la escalera 19.2 c)/d)— dentro de `BEGIN…ROLLBACK` antes de pegarla
+en producción.
+
+**Encontró un caso real:** T-02/0004-2026-CAYLA (Mateo Zarate) — su segunda
+suspensión por tardanzas salió igual a la primera, 1 día cada una (entregadas
+2026-07-25 y 2026-08-17), cuando el numeral 19.2 d) exige que la segunda sea
+mayor. Es anterior a la 0294. Las dos ya se cumplieron —sin marcar esos
+días— y no hay plata de más ni de menos que ajustar: el defecto es que el
+documento se funda en el 19.2 d) y lo incumple en su parte resolutiva, lo que
+lo debilita como antecedente graduado.
+
+**Decisión (Felipe, 2026-08-31): no se anula ni se reemite.** Ya se cumplió, y
+corregirlo significaría volver a sancionar por días que ya pasaron. Queda
+anotado en [`hallazgos-abiertos.md`](hallazgos-abiertos.md) (PR
+[#144](https://github.com/felipea92p-ux/cayla-dynamic/pull/144)) para quien
+mire su legajo después.
+
+**Y hacia adelante no puede repetirse.** El generador vigente
+(`fn_expediente_generar_tardanza`, 0311) ya propone `suspension_previa_dias +
+1` para la siguiente suspensión de la misma persona —para Mateo, 2 días— y el
+editor (`fn_expediente_set_suspension`, 0294) rechaza cualquier valor que no
+sea estrictamente mayor. No depende de que quien llena el campo se acuerde de
+la regla.
+
+---
+
 ## 2026-08-31 — Texto de apoyo por objetivo del mes (0335) · PEGADA Y VERIFICADA
 
 Felipe pidió poder dejar, en cada objetivo del checklist mensual (0032), unas
