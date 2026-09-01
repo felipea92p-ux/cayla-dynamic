@@ -890,21 +890,35 @@ export default function ContratosPage() {
             </h2>
             <ul className="divide-y divide-sand/60">
               {pendientes.map((f) => {
+                const personaFila = personas.find((p) => p.id === f.persona_id);
+                const esPracticanteFila = personaFila?.tipo_vinculo === "practicante";
                 const e =
                   f.estado === "sin_contrato"
                     ? estadoSinContrato(f)
                     : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
-                const personaFila = personas.find((p) => p.id === f.persona_id);
-                const tipoFila =
-                  personaFila?.tipo_vinculo === "practicante"
-                    ? "convenio_practicas"
-                    : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
+                // Para una practicante, `fecha_fin_contrato`/`estado` los mueve
+                // el tope legal de 12 meses (0336), no necesariamente lo que
+                // dice su convenio — decirlo con las mismas palabras que un
+                // contrato vencido ("contrato vencido") confundiría, así que
+                // se nombra el tope explícitamente en vez de reusar el texto
+                // genérico tal cual.
+                const eFinal =
+                  esPracticanteFila && f.estado === "vencido"
+                    ? { ...e, texto: "superó el tope de 12 meses del convenio (art. 30, Ley 28518)" }
+                    : esPracticanteFila && f.estado === "por_vencer"
+                      ? { ...e, texto: "se acerca al tope de 12 meses del convenio" }
+                      : esPracticanteFila && f.estado === "sin_vencimiento"
+                        ? { ...e, texto: "sin fecha de fin en su convenio" }
+                        : e;
+                const tipoFila = esPracticanteFila
+                  ? "convenio_practicas"
+                  : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
                 return (
                   <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
                     <span className="min-w-0 flex-1 truncate">{f.persona}</span>
                     <span className="text-xs text-taupe">{f.sede}</span>
-                    <span className={`text-sm ${e.grave ? "text-rojo" : "text-taupe"}`}>
-                      {e.texto}
+                    <span className={`text-sm ${eFinal.grave ? "text-rojo" : "text-taupe"}`}>
+                      {eFinal.texto}
                       {f.estado === "desnaturalizado" && ` · ${f.dias_marcados_despues} días marcados`}
                       {f.estado === "por_vencer" && f.dias_restantes !== null && ` · ${f.dias_restantes} días`}
                       {/* El de papel también vence, y esa es la fecha que
@@ -1272,7 +1286,8 @@ export default function ContratosPage() {
                     {c.fecha_firma && (!c.copia_entregada_at || !c.comunicado_mtpe_at) && (
                       <p className="text-xs text-taupe">
                         Falta{" "}
-                        {!c.copia_entregada_at && "entregar copia a la colaboradora"}
+                        {!c.copia_entregada_at &&
+                          `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
                         {!c.copia_entregada_at && !c.comunicado_mtpe_at && " y "}
                         {!c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
                       </p>
