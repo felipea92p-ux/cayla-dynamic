@@ -116,6 +116,14 @@ function fechaLarga(iso: string): string {
   return new Intl.DateTimeFormat("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
     .format(new Date(Date.UTC(y, m - 1, d)));
 }
+// «mié 5 ago» — con día de semana porque el patrón que se busca al mirar una
+// tardanza es casi siempre ese: los lunes, o el día después de su descanso.
+function fechaCorta(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-PE", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, d)))
+    .replace(/,/g, "").replace(/\./g, "");
+}
 function horaLima(ts: string | null): string {
   if (!ts) return "—";
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true })
@@ -165,7 +173,10 @@ interface Fila {
   horasReales: number;
   horasAgregadas: number;
   agregados: number;
-  tardanzas: number;
+  // Los días de tardanza que cuentan, con sus minutos. Es una lista y no un
+  // contador porque «2» no se puede conversar con nadie: «el miércoles 5, 24
+  // minutos» sí. El número que ve la columna es su longitud.
+  diasTarde: { fecha: string; minutos: number }[];
   tardanzasLevantadas: number;
   minutosTarde: number;
   peorTardanza: number;
@@ -330,7 +341,7 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
           { label: "Total del periodo", valor: fmtHoras(f.horasReales) },
           { label: "Días trabajados", valor: `${f.diasTrabajados}${f.diasEsperados ? ` de ${f.diasEsperados}` : ""}` },
           { label: "Promedio por día", valor: promedio > 0 ? fmtHoras(promedio) : "—" },
-          { label: "Días con tardanza", valor: String(f.tardanzas) },
+          { label: "Días con tardanza", valor: String(f.diasTarde.length) },
           { label: "Salidas anticipadas", valor: String(f.salidasTempranas) },
           { label: "Tiempo adicional", valor: f.horasExtra > 0 ? fmtHoras(f.horasExtra) : "—" },
         ].map((c) => (
@@ -340,6 +351,42 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
           </div>
         ))}
       </div>
+
+      {/* QUÉ DÍA FUE. La tarjeta de arriba dice «2» y con un 2 no se conversa
+          con nadie; esto dice «miércoles 5, 24 minutos» y lleva a ese día de un
+          toque. Van en orden de fecha y no de gravedad: lo que se busca acá es
+          el patrón —siempre los lunes, siempre después de su descanso—, y ese
+          patrón solo se ve en el calendario. */}
+      {f.diasTarde.length > 0 && (
+        <div className="rounded-2xl border border-ambar/40 bg-ambar/5 px-4 py-3">
+          <div className="text-xs uppercase tracking-wide text-taupe">
+            Qué días llegó tarde · toca uno para abrirlo
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {f.diasTarde.map((t) => {
+              const activa = sel?.personaId === f.personaId && sel?.fecha === t.fecha;
+              return (
+                <button key={t.fecha} type="button"
+                  onClick={() => onDia(f.personaId, t.fecha)}
+                  title={`Abrir el ${fechaLarga(t.fecha)}`}
+                  className={`rounded-full border px-3 py-1 text-sm capitalize transition-colors ${
+                    activa ? "border-tinta bg-tinta text-papel"
+                           : "border-ambar/50 bg-papel hover:bg-ambar/15"}`}>
+                  {fechaCorta(t.fecha)}
+                  <span className={activa ? "text-papel/70" : t.minutos >= TARDANZA_SERIA_MIN ? "text-rojo" : "text-taupe"}>
+                    {" "}· {fmtMinutos(t.minutos)}
+                  </span>
+                </button>
+              );
+            })}
+            {f.tardanzasLevantadas > 0 && (
+              <span className="self-center text-xs text-taupe">
+                (y {f.tardanzasLevantadas} más con motivo registrado, que no cuentan)
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Los dos avisos que separan «problema de la persona» de «problema de
           datos». El segundo es el que evita conversaciones injustas. */}
@@ -630,7 +677,7 @@ function DesempenoContenido() {
         dias: [], diasEsperados: 0, diasTrabajados: 0, diasConMotivo: 0,
         horasEsperadas: 0, horasConMotivo: 0, diasSinTurno: 0,
         horasTotales: 0, horasReales: 0, horasAgregadas: 0, agregados: 0,
-        tardanzas: 0, tardanzasLevantadas: 0, minutosTarde: 0, peorTardanza: 0,
+        diasTarde: [], tardanzasLevantadas: 0, minutosTarde: 0, peorTardanza: 0,
         salidasTempranas: 0, horasExtra: 0,
         faltas: 0, faltasJustificadas: 0, incompletas: 0, pendientes: 0,
         objCumplidos: objPor.get(pid)?.cumplidos ?? 0, objTotal: objPor.get(pid)?.total ?? 0,
@@ -693,7 +740,7 @@ function DesempenoContenido() {
         if ((j?.minutos_tarde ?? 0) > 0) {
           if (levantada) f.tardanzasLevantadas++;
           else {
-            f.tardanzas++;
+            f.diasTarde.push({ fecha, minutos: j!.minutos_tarde! });
             f.minutosTarde += j!.minutos_tarde!;
             f.peorTardanza = Math.max(f.peorTardanza, j!.minutos_tarde!);
           }
@@ -770,7 +817,7 @@ function DesempenoContenido() {
     // lo que les tocaba— cuando lo que pasaba es que el 90 era el horario de
     // UNA de las tres. Un total que suma manzanas comparadas con nada.
     sinHorario: vista.filter((f) => !f.tieneHorario).length,
-    tardanzas: vista.reduce((s, f) => s + f.tardanzas, 0),
+    tardanzas: vista.reduce((s, f) => s + f.diasTarde.length, 0),
     peor: vista.reduce((m, f) => Math.max(m, f.peorTardanza), 0),
     faltas: vista.reduce((s, f) => s + f.faltas, 0),
     porRevisar: vista.reduce((s, f) => s + porRevisar(f), 0),
@@ -985,11 +1032,21 @@ function DesempenoContenido() {
                         {f.tieneHorario && <span className="text-taupe/60"> / {f.horasEsperadas.toFixed(1)}</span>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        {f.tardanzas === 0
+                        {f.diasTarde.length === 0
                           ? <span className="text-taupe/50">—</span>
-                          : <span className={f.peorTardanza >= TARDANZA_SERIA_MIN ? "text-rojo" : "text-ambar"}>
-                              {f.tardanzas}<span className="text-taupe/60"> · peor {fmtMinutos(f.peorTardanza)}</span>
-                            </span>}
+                          : <>
+                              <span className={f.peorTardanza >= TARDANZA_SERIA_MIN ? "text-rojo" : "text-ambar"}>
+                                {f.diasTarde.length}<span className="text-taupe/60"> · peor {fmtMinutos(f.peorTardanza)}</span>
+                              </span>
+                              {/* Qué días, sin tener que abrir nada. Tres caben;
+                                  a partir de ahí el resto se cuenta y se ven
+                                  todos al desplegar. */}
+                              <div className="text-[11px] capitalize text-taupe"
+                                title={f.diasTarde.map((t) => `${fechaLarga(t.fecha)} · ${fmtMinutos(t.minutos)}`).join("\n")}>
+                                {f.diasTarde.slice(0, 3).map((t) => fechaCorta(t.fecha)).join(" · ")}
+                                {f.diasTarde.length > 3 && ` · +${f.diasTarde.length - 3}`}
+                              </div>
+                            </>}
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         {f.faltas > 0 ? <span className="font-medium text-rojo">{f.faltas}</span> : <span className="text-taupe/50">—</span>}
