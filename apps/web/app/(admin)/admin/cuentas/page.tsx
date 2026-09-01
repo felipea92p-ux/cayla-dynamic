@@ -6,6 +6,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { CargandoFila, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Tabla } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
@@ -238,18 +240,17 @@ export default function CuentasPage() {
         {msgGestion && (
           <p className={`mb-3 text-sm ${msgGestion.tipo === "ok" ? "text-verde" : "text-rojo"}`}>{msgGestion.texto}</p>
         )}
-        <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-          <table className="w-full text-sm">
-            <thead className="bg-sand/70 text-left">
-              <tr className="etiqueta text-taupe">
-                <th className="px-4 py-2.5 font-medium">Persona</th>
-                <th className="px-4 py-2.5 font-medium">Rol</th>
-                <th className="px-4 py-2.5 font-medium">Sede</th>
-                <th className="px-4 py-2.5 font-medium">Correo / acceso</th>
-                <th className="px-4 py-2.5 font-medium">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Tabla>
+          <thead className="bg-sand/70 text-left">
+            <tr className="etiqueta text-taupe">
+              <th className="px-4 py-2.5 font-medium">Persona</th>
+              <th className="px-4 py-2.5 font-medium">Rol</th>
+              <th className="px-4 py-2.5 font-medium">Sede</th>
+              <th className="px-4 py-2.5 font-medium">Correo / acceso</th>
+              <th className="px-4 py-2.5 font-medium">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
               {cargando ? (
                 <CargandoFila columnas={5} />
               ) : (
@@ -274,22 +275,23 @@ export default function CuentasPage() {
                       {c.tieneCuenta ? (
                         <div className="flex flex-col gap-2">
                           <div className="flex flex-wrap gap-2">
-                            <button
+                            <Boton
+                              variante="secundario"
                               onClick={() => accion(c, "resetear")}
                               disabled={procesando === c.id}
-                              className="rounded-lg border border-sand px-3 py-1.5 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
                             >
                               {procesando === c.id ? "…" : "Resetear contraseña"}
-                            </button>
-                            <button
+                            </Boton>
+                            <Boton
+                              variante="secundario"
+                              className="text-taupe"
                               onClick={() => {
                                 setCambiando((x) => (x === c.id ? null : c.id));
                                 setEmailNuevo((m) => ({ ...m, [c.id]: m[c.id] ?? c.email ?? "" }));
                               }}
-                              className="rounded-lg border border-sand px-3 py-1.5 text-sm text-taupe transition-colors hover:bg-sand/40"
                             >
                               {cambiando === c.id ? "Cancelar" : "Cambiar correo"}
-                            </button>
+                            </Boton>
                           </div>
                           {cambiando === c.id && (
                             <div className="flex flex-wrap items-center gap-2 rounded-lg bg-sand/40 p-2">
@@ -300,17 +302,17 @@ export default function CuentasPage() {
                                 onChange={(e) => setEmailNuevo((m) => ({ ...m, [c.id]: e.target.value }))}
                                 className="rounded-lg border border-sand bg-crema px-2 py-1.5 text-sm"
                               />
-                              <button
+                              <Boton
+                                variante="primario"
                                 onClick={() => accion(c, "cambiar-correo")}
                                 disabled={
                                   procesando === c.id ||
                                   !emailNuevo[c.id]?.includes("@") ||
                                   emailNuevo[c.id]?.trim().toLowerCase() === (c.email ?? "").toLowerCase()
                                 }
-                                className="rounded-lg bg-tinta px-3 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                               >
                                 {procesando === c.id ? "…" : "Guardar correo"}
-                              </button>
+                              </Boton>
                               {/* Lo que de verdad hay que entender antes de darle:
                                   desde ese momento el correo viejo ya no sirve
                                   para entrar, y la contraseña sigue siendo la
@@ -333,13 +335,13 @@ export default function CuentasPage() {
                             onChange={(e) => setEmailNuevo((m) => ({ ...m, [c.id]: e.target.value }))}
                             className="rounded-lg border border-sand bg-crema px-2 py-1.5 text-sm"
                           />
-                          <button
+                          <Boton
+                            variante="primario"
                             onClick={() => accion(c, "crear")}
                             disabled={procesando === c.id || !emailNuevo[c.id]}
-                            className="rounded-lg bg-tinta px-3 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                           >
                             {procesando === c.id ? "…" : "Crear cuenta"}
-                          </button>
+                          </Boton>
                         </div>
                       )}
                     </td>
@@ -347,8 +349,7 @@ export default function CuentasPage() {
                 ))
               )}
             </tbody>
-          </table>
-        </div>
+        </Tabla>
 
         <h2 className="mb-1 mt-8 font-serif text-lg">Invitar para que dejen constancia</h2>
         <p className="mb-3 text-sm text-taupe">
@@ -362,13 +363,13 @@ export default function CuentasPage() {
         ) : (
           <div className="flex flex-wrap gap-2">
             {invitables.some((p) => p.email) && (
-              <button
+              <Boton
+                variante="primario"
                 onClick={() => enTanda(invitables.filter((p) => p.email), "invitar")}
                 disabled={tanda || procesando !== null}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
               >
                 {tanda ? "Enviando…" : `Invitar a todas (${invitables.filter((p) => p.email).length})`}
-              </button>
+              </Boton>
             )}
             {invitables.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
@@ -380,13 +381,13 @@ export default function CuentasPage() {
                     <span className="block text-xs text-ambar">sin correo — agrégalo en Datos personales</span>
                   )}
                 </span>
-                <button
+                <Boton
+                  variante="secundario"
                   onClick={() => invitar(p)}
                   disabled={procesando === p.id || !p.email || tanda}
-                  className="rounded-lg border border-sand px-3 py-1 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
                 >
                   {procesando === p.id ? "…" : "Invitar"}
-                </button>
+                </Boton>
               </div>
             ))}
           </div>
@@ -404,13 +405,13 @@ export default function CuentasPage() {
         ) : (
           <div className="flex flex-wrap gap-2">
             {pendientes.some((p) => p.email) && (
-              <button
+              <Boton
+                variante="primario"
                 onClick={() => enTanda(pendientes.filter((p) => p.email), "reinvitar")}
                 disabled={tanda || procesando !== null}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
               >
                 {tanda ? "Enviando…" : `Reenviar a todas (${pendientes.filter((p) => p.email).length})`}
-              </button>
+              </Boton>
             )}
             {pendientes.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
@@ -424,13 +425,13 @@ export default function CuentasPage() {
                     <span className="block text-xs text-ambar">su cuenta no tiene correo</span>
                   )}
                 </span>
-                <button
+                <Boton
+                  variante="secundario"
                   onClick={() => reinvitar(p)}
                   disabled={procesando === p.id || !p.email || tanda}
-                  className="rounded-lg border border-sand px-3 py-1 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
                 >
                   {procesando === p.id ? "…" : "Reenviar"}
-                </button>
+                </Boton>
               </div>
             ))}
           </div>
@@ -449,13 +450,13 @@ export default function CuentasPage() {
                 <span className="text-sm text-tinta">
                   {p.nombre} <span className="text-taupe">· {p.sede}</span>
                 </span>
-                <button
+                <Boton
+                  variante="secundario"
                   onClick={() => promover(p)}
                   disabled={procesando === p.id}
-                  className="rounded-lg border border-sand px-3 py-1 text-sm text-tinta transition-colors hover:bg-sand/40 disabled:opacity-50"
                 >
                   {procesando === p.id ? "…" : "Hacer encargada"}
-                </button>
+                </Boton>
               </div>
             ))}
           </div>
@@ -480,10 +481,9 @@ function SeccionMiClave({
           className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
         <input type="password" placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)}
           className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
-        <button onClick={cambiarMiClave} disabled={guardandoMia}
-          className="self-start rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
+        <Boton variante="primario" className="self-start" onClick={cambiarMiClave} disabled={guardandoMia}>
           {guardandoMia ? "Guardando…" : "Cambiar contraseña"}
-        </button>
+        </Boton>
       </div>
     </div>
   );
