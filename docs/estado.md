@@ -1433,8 +1433,14 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   primero el impacto con
   [`consulta_impacto_regularidad_feriados.sql`](../scripts/sql-manual/consulta_impacto_regularidad_feriados.sql).
 - **Colibrí en cargas**: ~22 pantallas y ~49 estados vacíos sin marca.
-- **Integración Dynamic ↔ retail**: Fase 0 (reconciliación, solo lectura) lista
-  para arrancar — `docs/integracion-retail/`.
+- **Integración Dynamic ↔ retail**: Fase 0 (reconciliación, solo lectura) **lista
+  para pegar y probada contra el esquema de hoy** — `docs/integracion-retail/`.
+  Tres bloques de una consulta cada uno; el diff lo hace SQL y normaliza el DNI
+  antes de comparar. Falta que Felipe corra el bloque B en la base de retail: sin
+  eso no se sabe ni cómo se llaman sus columnas. **La Fase 2 no arranca hasta
+  tener esa foto**, y el borrador de la ventanita no se aplica tal cual (medido:
+  nace escribible por cualquier sesión con login — ver el encabezado de
+  `02-vista-personas-DRAFT.sql`).
 - **Objetivos: botón «copiar del mes anterior»**.
 - **Espejo a Google Sheets legible** (encabezados fijos, una fila por persona).
 

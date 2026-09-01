@@ -17,15 +17,28 @@
 
 ### Fase 0 — Reconciliación (diagnóstico) · ~30 min · SOLO LECTURA, cero riesgo
 Medir el desajuste real **antes** de tocar nada. Se cambia el terreno antes de cambiarlo.
-1. Correr `01-reconciliacion.sql` → **Parte A** en la base de **Dynamic**.
-2. Correr **Parte B** en la base de **retail** (primero la mini-consulta que lista las columnas de `retail.personas`, para ajustar los nombres).
-3. **Pegarme las dos salidas** → yo produzco el diff exacto:
-   - Quién está en las dos (DNI coincide).
-   - Quién está solo en una.
-   - Quién **no tiene DNI** (los que van a dar problema).
-   - Sedes: qué difiere entre las dos listas.
+
+`01-reconciliacion.sql` son **tres bloques, una sola consulta cada uno** — el SQL
+Editor de Supabase muestra el resultado de la última sentencia, así que un bloque
+con tres SELECT enseña uno y esconde dos:
+
+1. **Bloque A**, en **Dynamic**: qué tan limpio está el DNI de este lado
+   (activas sin documento, formato raro, repetidos, los que empiezan con cero) y
+   quién trabaja en una sede distinta a su sede base.
+2. **Bloque B**, en **retail**: `B0` descubre cómo se llaman las columnas, `B1`
+   devuelve **una sola celda** con la lista entera ya empaquetada.
+3. **Bloque C**, en **Dynamic**: se pega ahí la celda de B1 y **el diff lo hace
+   SQL**, no el ojo — quién coincide, quién está solo en un lado, quién comparte
+   DNI con otro nombre, quién está activa acá e inactiva allá.
+
+El amarre del bloque C **normaliza** antes de comparar (mayúsculas, sin espacios
+ni guiones, y rellena con ceros a la izquierda los DNI de solo dígitos). Sin eso,
+`08817189` y `8817189` —el mismo documento guardado como texto acá y como número
+allá— aparecen como dos personas huérfanas y la Fase 1 se convierte en una
+cacería inventada.
 
 **Entregable:** foto clara del desajuste + la lista de DNIs a limpiar.
+⚠️ La salida lleva DNI y nombres reales: no se commitea ni se pega en una issue.
 
 ### Fase 1 — Limpiar DNIs · variable · trabajo de DATOS (Felipe/DO), no código
 El amarre es el DNI. Todo el que no tenga DNI, o lo tenga distinto en cada lado (un dígito, un espacio), hay que arreglarlo. **Esta es la tarea de verdad** — sin DNIs limpios, la ventanita duplica gente.
@@ -36,6 +49,12 @@ El amarre es el DNI. Todo el que no tenga DNI, o lo tenga distinto en cada lado 
 ### Fase 2 — La "ventanita" en Dynamic · ~1 h · **la hago yo (este repo)**
 - Migración: crear las vistas de solo lectura `v_personas_publica` y `v_sedes_publica` (solo DNI, nombre, sede, activo).
 - Borrador ya escrito en `02-vista-personas-DRAFT.sql` (para revisar juntos).
+  ⚠️ **Ese borrador NO se aplica tal cual.** Medido el 2026-08-11: sin
+  `security_invoker` y con el `alter default privileges` de la 0004, la vista de
+  sedes nace **escribible** por cualquier sesión con login (un `update` tocó las
+  3 sedes, un `delete` también pasó) y la de personas expone el DNI de todas a
+  cualquier integrante. El detalle y lo que la versión buena tiene que llevar
+  están en el encabezado del propio borrador.
 - **Decidir el acceso de retail** (la única decisión estructural que falta):
   - **Opción A — Key de solo lectura:** retail se conecta a la API de Supabase de Dynamic con una clave que SOLO puede leer estas dos vistas. Más simple.
   - **Opción B — Una Edge Function:** un mini-endpoint en Dynamic que devuelve el JSON. Más control, más piezas.

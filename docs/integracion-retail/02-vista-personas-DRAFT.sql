@@ -7,9 +7,47 @@
 -- Qué es: dos "ventanas" (vistas) de SOLO LECTURA en Dynamic que exponen a
 -- retail EXACTAMENTE lo mínimo — DNI, nombre, sede, activo. NADA de sueldo,
 -- disciplina ni datos personales. La reja de la ventanita.
+--
+-- ⚠️⚠️ ESTE BORRADOR, TAL CUAL ESTÁ, ABRE DOS AGUJEROS. Medido el 2026-08-11
+-- contra el Postgres local, creando estas dos vistas dentro de un BEGIN…ROLLBACK
+-- y ejecutando después `set local role authenticated`:
+--
+--   1. «SOLO LECTURA» no es cierto: `update v_sedes_publica set nombre = …`
+--      modificó LAS 3 SEDES, y `delete from v_sedes_publica` también pasó.
+--      Una vista de una sola tabla sin agregación es AUTO-ACTUALIZABLE, y la
+--      0004 dejó puesto `alter default privileges … grant select, insert,
+--      update, delete on tables to authenticated`: nadie escribe un GRANT, la
+--      vista nace con permiso de escritura para cualquier sesión con login.
+--      La misma prueba contra la TABLA (`update sedes …`) tocó 0 filas — o sea
+--      que la RLS de sedes sí protege, y la vista la esquiva.
+--
+--   2. La vista de personas expone el DNI de TODAS a cualquiera con login. Sin
+--      `security_invoker`, una vista corre con los permisos de su dueño
+--      (postgres, que se salta la RLS). Hoy una integrante solo puede leerse a
+--      sí misma y el roster de su terminal; a través de esta ventana leería el
+--      documento de las ~30 personas. Es el dato que la 0125 protege con
+--      «solo admin o líder puede cambiarlo porque se imprime en papeles».
+--
+-- Las dos vistas que ya existen en el repo (0096, 0101) se crean con
+-- `with (security_invoker = true)`. Este borrador se escribió sin esa cláusula.
+--
+-- La versión que se aplique tiene que llevar, sí o sí:
+--   · `with (security_invoker = true)`, o `security_barrier` + revocar escritura;
+--   · `revoke all on … from public, anon, authenticated;` explícito, DESPUÉS de
+--     crear cada vista, porque el default privileges actúa en el `create`;
+--   · `grant select` SOLO al rol que lea retail (ver la decisión de acceso).
+-- Y con `security_invoker = true` hay que decidir a la vez bajo qué identidad
+-- entra retail: la RLS de personas la evaluará con ESE rol, no con postgres.
 -- ============================================================================
 
 -- Ventana de personas: solo lo que retail necesita para atribuir una venta.
+--
+-- PENDIENTE DE DECIDIR antes de aplicar: qué sede ve retail. Desde la 0166 hay
+-- dos — `sede_base_id` (la administrativa) y `sede_fisica_id` (dónde trabaja de
+-- verdad, hoy solo usada para la tarifa de movilidad). Quien está en Central
+-- pero atiende dentro de una tienda vende PARA esa tienda; con `sede_base_id` a
+-- secas, retail le atribuiría la venta a Central. El bloque A de la
+-- reconciliación (chequeo 11) dice a cuántas personas les pasa hoy.
 create or replace view v_personas_publica as
 select
   p.id,
