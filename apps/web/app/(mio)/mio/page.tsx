@@ -47,11 +47,20 @@ import {
  * QUÉ VE, Y QUÉ NO
  *
  * Sus días, sus horas, sus tardanzas, lo que le tocaba, sus próximos turnos, sus
- * objetivos del mes y sus ausencias registradas. Nada de dinero: ni sueldo, ni
- * boleta, ni sobretiempo — decisión de Felipe (2026-08-11). En particular NO el
- * «tiempo adicional» del panel: son horas por encima del horario programado y NO
- * es sobretiempo pagable (desde la 0185 se mide contra 48 h SEMANALES por
- * ciclo), así que enseñarlo invita a leerlo como «me deben estas horas».
+ * objetivos del mes y sus ausencias registradas.
+ *
+ * Y DESDE LA 0337, su boleta — pero solo la del periodo actual, nunca una
+ * pasada. Hasta el 2026-08-11 esta pantalla no mostraba NADA de dinero
+ * (decisión de Felipe, esa fecha); el 2026-08-31 la reabrió él mismo, con una
+ * condición explícita: los periodos ya cerrados tuvieron errores de cálculo
+ * reales, ya corregidos en el código, y su foto congelada puede no reflejarlo
+ * — así que el autoservicio empieza en el periodo de hoy, nunca antes.
+ * `fn_planilla_calcular_persona` hace cumplir ese corte del lado del
+ * servidor (no aquí): ver supabase/migrations/0337_*.sql. Sigue sin mostrarse
+ * el sobretiempo como «tiempo adicional» del panel: son horas por encima del
+ * horario programado y NO es sobretiempo pagable (desde la 0185 se mide
+ * contra 48 h SEMANALES por ciclo), así que enseñarlo invita a leerlo como
+ * «me deben estas horas» — eso no cambió.
  *
  * Y tampoco el expediente disciplinario, aunque `exp_select_propia` se lo
  * permita: esa policy no filtra por estado, así que incluiría los BORRADORES —
@@ -690,9 +699,13 @@ export default function MioPage() {
 
       {/* ── El periodo de pago ───────────────────────────────────────────────
           La pregunta que de verdad se hace al abrir esto es «¿voy a cobrar
-          bien?». Sin cifras, eso se traduce en «¿están todos mis días bien
-          registrados antes de que cierre?». Esto responde eso y nada más — no
-          dice un sol, y no puede: en esta pantalla no hay dinero. */}
+          bien?». Esto responde la parte de «¿están todos mis días bien
+          registrados antes de que cierre?» — sin montos, porque eso no
+          depende del periodo que se esté mirando en el filtro de abajo, sino
+          de "el periodo actual" siempre. El enlace a la boleta (0337) vive
+          aparte, en su propia pantalla `/mio/boleta`, por la misma razón que
+          en admin: es un documento que se imprime, y el print de esta
+          pantalla imprimiría las quince secciones de arriba con él. */}
       {periodo && estadoDelPeriodo && (
         <section className={`mb-6 rounded-2xl border p-4 text-sm ${
           estadoDelPeriodo.pendientes > 0 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}`}>
@@ -710,6 +723,12 @@ export default function MioPage() {
                 ? `Tienes ${estadoDelPeriodo.pendientes} día${estadoDelPeriodo.pendientes === 1 ? "" : "s"} por revisar dentro de este periodo. Míralos abajo antes de que cierre.`
                 : "Todos tus días de este periodo están completos."}
           </p>
+          <Link
+            href="/mio/boleta"
+            className="mt-2 inline-block text-sm font-medium text-tinta underline hover:text-rojo-profundo"
+          >
+            🧾 Ver mi boleta de este periodo
+          </Link>
         </section>
       )}
 

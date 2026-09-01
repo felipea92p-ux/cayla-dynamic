@@ -111,10 +111,17 @@ select is(
 -- Se mira el FILTRO y no la palabra suelta, por la razón que esta misma prueba
 -- enseñó abajo: `prosrc not like '%maternidad%'` salió en rojo por un COMENTARIO
 -- que solo la nombraba.
+--
+-- Y desde la 0337 el `prosrc` que hay que mirar es el de
+-- `fn_planilla_calcular_nucleo`, no el de `fn_planilla_calcular`: esta última
+-- pasó a ser un envoltorio delgado (guard + `return ...nucleo(...)`), y toda
+-- la lógica de negocio —incluida esta— vive ahora en el núcleo. Esta prueba
+-- cayó una CUARTA vez por eso, y es la misma lección de siempre: medir la
+-- FORMA de la regla exige saber DÓNDE vive esa forma hoy, no dónde vivía.
 select ok(
   (select prosrc like '%t.codigo = a.tipo and t.paga%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular_nucleo'),
   'la planilla pregunta al catálogo qué ausencia paga, en vez de conocer tipos por su nombre (0314)'
 );
 
@@ -125,7 +132,7 @@ select ok(
 select ok(
   (select prosrc like '%a.tipo not in (''descanso_medico'', ''maternidad'', ''vacaciones'')%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular_nucleo'),
   'y los tres que ya tienen regla propia quedan fuera de esa puerta: nadie cobra dos veces'
 );
 
@@ -151,7 +158,7 @@ select ok(
   (select prosrc like '%a.tipo = ''descanso_medico''%'
       and prosrc like '%a.tipo = ''maternidad''%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular_nucleo'),
   'la planilla lee ausencias para descanso_medico y para maternidad, cada una con su regla'
 );
 
