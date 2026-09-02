@@ -350,7 +350,10 @@ select ok(
   (select prosrc like '%base_provision%' from pg_proc where proname = 'fn_provisiones'),
   'SIN SEGUNDA COPIA · y también conoce el factor de la 0111');
 select ok(
-  (select prosrc not like '%7.5 * (h.horas_mes%' from pg_proc where proname = 'fn_planilla_calcular'),
+  -- Desde la 0339 la lógica vive en fn_planilla_calcular_nucleo, no en el
+  -- envoltorio — mirar prosrc del nombre viejo daría un "no like" trivial
+  -- (vacío, no arreglado) sin decir nada real.
+  (select prosrc not like '%7.5 * (h.horas_mes%' from pg_proc where proname = 'fn_planilla_calcular_nucleo'),
   'SIN SEGUNDA COPIA · la boleta ya no calcula el prorrateo del feriado por su cuenta');
 
 -- ── 9 · UN FERIADO DENTRO DE UN DESCANSO MÉDICO NO SE PIERDE ───────────────
