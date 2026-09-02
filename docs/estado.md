@@ -61,18 +61,15 @@ producción antes de pegar. Después de pegada, producción coincide con esta Ma
 **tal cual, sin perder ni un comentario** — 40031 y 9208 caracteres exactos —
 en las dos funciones.
 
-⚠️ **Pendiente real que deja esto:** hay una rama sin fusionar,
-`claude/buk-cayla-dynamic-analysis-5be9ec` (dos commits del 31/08, sin PR
-todavía), que parte `fn_planilla_calcular` y `fn_feriado_devengado` en
-núcleo/envoltorio para la boleta en autoservicio (para "Lo mío"). Construida
-sobre el cuerpo de `fn_feriado_devengado` de la **0306 — antes de la 0338**.
-Si esa rama se fusiona y se pega tal cual, su `DROP FUNCTION
-fn_feriado_devengado(uuid, date, date, integer)` coincide con la firma que
-Postgres resuelve incluso para la versión de 5 parámetros de la 0338 (el
-quinto tiene default), así que SÍ la borraría — y la recrearía sin
-`p_salario_asof`, revirtiendo en producción real el arreglo de esta migración.
-Antes de retomar esa rama: rebasar sobre `main` y reconstruir su copia de
-`fn_feriado_devengado` desde la 0338, no desde la 0306.
+✅ **El pendiente que esto dejaba abierto ya se cerró (2026-09-02).** La rama
+`claude/buk-cayla-dynamic-analysis-5be9ec` se retomó, se rehízo el corte de
+`fn_feriado_devengado_nucleo` sobre el cuerpo real que dejó la 0338 (no sobre
+el de la 0306), se renumeró de 0337 a 0339 para no chocar con ella, y se
+fusionó a `main` en el [PR #147](https://github.com/felipea92p-ux/cayla-dynamic/pull/147)
+— verificado con diff literal (única diferencia: el guard) y con
+`npx supabase test db` completo (1907/1909, mismos 2 fallos preexistentes de
+disciplina). **Todavía no está pegada en producción** — sigue el mismo
+protocolo que la 0338: SQL Editor, a mano.
 
 ---
 
