@@ -37,6 +37,45 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-01 — Gratificación y CTS usan el sueldo vigente al cierre (0338) · PEGADA Y VERIFICADA
+
+[PR #146](https://github.com/felipea92p-ux/cayla-dynamic/pull/146). `fn_provisiones`
+y `fn_feriado_devengado` ganan `p_salario_asof`: cuando alguien tuvo un aumento
+de sueldo a mitad del semestre de gratificación o CTS, el depósito real deja de
+promediar el sueldo día por día y toma el vigente en la fecha de corte —como
+exigen D.S. 001-97-TR art. 10/21 y D.S. 013-2013-PRODUCE art. 50—, sin tocar el
+comportamiento de ningún llamador que no pase el parámetro nuevo.
+`fn_grati_cts_periodo` llama dos veces por ventana y se queda con el mayor:
+nunca puede pagar menos que hoy, solo corregir hacia arriba. Auditada en
+laboratorio con casos de aumento y de bajada, y contra la reconstrucción
+completa del esquema: 1898/1900 pgTAP en verde (las 2 que fallan son de
+disciplina, deuda previa sin relación).
+
+**Md5 de producción confirmado el mismo día de pegarla, contra las tres
+funciones que toca:** `fn_grati_cts_periodo` ya se había confirmado antes de
+escribir (cuerpo de la 0088, idéntico). `fn_provisiones` y `fn_feriado_devengado`
+quedaron pendientes en el encabezado de la migración — se cerraron reconstruyendo
+a mano el cuerpo de partida (0310 y 0306, el mismo método de `donde-vive.sh`
+aplicado a la versión anterior a la propia migración) y comparándolo contra
+producción antes de pegar. Después de pegada, producción coincide con esta Mac
+**tal cual, sin perder ni un comentario** — 40031 y 9208 caracteres exactos —
+en las dos funciones.
+
+⚠️ **Pendiente real que deja esto:** hay una rama sin fusionar,
+`claude/buk-cayla-dynamic-analysis-5be9ec` (dos commits del 31/08, sin PR
+todavía), que parte `fn_planilla_calcular` y `fn_feriado_devengado` en
+núcleo/envoltorio para la boleta en autoservicio (para "Lo mío"). Construida
+sobre el cuerpo de `fn_feriado_devengado` de la **0306 — antes de la 0338**.
+Si esa rama se fusiona y se pega tal cual, su `DROP FUNCTION
+fn_feriado_devengado(uuid, date, date, integer)` coincide con la firma que
+Postgres resuelve incluso para la versión de 5 parámetros de la 0338 (el
+quinto tiene default), así que SÍ la borraría — y la recrearía sin
+`p_salario_asof`, revirtiendo en producción real el arreglo de esta migración.
+Antes de retomar esa rama: rebasar sobre `main` y reconstruir su copia de
+`fn_feriado_devengado` desde la 0338, no desde la 0306.
+
+---
+
 ## 2026-08-31 — El tablero avisa el tope de 12 meses del convenio (0336) · VERIFICADO LOCAL
 
 El quinto y último pendiente de Practicantes. `fn_contratos_tablero`
