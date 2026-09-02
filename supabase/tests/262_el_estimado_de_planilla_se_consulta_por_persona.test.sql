@@ -1,27 +1,36 @@
 -- ============================================================================
 -- 262_el_estimado_de_planilla_se_consulta_por_persona.test.sql
 -- ============================================================================
--- LO QUE DEFIENDE (migración 0329, fn_planilla_calcular_persona):
+-- LO QUE DEFIENDE (migración 0329, y actualizado por la 0339):
 --
 --   1. El número que devuelve para una persona es IDÉNTICO al que produce
 --      fn_planilla_calcular para esa misma persona — se compara directo
 --      contra la función oficial, no contra un valor esperado a mano, porque
 --      la promesa central de esta función es que nunca reimplementa una
 --      regla de negocio.
---   2. Acceso: SOLO admin/líder. Ninguna otra identidad puede consultar NADA
---      por esta función — ni la de otra persona, ni la propia. El
---      self-service quedó fuera a propósito: probado más abajo, porque el
---      camino "en vivo" reenvía a fn_planilla_calcular, que trae desde la
---      0090 su propio guard "solo admin/líder" que esta función no puede
---      sortear sin tocarlo (y ese guard no se toca — ver la migración).
+--   2. Acceso: admin/líder ve a cualquiera; una persona ve SOLO la suya —
+--      desde la 0339, cuando el camino "en vivo" pasa a llamar a
+--      fn_planilla_calcular_nucleo (sin el guard de admin/líder que
+--      fn_planilla_calcular seguiría aplicando). Antes de la 0339 esto
+--      estaba bloqueado a propósito para CUALQUIER identidad, incluida la
+--      propia — ver el historial de este archivo si hace falta ese contexto.
 --   3. El guard es null-safe frente al caso de la 0078: una identidad con
---      sesión pero SIN fila en `personas` (una terminal) tampoco cuela.
+--      sesión pero SIN fila en `personas` (una terminal) tampoco cuela — ni
+--      "es admin" ni "es la propia" pueden colarse con un null.
 --   4. Una vez que el grupo de esa persona se paga, la respuesta cambia de
 --      'calculo' a 'foto' y coincide exactamente con lo que quedó congelado
---      en `planilla_pagada_detalle` — nunca se recalcula lo ya pagado.
+--      en `planilla_pagada_detalle` — nunca se recalcula lo ya pagado. Esta
+--      rama no la tocó la 0339.
+--   5. Self-service nunca antes del periodo actual (0339, corte pedido por
+--      Felipe el 2026-08-31): una persona que consulta LA SUYA en un periodo
+--      pasado se rechaza, aunque sea admitida por las reglas 2 y 3 — el
+--      periodo del fixture principal (pruebas 1-12) se construye siempre
+--      alrededor de `fn_hoy_lima()`, nunca con fechas fijas, precisamente
+--      para poder afirmar "es el periodo actual" sin que la prueba caduque.
+--      Admin/líder no lleva este límite.
 -- ============================================================================
 begin;
-select plan(12);
+select plan(16);
 
 insert into sedes (id, codigo, nombre, activa)
 values ('00000000-0000-0000-0000-000000000262', 'ZZ262', 'Sede de laboratorio', true);
@@ -47,13 +56,17 @@ values ('00000000-0000-0000-0000-000000000273', 'DosSeisDosCati', 'Laboratorio',
 
 set session_replication_role = origin;
 
+-- El periodo abarca hoy con holgura (20-46 días exige periodos_planilla_check)
+-- a propósito: las pruebas 1-12 necesitan que este sea "el periodo actual"
+-- de verdad, para la prueba 5 de arriba (el corte por fecha). Fechas fijas
+-- habrían caducado la prueba 5 el día que dejaran de contener hoy.
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado) values
-  ('00000000-0000-0000-0000-0000000262aa', '2026-06-01', '2026-06-30', 'abierto');
+  ('00000000-0000-0000-0000-0000000262aa', fn_hoy_lima() - 10, fn_hoy_lima() + 15, 'abierto');
 
--- Bea marca un día completo.
+-- Bea marca un día completo, dentro del periodo de arriba.
 insert into marcajes (client_uuid, persona_id, sede_id, tipo, timestamp_marca) values
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-000000000262', 'entrada',      '2026-06-10T09:00:00-05:00'),
-  (gen_random_uuid(), '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-000000000262', 'salida_final', '2026-06-10T18:00:00-05:00');
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-000000000262', 'entrada',      (fn_hoy_lima()::text || 'T09:00:00-05:00')::timestamptz),
+  (gen_random_uuid(), '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-000000000262', 'salida_final', (fn_hoy_lima()::text || 'T18:00:00-05:00')::timestamptz);
 
 
 -- ── 1-3 · Admin consulta a Bea: en vivo, e idéntico al cálculo oficial ─────
@@ -72,35 +85,47 @@ select is(
 select is(
   fn_planilla_calcular_persona('00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262aa') - 'fuente',
   (select f from jsonb_array_elements(
-     (select fn_planilla_calcular('2026-06-01'::date, '2026-06-30'::date, '00000000-0000-0000-0000-0000000262aa'::uuid)) -> 'filas'
+     (select fn_planilla_calcular((fn_hoy_lima() - 10)::date, (fn_hoy_lima() + 15)::date, '00000000-0000-0000-0000-0000000262aa'::uuid)) -> 'filas'
    ) f where (f ->> 'persona_id')::uuid = '00000000-0000-0000-0000-000000000272'),
   'IDÉNTICO · quitando "fuente", la fila es exactamente la misma que produce fn_planilla_calcular para Bea — no hay una segunda lógica');
 
 
--- ── 4 · Bea NO puede pedir la suya — ni siquiera la propia ─────────────────
+-- ── 4-5 · Bea SÍ puede pedir la suya, desde la 0339 ────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000372', true);
 
-select throws_ok(
+select lives_ok(
   $$ select fn_planilla_calcular_persona(
        '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262aa') $$,
-  'P0001', 'Sin permiso para consultar esta planilla',
-  'SIN SELF-SERVICE (por ahora) · Bea no es admin/líder, así que ni siquiera puede pedir su propio estimado — bloqueada por el guard de fn_planilla_calcular (0090), no por esta función');
+  'SELF-SERVICE (0339) · Bea no es admin/líder, pero puede pedir SU PROPIO estimado');
+
+select is(
+  fn_planilla_calcular_persona('00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262aa') - 'fuente',
+  (select f from jsonb_array_elements(
+     (select fn_planilla_calcular_nucleo((fn_hoy_lima() - 10)::date, (fn_hoy_lima() + 15)::date, '00000000-0000-0000-0000-0000000262aa'::uuid)) -> 'filas'
+   ) f where (f ->> 'persona_id')::uuid = '00000000-0000-0000-0000-000000000272'),
+  'y es exactamente la misma fila que produce el núcleo — su propio self-service no reimplementa nada');
 
 
--- ── 5-6 · Cati tampoco puede ver la de Bea, ni la suya propia ──────────────
+-- ── 6-8 · Cati puede ver la suya, pero ni ella ni Bea ven la de la otra ────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000373', true);
 
 select throws_ok(
   $$ select fn_planilla_calcular_persona(
        '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262aa') $$,
   'P0001', 'Sin permiso para consultar esta planilla',
-  'Cati (integrante, no admin) NO puede consultar el estimado de Bea');
+  'Cati (integrante, no admin) NO puede consultar el estimado de Bea — el self-service es "la propia", no "cualquiera"');
 
+select lives_ok(
+  $$ select fn_planilla_calcular_persona(
+       '00000000-0000-0000-0000-000000000273', '00000000-0000-0000-0000-0000000262aa') $$,
+  'pero el suyo propio sí — el candado es "admin/líder, o la propia", no "solo admin/líder"');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000372', true);
 select throws_ok(
   $$ select fn_planilla_calcular_persona(
        '00000000-0000-0000-0000-000000000273', '00000000-0000-0000-0000-0000000262aa') $$,
   'P0001', 'Sin permiso para consultar esta planilla',
-  'y tampoco el suyo propio — el candado es "solo admin/líder", no "cualquiera menos otra persona"');
+  'y en el otro sentido: Bea tampoco ve la de Cati — el self-service no es transitivo entre compañeras');
 
 
 -- ── 7 · Una sesión SIN fila en personas (como una terminal) tampoco cuela ──
@@ -146,6 +171,26 @@ select throws_ok(
        '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-0000000262aa') $$,
   'P0001', 'La persona no existe',
   'Un persona_id que no existe se rechaza con mensaje claro');
+
+
+-- ── 13-14 · El corte por fecha (0339): self-service no llega a un periodo pasado
+-- Un periodo claramente anterior al de arriba — mismo holgado 20-46 días,
+-- pero sin tocar el rango que contiene hoy.
+insert into periodos_planilla (id, fecha_ini, fecha_fin, estado) values
+  ('00000000-0000-0000-0000-0000000262bb', fn_hoy_lima() - 100, fn_hoy_lima() - 70, 'pagado');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000372', true);
+select throws_ok(
+  $$ select fn_planilla_calcular_persona(
+       '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262bb') $$,
+  'P0001', 'Tu planilla solo se puede consultar desde el periodo actual en adelante',
+  'CORTE POR FECHA (0339) · Bea no puede pedir SU PROPIO estimado de un periodo ya pasado — así haya tenido derecho a verlo si fuera el actual');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000371', true);
+select lives_ok(
+  $$ select fn_planilla_calcular_persona(
+       '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262bb') $$,
+  'pero admin SÍ puede seguir consultando ese mismo periodo pasado para Bea — el corte es solo para el autoservicio');
 
 select * from finish();
 rollback;

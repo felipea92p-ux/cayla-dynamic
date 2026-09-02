@@ -85,3 +85,27 @@
 # La 0333 se fusionó a main el 2026-08-31 (PR #117); la 0334 va en esta misma
 # rama y se fusiona con ella. Ninguna de las dos es un hueco ya — por eso no
 # quedan líneas para ellas acá, ver el aviso del propio numeracion.sh.
+
+# ── 0337 · NÚMERO ABANDONADO A PROPÓSITO (2026-09-01) ───────────────────────
+#
+# Mismo caso que el 0258/0259: no es algo aplicado en producción que no llegó
+# al repo, es un número que se reservó y se soltó por el mismo motivo — dos
+# migraciones tocando la misma función, y la de número mayor pegándose después
+# borraría en silencio a la otra.
+#
+# La rama claude/buk-cayla-dynamic-analysis-5be9ec escribió la 0337 el
+# 2026-08-31 (parte fn_planilla_calcular y fn_feriado_devengado en núcleo y
+# envoltorio) sobre el cuerpo vigente de fn_feriado_devengado en ese momento
+# (0306, cuatro argumentos). Antes de fusionarse, la 0338 —escrita en otra
+# sesión y ya pegada en producción el 2026-09-01— le agregó un quinto
+# parámetro a esa misma función (p_salario_asof, piso legal de grati/CTS). La
+# 0337 original habría revertido la 0338 en silencio si se pegaba tal cual.
+#
+# Se retomó rehaciendo el corte sobre el cuerpo que dejó la 0338, y se
+# renumeró a 0339 para ir después de ella — misma salida que tomaron la 0262
+# y la 0263 en su momento.
+#
+# NO se reutiliza: cualquier migración futura que tome el 0337 quedaría, por
+# número, antes de la 0338 y con la misma trampa esperando.
+
+0337  Abandonado. Fue "fn_planilla_calcular se parte en núcleo y envoltorio"; se movió a 0339 para ir después de la 0338, que reescribe una función que comparten (fn_feriado_devengado).

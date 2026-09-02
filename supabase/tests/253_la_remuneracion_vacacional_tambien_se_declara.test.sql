@@ -201,13 +201,15 @@ select cmp_ok(pg_temp.num('VdDescMedico Vac','base_essalud'), '>=',
   'el descanso médico no pierde base frente a quien trabajó: la 0263 sigue en pie');
 
 -- ── 5 · La familia completa, que es lo que esta migración cierra ───────────
+-- Desde la 0339 esta forma vive en fn_planilla_calcular_nucleo: la función
+-- fn_planilla_calcular pasó a ser un envoltorio delgado sin lógica propia.
 
 select ok(
   (select prosrc like '%pb.monto_descanso_medico, 0), 2)%'
       and prosrc like '%pb.monto_licencia_con_goce, 0), 2)%'
       and prosrc like '%pb.monto_vacaciones, 0), 2)%'
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular_nucleo'),
   'los TRES conceptos que se pagan sin marcaje entran a la base: 0263, 0316 y 0317');
 
 -- Y los tres con la MISMA guarda. Si una se separa, a alguien le nace una base
@@ -217,7 +219,7 @@ select is(
             'case when pe.en_planilla is true and pe.sueldo_fijo is not true', '')))
           / length('case when pe.en_planilla is true and pe.sueldo_fijo is not true')
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular'),
+   where n.nspname = 'public' and p.proname = 'fn_planilla_calcular_nucleo'),
   4,
   'y los cuatro términos (maternidad incluida) llevan la MISMA guarda, palabra por palabra');
 
