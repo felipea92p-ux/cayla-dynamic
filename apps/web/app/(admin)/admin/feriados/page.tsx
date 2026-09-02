@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -421,10 +422,9 @@ export default function FeriadosPage() {
                 <option value="">Todas las sedes</option>
                 {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
-              <button type="button" onClick={todasVisibles}
-                className="rounded border border-sand px-2 py-1 text-xs text-taupe hover:text-tinta">
+              <Boton type="button" variante="sutil" tamano="sm" onClick={todasVisibles}>
                 Marcar / desmarcar visibles
-              </button>
+              </Boton>
               {elegidas.size > 0 && (
                 <span className="text-xs text-taupe">{elegidas.size} elegida{elegidas.size === 1 ? "" : "s"}</span>
               )}
@@ -462,18 +462,16 @@ export default function FeriadosPage() {
                     {par.descanso ? diaSemana(par.descanso) : ""}
                   </span>
                   {parejas.length > 1 && (
-                    <button type="button" onClick={() => setParejas((prev) => prev.filter((_, k) => k !== i))}
-                      className="rounded border border-rojo/30 px-2 py-1 text-xs text-rojo hover:bg-rojo/10">
+                    <Boton type="button" variante="peligro" tamano="sm" onClick={() => setParejas((prev) => prev.filter((_, k) => k !== i))}>
                       Quitar
-                    </button>
+                    </Boton>
                   )}
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => setParejas((prev) => [...prev, { feriado: "", descanso: "" }])}
-              className="mt-2 rounded border border-sand px-2 py-1 text-xs text-taupe hover:text-tinta">
+            <Boton type="button" variante="sutil" tamano="sm" className="mt-2" onClick={() => setParejas((prev) => [...prev, { feriado: "", descanso: "" }])}>
               + Agregar otro día
-            </button>
+            </Boton>
             <p className="mt-1 text-xs text-taupe">
               Cada feriado se compensa con <strong>un</strong> día libre. Por eso se declaran de a pares:
               así ves qué compensa qué, en vez de que el sistema lo adivine.
@@ -504,10 +502,9 @@ export default function FeriadosPage() {
 
           {/* Cuántos registros van a salir — antes de crearlos. */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button onClick={registrarLote} disabled={guardando || totalRegistros === 0}
-              className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
+            <Boton variante="primario" onClick={registrarLote} disabled={guardando || totalRegistros === 0}>
               {guardando ? "Guardando…" : "Registrar"}
-            </button>
+            </Boton>
             <span className="text-sm text-taupe">
               {totalRegistros === 0
                 ? "Elige personas y al menos una pareja de días."
@@ -602,10 +599,9 @@ export default function FeriadosPage() {
                     </span>
                   </span>
                   {a.tiene_archivo ? (
-                    <button onClick={() => abrirActa(a.referencia)}
-                      className="rounded border border-sand px-2 py-0.5 text-xs text-taupe hover:text-tinta">
+                    <Boton variante="sutil" tamano="sm" onClick={() => abrirActa(a.referencia)}>
                       Ver acta
-                    </button>
+                    </Boton>
                   ) : (
                     <span className="text-xs text-rojo">sin archivo</span>
                   )}
@@ -717,10 +713,9 @@ export default function FeriadosPage() {
                       </span>{" "}
                       <span className={r.estado === "OTORGADO" ? "font-medium" : "text-taupe"}>· {r.estado}</span>
                     </span>
-                    <button onClick={() => quitar(r.id)} disabled={guardando}
-                      className="rounded border border-rojo/30 px-2 py-0.5 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
+                    <Boton variante="peligro" tamano="sm" onClick={() => quitar(r.id)} disabled={guardando}>
                       Quitar
-                    </button>
+                    </Boton>
                   </div>
                   {r.acta_ref && <p className="mt-1 text-xs text-taupe">Acta: {r.acta_ref}</p>}
                   {/* EN ROJO, con la razón concreta. Este registro le quitó a esa

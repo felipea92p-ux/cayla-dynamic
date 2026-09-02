@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -276,13 +277,9 @@ export default function CostosPage() {
                 {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
               </select>
             </label>
-            <button
-              onClick={descargarCsvCostos}
-              disabled={!data || data.por_persona.length === 0}
-              className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
-            >
+            <Boton variante="primario" onClick={descargarCsvCostos} disabled={!data || data.por_persona.length === 0}>
               Descargar CSV
-            </button>
+            </Boton>
           </div>
         </div>
 
@@ -296,7 +293,7 @@ export default function CostosPage() {
         {error && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los costos: {error}{" "}
-            <button onClick={() => void cargar()} className="font-medium underline">Reintentar</button>
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
 

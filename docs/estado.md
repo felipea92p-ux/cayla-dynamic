@@ -37,6 +37,46 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-08-31 — El tablero avisa el tope de 12 meses del convenio (0336) · VERIFICADO LOCAL
+
+El quinto y último pendiente de Practicantes. `fn_contratos_tablero`
+(0287/0333) ya avisaba de contratos por vencer, pero no del tope legal de 12
+meses continuos de un convenio de modalidad formativa (Ley 28518, art. 30) —
+el riesgo de desnaturalización si se sigue sin sustento del centro de
+formación.
+
+**Decidido con Felipe por `AskUserQuestion`: se mide desde `fecha_ingreso`**,
+no sumando la duración de cada convenio generado — una practicante no entra
+y sale del estatus, es continua desde que ingresó. Más simple, correcto para
+el caso real, y sin pantalla nueva: para una practicante, la fecha que
+gobierna en el tablero pasa a ser la más temprana entre su convenio
+(`fecha_fin_contrato`) y `fecha_ingreso + 12 meses` — lo que llegue primero.
+Reutiliza los mismos estados de siempre (`vencido`, `por_vencer`, `ok`…), no
+uno nuevo.
+
+Con datos que ya tenía un convenio dentro del tope, el documento sigue
+mandando sin que el tope interfiera — solo toma el mando cuando falta
+documento o cuando alguien puso una fecha más allá del tope a pesar del
+aviso que ya da el generador al crear un convenio de más de 12 meses (0333).
+
+En pantalla, la etiqueta del tablero deja de decir "contrato vencido"/"vence
+pronto" para una practicante — dice "superó el tope de 12 meses del
+convenio"/"se acerca al tope de 12 meses del convenio", para no confundir un
+vencimiento de documento con el tope legal. De paso, se corrigió un "a la
+colaboradora" suelto en el trámite de entrega de copia (decía eso también
+para un convenio).
+
+Verificado en el navegador: una practicante a 11 meses de ingresar, sin
+convenio registrado, aparece "en papel, sin registrar acá · vence
+[fecha del tope]"; con un convenio firmado que declara una fecha más allá
+del tope, aparece "se acerca al tope de 12 meses del convenio · 30 días" —
+la fecha correcta, no la del papel. 189 archivos, 1891 pruebas pgTAP + 427
+de Vitest en verde.
+
+Con esto, los cinco pendientes originales de Practicantes quedan cerrados.
+
+---
+
 ## 2026-08-31 — El pendiente que dejó la 0294 queda cerrado: auditoría de suspensiones fuera de tope · CERRADO
 
 La PR [#64](https://github.com/felipea92p-ux/cayla-dynamic/pull/64) (migración

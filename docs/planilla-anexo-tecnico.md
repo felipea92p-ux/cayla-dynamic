@@ -232,3 +232,26 @@ duda sobre qué dice la norma: la duda que queda es aritmética.
   decidir quién no vino cuando debía.
 - **Melany Enriquez hace 47,9 h/semana**, a seis minutos del máximo legal de 48.
   No es infracción, pero es un margen que conviene vigilar.
+- **El cálculo de gratificación/CTS de personal activo mezcla sueldos
+  históricos en vez de tomar el sueldo vigente al cierre del semestre.**
+  `fn_provisiones` —que `fn_grati_cts_periodo` usa para autocompletar el
+  depósito real en Planilla, no solo para el reporte de Provisiones— suma, día
+  por día, el sueldo vigente ese día. Pero D.S. 001-97-TR art. 10/21 (CTS,
+  régimen general) y D.S. 013-2013-PRODUCE art. 50 (CTS y gratificación de
+  pequeña empresa, que remite al régimen común) mandan tomar el sueldo vigente
+  en la fecha de corte —30 abr/31 oct para CTS, 30 jun/30 nov para
+  gratificación— y aplicarlo a TODO el semestre, sin prorratear. Cuando alguien
+  tuvo un **aumento** a mitad de semestre, el sistema paga de menos que lo que
+  exige la norma; con una bajada pasa al revés (paga de más — no es problema de
+  cumplimiento). La liquidación por cese (`fn_remuneracion_computable`) sí usa
+  el sueldo vigente a una fecha de referencia, como manda la norma — el hueco
+  es solo en el pago semestral regular de quien sigue activo. Investigado y
+  verificado contra texto oficial el 2026-08-31. **Sin resolver, pendiente de
+  auditar contra un caso real antes de decidir si se corrige.**
+  - *Nota de vigencia normativa:* el D.S. 013-2013-PRODUCE está formalmente
+    derogado por la Ley 32353 (may-2025), pero esa ley no entra en vigor hasta
+    que se publique su reglamento — a la fecha de esta nota no se había
+    publicado, más de un año después. El texto sustantivo de ambas normas es
+    idéntico (misma remisión al régimen común, mismos 15 días/media
+    remuneración), así que esto no cambia el cálculo si el reglamento se
+    publica después.

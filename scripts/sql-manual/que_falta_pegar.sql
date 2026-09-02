@@ -195,7 +195,9 @@ with repo(numero, nombre, nunca) as (values
     (333, 'el_generador_de_contratos_hace_convenios_de_practicas', false),
     (334, 'desempeno_suma_ausencias_del_periodo', false),
     (335, 'objetivos_texto_de_apoyo', false),
-    (337, 'fn_planilla_calcular_se_parte_en_nucleo_y_envoltorio', false)
+    (336, 'el_tablero_avisa_el_tope_de_12_meses_del_convenio', false),
+    (337, 'fn_planilla_calcular_se_parte_en_nucleo_y_envoltorio', false),
+    (338, 'grati_cts_usan_el_sueldo_vigente_al_cierre', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
