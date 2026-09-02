@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0337 · fn_planilla_calcular se parte en núcleo y envoltorio
+-- 0339 · fn_planilla_calcular se parte en núcleo y envoltorio
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -66,15 +66,18 @@
 --      `fn_proyeccion_periodo`, `fn_periodos`, `/admin/planilla`) nota el
 --      cambio — misma firma, mismo comportamiento externo.
 --
---   3. `fn_feriado_devengado` (0306) tenía SU PROPIO guard de admin/líder,
---      independiente del de `fn_planilla_calcular` — y el cuerpo de negocio
---      de arriba la llama. Sin este mismo corte, la llamada en vivo de una
---      persona por su propia planilla habría reventado ahí, un nivel más
---      adentro de donde se probó primero: se descubrió al correr la prueba
---      262 con el resto ya funcionando, no al leer el código. Confirmado
---      por grep que solo la llaman versiones históricas de
---      `fn_planilla_calcular` — mismo tratamiento exacto: `_nucleo` sin
---      guard, envoltorio delgado con el guard original verbatim.
+--   3. `fn_feriado_devengado` (0306, y desde la 0338 con un quinto parámetro
+--      `p_salario_asof`) tenía SU PROPIO guard de admin/líder, independiente
+--      del de `fn_planilla_calcular` — y el cuerpo de negocio de arriba la
+--      llama. Sin este mismo corte, la llamada en vivo de una persona por su
+--      propia planilla habría reventado ahí, un nivel más adentro de donde se
+--      probó primero: se descubrió al correr la prueba 262 con el resto ya
+--      funcionando, no al leer el código. Confirmado por grep que solo la
+--      llaman versiones históricas de `fn_planilla_calcular` — mismo
+--      tratamiento exacto: `_nucleo` sin guard, envoltorio delgado con el
+--      guard original verbatim. El corte se rehízo el 2026-09-01 sobre el
+--      cuerpo que dejó la 0338, no sobre el de la 0306 original — ver la nota
+--      "RETOMADA EL 2026-09-01" junto a la función, más abajo.
 --
 --   4. `fn_planilla_calcular_persona` (0329) cambia TRES cosas y nada más:
 --      su guard pasa de "siempre admin/líder" a "admin/líder ve a cualquiera;
@@ -106,9 +109,14 @@
 --   El cuerpo que se copia abajo es un `sed -n` literal sobre el archivo de
 --   la 0322 (declaraciones: líneas 236-248; guard original: 250-260; cuerpo
 --   de negocio: 262-2112), nunca retipeado a mano. Lo mismo para
---   `fn_feriado_devengado`: `sed -n` sobre la 0306 (líneas 1781-2098). En
---   ambos casos se corrió un diff contra el original después de armar esta
---   migración, que debe mostrar ÚNICAMENTE el bloque del guard como
+--   `fn_feriado_devengado`, con una corrección hecha al retomar esta rama:
+--   al escribirla el 2026-08-31 el corte fue `sed -n` sobre la 0306 (líneas
+--   1781-2098); al retomarla el 2026-09-01, con la 0338 ya fusionada y
+--   pegada en producción, se rehizo sobre el cuerpo de la 0338 (que le
+--   agregó el quinto parámetro `p_salario_asof`), no sobre el de la 0306. En
+--   los tres casos se corrió un diff contra el original después de armar
+--   esta migración, que debe mostrar ÚNICAMENTE el bloque del guard (y, para
+--   `fn_feriado_devengado`, la firma con el quinto parámetro) como
 --   diferencia — cualquier otra línea distinta es un error de esta
 --   migración, no una mejora.
 --
@@ -120,9 +128,11 @@
 --     toda la lógica junta, sin el núcleo aparte).
 --   drop function if exists fn_planilla_calcular_nucleo(date, date, uuid);
 --   delete from funciones_nunca_para_authenticated where funcion = 'fn_planilla_calcular_nucleo';
---   drop function if exists fn_feriado_devengado(uuid, date, date, integer); -- y
---     volver a pegar el cuerpo completo de la 0306 (con su guard original).
---   drop function if exists fn_feriado_devengado_nucleo(uuid, date, date, integer);
+--   drop function if exists fn_feriado_devengado(uuid, date, date, integer, date); -- y
+--     volver a pegar el cuerpo completo que dejó la 0338 (con su guard
+--     original, sin el núcleo aparte). NO el de la 0306: esa firma de 4
+--     argumentos ya no existe desde que la 0338 se pegó en producción.
+--   drop function if exists fn_feriado_devengado_nucleo(uuid, date, date, integer, date);
 --   delete from funciones_nunca_para_authenticated where funcion = 'fn_feriado_devengado_nucleo';
 --
 -- CÓMO SE COMPRUEBA QUE QUEDÓ BIEN
@@ -2024,7 +2034,7 @@ end;
 $function$;
 
 comment on function fn_planilla_calcular_nucleo(date, date, uuid) is
-  'El cuerpo de fn_planilla_calcular, sin el guard de rol — 0337. Nunca se le concede EXECUTE a authenticated/anon/public (ver revoke debajo y funciones_nunca_para_authenticated): solo puede llamarla otra función SECURITY DEFINER que ya decidió quién puede pedir este cálculo — hoy, fn_planilla_calcular (admin/líder) y fn_planilla_calcular_persona (la propia, o admin/líder).';
+  'El cuerpo de fn_planilla_calcular, sin el guard de rol — 0339. Nunca se le concede EXECUTE a authenticated/anon/public (ver revoke debajo y funciones_nunca_para_authenticated): solo puede llamarla otra función SECURITY DEFINER que ya decidió quién puede pedir este cálculo — hoy, fn_planilla_calcular (admin/líder) y fn_planilla_calcular_persona (la propia, o admin/líder).';
 
 revoke execute on function fn_planilla_calcular_nucleo(date, date, uuid) from public, anon, authenticated;
 
@@ -2032,18 +2042,27 @@ insert into funciones_nunca_para_authenticated (funcion, motivo) values
   ('fn_planilla_calcular_nucleo', 'El cálculo sin guard de rol. Solo la llaman fn_planilla_calcular y fn_planilla_calcular_persona, que ya decidieron quién puede pedirlo.')
 on conflict (funcion) do nothing;
 
--- ── 2 · fn_feriado_devengado tenía SU PROPIO guard — mismo tratamiento ──────
--- El cuerpo de negocio de arriba llama a fn_feriado_devengado (0306), y esa
--- función tiene adentro su propio "solo admin/líder", independiente del que
--- ya tenía fn_planilla_calcular. Sin este mismo corte, la llamada en vivo de
--- una persona por su propia planilla revienta ahí — no en el guard de
--- arriba, que ya se abrió, sino uno más adentro que nadie había mirado.
+-- ── 2 · fn_feriado_devengado tenia SU PROPIO guard — mismo tratamiento ─────
+-- El cuerpo de negocio de arriba llama a fn_feriado_devengado, y esa funcion
+-- tiene adentro su propio "solo admin/lider", independiente del que ya tenia
+-- fn_planilla_calcular. Sin este mismo corte, la llamada en vivo de una
+-- persona por su propia planilla revienta ahi — no en el guard de arriba, que
+-- ya se abrio, sino uno mas adentro que nadie habia mirado.
 -- Confirmado por grep: fn_feriado_devengado solo la llaman versiones
--- históricas de fn_planilla_calcular, ningún otro sitio en apps/web.
--- Mismo corte mecánico (`sed -n` sobre la 0306, líneas 1781-2098), mismo
--- diff verificado (solo cambia la firma y el bloque de guard), misma
--- protección (revoke + lista negra, no un chequeo interno).
-CREATE OR REPLACE FUNCTION public.fn_feriado_devengado_nucleo(p_persona uuid, p_desde date, p_hasta date, p_dias integer)
+-- historicas de fn_planilla_calcular, ningun otro sitio en apps/web.
+--
+-- RETOMADA EL 2026-09-01 SOBRE LA 0338, NO SOBRE LA 0306 QUE ESTA MIGRACION
+-- CITABA AL ESCRIBIRSE. Entre que esta rama se escribio (2026-08-31) y se
+-- retomo, la 0338 le agrego un quinto parametro a fn_feriado_devengado
+-- (p_salario_asof, con DEFAULT NULL) para el piso legal de grati/CTS. El
+-- corte mecanico se rehizo sobre ESE cuerpo (`sed -n` sobre la 0338, no
+-- sobre la 0306), y la firma del nucleo gana el mismo quinto parametro con
+-- el mismo default — así la unica llamada interna que existe hoy
+-- (fn_planilla_calcular_nucleo, mas arriba en esta misma migracion) sigue
+-- pasando 4 argumentos sin tocarse: el default resuelve el quinto en null,
+-- que es exactamente el comportamiento que fn_planilla_calcular necesita
+-- (calculo EN VIVO, nunca congelado a una fecha de corte).
+CREATE OR REPLACE FUNCTION public.fn_feriado_devengado_nucleo(p_persona uuid, p_desde date, p_hasta date, p_dias integer, p_salario_asof date DEFAULT NULL::date)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
@@ -2053,9 +2072,9 @@ declare
   v_tope_dm int;
   v_out jsonb;
 begin
-  -- Sin guard de rol a propósito: ver la nota de fn_planilla_calcular_nucleo
-  -- más arriba en esta misma migración — el mismo razonamiento aplica acá.
-  -- La protección es revoke + funciones_nunca_para_authenticated, no un
+  -- Sin guard de rol a proposito: ver la nota de fn_planilla_calcular_nucleo
+  -- mas arriba en esta misma migracion, el mismo razonamiento aplica aca.
+  -- La proteccion es revoke + funciones_nunca_para_authenticated, no un
   -- chequeo interno.
 
   select coalesce((valor->>'umbral_essalud')::int, 20) into v_tope_dm
@@ -2066,26 +2085,6 @@ begin
     select p.id, p.fecha_ingreso, p.sueldo_fijo, p.en_planilla
     from personas p where p.id = p_persona
   ),
-  -- Un feriado se paga DENTRO de un bloque, y el bloque decide el divisor y las
-  -- horas. Con p_dias el bloque lo manda quien llama (la boleta pasa su v_dias);
-  -- sin p_dias el bloque es el periodo de planilla al que pertenece el feriado
-  -- —el mismo en que la boleta lo pagó—.
-  --
-  -- EL RESPALDO, CUANDO ESE PERIODO NO EXISTE, NO ES EL MES CALENDARIO. Es el
-  -- ciclo 29→28 que CAYLA usa de verdad, reconstruido a partir de la fecha del
-  -- feriado. La diferencia no es teórica: medido borrando de
-  -- `periodos_planilla` el periodo que contiene el 01/05/2026, el respaldo por
-  -- mes calendario deja la reserva del laboratorio S/7,55 MÁS BAJA (10 personas
-  -- reservando, ~S/0,75 cada una) —mayo tiene 31 días y el periodo real tiene
-  -- 30— y lo hace en silencio, con toda la apariencia de estar bien. Con el
-  -- ciclo 29→28 la deriva es S/0,00 EXACTOS. `periodos_planilla` sigue mandando
-  -- siempre que exista: esto es el respaldo, no la regla.
-  --
-  -- FEBRERO ES EL ÚNICO MES QUE NO TIENE 29 SIEMPRE, y por eso el `least`: en
-  -- un febrero de 28 días el ciclo arranca el 28. Ese día queda entonces en dos
-  -- ciclos (cierra el de enero y abre el de febrero), pero cada FERIADO se
-  -- asigna a uno solo —el `case` de arriba decide por su día del mes— así que
-  -- nada se cuenta dos veces.
   fer_bloque as (
     select f.fecha,
            case when p_dias is not null then p_desde else coalesce(pp.fecha_ini, can.ini) end as b_ini,
@@ -2104,9 +2103,6 @@ begin
     ) can
     where f.fecha between p_desde and p_hasta
   ),
-  -- Las horas equivalentes del bloque: las marcadas más las de las ausencias
-  -- pagadas que la ley manda contar como trabajadas. Es literal lo que hoy le
-  -- llega al lateral `fer` desde `h` y `pb`.
   bloque as (
     select distinct b.b_ini, b.b_fin, b.b_dias, 6.5 * b.b_dias as v_base
     from fer_bloque b
@@ -2114,21 +2110,6 @@ begin
   horas_bloque as (
     select bq.b_ini, bq.b_fin, bq.b_dias, bq.v_base,
            coalesce(hh.horas_totales, 0) as horas_mes,
-           -- ⇩⇩⇩ EL RESPALDO DE LA 0275, Y POR QUÉ ESTÁ ESCRITO ACÁ ⇩⇩⇩
-           --
-           -- Las dos expresiones de abajo se ven casi iguales y durante unas
-           -- horas NO lo fueron: la de descanso médico tenía su respaldo desde
-           -- la 0254 y la de vacaciones no, porque el de vacaciones nació el
-           -- 2026-08-19 con la 0275 y esta función se copió de un cuerpo
-           -- anterior. Sin él, quien pasa el periodo ENTERO de vacaciones no
-           -- tiene días marcados, el promedio es 0/0, y el prorrateo de su
-           -- feriado sale en cero. Lo cazó la prueba 212 —«el feriado de quien
-           -- está de vacaciones se prorratea: las horas también tienen
-           -- respaldo»—, que es de la otra sesión, no de esta.
-           --
-           -- Que las dos estén juntas y con la misma forma es a propósito: la
-           -- próxima vez que alguien toque una, la de al lado le recuerda que
-           -- son la misma regla.
            case when pe.sueldo_fijo then 0
                 else coalesce(hh.horas_totales / nullif(hh.dias_marcados, 0),
                               bq.v_base / nullif(labp.dias, 0),
@@ -2145,7 +2126,6 @@ begin
       from jornadas j
       where j.persona_id = pe.id and j.fecha between bq.b_ini and bq.b_fin
     ) hh on true
-    -- Días de vacaciones que además le tocaba trabajar (0177 / 0186)
     left join lateral (
       select count(*)::int as dias
       from generate_series(bq.b_ini, bq.b_fin, interval '1 day') d
@@ -2159,13 +2139,6 @@ begin
         and exists (select 1 from vacaciones v
                      where v.persona_id = pe.id
                        and d.d::date between v.fecha_inicio and v.fecha_fin)
-        -- ⇩ CAMBIO 0286 ⇩ La MISMA guarda que la boleta: un dia fichado no
-        -- cuenta como dia de ausencia. Va tambien aqui porque esta funcion
-        -- recalcula estas horas por su cuenta —la duplicacion que la 0276 dejo
-        -- declarada— y sin esta linea el dia solapado seguia inflando el
-        -- prorrateo del feriado: S/23,41 en el caso medido, despues de haber
-        -- quitado los S/314,52 del sueldo. Dos copias de una regla se arreglan
-        -- las dos o no se arregla ninguna.
         and not exists (
               select 1 from jornadas j
               where j.persona_id = pe.id and j.fecha = d.d::date
@@ -2174,7 +2147,6 @@ begin
                  then hv.horario_por_dia ? (extract(dow from d.d)::int::text)
                  else extract(dow from d.d)::int = any(hv.dias_laborables) end
     ) vacd on true
-    -- Días de descanso médico que CAYLA paga (0254 / 0263)
     left join lateral (
       select count(*)::int as dias
       from (
@@ -2183,10 +2155,6 @@ begin
         from ausencias a
         join lateral generate_series(a.fecha_inicio, a.fecha_fin, interval '1 day') as dd(d) on true
         where a.persona_id = pe.id and a.tipo = 'descanso_medico' and a.anulada_at is null
-          -- ⇩ CAMBIO 0306 ⇩ Misma guarda que en fn_planilla_calcular: sin
-          -- aprobación de DO, ese día no cuenta como trabajado para nada,
-          -- ni para el sueldo ni para el prorrateo del feriado. Dos copias
-          -- de una regla se arreglan las dos o no se arregla ninguna.
           and a.aprobada_at is not null
       ) dm
       join lateral (
@@ -2198,56 +2166,9 @@ begin
       where pe.en_planilla
         and dm.n <= v_tope_dm
         and dm.dia between bq.b_ini and bq.b_fin
-      -- ⇩⇩⇩ CAMBIO 0293 ⇩⇩⇩ EL FERIADO DENTRO DE UN DESCANSO MEDICO SI SE
-      -- PAGA, Y ESTO REVIERTE UNA DECISION DE LA 0254.
-      --
-      -- Aqui decia `and not exists (select 1 from feriados f where f.fecha =
-      -- dm.dia)`. La 0254 lo puso con este argumento, escrito en su cabecera:
-      -- «el descanso medico del 29/07 al 03/08 empieza en Fiestas Patrias,
-      -- QUE LA PLANILLA YA PAGA EN SU PROPIA LINEA. Sin este filtro ese dia se
-      -- cobraria dos veces».
-      --
-      -- LA PREMISA NO SE SOSTIENE, y se ve midiendo: el feriado NO es una
-      -- linea que pague un dia entero, es un PRORRATEO. Quien trabajo el mes
-      -- completo cobra S/350,26 de feriados y quien falto una semana cobra
-      -- S/252,24. No cubre ese dia: se reparte. Asi que no habia doble pago
-      -- que evitar — habia un dia que no pagaba nadie.
-      --
-      -- Y LA NORMA LO DICE EXPRESAMENTE. La cadena son tres articulos:
-      --   · art. 8 del D. Leg. 713: el feriado se paga «la remuneracion
-      --     ordinaria correspondiente a un dia de trabajo» y «su abono se
-      --     rige por lo dispuesto en el ARTICULO 4»;
-      --   · art. 4: «se abonara en forma directamente proporcional al numero
-      --     de DIAS EFECTIVAMENTE TRABAJADOS»;
-      --   · art. 3 del D.S. 012-92-TR: «por excepcion (...) se consideran
-      --     dias efectivamente trabajados: a) las inasistencias por (...)
-      --     ENFERMEDADES DEBIDAMENTE COMPROBADAS, hasta que la Seguridad
-      --     Social asuma la cobertura».
-      --
-      -- Ese «hasta que la Seguridad Social asuma la cobertura» son justo los
-      -- primeros 20 dias que paga CAYLA, que es el tope que `v_tope_dm` ya
-      -- aplica. Un dia de descanso medico documentado CUENTA como trabajado.
-      --
-      -- LO QUE COSTABA: S/62,90 por cada feriado caido dentro de un parte
-      -- medico, y solo a quien esta enfermo — a quien esta de vacaciones no,
-      -- porque `vacd` nunca tuvo esta exclusion. Medido con dos personas
-      -- identicas, mismo tramo de cinco dias y mismo feriado dentro: descanso
-      -- medico S/1.664,20 contra vacaciones S/1.734,13.
-      --
-      -- NO SE TOCA EL PRORRATEO GENERAL, que es decision de Felipe y esta
-      -- confirmada en docs/planilla-anexo-tecnico.md: «que un part-time cobre
-      -- menos feriado no es un bug». Esto es otra cosa: es que un dia que la
-      -- norma manda contar como trabajado no se estaba contando.
         and not exists (select 1 from vacaciones v
                          where v.persona_id = pe.id
                            and dm.dia between v.fecha_inicio and v.fecha_fin)
-        -- ⇩ CAMBIO 0286 ⇩ La MISMA guarda que la boleta: un dia fichado no
-        -- cuenta como dia de ausencia. Va tambien aqui porque esta funcion
-        -- recalcula estas horas por su cuenta —la duplicacion que la 0276 dejo
-        -- declarada— y sin esta linea el dia solapado seguia inflando el
-        -- prorrateo del feriado: S/23,41 en el caso medido, despues de haber
-        -- quitado los S/314,52 del sueldo. Dos copias de una regla se arreglan
-        -- las dos o no se arregla ninguna.
         and not exists (
               select 1 from jornadas j
               where j.persona_id = pe.id and j.fecha = dm.dia
@@ -2273,14 +2194,11 @@ begin
   dias as (
     select fb.fecha,
            coalesce(hf.horas_trabajadas, 0) as horas_trabajadas,
-           -- prorrateo: el día de feriado, proporcional a lo devengado en el bloque
            case when pe.en_planilla and tt.salario is not null and fb.fecha >= pe.fecha_ingreso
                 then (case when pe.sueldo_fijo then 0
                            else 7.5 * (hb.horas_mes + hb.horas_vacaciones + hb.horas_descanso_medico)
                                 / hb.v_base end) * tt.salario / hb.v_base
                 else 0 end as prorrateo,
-           -- sobretasa: el pago EXTRA por haberlo trabajado. El descanso
-           -- sustitutorio OTORGADO la anula; PENDIENTE y NO_OTORGADO pagan.
            case when pe.en_planilla and tt.salario is not null and fb.fecha >= pe.fecha_ingreso
                 then (case when ds.otorgado then 0 else coalesce(hf.horas_trabajadas, 0) end)
                      * tt.salario / hb.v_base
@@ -2300,8 +2218,10 @@ begin
       select a.salario_mensual_soles as salario
       from asignaciones_salario a
       where a.persona_id = pe.id
-        and a.vigente_desde <= fb.fecha
-        and (a.vigente_hasta is null or a.vigente_hasta >= fb.fecha)
+        -- ⇩⇩⇩ CAMBIO 0338 ⇩⇩⇩ p_salario_asof, si se pasa, congela la fecha
+        -- de referencia del sueldo en vez de usar el día del feriado.
+        and a.vigente_desde <= coalesce(p_salario_asof, fb.fecha)
+        and (a.vigente_hasta is null or a.vigente_hasta >= coalesce(p_salario_asof, fb.fecha))
       order by a.vigente_desde desc limit 1
     ) tt on true
     left join jornadas hf on hf.persona_id = pe.id and hf.fecha = fb.fecha
@@ -2311,16 +2231,6 @@ begin
       where d.persona_id = pe.id and d.fecha_feriado = fb.fecha and d.estado = 'OTORGADO'
       limit 1
     ) ds on true
-    -- 0262 · un feriado dentro de una licencia de maternidad subsidiada no se
-    -- devenga acá: lo cubre el subsidio, y el lateral `mat` de la boleta SÍ lo
-    -- cuenta. Quitarlo de los dos lados dejaría el día sin pagar por nadie.
-    --
-    -- ⇩ CAMBIO 0306 ⇩ Y por eso esta exclusión también exige `aprobada_at`:
-    -- desde la 0306, `mat` deja de pagar una licencia sin aprobar. Si esta
-    -- guarda no aprendiera lo mismo, el feriado seguiría descontado de acá
-    -- SIN que `mat` lo esté pagando del otro lado — el día quedaría sin
-    -- pagar por nadie, que es exactamente el defecto que este comentario
-    -- dice evitar.
     where not exists (
       select 1 from ausencias a
       where a.persona_id = pe.id and a.tipo = 'maternidad' and a.anulada_at is null
@@ -2330,15 +2240,6 @@ begin
     )
   )
   select jsonb_build_object(
-    -- SIN REDONDEAR, a proposito. La boleta ya hace `round(fer.monto, 2)` donde
-    -- lo muestra, pero mete el numero CRUDO en la base de provision. Redondear
-    -- aca mueve esa base y con ella la provision, en centimos.
-    --
-    -- Medido con la version que redondea dentro: 11 celdas de 410 movidas S/0.01
-    -- en el laboratorio de la sesion que escribio esto, y 0 de 180 en el de la
-    -- que lo audito. Que un laboratorio no lo pille no lo vuelve seguro — solo
-    -- significa que ninguno de sus 180 numeros cayo en el borde. Devolver el
-    -- crudo no puede mover nada; redondear si puede. Quien muestre, redondea.
     'monto',          coalesce(sum(prorrateo + sobretasa), 0),
     'prorrateo',      coalesce(sum(prorrateo), 0),
     'sobretasa',      coalesce(sum(sobretasa), 0),
@@ -2350,7 +2251,7 @@ begin
         'horas_trabajadas', horas_trabajadas,
         'proporcional_horas', case when en_planilla and fecha >= fecha_ingreso
                                    then round(proporcional_horas, 2) else 0 end,
-        'monto', prorrateo + sobretasa,   -- crudo: quien muestre, redondea
+        'monto', prorrateo + sobretasa,
         'sin_salario', sin_salario,
         'antes_ingreso', antes_ingreso,
         'descanso_sustitutorio', descanso_sustitutorio,
@@ -2363,16 +2264,17 @@ begin
 end;
 $function$;
 
-comment on function fn_feriado_devengado_nucleo(uuid, date, date, integer) is
-  'El cuerpo de fn_feriado_devengado, sin el guard de rol — 0337. Mismo motivo y misma protección que fn_planilla_calcular_nucleo: nunca EXECUTE a authenticated/anon/public, solo la llama fn_feriado_devengado (que ya decidió quién puede pedirlo) y fn_planilla_calcular_nucleo internamente.';
 
-revoke execute on function fn_feriado_devengado_nucleo(uuid, date, date, integer) from public, anon, authenticated;
+comment on function fn_feriado_devengado_nucleo(uuid, date, date, integer, date) is
+  'El cuerpo de fn_feriado_devengado, sin el guard de rol — 0339 (retomada sobre la 0338, renumerada de 0337 a 0339 por chocar con ella). Mismo motivo y misma proteccion que fn_planilla_calcular_nucleo: nunca EXECUTE a authenticated/anon/public, solo la llama fn_feriado_devengado (que ya decidio quien puede pedirlo) y fn_planilla_calcular_nucleo internamente.';
+
+revoke execute on function fn_feriado_devengado_nucleo(uuid, date, date, integer, date) from public, anon, authenticated;
 
 insert into funciones_nunca_para_authenticated (funcion, motivo) values
-  ('fn_feriado_devengado_nucleo', 'El cálculo de feriado/descanso médico devengado sin guard de rol. Solo la llaman fn_feriado_devengado y fn_planilla_calcular_nucleo.')
+  ('fn_feriado_devengado_nucleo', 'El calculo de feriado/descanso medico devengado sin guard de rol. Solo la llaman fn_feriado_devengado y fn_planilla_calcular_nucleo.')
 on conflict (funcion) do nothing;
 
-CREATE OR REPLACE FUNCTION public.fn_feriado_devengado(p_persona uuid, p_desde date, p_hasta date, p_dias integer)
+CREATE OR REPLACE FUNCTION public.fn_feriado_devengado(p_persona uuid, p_desde date, p_hasta date, p_dias integer, p_salario_asof date DEFAULT NULL::date)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
@@ -2383,12 +2285,12 @@ begin
     raise exception 'Solo un administrador o líder puede calcular el feriado devengado.';
   end if;
 
-  return fn_feriado_devengado_nucleo(p_persona, p_desde, p_hasta, p_dias);
+  return fn_feriado_devengado_nucleo(p_persona, p_desde, p_hasta, p_dias, p_salario_asof);
 end;
 $function$;
 
-comment on function fn_feriado_devengado(uuid, date, date, integer) is
-  'Calcula el feriado/descanso médico devengado. Desde la 0337 es un envoltorio de fn_feriado_devengado_nucleo: mismo guard, misma firma, mismo comportamiento externo.';
+comment on function fn_feriado_devengado(uuid, date, date, integer, date) is
+  'Calcula el feriado/descanso medico devengado. Desde la 0339 es un envoltorio de fn_feriado_devengado_nucleo: mismo guard, misma firma, mismo comportamiento externo. Firma de 5 argumentos desde la 0338; envoltorio desde la 0339.';
 
 -- ── 3 · El envoltorio de fn_planilla_calcular — mismo guard, misma firma, mismos grants ─────────────
 create or replace function fn_planilla_calcular(p_ini date, p_fin date, p_periodo_id uuid default null::uuid)
@@ -2415,7 +2317,7 @@ end;
 $function$;
 
 comment on function fn_planilla_calcular(date, date, uuid) is
-  'Calcula la planilla de un rango, y de un periodo si se declara. Desde la 0337 es un envoltorio de fn_planilla_calcular_nucleo: mismo guard, misma firma, mismo comportamiento externo — el cuerpo de negocio vive en el núcleo.';
+  'Calcula la planilla de un rango, y de un periodo si se declara. Desde la 0339 es un envoltorio de fn_planilla_calcular_nucleo: mismo guard, misma firma, mismo comportamiento externo — el cuerpo de negocio vive en el núcleo.';
 
 revoke execute on function fn_planilla_calcular(date, date, uuid) from public, anon, authenticated;
 grant  execute on function fn_planilla_calcular(date, date, uuid) to service_role;
@@ -2517,13 +2419,13 @@ end;
 $function$;
 
 comment on function public.fn_planilla_calcular_persona(uuid, uuid) is
-  'Estimado de planilla de UNA persona en un periodo — 0329, self-service desde la 0337. Lee la foto si su grupo ya se pagó, calcula en vivo (via fn_planilla_calcular_nucleo) si no. Admin/líder ve a cualquiera y cualquier periodo; una persona ve solo la suya, y solo desde el periodo actual en adelante (periodos pasados pueden traer errores ya corregidos que no se recalcularon sobre su foto). No duplica ninguna regla de negocio.';
+  'Estimado de planilla de UNA persona en un periodo — 0329, self-service desde la 0339. Lee la foto si su grupo ya se pagó, calcula en vivo (via fn_planilla_calcular_nucleo) si no. Admin/líder ve a cualquiera y cualquier periodo; una persona ve solo la suya, y solo desde el periodo actual en adelante (periodos pasados pueden traer errores ya corregidos que no se recalcularon sobre su foto). No duplica ninguna regla de negocio.';
 
 revoke execute on function public.fn_planilla_calcular_persona(uuid, uuid) from public, anon;
 grant  execute on function public.fn_planilla_calcular_persona(uuid, uuid) to authenticated;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (337, 'fn_planilla_calcular_se_parte_en_nucleo_y_envoltorio')
+values (339, 'fn_planilla_calcular_se_parte_en_nucleo_y_envoltorio')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
@@ -2535,4 +2437,4 @@ select
   (select count(*) from funciones_nunca_para_authenticated where funcion = 'fn_planilla_calcular_nucleo') as planilla_en_lista_negra,
   (select count(*) from funciones_nunca_para_authenticated where funcion = 'fn_feriado_devengado_nucleo') as feriado_en_lista_negra,
   (select has_function_privilege('authenticated', 'fn_planilla_calcular_nucleo(date,date,uuid)', 'execute')) as planilla_nucleo_ejecutable_por_authenticated_debe_ser_false,
-  (select has_function_privilege('authenticated', 'fn_feriado_devengado_nucleo(uuid,date,date,integer)', 'execute')) as feriado_nucleo_ejecutable_por_authenticated_debe_ser_false;
+  (select has_function_privilege('authenticated', 'fn_feriado_devengado_nucleo(uuid,date,date,integer,date)', 'execute')) as feriado_nucleo_ejecutable_por_authenticated_debe_ser_false;

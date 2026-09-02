@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 262_el_estimado_de_planilla_se_consulta_por_persona.test.sql
 -- ============================================================================
--- LO QUE DEFIENDE (migración 0329, y actualizado por la 0337):
+-- LO QUE DEFIENDE (migración 0329, y actualizado por la 0339):
 --
 --   1. El número que devuelve para una persona es IDÉNTICO al que produce
 --      fn_planilla_calcular para esa misma persona — se compara directo
@@ -9,9 +9,9 @@
 --      la promesa central de esta función es que nunca reimplementa una
 --      regla de negocio.
 --   2. Acceso: admin/líder ve a cualquiera; una persona ve SOLO la suya —
---      desde la 0337, cuando el camino "en vivo" pasa a llamar a
+--      desde la 0339, cuando el camino "en vivo" pasa a llamar a
 --      fn_planilla_calcular_nucleo (sin el guard de admin/líder que
---      fn_planilla_calcular seguiría aplicando). Antes de la 0337 esto
+--      fn_planilla_calcular seguiría aplicando). Antes de la 0339 esto
 --      estaba bloqueado a propósito para CUALQUIER identidad, incluida la
 --      propia — ver el historial de este archivo si hace falta ese contexto.
 --   3. El guard es null-safe frente al caso de la 0078: una identidad con
@@ -20,8 +20,8 @@
 --   4. Una vez que el grupo de esa persona se paga, la respuesta cambia de
 --      'calculo' a 'foto' y coincide exactamente con lo que quedó congelado
 --      en `planilla_pagada_detalle` — nunca se recalcula lo ya pagado. Esta
---      rama no la tocó la 0337.
---   5. Self-service nunca antes del periodo actual (0337, corte pedido por
+--      rama no la tocó la 0339.
+--   5. Self-service nunca antes del periodo actual (0339, corte pedido por
 --      Felipe el 2026-08-31): una persona que consulta LA SUYA en un periodo
 --      pasado se rechaza, aunque sea admitida por las reglas 2 y 3 — el
 --      periodo del fixture principal (pruebas 1-12) se construye siempre
@@ -90,13 +90,13 @@ select is(
   'IDÉNTICO · quitando "fuente", la fila es exactamente la misma que produce fn_planilla_calcular para Bea — no hay una segunda lógica');
 
 
--- ── 4-5 · Bea SÍ puede pedir la suya, desde la 0337 ────────────────────────
+-- ── 4-5 · Bea SÍ puede pedir la suya, desde la 0339 ────────────────────────
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000372', true);
 
 select lives_ok(
   $$ select fn_planilla_calcular_persona(
        '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262aa') $$,
-  'SELF-SERVICE (0337) · Bea no es admin/líder, pero puede pedir SU PROPIO estimado');
+  'SELF-SERVICE (0339) · Bea no es admin/líder, pero puede pedir SU PROPIO estimado');
 
 select is(
   fn_planilla_calcular_persona('00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262aa') - 'fuente',
@@ -173,7 +173,7 @@ select throws_ok(
   'Un persona_id que no existe se rechaza con mensaje claro');
 
 
--- ── 13-14 · El corte por fecha (0337): self-service no llega a un periodo pasado
+-- ── 13-14 · El corte por fecha (0339): self-service no llega a un periodo pasado
 -- Un periodo claramente anterior al de arriba — mismo holgado 20-46 días,
 -- pero sin tocar el rango que contiene hoy.
 insert into periodos_planilla (id, fecha_ini, fecha_fin, estado) values
@@ -184,7 +184,7 @@ select throws_ok(
   $$ select fn_planilla_calcular_persona(
        '00000000-0000-0000-0000-000000000272', '00000000-0000-0000-0000-0000000262bb') $$,
   'P0001', 'Tu planilla solo se puede consultar desde el periodo actual en adelante',
-  'CORTE POR FECHA (0337) · Bea no puede pedir SU PROPIO estimado de un periodo ya pasado — así haya tenido derecho a verlo si fuera el actual');
+  'CORTE POR FECHA (0339) · Bea no puede pedir SU PROPIO estimado de un periodo ya pasado — así haya tenido derecho a verlo si fuera el actual');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000371', true);
 select lives_ok(

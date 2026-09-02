@@ -186,7 +186,7 @@ select is((select nombre from tipos_ausencia where codigo = 'duelo_familiar_dire
 -- TRES conceptos que la planilla paga sin marcaje entran a la base.
 select is(pg_temp.num('BiLicencia Base','monto_vacaciones'), 0::numeric,
   'montaje: en este escenario nadie está de vacaciones (si no, lo de abajo no mide nada)');
--- Desde la 0337 esta forma vive en fn_planilla_calcular_nucleo: la función
+-- Desde la 0339 esta forma vive en fn_planilla_calcular_nucleo: la función
 -- fn_planilla_calcular pasó a ser un envoltorio delgado sin lógica propia.
 select ok(
   (select prosrc like '%pb.monto_vacaciones, 0), 2)%'

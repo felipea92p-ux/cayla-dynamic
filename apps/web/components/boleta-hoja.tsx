@@ -17,7 +17,7 @@ import {
 
 // El PAPEL de la boleta — la parte que dos pantallas tienen que pintar
 // exactamente igual: la boleta interna de Planilla (admin) y el autoservicio
-// de "Lo mío" (self-service, 0337). Vive acá, fuera de las dos, por la misma
+// de "Lo mío" (self-service, 0339). Vive acá, fuera de las dos, por la misma
 // razón que Documento vive en components/ y no dentro de Normas: si las dos
 // pintaran una copia separada, divergirían la primera vez que alguien
 // corrigiera un texto legal en una sin acordarse de la otra — y estas

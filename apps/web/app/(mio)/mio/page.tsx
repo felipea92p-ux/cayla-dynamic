@@ -49,14 +49,14 @@ import {
  * Sus días, sus horas, sus tardanzas, lo que le tocaba, sus próximos turnos, sus
  * objetivos del mes y sus ausencias registradas.
  *
- * Y DESDE LA 0337, su boleta — pero solo la del periodo actual, nunca una
+ * Y DESDE LA 0339, su boleta — pero solo la del periodo actual, nunca una
  * pasada. Hasta el 2026-08-11 esta pantalla no mostraba NADA de dinero
  * (decisión de Felipe, esa fecha); el 2026-08-31 la reabrió él mismo, con una
  * condición explícita: los periodos ya cerrados tuvieron errores de cálculo
  * reales, ya corregidos en el código, y su foto congelada puede no reflejarlo
  * — así que el autoservicio empieza en el periodo de hoy, nunca antes.
  * `fn_planilla_calcular_persona` hace cumplir ese corte del lado del
- * servidor (no aquí): ver supabase/migrations/0337_*.sql. Sigue sin mostrarse
+ * servidor (no aquí): ver supabase/migrations/0339_*.sql. Sigue sin mostrarse
  * el sobretiempo como «tiempo adicional» del panel: son horas por encima del
  * horario programado y NO es sobretiempo pagable (desde la 0185 se mide
  * contra 48 h SEMANALES por ciclo), así que enseñarlo invita a leerlo como
@@ -702,7 +702,7 @@ export default function MioPage() {
           bien?». Esto responde la parte de «¿están todos mis días bien
           registrados antes de que cierre?» — sin montos, porque eso no
           depende del periodo que se esté mirando en el filtro de abajo, sino
-          de "el periodo actual" siempre. El enlace a la boleta (0337) vive
+          de "el periodo actual" siempre. El enlace a la boleta (0339) vive
           aparte, en su propia pantalla `/mio/boleta`, por la misma razón que
           en admin: es un documento que se imprime, y el print de esta
           pantalla imprimiría las quince secciones de arriba con él. */}

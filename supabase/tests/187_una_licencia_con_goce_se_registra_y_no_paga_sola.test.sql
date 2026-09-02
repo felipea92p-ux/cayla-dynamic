@@ -112,7 +112,7 @@ select is(
 -- enseñó abajo: `prosrc not like '%maternidad%'` salió en rojo por un COMENTARIO
 -- que solo la nombraba.
 --
--- Y desde la 0337 el `prosrc` que hay que mirar es el de
+-- Y desde la 0339 el `prosrc` que hay que mirar es el de
 -- `fn_planilla_calcular_nucleo`, no el de `fn_planilla_calcular`: esta última
 -- pasó a ser un envoltorio delgado (guard + `return ...nucleo(...)`), y toda
 -- la lógica de negocio —incluida esta— vive ahora en el núcleo. Esta prueba

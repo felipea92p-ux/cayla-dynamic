@@ -201,7 +201,7 @@ select cmp_ok(pg_temp.num('VdDescMedico Vac','base_essalud'), '>=',
   'el descanso médico no pierde base frente a quien trabajó: la 0263 sigue en pie');
 
 -- ── 5 · La familia completa, que es lo que esta migración cierra ───────────
--- Desde la 0337 esta forma vive en fn_planilla_calcular_nucleo: la función
+-- Desde la 0339 esta forma vive en fn_planilla_calcular_nucleo: la función
 -- fn_planilla_calcular pasó a ser un envoltorio delgado sin lógica propia.
 
 select ok(

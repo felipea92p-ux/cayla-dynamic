@@ -10,7 +10,7 @@ import { BoletaHoja } from "@/components/boleta-hoja";
 import { MESES_LARGO, type Fila, type Proyeccion } from "@/app/(admin)/admin/planilla/page";
 import { hoyLima } from "@cayla-dynamic/shared";
 
-// Tu boleta, en autoservicio (0337) — SOLO el periodo actual, nunca uno pasado.
+// Tu boleta, en autoservicio (0339) — SOLO el periodo actual, nunca uno pasado.
 //
 // POR QUÉ NO HAY PARÁMETROS EN LA URL. La boleta de admin acepta
 // `?periodo=&persona=` porque una sola pantalla sirve para mirar a cualquiera
@@ -24,7 +24,7 @@ import { hoyLima } from "@cayla-dynamic/shared";
 // corregidos en el código— que su foto congelada (`planilla_pagada_detalle`)
 // no siempre recalculó. El periodo actual, en cambio, sale del cálculo en
 // vivo con la lógica de HOY. `fn_planilla_calcular_persona` hace cumplir esto
-// del lado del servidor (0337): pedir un periodo pasado desde autoservicio se
+// del lado del servidor (0339): pedir un periodo pasado desde autoservicio se
 // rechaza ahí, no aquí — esta pantalla ni siquiera lo intenta.
 //
 // LA HOJA (BoletaHoja) ES LA MISMA que usa admin/planilla/boleta: mismo

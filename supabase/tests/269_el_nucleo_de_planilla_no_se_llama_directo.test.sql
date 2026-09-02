@@ -2,7 +2,7 @@
 -- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local.
 -- Se corre así, en esta Mac:   npx supabase test db
 -- ============================================================================
--- 268_el_nucleo_de_planilla_no_se_llama_directo.test.sql — la 0337
+-- 269_el_nucleo_de_planilla_no_se_llama_directo.test.sql — la 0339
 -- ============================================================================
 -- Lo que defiende: que `fn_planilla_calcular_nucleo` —el cuerpo completo de
 -- fn_planilla_calcular, SIN su guard de admin/líder— sea imposible de llamar
@@ -13,7 +13,7 @@
 --
 -- Y por qué esto se prueba con `has_function_privilege`/`set role`, no con un
 -- guard interno tipo `current_user <> 'postgres'`: se comprobó (ver el
--- encabezado de la 0337) que ese chequeo NUNCA dispara dentro de una función
+-- encabezado de la 0339) que ese chequeo NUNCA dispara dentro de una función
 -- SECURITY DEFINER, porque `current_user` ya es el dueño se la llame como se
 -- la llame. La defensa real es que `authenticated` no tiene EXECUTE — y por
 -- eso esta prueba comprueba EXACTAMENTE eso, no un guard que no existe.
@@ -22,12 +22,12 @@ begin;
 select plan(5);
 
 insert into sedes (id, codigo, nombre, activa)
-values ('00000000-0000-0000-0000-000000000268', 'ZZ268', 'Sede de laboratorio', true);
+values ('00000000-0000-0000-0000-000000000269', 'ZZ269', 'Sede de laboratorio', true);
 
 set session_replication_role = replica;
 insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_user_id, fecha_ingreso)
-values ('00000000-0000-0000-0000-000000000269', 'DosSeisOchoAdmin', 'Laboratorio',
-        '00000000-0000-0000-0000-000000000268', 'admin', 'test-hash',
+values ('00000000-0000-0000-0000-000000000269', 'DosSeisNueveAdmin', 'Laboratorio',
+        '00000000-0000-0000-0000-000000000269', 'admin', 'test-hash',
         '00000000-0000-0000-0000-000000000369', '2024-01-01');
 set session_replication_role = origin;
 
