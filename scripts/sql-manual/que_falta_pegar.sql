@@ -202,6 +202,7 @@ with repo(numero, nombre, nunca) as (values
     (341, 'las_vacaciones_truncas_pagan_su_aporte_a_pension', false),
     (342, 'la_sede_tambien_se_cambia_por_una_puerta', false),
     (343, 'un_adelanto_de_beneficio_no_se_vuelve_a_calcular_solo', false),
+    (345, 'el_comentario_del_techo_de_educacion_deja_de_mentir', false),
     (346, 'la_bonificacion_extraordinaria_sale_aparte_al_pagar_la_grati', false),
     (347, 'el_generador_de_contratos_hace_indefinidos', false),
     (348, 'objetivos_copiar_mes_anterior', false),
