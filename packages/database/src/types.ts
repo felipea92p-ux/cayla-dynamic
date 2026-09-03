@@ -743,7 +743,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
@@ -765,7 +765,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
           generado_at?: string
@@ -787,7 +787,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html?: string
-          fecha_fin?: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
           generado_at?: string
@@ -4442,7 +4442,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
@@ -5344,6 +5344,19 @@ export type Database = {
       }
       fn_objetivos_checklist: {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id?: string | null }
+        Returns: Json
+      }
+      fn_objetivos_copiar_mes_anterior: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_objetivos_historial: {
+        Args: {
+          p_anio: number | null
+          p_mes: number | null
+          p_meses?: number | null
+          p_persona_id: string | null
+        }
         Returns: Json
       }
       fn_objetivos_resumen: {

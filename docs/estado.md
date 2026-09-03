@@ -37,6 +37,104 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · PEGADAS Y VERIFICADAS
+
+Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
+`/admin/objetivos`, cuando el mes elegido no tiene checklist todavía, aparece
+un botón que duplica hacia ese mes la descripción, las indicaciones y el orden
+de los objetivos del mes calendario anterior de esa misma persona — todos SIN
+marcar, porque es un objetivo nuevo que empieza desde cero, no un historial que
+se arrastra.
+
+`fn_objetivos_copiar_mes_anterior` (0348) reusa los mismos candados que el
+resto de la 0032: `fn_puede_gestionar_objetivos` (admin/líder a cualquiera,
+encargada solo a su sede) y `fn_mes_planilla_pagado`. Y agrega dos propios: se
+niega si el mes destino ya tiene algún objetivo (mezclar una copia con lo que
+ya exista es ambiguo y nadie lo pidió resuelto), y se niega si el mes anterior
+no tiene nada que copiar. Auditada con `npx supabase test db` (prueba 276, 9
+casos: copia, contenido, candado de mes no vacío, candado de mes sin origen,
+candado de mes pagado, permiso por sede en los dos sentidos) — no toca dinero,
+así que no hizo falta la auditoría empírica de planilla.
+
+**Y en la misma entrega, un gráfico de tendencia:** la pantalla ahora dibuja
+los últimos 12 meses de cumplidos/total de la persona elegida (SVG propio, sin
+librería, mismo estilo que `grafico-horas.tsx`). `fn_objetivos_historial`
+(0350) solo lee `objetivos_mensuales` —el resumen que ya sincroniza
+`fn_objetivos_sync_mes`, no se calcula nada nuevo— y rellena con
+`generate_series` los meses sin checklist para que no desaparezcan de la
+serie. La distinción que importaba: un mes **sin checklist** (total=0) no es
+lo mismo que un mes con **0% cumplido** (total>0, cumplidos=0) — el primero se
+dibuja como una marca gris al piso, "sin dato"; el segundo como una barra roja
+de altura mínima, un dato real de bajo desempeño. Se encontró y corrigió
+verificando en el navegador: la primera versión dibujaba los dos casos
+idénticos, porque una barra de 0% de altura real es invisible — nada distinto
+del hueco. Prueba 277 (6 casos: ventana sin saltar meses, hueco con total=0,
+dato real, tope de `p_meses` a 24, permiso concedido y denegado).
+
+(La 0349 se renumeró a 0350 al fusionar `main`: otra rama fusionada mientras
+esta se escribía ya había tomado el 0349 —y el 274 y el 275 de pruebas— para
+otra cosa. `siguiente-numero.sh` lo detectó antes de empujar.)
+
+PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) fusionado,
+0348 y 0350 pegadas en producción por Felipe y confirmadas funcionando (el
+gráfico ya mostró datos reales de septiembre en pantalla).
+
+**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (6/12/24
+meses), con un control de tres botones junto al título del gráfico —
+`fn_objetivos_historial` ya aceptaba `p_meses` desde el principio, esto solo
+lo expuso en pantalla, sin migración nueva. El refresco del rango se separó
+del `cargar()` que trae la lista de objetivos —dos efectos en vez de uno—
+para que cambiar de 12M a 6M no reinicie toda la pantalla a "Cargando…", solo
+el gráfico. Ese mismo efecto, escrito como `useEffect(() => { void
+cargarHistorial(); })` llamando a una función `useCallback`, disparó el lint
+`react-hooks/set-state-in-effect` que el push bloquea — se resolvió en línea
+con el patrón que ya usa el efecto de sesión al principio del archivo
+(`.then()` inline dentro del efecto, no una función nombrada referenciada
+desde él).
+
+---
+
+## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
+
+Lo pidió el contador de CAYLA: que el 9% no viaje mezclado a mano dentro del
+monto de «Gratificación» al cerrar julio o diciembre.
+
+La provisión mensual (0134), la reserva de Costos y la liquidación por cese
+(`fn_grati_trunca_bruta`) ya lo separaban desde antes. El único hueco era el
+pago real del ciclo normal: `fn_grati_cts_periodo` —la que autocompleta el
+monto al elegir «Gratificación» en Planilla— nunca calculaba el 9%, y el
+desplegable no tenía la opción. Quien quisiera pagarlo tenía que sumarlo a
+mano dentro del mismo monto de «Gratificación», sin que quedara registrado
+como su propio concepto.
+
+Ahora «Bonificación 9% (Ley 30334)» es una opción propia en el desplegable
+de Planilla, calculada como 9% de la MISMA gratificación de ese semestre (la
+tasa versionada de siempre, `parametros_laborales.bonificacion_extraordinaria`),
+y se registra como un movimiento aparte. Tocó tres puertas, no solo el
+cálculo: la lista blanca de `movimientos_categoria_valida` y las dos listas
+hardcodeadas de `fn_agregar_movimiento` (la validación general y el candado
+de una vez por periodo) — sin las tres, la opción nueva reventaba con
+«Categoría inválida.» al primer intento de guardar. Confirmado que
+`fn_remuneracion_computable` (la base de la liquidación por cese) sigue
+excluyendo la categoría nueva sin tocar su cuerpo: su lista blanca es
+`categoria is null or categoria = 'otros'`, así que cualquier categoría
+nueva queda fuera por default. La prueba 215 (aserción 11) es el centinela
+que lo fuerza a decidirse a propósito; quedó actualizada en este mismo commit.
+
+Auditado local (`supabase db reset` + 1938 pruebas en verde, más una prueba
+a mano con BEGIN/ROLLBACK: para una gratificación de S/25.00 el sistema
+propuso S/2.25, exacto) y **confirmado byte por byte contra producción** el
+mismo día: md5 de `fn_grati_cts_periodo` = `029c534ff79b6e60d7a5a760be659053`
+y de `fn_agregar_movimiento` = `d3859d7e928aca004dda8b1c032d4899`, idénticos
+entre esta Mac y producción tras pegar la 0346.
+
+**Solo hacia adelante, y es la decisión de Felipe, no solo el alcance de la
+migración.** No reclasifica movimientos ya pagados: si julio 2026 ya se pagó
+con el 9% sumado a mano dentro de «Gratificación», esa fila sigue tal cual.
+**Decidido con Felipe el 2026-09-03: no se corrige lo ya pagado — lo que le
+importa es que quede separado de acá en adelante.** No hace falta revisar
+julio 2026 ni ninguna migración retroactiva.
+
 ## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
 
 Encontrado reconciliando a mano la liquidación de Paola Cahuana (cese
@@ -5079,7 +5177,6 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
 - **Colibrí en cargas**: ~22 pantallas y ~49 estados vacíos sin marca.
 - **Integración Dynamic ↔ retail**: Fase 0 (reconciliación, solo lectura) lista
   para arrancar — `docs/integracion-retail/`.
-- **Objetivos: botón «copiar del mes anterior»**.
 - **Espejo a Google Sheets legible** (encabezados fijos, una fila por persona).
 
 ## 🟢 Dependen de Felipe / redondeo

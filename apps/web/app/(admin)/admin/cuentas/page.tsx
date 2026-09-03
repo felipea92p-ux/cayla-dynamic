@@ -354,12 +354,12 @@ export default function CuentasPage() {
         <h2 className="mb-1 mt-8 font-serif text-lg">Invitar para que dejen constancia</h2>
         <p className="mb-3 text-sm text-taupe">
           La Ley 30709 obliga a informar la política salarial a cada persona y a poder probarlo. Para dejar
-          su constancia necesitan entrar con su propia cuenta. Al invitarlas reciben un correo y{" "}
-          <strong>eligen su clave ellas mismas</strong> — nadie más la conoce. No ven planilla, ni sueldos, ni
+          su constancia necesitan entrar con su propia cuenta. Al invitarles reciben un correo y{" "}
+          <strong>eligen su clave por su cuenta</strong> — nadie más la conoce. No ven planilla, ni sueldos, ni
           datos de nadie: su menú solo muestra lo que les corresponde.
         </p>
         {invitables.length === 0 ? (
-          <SinDatos texto="No hay integrantes por invitar." pista="Acá aparece quien está en planilla y todavía no tiene cuenta. Si está vacío, todas pueden dejar su constancia." />
+          <SinDatos texto="No hay integrantes por invitar." pista="Acá aparece quien está en planilla y todavía no tiene cuenta. Si está vacío, cualquiera puede dejar su constancia." />
         ) : (
           <div className="flex flex-wrap gap-2">
             {invitables.some((p) => p.email) && (

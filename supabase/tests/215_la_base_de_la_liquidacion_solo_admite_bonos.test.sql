@@ -227,18 +227,25 @@ select is(
 );
 
 -- ── 11 · La lista blanca sigue cubriendo todas las categorias que existen ───
--- Si alguien agrega una quinta categoria a `movimientos_categoria_valida` sin
+-- Si alguien agrega una sexta categoria a `movimientos_categoria_valida` sin
 -- decidir si entra o no a la liquidacion, esta aserción se pone roja. El
 -- silencio no puede ser la respuesta: la de arriba paga de mas y la de abajo
 -- paga de menos.
+--
+-- CAMBIO 0346 — 'bonificacion_extraordinaria' se agregó al check para que el
+-- 9% de la Ley 30334 se pueda registrar como movimiento propio al pagar la
+-- gratificación real de julio/diciembre. Queda FUERA de la lista blanca de
+-- `fn_remuneracion_computable` a propósito, sin tocar esa función: es la
+-- misma plata de la gratificación bajo otra etiqueta —ya excluida— y
+-- contarla también sería el mismo doble conteo que la 0278 cerró.
 select is(
   (select array_agg(c order by c)
-     from (select unnest(regexp_matches(pg_get_constraintdef(oid), '''([a-z]+)''::text', 'g')) as c
+     from (select unnest(regexp_matches(pg_get_constraintdef(oid), '''([a-z_]+)''::text', 'g')) as c
              from pg_constraint
             where conrelid = 'movimientos_planilla'::regclass
               and conname = 'movimientos_categoria_valida') t),
-  array['cts','gratificacion','otros','vacaciones'],
-  'La lista blanca de la 0278 conoce todas las categorias que el check admite'
+  array['bonificacion_extraordinaria','cts','gratificacion','otros','vacaciones'],
+  'La lista blanca de la 0278/0346 conoce todas las categorias que el check admite'
 );
 
 insert into movimientos_planilla (periodo_id, persona_id, tipo, concepto, monto) values
