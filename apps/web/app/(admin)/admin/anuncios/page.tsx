@@ -63,8 +63,13 @@ export default function AnunciosPage() {
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
+  // Sin `setCargando(true)` al entrar: el estado ya arranca en `true` (más
+  // abajo), y ponerlo aquí ejecutaría un setState de forma síncrona dentro
+  // del efecto que llama a `cargar` — lo que el linter marca como riesgo de
+  // renders en cascada. Las recargas posteriores (tras publicar/anular/
+  // marcar leído) simplemente no vuelven a mostrar el spinner, que además es
+  // mejor: la lista no parpadea por una acción que el usuario ya vio confirmar.
   const cargar = useCallback(async () => {
-    setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
     const [{ data: sd }, { data: an, error: eAn }] = await Promise.all([
@@ -83,7 +88,7 @@ export default function AnunciosPage() {
     setCargando(false);
   }, [supabase, router, avisar]);
 
-  useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => { void (async () => { await cargar(); })(); }, [cargar]);
 
   async function publicar() {
     if (!titulo.trim() || !cuerpo.trim()) {
