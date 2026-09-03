@@ -18,12 +18,14 @@
     "idb": "^8.0.0",
     "lucide-react": "^1.25.0",
     "next": "16.2.12",
+    "nodemailer": "^7.0.9",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^7.0.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
