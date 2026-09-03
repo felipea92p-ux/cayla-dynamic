@@ -160,6 +160,9 @@ nueva (271, 9 casos); `typecheck` y 427 vitest en verde; probado en el
 navegador de punta a punta (login real, cambio de sede desde
 `/admin/equipo`, fila confirmada en `correcciones_auditoria`).
 
+✅ **Pegada en producción el 2026-09-03**, con la comprobación de la propia
+migración: `la_funcion_existe = 1, el_trigger_existe = 1`.
+
 ✅ **Medido en producción el 2026-09-03, con Felipe.** Consulta contra
 `planilla_pagada_detalle`: entre las personas con algún periodo repagado
 (`version` > 1), ninguna tiene `monto_movilidad` distinto entre versiones
