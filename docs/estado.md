@@ -64,6 +64,74 @@ comprobación del final de la 0351 devolvió las seis piezas en 1 (tabla
 
 ---
 
+## 2026-09-03 — Aviso cruzado: `main` va dos migraciones atrás de producción (0344/0345) · SIN FUSIONAR TODAVÍA
+
+Comprobado contra producción a pedido de Felipe (`select numero, nombre, aplicada_at from migraciones_aplicadas where numero in (344, 345)`): esta rama trae la **0345** (corrige el comentario de `topes_educacion_rango`, no toca datos), aplicada en producción el 2026-09-03 18:42 UTC. Por separado, la rama `claude/error-new-request-f3a806` trae la **0344** (`fn_set_documento` ya no exige motivo de cambio al cargar el DNI por primera vez), aplicada el mismo día 16:41 UTC. Ninguna de las dos está fusionada a `main` todavía — el hueco de numeración que eso deja ya se investigó y no es una migración perdida: las dos están pusheadas a origin, solo en tránsito.
+
+Mientras sigan sin fusionar, `main` no es lo que producción corre. Antes de tocar `fn_set_documento` desde otra rama: `donde-vive.sh fn_set_documento` y el md5 de producción, no asumir que `main` alcanza — el mismo error de fondo que ya costó la 0276.
+
+Se resuelve solo: fusionando esta rama (y la 0344) a `main`.
+
+---
+
+## 2026-09-03 — Auditoría de arquitectura: 16 hallazgos nuevos siguiendo la comparación con otros ERP
+
+23 agentes (6 de investigación + 1 escéptico por cada candidato) sobre la
+comparación Workday/Oracle del día anterior: primitivos de BambooHR/Gusto/
+Rippling, de Odoo HR/Payroll, y cuatro frentes del código real (campos
+mutables sin historia, patrones duplicados, huecos de auditoría, integración
+ausencias↔planilla). 17 candidatos evaluados, **16 sobrevivieron al
+escéptico, 1 refutado**. El catálogo completo, con evidencia y severidad, está
+en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-de-arquitectura-del-2026-09-03--comparación-contra-otros-erp-23-agentes).
+
+**Los 7 de severidad alta, en una frase cada uno:**
+`fn_aprobar_ausencia` (la única puerta que "convierte días en plata") es la
+única sin el candado de periodo pagado · `fn_cesar_persona` no deja rastro en
+`correcciones_auditoria` · `con_hijos` decide S/113+provisiones sin auditoría
+ni vigencia · cambiar la cuenta bancaria de alguien no deja rastro ·
+`configuracion` deja escribir cualquier clave (incluida `tasa_afp`) sin
+guardia · la policy de `personas` es por fila, no por columna
+(`estado`/`fecha_cese`/`motivo_cese`/`tipo_vinculo` sin puerta) ·
+`devenga_grati/cts/vacaciones` sin fecha de corte, con un bypass real vía
+`PATCH` directo a la tabla.
+
+**El patrón que se repite:** 6 de los 16 son la misma familia de defecto que
+ya costó el régimen de pensión (→0261), el rol (→0295/0296) y la sede
+(→0342) — un campo que mueve plata o una obligación legal, mutable sin
+auditoría. Ninguno de los 16 se arregló todavía; quedan en
+`hallazgos-abiertos.md` para decidir orden de trabajo.
+
+---
+
+## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · ESCRITA Y VERIFICADA — FALTA PEGAR
+
+Encontrado siguiendo el hallazgo #7 de la comparación Workday/Oracle
+([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)):
+el informe reportó que el tope de educación por rango "vive en la tabla Y en
+un archivo TypeScript hardcodeado a la vez", citando el comentario de la
+tabla `topes_educacion_rango` (0132), que dice ser "espejo de
+`RANGOS.topeEducacion` en `apps/web/lib/rangos.ts`".
+
+**Es un falso positivo, no una duplicación real.** Ese campo se borró el
+2026-08-06 (la 0178, por el mismo motivo de fondo: había quedado
+desactualizado y le pagó de más a `caylo` — S/545.25 en vez de S/180). El
+comentario de la 0132 nunca se actualizó cuando el campo se borró, así que
+siguió describiendo una duplicación que ya no existe — y esa frase desactualizada
+fue justamente lo que indujo al agente que hizo la comparación a reportar un
+hallazgo que no existe en el código actual.
+
+**Arreglo (0345):** reemplaza solo el `comment on table topes_educacion_rango`
+por uno que dice la verdad de hoy — que la tabla es la única fuente y que
+`rangos.ts` no declara tope de educación a propósito desde la 0178. No toca
+ninguna columna, fila, función ni cálculo — no hay pago que auditar.
+
+**Verificado:** `npx supabase db reset` limpio con las 345 migraciones en
+orden; `npx supabase test db` — 1938/1938 en verde; `typecheck` limpio.
+Falta que Felipe la pegue en el SQL Editor (`./scripts/dame-el-sql.sh 345`).
+
+---
+
 ## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · PEGADAS Y VERIFICADAS
 
 Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
@@ -223,6 +291,8 @@ con el 9% sumado a mano dentro de «Gratificación», esa fila sigue tal cual.
 **Decidido con Felipe el 2026-09-03: no se corrige lo ya pagado — lo que le
 importa es que quede separado de acá en adelante.** No hace falta revisar
 julio 2026 ni ninguna migración retroactiva.
+
+---
 
 ## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
 
