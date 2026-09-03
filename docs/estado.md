@@ -37,6 +37,97 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
+
+Encontrado reconciliando a mano la liquidación de Paola Cahuana (cese
+28/08/2026) contra su boleta PLAME: se le pagó S/129.79 de más, y no por un
+solo motivo — dos defectos distintos, cada uno con su arreglo.
+
+**El defecto 1, ya cerrado por la 0341** (ver la entrada de hoy mismo, justo
+abajo de esta): `fn_vacaciones_truncas` no descontaba AFP/ONP — S/27.15 de
+los S/129.79.
+
+**El defecto 2, el que arregla la 0343:** se le dio a mano un adelanto de su
+gratificación truncada (S/102.63, cargado como bono `categoria='otros'`
+porque la opción `'gratificacion'` del desplegable solo sirve para el pago
+normal de julio/diciembre, con monto autocalculado). Al armar la
+liquidación, `fn_grati_trunca_bruta` no tenía forma de verlo — ni en el
+libro de desembolsos (`desembolsos_beneficios`, existe desde la 0155 pero
+tiene RLS de solo lectura y **ninguna pantalla la usaba**) ni en
+`movimientos_planilla` (solo mira la ventana del pago legal, dic/jul, que
+para un cese de agosto nunca iba a existir) — y la recalculó entera:
+S/102.65. Confirmado contra el PLAME: sus dos líneas (`0406` gratif 94.17 +
+`0312` bonif. extraord. 8.48 = 102.65) ya representaban el trunco completo
+y correcto por sí solas — el adelanto manual era plata extra, no una pieza
+de un cálculo mayor.
+
+**Arreglo ([PR #150](https://github.com/felipea92p-ux/cayla-dynamic/pull/150), 0343):** dos partes.
+`fn_registrar_desembolso` es la puerta que le faltaba al libro de
+desembolsos — mismo molde que `fn_agregar_movimiento` (guard admin/líder,
+una validación por cada CHECK, `registrado_por` desde
+`fn_persona_actual_id()`). Botón "🎁 Adelanto de beneficio" en
+`/admin/planilla`, junto a "💸 Ya le pagué aparte". Y `fn_grati_trunca_bruta`
+ensancha su detección: además del pago normal de dic/jul, reconoce un
+adelanto de mitad de semestre cargado en `movimientos_planilla` con
+`categoria='gratificacion'` — solo cuando el cese ocurre antes de la fecha
+legal de pago (la ventana normal es entonces estructuralmente imposible), y
+solo si el periodo del bono EMPIEZA dentro del semestre evaluado —
+condición necesaria para no confundirlo con el pago normal del semestre
+anterior y reabrir el defecto que la 0289 ya había cerrado (probado contra
+ese caso exacto en la prueba 272, aserciones 6–8).
+
+**Verificado:** `npx supabase db reset` limpio con las 343 migraciones en
+orden; `npx supabase test db` — **1938/1938 en verde**, incluida la 225
+(la del traslape enero-junio / julio-diciembre, sin tocarse) y la nueva 272
+(9 aserciones); `typecheck` limpio con los tipos de Supabase regenerados;
+md5 de `fn_grati_trunca_bruta` pedido a producción antes de pegar — coincidió
+con el "md5 de llegada" que la propia 0289 dejó documentado en su cabecera,
+confirmando que nadie había tocado esa función por fuera del repo desde
+entonces.
+
+**No se corrigió retroactivamente.** La liquidación de Paola (y las de
+Sanándres y Rodríguez Herrera, revisadas la misma sesión: sus boletas PLAME
+ya tenían el AFP correcto, sin diferencia) no se tocan — el arreglo es
+hacia adelante, para la próxima persona que cese a mitad de semestre.
+
+---
+
+## 2026-09-03 — Las vacaciones truncas se pagaban sin descontar pensión (0341) · PEGADA Y VERIFICADA
+
+Mismo origen que la 0343 (ver arriba): la reconciliación de la liquidación
+de Paola Cahuana contra su boleta PLAME.
+
+**El defecto:** de las tres truncas que se pagan al cesar —vacaciones,
+gratificación, CTS— dos están correctamente exentas de AFP/ONP
+(gratificación por la Ley 29351/30334, CTS por el art. 9 del D.S.
+001-97-TR) y una no debía estarlo: las vacaciones truncas sí son
+remunerativas para pensión (art. 19 del mismo D.S.), y `fn_vacaciones_truncas`
+las pagaba enteras, igual que a las otras dos. Confirmado contra fuente
+externa (afpintegra.pe, sbs.gob.pe) antes de tocar el código.
+
+**Arreglo ([PR #148](https://github.com/felipea92p-ux/cayla-dynamic/pull/148), 0341):**
+`fn_vacaciones_truncas` le descuenta AFP/ONP al monto, con la misma tasa y
+el mismo criterio de vigencia que ya usa `fn_planilla_calcular` (régimen al
+cese vía `asignaciones_regimen_pension`, tasa vigente en `tasas_pension`,
+respaldo a `configuracion.tasa_afp`). El jsonb gana `monto_bruto` y
+`descuento_afp` (aditivo — `monto` sigue existiendo y ahora sale neto);
+`fn_liquidacion` no necesitó tocarse. La pantalla de liquidaciones muestra
+el desglose del descuento en vez de solo un número más chico sin explicar.
+
+**Verificado:** `npx supabase db reset` + `npx supabase test db` —
+**1920/1920 en verde** (incluida la 270 nueva, 8 aserciones: descuenta,
+usa la tasa del régimen de cada quien — mixta 11.37 % vs flujo 12.92 %, con
+las tasas reales ya sembradas por la 0114/0328, no una tasa de prueba
+inventada —, `monto_bruto − descuento_afp = monto` siempre, y quien no
+tiene régimen asignado no pierde nada); `typecheck` limpio; md5 de
+`fn_vacaciones_truncas` pedido a producción antes de pegar, coincidió
+exacto (`530af4af90c1fa90d0f9b9e8c36b1f05`).
+
+**No corrige lo ya pagado.** Las liquidaciones ya congeladas (Paola incluida)
+no se tocan — corrige el cálculo hacia adelante, para el próximo cese.
+
+---
+
 ## 2026-09-03 — La sede base se cambiaba sin auditoría (0342) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
 
 Encontrado al rehacer, esta vez guardándolo, la comparación de arquitectura
