@@ -369,22 +369,18 @@ function ObjetivosContenido() {
               <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-medium text-taupe">Historial ({rangoHistorial} meses)</p>
-                  <div className="flex gap-1">
-                    {[6, 12, 24].map((n) => (
-                      <button
-                        key={n}
-                        onClick={() => setRangoHistorial(n)}
-                        aria-pressed={rangoHistorial === n}
-                        className={`rounded-full px-2.5 py-1 text-xs ${
-                          rangoHistorial === n
-                            ? "bg-tinta text-crema"
-                            : "border border-sand text-taupe hover:bg-sand/40"
-                        }`}
-                      >
-                        {n}M
-                      </button>
-                    ))}
-                  </div>
+                  <label className="flex items-center gap-2 text-xs text-taupe">
+                    Rango
+                    <select
+                      value={rangoHistorial}
+                      onChange={(e) => setRangoHistorial(Number(e.target.value))}
+                      className="rounded-lg border border-sand bg-crema px-2 py-1 text-xs"
+                    >
+                      <option value={6}>Últimos 6 meses</option>
+                      <option value={12}>Últimos 12 meses</option>
+                      <option value={24}>Últimos 24 meses</option>
+                    </select>
+                  </label>
                 </div>
                 <GraficoObjetivos historial={historial} />
               </div>
