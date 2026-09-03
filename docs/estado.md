@@ -37,7 +37,57 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-02 — `fn_meses_y_dias` inventaba días en un rango corto (0340) · ESCRITA, VERIFICADA LOCAL, PENDIENTE EN PRODUCCIÓN
+## 2026-09-03 — La sede base se cambiaba sin auditoría (0342) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
+
+Encontrado al rehacer, esta vez guardándolo, la comparación de arquitectura
+Workday/Oracle HCM contra Dynamic
+([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)
+— la primera versión de ese informe, referenciada en el PR #106, nunca se
+guardó como archivo y se perdió). El hallazgo central: Dynamic ya
+redescubrió el primitivo de "vigencia temporal" de esos sistemas por las
+malas, campo por campo, tras bugs reales (0277 → 0261 para el régimen de
+pensión). `personas.sede_base_id` tenía la misma exposición y seguía sin
+corregir.
+
+**El defecto:** `fn_planilla_calcular` computa la movilidad de todo el
+periodo como `días_trabajados × tarifa de la sede ACTUAL` (0166/0261) — no
+la sede en la que la persona trabajó cada día. Y esa sede se cambiaba desde
+`/admin/equipo` con un `UPDATE` directo, sin RPC, sin auditoría y sin
+ningún trigger que lo capturara — el mismo hueco que tenía `rol` antes de
+la 0296, sin siquiera la función dedicada que ese caso sí tenía.
+
+**Arreglo ([PR #149](https://github.com/felipea92p-ux/cayla-dynamic/pull/149), 0342):**
+`fn_set_sede_base` exige admin o líder, valida que la sede destino esté
+activa, bloquea el cambio sobre personas cesadas, y audita en
+`correcciones_auditoria`. Un trigger (`trg_personas_sede_solo_por_rpc`,
+mismo mecanismo que la 0296 para `rol`) rechaza cualquier `UPDATE` directo
+a la columna que no pase por esa función.
+
+**Verificado:** `npx supabase db reset` limpio con las 342 migraciones en
+orden; `npx supabase test db` — **1929/1929 en verde**, incluida la prueba
+nueva (271, 9 casos); `typecheck` y 427 vitest en verde; probado en el
+navegador de punta a punta (login real, cambio de sede desde
+`/admin/equipo`, fila confirmada en `correcciones_auditoria`).
+
+✅ **Medido en producción el 2026-09-03, con Felipe.** Consulta contra
+`planilla_pagada_detalle`: entre las personas con algún periodo repagado
+(`version` > 1), ninguna tiene `monto_movilidad` distinto entre versiones
+para el mismo periodo — **cero filas**. El defecto era real en el código,
+pero no hay evidencia de que ya le haya movido el pago a alguien.
+
+⚠️ **Lo que esa consulta NO cubre, y queda sin poder verificarse:** que
+alguien haya cambiado de sede ANTES de la primera congelación de su
+periodo (nunca hubo una `version 2` con la que comparar). Ese caso no se
+puede reconstruir — es justo el dato que no existía porque no había
+auditoría. Auditarlo a fondo exigiría cruzar `jornadas.sede_id` (dónde
+marcó cada día) contra la sede usada en cada pago ya congelado, persona por
+persona — una auditoría cara, y no hay ninguna señal hoy que la justifique.
+Cerrado hacia adelante; sin nada más pendiente salvo que aparezca una razón
+para esa auditoría más profunda.
+
+---
+
+## 2026-09-02 — `fn_meses_y_dias` inventaba días en un rango corto (0340) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
 
 Encontrado por accidente: al correr la suite completa después de la 0339,
 apareció en rojo `263_pedir_vacaciones_y_que_do_las_apruebe.test.sql`, que
@@ -69,13 +119,20 @@ antigüedad, que cesó dentro de ~35 días después de su último aniversario
 laboral** — ahí el "récord trunco" (del aniversario al cese) es el rango
 corto que dispara el defecto, y esa fórmula alimenta la liquidación real.
 
-🔴 **Pendiente de decidir, no técnico:** ¿hay liquidaciones YA PAGADAS con
-este defecto adentro? No lo sé — necesita datos de producción que no tengo.
-La consulta para medirlo, de solo lectura, ya está lista:
-[`consulta_impacto_meses_y_dias.sql`](../scripts/sql-manual/consulta_impacto_meses_y_dias.sql).
-Córrela en el SQL Editor DESPUÉS de pegar la 0340. Si no devuelve filas, no
-hay nada que hacer. Si devuelve alguna, hay que decidir con Felipe qué
-corresponde con cada diferencia real.
+✅ **Pegada en producción el 2026-09-02, md5 confirmado exacto contra lo
+verificado local** (partida `3ec471defb94971909962762b2f7f3aa` → llegada
+`4e345da084cfeacf4b3a9fcb93be71c4`, las dos veces coincidentes byte a byte).
+
+`fn_vacaciones_truncas` exige sesión de admin y el SQL Editor corre como
+`postgres` sin JWT — hizo falta agregar un `set_config` que impersona a un
+admin antes de llamarla (mismo truco que ya usaba, sin relación, el viejo
+`cuanto_inflo_el_rango_corto_las_liquidaciones.sql`). **Y la primera corrida
+de `consulta_impacto_meses_y_dias.sql` fue ANTES de pegar la 0340** —
+comparó la función buggy contra sí misma y su "vacío" no significaba nada.
+Repetida con la 0340 ya pegada (confirmado con la prueba directa
+`fn_meses_y_dias('2026-09-02','2026-09-02')` = 29 antes de pegar, 1 después):
+**sigue vacía.** Ninguna liquidación ya pagada quedó con este defecto
+adentro. Cerrado, sin nada más que decidir.
 
 ---
 

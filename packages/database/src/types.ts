@@ -5745,6 +5745,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      fn_set_sede_base: {
+        Args: { p_persona_id: string | null; p_sede_id: string | null }
+        Returns: undefined
+      }
       fn_set_sueldo_base_legal: {
         Args: { p_monto: number | null; p_persona_id: string | null }
         Returns: undefined

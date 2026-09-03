@@ -431,7 +431,6 @@ export default function EquipoPage() {
       .update({
         nombres: form.nombres.trim(),
         apellidos: form.apellidos.trim(),
-        sede_base_id: form.sedeId,
         email: form.email.trim() || null,
       })
       .eq("id", editandoId);
@@ -439,6 +438,26 @@ export default function EquipoPage() {
       setGuardando(false);
       avisar("error", mensajeDeError(error, "guardar"));
       return;
+    }
+    // Sede base: mismo patrón dirty-check que rol, y por la misma razón — un
+    // `UPDATE` directo desde el navegador no distinguía «lo pidió admin» de
+    // «lo pidió cualquiera con la columna abierta», y no dejaba rastro pese a
+    // que la sede base decide la tarifa de movilidad que `fn_planilla_calcular`
+    // aplica a todo el periodo en curso (0166). `fn_set_sede_base` (0342) exige
+    // admin o líder y audita en `correcciones_auditoria`; la base además tiene
+    // un trigger que rechaza cualquier `UPDATE` directo a esta columna, así que
+    // omitirla del bloque de arriba no es solo prolijidad — es obligatorio.
+    const sedeOriginal = personas.find((p) => p.id === editandoId)?.sede_base_id;
+    if (form.sedeId !== sedeOriginal) {
+      const { error: errorSede } = await supabase.rpc("fn_set_sede_base", {
+        p_persona_id: editandoId,
+        p_sede_id: form.sedeId,
+      });
+      if (errorSede) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero la sede no se pudo cambiar: ${mensajeDeError(errorSede)}`);
+        return;
+      }
     }
     // Rol: mismo patrón dirty-check, pero por una razón que va más allá de no
     // ensuciar la auditoría. Este campo dejó de viajar en el `update` de arriba
