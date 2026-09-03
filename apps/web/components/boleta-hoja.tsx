@@ -181,6 +181,14 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
   // cuadrar con sus líneas. `?? 0` para que una base sin la 0185 pegada no dibuje
   // la fila en vez de escribir «S/ NaN».
   const sobretiempo = f.monto_sobretiempo ?? 0;
+  // El desglose 25 %/35 % (0347), a pedido del contador — sostiene los
+  // códigos 0105/0106 de la PLAME. `undefined` y no `?? 0` a propósito: una
+  // boleta de un periodo ya congelado antes de la 0347 no trae estas claves,
+  // y ahí hay que caer al texto genérico de siempre, no imprimir "25 %: S/0".
+  const sobretiempo25 = f.monto_sobretiempo_25;
+  const sobretiempo35 = f.monto_sobretiempo_35;
+  const tieneDesgloseSobretiempo =
+    sobretiempo25 !== undefined && sobretiempo35 !== undefined;
   // ⇩ CAMBIO 0280 ⇩ El recargo por trabajar el día de descanso semanal (art. 3
   // del D. Leg. 713). Va aquí y no dentro del sobretiempo aunque los dos se
   // midan sobre la misma racha de días: aquél paga por pasar de 48 horas, este
@@ -494,17 +502,31 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                 decirlo, «6 h de sobretiempo = S/10.66» se lee como si la hora
                 valiera S/1.78 y la persona no puede reconocer su propio pago.
                 También se dicen los días: el recargo se mide contra las 48 horas
-                SEMANALES, así que sin la fecha nadie puede rehacer la cuenta. */}
+                SEMANALES, así que sin la fecha nadie puede rehacer la cuenta.
+                Desde la 0347, si la fila trae el desglose, se ve el 25 % y el 35 %
+                aparte —lo pidió el contador, para conciliar contra la PLAME—; si
+                no (boleta de un periodo congelado antes de esa migración), se ve
+                el texto genérico de siempre. */}
             {sobretiempo > 0 && (
               <tr className="border-t border-sand">
                 <td className="py-2">
                   Sobretiempo
                   <span className="block text-xs text-taupe">
                     {fmtHorasHumano(f.horas_sobretiempo ?? 0)} por encima de las 48 de la
-                    semana{diasSobretiempo && ` · ${diasSobretiempo}`} · se paga el recargo
-                    (25 % las 2 primeras horas de cada día, 35 % las demás); las horas
-                    mismas ya están en el pago base
+                    semana{diasSobretiempo && ` · ${diasSobretiempo}`}; las horas mismas ya
+                    están en el pago base
                   </span>
+                  {tieneDesgloseSobretiempo ? (
+                    <span className="block text-xs text-taupe">
+                      Recargo 25 % ({fmtHorasHumano(f.horas_sobretiempo_25 ?? 0)}):{" "}
+                      {formatSoles(sobretiempo25 ?? 0)} · Recargo 35 % (
+                      {fmtHorasHumano(f.horas_sobretiempo_35 ?? 0)}): {formatSoles(sobretiempo35 ?? 0)}
+                    </span>
+                  ) : (
+                    <span className="block text-xs text-taupe">
+                      se paga el recargo (25 % las 2 primeras horas de cada día, 35 % las demás)
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 text-right align-top">{formatSoles(sobretiempo)}</td>
               </tr>
