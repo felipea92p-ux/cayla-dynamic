@@ -634,7 +634,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
@@ -656,7 +656,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
           generado_at?: string
@@ -678,7 +678,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html?: string
-          fecha_fin?: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
           generado_at?: string
@@ -4317,7 +4317,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
