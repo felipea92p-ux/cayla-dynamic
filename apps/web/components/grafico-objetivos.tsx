@@ -76,12 +76,18 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
 
   const ticks = [0, 25, 50, 75, 100];
   const ultimo = historial.length - 1;
-  const item = activo !== null ? historial[activo] : null;
-  const xActivo = activo !== null ? PAD_LEFT + activo * (ANCHO_BARRA + GAP) + ANCHO_BARRA / 2 : 0;
+  // `activo` puede quedar apuntando a un índice que ya no existe: cambiar de
+  // rango (o de mes/persona) encoge `historial` sin que este componente se
+  // entere del cambio (no hay efecto escuchando la prop). Sin el acotado,
+  // `historial[activo]` da `undefined` y `.total` revienta la pantalla entera
+  // — se vio en vivo cambiando de 24 a 1 mes con una barra recién enfocada.
+  const activoValido = activo !== null && activo < historial.length ? activo : null;
+  const item = activoValido !== null ? historial[activoValido] : null;
+  const xActivo = activoValido !== null ? PAD_LEFT + activoValido * (ANCHO_BARRA + GAP) + ANCHO_BARRA / 2 : 0;
   const yTopActivo =
-    activo !== null
-      ? historial[activo].total > 0
-        ? y(Math.max(3, (historial[activo].cumplidos / historial[activo].total) * 100))
+    item !== null
+      ? item.total > 0
+        ? y(Math.max(3, (item.cumplidos / item.total) * 100))
         : PAD_TOP + alto - 3
       : 0;
   // Arriba de una barra cerca del 100% no siempre cabe el tooltip antes del
@@ -94,115 +100,129 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
     <div>
       {/* Refetch mantiene el dibujo anterior atenuado en vez de un flash de
           "Cargando…": cambiar el rango no debe verse como una pantalla nueva. */}
-      <div className={`relative overflow-x-auto transition-opacity ${cargando ? "opacity-50" : "opacity-100"}`}>
-        <svg
-          width={W}
-          height={H}
-          className="min-w-full"
-          role="img"
-          aria-label={`Historial mensual de objetivos cumplidos, ${historial.length} meses`}
-        >
-          {/* líneas guía — hairline sólida, un paso fuera de la superficie */}
-          {ticks.map((t) => (
-            <g key={t}>
-              <line x1={PAD_LEFT} x2={W - 4} y1={y(t)} y2={y(t)} className="stroke-sand" strokeWidth={1} />
-              <text x={PAD_LEFT - 6} y={y(t) + 3} textAnchor="end" fontSize={9} className="fill-taupe">
-                {t}%
-              </text>
-            </g>
-          ))}
+      <div className={`overflow-x-auto transition-opacity ${cargando ? "opacity-50" : "opacity-100"}`}>
+        {/* El SVG mide W (chico con pocos meses) y NUNCA se estira con
+            `min-w-full`: sin viewBox, CSS estirando la caja del SVG no
+            escala el dibujo, solo agranda el lienzo — el trazo se queda
+            pegado a la izquierda y el resto queda vacío (el defecto real:
+            "no se acomoda" con 1 mes). `w-fit mx-auto` centra el SVG cuando
+            es más angosto que la tarjeta, con márgenes automáticos — que a
+            diferencia de centrar por flex/grid, no rompen el scroll cuando
+            el contenido SÍ desborda (24 meses): el margen simplemente se
+            colapsa a 0 y el contenedor scrollea como siempre. El tooltip
+            vive DENTRO de este envoltorio (no del scroll-container de
+            afuera) para compartir el mismo origen de coordenadas que el
+            SVG — si viviera afuera, el desplazamiento del centrado lo
+            dejaría descuadrado. */}
+        <div className="relative w-fit mx-auto">
+          <svg
+            width={W}
+            height={H}
+            role="img"
+            aria-label={`Historial mensual de objetivos cumplidos, ${historial.length} meses`}
+          >
+            {/* líneas guía — hairline sólida, un paso fuera de la superficie */}
+            {ticks.map((t) => (
+              <g key={t}>
+                <line x1={PAD_LEFT} x2={W - 4} y1={y(t)} y2={y(t)} className="stroke-sand" strokeWidth={1} />
+                <text x={PAD_LEFT - 6} y={y(t) + 3} textAnchor="end" fontSize={9} className="fill-taupe">
+                  {t}%
+                </text>
+              </g>
+            ))}
 
-          {historial.map((m, i) => {
-            const x = PAD_LEFT + i * (ANCHO_BARRA + GAP);
-            const sinDato = m.total <= 0;
-            const pct = sinDato ? 0 : (m.cumplidos / m.total) * 100;
-            const nivel = nivelColorObjetivos(m.cumplidos, m.total);
-            const estaActivo = activo === i;
-            const descripcion = sinDato
-              ? `${etiquetaMesLarga(m)}: sin checklist ese mes`
-              : `${etiquetaMesLarga(m)}: ${m.cumplidos} de ${m.total} cumplidos (${Math.round(pct)}%)`;
+            {historial.map((m, i) => {
+              const x = PAD_LEFT + i * (ANCHO_BARRA + GAP);
+              const sinDato = m.total <= 0;
+              const pct = sinDato ? 0 : (m.cumplidos / m.total) * 100;
+              const nivel = nivelColorObjetivos(m.cumplidos, m.total);
+              const estaActivo = activo === i;
+              const descripcion = sinDato
+                ? `${etiquetaMesLarga(m)}: sin checklist ese mes`
+                : `${etiquetaMesLarga(m)}: ${m.cumplidos} de ${m.total} cumplidos (${Math.round(pct)}%)`;
 
-            return (
-              <g key={`${m.anio}-${m.mes}`}>
-                {sinDato ? (
-                  <rect
-                    x={x}
-                    y={PAD_TOP + alto - 3}
-                    width={ANCHO_BARRA}
-                    height={3}
-                    rx={1.5}
-                    className="fill-taupe"
-                    style={{ opacity: estaActivo ? 0.65 : 0.4 }}
-                  />
-                ) : (
-                  <path
-                    d={pathBarraTopeRedondeado(x, y(pct), ANCHO_BARRA, Math.max(3, PAD_TOP + alto - y(pct)), RADIO)}
-                    className={CLASE_FILL_NIVEL[nivel]}
-                    style={estaActivo ? { filter: "brightness(1.12)" } : undefined}
-                  />
-                )}
-                {/* Etiqueta directa selectiva: solo el último mes (el que se está
-                    editando arriba), no un número en cada barra. */}
-                {i === ultimo && (
+              return (
+                <g key={`${m.anio}-${m.mes}`}>
+                  {sinDato ? (
+                    <rect
+                      x={x}
+                      y={PAD_TOP + alto - 3}
+                      width={ANCHO_BARRA}
+                      height={3}
+                      rx={1.5}
+                      className="fill-taupe"
+                      style={{ opacity: estaActivo ? 0.65 : 0.4 }}
+                    />
+                  ) : (
+                    <path
+                      d={pathBarraTopeRedondeado(x, y(pct), ANCHO_BARRA, Math.max(3, PAD_TOP + alto - y(pct)), RADIO)}
+                      className={CLASE_FILL_NIVEL[nivel]}
+                      style={estaActivo ? { filter: "brightness(1.12)" } : undefined}
+                    />
+                  )}
+                  {/* Etiqueta directa selectiva: solo el último mes (el que se está
+                      editando arriba), no un número en cada barra. */}
+                  {i === ultimo && (
+                    <text
+                      x={x + ANCHO_BARRA / 2}
+                      y={(sinDato ? PAD_TOP + alto - 3 : y(Math.max(3, pct))) - 6}
+                      textAnchor="middle"
+                      fontSize={10}
+                      fontWeight={600}
+                      className="fill-tinta"
+                    >
+                      {sinDato ? "—" : `${Math.round(pct)}%`}
+                    </text>
+                  )}
                   <text
                     x={x + ANCHO_BARRA / 2}
-                    y={(sinDato ? PAD_TOP + alto - 3 : y(Math.max(3, pct))) - 6}
+                    y={H - PAD_BOTTOM + 14}
                     textAnchor="middle"
-                    fontSize={10}
-                    fontWeight={600}
-                    className="fill-tinta"
+                    fontSize={9}
+                    className="fill-taupe"
                   >
-                    {sinDato ? "—" : `${Math.round(pct)}%`}
+                    {etiquetaMesCorta(m)}
                   </text>
-                )}
-                <text
-                  x={x + ANCHO_BARRA / 2}
-                  y={H - PAD_BOTTOM + 14}
-                  textAnchor="middle"
-                  fontSize={9}
-                  className="fill-taupe"
-                >
-                  {etiquetaMesCorta(m)}
-                </text>
 
-                {/* Objetivo de foco/hover: más grande que la marca, incluye el
-                    hueco entre barras. Mismo detalle en teclado que en mouse. */}
-                <rect
-                  x={x - GAP / 2}
-                  y={PAD_TOP}
-                  width={ANCHO_BARRA + GAP}
-                  height={alto}
-                  fill="transparent"
-                  tabIndex={0}
-                  role="img"
-                  aria-label={descripcion}
-                  aria-describedby={estaActivo ? `${idBase}-tooltip` : undefined}
-                  className="cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-tinta"
-                  onMouseEnter={() => setActivo(i)}
-                  onMouseLeave={() => setActivo((a) => (a === i ? null : a))}
-                  onFocus={() => setActivo(i)}
-                  onBlur={() => setActivo((a) => (a === i ? null : a))}
-                />
-              </g>
-            );
-          })}
-        </svg>
+                  {/* Objetivo de foco/hover: más grande que la marca, incluye el
+                      hueco entre barras. Mismo detalle en teclado que en mouse. */}
+                  <rect
+                    x={x - GAP / 2}
+                    y={PAD_TOP}
+                    width={ANCHO_BARRA + GAP}
+                    height={alto}
+                    fill="transparent"
+                    tabIndex={0}
+                    role="img"
+                    aria-label={descripcion}
+                    aria-describedby={estaActivo ? `${idBase}-tooltip` : undefined}
+                    className="cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-tinta"
+                    onMouseEnter={() => setActivo(i)}
+                    onMouseLeave={() => setActivo((a) => (a === i ? null : a))}
+                    onFocus={() => setActivo(i)}
+                    onBlur={() => setActivo((a) => (a === i ? null : a))}
+                  />
+                </g>
+              );
+            })}
+          </svg>
 
-        {item && (
-          <div
-            id={`${idBase}-tooltip`}
-            role="tooltip"
-            className={`pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-tinta px-2.5 py-1.5 text-xs text-crema shadow-lg ${
-              volteado ? "" : "-translate-y-full"
-            }`}
-            style={{ left: xActivo, top: volteado ? yTopActivo + 8 : yTopActivo - 8 }}
-          >
-            <div className="font-medium">{etiquetaMesLarga(item)}</div>
-            <div className="text-crema/80">
-              {item.total > 0 ? `${item.cumplidos} de ${item.total} cumplidos (${Math.round((item.cumplidos / item.total) * 100)}%)` : "Sin checklist ese mes"}
+          {item && (
+            <div
+              id={`${idBase}-tooltip`}
+              role="tooltip"
+              className={`pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-tinta px-2.5 py-1.5 text-xs text-crema shadow-lg ${
+                volteado ? "" : "-translate-y-full"
+              }`}
+              style={{ left: xActivo, top: volteado ? yTopActivo + 8 : yTopActivo - 8 }}
+            >
+              <div className="font-medium">{etiquetaMesLarga(item)}</div>
+              <div className="text-crema/80">
+                {item.total > 0 ? `${item.cumplidos} de ${item.total} cumplidos (${Math.round((item.cumplidos / item.total) * 100)}%)` : "Sin checklist ese mes"}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Leyenda: ícono + etiqueta, nunca el color solo — es una escala de

@@ -404,7 +404,11 @@ function ObjetivosContenido() {
                     </select>
                   </label>
                 </div>
-                <GraficoObjetivos historial={historial} cargando={historialDesactualizado} />
+                <GraficoObjetivos
+                  key={historialClave ?? "sin-historial"}
+                  historial={historial}
+                  cargando={historialDesactualizado}
+                />
               </div>
             )}
 
