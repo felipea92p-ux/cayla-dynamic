@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-02 — `fn_meses_y_dias` inventaba días en un rango corto (0340) · ESCRITA, VERIFICADA LOCAL, PENDIENTE EN PRODUCCIÓN
+## 2026-09-02 — `fn_meses_y_dias` inventaba días en un rango corto (0340) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
 
 Encontrado por accidente: al correr la suite completa después de la 0339,
 apareció en rojo `263_pedir_vacaciones_y_que_do_las_apruebe.test.sql`, que
@@ -69,13 +69,20 @@ antigüedad, que cesó dentro de ~35 días después de su último aniversario
 laboral** — ahí el "récord trunco" (del aniversario al cese) es el rango
 corto que dispara el defecto, y esa fórmula alimenta la liquidación real.
 
-🔴 **Pendiente de decidir, no técnico:** ¿hay liquidaciones YA PAGADAS con
-este defecto adentro? No lo sé — necesita datos de producción que no tengo.
-La consulta para medirlo, de solo lectura, ya está lista:
-[`consulta_impacto_meses_y_dias.sql`](../scripts/sql-manual/consulta_impacto_meses_y_dias.sql).
-Córrela en el SQL Editor DESPUÉS de pegar la 0340. Si no devuelve filas, no
-hay nada que hacer. Si devuelve alguna, hay que decidir con Felipe qué
-corresponde con cada diferencia real.
+✅ **Pegada en producción el 2026-09-02, md5 confirmado exacto contra lo
+verificado local** (partida `3ec471defb94971909962762b2f7f3aa` → llegada
+`4e345da084cfeacf4b3a9fcb93be71c4`, las dos veces coincidentes byte a byte).
+
+`fn_vacaciones_truncas` exige sesión de admin y el SQL Editor corre como
+`postgres` sin JWT — hizo falta agregar un `set_config` que impersona a un
+admin antes de llamarla (mismo truco que ya usaba, sin relación, el viejo
+`cuanto_inflo_el_rango_corto_las_liquidaciones.sql`). **Y la primera corrida
+de `consulta_impacto_meses_y_dias.sql` fue ANTES de pegar la 0340** —
+comparó la función buggy contra sí misma y su "vacío" no significaba nada.
+Repetida con la 0340 ya pegada (confirmado con la prueba directa
+`fn_meses_y_dias('2026-09-02','2026-09-02')` = 29 antes de pegar, 1 después):
+**sigue vacía.** Ninguna liquidación ya pagada quedó con este defecto
+adentro. Cerrado, sin nada más que decidir.
 
 ---
 
