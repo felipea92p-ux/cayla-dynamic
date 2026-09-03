@@ -207,7 +207,8 @@ with repo(numero, nombre, nunca) as (values
     (347, 'el_generador_de_contratos_hace_indefinidos', false),
     (348, 'objetivos_copiar_mes_anterior', false),
     (349, 'boleta_desglosa_sobretiempo_25_35', false),
-    (350, 'objetivos_historial_mensual', false)
+    (350, 'objetivos_historial_mensual', false),
+    (351, 'el_tablon_de_anuncios_de_do', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

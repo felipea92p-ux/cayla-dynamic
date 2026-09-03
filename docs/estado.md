@@ -147,18 +147,39 @@ PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) fusionado,
 0348 y 0350 pegadas en producción por Felipe y confirmadas funcionando (el
 gráfico ya mostró datos reales de septiembre en pantalla).
 
-**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (6/12/24
-meses), con un control de tres botones junto al título del gráfico —
-`fn_objetivos_historial` ya aceptaba `p_meses` desde el principio, esto solo
-lo expuso en pantalla, sin migración nueva. El refresco del rango se separó
-del `cargar()` que trae la lista de objetivos —dos efectos en vez de uno—
-para que cambiar de 12M a 6M no reinicie toda la pantalla a "Cargando…", solo
-el gráfico. Ese mismo efecto, escrito como `useEffect(() => { void
-cargarHistorial(); })` llamando a una función `useCallback`, disparó el lint
-`react-hooks/set-state-in-effect` que el push bloquea — se resolvió en línea
-con el patrón que ya usa el efecto de sesión al principio del archivo
-(`.then()` inline dentro del efecto, no una función nombrada referenciada
-desde él).
+**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (1/2/3/6/
+12/24 meses) con un `<select>` "Rango" junto al título del gráfico —
+consistente con Persona/Mes/Año, que ya eran `<select>` en la misma pantalla;
+un primer intento con tres botones pastilla se descartó porque desentonaba
+con el resto de los filtros de la página. `fn_objetivos_historial` ya
+aceptaba `p_meses` desde el principio, esto solo lo expuso en pantalla, sin
+migración nueva.
+
+El refresco del rango se separó del `cargar()` que trae la lista de
+objetivos —dos efectos en vez de uno— para que cambiar de rango no reinicie
+toda la pantalla a "Cargando…", solo el gráfico. El estado de "desactualizado"
+se DERIVA comparando la selección actual contra la clave del último historial
+que llegó (guardada en estado, no en un ref: leer un ref durante el render es
+otro lint prohibido, `react-hooks/refs`) en vez de un `setState` al ENTRAR al
+efecto — eso dispara `react-hooks/set-state-in-effect`, que el push bloquea.
+
+**Y, a pedido explícito de Felipe ("usa las skills para el diseño"), un
+rediseño con la skill `dataviz`:** el gráfico pasó de barras planas sin
+interacción a una pieza con tope redondeado (4px, base cuadrada contra el
+eje — no un `rx` de las cuatro esquinas, un `<path>` propio), tooltip por
+barra (posición en foco de teclado igual que en hover, y se voltea a
+DEBAJO de la barra cuando arriba no cabe, en vez de montarse sobre el título
+de la tarjeta), leyenda con ícono + etiqueta para los tres estados
+(verde/ámbar/rojo NO son categóricos aquí: son una escala de estado —
+cumplido/parcial/bajo desempeño, los mismos tres colores que ya usaba la
+barra de progreso— y una escala de estado siempre va con ícono+etiqueta,
+nunca el color solo), etiqueta directa selectiva en el último mes (el que se
+está editando arriba, no un número en cada barra), y el refetch mantiene el
+dibujo anterior atenuado en vez de un flash al cambiar de rango. Los tres
+colores de estado se validaron por contraste contra la superficie de la
+tarjeta (`bg-papel`) en los dos temas — los tres pasan 3:1 largamente (4.28 a
+6.17) — y no por el validador categórico de 8 colores, que la skill dice
+explícitamente que no le aplica a una escala de estado.
 
 ---
 

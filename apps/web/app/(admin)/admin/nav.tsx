@@ -14,7 +14,7 @@ import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Keyboard,
+  BookText, UserRound, ScrollText, Keyboard, Megaphone,
   LogOut, Menu, Search, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
@@ -68,6 +68,11 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // Por lo mismo, y con más razón: el Reglamento Interno hay que entregarlo a
     // todo el mundo y poder probarlo. Un menú que solo ve DO no entrega nada.
     { href: "/admin/normas", label: "Normas", Icon: BookText },
+    // Sin `roles`, mismo criterio que Normas: el comunicado es PARA las cuatro
+    // sedes, así que el menú que lleva a leerlo no puede verlo solo DO. Sin
+    // contador propio, por la misma regla de arriba (línea 106): un anuncio no
+    // tiene fecha límite que cueste plata pasarla.
+    { href: "/admin/anuncios", label: "Anuncios", Icon: Megaphone },
   ] },
   { label: "Nómina", items: [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
