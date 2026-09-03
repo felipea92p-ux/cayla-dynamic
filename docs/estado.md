@@ -37,6 +37,20 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Un clic agrega la gratificación, la bonificación 9% y la CTS pendientes de todo el periodo (0355) · SIN PEGAR
+
+Lo pidió Felipe justo después de probar la 0346 en pantalla: quiere el mismo pedido para Gratificación y CTS, que llevan meses siendo 100% manual (una persona, un clic, repetido para todo el equipo).
+
+**Se descartó la escritura automática al llegar la fecha.** La razón salió de la propia prueba en pantalla: al probar con una integrante real, su bonificación propuesta dio S/0.00 — correcto, porque su gratificación de ese semestre ya estaba pagada — pero un proceso que escribe solo no distingue «correctamente cero» de «algo salió mal»; las dos se ven idénticas. Con una persona confirmando antes de que el número se vuelva plata, ese distingo lo sigue haciendo alguien.
+
+**Lo que sí se construyó:** `fn_grati_cts_agregar_pendientes(periodo_id)` — reutiliza `fn_grati_cts_periodo` para el monto (cero cálculo nuevo) y `fn_agregar_movimiento` (la única puerta de escritura) para cada intento. Cada persona/categoría es su propio `begin … exception` (un SAVEPOINT implícito): si una falla —por ejemplo, su sede sigue con el periodo bloqueado— las demás igual se registran, y la que falló queda listada con el motivo exacto. En Planilla hay un banner nuevo con el total pendiente y un botón «Agregar todo», con confirmación antes de escribir y un resumen de éxitos/fallos después.
+
+Auditado local (`supabase db reset` + 1990 pruebas en verde) y a mano contra Postgres, `BEGIN … ROLLBACK`, cuatro casos: normal (dos personas, S/25.00 grati + S/2.25 bonificación cada una, 9% exacto), «ya pagada» (se salta sin intentarlo, no aparece en agregados ni en fallidos), correr la función DOS VECES seguidas (la segunda no agrega nada) y «periodo bloqueado» (el intento de esa persona falla solo, sin tumbar a las demás).
+
+**Aún no está pegada en producción.** Pendiente: PR abierto, md5 de `fn_grati_cts_agregar_pendientes` contra producción antes de pegar (función nueva, no reemplaza nada — pero igual hay que confirmar que no exista ya con otro nombre).
+
+---
+
 ## 2026-09-03 — Aviso cruzado: `main` va dos migraciones atrás de producción (0344/0345) · SIN FUSIONAR TODAVÍA
 
 Comprobado contra producción a pedido de Felipe (`select numero, nombre, aplicada_at from migraciones_aplicadas where numero in (344, 345)`): esta rama trae la **0345** (corrige el comentario de `topes_educacion_rango`, no toca datos), aplicada en producción el 2026-09-03 18:42 UTC. Por separado, la rama `claude/error-new-request-f3a806` trae la **0344** (`fn_set_documento` ya no exige motivo de cambio al cargar el DNI por primera vez), aplicada el mismo día 16:41 UTC. Ninguna de las dos está fusionada a `main` todavía — el hueco de numeración que eso deja ya se investigó y no es una migración perdida: las dos están pusheadas a origin, solo en tránsito.
