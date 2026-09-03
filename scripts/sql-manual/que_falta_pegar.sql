@@ -198,7 +198,8 @@ with repo(numero, nombre, nunca) as (values
     (336, 'el_tablero_avisa_el_tope_de_12_meses_del_convenio', false),
     (338, 'grati_cts_usan_el_sueldo_vigente_al_cierre', false),
     (339, 'fn_planilla_calcular_se_parte_en_nucleo_y_envoltorio', false),
-    (340, 'meses_y_dias_no_inventaba_dias_en_un_rango_corto', false)
+    (340, 'meses_y_dias_no_inventaba_dias_en_un_rango_corto', false),
+    (341, 'las_vacaciones_truncas_pagan_su_aporte_a_pension', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

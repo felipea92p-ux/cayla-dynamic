@@ -326,6 +326,10 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
   const monto = n(jsonb.monto);
   const devengado = jsonb.devengado === undefined ? null : n(jsonb.devengado);
   const yaDep = jsonb.ya_depositado === undefined ? null : n(jsonb.ya_depositado);
+  // CAMBIO 0341 · el descuento de AFP de las vacaciones truncas, mostrado y no
+  // escondido: un monto más chico sin explicación es indistinguible de un error.
+  const montoBruto = jsonb.monto_bruto === undefined ? null : n(jsonb.monto_bruto);
+  const descuentoAfp = jsonb.descuento_afp === undefined ? null : n(jsonb.descuento_afp);
 
   return (
     <tr className="border-t border-sand align-top">
@@ -348,6 +352,11 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
         {yaDep !== null && yaDep !== 0 && (
           <span className="block text-xs text-taupe">
             devengado {formatSoles(devengado ?? 0)} − ya depositado {formatSoles(yaDep)}
+          </span>
+        )}
+        {descuentoAfp !== null && descuentoAfp !== 0 && (
+          <span className="block text-xs text-taupe">
+            bruto {formatSoles(montoBruto ?? 0)} − AFP/ONP {formatSoles(descuentoAfp)}
           </span>
         )}
       </td>
