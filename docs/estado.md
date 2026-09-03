@@ -37,6 +37,48 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-02 — `fn_meses_y_dias` inventaba días en un rango corto (0340) · ESCRITA, VERIFICADA LOCAL, PENDIENTE EN PRODUCCIÓN
+
+Encontrado por accidente: al correr la suite completa después de la 0339,
+apareció en rojo `263_pedir_vacaciones_y_que_do_las_apruebe.test.sql`, que
+antes pasaba. La causa no era la 0339 — era `fn_meses_y_dias` (0087, sin
+tocar desde entonces), de la que dependen CUATRO fórmulas de plata:
+`fn_cts_trunca`, `fn_grati_trunca_bruta`, `fn_vacaciones_truncas` (las tres
+para liquidaciones al cesar) y, desde la 0297, `fn_vacaciones_saldo` (el
+saldo en vivo que usa "Lo mío").
+
+**El defecto:** con un rango corto que no llega a completar el mes calendario
+siguiente, la función contaba la distancia hasta un punto que el rango nunca
+toca. `fn_meses_y_dias('2026-09-02','2026-09-02')` daba `(0, 29)` en vez de
+`(0, 1)`. Detalle completo, con siete casos medidos y por qué "mismo día" da
+1 y no 0 (la convención ya era inclusiva antes de este arreglo), en la
+cabecera de la migración 0340.
+
+**Arreglo de una línea**, auditado independientemente (matemática de 16 casos
+adversariales, y la garantía de que el rango con al menos un mes completo
+nunca cambia, demostrada, no solo probada). `npx supabase test db`:
+**1912/1912 en verde** — primera vez en semanas sin ninguna falla, incluida
+la 245 (arreglo aparte, mismo día: la prueba nunca le dio horario a la
+persona de prueba y `fn_dias_suspension` lo exige).
+
+⚠️ **El alcance real es más ancho de lo que la primera versión de este texto
+decía.** `fn_vacaciones_truncas` ya se protegía de "menos de un mes de
+servicios" (devuelve 0 directo), así que quien cesó en su primer mes NUNCA
+estuvo expuesto por acá. El caso real: **cualquiera, con cualquier
+antigüedad, que cesó dentro de ~35 días después de su último aniversario
+laboral** — ahí el "récord trunco" (del aniversario al cese) es el rango
+corto que dispara el defecto, y esa fórmula alimenta la liquidación real.
+
+🔴 **Pendiente de decidir, no técnico:** ¿hay liquidaciones YA PAGADAS con
+este defecto adentro? No lo sé — necesita datos de producción que no tengo.
+La consulta para medirlo, de solo lectura, ya está lista:
+[`consulta_impacto_meses_y_dias.sql`](../scripts/sql-manual/consulta_impacto_meses_y_dias.sql).
+Córrela en el SQL Editor DESPUÉS de pegar la 0340. Si no devuelve filas, no
+hay nada que hacer. Si devuelve alguna, hay que decidir con Felipe qué
+corresponde con cada diferencia real.
+
+---
+
 ## 2026-09-01 — Gratificación y CTS usan el sueldo vigente al cierre (0338) · PEGADA Y VERIFICADA
 
 [PR #146](https://github.com/felipea92p-ux/cayla-dynamic/pull/146). `fn_provisiones`
