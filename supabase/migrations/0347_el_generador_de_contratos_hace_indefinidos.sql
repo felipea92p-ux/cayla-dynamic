@@ -58,6 +58,19 @@
 --   `./scripts/donde-vive.sh` antes de escribir esta migración — las tres son
 --   funciones con varias versiones repartidas).
 --
+--   PERO EL md5 DE PRODUCCIÓN, pedido al entregar este SQL (2026-09-03), dijo
+--   otra cosa para `fn_contratos_tablero`: `8c26b81d021bf1b8bf6a62699499a874`,
+--   2620 caracteres — que no es la 0336 (vigente en el repositorio), sino la
+--   0333 tal cual, reconstruida y comprobada aparte. **La 0336 — "el tablero
+--   avisa el tope de 12 meses del convenio" — nunca se pegó en producción**,
+--   aunque lleva semanas en GitHub y la pantalla de `/admin/contratos` ya
+--   asume su comportamiento (el texto "se acerca al tope de 12 meses del
+--   convenio" para una practicante). Pegar esta migración pone a producción
+--   al día con la 0336 Y la 0347 en un solo paso — decisión tomada con
+--   Felipe por `AskUserQuestion` el 2026-09-03: la 0336 es aditiva y segura
+--   (no quita nada de la 0333, solo agrega la fecha efectiva con tope), así
+--   que no hace falta separarla en su propia pegada.
+--
 -- POR QUÉ fecha_fin NULLABLE Y NO UNA FECHA LEJANA DE RELLENO
 --
 --   Poner "2099-12-31" o similar sería mentir en la base: un indefinido NO
