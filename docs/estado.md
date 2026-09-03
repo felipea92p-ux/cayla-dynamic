@@ -37,6 +37,30 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Objetivos: botón «copiar del mes anterior» (0348) · ESCRITA · falta pegar en producción
+
+Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
+`/admin/objetivos`, cuando el mes elegido no tiene checklist todavía, aparece
+un botón que duplica hacia ese mes la descripción, las indicaciones y el orden
+de los objetivos del mes calendario anterior de esa misma persona — todos SIN
+marcar, porque es un objetivo nuevo que empieza desde cero, no un historial que
+se arrastra.
+
+`fn_objetivos_copiar_mes_anterior` (0348) reusa los mismos candados que el
+resto de la 0032: `fn_puede_gestionar_objetivos` (admin/líder a cualquiera,
+encargada solo a su sede) y `fn_mes_planilla_pagado`. Y agrega dos propios: se
+niega si el mes destino ya tiene algún objetivo (mezclar una copia con lo que
+ya exista es ambiguo y nadie lo pidió resuelto), y se niega si el mes anterior
+no tiene nada que copiar. Auditada con `npx supabase test db` (prueba 274, 9
+casos: copia, contenido, candado de mes no vacío, candado de mes sin origen,
+candado de mes pagado, permiso por sede en los dos sentidos) — no toca dinero,
+así que no hizo falta la auditoría empírica de planilla.
+
+Falta fusionar el PR y falta pegar la 0348 en el SQL Editor de producción
+(`./scripts/dame-el-sql.sh 348`).
+
+---
+
 ## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
 
 Lo pidió el contador de CAYLA: que el 9% no viaje mezclado a mano dentro del
@@ -5120,7 +5144,6 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
 - **Colibrí en cargas**: ~22 pantallas y ~49 estados vacíos sin marca.
 - **Integración Dynamic ↔ retail**: Fase 0 (reconciliación, solo lectura) lista
   para arrancar — `docs/integracion-retail/`.
-- **Objetivos: botón «copiar del mes anterior»**.
 - **Espejo a Google Sheets legible** (encabezados fijos, una fila por persona).
 
 ## 🟢 Dependen de Felipe / redondeo

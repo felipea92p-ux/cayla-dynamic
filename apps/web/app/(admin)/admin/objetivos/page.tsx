@@ -60,6 +60,7 @@ function ObjetivosContenido() {
   const [nuevoTexto, setNuevoTexto] = useState("");
   const [nuevasIndicaciones, setNuevasIndicaciones] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [copiando, setCopiando] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [textoEdicion, setTextoEdicion] = useState("");
   const [indicacionesEdicion, setIndicacionesEdicion] = useState("");
@@ -181,6 +182,22 @@ function ObjetivosContenido() {
       return;
     }
     setEditandoId(null);
+    await cargar();
+  }
+
+  async function copiarMesAnterior() {
+    setCopiando(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_objetivos_copiar_mes_anterior", {
+      p_persona_id: personaId,
+      p_anio: anio,
+      p_mes: mes,
+    });
+    setCopiando(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "copiar"));
+      return;
+    }
     await cargar();
   }
 
@@ -318,8 +335,17 @@ function ObjetivosContenido() {
             {/* Lista */}
             <ul className="mb-4 divide-y divide-sand rounded-2xl border border-sand bg-papel">
               {items.length === 0 ? (
-                <li className="px-4 py-6 text-center text-sm text-taupe">
-                  Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.
+                <li className="flex flex-col items-center gap-3 px-4 py-6 text-center text-sm text-taupe">
+                  <span>Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.</span>
+                  {puedeGestionar && (
+                    <button
+                      onClick={() => void copiarMesAnterior()}
+                      disabled={copiando}
+                      className="rounded-lg border border-sand px-3 py-1.5 text-xs font-medium text-tinta hover:bg-sand/40 disabled:opacity-50"
+                    >
+                      {copiando ? "Copiando…" : "Copiar del mes anterior"}
+                    </button>
+                  )}
                 </li>
               ) : (
                 items.map((item) => (
