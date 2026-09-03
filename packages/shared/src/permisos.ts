@@ -78,6 +78,17 @@ export function puedeGestionarContratos(rol: RolPosible): boolean {
 }
 
 /**
+ * Publicar o anular un anuncio del tablón de Desarrollo Organizacional. Hoy
+ * equivale a DO, igual que `puedeGestionarCatalogos` — pero es una pregunta
+ * distinta ("quién habla en nombre de la empresa a las cuatro sedes") y se
+ * nombra aparte por la misma razón que `puedeGestionarContratos`: que hoy
+ * compartan lista no significa que deban compartir nombre.
+ */
+export function puedeGestionarAnuncios(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * El día a día del equipo: correcciones de marcaje, horarios, turnos,
  * ausencias, disciplina, ficha (sin identidad). DO y la encargada de sede.
  *
