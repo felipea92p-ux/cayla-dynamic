@@ -54,7 +54,32 @@ interface Fila {
   esFalta?: boolean;
   justificada?: boolean;
   motivoFalta?: string | null;
+  severidad: "alta" | "media" | "baja";
 }
+
+// Triage visual: mismo criterio de color que ya usa esta pantalla para el
+// desfase del reloj (rojo = grave, ámbar = aviso menor) — no un esquema nuevo.
+// "Alta" es lo que exige acción sobre una persona puntual (falta, sin salida,
+// patrón de tardanzas, exceso de jornada vigente, racha ya consumada). "Media"
+// es lo que pide una confirmación de un hecho puntual del día (auto-cierre,
+// almuerzo sin marcar, salida anticipada) o es operativo y no de una persona
+// (déficit de encargadas). "Baja" es lo que ya quedó resuelto o es solo un
+// aviso preventivo que todavía no es infracción.
+const COLOR_SEVERIDAD: Record<Fila["severidad"], string> = {
+  alta: "text-rojo",
+  media: "text-ambar",
+  baja: "text-taupe",
+};
+
+// Tipos "aceptable" que son un simple acuse de "lo vi" (no afirman un hecho
+// nuevo sobre el día de una persona) — los únicos que se pueden revisar en
+// lote. `sin_retorno_almuerzo` afirma "trabajó de corrido" y `salida_anticipada`
+// afirma "está bien que se fuera antes": dos hechos que solo puede confirmar
+// quien revisó CADA día, y agruparlos en un botón de "aprobar todo" haría que
+// la pantalla firmara por Felipe algo que no vio. Racha y exceso "ya ocurrido"
+// son distintos: la infracción ya pasó y no se puede deshacer, así que
+// "Revisado" no afirma nada — solo dice que no se le escapó a nadie.
+const LOTEABLES = new Set(["racha_sin_descanso", "jornada_excedida"]);
 
 // Motivos del desplegable de justificación (mismo enum que fn_set_justificacion).
 const MOTIVOS: { valor: string; label: string }[] = [
@@ -300,18 +325,18 @@ function IncidenciasContenido() {
       // auto-cerrado en el que ADEMÁS falta la marca de retorno del almuerzo.
       // Antes esto era una cadena de `else if` y solo se veía la primera, así que
       // los demás avisos de ese día se perdían sin que nadie los llegara a ver.
-      const delDia: { tipo: string; aceptable?: string }[] = [];
-      if (j.estado === "auto_cerrada_pendiente") delDia.push({ tipo: "Auto-cerrada (revisar)" });
-      if (j.fecha < HOY && j.estado === "abierta") delDia.push({ tipo: "Sin salida final" });
+      const delDia: { tipo: string; aceptable?: string; severidad: Fila["severidad"] }[] = [];
+      if (j.estado === "auto_cerrada_pendiente") delDia.push({ tipo: "Auto-cerrada (revisar)", severidad: "media" });
+      if (j.fecha < HOY && j.estado === "abierta") delDia.push({ tipo: "Sin salida final", severidad: "alta" });
       if (j.fecha < HOY && j.tiene_salida_no_retornada) {
         // Se nombra el HECHO observable —falta una marca— y no una interpretación:
         // el sistema no puede saber si la persona se fue, si volvió sin marcar, o si
         // no tomó refrigerio y siguió trabajando. Las tres cosas pasan. Decide quien
         // revisa: registrando las marcas reales (y la jornada se recalcula sola), o
         // aceptando el día tal como está si de verdad trabajó de corrido.
-        delDia.push({ tipo: "Sin marca de retorno del almuerzo", aceptable: "sin_retorno_almuerzo" });
+        delDia.push({ tipo: "Sin marca de retorno del almuerzo", aceptable: "sin_retorno_almuerzo", severidad: "media" });
       }
-      if (minutosTemprana > 0) delDia.push({ tipo: `Salida anticipada (${minutosTemprana} min)`, aceptable: "salida_anticipada" });
+      if (minutosTemprana > 0) delDia.push({ tipo: `Salida anticipada (${minutosTemprana} min)`, aceptable: "salida_anticipada", severidad: "media" });
 
       for (const inc of delDia) {
         // Si ya la aceptaste (visto bueno), no la muestres.
@@ -326,6 +351,7 @@ function IncidenciasContenido() {
           salida: j.salida_final_ts,
           aceptable: inc.aceptable,
           corregible: true, // todas estas se arreglan registrando las marcas que faltan
+          severidad: inc.severidad,
         });
       }
     }
@@ -365,6 +391,7 @@ function IncidenciasContenido() {
         tipo: `Patrón de tardanzas (${count} en ${VENTANA_PATRON_DIAS} días corridos)`,
         entrada: j.entrada_ts,
         salida: null,
+        severidad: "alta",
       });
     }
 
@@ -442,6 +469,7 @@ function IncidenciasContenido() {
             + (apoyadoEnHoraInventada(sinConfirmar, v!.fin)
                  ? " · incluye días cuya salida puso el sistema y falta confirmar"
                  : ""),
+          severidad: "alta",
         });
       }
       // La segunda: ¿se pasó ANTES y nadie lo vio? Ya no se puede evitar, pero
@@ -464,6 +492,7 @@ function IncidenciasContenido() {
         fecha: vieja.fin,
         tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
         aceptable: "jornada_excedida",
+        severidad: "media",
       });
     }
 
@@ -508,6 +537,9 @@ function IncidenciasContenido() {
         entrada: null,
         salida: null,
         aceptable,
+        // Excedida = infracción ya consumada (alta). Preventiva = todavía no es
+        // infracción, solo un aviso de que mañana toca descansar (baja).
+        severidad: aviso.excedida ? "alta" : "baja",
       });
     }
 
@@ -548,6 +580,7 @@ function IncidenciasContenido() {
           tipo: `Déficit de encargadas (${cubiertas}/${m.meta_encargadas})`,
           entrada: null,
           salida: null,
+          severidad: "media",
         });
       }
     }
@@ -568,6 +601,7 @@ function IncidenciasContenido() {
         esFalta: true,
         justificada: f.justificada,
         motivoFalta: f.motivo,
+        severidad: f.justificada ? "baja" : "alta",
       });
     }
 
@@ -597,6 +631,27 @@ function IncidenciasContenido() {
     setAceptando(null);
     if (e) { setError(`No se pudo aceptar: ${e.message}`); return; }
     setFilas((prev) => prev.filter((x) => !(x.personaId === f.personaId && x.fecha === f.fecha && x.aceptable === f.aceptable)));
+  }
+
+  const [loteando, setLoteando] = useState<string | null>(null); // sede en curso
+  // Revisar en lote: SOLO para racha/exceso "ya ocurrido" (ver LOTEABLES arriba
+  // — son acuse de "lo vi", no una afirmación sobre el día de nadie). Nunca
+  // incluye salida anticipada ni almuerzo sin marcar: esas dos sí afirman un
+  // hecho puntual y solo las puede dar por buenas quien revisó ESE día.
+  async function aprobarLote(sede: string, filasSede: Fila[]) {
+    const objetivo = filasSede.filter((f) => f.personaId && f.aceptable && LOTEABLES.has(f.aceptable));
+    if (objetivo.length === 0) return;
+    setLoteando(sede);
+    const supabase = createAdminSupabaseClient();
+    for (const f of objetivo) {
+      if (!f.personaId || !f.aceptable) continue; // ya filtrado arriba; TS no lo sabe
+      const { error: e } = await supabase.rpc("fn_aceptar_incidencia", {
+        p_persona_id: f.personaId, p_fecha: f.fecha, p_tipo: f.aceptable,
+      });
+      if (e) { setError(`Se detuvo la revisión en lote: ${e.message}`); break; }
+    }
+    setLoteando(null);
+    await cargar();
   }
 
   /** Cerrar una revisión pedida desde «Lo mío». La respuesta es opcional pero
@@ -754,9 +809,22 @@ function IncidenciasContenido() {
         {porSede.map((sede) => {
           const deSede = vista.filter((f) => f.sede === sede);
           if (deSede.length === 0) return null;
+          const loteables = deSede.filter((f) => f.personaId && f.aceptable && LOTEABLES.has(f.aceptable));
           return (
             <section key={sede} className="mb-8">
-              <h2 className="mb-3 font-serif text-lg">{sede} <span className="text-base text-taupe">· {deSede.length}</span></h2>
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-serif text-lg">{sede} <span className="text-base text-taupe">· {deSede.length}</span></h2>
+                {loteables.length >= 2 && (
+                  <button
+                    onClick={() => void aprobarLote(sede, deSede)}
+                    disabled={loteando === sede}
+                    title="Marca como revisadas todas las rachas y excesos de jornada de esta sede que ya solo necesitan constancia de que se vieron. No toca faltas, salidas anticipadas ni almuerzos sin marcar — esas afirman un hecho del día y se revisan una por una."
+                    className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-50"
+                  >
+                    {loteando === sede ? "Revisando…" : `Marcar ${loteables.length} como revisadas`}
+                  </button>
+                )}
+              </div>
               <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
                 <table className="w-full text-sm">
                   <thead className="bg-sand/70 text-left">
@@ -775,7 +843,7 @@ function IncidenciasContenido() {
                         <td className="px-4 py-2.5">{f.nombre}</td>
                         <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
                         <td className="px-4 py-2.5">
-                          <span className={`font-medium ${f.justificada ? "text-taupe" : "text-rojo"}`}>{f.tipo}</span>
+                          <span className={`font-medium ${COLOR_SEVERIDAD[f.severidad]}`}>{f.tipo}</span>
                         </td>
                         <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
                         <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
