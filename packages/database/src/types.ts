@@ -90,6 +90,7 @@ export type Database = {
           estado: string
           id: string
           leido_at: string | null
+          nota_fallo: string | null
           payload: Json
           persona_id: string | null
           tipo: string
@@ -101,6 +102,7 @@ export type Database = {
           estado?: string
           id?: string
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
           tipo: string
@@ -112,6 +114,7 @@ export type Database = {
           estado?: string
           id?: string
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
           tipo?: string
@@ -126,6 +129,115 @@ export type Database = {
           },
           {
             foreignKeyName: "alertas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios: {
+        Row: {
+          anulado_at: string | null
+          anulado_por: string | null
+          cuerpo: string
+          id: string
+          publicado_at: string
+          publicado_por: string
+          sede_id: string | null
+          titulo: string
+        }
+        Insert: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo: string
+          id?: string
+          publicado_at?: string
+          publicado_por: string
+          sede_id?: string | null
+          titulo: string
+        }
+        Update: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo?: string
+          id?: string
+          publicado_at?: string
+          publicado_por?: string
+          sede_id?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios_leidos: {
+        Row: {
+          anuncio_id: string
+          leido_at: string
+          persona_id: string
+        }
+        Insert: {
+          anuncio_id: string
+          leido_at?: string
+          persona_id: string
+        }
+        Update: {
+          anuncio_id?: string
+          leido_at?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_leidos_anuncio_id_fkey"
+            columns: ["anuncio_id"]
+            isOneToOne: false
+            referencedRelation: "anuncios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
@@ -4122,6 +4234,19 @@ export type Database = {
         Returns: undefined
       }
       fn_ahora_servidor: { Args: never; Returns: string }
+      fn_alertas_email_pendientes: {
+        Args: never
+        Returns: {
+          alerta_id: string
+          destinatarios: string[]
+          destinatarios_nombres: string[]
+          payload: Json
+          persona_nombre: string
+          sede_codigo: string
+          tipo: string
+        }[]
+      }
+      fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
@@ -4151,6 +4276,21 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_anuncios_vigentes: {
+        Args: { p_incluir_anulados?: boolean | null }
+        Returns: {
+          anulado_at: string
+          cuerpo: string
+          id: string
+          mi_leido_at: string
+          publicado_at: string
+          publicado_por_nombre: string
+          sede_codigo: string
+          sede_id: string
+          titulo: string
+          total_lectores: number
+        }[]
       }
       fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
       fn_area_activa: {
@@ -5162,6 +5302,11 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null; p_resolucion: string | null }
         Returns: Json
       }
+      fn_marcar_alerta_resultado: {
+        Args: { p_exito: boolean | null; p_id: string | null; p_nota?: string | null }
+        Returns: undefined
+      }
+      fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
       fn_marcas_apartadas: {
         Args: never
         Returns: {
@@ -5327,6 +5472,10 @@ export type Database = {
       fn_proyeccion_planilla: {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: Json
+      }
+      fn_publicar_anuncio: {
+        Args: { p_cuerpo: string | null; p_sede_id?: string | null; p_titulo: string | null }
+        Returns: string
       }
       fn_publicar_documento: {
         Args: {
