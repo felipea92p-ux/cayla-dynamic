@@ -317,7 +317,7 @@ export function PantallaCerrado({
 }
 
 // Solo aparece cuando el propio terminal ve que hoy no hay ninguna salida a
-// refrigerio marcada y la persona está cerrando su día (ver 0350) — nunca en
+// refrigerio marcada y la persona está cerrando su día (ver 0353) — nunca en
 // cada salida.
 export function ConfirmarRefrigerio({
   nombre,

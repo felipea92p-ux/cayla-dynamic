@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0350 — Confirmación de un toque al marcar salida sin retorno de refrigerio
+-- 0353 — Confirmación de un toque al marcar salida sin retorno de refrigerio
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: cuando alguien marca su salida_final y ese día NUNCA marcó una
 -- salida a refrigerio, el terminal le pregunta en el momento —"¿trabajaste
@@ -330,7 +330,7 @@ begin
         client_uuid = p_client_uuid,
         terminal_id = p_terminal_id,
         server_received_at = now(),
-        -- ⇩⇩⇩ CAMBIO 0350 ⇩⇩⇩ este camino también deja un marcaje real de
+        -- ⇩⇩⇩ CAMBIO 0353 ⇩⇩⇩ este camino también deja un marcaje real de
         -- salida_final: si el terminal preguntó, la respuesta se guarda igual
         -- que en el camino del insert de abajo.
         confirmo_sin_refrigerio = p_confirmo_sin_refrigerio
@@ -347,7 +347,7 @@ begin
     -- Null en todo lo demás, que es el 99 % de los casos: así la columna dice
     -- «esto es una excepción» en vez de repetir lo que el timestamp ya sabe.
     fecha_jornada,
-    -- 0350: null salvo que el terminal haya preguntado (ver encabezado).
+    -- 0353: null salvo que el terminal haya preguntado (ver encabezado).
     confirmo_sin_refrigerio
   ) values (
     p_client_uuid, p_persona_id, v_sede_id, p_terminal_id, p_tipo, p_motivo_otro, p_timestamp_cliente, p_origen,

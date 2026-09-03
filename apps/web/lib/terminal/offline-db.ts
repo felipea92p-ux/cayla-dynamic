@@ -26,7 +26,7 @@ export interface OutboxEntry {
   descartada?: boolean;
   /**
    * Solo en un `salida_final` cuando el terminal preguntó por la ambigüedad
-   * de "salida a refrigerio sin retorno" (0350). Ausente en todo lo demás.
+   * de "salida a refrigerio sin retorno" (0353). Ausente en todo lo demás.
    */
   confirmoSinRefrigerio?: boolean;
 }

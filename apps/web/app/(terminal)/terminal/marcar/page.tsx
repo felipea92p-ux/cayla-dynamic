@@ -82,7 +82,7 @@ function historialDelDia(marks: MarcajeDelDia[]): Array<{ label: string; hora: s
 }
 
 // ¿Llega a "salida final" sin haber marcado NUNCA una salida a refrigerio hoy?
-// (0350). No es "salió a almorzar y no volvió" —ese caso el propio candado de
+// (0353). No es "salió a almorzar y no volvió" —ese caso el propio candado de
 // esta función ya lo bloquea antes: tras un salida_almuerzo sin retorno,
 // fn_siguiente_tipo_esperado exige retorno_almuerzo, y salida_final ni
 // siquiera llega a ofrecerse. Lo único que SÍ es alcanzable desde acá es que
