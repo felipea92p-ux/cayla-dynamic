@@ -6,6 +6,11 @@ export const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
+export const MESES_CORTO = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+];
+
 export interface ObjetivoItem {
   id: string;
   persona_id: string;
@@ -40,4 +45,28 @@ export function lecturaObjetivos(cumplidos: number, total: number): {
     etiqueta: `${Math.round(pct * 100)}% cumplido`,
     observacion: pct < 0.3,
   };
+}
+
+/**
+ * Un solo lugar para los cortes 30/60 % que ya usaba la barra de progreso.
+ * Se separó al agregar el gráfico de historial (0349) para no repetir los
+ * mismos dos números en dos sitios — la lección de `rol === "admin"` y
+ * `"America/Lima"`, aplicada a un umbral en vez de a un permiso o una fecha.
+ */
+export type NivelObjetivos = "verde" | "ambar" | "rojo";
+
+export function nivelColorObjetivos(cumplidos: number, total: number): NivelObjetivos {
+  if (total <= 0) return "rojo";
+  const pct = (cumplidos / total) * 100;
+  if (pct >= 60) return "verde";
+  if (pct >= 30) return "ambar";
+  return "rojo";
+}
+
+/** Una fila del historial mensual que devuelve fn_objetivos_historial. */
+export interface MesHistorial {
+  anio: number;
+  mes: number;
+  cumplidos: number;
+  total: number;
 }
