@@ -37,6 +37,34 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · ESCRITA Y VERIFICADA — FALTA PEGAR
+
+Encontrado siguiendo el hallazgo #7 de la comparación Workday/Oracle
+([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)):
+el informe reportó que el tope de educación por rango "vive en la tabla Y en
+un archivo TypeScript hardcodeado a la vez", citando el comentario de la
+tabla `topes_educacion_rango` (0132), que dice ser "espejo de
+`RANGOS.topeEducacion` en `apps/web/lib/rangos.ts`".
+
+**Es un falso positivo, no una duplicación real.** Ese campo se borró el
+2026-08-06 (la 0178, por el mismo motivo de fondo: había quedado
+desactualizado y le pagó de más a `caylo` — S/545.25 en vez de S/180). El
+comentario de la 0132 nunca se actualizó cuando el campo se borró, así que
+siguió describiendo una duplicación que ya no existe — y esa frase desactualizada
+fue justamente lo que indujo al agente que hizo la comparación a reportar un
+hallazgo que no existe en el código actual.
+
+**Arreglo (0345):** reemplaza solo el `comment on table topes_educacion_rango`
+por uno que dice la verdad de hoy — que la tabla es la única fuente y que
+`rangos.ts` no declara tope de educación a propósito desde la 0178. No toca
+ninguna columna, fila, función ni cálculo — no hay pago que auditar.
+
+**Verificado:** `npx supabase db reset` limpio con las 345 migraciones en
+orden; `npx supabase test db` — 1938/1938 en verde; `typecheck` limpio.
+Falta que Felipe la pegue en el SQL Editor (`./scripts/dame-el-sql.sh 345`).
+
+---
+
 ## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
 
 Encontrado reconciliando a mano la liquidación de Paola Cahuana (cese
