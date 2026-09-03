@@ -483,6 +483,10 @@ function TablaPlanilla(props: {
   onAgregarMov?: (f: Fila) => void;
   onQuitarMov?: (m: Movimiento) => void;
   onYaPagado?: (f: Fila) => void;
+  /** CAMBIO 0343 — Registrar un adelanto de gratificación/CTS/vacaciones fuera
+   *  del ciclo normal (típicamente a alguien que cesa a mitad de semestre),
+   *  en el libro de desembolsos — no en movimientos_planilla. */
+  onRegistrarDesembolso?: (f: Fila) => void;
   /** Quién de este periodo ya cobró su liquidación (0210), por persona_id. */
   liquidadas?: Record<string, Liquidada>;
   guardandoMov?: boolean;
@@ -497,6 +501,7 @@ function TablaPlanilla(props: {
     baseEdit = {}, onBaseChange, onBaseBlur, guardandoBase = null,
     rendEdit = {}, onRendChange, onRendBlur, guardandoRend = null,
     movAbierto = null, onToggleMov, movForm, onMovForm, onAgregarMov, onQuitarMov, onYaPagado,
+    onRegistrarDesembolso,
     liquidadas = {},
     guardandoMov = false, gc = null, origenes = [],
   } = props;
@@ -613,6 +618,25 @@ function TablaPlanilla(props: {
                           className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
                         >
                           💸 Ya le pagué aparte
+                        </button>
+                      </>
+                    )}
+                    {/* CAMBIO 0343 · Sin `onRegistrarDesembolso` este botón no
+                        existe, igual que "Ya le pagué aparte" antes de la 0210
+                        — nace desconectado hasta que alguien lo cablea abajo.
+                        No se condiciona a `f.total > 0`: un adelanto de
+                        beneficio se puede dar aunque el sueldo del periodo ya
+                        esté en cero. */}
+                    {editable && onRegistrarDesembolso && (
+                      <>
+                        <br />
+                        <button
+                          onClick={() => onRegistrarDesembolso(f)}
+                          disabled={ocupado}
+                          title="Registrar un adelanto de gratificación, CTS o vacaciones fuera del ciclo normal"
+                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
+                        >
+                          🎁 Adelanto de beneficio
                         </button>
                       </>
                     )}
@@ -1726,6 +1750,94 @@ export default function PlanillaPage() {
     await cargarProyeccion();
   }
 
+  // «Adelanto de beneficio» (0343). Escribe en desembolsos_beneficios, NO en
+  // movimientos_planilla — es la puerta que le faltaba a esa tabla desde la
+  // 0155. Existe para el caso de alguien que cesa a mitad de semestre y
+  // necesita su gratificación o CTS truncas por adelantado: registrado acá,
+  // fn_grati_trunca / fn_cts_trunca / fn_vacaciones_truncas lo restan solas al
+  // armar la liquidación, y no hace falta tocar el sueldo del periodo con un
+  // bono suelto que la liquidación no sabría reconocer.
+  async function registrarDesembolso(f: Fila) {
+    const tipoTxt = window.prompt(
+      `${f.nombre} — ¿qué beneficio se le está adelantando?\n\n` +
+        `Escribe: gratificación, cts o vacaciones.`,
+      "gratificación",
+    );
+    if (tipoTxt === null) return;
+    const tipo = tipoTxt.trim().toLowerCase();
+    const beneficio: "gratificacion" | "cts" | "vacaciones" | null =
+      tipo.startsWith("grati") ? "gratificacion"
+      : tipo === "cts" ? "cts"
+      : tipo.startsWith("vacacion") ? "vacaciones"
+      : null;
+    if (!beneficio) {
+      avisar("error", "Escribe exactamente: gratificación, cts o vacaciones.");
+      return;
+    }
+
+    const montoTxt = window.prompt(`${f.nombre} — ¿cuánto se le adelanta?`, "");
+    if (montoTxt === null) return;
+    const leido = parsearMontoSoles(montoTxt);
+    if (!leido.ok) {
+      avisar("error", leido.motivo);
+      return;
+    }
+    if (leido.monto <= 0) {
+      avisar("error", "El monto tiene que ser mayor a 0.");
+      return;
+    }
+
+    const fechaTxt = window.prompt(
+      "¿Qué día se le paga? (formato DD/MM/AAAA)\n\n" +
+        "De esta fecha se deduce a qué semestre o ventana corresponde.",
+      hoyLimaDMA(),
+    );
+    if (fechaTxt === null) return;
+    const m = fechaTxt.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) {
+      avisar("error", "La fecha tiene que ir como DD/MM/AAAA — por ejemplo 29/08/2026.");
+      return;
+    }
+    const [, dd, mm, aaaa] = m;
+    const fechaIso = `${aaaa}-${mm}-${dd}`;
+    const mesNum = Number(mm);
+    const anio = Number(aaaa);
+
+    // Gratificación y CTS se parten en dos ventanas por semestre calendario;
+    // vacaciones no las tiene (check de desembolsos_beneficios, 0155).
+    const ventana =
+      beneficio === "vacaciones" ? "vacaciones"
+      : beneficio === "gratificacion" ? (mesNum <= 6 ? "grati_s1" : "grati_s2")
+      : (mesNum <= 6 ? "cts_may" : "cts_nov");
+
+    const nota = window.prompt(
+      "¿Alguna nota? (opcional — por ejemplo, el motivo del adelanto)",
+      "",
+    );
+    if (nota === null) return;
+
+    setGuardandoMov(true);
+    const { error } = await supabase.rpc("fn_registrar_desembolso", {
+      p_persona_id: f.persona_id,
+      p_ventana: ventana,
+      p_anio: anio,
+      p_monto: leido.monto,
+      p_fecha_pago: fechaIso,
+      p_origen: "transferencia",
+      p_nota: nota.trim() || null,
+    });
+    setGuardandoMov(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "registrar el adelanto"));
+      return;
+    }
+    avisar(
+      "ok",
+      `Registrado: adelanto de ${formatSoles(leido.monto)} de ${CLASE_LABEL[beneficio]} para ${f.nombre}. ` +
+        `La liquidación lo va a restar sola cuando corresponda.`,
+    );
+  }
+
   async function quitarMovimiento(m: Movimiento) {
     if (!window.confirm(`¿Quitar el ${m.tipo} "${m.concepto}" de ${formatSoles(m.monto)}?`)) return;
     setGuardandoMov(true);
@@ -2580,6 +2692,7 @@ export default function PlanillaPage() {
                 // botón es justo el remedio que había que apretar y no estaba.
                 // Ver docs/estado.md, sección A.2.b.bis.
                 onYaPagado={(f) => void marcarYaPagado(f)}
+                onRegistrarDesembolso={(f) => void registrarDesembolso(f)}
                 liquidadas={liquidadas}
                 guardandoMov={guardandoMov}
                 gc={gc}

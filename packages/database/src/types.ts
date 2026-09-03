@@ -4967,6 +4967,17 @@ export type Database = {
           p_dias: number | null
           p_hasta: string | null
           p_persona: string | null
+          p_salario_asof?: string | null
+        }
+        Returns: Json
+      }
+      fn_feriado_devengado_nucleo: {
+        Args: {
+          p_desde: string | null
+          p_dias: number | null
+          p_hasta: string | null
+          p_persona: string | null
+          p_salario_asof?: string | null
         }
         Returns: Json
       }
@@ -5261,6 +5272,10 @@ export type Database = {
         Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
         Returns: Json
       }
+      fn_planilla_calcular_nucleo: {
+        Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
+        Returns: Json
+      }
       fn_planilla_calcular_persona: {
         Args: { p_periodo_id: string | null; p_persona_id: string | null }
         Returns: Json
@@ -5291,7 +5306,10 @@ export type Database = {
       }
       fn_poblacion_obligada: { Args: never; Returns: string[] }
       fn_politica_salarial_vigente: { Args: never; Returns: Json }
-      fn_provisiones: { Args: { p_as_of?: string | null }; Returns: Json }
+      fn_provisiones: {
+        Args: { p_as_of?: string | null; p_salario_asof?: string | null }
+        Returns: Json
+      }
       fn_proyeccion_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
       fn_proyeccion_planilla: {
         Args: { p_anio: number | null; p_mes: number | null }
@@ -5420,6 +5438,18 @@ export type Database = {
           p_motivo?: string | null
           p_persona_id: string | null
           p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_registrar_desembolso: {
+        Args: {
+          p_anio: number | null
+          p_fecha_pago: string | null
+          p_monto: number | null
+          p_nota?: string | null
+          p_origen: string | null
+          p_persona_id: string | null
+          p_ventana: string | null
         }
         Returns: string
       }
