@@ -37,20 +37,19 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-03 — Aviso cruzado: la 0350 de esta rama choca con la 0350 ya fusionada · SIN COMMITEAR TODAVÍA
+## 2026-09-03 — Aviso cruzado: la 0350 de esta rama choca con la 0350 ya fusionada · RESUELTO
 
 Encontrado revisando por qué `numeracion.sh` iba a avisar de un hueco: esta
-rama tiene, sin commitear, `supabase/migrations/0350_confirmacion_de_jornada_completa_al_marcar_salida.sql`
+rama tenía, sin commitear, `supabase/migrations/0350_confirmacion_de_jornada_completa_al_marcar_salida.sql`
 — pero **`origin/main` ya tiene una 0350 distinta**, `0350_objetivos_historial_mensual.sql`,
 fusionada antes. Dos migraciones distintas reclamando el mismo número — el
 mismo choque que ya pasó con la 0297/0299 y con el 0337/0338.
 
-Nada se perdió ni se pegó dos veces: el archivo de esta rama nunca se
-commiteó, así que `numeracion.sh` la va a frenar al primer intento de push, no
-después. Antes de commitear: `./scripts/siguiente-numero.sh` para tomar el
-número libre de verdad — al momento de este aviso, el 0351 ya lo tomó otra
-rama (renumeró un 0348 que chocó con el mismo problema), así que el número
-libre real puede ser el 0352 o mayor. Comprobarlo con el script, no asumirlo.
+Nada se perdió ni se pegó dos veces: el archivo de esta rama nunca se había
+commiteado. El hook de numeración lo frenó al primer intento de push, tal
+como se esperaba. Se renumeró a `0353_confirmacion_de_jornada_completa_al_marcar_salida.sql`
+(y su prueba, de 276 a 280) después de confirmar con `siguiente-numero.sh` que
+0353 seguía libre.
 
 ---
 
