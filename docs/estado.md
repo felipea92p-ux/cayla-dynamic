@@ -37,6 +37,84 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · PEGADAS Y VERIFICADAS
+
+Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
+`/admin/objetivos`, cuando el mes elegido no tiene checklist todavía, aparece
+un botón que duplica hacia ese mes la descripción, las indicaciones y el orden
+de los objetivos del mes calendario anterior de esa misma persona — todos SIN
+marcar, porque es un objetivo nuevo que empieza desde cero, no un historial que
+se arrastra.
+
+`fn_objetivos_copiar_mes_anterior` (0348) reusa los mismos candados que el
+resto de la 0032: `fn_puede_gestionar_objetivos` (admin/líder a cualquiera,
+encargada solo a su sede) y `fn_mes_planilla_pagado`. Y agrega dos propios: se
+niega si el mes destino ya tiene algún objetivo (mezclar una copia con lo que
+ya exista es ambiguo y nadie lo pidió resuelto), y se niega si el mes anterior
+no tiene nada que copiar. Auditada con `npx supabase test db` (prueba 276, 9
+casos: copia, contenido, candado de mes no vacío, candado de mes sin origen,
+candado de mes pagado, permiso por sede en los dos sentidos) — no toca dinero,
+así que no hizo falta la auditoría empírica de planilla.
+
+**Y en la misma entrega, un gráfico de tendencia:** la pantalla ahora dibuja
+los últimos 12 meses de cumplidos/total de la persona elegida (SVG propio, sin
+librería, mismo estilo que `grafico-horas.tsx`). `fn_objetivos_historial`
+(0350) solo lee `objetivos_mensuales` —el resumen que ya sincroniza
+`fn_objetivos_sync_mes`, no se calcula nada nuevo— y rellena con
+`generate_series` los meses sin checklist para que no desaparezcan de la
+serie. La distinción que importaba: un mes **sin checklist** (total=0) no es
+lo mismo que un mes con **0% cumplido** (total>0, cumplidos=0) — el primero se
+dibuja como una marca gris al piso, "sin dato"; el segundo como una barra roja
+de altura mínima, un dato real de bajo desempeño. Se encontró y corrigió
+verificando en el navegador: la primera versión dibujaba los dos casos
+idénticos, porque una barra de 0% de altura real es invisible — nada distinto
+del hueco. Prueba 277 (6 casos: ventana sin saltar meses, hueco con total=0,
+dato real, tope de `p_meses` a 24, permiso concedido y denegado).
+
+(La 0349 se renumeró a 0350 al fusionar `main`: otra rama fusionada mientras
+esta se escribía ya había tomado el 0349 —y el 274 y el 275 de pruebas— para
+otra cosa. `siguiente-numero.sh` lo detectó antes de empujar.)
+
+PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) fusionado,
+0348 y 0350 pegadas en producción por Felipe y confirmadas funcionando (el
+gráfico ya mostró datos reales de septiembre en pantalla).
+
+**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (1/2/3/6/
+12/24 meses) con un `<select>` "Rango" junto al título del gráfico —
+consistente con Persona/Mes/Año, que ya eran `<select>` en la misma pantalla;
+un primer intento con tres botones pastilla se descartó porque desentonaba
+con el resto de los filtros de la página. `fn_objetivos_historial` ya
+aceptaba `p_meses` desde el principio, esto solo lo expuso en pantalla, sin
+migración nueva.
+
+El refresco del rango se separó del `cargar()` que trae la lista de
+objetivos —dos efectos en vez de uno— para que cambiar de rango no reinicie
+toda la pantalla a "Cargando…", solo el gráfico. El estado de "desactualizado"
+se DERIVA comparando la selección actual contra la clave del último historial
+que llegó (guardada en estado, no en un ref: leer un ref durante el render es
+otro lint prohibido, `react-hooks/refs`) en vez de un `setState` al ENTRAR al
+efecto — eso dispara `react-hooks/set-state-in-effect`, que el push bloquea.
+
+**Y, a pedido explícito de Felipe ("usa las skills para el diseño"), un
+rediseño con la skill `dataviz`:** el gráfico pasó de barras planas sin
+interacción a una pieza con tope redondeado (4px, base cuadrada contra el
+eje — no un `rx` de las cuatro esquinas, un `<path>` propio), tooltip por
+barra (posición en foco de teclado igual que en hover, y se voltea a
+DEBAJO de la barra cuando arriba no cabe, en vez de montarse sobre el título
+de la tarjeta), leyenda con ícono + etiqueta para los tres estados
+(verde/ámbar/rojo NO son categóricos aquí: son una escala de estado —
+cumplido/parcial/bajo desempeño, los mismos tres colores que ya usaba la
+barra de progreso— y una escala de estado siempre va con ícono+etiqueta,
+nunca el color solo), etiqueta directa selectiva en el último mes (el que se
+está editando arriba, no un número en cada barra), y el refetch mantiene el
+dibujo anterior atenuado en vez de un flash al cambiar de rango. Los tres
+colores de estado se validaron por contraste contra la superficie de la
+tarjeta (`bg-papel`) en los dos temas — los tres pasan 3:1 largamente (4.28 a
+6.17) — y no por el validador categórico de 8 colores, que la skill dice
+explícitamente que no le aplica a una escala de estado.
+
+---
+
 ## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
 
 Lo pidió el contador de CAYLA: que el 9% no viaje mezclado a mano dentro del
@@ -5120,7 +5198,6 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
 - **Colibrí en cargas**: ~22 pantallas y ~49 estados vacíos sin marca.
 - **Integración Dynamic ↔ retail**: Fase 0 (reconciliación, solo lectura) lista
   para arrancar — `docs/integracion-retail/`.
-- **Objetivos: botón «copiar del mes anterior»**.
 - **Espejo a Google Sheets legible** (encabezados fijos, una fila por persona).
 
 ## 🟢 Dependen de Felipe / redondeo
