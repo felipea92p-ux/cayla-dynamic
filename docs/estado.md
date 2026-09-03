@@ -68,8 +68,41 @@ el de la 0306), se renumeró de 0337 a 0339 para no chocar con ella, y se
 fusionó a `main` en el [PR #147](https://github.com/felipea92p-ux/cayla-dynamic/pull/147)
 — verificado con diff literal (única diferencia: el guard) y con
 `npx supabase test db` completo (1907/1909, mismos 2 fallos preexistentes de
-disciplina). **Todavía no está pegada en producción** — sigue el mismo
-protocolo que la 0338: SQL Editor, a mano.
+disciplina).
+
+**0339 pegada y verificada en producción el 2026-09-02.** Md5 de partida
+confirmado antes de pegar contra las tres funciones que toca
+(`fn_planilla_calcular`, `fn_feriado_devengado`, `fn_planilla_calcular_persona`)
+y la comprobación de llegada de la propia migración salió OK: los dos núcleos
+existen, están en `funciones_nunca_para_authenticated`, y `authenticated` no
+puede ejecutarlos directo. **Desplegado el mismo día** (`npx vercel --prod`,
+saltando a propósito el freno de `desplegar.sh` en el paso de CI — ver
+"deuda de CI" abajo) y verificado en `cayla-dynamic.vercel.app`: la home
+carga, y `/mio/boleta` sin sesión redirige limpio al login de "Lo mío" en vez
+de romperse.
+
+⚠️ **Lo que esto NO verificó:** nadie probó el flujo completo con una persona
+real con sesión iniciada viendo su propia boleta del periodo actual — solo se
+confirmó que el guard de autoservicio (servidor, no cliente) rechaza a quien
+no tiene sesión. Antes de anunciarlo al equipo, alguien con cuenta real debería
+entrar a "Lo mío" → boleta y confirmar que los montos coinciden con lo que
+`fn_planilla_calcular_nucleo` calcula.
+
+⚠️ **Deuda de CI que esto hizo visible:** `db-tests` lleva rojo en `main` desde
+antes de la 0338 (2 pruebas de `245_el_mes_cerrado...`, sobre
+`fn_expediente_generar_tardanza` — disciplina, no planilla; deuda preexistente,
+no causada por 0338 ni 0339). Mientras siga así, `desplegar.sh prod` se frena
+SIEMPRE en el paso 3 y cada despliegue real tiene que saltarlo a mano con
+`npx vercel --prod` — el bypass documentado que el propio script ofrece, pero
+que ya no protege nada mientras esta deuda no se pague. Vale la pena arreglar
+`fn_expediente_generar_tardanza` (pide un horario vigente para fijar los días
+de una suspensión) antes de que el hábito de saltar el freno se vuelva
+automático y algún día tape un fallo real.
+
+**Pendiente, no bloqueante, de la 0339:** `apps/web/components/boleta-hoja.tsx`
+(el componente que usa `/mio/boleta`, ~30 personas) importa de
+`apps/web/app/(admin)/admin/planilla/page.tsx` (~1000 líneas) en vez de
+`packages/shared`. No medido el impacto real en el bundle de autoservicio.
 
 ---
 
