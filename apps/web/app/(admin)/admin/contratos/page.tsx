@@ -250,6 +250,11 @@ export default function ContratosPage() {
   const [cicloAcademicoEditado, setCicloAcademicoEditado] = useState("");
   // Solo profesional (0348): "Bachiller en X — Universidad Y, egresado el Z".
   const [gradoTituloTextoEditado, setGradoTituloTextoEditado] = useState("");
+  // Convenio elegido A MANO para alguien cuya ficha no dice tipo_vinculo=
+  // 'practicante' (0348 — antes solo se podía generar cambiando la ficha
+  // primero en Equipo). Sin esto, `persona.practicante_modalidad` sale
+  // siempre null para esa persona y no hay de dónde sacar 30h/48h.
+  const [modalidadManualEditada, setModalidadManualEditada] = useState<"preprofesional" | "profesional" | "">("");
   // Anexo I — Plan Específico de Aprendizaje (0348, ambas modalidades).
   const [areaProyectoEditado, setAreaProyectoEditado] = useState("");
   const [objetivoFormativoGeneralEditado, setObjetivoFormativoGeneralEditado] = useState("");
@@ -472,6 +477,7 @@ export default function ContratosPage() {
     setSupervisorAsignadoEditado("");
     setHitoMes3Editado("");
     setHitoMes6Editado("");
+    setModalidadManualEditada("");
 
     if (tipo === "renovacion" && p.fecha_fin_contrato) {
       setFechaInicio(sumarDias(p.fecha_fin_contrato, 1));
@@ -513,6 +519,7 @@ export default function ContratosPage() {
     supervisorAsignadoEditado,
     hitoMes3Editado,
     hitoMes6Editado,
+    modalidadManualEditada,
     fechaInicio,
     fechaFin,
   ]);
@@ -527,6 +534,14 @@ export default function ContratosPage() {
   // la persona es practicante, sin que quien usa la pantalla tenga que saber
   // por qué el desplegable de tipo desaparece.
   const tipoEfectivo = persona?.tipo_vinculo === "practicante" ? "convenio_practicas" : tipo;
+  // La modalidad efectiva: la de la ficha si la persona YA es practicante
+  // (0324) — eso no se pisa a mano —, o la elegida en pantalla cuando el
+  // convenio se generó eligiéndolo del desplegable para alguien que no está
+  // marcado así (0348: antes esto no existía, había que ir a Equipo primero).
+  const modalidadEfectiva: "preprofesional" | "profesional" | null =
+    persona?.practicante_modalidad === "preprofesional" || persona?.practicante_modalidad === "profesional"
+      ? persona.practicante_modalidad
+      : modalidadManualEditada || null;
   const datoPersonal = persona ? (datosPersonales.find((d) => d.persona_id === persona.id) ?? null) : null;
   const salarioVigente = persona
     ? (salarios.find((s) => s.persona_id === persona.id)?.salario_mensual_soles ?? null)
@@ -589,10 +604,7 @@ export default function ContratosPage() {
           firmanteNombre: firmante.nombre,
           firmanteDni: firmante.dni,
           firmanteCargo: firmante.cargo,
-          practicanteModalidad:
-            persona.practicante_modalidad === "preprofesional" || persona.practicante_modalidad === "profesional"
-              ? persona.practicante_modalidad
-              : null,
+          practicanteModalidad: modalidadEfectiva,
           planCapacitacionTexto: planCapacitacionEditado,
           centroFormacionNombre: centroFormacionNombreEditado.trim() || null,
           centroFormacionRuc: centroFormacionRucEditado.trim() || null,
@@ -667,8 +679,12 @@ export default function ContratosPage() {
   if (persona && esConvenio && planCapacitacionEditado.trim() === "") {
     bloqueos.push("Completa el plan de capacitación específico — un convenio no tiene funciones, tiene un plan de capacitación (Ley 28518, art. 15).");
   }
-  if (persona && esConvenio && persona.practicante_modalidad !== "preprofesional" && persona.practicante_modalidad !== "profesional") {
-    bloqueos.push("Asígnale modalidad (preprofesional o profesional) en Equipo antes de generar su convenio — decide su jornada máxima (30h/48h).");
+  if (persona && esConvenio && modalidadEfectiva === null) {
+    bloqueos.push(
+      persona.tipo_vinculo === "practicante"
+        ? "Asígnale modalidad (preprofesional o profesional) en Equipo antes de generar su convenio — decide su jornada máxima (30h/48h)."
+        : "Elige la modalidad (preprofesional o profesional) — decide su jornada máxima (30h/48h).",
+    );
   }
   if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
     bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
@@ -1059,12 +1075,19 @@ export default function ContratosPage() {
                   className="mt-1 w-full rounded border border-sand p-2"
                   value={tipo}
                   onChange={(e) =>
-                    setTipo(e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido")
+                    setTipo(
+                      e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
+                    )
                   }
                 >
                   <option value="renovacion">Renovación</option>
                   <option value="nuevo">Nuevo ingreso</option>
                   <option value="indefinido">Indefinido</option>
+                  {/* Elegible a mano desde la 0348 para alguien que no está
+                      marcado tipo_vinculo="practicante" en su ficha — no
+                      cambia esa ficha, solo genera el documento (ver el
+                      aviso que sale más abajo cuando se elige así). */}
+                  <option value="convenio_practicas">Convenio de prácticas</option>
                   <option value="adendum">Adendum</option>
                 </select>
               )}
@@ -1141,25 +1164,46 @@ export default function ContratosPage() {
                 </label>
               ) : esConvenio ? (
                 <>
-                  <label className="block text-sm">
-                    Modalidad
-                    <input
-                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                      disabled
-                      value={
-                        persona.practicante_modalidad === "preprofesional"
-                          ? "Preprofesional — 30h/semana (art. 44)"
-                          : persona.practicante_modalidad === "profesional"
-                            ? "Profesional — 48h/semana (art. 44)"
-                            : "Sin asignar — ve a Equipo y elígela primero"
-                      }
-                    />
-                  </label>
+                  {persona.tipo_vinculo === "practicante" ? (
+                    <label className="block text-sm">
+                      Modalidad
+                      <input
+                        className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                        disabled
+                        value={
+                          persona.practicante_modalidad === "preprofesional"
+                            ? "Preprofesional — 30h/semana (art. 44)"
+                            : persona.practicante_modalidad === "profesional"
+                              ? "Profesional — 48h/semana (art. 44)"
+                              : "Sin asignar — ve a Equipo y elígela primero"
+                        }
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label className="block text-sm">
+                        Modalidad
+                        <select
+                          className="mt-1 w-full rounded border border-sand p-2"
+                          value={modalidadManualEditada}
+                          onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
+                        >
+                          <option value="">— elegir —</option>
+                          <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
+                          <option value="profesional">Profesional — 48h/semana (art. 44)</option>
+                        </select>
+                      </label>
+                      <p className="text-xs text-taupe">
+                        {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
+                        convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
+                      </p>
+                    </>
+                  )}
                   {/* El preprofesional es TRIPARTITO (CAYLA + centro de
                       formación + practicante, art. 12 y ss. Ley 28518) — el
                       profesional es bipartito y solo referencia su título
                       (0348). */}
-                  {persona.practicante_modalidad === "preprofesional" ? (
+                  {modalidadEfectiva === "preprofesional" ? (
                     <>
                       <div className="grid grid-cols-2 gap-3">
                         <label className="text-sm">
@@ -1372,8 +1416,8 @@ export default function ContratosPage() {
                   <dd>
                     {esConvenio
                       ? (() => {
-                          const max = maximoSemanalPracticante("practicante", persona.practicante_modalidad);
-                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta asignar modalidad en Equipo";
+                          const max = maximoSemanalPracticante("practicante", modalidadEfectiva);
+                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta elegir la modalidad";
                         })()
                       : "48 horas semanales (el máximo legal — ver cláusula QUINTA)"}
                   </dd>
