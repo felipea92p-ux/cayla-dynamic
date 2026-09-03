@@ -40,6 +40,14 @@
 -- `dias_desde_aniversario` antes de asumir que es este defecto.
 -- ############################################################################
 
+-- fn_vacaciones_truncas exige sesión de admin/líder y el SQL Editor no la
+-- tiene por defecto (corre como postgres, sin JWT). Mismo truco que ya usa
+-- cuanto_inflo_el_rango_corto_las_liquidaciones.sql para el mismo problema.
+select set_config('request.jwt.claim.sub',
+  (select auth_user_id::text from personas
+    where rol = 'admin' and nombres ilike '%Felipe%' and auth_user_id is not null limit 1),
+  true);
+
 select
   lp.persona,
   lp.fecha_ingreso,
