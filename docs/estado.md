@@ -56,7 +56,8 @@ casos: copia, contenido, candado de mes no vacío, candado de mes sin origen,
 candado de mes pagado, permiso por sede en los dos sentidos) — no toca dinero,
 así que no hizo falta la auditoría empírica de planilla.
 
-Falta fusionar el PR y falta pegar la 0348 en el SQL Editor de producción
+PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) — falta
+fusionar y falta pegar la 0348 en el SQL Editor de producción
 (`./scripts/dame-el-sql.sh 348`).
 
 ---
