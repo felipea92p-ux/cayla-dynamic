@@ -142,6 +142,18 @@ function ObjetivosContenido() {
   // el efecto de mount/cambio de rango no LA LLAMA (referenciar una función
   // useCallback desde un efecto dispara el lint set-state-in-effect) — pide
   // los mismos datos en línea, igual que el efecto de sesión de arriba.
+  //
+  // "Cargando" del gráfico se DERIVA (estado con la clave del último
+  // historial que llegó, no un ref: leer un ref durante el render es otro
+  // lint prohibido, react-hooks/refs) en vez de un setState al ENTRAR al
+  // efecto — eso dispararía set-state-in-effect. Actualizarlo adentro del
+  // `.then()` no cuenta: ahí ya vive `setHistorial`, que tampoco lo dispara.
+  // Mientras la clave no coincide con la selección actual, el gráfico se
+  // atenúa en vez de desaparecer (refetch mantiene el dibujo anterior).
+  const [historialClave, setHistorialClave] = useState<string | null>(null);
+  const historialClaveActual = personaId ? `${personaId}|${anio}|${mes}|${rangoHistorial}` : null;
+  const historialDesactualizado = historialClaveActual !== historialClave;
+
   const cargarHistorial = useCallback(async () => {
     if (!personaId) return;
     const supabase = createAdminSupabaseClient();
@@ -152,15 +164,20 @@ function ObjetivosContenido() {
       p_meses: rangoHistorial,
     });
     setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+    setHistorialClave(`${personaId}|${anio}|${mes}|${rangoHistorial}`);
   }, [personaId, anio, mes, rangoHistorial]);
 
   useEffect(() => {
     if (!personaId) return;
     let cancelado = false;
+    const clave = `${personaId}|${anio}|${mes}|${rangoHistorial}`;
     createAdminSupabaseClient()
       .rpc("fn_objetivos_historial", { p_persona_id: personaId, p_anio: anio, p_mes: mes, p_meses: rangoHistorial })
       .then(({ data: hist }) => {
-        if (!cancelado) setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+        if (!cancelado) {
+          setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+          setHistorialClave(clave);
+        }
       });
     return () => {
       cancelado = true;
@@ -368,7 +385,9 @@ function ObjetivosContenido() {
             {historial.some((m) => m.total > 0) && (
               <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-taupe">Historial ({rangoHistorial} meses)</p>
+                  <p className="text-xs font-medium text-taupe">
+                    Historial ({rangoHistorial === 1 ? "1 mes" : `${rangoHistorial} meses`})
+                  </p>
                   <label className="flex items-center gap-2 text-xs text-taupe">
                     Rango
                     <select
@@ -376,13 +395,20 @@ function ObjetivosContenido() {
                       onChange={(e) => setRangoHistorial(Number(e.target.value))}
                       className="rounded-lg border border-sand bg-crema px-2 py-1 text-xs"
                     >
+                      <option value={1}>Último mes</option>
+                      <option value={2}>Últimos 2 meses</option>
+                      <option value={3}>Últimos 3 meses</option>
                       <option value={6}>Últimos 6 meses</option>
                       <option value={12}>Últimos 12 meses</option>
                       <option value={24}>Últimos 24 meses</option>
                     </select>
                   </label>
                 </div>
-                <GraficoObjetivos historial={historial} />
+                <GraficoObjetivos
+                  key={historialClave ?? "sin-historial"}
+                  historial={historial}
+                  cargando={historialDesactualizado}
+                />
               </div>
             )}
 

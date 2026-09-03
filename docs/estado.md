@@ -37,6 +37,101 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Anuncios: el tablón de Desarrollo Organizacional (0351) · PEGADA Y VERIFICADA
+
+Salió de comparar CAYLA contra seis sistemas de RRHH de talla mundial
+(Workday, SAP SuccessFactors, ADP, UKG/Kronos, Rippling, BambooHR): de
+BambooHR se adoptó la idea de un tablón de comunicados dentro del sistema,
+en vez de que "cierra la planilla el 28" o "el lunes es feriado" solo exista
+en un chat de WhatsApp. [PR #166](https://github.com/felipea92p-ux/cayla-dynamic/pull/166).
+
+Publicar y anular quedan solo para DO (`puedeGestionarAnuncios`, nuevo en
+`permisos.ts`), con lectura filtrada por sede vía RLS — no solo por la
+función. Deliberadamente NO reusa `documentos_institucionales` (Normas):
+"leído" es un marcador liviano, no un acuse legal, así que no le pide a
+nadie el trámite de una firma por cada aviso operativo. Pantalla en
+`/admin/anuncios`, sin contador en el menú (un anuncio no tiene fecha límite
+que cueste plata pasarla — misma vara que ya usa `nav.tsx`), y una tarjeta
+en "Lo mío" que solo aparece si hay algo sin leer.
+
+Auditada con `npx supabase test db` (prueba 278, 18 casos: solo DO
+publica/anula, filtro por sede a nivel RLS y no solo de RPC, lectura
+idempotente) y probada en el navegador contra el panel real antes de
+fusionar. Verificada en producción el 2026-09-03: la consulta de
+comprobación del final de la 0351 devolvió las seis piezas en 1 (tabla
+`anuncios`, tabla `anuncios_leidos`, `fn_publicar_anuncio`, `fn_anular_anuncio`,
+`fn_anuncios_vigentes`, `fn_marcar_anuncio_leido`).
+
+---
+
+## 2026-09-03 — Aviso cruzado: `main` va dos migraciones atrás de producción (0344/0345) · SIN FUSIONAR TODAVÍA
+
+Comprobado contra producción a pedido de Felipe (`select numero, nombre, aplicada_at from migraciones_aplicadas where numero in (344, 345)`): esta rama trae la **0345** (corrige el comentario de `topes_educacion_rango`, no toca datos), aplicada en producción el 2026-09-03 18:42 UTC. Por separado, la rama `claude/error-new-request-f3a806` trae la **0344** (`fn_set_documento` ya no exige motivo de cambio al cargar el DNI por primera vez), aplicada el mismo día 16:41 UTC. Ninguna de las dos está fusionada a `main` todavía — el hueco de numeración que eso deja ya se investigó y no es una migración perdida: las dos están pusheadas a origin, solo en tránsito.
+
+Mientras sigan sin fusionar, `main` no es lo que producción corre. Antes de tocar `fn_set_documento` desde otra rama: `donde-vive.sh fn_set_documento` y el md5 de producción, no asumir que `main` alcanza — el mismo error de fondo que ya costó la 0276.
+
+Se resuelve solo: fusionando esta rama (y la 0344) a `main`.
+
+---
+
+## 2026-09-03 — Auditoría de arquitectura: 16 hallazgos nuevos siguiendo la comparación con otros ERP
+
+23 agentes (6 de investigación + 1 escéptico por cada candidato) sobre la
+comparación Workday/Oracle del día anterior: primitivos de BambooHR/Gusto/
+Rippling, de Odoo HR/Payroll, y cuatro frentes del código real (campos
+mutables sin historia, patrones duplicados, huecos de auditoría, integración
+ausencias↔planilla). 17 candidatos evaluados, **16 sobrevivieron al
+escéptico, 1 refutado**. El catálogo completo, con evidencia y severidad, está
+en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-de-arquitectura-del-2026-09-03--comparación-contra-otros-erp-23-agentes).
+
+**Los 7 de severidad alta, en una frase cada uno:**
+`fn_aprobar_ausencia` (la única puerta que "convierte días en plata") es la
+única sin el candado de periodo pagado · `fn_cesar_persona` no deja rastro en
+`correcciones_auditoria` · `con_hijos` decide S/113+provisiones sin auditoría
+ni vigencia · cambiar la cuenta bancaria de alguien no deja rastro ·
+`configuracion` deja escribir cualquier clave (incluida `tasa_afp`) sin
+guardia · la policy de `personas` es por fila, no por columna
+(`estado`/`fecha_cese`/`motivo_cese`/`tipo_vinculo` sin puerta) ·
+`devenga_grati/cts/vacaciones` sin fecha de corte, con un bypass real vía
+`PATCH` directo a la tabla.
+
+**El patrón que se repite:** 6 de los 16 son la misma familia de defecto que
+ya costó el régimen de pensión (→0261), el rol (→0295/0296) y la sede
+(→0342) — un campo que mueve plata o una obligación legal, mutable sin
+auditoría. Ninguno de los 16 se arregló todavía; quedan en
+`hallazgos-abiertos.md` para decidir orden de trabajo.
+
+---
+
+## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · ESCRITA Y VERIFICADA — FALTA PEGAR
+
+Encontrado siguiendo el hallazgo #7 de la comparación Workday/Oracle
+([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)):
+el informe reportó que el tope de educación por rango "vive en la tabla Y en
+un archivo TypeScript hardcodeado a la vez", citando el comentario de la
+tabla `topes_educacion_rango` (0132), que dice ser "espejo de
+`RANGOS.topeEducacion` en `apps/web/lib/rangos.ts`".
+
+**Es un falso positivo, no una duplicación real.** Ese campo se borró el
+2026-08-06 (la 0178, por el mismo motivo de fondo: había quedado
+desactualizado y le pagó de más a `caylo` — S/545.25 en vez de S/180). El
+comentario de la 0132 nunca se actualizó cuando el campo se borró, así que
+siguió describiendo una duplicación que ya no existe — y esa frase desactualizada
+fue justamente lo que indujo al agente que hizo la comparación a reportar un
+hallazgo que no existe en el código actual.
+
+**Arreglo (0345):** reemplaza solo el `comment on table topes_educacion_rango`
+por uno que dice la verdad de hoy — que la tabla es la única fuente y que
+`rangos.ts` no declara tope de educación a propósito desde la 0178. No toca
+ninguna columna, fila, función ni cálculo — no hay pago que auditar.
+
+**Verificado:** `npx supabase db reset` limpio con las 345 migraciones en
+orden; `npx supabase test db` — 1938/1938 en verde; `typecheck` limpio.
+Falta que Felipe la pegue en el SQL Editor (`./scripts/dame-el-sql.sh 345`).
+
+---
+
 ## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · PEGADAS Y VERIFICADAS
 
 Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
@@ -79,18 +174,80 @@ PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) fusionado,
 0348 y 0350 pegadas en producción por Felipe y confirmadas funcionando (el
 gráfico ya mostró datos reales de septiembre en pantalla).
 
-**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (6/12/24
-meses), con un control de tres botones junto al título del gráfico —
-`fn_objetivos_historial` ya aceptaba `p_meses` desde el principio, esto solo
-lo expuso en pantalla, sin migración nueva. El refresco del rango se separó
-del `cargar()` que trae la lista de objetivos —dos efectos en vez de uno—
-para que cambiar de 12M a 6M no reinicie toda la pantalla a "Cargando…", solo
-el gráfico. Ese mismo efecto, escrito como `useEffect(() => { void
-cargarHistorial(); })` llamando a una función `useCallback`, disparó el lint
-`react-hooks/set-state-in-effect` que el push bloquea — se resolvió en línea
-con el patrón que ya usa el efecto de sesión al principio del archivo
-(`.then()` inline dentro del efecto, no una función nombrada referenciada
-desde él).
+**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (1/2/3/6/
+12/24 meses) con un `<select>` "Rango" junto al título del gráfico —
+consistente con Persona/Mes/Año, que ya eran `<select>` en la misma pantalla;
+un primer intento con tres botones pastilla se descartó porque desentonaba
+con el resto de los filtros de la página. `fn_objetivos_historial` ya
+aceptaba `p_meses` desde el principio, esto solo lo expuso en pantalla, sin
+migración nueva.
+
+El refresco del rango se separó del `cargar()` que trae la lista de
+objetivos —dos efectos en vez de uno— para que cambiar de rango no reinicie
+toda la pantalla a "Cargando…", solo el gráfico. El estado de "desactualizado"
+se DERIVA comparando la selección actual contra la clave del último historial
+que llegó (guardada en estado, no en un ref: leer un ref durante el render es
+otro lint prohibido, `react-hooks/refs`) en vez de un `setState` al ENTRAR al
+efecto — eso dispara `react-hooks/set-state-in-effect`, que el push bloquea.
+
+**Y, a pedido explícito de Felipe ("usa las skills para el diseño"), un
+rediseño con la skill `dataviz`:** el gráfico pasó de barras planas sin
+interacción a una pieza con tope redondeado (4px, base cuadrada contra el
+eje — no un `rx` de las cuatro esquinas, un `<path>` propio), tooltip por
+barra (posición en foco de teclado igual que en hover, y se voltea a
+DEBAJO de la barra cuando arriba no cabe, en vez de montarse sobre el título
+de la tarjeta), leyenda con ícono + etiqueta para los tres estados
+(verde/ámbar/rojo NO son categóricos aquí: son una escala de estado —
+cumplido/parcial/bajo desempeño, los mismos tres colores que ya usaba la
+barra de progreso— y una escala de estado siempre va con ícono+etiqueta,
+nunca el color solo), etiqueta directa selectiva en el último mes (el que se
+está editando arriba, no un número en cada barra), y el refetch mantiene el
+dibujo anterior atenuado en vez de un flash al cambiar de rango. Los tres
+colores de estado se validaron por contraste contra la superficie de la
+tarjeta (`bg-papel`) en los dos temas — los tres pasan 3:1 largamente (4.28 a
+6.17) — y no por el validador categórico de 8 colores, que la skill dice
+explícitamente que no le aplica a una escala de estado.
+
+**Y dos arreglos más, del mismo 2026-09-03, YA EN PRODUCCIÓN (el gráfico de
+historial se fusionó y desplegó en el PR anterior):**
+
+1. **El gráfico no se acomodaba con pocos meses.** Con 1-3 meses el SVG medía
+   poco (ancho fijo de barra, `<=24px` por la especificación de marca) pero
+   llevaba `min-w-full`: sin `viewBox`, estirar la CAJA de un SVG por CSS no
+   escala el DIBUJO, solo agranda el lienzo — la barra quedaba pegada a la
+   izquierda con un hueco vacío enorme a la derecha, dentro de una tarjeta
+   ancha. Felipe lo vio en una captura y lo describió bien: "no se acomoda".
+   Se sacó `min-w-full` y el SVG (+ el tooltip, que comparte su mismo origen
+   de coordenadas) pasó a vivir en un envoltorio `w-fit mx-auto`: los
+   márgenes automáticos centran cuando el dibujo es más angosto que la
+   tarjeta, y se colapsan a 0 sin romper el scroll cuando desborda (24
+   meses) — a diferencia de centrar por flex/grid, que sí rompe el scroll.
+   Verificado en vivo para 1/3/12/24 meses, claro y oscuro.
+
+2. **Un crash real, encontrado en esa misma verificación en vivo, no en el
+   ancho.** Enfocar o pasar el mouse por una barra en una ventana larga
+   (24 meses) y después achicar el rango (a 1 mes, por ejemplo) dejaba
+   `activo` — el índice de la barra con el tooltip abierto — apuntando a una
+   posición que ya no existe en el arreglo `historial`, más corto. Nada en el
+   componente escuchaba el cambio de la prop para resetearlo. El resultado:
+   `historial[activo].total` sobre `undefined`, y toda la pantalla de
+   Objetivos caía al `ErrorBoundaryHandler` con "Algo salió mal". **Esto
+   viajó a producción sin que nadie lo notara** en el PR del rediseño del
+   gráfico — ninguna de las verificaciones de ese momento (typecheck, lint,
+   vitest, ni una revisión adversarial de tres agentes sobre el diff del
+   ancho) lo encontró; lo cazó recién una sesión de navegador real probando
+   la secuencia exacta. Se arregló acotando `activo` contra
+   `historial.length` antes de indexar, y por si acaso, con un `key` en
+   `<GraficoObjetivos>` (la clave del historial cargado) para que la
+   selección de hover/foco se reinicie sola cuando cambian los datos, en vez
+   de arrastrarse entre renders.
+
+Ambos arreglos: `npx pnpm typecheck`, ESLint y `npx pnpm test` (427, sin
+cambios) en verde. La reverificación en vivo del segundo arreglo quedó
+pendiente porque Docker Desktop dejó de responder en esta Mac a media
+sesión (`request returned 500 Internal Server Error`, ajeno al código) —
+se envía igual por la severidad (un crash ya en producción) y la sencillez
+del guard; se reverifica en cuanto Docker vuelva.
 
 ---
 
@@ -134,6 +291,8 @@ con el 9% sumado a mano dentro de «Gratificación», esa fila sigue tal cual.
 **Decidido con Felipe el 2026-09-03: no se corrige lo ya pagado — lo que le
 importa es que quede separado de acá en adelante.** No hace falta revisar
 julio 2026 ni ninguna migración retroactiva.
+
+---
 
 ## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
 
