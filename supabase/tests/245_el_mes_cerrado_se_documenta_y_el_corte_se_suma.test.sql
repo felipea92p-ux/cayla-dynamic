@@ -41,6 +41,18 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingr
 values ('00000000-0000-0000-0000-0000000e4503', 'LlegaTarde', 'Lab',
         '00000000-0000-0000-0000-0000000e4501', 'x', '2020-01-01', 'activo', 'planilla');
 
+-- Horario de los siete días, igual que en la 230: el CASO B escala a
+-- suspensión (segunda vez tras una amonestación), y `fn_dias_suspension`
+-- (0075) se niega si la persona no tiene horario vigente — sin él no sabe qué
+-- días son laborables. Los siete días evitan que el resultado dependa del día
+-- de la semana en que se corra la prueba.
+insert into horarios_asignados
+  (persona_id, vigente_desde, hora_entrada, hora_salida, almuerzo_min_minutos,
+   almuerzo_max_minutos, dias_laborables, horas_semana_objetivo)
+values
+  ('00000000-0000-0000-0000-0000000e4503', '2020-01-01', '09:00', '18:00', 60, 60,
+   array[0,1,2,3,4,5,6], 45);
+
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000e450002', true);
 
 -- ── Atajos de fechas ────────────────────────────────────────────────────────

@@ -34,7 +34,7 @@
 -- comprobar mentalmente no prueba nada.
 -- ============================================================================
 begin;
-select plan(19);
+select plan(22);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values ('00000000-0000-0000-0000-0000000000c0', 'ZZTRU', 'Sede de laboratorio', true, 'tienda');
@@ -82,6 +82,16 @@ select is((select meses from fn_meses_y_dias('2026-05-10', '2026-06-30')),
           1, 'MESES · empezar a mitad de mes hace que ese mes no cuente como completo');
 select is((select dias from fn_meses_y_dias('2026-05-10', '2026-06-30')),
           22, 'MESES · y los días de arranque quedan contados aparte, no perdidos');
+
+-- Un rango corto que NUNCA llega a completar el mes siguiente (0340). Antes
+-- de la 0340 esto devolvía 29 días de la nada: el mismo defecto que dejaba
+-- pedir vacaciones a quien ingresó hoy mismo (263).
+select is((select meses from fn_meses_y_dias('2026-09-02', '2026-09-02')),
+          0, 'MESES · el mismo día no completa ningún mes');
+select is((select dias from fn_meses_y_dias('2026-09-02', '2026-09-02')),
+          1, 'MESES · y cuenta 1 día suelto, no 29 — la convención ya era inclusiva (ver el caso de arriba)');
+select is((select dias from fn_meses_y_dias('2026-09-02', '2026-09-15')),
+          14, 'MESES · un rango corto de 14 días cuenta 14, no la distancia hasta el mes que nunca llega');
 
 
 -- ════════════════════════════════════════════════════════════════════════════
