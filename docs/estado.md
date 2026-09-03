@@ -113,6 +113,47 @@ tarjeta (`bg-papel`) en los dos temas — los tres pasan 3:1 largamente (4.28 a
 6.17) — y no por el validador categórico de 8 colores, que la skill dice
 explícitamente que no le aplica a una escala de estado.
 
+**Y dos arreglos más, del mismo 2026-09-03, YA EN PRODUCCIÓN (el gráfico de
+historial se fusionó y desplegó en el PR anterior):**
+
+1. **El gráfico no se acomodaba con pocos meses.** Con 1-3 meses el SVG medía
+   poco (ancho fijo de barra, `<=24px` por la especificación de marca) pero
+   llevaba `min-w-full`: sin `viewBox`, estirar la CAJA de un SVG por CSS no
+   escala el DIBUJO, solo agranda el lienzo — la barra quedaba pegada a la
+   izquierda con un hueco vacío enorme a la derecha, dentro de una tarjeta
+   ancha. Felipe lo vio en una captura y lo describió bien: "no se acomoda".
+   Se sacó `min-w-full` y el SVG (+ el tooltip, que comparte su mismo origen
+   de coordenadas) pasó a vivir en un envoltorio `w-fit mx-auto`: los
+   márgenes automáticos centran cuando el dibujo es más angosto que la
+   tarjeta, y se colapsan a 0 sin romper el scroll cuando desborda (24
+   meses) — a diferencia de centrar por flex/grid, que sí rompe el scroll.
+   Verificado en vivo para 1/3/12/24 meses, claro y oscuro.
+
+2. **Un crash real, encontrado en esa misma verificación en vivo, no en el
+   ancho.** Enfocar o pasar el mouse por una barra en una ventana larga
+   (24 meses) y después achicar el rango (a 1 mes, por ejemplo) dejaba
+   `activo` — el índice de la barra con el tooltip abierto — apuntando a una
+   posición que ya no existe en el arreglo `historial`, más corto. Nada en el
+   componente escuchaba el cambio de la prop para resetearlo. El resultado:
+   `historial[activo].total` sobre `undefined`, y toda la pantalla de
+   Objetivos caía al `ErrorBoundaryHandler` con "Algo salió mal". **Esto
+   viajó a producción sin que nadie lo notara** en el PR del rediseño del
+   gráfico — ninguna de las verificaciones de ese momento (typecheck, lint,
+   vitest, ni una revisión adversarial de tres agentes sobre el diff del
+   ancho) lo encontró; lo cazó recién una sesión de navegador real probando
+   la secuencia exacta. Se arregló acotando `activo` contra
+   `historial.length` antes de indexar, y por si acaso, con un `key` en
+   `<GraficoObjetivos>` (la clave del historial cargado) para que la
+   selección de hover/foco se reinicie sola cuando cambian los datos, en vez
+   de arrastrarse entre renders.
+
+Ambos arreglos: `npx pnpm typecheck`, ESLint y `npx pnpm test` (427, sin
+cambios) en verde. La reverificación en vivo del segundo arreglo quedó
+pendiente porque Docker Desktop dejó de responder en esta Mac a media
+sesión (`request returned 500 Internal Server Error`, ajeno al código) —
+se envía igual por la severidad (un crash ya en producción) y la sencillez
+del guard; se reverifica en cuanto Docker vuelva.
+
 ---
 
 ## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
