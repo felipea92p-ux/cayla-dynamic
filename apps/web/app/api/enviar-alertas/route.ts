@@ -1,7 +1,7 @@
 import { createServiceRoleClient } from "@cayla-dynamic/database";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { TZ_LIMA } from "@cayla-dynamic/shared";
 
 // Drena la cola de `alertas` (canal = 'email', estado = 'pendiente') y manda el
@@ -12,10 +12,15 @@ import { TZ_LIMA } from "@cayla-dynamic/shared";
 // QUÉ PROMETE: cada alerta pendiente termina en 'enviado' o 'fallido', nunca se
 // queda pendiente en silencio para siempre — y un correo que falla no frena a
 // los demás de la cola.
+//
+// POR QUÉ RESEND: el dominio cayla.pe ya está verificado ahí —Supabase Auth lo
+// usa para el correo de "recuperar clave" (dynamic@cayla.pe)—, así que no hace
+// falta configurar DNS de nuevo. Es una API key propia, aparte de la que usa
+// Supabase: si un día hay que revocar una, la otra sigue viva.
 
 const ALERTAS_CRON_TOKEN = process.env.ALERTAS_CRON_TOKEN;
-const ZOHO_SMTP_USER = process.env.ZOHO_SMTP_USER;
-const ZOHO_SMTP_PASS = process.env.ZOHO_SMTP_PASS;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const REMITENTE = "CAYLA Dynamic <dynamic@cayla.pe>";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +59,7 @@ function redactar(alerta: Alerta, nombre: string): { asunto: string; texto: stri
 
 export async function POST(req: Request) {
   const sb = createServiceRoleClient();
-  if (!sb || !ALERTAS_CRON_TOKEN || !ZOHO_SMTP_USER || !ZOHO_SMTP_PASS) {
+  if (!sb || !ALERTAS_CRON_TOKEN || !RESEND_API_KEY) {
     return NextResponse.json({ error: "servidor sin configurar" }, { status: 500 });
   }
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -76,12 +81,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ enviadas: 0, fallidas: 0 });
   }
 
-  const transport = nodemailer.createTransport({
-    host: "smtp.zoho.com",
-    port: 465,
-    secure: true,
-    auth: { user: ZOHO_SMTP_USER, pass: ZOHO_SMTP_PASS },
-  });
+  const resend = new Resend(RESEND_API_KEY);
 
   let enviadas = 0;
   let fallidas = 0;
@@ -127,12 +127,16 @@ export async function POST(req: Request) {
       const nombre = `${persona.nombres} ${persona.apellidos}`.trim();
       const { asunto, texto } = redactar(alerta, nombre);
 
-      await transport.sendMail({
-        from: ZOHO_SMTP_USER,
-        to: destinatarios.join(", "),
+      // resend.emails.send NO lanza en un rechazo: devuelve { error }. Si se
+      // tratara como éxito por no haber excepción, la fila se marcaría
+      // 'enviado' sin haber salido nada — silencioso, que es lo peor.
+      const { error: errEnvio } = await resend.emails.send({
+        from: REMITENTE,
+        to: destinatarios,
         subject: asunto,
         text: texto,
       });
+      if (errEnvio) throw new Error(errEnvio.message);
 
       await sb.from("alertas").update({ estado: "enviado", enviado_at: new Date().toISOString() }).eq("id", alerta.id);
       enviadas++;
