@@ -37,6 +37,16 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Aviso cruzado: `main` va dos migraciones atrás de producción (0344/0345) · SIN FUSIONAR TODAVÍA
+
+Comprobado contra producción a pedido de Felipe (`select numero, nombre, aplicada_at from migraciones_aplicadas where numero in (344, 345)`): esta rama trae la **0344** (`fn_set_documento` ya no exige motivo de cambio al cargar el DNI por primera vez), aplicada en producción el 2026-09-03 16:41 UTC. Por separado, la rama `claude/erp-study-external-bb926e` trae la **0345** (corrige el comentario de `topes_educacion_rango`), aplicada el mismo día 18:42 UTC. Ninguna de las dos está fusionada a `main` todavía — el hueco de numeración que eso deja ya se investigó y no es una migración perdida: las dos están pusheadas a origin, solo en tránsito.
+
+Mientras sigan sin fusionar, `main` no es lo que producción corre. Cualquier migración nueva que parta de `main` y toque `fn_set_documento` va a partir de una versión vieja — el mismo error de fondo que ya costó la 0276 (dos ramas reescribiendo la misma función sin verse). Antes de tocar esa función desde otra rama: `donde-vive.sh fn_set_documento` y el md5 de producción, no asumir que `main` alcanza.
+
+Se resuelve solo: fusionando esta rama (y la 0345) a `main`.
+
+---
+
 ## 2026-09-03 — La sede base se cambiaba sin auditoría (0342) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
 
 Encontrado al rehacer, esta vez guardándolo, la comparación de arquitectura
