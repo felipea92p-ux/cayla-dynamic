@@ -1924,9 +1924,15 @@ export default function DocumentacionPage() {
           >
             Imprimir / Guardar como PDF
           </button>
-          <span className="ml-3 text-xs text-taupe">
-            Al imprimir, desmarca «Encabezados y pies de página».
-          </span>
+          {doc.necesitaPersona && !persona ? (
+            <span className="ml-3 text-xs text-rojo">
+              Elige una persona arriba antes de imprimir.
+            </span>
+          ) : (
+            <span className="ml-3 text-xs text-taupe">
+              Al imprimir, desmarca «Encabezados y pies de página».
+            </span>
+          )}
         </div>
 
         {/* ── El documento ──

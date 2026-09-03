@@ -561,6 +561,9 @@ export default function FeriadosPage() {
                 disabled={!refActa || subiendo}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirActa(f); e.target.value = ""; }}
                 className="text-sm file:mr-3 file:rounded-lg file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
+              {!refActa && (
+                <span className="text-xs text-taupe">Elige primero de qué acuerdo, arriba.</span>
+              )}
             </label>
             {/* Con 3 MB una espera muda pasaba desapercibida. Con 50 MB por la
                 conexión de una tienda son minutos, y sin avance visible se lee

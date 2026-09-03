@@ -12,6 +12,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { fraseFaltantes } from "@/lib/admin/campos-faltantes";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
@@ -365,8 +366,13 @@ export default function EquipoPage() {
   }
 
   async function crearPersona() {
-    if (!form.nombres.trim() || !form.apellidos.trim() || !form.sedeId) {
-      avisar("error", "Nombres, apellidos y sede son obligatorios.");
+    const falta = fraseFaltantes([
+      ["los nombres", !form.nombres.trim()],
+      ["los apellidos", !form.apellidos.trim()],
+      ["la sede", !form.sedeId],
+    ]);
+    if (falta) {
+      avisar("error", `Falta ${falta}.`);
       return;
     }
     setGuardando(true);
@@ -1145,6 +1151,13 @@ export default function EquipoPage() {
           cosas viven en SUNAT y en su decisión, no en esta base. */}
       {puedeSalarios && form.tipoVinculo === "rxh" && (
         <>
+          {modo === "edicion" && !retencionesOk && (
+            <span className="text-xs text-taupe sm:col-span-2">
+              No se pudo leer su retención guardada, así que estos dos campos están
+              deshabilitados para no pisarla. Recarga la página; si sigue igual, avisa a
+              Felipe.
+            </span>
+          )}
           <label className="flex flex-col gap-1 text-sm">
             <span>Retención de Impuesto a la Renta de 4ta</span>
             <select

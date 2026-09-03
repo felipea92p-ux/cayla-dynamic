@@ -215,6 +215,9 @@ export function FormularioMotivoOtro({
         className="w-full max-w-sm rounded-lg border border-sand bg-crema p-3 text-tinta outline-none placeholder:text-taupe/60 focus:border-taupe"
         placeholder="Ej: trámite bancario personal"
       />
+      {motivo.length > 0 && !valido && (
+        <p className="-mt-2 text-sm text-taupe">Escribe un poco más para continuar.</p>
+      )}
       <div className="flex gap-3">
         <button onClick={onCancelar} className={BTN_SECUNDARIO}>
           Cancelar

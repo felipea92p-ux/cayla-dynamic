@@ -198,10 +198,17 @@ export default function HorariosPage() {
     const horario = construirHorario();
     const keys = Object.keys(horario);
     if (keys.length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
-    const faltaEntrada = modoPorDia ? Object.values(porDia).some((v) => !v.e) : !entrada;
-    const faltaSalida = modoPorDia ? Object.values(porDia).some((v) => !v.s) : !salida;
-    if (faltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
-    if (faltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
+    // Nombrar el día en vez de decir "algún día": con el horario por día, el
+    // que falta puede no ser el que se acaba de tocar.
+    if (modoPorDia) {
+      const sinEntrada = Object.entries(porDia).filter(([, v]) => !v.e).map(([d]) => NOMBRE_DIA[Number(d)]);
+      const sinSalida = Object.entries(porDia).filter(([, v]) => !v.s).map(([d]) => NOMBRE_DIA[Number(d)]);
+      if (sinEntrada.length) { avisar("error", `Falta la hora de entrada del ${sinEntrada.join(" y del ")}.`); return; }
+      if (sinSalida.length) { avisar("error", `Falta la hora de salida del ${sinSalida.join(" y del ")}.`); return; }
+    } else {
+      if (!entrada) { avisar("error", "Falta la hora de entrada."); return; }
+      if (!salida) { avisar("error", "Falta la hora de salida."); return; }
+    }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_set_horario_semanal", {

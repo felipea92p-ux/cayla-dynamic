@@ -6,6 +6,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { MensajeCampo } from "@/components/mensaje-campo";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -565,12 +566,7 @@ export default function NormasPage() {
                   Dejar constancia significa que recibiste este documento y fuiste informada de su
                   contenido. No es una firma de conformidad ni renuncia a nada.
                 </p>
-                {msgConstancia && (
-                  <p role="alert" id="error-constancia"
-                    className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">
-                    {msgConstancia}
-                  </p>
-                )}
+                <MensajeCampo id="error-constancia" mensaje={msgConstancia} />
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="flex flex-col gap-1 text-xs">
                     Tu nombre y apellido
@@ -652,12 +648,7 @@ export default function NormasPage() {
               Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo
               firmado no se registra: aquí la constancia es la prueba.
             </p>
-            {msgPapel && (
-              <p role="alert" id="error-papel"
-                className="mb-2 rounded border border-rojo/30 bg-rojo/10 px-2 py-1.5 text-xs text-rojo">
-                {msgPapel}
-              </p>
-            )}
+            <MensajeCampo id="error-papel" mensaje={msgPapel} />
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs">
                 Cargo firmado
