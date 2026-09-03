@@ -37,6 +37,23 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Aviso cruzado: la 0350 de esta rama choca con la 0350 ya fusionada · SIN COMMITEAR TODAVÍA
+
+Encontrado revisando por qué `numeracion.sh` iba a avisar de un hueco: esta
+rama tiene, sin commitear, `supabase/migrations/0350_confirmacion_de_jornada_completa_al_marcar_salida.sql`
+— pero **`origin/main` ya tiene una 0350 distinta**, `0350_objetivos_historial_mensual.sql`,
+fusionada antes. Dos migraciones distintas reclamando el mismo número — el
+mismo choque que ya pasó con la 0297/0299 y con el 0337/0338.
+
+Nada se perdió ni se pegó dos veces: el archivo de esta rama nunca se
+commiteó, así que `numeracion.sh` la va a frenar al primer intento de push, no
+después. Antes de commitear: `./scripts/siguiente-numero.sh` para tomar el
+número libre de verdad — al momento de este aviso, el 0351 ya lo tomó otra
+rama (renumeró un 0348 que chocó con el mismo problema), así que el número
+libre real puede ser el 0352 o mayor. Comprobarlo con el script, no asumirlo.
+
+---
+
 ## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
 
 Lo pidió el contador de CAYLA: que el 9% no viaje mezclado a mano dentro del
