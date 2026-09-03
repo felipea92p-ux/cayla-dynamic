@@ -37,6 +37,36 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Auditoría de arquitectura: 16 hallazgos nuevos siguiendo la comparación con otros ERP
+
+23 agentes (6 de investigación + 1 escéptico por cada candidato) sobre la
+comparación Workday/Oracle del día anterior: primitivos de BambooHR/Gusto/
+Rippling, de Odoo HR/Payroll, y cuatro frentes del código real (campos
+mutables sin historia, patrones duplicados, huecos de auditoría, integración
+ausencias↔planilla). 17 candidatos evaluados, **16 sobrevivieron al
+escéptico, 1 refutado**. El catálogo completo, con evidencia y severidad, está
+en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-de-arquitectura-del-2026-09-03--comparación-contra-otros-erp-23-agentes).
+
+**Los 7 de severidad alta, en una frase cada uno:**
+`fn_aprobar_ausencia` (la única puerta que "convierte días en plata") es la
+única sin el candado de periodo pagado · `fn_cesar_persona` no deja rastro en
+`correcciones_auditoria` · `con_hijos` decide S/113+provisiones sin auditoría
+ni vigencia · cambiar la cuenta bancaria de alguien no deja rastro ·
+`configuracion` deja escribir cualquier clave (incluida `tasa_afp`) sin
+guardia · la policy de `personas` es por fila, no por columna
+(`estado`/`fecha_cese`/`motivo_cese`/`tipo_vinculo` sin puerta) ·
+`devenga_grati/cts/vacaciones` sin fecha de corte, con un bypass real vía
+`PATCH` directo a la tabla.
+
+**El patrón que se repite:** 6 de los 16 son la misma familia de defecto que
+ya costó el régimen de pensión (→0261), el rol (→0295/0296) y la sede
+(→0342) — un campo que mueve plata o una obligación legal, mutable sin
+auditoría. Ninguno de los 16 se arregló todavía; quedan en
+`hallazgos-abiertos.md` para decidir orden de trabajo.
+
+---
+
 ## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · ESCRITA Y VERIFICADA — FALTA PEGAR
 
 Encontrado siguiendo el hallazgo #7 de la comparación Workday/Oracle
