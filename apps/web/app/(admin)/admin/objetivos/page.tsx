@@ -64,6 +64,7 @@ function ObjetivosContenido() {
   const [items, setItems] = useState<ObjetivoItem[]>([]);
   const [resumen, setResumen] = useState<ResumenMes[]>([]);
   const [historial, setHistorial] = useState<MesHistorial[]>([]);
+  const [rangoHistorial, setRangoHistorial] = useState(12);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
 
@@ -116,17 +117,15 @@ function ObjetivosContenido() {
     const supabase = createAdminSupabaseClient();
     // objetivos_items NUNCA se lee por REST (schema cache de PostgREST trabado):
     // solo vía RPC jsonb, patrón 0020.
-    const [{ data, error }, { data: res }, { data: hist }] = await Promise.all([
+    const [{ data, error }, { data: res }] = await Promise.all([
       supabase.rpc("fn_objetivos_checklist", { p_anio: anio, p_mes: mes, p_persona_id: personaId }),
       supabase.rpc("fn_objetivos_resumen", { p_anio: anio, p_mes: mes }),
-      supabase.rpc("fn_objetivos_historial", { p_persona_id: personaId, p_anio: anio, p_mes: mes, p_meses: 12 }),
     ]);
     if (error) {
       avisar("error", mensajeDeError(error));
     } else {
       setItems(((data as unknown as ObjetivoItem[] | null) ?? []).slice());
       setResumen((res as unknown as ResumenMes[] | null) ?? []);
-      setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
     }
     setCargado(true);
     setCargando(false);
@@ -136,6 +135,37 @@ function ObjetivosContenido() {
     setCargado(false);
     if (personaId) void cargar();
   }, [personaId, anio, mes, cargar]);
+
+  // El historial se pide aparte: cambiar el rango (6/12/24 meses) no debe
+  // reiniciar toda la pantalla a "Cargando…", solo refrescar el gráfico.
+  // `cargarHistorial` la usan los manejadores de abajo después de mutar algo;
+  // el efecto de mount/cambio de rango no LA LLAMA (referenciar una función
+  // useCallback desde un efecto dispara el lint set-state-in-effect) — pide
+  // los mismos datos en línea, igual que el efecto de sesión de arriba.
+  const cargarHistorial = useCallback(async () => {
+    if (!personaId) return;
+    const supabase = createAdminSupabaseClient();
+    const { data: hist } = await supabase.rpc("fn_objetivos_historial", {
+      p_persona_id: personaId,
+      p_anio: anio,
+      p_mes: mes,
+      p_meses: rangoHistorial,
+    });
+    setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+  }, [personaId, anio, mes, rangoHistorial]);
+
+  useEffect(() => {
+    if (!personaId) return;
+    let cancelado = false;
+    createAdminSupabaseClient()
+      .rpc("fn_objetivos_historial", { p_persona_id: personaId, p_anio: anio, p_mes: mes, p_meses: rangoHistorial })
+      .then(({ data: hist }) => {
+        if (!cancelado) setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [personaId, anio, mes, rangoHistorial]);
 
   async function agregar() {
     const texto = nuevoTexto.trim();
@@ -160,6 +190,7 @@ function ObjetivosContenido() {
     setNuevoTexto("");
     setNuevasIndicaciones("");
     await cargar();
+    await cargarHistorial();
   }
 
   async function marcar(item: ObjetivoItem, cumplido: boolean) {
@@ -173,6 +204,7 @@ function ObjetivosContenido() {
       return;
     }
     await cargar();
+    await cargarHistorial();
   }
 
   async function guardarEdicion(item: ObjetivoItem) {
@@ -211,6 +243,7 @@ function ObjetivosContenido() {
       return;
     }
     await cargar();
+    await cargarHistorial();
   }
 
   async function eliminar(item: ObjetivoItem) {
@@ -222,6 +255,7 @@ function ObjetivosContenido() {
       return;
     }
     await cargar();
+    await cargarHistorial();
   }
 
   const cumplidos = items.filter((i) => i.cumplido).length;
@@ -328,10 +362,30 @@ function ObjetivosContenido() {
               </div>
             </div>
 
-            {/* Historial: la tendencia de los últimos 12 meses, no solo el actual */}
+            {/* Historial: la tendencia, no solo el mes actual. El rango se elige,
+                no queda fijo en 12 meses — fn_objetivos_historial ya aceptaba
+                p_meses desde el principio, esto solo lo expone en pantalla. */}
             {historial.some((m) => m.total > 0) && (
               <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
-                <p className="mb-2 text-xs font-medium text-taupe">Historial (últimos 12 meses)</p>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-taupe">Historial ({rangoHistorial} meses)</p>
+                  <div className="flex gap-1">
+                    {[6, 12, 24].map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setRangoHistorial(n)}
+                        aria-pressed={rangoHistorial === n}
+                        className={`rounded-full px-2.5 py-1 text-xs ${
+                          rangoHistorial === n
+                            ? "bg-tinta text-crema"
+                            : "border border-sand text-taupe hover:bg-sand/40"
+                        }`}
+                      >
+                        {n}M
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <GraficoObjetivos historial={historial} />
               </div>
             )}
