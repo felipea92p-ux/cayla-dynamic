@@ -71,11 +71,12 @@ mismo día: md5 de `fn_grati_cts_periodo` = `029c534ff79b6e60d7a5a760be659053`
 y de `fn_agregar_movimiento` = `d3859d7e928aca004dda8b1c032d4899`, idénticos
 entre esta Mac y producción tras pegar la 0346.
 
-**Solo hacia adelante.** No reclasifica movimientos ya pagados: si julio
-2026 ya se pagó con el 9% sumado a mano dentro de «Gratificación», esa fila
-sigue tal cual. **Pendiente de decidir con Felipe:** si eso necesita una
-corrección retroactiva o se deja como histórico — no se investigó porque no
-se sabe todavía si el caso ocurrió.
+**Solo hacia adelante, y es la decisión de Felipe, no solo el alcance de la
+migración.** No reclasifica movimientos ya pagados: si julio 2026 ya se pagó
+con el 9% sumado a mano dentro de «Gratificación», esa fila sigue tal cual.
+**Decidido con Felipe el 2026-09-03: no se corrige lo ya pagado — lo que le
+importa es que quede separado de acá en adelante.** No hace falta revisar
+julio 2026 ni ninguna migración retroactiva.
 
 ## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
 
