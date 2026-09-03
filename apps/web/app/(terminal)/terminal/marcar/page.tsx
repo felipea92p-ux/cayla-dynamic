@@ -506,8 +506,12 @@ export default function MarcarPage() {
         <Marca tono="tinta" isotipo="rojo" />
         <div className="flex items-center gap-3">
           {pendientesSinEnviar > 0 && (
-            <span className="rounded-full bg-ambar/15 px-3 py-1 text-xs font-medium text-ambar">
-              ⟳ {pendientesSinEnviar} sin enviar
+            <span className="flex items-center gap-1.5 rounded-full bg-ambar/15 px-3 py-1 text-xs font-medium text-ambar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21 12a9 9 0 1 1-3-6.7" />
+                <path d="M21 3v6h-6" />
+              </svg>
+              {pendientesSinEnviar} sin enviar
             </span>
           )}
           {/* Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven.
@@ -515,8 +519,13 @@ export default function MarcarPage() {
               —que se van a enviar solas en cuanto haya red— y por eso el texto
               nombra a la encargada: es la única acción que resuelve esto. */}
           {marcasApartadas > 0 && (
-            <span className="rounded-full bg-rojo/15 px-3 py-1 text-xs font-medium text-rojo">
-              ⚠ {marcasApartadas} sin registrar — avisa a tu encargada
+            <span className="flex items-center gap-1.5 rounded-full bg-rojo/15 px-3 py-1 text-xs font-medium text-rojo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 3 2 20h20L12 3Z" />
+                <path d="M12 9v5" />
+                <circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none" />
+              </svg>
+              {marcasApartadas} sin registrar — avisa a tu encargada
             </span>
           )}
           {/* El reloj corrido va DESPUÉS de los avisos de la cola y antes del
@@ -526,7 +535,7 @@ export default function MarcarPage() {
               corregirlo. Nunca bloquea: se sigue marcando igual. */}
           {desfase && Math.abs(desfase.segundos) >= DESFASE_AVISO_SEG && (
             <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
                 Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
                   ? "bg-rojo/15 text-rojo"
                   : "bg-ambar/15 text-ambar"
@@ -537,7 +546,11 @@ export default function MarcarPage() {
                   : "Las tardanzas se miden por minuto, así que este desfase puede inventar o borrar una. Avisa para que corrijan la hora de esta Mac."
               }
             >
-              🕐 {textoDesfase(desfase.segundos)} — avisa a tu encargada
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3.4 2" />
+              </svg>
+              {textoDesfase(desfase.segundos)} — avisa a tu encargada
             </span>
           )}
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
@@ -553,7 +566,7 @@ export default function MarcarPage() {
               activa={sedeSeleccionada}
               onCambiar={setSedeSeleccionada}
             />
-            <NombreGrid roster={rosterFiltrado} onSeleccionar={seleccionarPersona} />
+            <NombreGrid roster={rosterFiltrado} marcajesHoy={marcajesHoyRef.current} onSeleccionar={seleccionarPersona} />
           </div>
         )}
 

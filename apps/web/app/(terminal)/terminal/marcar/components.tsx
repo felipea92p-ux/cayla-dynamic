@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { TipoMarca } from "@cayla-dynamic/shared";
+import type { MarcajeDelDia, TipoMarca } from "@cayla-dynamic/shared";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
@@ -43,9 +43,14 @@ export function SelectorSede({
 
 export function NombreGrid({
   roster,
+  marcajesHoy,
   onSeleccionar,
 }: {
   roster: RosterEntry[];
+  // Solo para el punto de la esquina (¿ya marcó algo hoy?) — la decisión real
+  // de qué le toca a continuación sigue viviendo en `siguienteAccionPara`,
+  // que se consulta recién al tocar el tile. Este mapa nunca decide nada.
+  marcajesHoy: Map<string, MarcajeDelDia[]>;
   onSeleccionar: (persona: RosterEntry) => void;
 }) {
   if (roster.length === 0) {
@@ -53,16 +58,37 @@ export function NombreGrid({
   }
 
   return (
-    <div className="grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
-      {roster.map((persona) => (
-        <button
-          key={persona.id}
-          onClick={() => onSeleccionar(persona)}
-          className={`${TILE} px-4 py-6 font-serif text-xl`}
-        >
-          {persona.nombres} {persona.apellidos}
-        </button>
-      ))}
+    <div className="flex w-full max-w-2xl flex-col items-center gap-3">
+      <div className="flex items-center gap-5 text-xs text-taupe">
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-verde" />
+          Ya marcó hoy
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="h-2.5 w-2.5 rounded-full border border-sand" />
+          Aún no marca
+        </span>
+      </div>
+      <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3">
+        {roster.map((persona) => {
+          const yaMarco = (marcajesHoy.get(persona.id)?.length ?? 0) > 0;
+          return (
+            <button
+              key={persona.id}
+              onClick={() => onSeleccionar(persona)}
+              className={`${TILE} relative px-4 py-6 font-serif text-xl`}
+            >
+              {persona.nombres} {persona.apellidos}
+              <span
+                aria-hidden
+                className={`absolute right-3 top-3 h-2.5 w-2.5 rounded-full ${
+                  yaMarco ? "bg-verde" : "border border-sand"
+                }`}
+              />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -356,7 +382,24 @@ export function PantallaMensaje({ mensaje, tono = "ok" }: { mensaje: string; ton
   const alerta = tono === "alerta";
   return (
     <div className={`flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center ${alerta ? "bg-rojo/[0.06]" : ""}`}>
-      {alerta && <span aria-hidden className="text-5xl">⚠️</span>}
+      <span
+        aria-hidden
+        className={`flex h-20 w-20 items-center justify-center rounded-full ${
+          alerta ? "bg-rojo/15" : "bg-verde/15"
+        }`}
+      >
+        {alerta ? (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-rojo">
+            <path d="M12 3 2 20h20L12 3Z" />
+            <path d="M12 9v5" />
+            <circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none" />
+          </svg>
+        ) : (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-verde">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        )}
+      </span>
       <p className={`font-serif text-3xl ${alerta ? "font-medium text-rojo" : ""}`} role={alerta ? "alert" : undefined}>
         {mensaje}
       </p>

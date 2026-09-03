@@ -48,6 +48,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { EsqueletoTabla } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
@@ -520,9 +522,9 @@ function DetallePersona({ f, meta, anio, mes, sel, onDia }: {
                     {mc.sospechoso && <span title="Este día no tenía turno cargado: la tardanza o la salida anticipada se midió contra el horario base."> ⚠</span>}
                   </td>
                   <td className="px-4 py-2 text-xs">
-                    {d.estado === "revisar" && <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-ambar">
-                      {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</span>}
-                    {d.estado === "extra" && <span className="rounded-full bg-verde/15 px-2 py-0.5 text-verde">en su descanso</span>}
+                    {d.estado === "revisar" && <Insignia variante="advertencia">
+                      {d.jornadaEstado === "auto_cerrada_pendiente" ? "auto-cerrada" : "sin salida"}</Insignia>}
+                    {d.estado === "extra" && <Insignia variante="positivo">en su descanso</Insignia>}
                     {d.agregado && <span className="rounded-full bg-taupe/15 px-2 py-0.5 text-taupe">histórico 2025</span>}
                   </td>
                 </tr>
@@ -545,7 +547,7 @@ function Tile({ label, valor, pie, tono = "neutral" }: { label: string; valor: s
   return (
     <div className="rounded-xl border border-sand bg-papel px-4 py-3">
       <div className="text-xs uppercase tracking-wide text-taupe">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold [font-variant-numeric:tabular-nums] ${tono === "alerta" && valor !== "0" ? "text-rojo" : ""}`}>{valor}</div>
+      <div className={`mt-1 font-serif text-2xl font-semibold [font-variant-numeric:tabular-nums] ${tono === "alerta" && valor !== "0" ? "text-rojo" : ""}`}>{valor}</div>
       {pie && <div className="text-xs text-taupe">{pie}</div>}
     </div>
   );
@@ -1286,12 +1288,12 @@ function DesempenoContenido() {
                           Observación {sel2 === "otro" && <span className="text-rojo">(obligatoria para «Otro»)</span>}
                           <input value={obs} onChange={(e) => setObs(e.target.value)} className="rounded-lg border px-3 py-2" />
                         </label>
-                        <button
+                        <Boton
+                          variante="primario"
                           onClick={() => void justificar(esFalta ? "falta" : "tardanza")}
-                          disabled={guardando}
-                          className="rounded-lg bg-tinta px-4 py-2 font-medium text-crema disabled:opacity-50">
+                          disabled={guardando}>
                           {guardando ? "Guardando…" : "Justificar"}
-                        </button>
+                        </Boton>
                       </>
                     );
                   })()}

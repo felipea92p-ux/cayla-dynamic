@@ -103,6 +103,11 @@ export function AdminNav() {
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
+  // Qué pestaña de grupo se ve en la fila 2, en la barra `xl:flex`. `null` =
+  // se deriva del pathname (el grupo que contiene la página activa); un click
+  // en una pestaña la sobreescribe sin navegar, y el efecto de abajo la
+  // vuelve a soltar en cuanto el pathname cambia de verdad.
+  const [grupoManual, setGrupoManual] = useState<string | null>(null);
   // TRES contadores, y ninguno más. El comentario original decía «el único, y a
   // propósito: un aviso que aparece en todos lados deja de ser un aviso». Esa
   // regla sigue en pie; lo que pasó es que aparecieron dos cosas más que cumplen
@@ -128,7 +133,7 @@ export function AdminNav() {
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
-  useEffect(() => { setAbierto(false); }, [pathname]);
+  useEffect(() => { setAbierto(false); setGrupoManual(null); }, [pathname]);
 
   // ⌘K / Ctrl+K abre el buscador desde cualquier pantalla del panel, escribiendo
   // o no. No se guarda "cerrado antes" en ningún lado: cada apertura arranca
@@ -196,50 +201,59 @@ export function AdminNav() {
     .map((g) => ({ ...g, items: g.items.filter(visible) }))
     .filter((g) => g.items.length > 0);
 
+  // La barra `xl:flex` pasa de una sola fila que se envuelve en 2-3 líneas a
+  // dos: fila 1 fija (Lo mío/Dashboard/Bandeja, sin label) + una pestaña por
+  // grupo con label; fila 2 son los ítems del grupo activo — el mismo `Link`
+  // que ya existía por ítem, solo movido de fila. `grupos` (arriba) sigue
+  // siendo la única fuente de verdad para el menú móvil, el buscador y los
+  // atajos: acá solo se parte en dos para pintar la barra de escritorio.
+  const grupoSinLabel = grupos.find((g) => !g.label);
+  const gruposConLabel = grupos.filter((g) => g.label);
+  // Mismos tres contadores que ya decoran cada ítem (arriba) — acá se suman
+  // por grupo para que la pestaña avise aunque su fila esté colapsada.
+  const contadorPorHref: Record<string, number> = {
+    "/admin/educacion": educacionPorAtender,
+    "/admin/ausencias": vacacionesPorAtender,
+    "/admin/incidencias": revisionesPendientes,
+  };
+  const grupoDePathname = gruposConLabel.find((g) => g.items.some((it) => esActivo(pathname, it.href)))?.label;
+  const grupoActivoLabel = grupoManual ?? grupoDePathname ?? gruposConLabel[0]?.label;
+  const grupoActivo = gruposConLabel.find((g) => g.label === grupoActivoLabel);
+
   return (
     <header className="border-b border-sand">
       <div className="flex items-center justify-between px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-6 xl:gap-8">
           <Marca tono="tinta" isotipo="rojo" />
-          {/* Barra horizontal — desktop. Grupos separados por un divisor sutil. */}
-          <nav className="hidden flex-wrap items-center gap-x-2 gap-y-1 text-sm xl:flex">
-            {grupos.map((g, gi) => (
-              <div key={gi} className="flex items-center gap-x-0.5">
-                {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px bg-sand" />}
-                {g.items.map((it) => (
-                  <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition active:scale-[0.97] ${
-                      esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
-                    <it.Icon size={15} strokeWidth={1.8} aria-hidden />
-                    {it.label}
-                    {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
-                      >
-                        {educacionPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}
-                      >
-                        {vacacionesPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${revisionesPendientes} persona(s) pidieron que se revise un día suyo`}
-                      >
-                        {revisionesPendientes}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
+          {/* Barra horizontal — desktop, fila 1: fijos sin label + una pestaña
+              por grupo. La fila 2 (ítems del grupo activo) va debajo, fuera
+              de este `justify-between` para poder ocupar todo el ancho. */}
+          <nav className="hidden items-center gap-x-1 gap-y-1 text-sm xl:flex">
+            {grupoSinLabel?.items.map((it) => (
+              <Link key={it.href} href={it.href}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition active:scale-[0.97] ${
+                  esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
+                <it.Icon size={15} strokeWidth={1.8} aria-hidden />
+                {it.label}
+              </Link>
             ))}
+            {gruposConLabel.length > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px bg-sand" />}
+            {gruposConLabel.map((g) => {
+              const totalGrupo = g.items.reduce((s, it) => s + (contadorPorHref[it.href] ?? 0), 0);
+              const activo = g.label === grupoActivoLabel;
+              return (
+                <button key={g.label} type="button" onClick={() => setGrupoManual(g.label ?? null)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 transition active:scale-[0.97] ${
+                    activo ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40 hover:text-rojo"}`}>
+                  {g.label}
+                  {totalGrupo > 0 && (
+                    <span className="rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema">
+                      {totalGrupo}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
@@ -271,6 +285,45 @@ export function AdminNav() {
           </button>
         </div>
       </div>
+
+      {/* Fila 2 — desktop: los ítems del grupo activo, mismo `Link` que ya
+          existía por ítem (icono, estado activo, badge), solo movidos acá. */}
+      {grupoActivo && (
+        <nav className="hidden flex-wrap items-center gap-x-1 gap-y-1 border-t border-sand px-4 py-2 text-sm sm:px-6 xl:flex">
+          {grupoActivo.items.map((it) => (
+            <Link key={it.href} href={it.href}
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition active:scale-[0.97] ${
+                esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
+              <it.Icon size={15} strokeWidth={1.8} aria-hidden />
+              {it.label}
+              {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
+                <span
+                  className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                  title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
+                >
+                  {educacionPorAtender}
+                </span>
+              )}
+              {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
+                <span
+                  className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                  title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}
+                >
+                  {vacacionesPorAtender}
+                </span>
+              )}
+              {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
+                <span
+                  className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
+                  title={`${revisionesPendientes} persona(s) pidieron que se revise un día suyo`}
+                >
+                  {revisionesPendientes}
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+      )}
 
       {/* Menú desplegable móvil — vertical, con títulos de grupo e íconos. */}
       {abierto && (

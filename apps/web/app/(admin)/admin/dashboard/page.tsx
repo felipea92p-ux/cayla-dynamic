@@ -7,6 +7,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla } from "@/components/ui/tabla";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima } from "@cayla-dynamic/shared";
 
 const REFRESCO_MS = 30_000;
@@ -44,6 +46,14 @@ function LineaCobertura({ label, n, meta, tramo }: { label: string; n: number; m
         {n}
         {!sinMeta && <span className="font-normal text-taupe"> / meta {tramo ? tramo + " " : ""}{meta}</span>}
       </span>
+      {!sinMeta && (
+        <span className="h-1.5 w-16 overflow-hidden rounded-full bg-sand" aria-hidden>
+          <span
+            className="block h-full rounded-full transition-all"
+            style={{ width: `${Math.min(100, (n / meta) * 100)}%`, backgroundColor: color }}
+          />
+        </span>
+      )}
       {sinMeta ? (
         <span className="text-xs text-taupe/60">sin meta</span>
       ) : (
@@ -78,14 +88,15 @@ interface FilaPersona {
   esEncargada: boolean; // supervisor_sede o marca es_encargada_piso
 }
 
-// Estados: verde/ámbar cálidos para lo operativo, Rojo lleno para la alerta crítica.
-const ESTILO_ESTADO: Record<string, { label: string; clase: string }> = {
-  abierta: { label: "Presente", clase: "bg-verde/15 text-verde" },
-  en_pausa: { label: "En pausa", clase: "bg-ambar/15 text-ambar" },
-  cerrada: { label: "Salió", clase: "bg-sand/50 text-taupe" },
-  auto_cerrada_pendiente: { label: "Auto-cerrada ⚠", clase: "bg-rojo text-crema" },
-  revisada: { label: "Salió (revisada)", clase: "bg-sand/50 text-taupe" },
-  sin_marcar: { label: "Sin marcar", clase: "text-taupe/50" },
+// Estados: verde/ámbar cálidos para lo operativo. Auto-cerrada queda APARTE
+// (no es un Insignia más): es la única fila que exige una acción — el fondo
+// rojo lleno la separa a propósito del resto, que solo informa.
+const ESTILO_ESTADO: Record<string, { label: string; variante: "positivo" | "advertencia" | "neutral"; atenuada?: boolean }> = {
+  abierta: { label: "Presente", variante: "positivo" },
+  en_pausa: { label: "En pausa", variante: "advertencia" },
+  cerrada: { label: "Salió", variante: "neutral", atenuada: true },
+  revisada: { label: "Salió (revisada)", variante: "neutral", atenuada: true },
+  sin_marcar: { label: "Sin marcar", variante: "neutral", atenuada: true },
 };
 
 // Suma N días hábiles (salta sáb/dom) a una fecha ISO — para el plazo de inmediatez.
@@ -522,56 +533,60 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-sand">
-                <table className="w-full text-sm">
-                  <thead className="bg-sand/70 text-left">
-                    <tr className="etiqueta text-taupe">
-                      <th className="px-4 py-3 font-medium">Nombre</th>
-                      <th className="px-4 py-3 font-medium">Estado</th>
-                      <th className="px-4 py-3 font-medium">Entrada</th>
-                      <th className="px-4 py-3 font-medium">Tardanza</th>
-                      <th className="px-4 py-3 font-medium">Salida final</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deSede.map((f) => {
-                      const estilo = ESTILO_ESTADO[f.estado] ?? ESTILO_ESTADO.sin_marcar;
-                      return (
-                        <tr key={f.personaId} className="border-t border-sand bg-papel transition-colors hover:bg-crema">
-                          <td className="px-4 py-2.5">{f.nombre}</td>
-                          <td className="px-4 py-2.5">
-                            {f.estado === "auto_cerrada_pendiente" ? (
-                              <Link href={linkCorregir(f.personaId)} className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase} transition-opacity hover:opacity-80`}>
-                                {estilo.label} ›
-                              </Link>
-                            ) : (
-                              <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
-                          <td className="px-4 py-2.5">
-                            {f.minutosTarde === null || f.minutosTarde === 0 ? (
-                              <span className="text-taupe/40">—</span>
-                            ) : (
-                              <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
-                                {f.minutosTarde} min
-                              </Link>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            {horaLima(f.salidaFinal)}
-                            {f.salidaTemprana ? (
-                              <Link href={linkCorregir(f.personaId)} className="ml-2 rounded-full bg-ambar/15 px-1.5 py-0.5 text-[10px] text-ambar hover:opacity-80">
-                                anticip. {f.salidaTemprana}m
-                              </Link>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <Tabla>
+                <thead className="bg-sand/70 text-left">
+                  <tr className="etiqueta text-taupe">
+                    <th className="px-4 py-3 font-medium">Nombre</th>
+                    <th className="px-4 py-3 font-medium">Estado</th>
+                    <th className="px-4 py-3 font-medium">Entrada</th>
+                    <th className="px-4 py-3 font-medium">Tardanza</th>
+                    <th className="px-4 py-3 font-medium">Salida final</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deSede.map((f) => {
+                    const estilo = ESTILO_ESTADO[f.estado] ?? ESTILO_ESTADO.sin_marcar;
+                    return (
+                      <tr key={f.personaId} className="border-t border-sand transition-colors hover:bg-crema">
+                        <td className="px-4 py-2.5">{f.nombre}</td>
+                        <td className="px-4 py-2.5">
+                          {f.estado === "auto_cerrada_pendiente" ? (
+                            <Link href={linkCorregir(f.personaId)}
+                              className="flex w-fit items-center gap-1 rounded-full bg-rojo px-2 py-0.5 text-xs text-crema transition-opacity hover:opacity-80">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                <path d="M12 3 2 20h20L12 3Z" />
+                                <path d="M12 9v5" />
+                                <circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none" />
+                              </svg>
+                              Auto-cerrada ›
+                            </Link>
+                          ) : (
+                            <Insignia variante={estilo.variante} atenuada={estilo.atenuada}>{estilo.label}</Insignia>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
+                        <td className="px-4 py-2.5">
+                          {f.minutosTarde === null || f.minutosTarde === 0 ? (
+                            <span className="text-taupe/40">—</span>
+                          ) : (
+                            <Link href={linkCorregir(f.personaId)} className="font-semibold text-rojo underline decoration-rojo/30 underline-offset-2 transition-colors hover:decoration-rojo">
+                              {f.minutosTarde} min
+                            </Link>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {horaLima(f.salidaFinal)}
+                          {f.salidaTemprana ? (
+                            <Link href={linkCorregir(f.personaId)} className="ml-2 rounded-full bg-ambar/15 px-1.5 py-0.5 text-[10px] text-ambar hover:opacity-80">
+                              anticip. {f.salidaTemprana}m
+                            </Link>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Tabla>
             </section>
           );
         })}

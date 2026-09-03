@@ -5,12 +5,13 @@
 import type { ReactNode } from "react";
 import { cx } from "./cx";
 
-type Variante = "neutral" | "alerta" | "advertencia";
+type Variante = "neutral" | "alerta" | "advertencia" | "positivo";
 
 const TONOS: Record<Variante, string> = {
   neutral: "bg-sand text-tinta",
   alerta: "bg-rojo/10 text-rojo",
   advertencia: "bg-ambar/15 text-ambar",
+  positivo: "bg-verde/15 text-verde",
 };
 
 export function Insignia({

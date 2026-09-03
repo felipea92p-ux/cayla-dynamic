@@ -26,21 +26,25 @@ const TAMANOS: Record<Tamano, string> = {
   md: "px-4 py-2 text-sm",
 };
 
+// Para acciones que en verdad son un enlace (`<a>`/`next/link`) y no un
+// `<button>`: `Boton` solo puede renderizar `<button>` (tipa
+// `ButtonHTMLAttributes`), así que un `Link` con pinta de botón usa esta
+// función sobre su propio `className` en vez de forzar `Boton` donde no
+// calza.
+export function claseBoton(variante: Variante = "secundario", tamano: Tamano = "md", className?: string) {
+  return cx(
+    CHROME[variante],
+    variante !== "enlace" && TAMANOS[tamano],
+    "font-medium disabled:opacity-50",
+    className,
+  );
+}
+
 export function Boton({
   variante = "secundario",
   tamano = "md",
   className,
   ...props
 }: { variante?: Variante; tamano?: Tamano } & ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      className={cx(
-        CHROME[variante],
-        variante !== "enlace" && TAMANOS[tamano],
-        "font-medium disabled:opacity-50",
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <button className={claseBoton(variante, tamano, className)} {...props} />;
 }

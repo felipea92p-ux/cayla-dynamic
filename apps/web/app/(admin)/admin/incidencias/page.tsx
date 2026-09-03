@@ -7,6 +7,9 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla } from "@/components/ui/tabla";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
@@ -757,26 +760,25 @@ function IncidenciasContenido() {
           return (
             <section key={sede} className="mb-8">
               <h2 className="mb-3 font-serif text-lg">{sede} <span className="text-base text-taupe">· {deSede.length}</span></h2>
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm">
-                  <thead className="bg-sand/70 text-left">
-                    <tr className="etiqueta text-taupe">
-                      <th className="px-4 py-2.5 font-medium">Persona</th>
-                      <th className="px-4 py-2.5 font-medium">Fecha</th>
-                      <th className="px-4 py-2.5 font-medium">Incidencia</th>
-                      <th className="px-4 py-2.5 font-medium">Entrada</th>
-                      <th className="px-4 py-2.5 font-medium">Salida</th>
-                      <th className="px-4 py-2.5 font-medium"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deSede.map((f, i) => (
-                      <tr key={`${f.personaId}-${f.fecha}-${i}`} className="border-t border-sand">
-                        <td className="px-4 py-2.5">{f.nombre}</td>
-                        <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`font-medium ${f.justificada ? "text-taupe" : "text-rojo"}`}>{f.tipo}</span>
-                        </td>
+              <Tabla>
+                <thead className="bg-sand/70 text-left">
+                  <tr className="etiqueta text-taupe">
+                    <th className="px-4 py-2.5 font-medium">Persona</th>
+                    <th className="px-4 py-2.5 font-medium">Fecha</th>
+                    <th className="px-4 py-2.5 font-medium">Incidencia</th>
+                    <th className="px-4 py-2.5 font-medium">Entrada</th>
+                    <th className="px-4 py-2.5 font-medium">Salida</th>
+                    <th className="px-4 py-2.5 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deSede.map((f, i) => (
+                    <tr key={`${f.personaId}-${f.fecha}-${i}`} className="border-t border-sand">
+                      <td className="px-4 py-2.5">{f.nombre}</td>
+                      <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
+                      <td className="px-4 py-2.5">
+                        <Insignia variante="alerta" atenuada={Boolean(f.justificada)}>{f.tipo}</Insignia>
+                      </td>
                         <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
                         <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
                         <td className="px-4 py-2.5 text-right">
@@ -832,8 +834,7 @@ function IncidenciasContenido() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+              </Tabla>
             </section>
           );
         })}
@@ -857,9 +858,9 @@ function IncidenciasContenido() {
               </label>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setJustif(null)} disabled={guardandoJustif} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
-                <button onClick={() => void guardarJustificacion()} disabled={guardandoJustif} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                <Boton variante="primario" onClick={() => void guardarJustificacion()} disabled={guardandoJustif}>
                   {guardandoJustif ? "Guardando…" : "Justificar"}
-                </button>
+                </Boton>
               </div>
             </div>
           </div>
