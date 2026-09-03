@@ -11,6 +11,35 @@ function fechaHoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+interface MarcajeInsp {
+  timestamp_marca: string;
+  persona_id: string;
+  tipo: string;
+  motivo_otro: string | null;
+  origen: string;
+  estado_revision: string;
+  server_received_at: string;
+  anulada_at: string | null;
+  anulada_por: string | null;
+  anulada_motivo: string | null;
+  confirmo_sin_refrigerio: boolean | null;
+}
+interface CorreccionInsp {
+  persona_id: string;
+  campo_modificado: string;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  motivo: string;
+  corregido_por: string;
+  corregido_at: string;
+}
+interface PersonaInsp {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  sedes: { codigo: string } | null;
+}
+
 export default function ExportarPage() {
   const [desde, setDesde] = useState(fechaHoyISO());
   const [hasta, setHasta] = useState(fechaHoyISO());
@@ -109,7 +138,7 @@ export default function ExportarPage() {
     const { fin } = rangoDelDiaLima(hastaInsp);
 
     const [marcajesRes, correccionesRes, personasRes] = await Promise.all([
-      traerTodo<any>((ini, finRango) =>
+      traerTodo<unknown>((ini, finRango) =>
         supabase
           .from("marcajes")
           .select(
@@ -121,7 +150,7 @@ export default function ExportarPage() {
           .order("timestamp_marca")
           .range(ini, finRango),
       ),
-      traerTodo<any>((ini, finRango) =>
+      traerTodo<unknown>((ini, finRango) =>
         supabase
           .from("correcciones_auditoria")
           .select("persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por, corregido_at")
@@ -139,15 +168,12 @@ export default function ExportarPage() {
     const err = marcajesRes.error ?? correccionesRes.error ?? personasRes.error;
     if (err) { setErrorInsp(err.message); return; }
 
-    const nombrePorId = new Map(
-      ((personasRes.data as any[]) ?? []).map((p) => [p.id as string, `${p.nombres} ${p.apellidos}`.trim()]),
-    );
-    const sedePorId = new Map(
-      ((personasRes.data as any[]) ?? []).map((p) => [p.id as string, p.sedes?.codigo ?? ""]),
-    );
+    const personas = (personasRes.data as PersonaInsp[] | null) ?? [];
+    const nombrePorId = new Map(personas.map((p) => [p.id, `${p.nombres} ${p.apellidos}`.trim()]));
+    const sedePorId = new Map(personas.map((p) => [p.id, p.sedes?.codigo ?? ""]));
     const quien = (id: string | null) => (id ? (nombrePorId.get(id) ?? id) : "");
 
-    const filasMarcajes = ((marcajesRes.data as any[]) ?? []).map((m) => ({
+    const filasMarcajes = ((marcajesRes.data as MarcajeInsp[] | null) ?? []).map((m) => ({
       fecha_hora: m.timestamp_marca,
       persona: quien(m.persona_id),
       sede: sedePorId.get(m.persona_id) ?? "",
@@ -159,7 +185,7 @@ export default function ExportarPage() {
       anulada_at: m.anulada_at ?? "",
       anulada_por: quien(m.anulada_por),
       anulada_motivo: m.anulada_motivo ?? "",
-      // 0350: solo tiene valor en una salida_final donde el terminal preguntó
+      // 0353: solo tiene valor en una salida_final donde el terminal preguntó
       // por no haber refrigerio marcado ese día. Vacío no es "no aplica" y
       // "no" a la vez — por eso se distingue "sin preguntar" de "sí"/"no".
       confirmo_trabajo_sin_refrigerio:
@@ -171,7 +197,7 @@ export default function ExportarPage() {
       "confirmo_trabajo_sin_refrigerio",
     ]);
 
-    const filasCorrecciones = ((correccionesRes.data as any[]) ?? []).map((c) => ({
+    const filasCorrecciones = ((correccionesRes.data as CorreccionInsp[] | null) ?? []).map((c) => ({
       persona: quien(c.persona_id),
       campo_modificado: c.campo_modificado,
       valor_anterior: c.valor_anterior ?? "",
