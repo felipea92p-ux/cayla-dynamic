@@ -17,7 +17,7 @@
 // verdad) y lleva altura mínima visible en rojo — si no, una barra de 0% de
 // alto real es indistinguible del hueco gris.
 
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { MESES, MESES_CORTO, nivelColorObjetivos, type MesHistorial } from "@/lib/objetivos";
 
 const CLASE_FILL_NIVEL: Record<"verde" | "ambar" | "rojo", string> = {
@@ -59,6 +59,25 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   const [activo, setActivo] = useState<number | null>(null);
   const idBase = useId();
 
+  // El ancho de la barra sale del espacio real de la tarjeta, no de un valor
+  // fijo. Con el rango "Último mes" (un solo dato) una barra de 20px fija
+  // quedaba perdida en medio de una tarjeta de ~700px — se mide con
+  // ResizeObserver porque no hay forma de saber ese ancho antes de montar en
+  // el DOM. `medir()` corre una vez de entrada, síncrono dentro del layout
+  // effect, para que el primer frame ya salga con el ancho correcto y no haya
+  // un salto visible al llegar la primera medición del observer.
+  const contenedorRef = useRef<HTMLDivElement>(null);
+  const [anchoContenedor, setAnchoContenedor] = useState(0);
+  useLayoutEffect(() => {
+    const el = contenedorRef.current;
+    if (!el) return;
+    const medir = () => setAnchoContenedor(el.clientWidth);
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   if (historial.length === 0) {
     return <p className="text-sm text-taupe">Sin historial para mostrar.</p>;
   }
@@ -67,17 +86,32 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   const PAD_TOP = 14;
   const PAD_BOTTOM = 34;
   const PAD_LEFT = 32;
-  const ANCHO_BARRA = 20;
-  const GAP = 10;
+  const PAD_RIGHT = 8;
   const RADIO = 4;
-  const W = PAD_LEFT + historial.length * (ANCHO_BARRA + GAP) + 8;
+  const BARRA_MIN = 14;
+  const BARRA_MAX = 64;
+  const HUECO_MIN = 6;
+
+  const n = historial.length;
+  const disponible = Math.max(0, anchoContenedor - PAD_LEFT - PAD_RIGHT);
+  // El "carril" de cada mes reparte TODO el ancho disponible en partes
+  // iguales. Con 1 o 2 meses el carril es enorme — ahí es donde se nota: la
+  // barra se dibuja ancha (hasta BARRA_MAX) y centrada en su carril, en vez
+  // de quedar del tamaño de siempre flotando en medio de un hueco. Con
+  // muchos meses el carril natural ya es chico y nunca llega a tocar el
+  // máximo, así que no cambia nada respecto de antes.
+  const carril = n > 0 ? Math.max(disponible / n, BARRA_MIN + HUECO_MIN) : 0;
+  const ANCHO_BARRA = Math.min(BARRA_MAX, Math.max(BARRA_MIN, carril - HUECO_MIN));
+  const W = Math.max(anchoContenedor, PAD_LEFT + n * carril + PAD_RIGHT);
   const alto = H - PAD_TOP - PAD_BOTTOM;
   const y = (pct: number) => PAD_TOP + alto - (pct / 100) * alto;
+  const xCarril = (i: number) => PAD_LEFT + i * carril;
+  const xBarra = (i: number) => xCarril(i) + (carril - ANCHO_BARRA) / 2;
 
   const ticks = [0, 25, 50, 75, 100];
   const ultimo = historial.length - 1;
   const item = activo !== null ? historial[activo] : null;
-  const xActivo = activo !== null ? PAD_LEFT + activo * (ANCHO_BARRA + GAP) + ANCHO_BARRA / 2 : 0;
+  const xActivo = activo !== null ? xBarra(activo) + ANCHO_BARRA / 2 : 0;
   const yTopActivo =
     activo !== null
       ? historial[activo].total > 0
@@ -94,7 +128,7 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
     <div>
       {/* Refetch mantiene el dibujo anterior atenuado en vez de un flash de
           "Cargando…": cambiar el rango no debe verse como una pantalla nueva. */}
-      <div className={`relative overflow-x-auto transition-opacity ${cargando ? "opacity-50" : "opacity-100"}`}>
+      <div ref={contenedorRef} className={`relative overflow-x-auto transition-opacity ${cargando ? "opacity-50" : "opacity-100"}`}>
         <svg
           width={W}
           height={H}
@@ -113,7 +147,7 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
           ))}
 
           {historial.map((m, i) => {
-            const x = PAD_LEFT + i * (ANCHO_BARRA + GAP);
+            const x = xBarra(i);
             const sinDato = m.total <= 0;
             const pct = sinDato ? 0 : (m.cumplidos / m.total) * 100;
             const nivel = nivelColorObjetivos(m.cumplidos, m.total);
@@ -168,9 +202,9 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
                 {/* Objetivo de foco/hover: más grande que la marca, incluye el
                     hueco entre barras. Mismo detalle en teclado que en mouse. */}
                 <rect
-                  x={x - GAP / 2}
+                  x={xCarril(i)}
                   y={PAD_TOP}
-                  width={ANCHO_BARRA + GAP}
+                  width={carril}
                   height={alto}
                   fill="transparent"
                   tabIndex={0}
