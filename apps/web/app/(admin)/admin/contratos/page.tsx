@@ -116,7 +116,8 @@ interface ContratoFila {
   sede: string | null;
   remuneracion_mensual: number;
   fecha_inicio: string;
-  fecha_fin: string;
+  // NULL cuando tipo="indefinido" (0347): ese documento no tiene fecha de término.
+  fecha_fin: string | null;
   horas_semanales: number | null;
   generado_at: string;
   storage_path: string | null;
@@ -152,6 +153,7 @@ const TIPO_CONTRATO: Record<string, string> = {
   renovacion: "Renovación",
   adendum: "Adendum",
   convenio_practicas: "Convenio de prácticas",
+  indefinido: "Indefinido",
 };
 
 /**
@@ -229,7 +231,9 @@ export default function ContratosPage() {
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
 
   const [personaId, setPersonaId] = useState("");
-  const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas">("renovacion");
+  const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido">(
+    "renovacion",
+  );
   const [cargoEditado, setCargoEditado] = useState("");
   const [causaEditada, setCausaEditada] = useState("");
   const [funcionesEditadas, setFuncionesEditadas] = useState("");
@@ -503,14 +507,23 @@ export default function ContratosPage() {
   const ciudadFinal = (ciudadEditada.trim() || ciudadDeLaSede) ?? null;
   const esAdendum = tipoEfectivo === "adendum";
   const esConvenio = tipoEfectivo === "convenio_practicas";
+  // Un indefinido no tiene causa objetiva (no es modalidad temporal) ni fecha
+  // de fin — comparte todo lo demás con el contrato a plazo fijo (0347).
+  const esIndefinido = tipoEfectivo === "indefinido";
   // `coalesce(sede_fisica, sede_base)` — el mismo criterio de
   // `fn_planilla_calcular` (0166). Leerlo solo de la sede base le imprimía a
   // quien tiene base Central y trabaja en AQP la tarifa de Central, que no
   // existe, y el contrato salía prometiendo S/ 0.00 de movilidad.
   const movilidadTarifa = persona ? tarifaDeSede(persona.sede_fisica_id ?? persona.sede_base_id) : null;
 
+  // Un indefinido no exige fechaFin — es justamente lo que no tiene (0347).
   const datosParaGenerar: DatosContrato | null =
-    persona && datoPersonal?.nombre_dni && persona.documento && salarioVigente !== null && fechaInicio && fechaFin
+    persona &&
+    datoPersonal?.nombre_dni &&
+    persona.documento &&
+    salarioVigente !== null &&
+    fechaInicio &&
+    (fechaFin || esIndefinido)
       ? {
           tipo: tipoEfectivo,
           nombreDni: datoPersonal.nombre_dni,
@@ -567,10 +580,11 @@ export default function ContratosPage() {
   // nota entra TAL CUAL a la cláusula PRIMERA (`<p>${d.causaObjetivaTexto}</p>`):
   // un contrato firmado que lleva dentro «[REVISAR antes de imprimir…]» no solo
   // queda en ridículo, debilita justo la cláusula que sustenta la modalidad
-  // temporal ante una inspección. Un convenio no usa `causaObjetivaTexto`
-  // (no tiene causa objetiva — no es un contrato de trabajo), así que esta
-  // nota de relleno no es asunto suyo.
-  if (persona && !esConvenio && causaEditada.includes("[REVISAR")) {
+  // temporal ante una inspección. Ni un convenio ni un indefinido usan
+  // `causaObjetivaTexto` (no tienen causa objetiva — uno no es contrato de
+  // trabajo, el otro no es modalidad temporal), así que esta nota de relleno
+  // no es asunto suyo.
+  if (persona && !esConvenio && !esIndefinido && causaEditada.includes("[REVISAR")) {
     bloqueos.push("Revisa y quita la nota «[REVISAR antes de imprimir…]» de la causa objetiva.");
   }
   // Un beneficio con monto es un monto REAL o no se imprime. Sin tarifa vigente
@@ -626,7 +640,7 @@ export default function ContratosPage() {
   // Avisa, no bloquea: renovar pasado el tope puede ser una decisión tomada a
   // sabiendas, y quien la tome tiene que verlo escrito antes de firmar.
   const avisos: string[] = [];
-  if (persona && !esAdendum && !esConvenio && fechaFin) {
+  if (persona && !esAdendum && !esConvenio && !esIndefinido && fechaFin) {
     const anios = (new Date(`${fechaFin}T00:00:00`).getTime() - new Date(`${persona.fecha_ingreso}T00:00:00`).getTime()) / 31_557_600_000;
     if (anios > 5) {
       avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años a plazo fijo, sobre el tope de CINCO del artículo 74. El vínculo quedaría desnaturalizado a indefinido por el artículo 77.`);
@@ -667,7 +681,9 @@ export default function ContratosPage() {
       p_sede_id: persona.sede_base_id,
       p_remuneracion_mensual: datosParaGenerar.remuneracionMensual,
       p_fecha_inicio: fechaInicio,
-      p_fecha_fin: fechaFin,
+      // Un indefinido nunca lleva fecha de fin (0347) — fn_contrato_registrar
+      // la rechaza si no es null para ese tipo.
+      p_fecha_fin: esIndefinido ? null : fechaFin,
       // La jornada del contrato es siempre 48h (ver contrato-texto.ts); no hay
       // un número calculado del horario que guardar acá.
       p_horas_semanales: null,
@@ -909,7 +925,12 @@ export default function ContratosPage() {
                       ? { ...e, texto: "se acerca al tope de 12 meses del convenio" }
                       : esPracticanteFila && f.estado === "sin_vencimiento"
                         ? { ...e, texto: "sin fecha de fin en su convenio" }
-                        : e;
+                        : // Un indefinido nunca debe comunicación al MTPE (0347) — el
+                          // texto genérico de "trámite pendiente" menciona esa
+                          // comunicación, y ahí mentiría.
+                          f.tipo === "indefinido" && f.estado === "tramite_pendiente"
+                          ? { ...e, texto: "falta entregar copia a la colaboradora" }
+                          : e;
                 const tipoFila = esPracticanteFila
                   ? "convenio_practicas"
                   : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
@@ -988,10 +1009,13 @@ export default function ContratosPage() {
                 <select
                   className="mt-1 w-full rounded border border-sand p-2"
                   value={tipo}
-                  onChange={(e) => setTipo(e.target.value as "nuevo" | "renovacion" | "adendum")}
+                  onChange={(e) =>
+                    setTipo(e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido")
+                  }
                 >
                   <option value="renovacion">Renovación</option>
                   <option value="nuevo">Nuevo ingreso</option>
+                  <option value="indefinido">Indefinido</option>
                   <option value="adendum">Adendum</option>
                 </select>
               )}
@@ -1012,12 +1036,20 @@ export default function ContratosPage() {
                 </label>
                 <label className="text-sm">
                   Fecha de fin
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    value={fechaFin}
-                    onChange={(e) => setFechaFin(e.target.value)}
-                  />
+                  {esIndefinido ? (
+                    <input
+                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                      value="Sin fecha de fin — contrato indefinido"
+                      disabled
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      value={fechaFin}
+                      onChange={(e) => setFechaFin(e.target.value)}
+                    />
+                  )}
                 </label>
               </div>
 
@@ -1118,15 +1150,19 @@ export default function ContratosPage() {
                 </>
               ) : (
                 <>
-                  <label className="block text-sm">
-                    Causa objetiva (revisar antes de imprimir)
-                    <textarea
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      rows={4}
-                      value={causaEditada}
-                      onChange={(e) => setCausaEditada(e.target.value)}
-                    />
-                  </label>
+                  {/* Un indefinido no tiene causa objetiva — no es modalidad
+                      temporal, no la necesita (0347). */}
+                  {!esIndefinido && (
+                    <label className="block text-sm">
+                      Causa objetiva (revisar antes de imprimir)
+                      <textarea
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={4}
+                        value={causaEditada}
+                        onChange={(e) => setCausaEditada(e.target.value)}
+                      />
+                    </label>
+                  )}
                   <label className="block text-sm">
                     Funciones del cargo (Anexo I) — una por línea; se numeran solas
                     <textarea
@@ -1273,7 +1309,8 @@ export default function ContratosPage() {
                   <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
                     <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
                       <span>
-                        {formatearFecha(c.fecha_inicio)} – {formatearFecha(c.fecha_fin)}
+                        {formatearFecha(c.fecha_inicio)} –{" "}
+                        {c.fecha_fin ? formatearFecha(c.fecha_fin) : "indeterminado"}
                       </span>
                       <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
                       <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
@@ -1282,16 +1319,19 @@ export default function ContratosPage() {
                     </div>
 
                     {/* Los dos plazos, solo mientras falten: confirmar en cada
-                        fila lo que ya se hizo llena la pantalla de recibos. */}
-                    {c.fecha_firma && (!c.copia_entregada_at || !c.comunicado_mtpe_at) && (
-                      <p className="text-xs text-taupe">
-                        Falta{" "}
-                        {!c.copia_entregada_at &&
-                          `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
-                        {!c.copia_entregada_at && !c.comunicado_mtpe_at && " y "}
-                        {!c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
-                      </p>
-                    )}
+                        fila lo que ya se hizo llena la pantalla de recibos.
+                        Un indefinido no se registra ante la Autoridad de
+                        Trabajo (0347) — ese trámite no le corresponde. */}
+                    {c.fecha_firma &&
+                      (!c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)) && (
+                        <p className="text-xs text-taupe">
+                          Falta{" "}
+                          {!c.copia_entregada_at &&
+                            `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
+                          {!c.copia_entregada_at && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && " y "}
+                          {c.tipo !== "indefinido" && !c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
+                        </p>
+                      )}
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                       <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
@@ -1312,7 +1352,7 @@ export default function ContratosPage() {
                           Marcar copia entregada
                         </button>
                       )}
-                      {c.fecha_firma && !c.comunicado_mtpe_at && (
+                      {c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
                         <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
                           Marcar comunicado al MTPE
                         </button>

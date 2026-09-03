@@ -376,12 +376,18 @@ export interface Proyeccion {
 // gratificacion/cts tampoco son tipos nuevos en la base: son categorías sobre un
 // bono. Su MONTO lo calcula el sistema (fn_grati_cts_periodo) para el periodo que
 // contiene la fecha de pago legal, y se autocompleta al elegirlas.
-type ClaseMov = "bono" | "descuento" | "vacaciones" | "gratificacion" | "cts" | "otros";
+// CAMBIO 0346 — bonificacion_extraordinaria es una categoría más sobre un bono,
+// igual que gratificacion/cts: su monto lo calcula fn_grati_cts_periodo (el 9%
+// de Ley 30334 sobre la MISMA gratificación de este semestre) y se autocompleta
+// al elegirla, como movimiento separado del de «Gratificación».
+type ClaseMov = "bono" | "descuento" | "vacaciones" | "gratificacion" | "cts" | "bonificacion_extraordinaria" | "otros";
 const CLASE_A_TIPO: Record<ClaseMov, "bono" | "descuento"> = {
-  bono: "bono", descuento: "descuento", vacaciones: "bono", gratificacion: "bono", cts: "bono", otros: "bono",
+  bono: "bono", descuento: "descuento", vacaciones: "bono", gratificacion: "bono", cts: "bono",
+  bonificacion_extraordinaria: "bono", otros: "bono",
 };
 const CLASE_A_CATEGORIA: Record<ClaseMov, string | null> = {
-  bono: null, descuento: null, vacaciones: "vacaciones", gratificacion: "gratificacion", cts: "cts", otros: "otros",
+  bono: null, descuento: null, vacaciones: "vacaciones", gratificacion: "gratificacion", cts: "cts",
+  bonificacion_extraordinaria: "bonificacion_extraordinaria", otros: "otros",
 };
 // Nombres LEGALES, revertido el 2026-07-28 por decisión de Felipe. Antes decían
 // «Bono Gratitud» y «Bono Comprometidos» para ser discretos, y eso era un riesgo:
@@ -392,7 +398,8 @@ const CLASE_A_CATEGORIA: Record<ClaseMov, string | null> = {
 // Por dentro nada cambia: la categoría, el cálculo (fn_grati_cts_periodo) y el
 // candado siguen igual. Solo cambia el nombre que se escribe y se lee.
 const CLASE_LABEL: Record<ClaseMov, string> = {
-  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", gratificacion: "Gratificación", cts: "CTS", otros: "Otros",
+  bono: "Bono", descuento: "Descuento", vacaciones: "Vacaciones", gratificacion: "Gratificación", cts: "CTS",
+  bonificacion_extraordinaria: "Bonificación 9% (Ley 30334)", otros: "Otros",
 };
 const CLASE_PLACEHOLDER: Record<ClaseMov, string> = {
   bono: "ej. reconocimiento del mes",
@@ -400,6 +407,7 @@ const CLASE_PLACEHOLDER: Record<ClaseMov, string> = {
   vacaciones: "ej. Vacaciones 22–28 jul 2026",
   gratificacion: "el sistema lo calcula",
   cts: "el sistema lo calcula",
+  bonificacion_extraordinaria: "el sistema lo calcula",
   otros: "ej. reintegro",
 };
 
@@ -412,12 +420,15 @@ interface MovForm {
   origen: string;
 }
 // Grati/CTS que toca en el periodo, calculado por fn_grati_cts_periodo.
+// CAMBIO 0346 — beConcepto y el campo be de porPersona: el 9% de Ley 30334,
+// del mismo monto de grati, para registrarse como movimiento aparte.
 interface GratiCts {
   gratiAplica: boolean;
   gratiConcepto: string;
   ctsAplica: boolean;
   ctsConcepto: string;
-  porPersona: Record<string, { grati: number; cts: number }>;
+  beConcepto: string;
+  porPersona: Record<string, { grati: number; cts: number; be: number }>;
 }
 
 // Una liquidación YA PAGADA de alguien que cesó dentro de este periodo, tal
@@ -518,10 +529,10 @@ function TablaPlanilla(props: {
   // Al elegir grati/CTS en el desplegable, autocompleta concepto y el monto que el
   // sistema calculó para esa persona en este periodo. El resto queda manual.
   const alCambiarTipo = (f: Fila, t: ClaseMov) => {
-    if ((t === "gratificacion" || t === "cts") && gc) {
+    if ((t === "gratificacion" || t === "cts" || t === "bonificacion_extraordinaria") && gc) {
       const gp = gc.porPersona[f.persona_id];
-      const monto = t === "gratificacion" ? gp?.grati : gp?.cts;
-      const concepto = t === "gratificacion" ? gc.gratiConcepto : gc.ctsConcepto;
+      const monto = t === "gratificacion" ? gp?.grati : t === "cts" ? gp?.cts : gp?.be;
+      const concepto = t === "gratificacion" ? gc.gratiConcepto : t === "cts" ? gc.ctsConcepto : gc.beConcepto;
       // CAMBIO 0305 — `origen` vacío a propósito: una gratificación o una CTS
       // corresponden a la ventana de ESTE periodo, no corrigen un mes anterior.
       // Si alguien venía de marcar un origen y cambia a grati, se limpia.
@@ -903,6 +914,8 @@ function TablaPlanilla(props: {
                               <option value="vacaciones">Vacaciones</option>
                               {/* Solo en el periodo que corresponde (fecha de pago legal dentro del rango) */}
                               {gc?.gratiAplica && <option value="gratificacion">{CLASE_LABEL.gratificacion}</option>}
+                              {/* CAMBIO 0346 — sigue la misma aplicabilidad que la gratificación: es un 9% de ese mismo monto. */}
+                              {gc?.gratiAplica && <option value="bonificacion_extraordinaria">{CLASE_LABEL.bonificacion_extraordinaria}</option>}
                               {gc?.ctsAplica && <option value="cts">{CLASE_LABEL.cts}</option>}
                               <option value="otros">Otros</option>
                             </select>
@@ -1249,13 +1262,19 @@ export default function PlanillaPage() {
     // simplemente no muestra esas opciones y la planilla sigue igual).
     const { data: gcData } = await supabase.rpc("fn_grati_cts_periodo", { p_periodo_id: id });
     if (mi !== reqId.current) return;
-    const g = gcData as any;
+    const g = gcData as unknown as {
+      grati_aplica: boolean; grati_concepto: string;
+      cts_aplica: boolean; cts_concepto: string;
+      be_concepto: string;
+      personas: { persona_id: string; grati: number; cts: number; be: number }[];
+    } | null;
     setGc(g ? {
       gratiAplica: Boolean(g.grati_aplica),
       gratiConcepto: g.grati_concepto ?? "",
       ctsAplica: Boolean(g.cts_aplica),
       ctsConcepto: g.cts_concepto ?? "",
-      porPersona: Object.fromEntries(((g.personas as any[]) ?? []).map((x) => [x.persona_id, { grati: Number(x.grati) || 0, cts: Number(x.cts) || 0 }])),
+      beConcepto: g.be_concepto ?? "",
+      porPersona: Object.fromEntries((g.personas ?? []).map((x) => [x.persona_id, { grati: Number(x.grati) || 0, cts: Number(x.cts) || 0, be: Number(x.be) || 0 }])),
     } : null);
     // Quién de este periodo YA cobró su liquidación (0210). Falla suave a
     // propósito: si no llega, la pantalla se queda como estaba y sigue

@@ -95,7 +95,7 @@ export const REGIMEN_PENSION_LABELS: Record<RegimenPension, string> = {
   habitat_mixta: "AFP Habitat — comisión mixta (11.37 %)",
   habitat: "AFP Habitat — comisión sobre flujo (12.84 %)",
   // Sin porcentaje porque no hay ninguno que mostrar: no se le descuenta nada.
-  jubilada: "Jubilada — ya cobra su pensión, no aporta",
+  jubilada: "Jubilado/a — ya cobra su pensión, no aporta",
 };
 
 /**
@@ -120,7 +120,7 @@ export function nombreRegimenPension(regimen: string | null | undefined): string
   const codigo = (regimen ?? "").trim();
   if (codigo === "") return null;
   if (codigo === "onp") return "ONP";
-  if (codigo === "jubilada") return "Jubilada";
+  if (codigo === "jubilada") return "Jubilado/a";
   const [afp, esquema] = codigo.split("_");
   const nombre = `AFP ${afp.charAt(0).toUpperCase()}${afp.slice(1)}`;
   return esquema === "mixta" ? `${nombre} — comisión mixta` : nombre;
