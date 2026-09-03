@@ -202,7 +202,9 @@ with repo(numero, nombre, nunca) as (values
     (341, 'las_vacaciones_truncas_pagan_su_aporte_a_pension', false),
     (342, 'la_sede_tambien_se_cambia_por_una_puerta', false),
     (343, 'un_adelanto_de_beneficio_no_se_vuelve_a_calcular_solo', false),
-    (346, 'la_bonificacion_extraordinaria_sale_aparte_al_pagar_la_grati', false)
+    (346, 'la_bonificacion_extraordinaria_sale_aparte_al_pagar_la_grati', false),
+    (352, 'aviso_por_correo_del_auto_cierre', false),
+    (353, 'confirmacion_de_jornada_completa_al_marcar_salida', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
