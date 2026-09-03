@@ -31,11 +31,16 @@
 // N.° 28518 y su reglamento, con el mismo tono ya usado en la boleta de un
 // practicante (PR #98), pero tampoco tuvo revisión legal de un abogado —
 // misma seriedad que el contrato de planilla, ni más ni menos.
+//
+// Y lo mismo vale para la rama `tipo === "indefinido"` (0347): el texto de
+// naturaleza/vigencia y de terminación se redactó sobre el régimen general de
+// la LPCL (arts. 16, 22-25 y 38 del TUO del D.Leg. 728), pero tampoco tuvo
+// revisión legal de un abogado.
 
 import { EMPRESA, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 
 export interface DatosContrato {
-  tipo: "nuevo" | "renovacion" | "adendum" | "convenio_practicas";
+  tipo: "nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido";
 
   // La persona
   nombreDni: string;
@@ -73,6 +78,10 @@ export interface DatosContrato {
   // Plazo — la jornada es siempre de 48h, el máximo legal; no se declara un
   // número calculado del horario, que es solo la disposición operativa de hoy.
   fechaInicio: string; // ISO
+  // Ignorado cuando `tipo === "indefinido"` (0347): ese contrato no tiene
+  // fecha de término y el documento nunca lo lee. Se deja tipado como string
+  // (no string | null) porque en la base SÍ importa que sea NULL para ese
+  // tipo — la distinción vive en `contratos_generados.fecha_fin`, no acá.
   fechaFin: string; // ISO
   fechaIngresoOriginal: string; // ISO — para saber si ya pasó el período de prueba
 
@@ -585,6 +594,80 @@ export function finDelPeriodoDePrueba(fechaIngreso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * PRIMERA (naturaleza) + SEGUNDA (plazo/vigencia) del contrato de trabajo —
+ * la única parte que distingue de verdad un plazo fijo de un indefinido
+ * (0347). El resto del cuerpo (jornada, remuneración, beneficios, período de
+ * prueba, disciplina, anexos) es el mismo régimen laboral común para
+ * cualquiera de los dos, y se reutiliza sin cambios.
+ */
+function clausulaNaturalezaYPlazo(d: DatosContrato): string {
+  if (d.tipo === "indefinido") {
+    return `
+    <h3>PRIMERA. NATURALEZA</h3>
+    <p>El presente contrato se celebra a plazo indeterminado, dentro del régimen general de contratación
+    laboral del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo N.°
+    003-97-TR — no requiere causa objetiva ni modalidad temporal alguna.</p>
+
+    <h3>SEGUNDA. VIGENCIA</h3>
+    <p>El contrato inicia el ${formatearFecha(d.fechaInicio)}, sin fecha de término, y se mantiene vigente
+    en tanto no se extinga por alguna de las causales previstas en el artículo 16 del TUO del Decreto
+    Legislativo N.° 728.</p>`;
+  }
+  return `
+    <h3>PRIMERA. NATURALEZA, MODALIDAD Y CAUSA OBJETIVA</h3>
+    <p>El presente contrato se celebra bajo la modalidad de Contrato Temporal por Inicio o Incremento de Actividad,
+    conforme al artículo 57 del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo
+    N.° 003-97-TR.</p>
+    <p>${d.causaObjetivaTexto}</p>
+    <p>El vínculo laboral generado por el presente contrato es de duración determinada y no genera estabilidad
+    laboral indefinida.</p>
+
+    <h3>SEGUNDA. PLAZO</h3>
+    <p>El contrato inicia el ${formatearFecha(d.fechaInicio)} y culmina el ${formatearFecha(d.fechaFin)}, fecha en
+    la cual quedará extinguido automáticamente sin necesidad de comunicación previa, salvo renovación expresa por
+    escrito.</p>`;
+}
+
+/** DÉCIMA OCTAVA — difiere porque el registro ante la AAT (art. 72-73) solo alcanza a un plazo fijo. Ver 0347. */
+function clausulaEntregaCopia(d: DatosContrato): string {
+  if (d.tipo === "indefinido") {
+    return `
+    <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA</h3>
+    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
+    siguientes al inicio de la prestación de servicios.</p>`;
+  }
+  return `
+    <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA Y REGISTRO</h3>
+    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
+    siguientes al inicio de la prestación de servicios, y lo comunicará a la Autoridad Administrativa de Trabajo
+    para su registro dentro de los quince (15) días naturales siguientes a su suscripción.</p>`;
+}
+
+/** VIGÉSIMA — la indemnización de un indefinido se cuenta por años de servicio (art. 38), no por meses restantes de plazo (art. 76). Ver 0347. */
+function clausulaTerminacion(d: DatosContrato): string {
+  if (d.tipo === "indefinido") {
+    return `
+    <h3>VIGÉSIMA. TERMINACIÓN</h3>
+    <p>El contrato se extingue por las causales previstas en el artículo 16 del TUO del Decreto Legislativo N.°
+    728: renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación, salvo exoneración por LA
+    EMPRESA), mutuo disenso, jubilación, invalidez absoluta permanente, o comisión de falta grave u otra causa
+    justa de despido debidamente comprobada conforme a los artículos 22 a 25 del mismo cuerpo legal.</p>
+    <p>Si LA EMPRESA pusiera fin al contrato sin la existencia de causa justa, corresponderá a LA COLABORADORA la
+    indemnización equivalente a una remuneración y media (1.5) ordinaria mensual por cada año completo de
+    servicios, con las fracciones de año computadas por dozavos y treintavos, y con un tope de doce (12)
+    remuneraciones, conforme al artículo 38 del TUO del Decreto Legislativo N.° 728.</p>`;
+  }
+  return `
+    <h3>VIGÉSIMA. TERMINACIÓN</h3>
+    <p>El contrato finalizará automáticamente en la fecha pactada o podrá resolverse anticipadamente por mutuo
+    acuerdo, renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación), comisión de falta
+    grave, o resolución anticipada sin causa justa por parte de LA EMPRESA — caso en el cual corresponderá la
+    indemnización equivalente a una remuneración y media (1.5) por cada mes dejado de laborar hasta el término del
+    contrato, con el límite de doce (12) remuneraciones, conforme al artículo 76 del TUO del Decreto Legislativo
+    N.° 728.</p>`;
+}
+
 function clausulaDisciplina(d: DatosContrato): string {
   return `
     <h3>DÉCIMA CUARTA. RÉGIMEN DISCIPLINARIO</h3>
@@ -857,7 +940,11 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
   const d = escapado(datosSinEscapar);
   if (d.tipo === "adendum") return documentoAdendum(d);
   if (d.tipo === "convenio_practicas") return documentoConvenio(d);
-  const titulo = "CONTRATO DE TRABAJO SUJETO A MODALIDAD TEMPORAL POR INICIO O INCREMENTO DE ACTIVIDAD";
+
+  const esIndefinido = d.tipo === "indefinido";
+  const titulo = esIndefinido
+    ? "CONTRATO DE TRABAJO A PLAZO INDETERMINADO"
+    : "CONTRATO DE TRABAJO SUJETO A MODALIDAD TEMPORAL POR INICIO O INCREMENTO DE ACTIVIDAD";
 
   return `
   <article class="contrato">
@@ -865,14 +952,18 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
       <p class="empresa">${EMPRESA.nombre}</p>
       <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
       <h1>${titulo}</h1>
-      <p class="norma">(TUO del Decreto Legislativo N.° 728 — Ley de Productividad y Competitividad Laboral, Art. 57)</p>
+      ${
+        esIndefinido
+          ? ""
+          : `<p class="norma">(TUO del Decreto Legislativo N.° 728 — Ley de Productividad y Competitividad Laboral, Art. 57)</p>`
+      }
       <p class="norma">Régimen Laboral Especial de la Pequeña Empresa — Texto Único Ordenado de la Ley de Impulso al
       Desarrollo Productivo y al Crecimiento Empresarial (Ley MYPE), aprobado por Decreto Supremo N.° 013-2013-PRODUCE,
       y su Reglamento aprobado por Decreto Supremo N.° 008-2008-TR</p>
     </header>
 
-    <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Contrato de
-    Trabajo Sujeto a Modalidad Temporal entre:</p>
+    <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Contrato de Trabajo
+    ${esIndefinido ? "a Plazo Indeterminado" : "Sujeto a Modalidad Temporal"} entre:</p>
 
     <h3>I. DATOS DEL EMPLEADOR</h3>
     <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
@@ -887,18 +978,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     <p>Ambas partes declaran que celebran el presente contrato conforme a la legislación laboral vigente y sin
     vicios de voluntad.</p>
 
-    <h3>PRIMERA. NATURALEZA, MODALIDAD Y CAUSA OBJETIVA</h3>
-    <p>El presente contrato se celebra bajo la modalidad de Contrato Temporal por Inicio o Incremento de Actividad,
-    conforme al artículo 57 del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo
-    N.° 003-97-TR.</p>
-    <p>${d.causaObjetivaTexto}</p>
-    <p>El vínculo laboral generado por el presente contrato es de duración determinada y no genera estabilidad
-    laboral indefinida.</p>
-
-    <h3>SEGUNDA. PLAZO</h3>
-    <p>El contrato inicia el ${formatearFecha(d.fechaInicio)} y culmina el ${formatearFecha(d.fechaFin)}, fecha en
-    la cual quedará extinguido automáticamente sin necesidad de comunicación previa, salvo renovación expresa por
-    escrito.</p>
+    ${clausulaNaturalezaYPlazo(d)}
 
     ${clausulaPeriodoPrueba(d)}
 
@@ -970,23 +1050,14 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     comunicaciones internas y emisión de constancias. LA COLABORADORA otorga su consentimiento expreso mediante la
     firma del presente contrato.</p>
 
-    <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA Y REGISTRO</h3>
-    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
-    siguientes al inicio de la prestación de servicios, y lo comunicará a la Autoridad Administrativa de Trabajo
-    para su registro dentro de los quince (15) días naturales siguientes a su suscripción.</p>
+    ${clausulaEntregaCopia(d)}
 
     <h3>DÉCIMA NOVENA. DOMICILIO ELECTRÓNICO Y COMUNICACIONES</h3>
     <p>Las partes acuerdan un domicilio electrónico válido para las comunicaciones de la relación laboral, conforme
     a los términos del ANEXO III — Domicilio Electrónico y Comunicaciones, el cual forma parte integrante del
     presente contrato.${d.email ? ` El domicilio electrónico de LA COLABORADORA es ${d.email}.` : ""}</p>
 
-    <h3>VIGÉSIMA. TERMINACIÓN</h3>
-    <p>El contrato finalizará automáticamente en la fecha pactada o podrá resolverse anticipadamente por mutuo
-    acuerdo, renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación), comisión de falta
-    grave, o resolución anticipada sin causa justa por parte de LA EMPRESA — caso en el cual corresponderá la
-    indemnización equivalente a una remuneración y media (1.5) por cada mes dejado de laborar hasta el término del
-    contrato, con el límite de doce (12) remuneraciones, conforme al artículo 76 del TUO del Decreto Legislativo
-    N.° 728.</p>
+    ${clausulaTerminacion(d)}
 
     <p>En señal de conformidad, las partes firman el presente contrato en ${enLaCiudadDe(d)}, el
     ${formatearFecha(d.fechaInicio)}, en tres (3) ejemplares de igual tenor.</p>
