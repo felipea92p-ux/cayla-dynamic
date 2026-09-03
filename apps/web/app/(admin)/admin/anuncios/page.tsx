@@ -10,7 +10,7 @@
 // No es `documentos_institucionales` (Normas): ese existe para lo que la ley
 // obliga a probar que se entregó, versiona el texto y exige un acuse legal.
 // Acá "leído" es un marcador liviano — sirve para que DO vea si un anuncio
-// caló, no para sostener una sanción. Ver el encabezado de la 0348.
+// caló, no para sostener una sanción. Ver el encabezado de la 0351.
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useState } from "react";

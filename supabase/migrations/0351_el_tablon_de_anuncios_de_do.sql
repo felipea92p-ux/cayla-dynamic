@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0348_el_tablon_de_anuncios_de_do.sql
+-- 0351_el_tablon_de_anuncios_de_do.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que Desarrollo Organizacional pueda publicar un comunicado (cierre de
@@ -260,7 +260,7 @@ grant execute on function fn_marcar_anuncio_leido(uuid) to authenticated;
 revoke execute on function fn_marcar_anuncio_leido(uuid) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (348, 'el_tablon_de_anuncios_de_do')
+values (351, 'el_tablon_de_anuncios_de_do')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';

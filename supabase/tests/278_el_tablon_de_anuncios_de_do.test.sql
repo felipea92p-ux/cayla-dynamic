@@ -2,7 +2,7 @@
 -- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local.
 -- Se corre así, en esta Mac:   npx supabase test db
 -- ============================================================================
--- 274_el_tablon_de_anuncios_de_do.test.sql — la 0348 de punta a punta
+-- 278_el_tablon_de_anuncios_de_do.test.sql — la 0351 de punta a punta
 -- ============================================================================
 -- Lo que hay que proteger acá no es que se pueda insertar una fila: es que
 -- (a) solo DO publica y anula — ni la encargada de sede ni una integrante
