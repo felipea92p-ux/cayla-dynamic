@@ -237,9 +237,30 @@ export default function ContratosPage() {
   const [cargoEditado, setCargoEditado] = useState("");
   const [causaEditada, setCausaEditada] = useState("");
   const [funcionesEditadas, setFuncionesEditadas] = useState("");
-  // Solo para tipo === "convenio_practicas" (0333).
-  const [institucionEducativaEditada, setInstitucionEducativaEditada] = useState("");
+  // Solo para tipo === "convenio_practicas" (0333). Desde la 0348 el
+  // preprofesional es TRIPARTITO (CAYLA + centro de formación + practicante,
+  // art. 12 y ss. Ley 28518) — estos cuatro son del centro, que solo
+  // corresponde a esa modalidad.
   const [planCapacitacionEditado, setPlanCapacitacionEditado] = useState("");
+  const [centroFormacionNombreEditado, setCentroFormacionNombreEditado] = useState("");
+  const [centroFormacionRucEditado, setCentroFormacionRucEditado] = useState("");
+  const [centroFormacionDomicilioEditado, setCentroFormacionDomicilioEditado] = useState("");
+  const [centroFormacionRepresentanteEditado, setCentroFormacionRepresentanteEditado] = useState("");
+  const [carreraEspecialidadEditada, setCarreraEspecialidadEditada] = useState("");
+  const [cicloAcademicoEditado, setCicloAcademicoEditado] = useState("");
+  // Solo profesional (0348): "Bachiller en X — Universidad Y, egresado el Z".
+  const [gradoTituloTextoEditado, setGradoTituloTextoEditado] = useState("");
+  // Convenio elegido A MANO para alguien cuya ficha no dice tipo_vinculo=
+  // 'practicante' (0348 — antes solo se podía generar cambiando la ficha
+  // primero en Equipo). Sin esto, `persona.practicante_modalidad` sale
+  // siempre null para esa persona y no hay de dónde sacar 30h/48h.
+  const [modalidadManualEditada, setModalidadManualEditada] = useState<"preprofesional" | "profesional" | "">("");
+  // Anexo I — Plan Específico de Aprendizaje (0348, ambas modalidades).
+  const [areaProyectoEditado, setAreaProyectoEditado] = useState("");
+  const [objetivoFormativoGeneralEditado, setObjetivoFormativoGeneralEditado] = useState("");
+  const [supervisorAsignadoEditado, setSupervisorAsignadoEditado] = useState("");
+  const [hitoMes3Editado, setHitoMes3Editado] = useState("");
+  const [hitoMes6Editado, setHitoMes6Editado] = useState("");
   const [activosLibre, setActivosLibre] = useState("");
   const [adendumEditado, setAdendumEditado] = useState("");
   const [ciudadEditada, setCiudadEditada] = useState("");
@@ -443,8 +464,20 @@ export default function ContratosPage() {
     setSinActivosAdicionales(false);
     setAdendumEditado("");
     setCiudadEditada("");
-    setInstitucionEducativaEditada("");
     setPlanCapacitacionEditado("");
+    setCentroFormacionNombreEditado("");
+    setCentroFormacionRucEditado("");
+    setCentroFormacionDomicilioEditado("");
+    setCentroFormacionRepresentanteEditado("");
+    setCarreraEspecialidadEditada("");
+    setCicloAcademicoEditado("");
+    setGradoTituloTextoEditado("");
+    setAreaProyectoEditado("");
+    setObjetivoFormativoGeneralEditado("");
+    setSupervisorAsignadoEditado("");
+    setHitoMes3Editado("");
+    setHitoMes6Editado("");
+    setModalidadManualEditada("");
 
     if (tipo === "renovacion" && p.fecha_fin_contrato) {
       setFechaInicio(sumarDias(p.fecha_fin_contrato, 1));
@@ -473,8 +506,20 @@ export default function ContratosPage() {
     sinActivosAdicionales,
     adendumEditado,
     ciudadEditada,
-    institucionEducativaEditada,
     planCapacitacionEditado,
+    centroFormacionNombreEditado,
+    centroFormacionRucEditado,
+    centroFormacionDomicilioEditado,
+    centroFormacionRepresentanteEditado,
+    carreraEspecialidadEditada,
+    cicloAcademicoEditado,
+    gradoTituloTextoEditado,
+    areaProyectoEditado,
+    objetivoFormativoGeneralEditado,
+    supervisorAsignadoEditado,
+    hitoMes3Editado,
+    hitoMes6Editado,
+    modalidadManualEditada,
     fechaInicio,
     fechaFin,
   ]);
@@ -489,6 +534,14 @@ export default function ContratosPage() {
   // la persona es practicante, sin que quien usa la pantalla tenga que saber
   // por qué el desplegable de tipo desaparece.
   const tipoEfectivo = persona?.tipo_vinculo === "practicante" ? "convenio_practicas" : tipo;
+  // La modalidad efectiva: la de la ficha si la persona YA es practicante
+  // (0324) — eso no se pisa a mano —, o la elegida en pantalla cuando el
+  // convenio se generó eligiéndolo del desplegable para alguien que no está
+  // marcado así (0348: antes esto no existía, había que ir a Equipo primero).
+  const modalidadEfectiva: "preprofesional" | "profesional" | null =
+    persona?.practicante_modalidad === "preprofesional" || persona?.practicante_modalidad === "profesional"
+      ? persona.practicante_modalidad
+      : modalidadManualEditada || null;
   const datoPersonal = persona ? (datosPersonales.find((d) => d.persona_id === persona.id) ?? null) : null;
   const salarioVigente = persona
     ? (salarios.find((s) => s.persona_id === persona.id)?.salario_mensual_soles ?? null)
@@ -551,12 +604,20 @@ export default function ContratosPage() {
           firmanteNombre: firmante.nombre,
           firmanteDni: firmante.dni,
           firmanteCargo: firmante.cargo,
-          practicanteModalidad:
-            persona.practicante_modalidad === "preprofesional" || persona.practicante_modalidad === "profesional"
-              ? persona.practicante_modalidad
-              : null,
-          institucionEducativa: institucionEducativaEditada.trim() || null,
+          practicanteModalidad: modalidadEfectiva,
           planCapacitacionTexto: planCapacitacionEditado,
+          centroFormacionNombre: centroFormacionNombreEditado.trim() || null,
+          centroFormacionRuc: centroFormacionRucEditado.trim() || null,
+          centroFormacionDomicilio: centroFormacionDomicilioEditado.trim() || null,
+          centroFormacionRepresentante: centroFormacionRepresentanteEditado.trim() || null,
+          carreraEspecialidad: carreraEspecialidadEditada.trim() || null,
+          cicloAcademico: cicloAcademicoEditado.trim() || null,
+          gradoTituloTexto: gradoTituloTextoEditado.trim() || null,
+          areaProyecto: areaProyectoEditado,
+          objetivoFormativoGeneral: objetivoFormativoGeneralEditado,
+          supervisorAsignado: supervisorAsignadoEditado,
+          hitoMes3: hitoMes3Editado,
+          hitoMes6: hitoMes6Editado,
         }
       : null;
 
@@ -618,8 +679,12 @@ export default function ContratosPage() {
   if (persona && esConvenio && planCapacitacionEditado.trim() === "") {
     bloqueos.push("Completa el plan de capacitación específico — un convenio no tiene funciones, tiene un plan de capacitación (Ley 28518, art. 15).");
   }
-  if (persona && esConvenio && persona.practicante_modalidad !== "preprofesional" && persona.practicante_modalidad !== "profesional") {
-    bloqueos.push("Asígnale modalidad (preprofesional o profesional) en Equipo antes de generar su convenio — decide su jornada máxima (30h/48h).");
+  if (persona && esConvenio && modalidadEfectiva === null) {
+    bloqueos.push(
+      persona.tipo_vinculo === "practicante"
+        ? "Asígnale modalidad (preprofesional o profesional) en Equipo antes de generar su convenio — decide su jornada máxima (30h/48h)."
+        : "Elige la modalidad (preprofesional o profesional) — decide su jornada máxima (30h/48h).",
+    );
   }
   if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
     bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
@@ -1010,12 +1075,19 @@ export default function ContratosPage() {
                   className="mt-1 w-full rounded border border-sand p-2"
                   value={tipo}
                   onChange={(e) =>
-                    setTipo(e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido")
+                    setTipo(
+                      e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
+                    )
                   }
                 >
                   <option value="renovacion">Renovación</option>
                   <option value="nuevo">Nuevo ingreso</option>
                   <option value="indefinido">Indefinido</option>
+                  {/* Elegible a mano desde la 0348 para alguien que no está
+                      marcado tipo_vinculo="practicante" en su ficha — no
+                      cambia esa ficha, solo genera el documento (ver el
+                      aviso que sale más abajo cuando se elige así). */}
+                  <option value="convenio_practicas">Convenio de prácticas</option>
                   <option value="adendum">Adendum</option>
                 </select>
               )}
@@ -1092,37 +1164,166 @@ export default function ContratosPage() {
                 </label>
               ) : esConvenio ? (
                 <>
+                  {persona.tipo_vinculo === "practicante" ? (
+                    <label className="block text-sm">
+                      Modalidad
+                      <input
+                        className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                        disabled
+                        value={
+                          persona.practicante_modalidad === "preprofesional"
+                            ? "Preprofesional — 30h/semana (art. 44)"
+                            : persona.practicante_modalidad === "profesional"
+                              ? "Profesional — 48h/semana (art. 44)"
+                              : "Sin asignar — ve a Equipo y elígela primero"
+                        }
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label className="block text-sm">
+                        Modalidad
+                        <select
+                          className="mt-1 w-full rounded border border-sand p-2"
+                          value={modalidadManualEditada}
+                          onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
+                        >
+                          <option value="">— elegir —</option>
+                          <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
+                          <option value="profesional">Profesional — 48h/semana (art. 44)</option>
+                        </select>
+                      </label>
+                      <p className="text-xs text-taupe">
+                        {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
+                        convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
+                      </p>
+                    </>
+                  )}
+                  {/* El preprofesional es TRIPARTITO (CAYLA + centro de
+                      formación + practicante, art. 12 y ss. Ley 28518) — el
+                      profesional es bipartito y solo referencia su título
+                      (0348). */}
+                  {modalidadEfectiva === "preprofesional" ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm">
+                          Centro de formación — razón social
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            placeholder="Ej.: Universidad Nacional de Trujillo"
+                            value={centroFormacionNombreEditado}
+                            onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          Centro de formación — RUC
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={centroFormacionRucEditado}
+                            onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm">
+                          Centro de formación — domicilio
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={centroFormacionDomicilioEditado}
+                            onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          Centro de formación — representante
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={centroFormacionRepresentanteEditado}
+                            onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm">
+                          Carrera / especialidad
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={carreraEspecialidadEditada}
+                            onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          Ciclo académico
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={cicloAcademicoEditado}
+                            onChange={(e) => setCicloAcademicoEditado(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                    </>
+                  ) : (
+                    <label className="block text-sm">
+                      Grado / título (referencial — no aplica al centro de formación, que no firma en el profesional)
+                      <input
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        placeholder="Ej.: Bachiller en Ingeniería de Sistemas — UNT, egresado el 15/12/2025"
+                        value={gradoTituloTextoEditado}
+                        onChange={(e) => setGradoTituloTextoEditado(e.target.value)}
+                      />
+                    </label>
+                  )}
                   <label className="block text-sm">
-                    Modalidad
-                    <input
-                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                      disabled
-                      value={
-                        persona.practicante_modalidad === "preprofesional"
-                          ? "Preprofesional — 30h/semana (art. 44)"
-                          : persona.practicante_modalidad === "profesional"
-                            ? "Profesional — 48h/semana (art. 44)"
-                            : "Sin asignar — ve a Equipo y elígela primero"
-                      }
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Institución educativa (solo aplica de verdad a una preprofesional — vacío no bloquea)
+                    Anexo I — área / proyecto de destino
                     <input
                       className="mt-1 w-full rounded border border-sand p-2"
-                      placeholder="Ej.: Universidad Nacional de Trujillo"
-                      value={institucionEducativaEditada}
-                      onChange={(e) => setInstitucionEducativaEditada(e.target.value)}
+                      placeholder="Ej.: Proyecto ERP CAYLA — módulo de inventario"
+                      value={areaProyectoEditado}
+                      onChange={(e) => setAreaProyectoEditado(e.target.value)}
                     />
                   </label>
                   <label className="block text-sm">
-                    Plan de capacitación específico (Anexo I) — una por línea; se numeran solas
+                    Anexo I — objetivo formativo general
+                    <input
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      placeholder="Qué debe saber hacer al finalizar"
+                      value={objetivoFormativoGeneralEditado}
+                      onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Anexo I — actividades principales (una por línea; se numeran solas)
                     <textarea
                       className="mt-1 w-full rounded border border-sand p-2"
                       rows={3}
                       placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
                       value={planCapacitacionEditado}
                       onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-sm">
+                      Anexo I — supervisor(a) asignado(a)
+                      <input
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        value={supervisorAsignadoEditado}
+                        onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
+                      />
+                    </label>
+                    <label className="text-sm">
+                      Anexo I — hito de evaluación, mes 3
+                      <input
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        value={hitoMes3Editado}
+                        onChange={(e) => setHitoMes3Editado(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-sm">
+                    Anexo I — hito de evaluación, mes 6
+                    <input
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      value={hitoMes6Editado}
+                      onChange={(e) => setHitoMes6Editado(e.target.value)}
                     />
                   </label>
                   <label className="block text-sm">
@@ -1215,8 +1416,8 @@ export default function ContratosPage() {
                   <dd>
                     {esConvenio
                       ? (() => {
-                          const max = maximoSemanalPracticante("practicante", persona.practicante_modalidad);
-                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta asignar modalidad en Equipo";
+                          const max = maximoSemanalPracticante("practicante", modalidadEfectiva);
+                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta elegir la modalidad";
                         })()
                       : "48 horas semanales (el máximo legal — ver cláusula QUINTA)"}
                   </dd>
