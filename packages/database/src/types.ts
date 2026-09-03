@@ -4967,6 +4967,17 @@ export type Database = {
           p_dias: number | null
           p_hasta: string | null
           p_persona: string | null
+          p_salario_asof?: string | null
+        }
+        Returns: Json
+      }
+      fn_feriado_devengado_nucleo: {
+        Args: {
+          p_desde: string | null
+          p_dias: number | null
+          p_hasta: string | null
+          p_persona: string | null
+          p_salario_asof?: string | null
         }
         Returns: Json
       }
@@ -5261,6 +5272,10 @@ export type Database = {
         Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
         Returns: Json
       }
+      fn_planilla_calcular_nucleo: {
+        Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
+        Returns: Json
+      }
       fn_planilla_calcular_persona: {
         Args: { p_periodo_id: string | null; p_persona_id: string | null }
         Returns: Json
@@ -5291,7 +5306,10 @@ export type Database = {
       }
       fn_poblacion_obligada: { Args: never; Returns: string[] }
       fn_politica_salarial_vigente: { Args: never; Returns: Json }
-      fn_provisiones: { Args: { p_as_of?: string | null }; Returns: Json }
+      fn_provisiones: {
+        Args: { p_as_of?: string | null; p_salario_asof?: string | null }
+        Returns: Json
+      }
       fn_proyeccion_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
       fn_proyeccion_planilla: {
         Args: { p_anio: number | null; p_mes: number | null }
@@ -5713,6 +5731,10 @@ export type Database = {
           p_salario: number | null
           p_vigente_desde: string | null
         }
+        Returns: undefined
+      }
+      fn_set_sede_base: {
+        Args: { p_persona_id: string | null; p_sede_id: string | null }
         Returns: undefined
       }
       fn_set_sueldo_base_legal: {
