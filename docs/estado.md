@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0349) · ESCRITAS · falta pegar en producción
+## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · ESCRITAS · falta pegar en producción
 
 Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
 `/admin/objetivos`, cuando el mes elegido no tiene checklist todavía, aparece
@@ -51,7 +51,7 @@ resto de la 0032: `fn_puede_gestionar_objetivos` (admin/líder a cualquiera,
 encargada solo a su sede) y `fn_mes_planilla_pagado`. Y agrega dos propios: se
 niega si el mes destino ya tiene algún objetivo (mezclar una copia con lo que
 ya exista es ambiguo y nadie lo pidió resuelto), y se niega si el mes anterior
-no tiene nada que copiar. Auditada con `npx supabase test db` (prueba 274, 9
+no tiene nada que copiar. Auditada con `npx supabase test db` (prueba 276, 9
 casos: copia, contenido, candado de mes no vacío, candado de mes sin origen,
 candado de mes pagado, permiso por sede en los dos sentidos) — no toca dinero,
 así que no hizo falta la auditoría empírica de planilla.
@@ -59,7 +59,7 @@ así que no hizo falta la auditoría empírica de planilla.
 **Y en la misma entrega, un gráfico de tendencia:** la pantalla ahora dibuja
 los últimos 12 meses de cumplidos/total de la persona elegida (SVG propio, sin
 librería, mismo estilo que `grafico-horas.tsx`). `fn_objetivos_historial`
-(0349) solo lee `objetivos_mensuales` —el resumen que ya sincroniza
+(0350) solo lee `objetivos_mensuales` —el resumen que ya sincroniza
 `fn_objetivos_sync_mes`, no se calcula nada nuevo— y rellena con
 `generate_series` los meses sin checklist para que no desaparezcan de la
 serie. La distinción que importaba: un mes **sin checklist** (total=0) no es
@@ -68,12 +68,16 @@ dibuja como una marca gris al piso, "sin dato"; el segundo como una barra roja
 de altura mínima, un dato real de bajo desempeño. Se encontró y corrigió
 verificando en el navegador: la primera versión dibujaba los dos casos
 idénticos, porque una barra de 0% de altura real es invisible — nada distinto
-del hueco. Prueba 275 (6 casos: ventana sin saltar meses, hueco con total=0,
+del hueco. Prueba 277 (6 casos: ventana sin saltar meses, hueco con total=0,
 dato real, tope de `p_meses` a 24, permiso concedido y denegado).
 
+(La 0349 se renumeró a 0350 al fusionar `main`: otra rama fusionada mientras
+esta se escribía ya había tomado el 0349 —y el 274 y el 275 de pruebas— para
+otra cosa. `siguiente-numero.sh` lo detectó antes de empujar.)
+
 PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) — falta
-fusionar y falta pegar la 0348 y la 0349 en el SQL Editor de producción
-(`./scripts/dame-el-sql.sh 348` y `./scripts/dame-el-sql.sh 349`).
+fusionar y falta pegar la 0348 y la 0350 en el SQL Editor de producción
+(`./scripts/dame-el-sql.sh 348` y `./scripts/dame-el-sql.sh 350`).
 
 ---
 

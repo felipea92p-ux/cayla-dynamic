@@ -4,9 +4,9 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 275_el_historial_no_salta_meses_ni_permisos.test.sql
+-- 277_el_historial_no_salta_meses_ni_permisos.test.sql
 -- ============================================================================
--- fn_objetivos_historial (0349) alimenta el gráfico de tendencia de
+-- fn_objetivos_historial (0350) alimenta el gráfico de tendencia de
 -- /admin/objetivos. Su riesgo no es el cálculo —solo lee objetivos_mensuales,
 -- que ya sincroniza la 0032— es la SERIE: que un mes sin checklist no
 -- desaparezca de la ventana (si desapareciera, el gráfico dibujaría 11 meses

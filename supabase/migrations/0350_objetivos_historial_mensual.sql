@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0349 — HISTORIAL MENSUAL DE OBJETIVOS (para el gráfico de /admin/objetivos)
+-- 0350 — HISTORIAL MENSUAL DE OBJETIVOS (para el gráfico de /admin/objetivos)
 -- ----------------------------------------------------------------------------
 -- Qué promete: una lectura de los últimos N meses (12 por defecto) de
 -- cumplidos/total de una persona, terminando en el mes que la pantalla tiene
@@ -70,5 +70,5 @@ grant execute on function fn_objetivos_historial(uuid, int, int, int) to authent
 revoke execute on function fn_objetivos_historial(uuid, int, int, int) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (349, 'objetivos_historial_mensual')
+values (350, 'objetivos_historial_mensual')
 on conflict (numero) do nothing;

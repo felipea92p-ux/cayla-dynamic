@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 274_copiar_objetivos_no_pisa_ni_inventa.test.sql
+-- 276_copiar_objetivos_no_pisa_ni_inventa.test.sql
 -- ============================================================================
 -- fn_objetivos_copiar_mes_anterior (0348) es la única RPC de objetivos que no
 -- tiene un dato explícito que validar: en vez de "¿este texto mide entre 1 y
