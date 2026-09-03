@@ -5441,6 +5441,18 @@ export type Database = {
         }
         Returns: string
       }
+      fn_registrar_desembolso: {
+        Args: {
+          p_anio: number | null
+          p_fecha_pago: string | null
+          p_monto: number | null
+          p_nota?: string | null
+          p_origen: string | null
+          p_persona_id: string | null
+          p_ventana: string | null
+        }
+        Returns: string
+      }
       fn_registrar_marcaje: {
         Args: {
           p_client_uuid: string | null
