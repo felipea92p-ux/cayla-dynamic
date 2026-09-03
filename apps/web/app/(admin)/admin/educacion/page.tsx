@@ -499,7 +499,7 @@ export default function EducacionPage() {
           onChange={(e) => setForm({ ...form, beneficiario: e.target.value as "trabajador" | "hijo" })}
           className="rounded-lg border bg-crema px-3 py-2"
         >
-          <option value="trabajador">De ella misma</option>
+          <option value="trabajador">De la persona misma</option>
           <option value="hijo">De su hijo o hija</option>
         </select>
         <span className="text-xs text-taupe">
@@ -761,7 +761,7 @@ export default function EducacionPage() {
                           </td>
                           <td className="px-4 py-2">{f.institucion}</td>
                           <td className="px-4 py-2 text-xs">
-                            {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "ella misma"}
+                            {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "la persona misma"}
                           </td>
                           <td className="px-4 py-2 tabular-nums">{soles(Number(f.monto))}</td>
                           {/* Decir 75% de S/727 cuando se pagan S/90 es decir algo falso:
