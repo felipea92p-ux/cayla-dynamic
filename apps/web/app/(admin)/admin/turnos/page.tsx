@@ -11,6 +11,7 @@ import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { esperadoDelDia } from "@/lib/admin/jornada-esperada";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -42,7 +43,10 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; }
-interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; }
+// persona_id y almuerzo_min_minutos no los usaba nadie en este archivo — se
+// agregan solo para que este tipo calce, sin adaptador, con `HorarioTramo` de
+// jornada-esperada.ts (ver `celda` y `loQueDiceElTramo` más abajo).
+interface Horario { persona_id: string; hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; almuerzo_min_minutos: number | null; }
 // De los tramos de una persona, el vigente en `fecha` (mismo criterio que fn_recalcular_jornada).
 function tramoVigente(lista: Horario[] | undefined, fecha: string): Horario | undefined {
   if (!lista) return undefined;
@@ -226,14 +230,13 @@ function horarioSemanalDesdeTramo(tr: Horario | undefined): Record<string, { e: 
   }
   return out;
 }
-// Horas que ESE tramo de horario define para un día de la semana ({e:null} = descansa).
-function horasDeTramo(tr: Horario, dow: string): { e: string | null; s: string | null } {
-  if (tr.horario_por_dia) {
-    const d = tr.horario_por_dia[dow];
-    return d ? { e: hhmm(d.e), s: hhmm(d.s) } : { e: null, s: null };
-  }
-  if ((tr.dias_laborables ?? []).includes(Number(dow))) return { e: hhmm(tr.hora_entrada), s: hhmm(tr.hora_salida) };
-  return { e: null, s: null };
+// Lo que ESE tramo de horario dice para esa fecha, ignorando cualquier turno
+// puntual — la misma pregunta que `horasDeTramo` respondía a mano, ahora vía
+// la cascada única de jornada-esperada.ts (ver su comentario de cabecera:
+// esta era la cuarta copia sin unificar).
+function loQueDiceElTramo(tr: Horario, fecha: string): { e: string | null; s: string | null } {
+  const esp = esperadoDelDia(fecha, null, tr);
+  return { e: esp.entrada, s: esp.salida };
 }
 
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
@@ -259,13 +262,13 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     if (ids.length === 0) { setDivs([]); return; }
     const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", hoy).order("fecha"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").in("persona_id", ids),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta, almuerzo_min_minutos").in("persona_id", ids),
     ]);
     if (eT || eH) { setError(true); return; }
     const hMap = new Map<string, Horario[]>();
     for (const h of (horarios as any[]) ?? []) {
       const arr = hMap.get(h.persona_id) ?? [];
-      arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null });
+      arr.push({ persona_id: h.persona_id, hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null, almuerzo_min_minutos: h.almuerzo_min_minutos ?? null });
       hMap.set(h.persona_id, arr);
     }
     tramosRef.current = hMap;
@@ -273,8 +276,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     for (const t of (turnos as any[]) ?? []) {
       const tramos = hMap.get(t.persona_id);
       const tramo = tramoVigente(tramos, t.fecha);
-      const dow = String(diaSemana(t.fecha));
-      const base = tramo ? horasDeTramo(tramo, dow) : null;
+      const base = tramo ? loQueDiceElTramo(tramo, t.fecha) : null;
       const tE = t.es_descanso ? null : hhmm(t.hora_entrada);
       const tS = t.es_descanso ? null : hhmm(t.hora_salida);
       // ¿Coincide con algún horario ANTERIOR (ya reemplazado) de esa persona? Entonces
@@ -283,7 +285,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       // a propósito (excepción real) — por eso NO se limpian en automático.
       const espejo = (tramos ?? []).some((x) => {
         if (x === tramo) return false;
-        const h = horasDeTramo(x, dow);
+        const h = loQueDiceElTramo(x, t.fecha);
         return tE === null ? h.e === null : h.e === tE && h.s === tS;
       });
       const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
@@ -324,7 +326,7 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     const dow = String(diaSemana(d.fecha));
     if (d.tE) {
       const previo = tramo?.horario_por_dia?.[dow];
-      const baseS = tramo ? horasDeTramo(tramo, dow).s : null;
+      const baseS = tramo ? loQueDiceElTramo(tramo, d.fecha).s : null;
       semanal[dow] = { e: d.tE, s: d.tS ?? baseS ?? d.tE, ...(previo?.r != null ? { r: previo.r } : {}) };
     } else {
       delete semanal[dow]; // el turno era descanso ⇒ ese día sale de su horario
@@ -554,7 +556,7 @@ export default function TurnosPage() {
       { data: ar, error: arErr },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).order("nombres"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta, almuerzo_min_minutos").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
       supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
@@ -575,7 +577,7 @@ export default function TurnosPage() {
     const mapH = new Map<string, Horario[]>();
     for (const x of (h as any[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
-      arr.push({ hora_entrada: x.hora_entrada, hora_salida: x.hora_salida, dias_laborables: x.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: x.horario_por_dia ?? null, vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta ?? null });
+      arr.push({ persona_id: x.persona_id, hora_entrada: x.hora_entrada, hora_salida: x.hora_salida, dias_laborables: x.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: x.horario_por_dia ?? null, vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta ?? null, almuerzo_min_minutos: x.almuerzo_min_minutos ?? null });
       mapH.set(x.persona_id, arr);
     }
     setHorarios(mapH);
@@ -589,23 +591,21 @@ export default function TurnosPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   const celda = useCallback((personaId: string, fecha: string): Celda => {
-    const t = turnos.get(`${personaId}|${fecha}`);
-    if (t) return t.es_descanso ? { tipo: "descanso" } : { tipo: "turno", entrada: hhmm(t.hora_entrada), salida: hhmm(t.hora_salida) };
+    const t = turnos.get(`${personaId}|${fecha}`) ?? null;
     const h = tramoVigente(horarios.get(personaId), fecha);
-    if (h) {
-      const dow = String(diaSemana(fecha));
-      if (h.horario_por_dia) {
-        const d = h.horario_por_dia[dow];
-        // el refrigerio (r, en minutos) solo se conoce para el horario base con
-        // jsonb — un turno puntual (arriba) no guarda esa hora, así que su barra
-        // queda sin hueco (dato que no tenemos, mejor no inventarlo).
-        if (d) return { tipo: "default", entrada: hhmm(d.e), salida: hhmm(d.s), refrigerio: d.r };
-        return { tipo: "libre" }; // ese día no está en el horario base = descanso
-      }
-      // legacy sin jsonb: hora única + dias_laborables
-      if ((h.dias_laborables ?? []).includes(diaSemana(fecha))) return { tipo: "default", entrada: hhmm(h.hora_entrada), salida: hhmm(h.hora_salida) };
-    }
-    return { tipo: "libre" };
+    const esp = esperadoDelDia(fecha, t, h ?? null);
+
+    if (!esp.trabaja) return esp.origen === "turno" ? { tipo: "descanso" } : { tipo: "libre" };
+    if (!esp.entrada) return { tipo: "libre" }; // no debería pasar con trabaja=true; defensivo
+
+    if (esp.origen === "turno") return { tipo: "turno", entrada: esp.entrada, salida: esp.salida };
+
+    // El refrigerio (r, en minutos) solo se conoce para el horario base con
+    // jsonb — un turno puntual (arriba) no lo guarda, así que esa rama ya
+    // salió sin refrigerio. Mismo criterio que tenía esta función antes de
+    // unificarse con jornada-esperada.ts.
+    const refrigerio = h?.horario_por_dia?.[String(diaSemana(fecha))]?.r;
+    return { tipo: "default", entrada: esp.entrada, salida: esp.salida, refrigerio };
   }, [turnos, horarios]);
 
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
