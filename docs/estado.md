@@ -37,6 +37,33 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — Anuncios: el tablón de Desarrollo Organizacional (0351) · PEGADA Y VERIFICADA
+
+Salió de comparar CAYLA contra seis sistemas de RRHH de talla mundial
+(Workday, SAP SuccessFactors, ADP, UKG/Kronos, Rippling, BambooHR): de
+BambooHR se adoptó la idea de un tablón de comunicados dentro del sistema,
+en vez de que "cierra la planilla el 28" o "el lunes es feriado" solo exista
+en un chat de WhatsApp. [PR #166](https://github.com/felipea92p-ux/cayla-dynamic/pull/166).
+
+Publicar y anular quedan solo para DO (`puedeGestionarAnuncios`, nuevo en
+`permisos.ts`), con lectura filtrada por sede vía RLS — no solo por la
+función. Deliberadamente NO reusa `documentos_institucionales` (Normas):
+"leído" es un marcador liviano, no un acuse legal, así que no le pide a
+nadie el trámite de una firma por cada aviso operativo. Pantalla en
+`/admin/anuncios`, sin contador en el menú (un anuncio no tiene fecha límite
+que cueste plata pasarla — misma vara que ya usa `nav.tsx`), y una tarjeta
+en "Lo mío" que solo aparece si hay algo sin leer.
+
+Auditada con `npx supabase test db` (prueba 278, 18 casos: solo DO
+publica/anula, filtro por sede a nivel RLS y no solo de RPC, lectura
+idempotente) y probada en el navegador contra el panel real antes de
+fusionar. Verificada en producción el 2026-09-03: la consulta de
+comprobación del final de la 0351 devolvió las seis piezas en 1 (tabla
+`anuncios`, tabla `anuncios_leidos`, `fn_publicar_anuncio`, `fn_anular_anuncio`,
+`fn_anuncios_vigentes`, `fn_marcar_anuncio_leido`).
+
+---
+
 ## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · PEGADAS Y VERIFICADAS
 
 Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
