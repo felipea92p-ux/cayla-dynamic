@@ -5220,6 +5220,19 @@ export type Database = {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id?: string | null }
         Returns: Json
       }
+      fn_objetivos_copiar_mes_anterior: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_objetivos_historial: {
+        Args: {
+          p_anio: number | null
+          p_mes: number | null
+          p_meses?: number | null
+          p_persona_id: string | null
+        }
+        Returns: Json
+      }
       fn_objetivos_resumen: {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: Json
