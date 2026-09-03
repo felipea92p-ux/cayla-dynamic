@@ -291,6 +291,16 @@ export interface Fila {
   horas_sobretiempo?: number;
   sobretiempo_desde?: string | null;
   sobretiempo_hasta?: string | null;
+  // El mismo recargo de arriba, partido en 25 % y 35 % (0349) — lo pidió el
+  // contador para conciliar contra los códigos 0105/0106 de la PLAME.
+  // `monto_sobretiempo_25 + monto_sobretiempo_35` siempre suma exacto
+  // `monto_sobretiempo`; ver el comentario de la migración para el porqué.
+  // Opcionales por lo mismo que el resto: una base sin la 0349 pegada no
+  // manda las claves, y la boleta tiene que seguir saliendo igual que antes.
+  monto_sobretiempo_25?: number;
+  monto_sobretiempo_35?: number;
+  horas_sobretiempo_25?: number;
+  horas_sobretiempo_35?: number;
   // Descanso semanal trabajado (0280): también SOLO el recargo —el 100 % del
   // art. 3 del D. Leg. 713—, porque las horas de ese día ya están en pago_base.
   // `descanso_semanal_dias` es cuántas veces se cerró un ciclo de siete días
