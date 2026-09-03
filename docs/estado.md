@@ -37,6 +37,50 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — La boleta desglosa el sobretiempo en 25 % y 35 % (0349) · PEGADA Y VERIFICADA
+
+Lo pidió el contador de CAYLA: la PLAME declara el sobretiempo con dos
+códigos separados en su tabla 22 —0105 al 25 %, 0106 al 35 %— y hasta ahora
+la boleta solo mostraba el recargo ya sumado. Conciliar contra la PLAME
+exigía partir ese monto a mano cada mes.
+
+`fn_planilla_calcular_nucleo` ya calculaba los dos tramos por separado
+dentro del CTE `sobret` (25 % de las 2 primeras horas de exceso de cada día,
+35 % de las siguientes) y los sumaba antes de devolverlos. La migración deja
+de descartar ese desglose: expone `monto_sobretiempo_25`/`_35` y
+`horas_sobretiempo_25`/`_35` sin tocar `monto_sobretiempo` (el total, que
+sigue siendo la fuente del `total` de la fila). El 35 % se calcula como el
+total menos el 25 % ya redondeado, no con su propia fórmula, para que las
+dos líneas de la boleta siempre sumen exacto el monto ya impreso — un caso
+real (2 h al 25 % + 1 h al 35 %) mostró que sumar dos redondeos
+independientes da un centavo menos que el total. `boleta-hoja.tsx` imprime
+el desglose cuando la fila lo trae; si no (boleta de un periodo ya
+congelado antes de esta migración), sigue mostrando el texto genérico de
+siempre — se confirmó en producción viendo ambos casos en la misma tarde.
+
+**Se abrió como 0347 y se renumeró a 0349 ya con el PR abierto**: mientras
+seguía en revisión, otra rama fusionó a `main` una migración distinta —el
+generador de contratos indefinidos— con ese mismo número. Es el mismo tipo
+de colisión que ya documentó la 0297/0299 del 2026-08-25: varias sesiones
+tomando números en paralelo, cada una viendo solo su propia rama. Se
+renumeró con `siguiente-numero.sh` una vez traído `main`, y se confirmó por
+grep que ninguna migración fusionada entre medias tocaba
+`fn_planilla_calcular_nucleo` antes de pegar.
+
+Auditado local (`supabase db reset` + 1957 pruebas en verde, incluida la
+275 que fija el desglose y el candado `25 % + 35 % = total` con los mismos
+casos que ya fijaba la 143) y verificado en producción el mismo día contra
+dos boletas reales: una de un periodo ya pagado (sigue mostrando el texto
+genérico, como debía) y una de un periodo abierto —Janis Revilla, TRU—
+donde apareció «Recargo 25 % (4 h): S/ 5.88 · Recargo 35 % (6 h 13 min):
+S/ 12.80», que suma exacto el S/ 18.68 ya mostrado.
+
+**Solo hacia adelante.** No se agregó columna a `planilla_pagada_detalle`:
+su `fila` guarda el JSON completo, así que el desglose llega solo en la
+próxima planilla que se congele. Boletas de periodos ya pagados antes de
+esta migración no lo muestran — no es un error, es lo mismo que le pasa a
+cualquier campo agregado después de que un periodo se cerró.
+
 ## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
 
 Lo pidió el contador de CAYLA: que el 9% no viaje mezclado a mano dentro del
