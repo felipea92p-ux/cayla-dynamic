@@ -201,7 +201,8 @@ with repo(numero, nombre, nunca) as (values
     (340, 'meses_y_dias_no_inventaba_dias_en_un_rango_corto', false),
     (341, 'las_vacaciones_truncas_pagan_su_aporte_a_pension', false),
     (342, 'la_sede_tambien_se_cambia_por_una_puerta', false),
-    (343, 'un_adelanto_de_beneficio_no_se_vuelve_a_calcular_solo', false)
+    (343, 'un_adelanto_de_beneficio_no_se_vuelve_a_calcular_solo', false),
+    (347, 'boleta_desglosa_sobretiempo_25_35', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -354,8 +355,10 @@ select * from (
              when '00cd2aae9b8d01b943bb99c06eaa3727' then '✗ 0317 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'c86ef4707f51bf57024efac7eea41643' then '⚠ se quedó en la 0322 — falta pegar lo posterior'
              when '71b1779aa219c4ea7b01d9a062563552' then '✗ 0322 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'dacebb574315f3f7d880c9117cb3de7f' then '0339 — al día con el repositorio'
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0339 — falta pegar lo posterior'
              when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0339 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '0347 — al día con el repositorio'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0347 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
