@@ -6,11 +6,20 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
+import { MESES, lecturaObjetivos, nivelColorObjetivos, type MesHistorial, type ObjetivoItem } from "@/lib/objetivos";
+import { GraficoObjetivos } from "@/components/grafico-objetivos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
+
+// Mapa explícito (no `bg-${nivel}` interpolado) para que Tailwind encuentre
+// las clases literales al escanear el archivo.
+const CLASE_BG_NIVEL: Record<"verde" | "ambar" | "rojo", string> = {
+  verde: "bg-verde",
+  ambar: "bg-ambar",
+  rojo: "bg-rojo",
+};
 
 function mesActualLima(): { anio: number; mes: number } {
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
@@ -54,6 +63,7 @@ function ObjetivosContenido() {
   const [mes, setMes] = useState(Number.isInteger(mesEnlace) && mesEnlace >= 1 && mesEnlace <= 12 ? mesEnlace : hoy.mes);
   const [items, setItems] = useState<ObjetivoItem[]>([]);
   const [resumen, setResumen] = useState<ResumenMes[]>([]);
+  const [historial, setHistorial] = useState<MesHistorial[]>([]);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
 
@@ -106,15 +116,17 @@ function ObjetivosContenido() {
     const supabase = createAdminSupabaseClient();
     // objetivos_items NUNCA se lee por REST (schema cache de PostgREST trabado):
     // solo vía RPC jsonb, patrón 0020.
-    const [{ data, error }, { data: res }] = await Promise.all([
+    const [{ data, error }, { data: res }, { data: hist }] = await Promise.all([
       supabase.rpc("fn_objetivos_checklist", { p_anio: anio, p_mes: mes, p_persona_id: personaId }),
       supabase.rpc("fn_objetivos_resumen", { p_anio: anio, p_mes: mes }),
+      supabase.rpc("fn_objetivos_historial", { p_persona_id: personaId, p_anio: anio, p_mes: mes, p_meses: 12 }),
     ]);
     if (error) {
       avisar("error", mensajeDeError(error));
     } else {
       setItems(((data as unknown as ObjetivoItem[] | null) ?? []).slice());
       setResumen((res as unknown as ResumenMes[] | null) ?? []);
+      setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
     }
     setCargado(true);
     setCargando(false);
@@ -310,11 +322,19 @@ function ObjetivosContenido() {
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-sand">
                 <div
-                  className={`h-full rounded-full transition-all ${pct >= 60 ? "bg-verde" : pct >= 30 ? "bg-ambar" : "bg-rojo"}`}
+                  className={`h-full rounded-full transition-all ${CLASE_BG_NIVEL[nivelColorObjetivos(cumplidos, total)]}`}
                   style={{ width: `${pct}%` }}
                 />
               </div>
             </div>
+
+            {/* Historial: la tendencia de los últimos 12 meses, no solo el actual */}
+            {historial.some((m) => m.total > 0) && (
+              <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
+                <p className="mb-2 text-xs font-medium text-taupe">Historial (últimos 12 meses)</p>
+                <GraficoObjetivos historial={historial} />
+              </div>
+            )}
 
             {registroManual && total === 0 && (
               <div className="mb-4 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
