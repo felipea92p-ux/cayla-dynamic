@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0347 · la boleta desglosa el sobretiempo en 25 % y 35 %
+-- 0349 · la boleta desglosa el sobretiempo en 25 % y 35 %
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -461,14 +461,14 @@ begin
            sum(h_exceso) as horas,
            sum(least(h_exceso, 2) * 0.25 + greatest(h_exceso - 2, 0) * 0.35) as horas_recargo,
            min(fecha) as desde, max(fecha) as hasta,
-           -- ⇩ CAMBIO 0347 ⇩ el mismo cálculo de arriba, partido en sus dos
+           -- ⇩ CAMBIO 0349 ⇩ el mismo cálculo de arriba, partido en sus dos
            -- tramos — para que la boleta pueda declarar el 25 % (0105 PLAME)
            -- y el 35 % (0106 PLAME) por separado sin rehacer esta cuenta.
            sum(least(h_exceso, 2)) as horas_25,
            sum(greatest(h_exceso - 2, 0)) as horas_35,
            sum(least(h_exceso, 2) * 0.25) as horas_recargo_25,
            sum(greatest(h_exceso - 2, 0) * 0.35) as horas_recargo_35
-           -- ⇧ CAMBIO 0347 ⇧
+           -- ⇧ CAMBIO 0349 ⇧
     from ot_exceso
     where h_exceso > 0 and fecha between p_ini and p_fin
     group by persona_id
@@ -849,7 +849,7 @@ begin
         -- cuánto, cuántas horas y cuándo. Un monto pelado no se puede verificar
         -- contra el registro de asistencia, que es lo que lo sostiene.
         'monto_sobretiempo', round(coalesce(ot.horas_recargo, 0) * coalesce(ref.salario, 0) / v_base, 2),
-        -- ⇩ CAMBIO 0347 ⇩ el mismo recargo, partido en 25 % / 35 % — lo pidió
+        -- ⇩ CAMBIO 0349 ⇩ el mismo recargo, partido en 25 % / 35 % — lo pidió
         -- el contador para conciliar contra los códigos 0105/0106 de la
         -- PLAME. `_35` sale de restar el total menos el `_25` ya redondeado,
         -- no de su propia fórmula: así las dos líneas de la boleta siempre
@@ -860,7 +860,7 @@ begin
                                - round(coalesce(ot.horas_recargo_25, 0) * coalesce(ref.salario, 0) / v_base, 2),
         'horas_sobretiempo_25', round(coalesce(ot.horas_25, 0), 2),
         'horas_sobretiempo_35', round(coalesce(ot.horas_35, 0), 2),
-        -- ⇧ CAMBIO 0347 ⇧
+        -- ⇧ CAMBIO 0349 ⇧
         -- CAMBIO 0280 · Va con sus días y sus fechas, no solo con el monto: un
         -- recargo del 100 % sin decir qué día se trabajó es un número que nadie
         -- puede comprobar, y este se le explica a una persona.
@@ -1458,7 +1458,7 @@ begin
     --     acá. Y su pago no depende de horas: calcular recargo sobre un monto
     --     fijo no significaría nada.
     left join lateral (
-      -- CAMBIO 0347 · horas_25/horas_35/horas_recargo_25/horas_recargo_35:
+      -- CAMBIO 0349 · horas_25/horas_35/horas_recargo_25/horas_recargo_35:
       -- el mismo desglose que trae `sobret`, para que el JSON de salida
       -- pueda declarar el 25 % y el 35 % por separado.
       select s.horas, s.horas_recargo, s.desde, s.hasta,
@@ -2394,7 +2394,7 @@ revoke execute on function public.fn_planilla_calcular_persona(uuid, uuid) from 
 grant  execute on function public.fn_planilla_calcular_persona(uuid, uuid) to authenticated;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (347, 'boleta_desglosa_sobretiempo_25_35')
+values (349, 'boleta_desglosa_sobretiempo_25_35')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';

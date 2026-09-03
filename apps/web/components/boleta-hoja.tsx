@@ -181,9 +181,9 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
   // cuadrar con sus líneas. `?? 0` para que una base sin la 0185 pegada no dibuje
   // la fila en vez de escribir «S/ NaN».
   const sobretiempo = f.monto_sobretiempo ?? 0;
-  // El desglose 25 %/35 % (0347), a pedido del contador — sostiene los
+  // El desglose 25 %/35 % (0349), a pedido del contador — sostiene los
   // códigos 0105/0106 de la PLAME. `undefined` y no `?? 0` a propósito: una
-  // boleta de un periodo ya congelado antes de la 0347 no trae estas claves,
+  // boleta de un periodo ya congelado antes de la 0349 no trae estas claves,
   // y ahí hay que caer al texto genérico de siempre, no imprimir "25 %: S/0".
   const sobretiempo25 = f.monto_sobretiempo_25;
   const sobretiempo35 = f.monto_sobretiempo_35;
@@ -503,7 +503,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                 valiera S/1.78 y la persona no puede reconocer su propio pago.
                 También se dicen los días: el recargo se mide contra las 48 horas
                 SEMANALES, así que sin la fecha nadie puede rehacer la cuenta.
-                Desde la 0347, si la fila trae el desglose, se ve el 25 % y el 35 %
+                Desde la 0349, si la fila trae el desglose, se ve el 25 % y el 35 %
                 aparte —lo pidió el contador, para conciliar contra la PLAME—; si
                 no (boleta de un periodo congelado antes de esa migración), se ve
                 el texto genérico de siempre. */}

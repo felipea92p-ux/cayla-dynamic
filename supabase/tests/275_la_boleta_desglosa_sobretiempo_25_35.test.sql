@@ -4,9 +4,9 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 273_la_boleta_desglosa_sobretiempo_25_35.test.sql
+-- 275_la_boleta_desglosa_sobretiempo_25_35.test.sql
 -- ============================================================================
--- La 0347 expone, además del recargo TOTAL del sobretiempo, cuánto es al 25 %
+-- La 0349 expone, además del recargo TOTAL del sobretiempo, cuánto es al 25 %
 -- y cuánto al 35 % — lo pidió el contador para conciliar contra los códigos
 -- 0105/0106 de la PLAME. Estas pruebas fijan dos cosas:
 --
