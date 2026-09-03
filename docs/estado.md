@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · ESCRITAS · falta pegar en producción
+## 2026-09-03 — Objetivos: «copiar del mes anterior» (0348) y gráfico de historial (0350) · PEGADAS Y VERIFICADAS
 
 Pedido pendiente desde el 2026-08-14 (lista de "Valioso pronto"). En
 `/admin/objetivos`, cuando el mes elegido no tiene checklist todavía, aparece
@@ -75,9 +75,22 @@ dato real, tope de `p_meses` a 24, permiso concedido y denegado).
 esta se escribía ya había tomado el 0349 —y el 274 y el 275 de pruebas— para
 otra cosa. `siguiente-numero.sh` lo detectó antes de empujar.)
 
-PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) — falta
-fusionar y falta pegar la 0348 y la 0350 en el SQL Editor de producción
-(`./scripts/dame-el-sql.sh 348` y `./scripts/dame-el-sql.sh 350`).
+PR [#160](https://github.com/felipea92p-ux/cayla-dynamic/pull/160) fusionado,
+0348 y 0350 pegadas en producción por Felipe y confirmadas funcionando (el
+gráfico ya mostró datos reales de septiembre en pantalla).
+
+**Encima, el mismo día:** el rango de 12 meses fijo pasó a elegirse (6/12/24
+meses), con un control de tres botones junto al título del gráfico —
+`fn_objetivos_historial` ya aceptaba `p_meses` desde el principio, esto solo
+lo expuso en pantalla, sin migración nueva. El refresco del rango se separó
+del `cargar()` que trae la lista de objetivos —dos efectos en vez de uno—
+para que cambiar de 12M a 6M no reinicie toda la pantalla a "Cargando…", solo
+el gráfico. Ese mismo efecto, escrito como `useEffect(() => { void
+cargarHistorial(); })` llamando a una función `useCallback`, disparó el lint
+`react-hooks/set-state-in-effect` que el push bloquea — se resolvió en línea
+con el patrón que ya usa el efecto de sesión al principio del archivo
+(`.then()` inline dentro del efecto, no una función nombrada referenciada
+desde él).
 
 ---
 
