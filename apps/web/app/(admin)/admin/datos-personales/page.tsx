@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -31,6 +31,7 @@ interface Persona {
 }
 interface Ficha {
   persona_id: string; nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
+  genero: string | null;
   direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null;
   grado_instruccion: string | null; hijos_menores: boolean | null;
   foto_dni_url: string | null; foto_personal_url: string | null; foto_profesional_url: string | null;
@@ -45,7 +46,7 @@ interface Derechohabiente {
   essalud: boolean; vida_ley: boolean; vigente_hasta: string | null; nota: string | null;
 }
 interface Form {
-  nombre_dni: string; fecha_nacimiento: string; estado_civil: string; direccion: string; celular: string;
+  nombre_dni: string; fecha_nacimiento: string; estado_civil: string; genero: string; direccion: string; celular: string;
   entidad_bancaria: string; numero_cuenta: string; grado_instruccion: string;
   hijos_menores: "" | "si" | "no";
   foto_dni_url: string; foto_personal_url: string; foto_profesional_url: string;
@@ -55,7 +56,7 @@ interface Form {
 }
 
 const VACIO: Form = {
-  nombre_dni: "", fecha_nacimiento: "", estado_civil: "", direccion: "", celular: "",
+  nombre_dni: "", fecha_nacimiento: "", estado_civil: "", genero: "", direccion: "", celular: "",
   entidad_bancaria: "", numero_cuenta: "", grado_instruccion: "", hijos_menores: "",
   foto_dni_url: "", foto_personal_url: "", foto_profesional_url: "",
   emergencia_nombre: "", emergencia_vinculo: "", emergencia_telefono: "",
@@ -144,7 +145,7 @@ export default function DatosPersonalesPage() {
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").order("nombres"),
       supabase.from("sedes").select("id, codigo"),
-      supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
+      supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
       // `con_hijos` viaja por RPC porque el schema cache de PostgREST no expone
       // esa columna — misma razón que en la pantalla de Equipo.
@@ -226,6 +227,7 @@ export default function DatosPersonalesPage() {
     const f = fichas.get(id);
     setForm(f ? {
       nombre_dni: f.nombre_dni ?? "", fecha_nacimiento: f.fecha_nacimiento ?? "", estado_civil: f.estado_civil ?? "",
+      genero: f.genero ?? "",
       direccion: f.direccion ?? "", celular: f.celular ?? "", entidad_bancaria: f.entidad_bancaria ?? "",
       numero_cuenta: f.numero_cuenta ?? "", grado_instruccion: f.grado_instruccion ?? "",
       hijos_menores: f.hijos_menores === true ? "si" : f.hijos_menores === false ? "no" : "",
@@ -302,6 +304,7 @@ export default function DatosPersonalesPage() {
       p_nombre_dni: form.nombre_dni.trim() || null,
       p_fecha_nacimiento: form.fecha_nacimiento || null,
       p_estado_civil: form.estado_civil.trim() || null,
+      p_genero: form.genero.trim() || null,
       p_direccion: form.direccion.trim() || null,
       p_celular: form.celular.trim() || null,
       p_entidad_bancaria: form.entidad_bancaria.trim() || null,
@@ -426,6 +429,7 @@ export default function DatosPersonalesPage() {
     { clave: "nombre_dni", etiqueta: "nombre según DNI" },
     { clave: "fecha_nacimiento", etiqueta: "nacimiento" },
     { clave: "estado_civil", etiqueta: "estado civil" },
+    { clave: "genero", etiqueta: "género" },
     { clave: "grado_instruccion", etiqueta: "instrucción" },
     { clave: "celular", etiqueta: "celular" },
     { clave: "email", etiqueta: "correo" },
@@ -562,10 +566,11 @@ export default function DatosPersonalesPage() {
         Discapacidad: siNoSinDato(f?.discapacidad), CONADIS: f?.discapacidad_conadis ?? "",
         "Contacto emergencia": f?.emergencia_nombre ?? "",
         "Telefono emergencia": f?.emergencia_telefono ?? "",
-        // El sistema NO guarda estos dos y el T-Registro los pide. Van como
-        // columna vacía y no omitidos: una columna que falta se pasa por alto,
-        // una vacía se ve y se llena.
-        Sexo: "", Nacionalidad: "",
+        // Sexo ya se guarda (0369) y sale con el dato real. Nacionalidad el
+        // sistema TODAVÍA no la guarda y el T-Registro la pide: va como columna
+        // vacía y no omitida — una columna que falta se pasa por alto, una
+        // vacía se ve y se llena.
+        Sexo: etiqueta(GENERO_LABELS, f?.genero ?? null), Nacionalidad: "",
         REVISAR: incompletas.find((x) => x.p.id === p.id)?.faltan.join(" · ") ?? "",
       };
     });
@@ -808,6 +813,7 @@ export default function DatosPersonalesPage() {
                         </label>
                       )}
                       {campo("Fecha de nacimiento", "fecha_nacimiento", "date")}
+                      {campoLista("Género", "genero", GENEROS, GENERO_LABELS)}
                       {campoLista("Estado civil", "estado_civil", ESTADOS_CIVILES, ESTADO_CIVIL_LABELS)}
                       {campoLista("Grado de instrucción", "grado_instruccion", GRADOS_INSTRUCCION, GRADO_INSTRUCCION_LABELS)}
                       {campoSiNo("¿Hijos menores a cargo?", "hijos_menores")}

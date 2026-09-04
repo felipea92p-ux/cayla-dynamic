@@ -59,6 +59,15 @@ export const ESTADOS_CIVILES = [
 export type EstadoCivil = (typeof ESTADOS_CIVILES)[number];
 
 /**
+ * Género de la ficha personal. Binario porque es el que pide el T-Registro
+ * (columna "Sexo" de la PLAME, con los mismos dos valores) — no una
+ * clasificación social. Se guarda en `datos_personales`, no en `personas`, por
+ * la misma razón que `estado_civil`: es un dato de la ficha, no de la cuenta.
+ */
+export const GENEROS = ["femenino", "masculino"] as const;
+export type Genero = (typeof GENEROS)[number];
+
+/**
  * Grado de instrucción, con la escala del INEI para que los datos del equipo
  * sean comparables con estadísticas oficiales.
  *
