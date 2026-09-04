@@ -10,7 +10,8 @@ import { describe, it, expect } from "vitest";
 import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
-  ROLES_CON_PANEL, ROLES_DO,
+  puedeVerSaludDeAlertas, puedeExportarAsistencia,
+  ROLES, ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA,
 } from "@cayla-dynamic/shared";
 
 describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
@@ -29,10 +30,16 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("pero solo de SU sede: el alcance es otra pregunta y responde que no", () => {
     expect(puedeVerTodasLasSedes("supervisor_sede")).toBe(false);
   });
+  it("no ve la salud del despacho de avisos por correo: no tiene cómo arreglar Resend", () => {
+    expect(puedeVerSaludDeAlertas("supervisor_sede")).toBe(false);
+  });
+  it("sí se baja el CSV de asistencia — es lo que pide una inspección de su tienda", () => {
+    expect(puedeExportarAsistencia("supervisor_sede")).toBe(true);
+  });
 });
 
 describe("quien solo marca no entra al panel", () => {
-  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes]) {
+  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas, puedeExportarAsistencia]) {
     it(`integrante: ${permiso.name} = false`, () => {
       expect(permiso("integrante")).toBe(false);
     });
@@ -48,6 +55,12 @@ describe("DO ve todo", () => {
       expect(puedeOperarEquipo(rol)).toBe(true);
       expect(puedeVerTodasLasSedes(rol)).toBe(true);
     });
+    it(`${rol} ve la salud del despacho de avisos por correo (0362)`, () => {
+      expect(puedeVerSaludDeAlertas(rol)).toBe(true);
+    });
+    it(`${rol} se baja el CSV de asistencia (hallazgo 26)`, () => {
+      expect(puedeExportarAsistencia(rol)).toBe(true);
+    });
   }
 });
 
@@ -59,6 +72,8 @@ describe("null no pasa como autorizado", () => {
     it(`rol ${JSON.stringify(raro)} → no puede`, () => {
       expect(puedeVerPlanilla(raro)).toBe(false);
       expect(puedeOperarEquipo(raro)).toBe(false);
+      expect(puedeVerSaludDeAlertas(raro)).toBe(false);
+      expect(puedeExportarAsistencia(raro)).toBe(false);
     });
   }
 });
@@ -73,6 +88,20 @@ describe("las listas para filtrar en la base coinciden con las funciones", () =>
   it("ROLES_CON_PANEL son exactamente los que operan al equipo", () => {
     expect([...ROLES_CON_PANEL].sort()).toEqual(["admin", "lider_do", "supervisor_sede"]);
     for (const r of ROLES_CON_PANEL) expect(puedeOperarEquipo(r)).toBe(true);
+  });
+  // El menú filtra «Exportar CSV» con ROLES_EXPORTAN_ASISTENCIA y la pantalla
+  // decide con `puedeExportarAsistencia`. Mientras digan lo mismo no hay renglón
+  // que lleve a un «no tienes permiso», ni permiso escondido a quien sí lo
+  // tiene. Se recorre `ROLES` entero —la lista exhaustiva de `enums.ts`— y no
+  // solo la lista: así se cierran las DOS direcciones. Comprobar únicamente que
+  // los de la lista pueden dejaría pasar el caso contrario —ensanchar la función
+  // sin ensanchar la lista— que es justo la divergencia silenciosa que esto
+  // existe para cazar.
+  it("ROLES_EXPORTAN_ASISTENCIA son exactamente los que se bajan el CSV de asistencia", () => {
+    expect([...ROLES_EXPORTAN_ASISTENCIA].sort()).toEqual(["admin", "lider_do", "supervisor_sede"]);
+    for (const r of ROLES) {
+      expect(puedeExportarAsistencia(r)).toBe(ROLES_EXPORTAN_ASISTENCIA.includes(r));
+    }
   });
 });
 

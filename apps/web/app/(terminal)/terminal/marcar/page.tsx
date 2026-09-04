@@ -28,6 +28,7 @@ import { Marca } from "@/components/marca";
 import { RelojCentral } from "@/components/reloj";
 import {
   ConfirmacionToast,
+  ConfirmarRefrigerio,
   FormularioMotivoOtro,
   MotivoReentrada,
   NombreGrid,
@@ -36,6 +37,7 @@ import {
   SelectorSalida,
   SelectorSede,
   TecladoPin,
+  type EstadoRoster,
 } from "./components";
 
 type Pantalla =
@@ -43,6 +45,7 @@ type Pantalla =
   | "pin"
   | "elegir_salida"
   | "motivo_otro"
+  | "confirmar_refrigerio"
   | "confirmando"
   | "mensaje"
   | "cerrado"
@@ -79,10 +82,27 @@ function historialDelDia(marks: MarcajeDelDia[]): Array<{ label: string; hora: s
     .map((m) => ({ label: TIPO_MARCA_LABELS[m.tipo], hora: horaCorta(m.timestamp) }));
 }
 
+// ¿Llega a "salida final" sin haber marcado NUNCA una salida a refrigerio hoy?
+// (0353). No es "salió a almorzar y no volvió" —ese caso el propio candado de
+// esta función ya lo bloquea antes: tras un salida_almuerzo sin retorno,
+// fn_siguiente_tipo_esperado exige retorno_almuerzo, y salida_final ni
+// siquiera llega a ofrecerse. Lo único que SÍ es alcanzable desde acá es que
+// nunca haya salido: entrada → (todo el turno) → salida_final derecho.
+// Solo mira los marcajes de HOY que el terminal ya tiene cargados — no hace
+// ninguna llamada nueva al servidor.
+function nuncaMarcoRefrigerio(marcajesHoy: MarcajeDelDia[]): boolean {
+  return !marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
+}
+
 export default function MarcarPage() {
   const router = useRouter();
   const [terminal, setTerminal] = useState<TerminalInfo | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  // Un roster vacío no dice por qué está vacío, y la grilla lo contaba siempre
+  // como «Nadie en esta sede todavía» — también durante el arranque, que es
+  // justo cuando alguien lo lee (tras reiniciar la Mac mini o un corte de red)
+  // y entiende que se borró el equipo. Esta bandera separa los tres casos.
+  const [estadoRoster, setEstadoRoster] = useState<EstadoRoster>("cargando");
   const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
   const marcajesHoyRef = useRef<Map<string, MarcajeDelDia[]>>(new Map());
 
@@ -94,7 +114,9 @@ export default function MarcarPage() {
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
   const [marcasApartadas, setMarcasApartadas] = useState(0);
-  const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
+  const [accionPendiente, setAccionPendiente] = useState<{
+    tipo: TipoMarca; motivoOtro?: string; clientUuid?: string; confirmoSinRefrigerio?: boolean;
+  } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [tonoMensaje, setTonoMensaje] = useState<"ok" | "alerta">("ok");
   // El reloj de ESTA Mac contra el del servidor. Arranca con la última medida
@@ -105,12 +127,38 @@ export default function MarcarPage() {
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
 
   const cargarTodo = useCallback(async () => {
-    const [rosterData, marcajes] = await Promise.all([cargarRoster(), cargarMarcajesHoyPorPersona()]);
-    setRoster(rosterData);
-    marcajesHoyRef.current = marcajes;
+    try {
+      const [rosterCargado, marcajes] = await Promise.all([cargarRoster(), cargarMarcajesHoyPorPersona()]);
+      setRoster(rosterCargado.entradas);
+      marcajesHoyRef.current = marcajes;
+      // EL ERROR LO DECLARA LA FUENTE, NO EL `catch`, y esa es la mitad que
+      // faltaba: `cargarRoster` no lanza NUNCA por red ni por un 500 —devuelve
+      // la copia guardada en las cinco salidas de fallo—, así que una Mac recién
+      // reiniciada, sin caché y sin router, resolvía con `[]` y esta pantalla lo
+      // declaraba "listo": «Nadie en esta sede todavía», justo la mentira que
+      // este estado existe para quitar. Solo `fuente === "ninguna"` significa
+      // que no contestó ni el servidor ni la copia local.
+      setEstadoRoster(rosterCargado.fuente === "ninguna" ? "error" : "listo");
+    } catch {
+      // El `catch` queda para lo que sí lanza: IndexedDB (navegación privada,
+      // almacenamiento bloqueado). Un refresco que falla con la lista YA en
+      // pantalla no la borra ni asusta a nadie: se sigue marcando con lo que
+      // hay. Solo se declara error cuando no hemos llegado a tener nada.
+      setEstadoRoster((previo) => (previo === "listo" ? "listo" : "error"));
+    }
   }, []);
 
-  useEffect(() => {
+  // El arranque entero, extraído del efecto para que «Volver a intentar» pueda
+  // repetirlo. Antes el botón solo llamaba a `cargarTodo`, y el error también
+  // puede nacer acá arriba —la sesión, la ficha del terminal—: reintentar sin
+  // rehacer esa parte volvía a la lista vacía sin haber arreglado lo que falló.
+  //
+  // Devuelve la promesa en vez de ser `async`/`await` a propósito: con `await`,
+  // el linter de la casa lee la llamada del efecto de abajo como un setState
+  // síncrono dentro de un efecto y la marca. Encadenando `.then`, que es la
+  // forma que este arranque ya tenía, no hay setState hasta que la red conteste
+  // — y era verdad en las dos versiones.
+  const arrancar = useCallback(() => {
     const supabase = createTerminalSupabaseClient();
     // getSession() ES LA PRIMERA LLAMADA DE RED DEL ARRANQUE, aunque no lo parezca:
     // cuando el token guardado está vencido, auth-js sale a renovarlo, y no acepta
@@ -128,7 +176,7 @@ export default function MarcarPage() {
     // «no está vinculado». Las credenciales seguían en el disco. Por eso el
     // veredicto mira el error y no solo la sesión (`lib/terminal/sesion.ts`).
     const SIN_RESPUESTA = Symbol("sin respuesta");
-    void conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
+    return conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
       const veredicto =
         respuesta === SIN_RESPUESTA
           ? "no_se_pudo_saber"
@@ -152,11 +200,19 @@ export default function MarcarPage() {
           : null;
       setSedeSeleccionada((actual) => actual ?? paramSede ?? info?.sedeCodigo ?? null);
       await cargarTodo();
-    });
+    })
+    // Si el arranque se cae ANTES de llegar a `cargarTodo` —la ficha del
+    // terminal, la sesión— la grilla se quedaba en «cargando» para siempre, que
+    // es la misma mentira de antes con otra cara: una pantalla que promete que
+    // ya viene. Se declara el error, y el botón de reintentar es la salida.
+    .catch(() => setEstadoRoster((previo) => (previo === "listo" ? "listo" : "error")));
+  }, [router, cargarTodo]);
 
+  useEffect(() => {
+    void arrancar();
     const detener = iniciarSincronizacionPeriodica();
     return detener;
-  }, [router, cargarTodo]);
+  }, [arrancar]);
 
   // El desfase del reloj: la última medida guardada primero —para que el aviso
   // esté en pantalla desde el primer segundo— y una medición nueva enseguida.
@@ -315,12 +371,26 @@ export default function MarcarPage() {
       setPantalla("motivo_otro");
       return;
     }
+    if (
+      tipo === "salida_final" &&
+      personaActual &&
+      nuncaMarcoRefrigerio(marcajesHoyRef.current.get(personaActual.id) ?? [])
+    ) {
+      setAccionPendiente({ tipo });
+      setPantalla("confirmar_refrigerio");
+      return;
+    }
     prepararConfirmacion({ tipo });
   }
 
   function confirmarMotivoOtro(motivo: string) {
     if (!accionPendiente) return;
     prepararConfirmacion({ tipo: accionPendiente.tipo, motivoOtro: motivo });
+  }
+
+  function confirmarRefrigerio(trabajoCorrido: boolean) {
+    if (!accionPendiente) return;
+    prepararConfirmacion({ tipo: accionPendiente.tipo, confirmoSinRefrigerio: trabajoCorrido });
   }
 
   // Reabre el día (tras salida final) vía la ruta segura del servidor.
@@ -361,7 +431,7 @@ export default function MarcarPage() {
     setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
   }
 
-  function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string }) {
+  function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string; confirmoSinRefrigerio?: boolean }) {
     // el client_uuid se fija AL PREPARAR: si por algo se envía dos veces, el
     // servidor lo reconoce como el mismo marcaje (idempotencia) y no duplica.
     setAccionPendiente({ ...accion, clientUuid: crypto.randomUUID() });
@@ -408,6 +478,7 @@ export default function MarcarPage() {
       motivoOtro: accionPendiente.motivoOtro,
       timestampCliente: new Date().toISOString(),
       intentos: 0,
+      confirmoSinRefrigerio: accionPendiente.confirmoSinRefrigerio,
     };
 
     // Optimista: refleja el marcaje localmente ya mismo para que el siguiente
@@ -553,7 +624,12 @@ export default function MarcarPage() {
               activa={sedeSeleccionada}
               onCambiar={setSedeSeleccionada}
             />
-            <NombreGrid roster={rosterFiltrado} onSeleccionar={seleccionarPersona} />
+            <NombreGrid
+              roster={rosterFiltrado}
+              estado={estadoRoster}
+              onSeleccionar={seleccionarPersona}
+              onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
+            />
           </div>
         )}
 
@@ -592,6 +668,14 @@ export default function MarcarPage() {
 
         {pantalla === "motivo_otro" && (
           <FormularioMotivoOtro onConfirmar={confirmarMotivoOtro} onCancelar={volverALista} />
+        )}
+
+        {pantalla === "confirmar_refrigerio" && personaActual && (
+          <ConfirmarRefrigerio
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            onElegir={confirmarRefrigerio}
+            onCancelar={volverALista}
+          />
         )}
 
         {pantalla === "confirmando" && personaActual && accionPendiente && (

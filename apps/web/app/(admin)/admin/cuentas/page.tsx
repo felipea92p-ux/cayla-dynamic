@@ -44,6 +44,29 @@ interface Pendiente {
   confirmado: boolean;
 }
 
+// UNA LISTA QUE NO SE PUDO CARGAR NO SE PINTA COMO UNA LISTA VACÍA.
+//
+// En esta pantalla el vacío es una buena noticia («todas las cuentas creadas
+// están en uso», «cualquiera puede dejar su constancia»), así que un 403 o una
+// sesión vencida se leían como tranquilidad — y sobre esa lectura se crean
+// cuentas duplicadas. Cada bloque tiene sus tres estados con tres textos:
+// cargando, no se pudo cargar, y vacío de verdad.
+//
+// Y el motivo se dice acá mismo. Estos bloques viven al final de una pantalla
+// larga, lejos del aviso persistente de arriba que sí lo lleva: obligar a subir
+// a buscar el porqué es la misma distancia que hace que un aviso no se lea.
+function ListaNoCargada({ que, motivo, noSignifica, reintentar }: { que: string; motivo: string; noSignifica: string; reintentar: () => void }) {
+  return (
+    <div className="rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+      <p>No se pudo cargar {que}: {motivo}</p>
+      <p className="mt-1">
+        Esto <strong>no</strong> quiere decir que {noSignifica}.{" "}
+        <button onClick={reintentar} className="font-medium underline">Reintentar</button>
+      </p>
+    </div>
+  );
+}
+
 const ROL_LABEL: Record<string, string> = {
   admin: "Admin",
   lider_do: "Líder DO",
@@ -72,7 +95,10 @@ export default function CuentasPage() {
   const [promovibles, setPromovibles] = useState<Promovible[]>([]);
   const [invitables, setInvitables] = useState<Invitable[]>([]);
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
-  const [cargando, setCargando] = useState(false);
+  // Arranca en «cargando» y no en «vacío»: hasta que la primera consulta
+  // conteste, la pantalla no sabe nada — y pintar las listas vacías mientras
+  // tanto es la misma buena noticia falsa que este arreglo persigue.
+  const [cargando, setCargando] = useState(true);
   const [emailNuevo, setEmailNuevo] = useState<Record<string, string>>({});
   // Qué fila tiene abierto el formulario de «cambiar correo». Va cerrado por
   // defecto: es la acción que más daño hace por accidente de esta tabla —el
@@ -87,6 +113,12 @@ export default function CuentasPage() {
   // del lote. Un toast por vuelta sería una fila de avisos apilándose y
   // apagándose solos — acá hace falta un estado que se pise a sí mismo.
   const [msgGestion, setMsgGestion] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  // El fallo del LISTADO va aparte de `msgGestion` y no se borra con la
+  // siguiente acción: mientras la lista no se pueda cargar, la pantalla tiene
+  // que seguir diciéndolo. Un listado que falla se veía igual que uno vacío
+  // —«nadie tiene cuenta todavía»— y sobre esa lectura se crean cuentas
+  // duplicadas.
+  const [errListado, setErrListado] = useState<string | null>(null);
 
   const token = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -94,14 +126,40 @@ export default function CuentasPage() {
     return data.session?.access_token ?? "";
   }, []);
 
+  // De acá nunca puede salir una respuesta que PAREZCA correcta sin serlo: quien
+  // llama solo mira `data.error`, así que un 401/403/500 sin cuerpo, o una
+  // respuesta que ni siquiera es JSON, tienen que salir con ese campo puesto.
+  // Antes se devolvía `res.json()` a secas y un fallo llegaba como `{}`.
   const pedir = useCallback(
     async (body: Record<string, unknown>) => {
-      const res = await fetch("/api/admin/cuentas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify(body),
-      });
-      return res.json();
+      try {
+        const res = await fetch("/api/admin/cuentas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify(body),
+        });
+        // Una respuesta que ni siquiera es JSON —el HTML de un proxy de acceso,
+        // una página de error servida con 200— se tragaba en el `catch` y salía
+        // como `{}`: sin `error`, o sea indistinguible de «no hay nadie». Se
+        // recuerda el fallo de lectura y se trata como error pase lo que pase
+        // con el estado, porque un 200 ilegible es justo el caso que engaña.
+        let seLeyo = true;
+        const data = await res.json().catch(() => { seLeyo = false; return {}; });
+        if (!seLeyo) {
+          return { error: "El servidor respondió algo que el panel no pudo leer. Vuelve a entrar y reinténtalo." };
+        }
+        // El 401 se mira ANTES de deferir al cuerpo: la ruta SIEMPRE manda
+        // `{error:"sin sesión"}` o `{error:"sesión inválida"}`, así que el caso
+        // más probable de fallo acá llegaba en jerga y sin decir qué hacer. El
+        // texto es el mismo que `mensaje-error.ts` ya eligió para PGRST301.
+        if (res.status === 401) return { error: "Tu sesión venció. Vuelve a entrar." };
+        if (!res.ok && !data?.error) {
+          return { error: `El servidor respondió ${res.status}. Vuelve a intentarlo; si sigue igual, avisa a Felipe.` };
+        }
+        return data;
+      } catch {
+        return { error: "No se pudo contactar al servidor. Revisa tu conexión y vuelve a intentarlo." };
+      }
     },
     [token],
   );
@@ -109,6 +167,15 @@ export default function CuentasPage() {
   const listar = useCallback(async () => {
     setCargando(true);
     const data = await pedir({ accion: "listar" });
+    // Se revisa igual que el resto de acciones de esta pantalla. Sin esto, una
+    // sesión vencida, un 403 o un 500 dejaban las cuatro listas en cero y la
+    // pantalla se leía como «no hay nadie», que acá es una buena noticia falsa.
+    if (data.error) {
+      setErrListado(String(data.error));
+      setCargando(false);
+      return;
+    }
+    setErrListado(null);
     setCuentas(data.cuentas ?? []);
     setPromovibles(data.promovibles ?? []);
     setInvitables(data.invitables ?? []);
@@ -247,6 +314,17 @@ export default function CuentasPage() {
         <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
 
         <h2 className="mb-3 mt-8 font-serif text-lg">Gestionar cuentas del equipo</h2>
+        {/* Persistente a propósito: no es un aviso que se va solo. Mientras la
+            lista no cargue, todo lo que se ve debajo puede estar incompleto. */}
+        {errListado && (
+          <div className="mb-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p>No se pudo cargar la lista de cuentas: {errListado}</p>
+            <p className="mt-1">
+              Lo que se ve debajo puede estar incompleto o desactualizado — no lo leas como «así están las cuentas hoy».{" "}
+              <button onClick={() => void listar()} className="font-medium underline">Reintentar</button>
+            </p>
+          </div>
+        )}
         {msgGestion && (
           <p className={`mb-3 text-sm ${msgGestion.tipo === "ok" ? "text-verde" : "text-rojo"}`}>{msgGestion.texto}</p>
         )}
@@ -263,6 +341,12 @@ export default function CuentasPage() {
           <tbody>
               {cargando ? (
                 <CargandoFila columnas={5} />
+              ) : errListado && cuentas.length === 0 ? (
+                <tr className="border-t border-sand">
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-rojo">
+                    No se pudo cargar la lista. Esto <strong>no</strong> quiere decir que nadie tenga cuenta.
+                  </td>
+                </tr>
               ) : (
                 cuentas.map((c) => (
                   <tr key={c.id} className="border-t border-sand align-top">
@@ -371,7 +455,11 @@ export default function CuentasPage() {
           <strong>eligen su clave por su cuenta</strong> — nadie más la conoce. No ven planilla, ni sueldos, ni
           datos de nadie: su menú solo muestra lo que les corresponde.
         </p>
-        {invitables.length === 0 ? (
+        {cargando ? (
+          <p className="text-sm text-taupe">Cargando…</p>
+        ) : errListado && invitables.length === 0 ? (
+          <ListaNoCargada que="a quién falta invitar" motivo={errListado} noSignifica="no quede nadie por invitar" reintentar={() => void listar()} />
+        ) : invitables.length === 0 ? (
           <SinDatos texto="No hay integrantes por invitar." pista="Acá aparece quien está en planilla y todavía no tiene cuenta. Si está vacío, cualquiera puede dejar su constancia." />
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -413,7 +501,11 @@ export default function CuentasPage() {
           el enlace de «recuperar acceso» para poner la suya. Van de a una, con una pausa entre correos, porque el
           proyecto tiene un tope por hora.
         </p>
-        {pendientes.length === 0 ? (
+        {cargando ? (
+          <p className="text-sm text-taupe">Cargando…</p>
+        ) : errListado && pendientes.length === 0 ? (
+          <ListaNoCargada que="quién tiene el acceso a medias" motivo={errListado} noSignifica="nadie haya quedado a medias" reintentar={() => void listar()} />
+        ) : pendientes.length === 0 ? (
           <SinDatos texto="Nadie quedó a medias." pista="Acá aparece quien tiene cuenta y nunca entró. Si está vacío, todas las cuentas creadas están en uso." />
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -454,7 +546,11 @@ export default function CuentasPage() {
         <p className="mb-3 text-sm text-taupe">
           Da acceso al panel de su sede a una integrante. Al convertirla, aparece arriba para crearle su cuenta.
         </p>
-        {promovibles.length === 0 ? (
+        {cargando ? (
+          <p className="text-sm text-taupe">Cargando…</p>
+        ) : errListado && promovibles.length === 0 ? (
+          <ListaNoCargada que="a quién se puede convertir en encargada" motivo={errListado} noSignifica="no haya a quién convertir" reintentar={() => void listar()} />
+        ) : promovibles.length === 0 ? (
           <SinDatos texto="No hay integrantes por promover." pista="Acá aparece quien todavía no tiene cuenta de acceso al panel. Si está vacío, es que todas las personas con rol de encargada o líder ya tienen la suya." />
         ) : (
           <div className="flex flex-wrap gap-2">

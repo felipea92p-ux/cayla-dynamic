@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { REQUISITOS_CLAVE, problemasDeClave } from "@cayla-dynamic/shared";
+import { REQUISITOS_CLAVE, ROLES_CON_PANEL, problemasDeClave } from "@cayla-dynamic/shared";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
 import { Colibri } from "@/components/marca";
 
@@ -22,6 +22,11 @@ function NuevaClaveContenido() {
   const [confirma, setConfirma] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A dónde va esta persona al terminar. Se resuelve UNA vez, al guardar la
+  // clave, y de ahí salen las dos cosas: el texto del botón y el destino. Que
+  // sean el mismo valor derivado es a propósito — un botón que dice una cosa y
+  // lleva a otra es el error que se está corrigiendo.
+  const [destino, setDestino] = useState("/mio");
 
   // El enlace del correo trae el token en la URL; supabase-js lo detecta solo
   // y dispara PASSWORD_RECOVERY. Si en unos segundos no llega, el enlace ya
@@ -58,9 +63,37 @@ function NuevaClaveContenido() {
     if (problemas.length > 0) { setError(problemas.join(" ")); return; }
     if (nueva !== confirma) { setError("Las contraseñas no coinciden."); return; }
     setGuardando(true);
+    // La clave se guarda por la RUTA DE SERVIDOR, no con `updateUser` directo:
+    // ahí es donde se vuelve a comprobar la política y —sobre todo— donde se
+    // apaga la marca `clave_por_cambiar`. Esa marca vive en `app_metadata`,
+    // que solo escribe la llave de servicio; si la clave se cambiara por acá,
+    // el panel seguiría empujando a esta misma pantalla en bucle.
     const problema = await guardarMiClave(nueva);
+    if (problema) { setGuardando(false); setError(problema); return; }
+
+    // A DÓNDE ATERRIZA CADA QUIEN — la misma resolución que hace el login
+    // (`login/page.tsx`), por el mismo motivo: el Dashboard es un tablero de
+    // encargada, y una integrante con cuenta —las hay: se les invita para que
+    // dejen constancia de la política salarial, Ley 30709— caía ahí y veía una
+    // pantalla que su propia RLS le devuelve casi vacía. Antes esta pantalla
+    // mandaba a todo el mundo al Dashboard sin mirar el rol.
+    //
+    // Si la consulta del rol falla, se va a «Lo mío»: funciona para todo el
+    // mundo, mientras que un Dashboard vacío se lee como que el sistema se
+    // rompió justo después de cambiar la clave.
+    //
+    // Se lee la sesión DESPUÉS de guardar, no antes: `guardarMiClave` la
+    // refresca para que el token traiga ya la marca apagada.
+    const supabase = createAdminSupabaseClient();
+    const { data: sesion } = await supabase.auth.getSession();
+    const { data: yo } = await supabase
+      .from("personas")
+      .select("rol")
+      .eq("auth_user_id", sesion.session?.user.id ?? "")
+      .maybeSingle();
+    const rol = (yo as { rol?: string } | null)?.rol;
+    setDestino(rol && ROLES_CON_PANEL.includes(rol as never) ? "/admin/dashboard" : "/mio");
     setGuardando(false);
-    if (problema) { setError(problema); return; }
     setEstado("guardado");
   }
 
@@ -139,10 +172,10 @@ function NuevaClaveContenido() {
         <div className="flex w-full max-w-xs flex-col gap-4 text-center">
           <p className="text-sm text-verde">Tu contraseña se actualizó correctamente.</p>
           <button
-            onClick={() => router.replace("/admin/dashboard")}
+            onClick={() => router.replace(destino)}
             className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo"
           >
-            Ir al panel
+            {destino === "/mio" ? "Ir a lo mío" : "Ir al panel"}
           </button>
         </div>
       )}

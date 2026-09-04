@@ -40,15 +40,18 @@ insert into alertas (id, persona_id, tipo, canal, payload, created_at) values
   ('00000000-0000-0000-0000-0000000f0022', '00000000-0000-0000-0000-0000000f0013', 'auto_cierre', 'push',
    jsonb_build_object('fecha', '2026-09-03'), now() - interval '1 hour'),
   ('00000000-0000-0000-0000-0000000f0023', '00000000-0000-0000-0000-0000000f0012', 'auto_cierre', 'push',
-   jsonb_build_object('fecha', '2026-08-01'), now() - interval '5 days');
+   -- 0362: la ventana del despacho pasó de 2 a 7 días (un fin de semana sin
+   -- cron ya no descarta el viernes). Esta alerta tiene que quedar FUERA de
+   -- la ventana nueva: antes eran 5 días, ahora 8.
+   jsonb_build_object('fecha', '2026-08-01'), now() - interval '8 days');
 
 create temp table _pendientes as select * from fn_alertas_email_pendientes();
 
 select is((select count(*)::int from _pendientes), 2,
-  'Solo las dos avisos de menos de 2 días salen — la de hace 5 días queda afuera');
+  'Solo los dos avisos de menos de 7 días salen — la de hace 8 días queda afuera (ventana de 7 días desde la 0362)');
 
 select is((select count(*)::int from _pendientes where alerta_id = '00000000-0000-0000-0000-0000000f0023'),
-  0, 'La alerta de hace 5 días no aparece entre las pendientes');
+  0, 'La alerta de hace 8 días no aparece entre las pendientes');
 
 select is((select destinatarios from _pendientes where alerta_id = '00000000-0000-0000-0000-0000000f0021'),
   array['encargada.aviso@example.com'],

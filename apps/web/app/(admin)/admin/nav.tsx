@@ -18,7 +18,7 @@ import {
   BookText, UserRound, ScrollText, Keyboard, Megaphone,
   LogOut, Menu, Search, X, type LucideIcon,
 } from "lucide-react";
-import { ROLES_CON_PANEL, ROLES_DO, puedeOperarEquipo } from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, puedeOperarEquipo } from "@cayla-dynamic/shared";
 
 // Qué renglones del menú ve cada quien. Las listas vienen de `permisos.ts` — el
 // menú no vuelve a decidir quién es DO, solo lo consulta.
@@ -88,8 +88,20 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
     { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
     { href: "/admin/reporte-sede", label: "Hoja de sede", Icon: FileText, roles: SEDE },
-    { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound },
-    { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown },
+    // Con `roles` desde hoy, por lo mismo que «Exportar CSV» de abajo: iba sin
+    // filtro, y la pantalla ya se degrada sola con `puedeGestionarCatalogos`, o
+    // sea que el renglón solo llevaba a una puerta cerrada — también desde el
+    // buscador (Cmd+K) y desde los atajos, que consumen esta misma lista.
+    { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound, roles: DO },
+    // Con `roles` desde hoy (hallazgo 26). Iba sin filtro, así que una integrante
+    // con cuenta —las hay, para acusar la política salarial— veía «Exportar CSV»
+    // y entraba. No era una fuga: la RLS de `jornadas`, `marcajes` y
+    // `correcciones_auditoria` solo le devuelve lo suyo. Era una pantalla que no
+    // es suya y que se lee como que el sistema no tiene datos, igual que pasaba
+    // con el Dashboard. La lista es la de `puedeExportarAsistencia`, que es quien
+    // decide de verdad dentro de la pantalla; hoy coincide con `SEDE`, pero se
+    // nombra aparte para que estrechar el permiso apague también el renglón.
+    { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown, roles: ROLES_EXPORTAN_ASISTENCIA },
   ] },
 ];
 
