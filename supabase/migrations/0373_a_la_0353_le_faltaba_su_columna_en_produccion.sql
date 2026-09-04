@@ -1,6 +1,12 @@
 -- ============================================================================
--- 0368 — A la 0353 le faltaba su columna en producción
+-- 0373 — A la 0353 le faltaba su columna en producción
 -- ----------------------------------------------------------------------------
+-- Nació como 0368, en paralelo a otra sesión que diagnosticaba la misma
+-- incidencia (la 0367 de este árbol, "fn_registrar_marcaje pierde su
+-- sobrecarga vieja", fusionada primero) y que además tomó el 0368 para un
+-- hallazgo sin relación ("un código de sede no se pisa en silencio"). Se
+-- renumera a 0373 al fusionar main: lo ya fusionado tiene prioridad.
+--
 -- QUÉ PROMETE: que exista en producción la columna
 -- `marcajes.confirmo_sin_refrigerio` que la 0353 agregó localmente
 -- (`alter table marcajes add column if not exists confirmo_sin_refrigerio
@@ -63,5 +69,5 @@ comment on column marcajes.confirmo_sin_refrigerio is
   'Solo en marcajes de salida_final cuando ese día no había ninguna salida_almuerzo marcada. true = la persona confirmó, al marcar, que trabajó corrido sin parar a almorzar. false = dijo que sí almorzó pero olvidó marcar la salida a refrigerio. null = no se le preguntó (ese día sí marcó su salida a refrigerio, o el marcaje es de otro tipo).';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (368, 'a_la_0353_le_faltaba_su_columna_en_produccion')
+values (373, 'a_la_0353_le_faltaba_su_columna_en_produccion')
 on conflict (numero) do nothing;
