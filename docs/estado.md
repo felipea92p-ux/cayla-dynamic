@@ -37,6 +37,79 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 14 a 24 (0360-0365) · ESCRITAS Y VERIFICADAS — FALTA PEGAR
+
+Felipe pidió arreglar «las 10 primeras» de la tabla de importantes de la
+auditoría adversarial del 2026-09-03/04 (el PDF `Auditoria-CAYLA-2026-09-04.pdf`,
+57 hallazgos; no vive en el repo): 14, 15, 16, 17, 18, 20, 21, 22, 23 y 24.
+Rama `claude/primeras-10-correcciones-08ce78`. Los críticos 1-12 (PIN del
+terminal, sede del terminal, contraseñas, liquidaciones…) siguen abiertos.
+
+| Hallazgo | Qué se hizo | Migración · prueba |
+|---|---|---|
+| 14 Horarios: corregir un tramo retroactivo reventaba con `horarios_sin_solape` en inglés | `fn_set_horario_semanal` recorta cualquier tramo que pise la fecha, no solo el abierto; `mensaje-error.ts` traduce el candado | 0360 · 286 |
+| 15 Objetivos: «Copiar del mes anterior» duplicaba con doble clic | candado de transacción por persona antes de preguntar si el mes está vacío + `not exists` en el insert; pestillo en la pantalla | 0361 · 287 |
+| 16-18 Alertas por correo: doble envío, corte a los 10 s, fallo perdido para siempre | reserva compare-and-set antes de enviar (`fn_alertas_reservar`), `maxDuration = 60`, reintento hasta 3, ventana de 7 días, Sentry por cada fallo, `fn_alertas_despacho_resumen` + tarjeta en la Bandeja para DO | 0362 · 288 (y la 281 ajustada) |
+| 20 Cuatro funciones de turnos sin revoke de PUBLIC/anon | **Refutado con medición**: ya las cierra la 0076 (bucle + `alter default privileges`), `anon = false` en las cuatro; anotado en `hallazgos-abiertos.md` con la consulta para producción | — |
+| 21 Doble toque en el terminal dejaba dos entradas (y dos salidas finales) | `fn_registrar_marcaje` toma un candado por persona y, solo para el terminal, devuelve la marca del mismo tipo a ±2 min sin otra en medio | 0363 · 289 |
+| 22 «Nuevo PIN» hasheaba en el navegador y escribía `pin_hash` por REST | `fn_regenerar_pin` genera y hashea en Postgres (bcrypt `$2a$10$`, comprobado contra la bcryptjs del terminal); trigger que cierra la columna a `authenticated`/`anon` | 0364 · 290 |
+| 23 Provisiones: sin tramo de salario salía S/ 0.00 igual que «no le toca» | `fn_provisiones` gana `sin_salario_vigente`, `dias_sin_salario` y `personas_sin_salario`; insignia, aviso y CSV. **El número no cambia** (medido fila por fila) | 0365 · 291 |
+| 24 La casilla decía «S/ 113 fijos por periodo» | `montoAsignacionFamiliar` lee `parametros_laborales` (respaldo `configuracion`); la etiqueta muestra el monto real o manda a Configuración | — (solo panel) |
+
+Verificado en esta Mac el 2026-09-04: `supabase db reset` limpio con las seis
+migraciones, `supabase test db` 211 archivos / 2139 pruebas, typecheck 3/3,
+vitest 434/434, eslint sin errores en líneas nuevas. Cada paquete pasó por dos
+revisoras adversariales (corrección/plata y reglas de la casa); las dos cosas
+que bloqueaban se corrigieron antes de commitear: el resumen de alertas contaba
+como «caducado» el backlog de julio que la 0354 dejó fuera a propósito, y la
+0365 tenía que conceder el `execute` que la 0338 olvidó (ver abajo).
+
+**Qué pegar, en este orden, y qué pedir ANTES de cada una** (el md5 de
+partida local está en cada encabezado; `donde-vive.sh` imprime la consulta):
+
+1. 0360 — pedir md5 de `fn_set_horario_semanal` (esperado: el de la 0327).
+2. 0361 — `fn_objetivos_copiar_mes_anterior` (esperado: el de la 0348).
+3. 0362 — `fn_alertas_email_pendientes` (esperado: el de la 0359) y
+   `fn_marcar_alerta_resultado` (0354). **Pegarla ANTES de desplegar el panel**:
+   la ruta nueva llama a `fn_alertas_reservar` y sin ella el cron responde 500.
+4. 0363 — `fn_registrar_marcaje` (esperado: el de la 0353).
+5. 0364 — funciones nuevas: confirmar que `fn_regenerar_pin` no existe todavía.
+   También antes de desplegar el panel: «Nuevo PIN» la llama.
+6. 0365 — `fn_provisiones` (esperado: el de la 0338) **y su `proacl`**.
+
+⚠️ **Provisiones puede llevar rota en producción desde la 0338 (2026-09-01).**
+La 0338 hizo `drop function fn_provisiones(date)` y creó la firma `(date, date)`
+sin `grant execute … to authenticated`; con la revocación por defecto de la
+0076, en un Postgres construido desde las migraciones `authenticated` recibe
+«permission denied» al llamarla — y `/admin/provisiones` la llama así. La 0365
+deja el grant escrito. Para saber si producción lo tiene hoy:
+`select has_function_privilege('authenticated', 'fn_provisiones(date, date)', 'execute');`
+— si dice `false`, la pantalla de Provisiones no abre desde el 1 de septiembre y
+la 0365 lo arregla al pegarla.
+
+**Visto de paso, sin tocar (para su propio lote):**
+
+- La prueba **274** (`el_generador_hace_indefinidos`) se pone en rojo según el
+  plan de consulta: registra dos contratos en la misma transacción, los dos
+  quedan con el mismo `generado_at`, y el lateral `u` de `fn_contratos_tablero`
+  (0347) ordena solo por `generado_at desc` — el empate lo decide Postgres.
+  Pasó en la primera corrida de la suite y falló en la segunda y a solas. El
+  arreglo es un desempate en la función (`generado_at desc, id desc` o similar)
+  y una prueba que no dependa del empate.
+- La política `alertas_marcar_leida_propia` (0003) más `grant update on alertas
+  to authenticated` dejan que una integrante edite CUALQUIER columna de sus
+  propias alertas (estado, intentos…). Preexistente; la 0362 lo amplía un poco.
+- `fn_crear_persona` sigue recibiendo el hash del PIN desde el navegador, y el
+  terminal sigue comparándolo con bcryptjs en el cliente: es el crítico 1.
+- `fn_planilla_calcular` conserva `coalesce(…, 113.00)` como respaldo escrito
+  a mano de la asignación familiar (0339): el mismo defecto del 24, en el
+  sitio que paga.
+- `fn_feriado_devengado`: un feriado que cae dentro de un bloque 29→28 con el
+  tramo de salario cerrado a mitad valora horas de días sin tramo (S/ 7,69
+  medidos en la 291). No es de la 0365; queda documentado en esa prueba.
+
+---
+
 ## 2026-09-03 — El patrón «función guardián» queda escrito como convención (CLAUDE.md) · CERRADO
 
 Hallazgo #2 de la comparación Workday/Oracle, y uno de los 16 de la auditoría
