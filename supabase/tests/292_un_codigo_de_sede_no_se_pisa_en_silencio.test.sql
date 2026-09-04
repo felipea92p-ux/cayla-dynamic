@@ -6,7 +6,7 @@
 -- ============================================================================
 -- 292_un_codigo_de_sede_no_se_pisa_en_silencio.test.sql
 -- ============================================================================
--- Cubre la 0367 (hallazgo 33 de la auditoría del 2026-09-03/04). Hasta ella,
+-- Cubre la 0368 (hallazgo 33 de la auditoría del 2026-09-03/04). Hasta ella,
 -- `fn_guardar_sede` era un upsert ciego sobre `codigo`: crear una sede con un
 -- código que ya existía le cambiaba el nombre y el tipo a la sede que ya lo
 -- tenía, sin decir nada. Dos personas creando «LIM03» en pestañas distintas
@@ -125,7 +125,7 @@ select throws_like(
   'EDICIÓN · un id que no existe lanza en vez de crear una sede por su cuenta');
 
 -- ── 6. El código no se cambia, ni siquiera por uno libre ────────────────────
--- El caso que la 0367 abrió sin querer: la edición por `id` podía escribir el
+-- El caso que la 0368 abrió sin querer: la edición por `id` podía escribir el
 -- `codigo`, cosa que el upsert de la 0099 no podía hacer. Y de ese texto
 -- cuelgan, sin clave foránea, `parametros_laborales.sede_codigo` —la tarifa de
 -- movilidad de esa sede, o sea plata—, `planilla_pagada_detalle.sede_codigo` y

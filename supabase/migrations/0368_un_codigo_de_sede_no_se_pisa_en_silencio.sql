@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0367 — Un código de sede no se pisa en silencio
+-- 0368 — Un código de sede no se pisa en silencio
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: que `fn_guardar_sede` distinga CREAR de EDITAR, y que crear una
 -- sede con un código que ya existe falle diciéndolo, en vez de sobrescribir la
@@ -127,7 +127,7 @@ create or replace function fn_guardar_sede(
   p_codigo text,
   p_nombre text,
   p_tipo   text default null,
-  -- ⇩⇩⇩ CAMBIO 0367 ⇩⇩⇩ Los dos argumentos nuevos, los dos con valor por
+  -- ⇩⇩⇩ CAMBIO 0368 ⇩⇩⇩ Los dos argumentos nuevos, los dos con valor por
   -- defecto para que la llamada de tres —y la de dos— siga encajando.
   p_id      uuid    default null,
   p_es_alta boolean default false
@@ -156,7 +156,7 @@ begin
 
   v_codigo := upper(trim(p_codigo));
 
-  -- ⇩⇩⇩ CAMBIO 0367 ⇩⇩⇩ Todo lo que sigue reemplaza al upsert ciego. Decía:
+  -- ⇩⇩⇩ CAMBIO 0368 ⇩⇩⇩ Todo lo que sigue reemplaza al upsert ciego. Decía:
   --
   --   insert into sedes (codigo, nombre, tipo)
   --   values (upper(trim(p_codigo)), trim(p_nombre), coalesce(p_tipo, 'tienda'))
@@ -255,7 +255,7 @@ grant execute on function fn_guardar_sede(text, text, text, uuid, boolean) to au
 revoke execute on function fn_guardar_sede(text, text, text, uuid, boolean) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (367, 'un_codigo_de_sede_no_se_pisa_en_silencio')
+values (368, 'un_codigo_de_sede_no_se_pisa_en_silencio')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
@@ -266,7 +266,7 @@ notify pgrst, 'reload schema';
 -- candado único de `codigo` sigue ahí: sin él, el `unique_violation` de
 -- arriba no se levantaría nunca y la carrera volvería a pisar en silencio.
 select
-  position('CAMBIO 0367' in p.prosrc) > 0                                  as tiene_el_cambio,
+  position('CAMBIO 0368' in p.prosrc) > 0                                  as tiene_el_cambio,
   (select count(*) from pg_proc where proname = 'fn_guardar_sede')         as una_sola_version,
   pg_get_function_identity_arguments(p.oid)                                as firma,
   (select count(*) from migraciones_aplicadas where numero = 367) = 1      as anotada,

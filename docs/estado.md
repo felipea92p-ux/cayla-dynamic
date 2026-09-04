@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-04 — Auditoría del 2026-09-04: los importantes 25 a 34 (0367) · ESCRITA Y VERIFICADA — FALTA PEGAR
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 25 a 34 (0368) · ESCRITA Y VERIFICADA — FALTA PEGAR
 
 Segunda tanda de diez, pedida por Felipe justo después de la primera. Nueve son
 solo panel; una lleva SQL.
@@ -52,7 +52,7 @@ solo panel; una lleva SQL.
 | 30 El historial de correcciones no decía de qué día era el marcaje | `describirCambio` deja de tirar la fecha |
 | 31 El reporte por sede salía en blanco desde una sede inactiva | No se ofrece «Hoja» para inactivas, y se dice por qué si el código no está |
 | 32 Cambiar la clave mandaba siempre al dashboard | Misma resolución de rol que ya hacía login |
-| 33 Dos sesiones se pisaban un código de sede en silencio | **Migración 0367** + prueba 292: el alta con código repetido lanza |
+| 33 Dos sesiones se pisaban un código de sede en silencio | **Migración 0368** + prueba 292: el alta con código repetido lanza |
 | 34 La fecha de Disciplina congelaba la fila | Input de fecha que nace con hoy, con `try/catch` |
 
 Verificado el 2026-09-04: `supabase db reset` limpio, `supabase test db` 212
@@ -71,12 +71,19 @@ líneas que el push agrega).
   `auto_cierre_reemplazado`, que son los que produce el propio botón de esa
   pantalla. Se enumeró qué escribe cada función en `correcciones_auditoria` en
   vez de deducirlo por el nombre.
-- El «se revierte» de la 0367 afirmaba algo falso sobre PostgREST, y lo afirmaba
+- El «se revierte» de la 0368 afirmaba algo falso sobre PostgREST, y lo afirmaba
   en el procedimiento que alguien lee cuando ya hay algo roto en producción. La
   revisora lo midió acuñando un JWT y lo corrigió.
 - El menú filtraba por un permiso que no existía todavía en `permisos.ts`.
 
-**Al pegar la 0367:** `donde-vive.sh fn_guardar_sede` decía que la vigente es la
+**Nació como 0367 y se renumeró a 0368**: `claude/mensajes-molestos-5950e5` tomó
+ese número el mismo día para retirar la sobrecarga vieja de
+`fn_registrar_marcaje`. Importa más que de costumbre porque
+`migraciones_aplicadas` tiene el número como clave: con las dos en 0367, la
+segunda que se pegara habría quedado SIN registrar, en silencio, por el
+`on conflict (numero) do nothing`.
+
+**Al pegar la 0368:** `donde-vive.sh fn_guardar_sede` decía que la vigente es la
 0099. Pide el md5 a producción antes, como siempre. La migración y el despliegue
 del panel van juntos; si hay que separarlos, **la migración va primero**.
 
