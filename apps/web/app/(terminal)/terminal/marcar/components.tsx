@@ -316,6 +316,39 @@ export function PantallaCerrado({
   );
 }
 
+// Solo aparece cuando el propio terminal ve que hoy no hay ninguna salida a
+// refrigerio marcada y la persona está cerrando su día (ver 0353) — nunca en
+// cada salida.
+export function ConfirmarRefrigerio({
+  nombre,
+  onElegir,
+  onCancelar,
+}: {
+  nombre: string;
+  onElegir: (trabajoCorrido: boolean) => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+      <p className="font-serif text-2xl">{nombre}</p>
+      <p className="max-w-sm text-lg">
+        Hoy no marcaste una salida a refrigerio. ¿Trabajaste corrido, sin parar a almorzar?
+      </p>
+      <div className="flex w-full max-w-sm flex-col gap-3">
+        <button onClick={() => onElegir(true)} className={`${BTN_PRIMARIO} py-5 text-xl`}>
+          Sí, trabajé corrido
+        </button>
+        <button onClick={() => onElegir(false)} className={`${TILE} px-5 py-4 text-lg`}>
+          No, sí almorcé — se me olvidó marcar
+        </button>
+      </div>
+      <button onClick={onCancelar} className="text-sm text-taupe underline">
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
 const MOTIVOS_REENTRADA = ["Seguiré laborando", "Solicitud del equipo", "Mi turno aún no termina"];
 
 export function MotivoReentrada({

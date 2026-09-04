@@ -68,6 +68,7 @@ export async function enviarMarcaje(
         p_origen: "terminal",
         p_terminal_id: entry.terminalId,
         p_motivo_otro: entry.motivoOtro,
+        p_confirmo_sin_refrigerio: entry.confirmoSinRefrigerio,
       })
       .abortSignal(AbortSignal.timeout(msEspera));
 

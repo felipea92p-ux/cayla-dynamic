@@ -39,6 +39,9 @@ interface MarcajeFila {
   motivo_otro: string | null;
   anulada_at: string | null;
   anulada_motivo: string | null;
+  // 0353: solo en una salida_final donde el terminal preguntó por no haber
+  // refrigerio marcado ese día. null = no se le preguntó.
+  confirmo_sin_refrigerio: boolean | null;
   sedes: { codigo: string } | null;
 }
 
@@ -165,7 +168,7 @@ export default function ExportarPage() {
         supabase
           .from("marcajes")
           .select(
-            "persona_id, timestamp_marca, tipo, origen, estado_revision, motivo_otro, anulada_at, anulada_motivo, sedes(codigo)",
+            "persona_id, timestamp_marca, tipo, origen, estado_revision, motivo_otro, anulada_at, anulada_motivo, confirmo_sin_refrigerio, sedes(codigo)",
           )
           .gte("timestamp_marca", inicio)
           .lte("timestamp_marca", fin)
@@ -201,6 +204,9 @@ export default function ExportarPage() {
       estado_revision: ESTADO_REVISION_LABELS[m.estado_revision] ?? m.estado_revision,
       anulada: m.anulada_at ? "Sí" : "No",
       anulada_motivo: m.anulada_motivo ?? "",
+      // 0353/0359: vacío = no se le preguntó (día sin ambigüedad de refrigerio).
+      confirmo_trabajo_sin_refrigerio:
+        m.confirmo_sin_refrigerio === null ? "" : m.confirmo_sin_refrigerio ? "sí" : "no",
     }));
 
     const csv = generarCsv(filas, [
@@ -214,6 +220,7 @@ export default function ExportarPage() {
       "estado_revision",
       "anulada",
       "anulada_motivo",
+      "confirmo_trabajo_sin_refrigerio",
     ]);
 
     descargarCsv(`dynamic-marcajes-${desde}_a_${hasta}.csv`, csv);
