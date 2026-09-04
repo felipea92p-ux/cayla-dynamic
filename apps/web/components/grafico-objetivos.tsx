@@ -23,9 +23,14 @@
 // estuviera roto, y con 2 o 3 meses apenas mejor. Se mide el contenedor con
 // ResizeObserver, porque ese ancho no se sabe antes de montar en el DOM, y
 // cada mes recibe un carril igual; la barra se dibuja centrada en su carril,
-// tan ancha como quepa hasta un máximo razonable. Con muchos meses el carril
-// ya es chico por sí solo y el gráfico se ve igual que antes — y sigue
-// scrolleando de lado cuando 24 meses no caben en una pantalla angosta.
+// tan ancha como quepa hasta un máximo razonable.
+//
+// Pero el carril NUNCA baja de CARRIL_MIN, y eso no es un detalle de gusto:
+// debajo de ese ancho las etiquetas de mes se pisan entre sí y el eje pasa a
+// decir «Oct 24Nov 24Dic 24». Se vio con 24 meses al repartir todo el ancho
+// disponible — el gráfico dejaba de scrollear y ganaba un eje ilegible. Con
+// el mínimo puesto, muchos meses vuelven a scrollear de lado en vez de
+// apretarse, y de paso el eje de 24 meses se lee por primera vez.
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { MESES, MESES_CORTO, nivelColorObjetivos, type MesHistorial } from "@/lib/objetivos";
@@ -97,9 +102,15 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   const PAD_LEFT = 32;
   const PAD_RIGHT = 8;
   const RADIO = 4;
-  const BARRA_MIN = 14;
   const BARRA_MAX = 64;
-  const HUECO_MIN = 6;
+  // El carril mínimo lo manda la ETIQUETA, no la barra: «Sep 26» a 9px mide
+  // 32px medidos en el navegador, así que por debajo de eso el eje se lee
+  // «Oct 24Nov 24Dic 24». El trazado histórico usaba 30 (20 de barra + 10 de
+  // hueco) y por eso el rango de 24 meses SIEMPRE tuvo las etiquetas pisadas;
+  // 36 las separa con aire y deja la barra en 26. Cuesta un poco más de
+  // scroll lateral en ese rango, que ya scrolleaba de todos modos.
+  const HUECO_MIN = 10;
+  const CARRIL_MIN = 36;
 
   const n = historial.length;
   // El "carril" de cada mes reparte TODO el ancho disponible en partes
@@ -112,9 +123,9 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   // layout effect) `anchoContenedor` es 0 y cae en ese mismo caso compacto,
   // que se corrige antes de pintar.
   const disponible = Math.max(0, anchoContenedor - PAD_LEFT - PAD_RIGHT);
-  const cabe = disponible / n >= BARRA_MIN + HUECO_MIN;
-  const carril = cabe ? disponible / n : BARRA_MIN + HUECO_MIN;
-  const ANCHO_BARRA = Math.min(BARRA_MAX, Math.max(BARRA_MIN, carril - HUECO_MIN));
+  const cabe = disponible / n >= CARRIL_MIN;
+  const carril = cabe ? disponible / n : CARRIL_MIN;
+  const ANCHO_BARRA = Math.min(BARRA_MAX, carril - HUECO_MIN);
   // Cuando cabe, el SVG mide EXACTAMENTE el contenedor (no una suma de
   // carriles con decimales que podría pasarse por una fracción de píxel y
   // encender un scroll horizontal vacío).
