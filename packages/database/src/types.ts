@@ -5171,6 +5171,10 @@ export type Database = {
           nombre: string
         }[]
       }
+      fn_grati_cts_agregar_pendientes: {
+        Args: { p_periodo_id: string | null }
+        Returns: Json
+      }
       fn_grati_cts_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
       fn_grati_trunca: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
