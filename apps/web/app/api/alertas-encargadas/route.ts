@@ -47,6 +47,12 @@ function textoDeFecha(payload: Record<string, unknown>): string {
   return typeof f === "string" ? f : "una fecha reciente";
 }
 
+/** Igual que `textoDeFecha`, para el resto de campos del payload de vencimiento (0356/0357). */
+function texto(payload: Record<string, unknown>, campo: string, porDefecto = "—"): string {
+  const v = payload[campo];
+  return typeof v === "string" || typeof v === "number" ? String(v) : porDefecto;
+}
+
 /** Asunto y cuerpo por tipo de alerta. Un `tipo` sin plantilla propia cae a un texto genérico, nunca se cae la ruta entera por un tipo nuevo que aparezca en `alertas`. */
 function componerCorreo(a: AlertaPendiente): { asunto: string; texto: string } {
   const fecha = textoDeFecha(a.payload);
@@ -58,6 +64,37 @@ function componerCorreo(a: AlertaPendiente): { asunto: string; texto: string } {
       texto:
         `Dynamic cerró sola la jornada de ${a.persona_nombre} el ${fecha} porque no se registró una salida.\n\n` +
         `Revísala en Correcciones antes de que se pague así: ${link}\n\n` +
+        `Este correo es un aviso automático — no es necesario responderlo.`,
+    };
+  }
+
+  // Los dos de abajo (0356/0357) llegan con `persona_id` YA resuelto al
+  // destinatario (DO), no a la encargada — ver el porqué en el encabezado
+  // de la 0358. El link va a la pantalla donde DO ya mira esto hoy, no a
+  // Correcciones: un contrato o un récord de vacaciones no se corrige ahí.
+  if (a.tipo === "contrato_por_vencer") {
+    const dias = texto(a.payload, "dias_restantes");
+    return {
+      asunto: `Dynamic: el contrato de ${texto(a.payload, "persona")} vence en ${dias} día(s)`,
+      texto:
+        `El contrato de ${texto(a.payload, "persona")} (${texto(a.payload, "sede")}) vence el ${texto(a.payload, "fecha_fin_contrato")} — en ${dias} día(s).\n\n` +
+        `Revísalo en Contratos: https://cayla-dynamic.vercel.app/admin/contratos\n\n` +
+        `Este correo es un aviso automático — no es necesario responderlo.`,
+    };
+  }
+
+  if (a.tipo === "vacaciones_por_vencer") {
+    const vencidos = texto(a.payload, "records_vencidos", "0");
+    const yaVencido = vencidos !== "0" && vencidos !== "—";
+    return {
+      asunto: yaVencido
+        ? `Dynamic: ${texto(a.payload, "persona")} ya tiene vacaciones vencidas`
+        : `Dynamic: las vacaciones de ${texto(a.payload, "persona")} vencen en ${texto(a.payload, "dias_para_vencer")} día(s)`,
+      texto:
+        (yaVencido
+          ? `${texto(a.payload, "persona")} (${texto(a.payload, "sede")}) ya tiene ${vencidos} récord(s) de vacaciones vencido(s) — el art. 23 del D. Leg. 713 lo castiga con una remuneración entera de indemnización.\n\n`
+          : `Las vacaciones de ${texto(a.payload, "persona")} (${texto(a.payload, "sede")}) vencen el ${texto(a.payload, "vence_el")} — en ${texto(a.payload, "dias_para_vencer")} día(s).\n\n`) +
+        `Tiene ${texto(a.payload, "dias_pendientes")} día(s) pendientes en total. Revísalo en Ausencias: https://cayla-dynamic.vercel.app/admin/ausencias\n\n` +
         `Este correo es un aviso automático — no es necesario responderlo.`,
     };
   }
