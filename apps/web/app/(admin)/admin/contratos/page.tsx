@@ -61,6 +61,13 @@ function sumarDias(iso: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
+// "2026-09-04" + 3 meses → "2026-12-03": el día anterior al aniversario, que es
+// como se cuenta un plazo de contrato (del 4 de setiembre al 3 de diciembre).
+function finDePlazo(inicioIso: string, meses: number): string {
+  const [y, m, d] = inicioIso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + meses, d - 1)).toISOString().slice(0, 10);
+}
+
 interface Persona {
   id: string;
   nombres: string;
@@ -479,12 +486,16 @@ export default function ContratosPage() {
     setHitoMes6Editado("");
     setModalidadManualEditada("");
 
-    if (tipo === "renovacion" && p.fecha_fin_contrato) {
-      setFechaInicio(sumarDias(p.fecha_fin_contrato, 1));
-    } else {
-      setFechaInicio(hoyLima());
-    }
-    setFechaFin("");
+    const inicio = tipo === "renovacion" && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : hoyLima();
+    setFechaInicio(inicio);
+    // La fecha de fin NO arranca vacía (regla de la casa del 2026-08-26): su
+    // vacío bloquea «Generar borrador», y en Safari un valor tecleado a mano
+    // puede verse en pantalla sin llegar nunca al estado de React. El 2026-09-04
+    // pasó justo eso con un convenio: 03/12/2026 a la vista y el botón apagado.
+    // Nace con el plazo más probable —tres meses para un convenio, un año para
+    // un contrato modal— y se cambia en un clic.
+    const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
+    setFechaFin(finDePlazo(inicio, esConvenioDeEstaPersona ? 3 : 12));
     // Deliberadamente NO depende de `personas`/`sedeNombreMap`: generar un
     // borrador llama a `cargar()`, que trae esos dos arreglos de nuevo con una
     // referencia distinta aunque el contenido sea el mismo. Si estuvieran acá,
