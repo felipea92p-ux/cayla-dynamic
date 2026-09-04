@@ -6,11 +6,20 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
+import { MESES, lecturaObjetivos, nivelColorObjetivos, type MesHistorial, type ObjetivoItem } from "@/lib/objetivos";
+import { GraficoObjetivos } from "@/components/grafico-objetivos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
+
+// Mapa explícito (no `bg-${nivel}` interpolado) para que Tailwind encuentre
+// las clases literales al escanear el archivo.
+const CLASE_BG_NIVEL: Record<"verde" | "ambar" | "rojo", string> = {
+  verde: "bg-verde",
+  ambar: "bg-ambar",
+  rojo: "bg-rojo",
+};
 
 function mesActualLima(): { anio: number; mes: number } {
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
@@ -54,12 +63,15 @@ function ObjetivosContenido() {
   const [mes, setMes] = useState(Number.isInteger(mesEnlace) && mesEnlace >= 1 && mesEnlace <= 12 ? mesEnlace : hoy.mes);
   const [items, setItems] = useState<ObjetivoItem[]>([]);
   const [resumen, setResumen] = useState<ResumenMes[]>([]);
+  const [historial, setHistorial] = useState<MesHistorial[]>([]);
+  const [rangoHistorial, setRangoHistorial] = useState(12);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
 
   const [nuevoTexto, setNuevoTexto] = useState("");
   const [nuevasIndicaciones, setNuevasIndicaciones] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [copiando, setCopiando] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [textoEdicion, setTextoEdicion] = useState("");
   const [indicacionesEdicion, setIndicacionesEdicion] = useState("");
@@ -124,6 +136,54 @@ function ObjetivosContenido() {
     if (personaId) void cargar();
   }, [personaId, anio, mes, cargar]);
 
+  // El historial se pide aparte: cambiar el rango (6/12/24 meses) no debe
+  // reiniciar toda la pantalla a "Cargando…", solo refrescar el gráfico.
+  // `cargarHistorial` la usan los manejadores de abajo después de mutar algo;
+  // el efecto de mount/cambio de rango no LA LLAMA (referenciar una función
+  // useCallback desde un efecto dispara el lint set-state-in-effect) — pide
+  // los mismos datos en línea, igual que el efecto de sesión de arriba.
+  //
+  // "Cargando" del gráfico se DERIVA (estado con la clave del último
+  // historial que llegó, no un ref: leer un ref durante el render es otro
+  // lint prohibido, react-hooks/refs) en vez de un setState al ENTRAR al
+  // efecto — eso dispararía set-state-in-effect. Actualizarlo adentro del
+  // `.then()` no cuenta: ahí ya vive `setHistorial`, que tampoco lo dispara.
+  // Mientras la clave no coincide con la selección actual, el gráfico se
+  // atenúa en vez de desaparecer (refetch mantiene el dibujo anterior).
+  const [historialClave, setHistorialClave] = useState<string | null>(null);
+  const historialClaveActual = personaId ? `${personaId}|${anio}|${mes}|${rangoHistorial}` : null;
+  const historialDesactualizado = historialClaveActual !== historialClave;
+
+  const cargarHistorial = useCallback(async () => {
+    if (!personaId) return;
+    const supabase = createAdminSupabaseClient();
+    const { data: hist } = await supabase.rpc("fn_objetivos_historial", {
+      p_persona_id: personaId,
+      p_anio: anio,
+      p_mes: mes,
+      p_meses: rangoHistorial,
+    });
+    setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+    setHistorialClave(`${personaId}|${anio}|${mes}|${rangoHistorial}`);
+  }, [personaId, anio, mes, rangoHistorial]);
+
+  useEffect(() => {
+    if (!personaId) return;
+    let cancelado = false;
+    const clave = `${personaId}|${anio}|${mes}|${rangoHistorial}`;
+    createAdminSupabaseClient()
+      .rpc("fn_objetivos_historial", { p_persona_id: personaId, p_anio: anio, p_mes: mes, p_meses: rangoHistorial })
+      .then(({ data: hist }) => {
+        if (!cancelado) {
+          setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+          setHistorialClave(clave);
+        }
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [personaId, anio, mes, rangoHistorial]);
+
   async function agregar() {
     const texto = nuevoTexto.trim();
     if (!texto) {
@@ -147,6 +207,7 @@ function ObjetivosContenido() {
     setNuevoTexto("");
     setNuevasIndicaciones("");
     await cargar();
+    await cargarHistorial();
   }
 
   async function marcar(item: ObjetivoItem, cumplido: boolean) {
@@ -160,6 +221,7 @@ function ObjetivosContenido() {
       return;
     }
     await cargar();
+    await cargarHistorial();
   }
 
   async function guardarEdicion(item: ObjetivoItem) {
@@ -184,6 +246,23 @@ function ObjetivosContenido() {
     await cargar();
   }
 
+  async function copiarMesAnterior() {
+    setCopiando(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_objetivos_copiar_mes_anterior", {
+      p_persona_id: personaId,
+      p_anio: anio,
+      p_mes: mes,
+    });
+    setCopiando(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "copiar"));
+      return;
+    }
+    await cargar();
+    await cargarHistorial();
+  }
+
   async function eliminar(item: ObjetivoItem) {
     if (!window.confirm(`¿Eliminar el objetivo “${item.descripcion}”?`)) return;
     const supabase = createAdminSupabaseClient();
@@ -193,6 +272,7 @@ function ObjetivosContenido() {
       return;
     }
     await cargar();
+    await cargarHistorial();
   }
 
   const cumplidos = items.filter((i) => i.cumplido).length;
@@ -293,11 +373,44 @@ function ObjetivosContenido() {
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-sand">
                 <div
-                  className={`h-full rounded-full transition-all ${pct >= 60 ? "bg-verde" : pct >= 30 ? "bg-ambar" : "bg-rojo"}`}
+                  className={`h-full rounded-full transition-all ${CLASE_BG_NIVEL[nivelColorObjetivos(cumplidos, total)]}`}
                   style={{ width: `${pct}%` }}
                 />
               </div>
             </div>
+
+            {/* Historial: la tendencia, no solo el mes actual. El rango se elige,
+                no queda fijo en 12 meses — fn_objetivos_historial ya aceptaba
+                p_meses desde el principio, esto solo lo expone en pantalla. */}
+            {historial.some((m) => m.total > 0) && (
+              <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-taupe">
+                    Historial ({rangoHistorial === 1 ? "1 mes" : `${rangoHistorial} meses`})
+                  </p>
+                  <label className="flex items-center gap-2 text-xs text-taupe">
+                    Rango
+                    <select
+                      value={rangoHistorial}
+                      onChange={(e) => setRangoHistorial(Number(e.target.value))}
+                      className="rounded-lg border border-sand bg-crema px-2 py-1 text-xs"
+                    >
+                      <option value={1}>Último mes</option>
+                      <option value={2}>Últimos 2 meses</option>
+                      <option value={3}>Últimos 3 meses</option>
+                      <option value={6}>Últimos 6 meses</option>
+                      <option value={12}>Últimos 12 meses</option>
+                      <option value={24}>Últimos 24 meses</option>
+                    </select>
+                  </label>
+                </div>
+                <GraficoObjetivos
+                  key={historialClave ?? "sin-historial"}
+                  historial={historial}
+                  cargando={historialDesactualizado}
+                />
+              </div>
+            )}
 
             {registroManual && total === 0 && (
               <div className="mb-4 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
@@ -318,8 +431,17 @@ function ObjetivosContenido() {
             {/* Lista */}
             <ul className="mb-4 divide-y divide-sand rounded-2xl border border-sand bg-papel">
               {items.length === 0 ? (
-                <li className="px-4 py-6 text-center text-sm text-taupe">
-                  Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.
+                <li className="flex flex-col items-center gap-3 px-4 py-6 text-center text-sm text-taupe">
+                  <span>Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.</span>
+                  {puedeGestionar && (
+                    <button
+                      onClick={() => void copiarMesAnterior()}
+                      disabled={copiando}
+                      className="rounded-lg border border-sand px-3 py-1.5 text-xs font-medium text-tinta hover:bg-sand/40 disabled:opacity-50"
+                    >
+                      {copiando ? "Copiando…" : "Copiar del mes anterior"}
+                    </button>
+                  )}
                 </li>
               ) : (
                 items.map((item) => (

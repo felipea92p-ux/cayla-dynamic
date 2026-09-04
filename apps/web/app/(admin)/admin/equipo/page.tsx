@@ -1121,14 +1121,14 @@ export default function EquipoPage() {
           >
             <option value="">Sin definir todavía</option>
             <option value="preprofesional">Preprofesional — estudiante, máx. 30h/semana</option>
-            <option value="profesional">Profesional — egresada, máx. 48h/semana</option>
+            <option value="profesional">Profesional — egresado/a, máx. 48h/semana</option>
           </select>
           <span className="text-xs text-taupe">
             {form.practicanteModalidad === ""
               ? "Sin esto, Horarios no puede avisar si su jornada se pasa del máximo legal — no adivina un número, solo avisa que falta el dato."
               : form.practicanteModalidad === "preprofesional"
-                ? "Sigue matriculada; el convenio es con ella, la empresa Y su universidad o instituto (tripartito). No mayor a 6h/día ni 30h/semana."
-                : "Ya egresó; el convenio es solo con ella y la empresa. No mayor a 8h/día ni 48h/semana."}
+                ? "Sigue matriculado/a; el convenio es con la persona, la empresa Y su universidad o instituto (tripartito). No mayor a 6h/día ni 30h/semana."
+                : "Ya egresó; el convenio es solo con la persona y la empresa. No mayor a 8h/día ni 48h/semana."}
           </span>
         </label>
       )}

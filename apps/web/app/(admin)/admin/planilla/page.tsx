@@ -291,6 +291,16 @@ export interface Fila {
   horas_sobretiempo?: number;
   sobretiempo_desde?: string | null;
   sobretiempo_hasta?: string | null;
+  // El mismo recargo de arriba, partido en 25 % y 35 % (0349) — lo pidió el
+  // contador para conciliar contra los códigos 0105/0106 de la PLAME.
+  // `monto_sobretiempo_25 + monto_sobretiempo_35` siempre suma exacto
+  // `monto_sobretiempo`; ver el comentario de la migración para el porqué.
+  // Opcionales por lo mismo que el resto: una base sin la 0349 pegada no
+  // manda las claves, y la boleta tiene que seguir saliendo igual que antes.
+  monto_sobretiempo_25?: number;
+  monto_sobretiempo_35?: number;
+  horas_sobretiempo_25?: number;
+  horas_sobretiempo_35?: number;
   // Descanso semanal trabajado (0280): también SOLO el recargo —el 100 % del
   // art. 3 del D. Leg. 713—, porque las horas de ese día ya están en pago_base.
   // `descanso_semanal_dias` es cuántas veces se cerró un ciclo de siete días
@@ -1088,6 +1098,8 @@ export default function PlanillaPage() {
   const [movAbierto, setMovAbierto] = useState<string | null>(null);
   const [movForm, setMovForm] = useState<MovForm>({ tipo: "bono", concepto: "", monto: "", origen: "" });
   const [guardandoMov, setGuardandoMov] = useState(false);
+  // CAMBIO 0355 — «Agregar todo» de gratificación/CTS/bonificación pendientes.
+  const [guardandoBulk, setGuardandoBulk] = useState(false);
 
   // Provisiones (plegable)
   const [mostrandoProvisiones, setMostrandoProvisiones] = useState(false);
@@ -1166,6 +1178,23 @@ export default function PlanillaPage() {
         etiqueta: `${MESES_LARGO[p.mes_etiqueta - 1]} ${p.anio_etiqueta}`,
       }));
   }, [proy, periodos]);
+
+  // CAMBIO 0355 — cuánto hay pendiente de gratificación/CTS/bonificación en
+  // este periodo, para el banner de «Agregar todo». Se lee de gc.porPersona
+  // —el mismo dato que ya autocompleta cada fila a mano—, así que si alguien
+  // ya está pagado (grati=0) no cuenta ni como persona ni como movimiento.
+  const pendientesGratiCts = useMemo(() => {
+    if (!gc) return null;
+    let personas = 0, movimientos = 0, total = 0;
+    for (const v of Object.values(gc.porPersona)) {
+      const suma = v.grati + v.be + v.cts;
+      if (suma <= 0) continue;
+      personas++;
+      movimientos += (v.grati > 0 ? 1 : 0) + (v.be > 0 ? 1 : 0) + (v.cts > 0 ? 1 : 0);
+      total += suma;
+    }
+    return personas > 0 ? { personas, movimientos, total } : null;
+  }, [gc]);
 
   const periodoActual = useMemo(
     () => periodos?.find((p) => p.id === periodoSel) ?? null,
@@ -1689,6 +1718,47 @@ export default function PlanillaPage() {
     avisar("ok", `${CLASE_LABEL[movForm.tipo]} de ${formatSoles(monto)} para ${f.nombre}.`);
     await cargarProyeccion(); // cierra el panel ± y limpia el formulario
 
+  }
+
+  // CAMBIO 0355 — «Agregar todo». fn_grati_cts_agregar_pendientes ya decide
+  // quién tiene algo pendiente (deja el monto en 0 a quien no); acá solo se
+  // suma para mostrar el aviso ANTES de escribir nada.
+  async function agregarPendientesGratiCts() {
+    if (!proy?.periodo_id || !pendientesGratiCts) return;
+    const ok = window.confirm(
+      `Vas a registrar ${pendientesGratiCts.movimientos} movimiento(s) para ` +
+      `${pendientesGratiCts.personas} persona(s), por un total de ${formatSoles(pendientesGratiCts.total)}. ` +
+      `¿Confirmas?`
+    );
+    if (!ok) return;
+    setGuardandoBulk(true);
+    const { data, error } = await supabase.rpc("fn_grati_cts_agregar_pendientes", {
+      p_periodo_id: proy.periodo_id,
+    });
+    setGuardandoBulk(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "agregar los pendientes"));
+      return;
+    }
+    const r = data as unknown as {
+      agregados: { nombre: string; categoria: string; monto: number }[];
+      fallidos: { nombre: string; categoria: string; motivo: string }[];
+      total_agregado: number;
+    };
+    if (r.agregados.length > 0) {
+      avisar("ok", `Se agregaron ${r.agregados.length} movimiento(s) por ${formatSoles(r.total_agregado)}.`);
+    }
+    if (r.fallidos.length > 0) {
+      avisar(
+        "error",
+        `${r.fallidos.length} no se pudieron agregar — ` +
+        r.fallidos.map((f) => `${f.nombre} (${CLASE_LABEL[f.categoria as ClaseMov] ?? f.categoria}): ${f.motivo}`).join(" · ")
+      );
+    }
+    if (r.agregados.length === 0 && r.fallidos.length === 0) {
+      avisar("ok", "No había nada pendiente por agregar.");
+    }
+    await cargarProyeccion();
   }
 
   // «Ya le pagué aparte». No borra a la persona de la planilla: le pone un
@@ -2310,6 +2380,30 @@ export default function PlanillaPage() {
                   </span>
                 ))}
                 {proy.feriados.length === 0 && <span>· sin feriados en este periodo</span>}
+              </div>
+            )}
+
+            {/* CAMBIO 0355 — Gratificación/CTS/Bonificación 9% pendientes de
+                este periodo, con un botón que las agrega todas de una vez.
+                No escribe nada solo: sigue pidiendo confirmación antes de
+                que el monto se vuelva un movimiento real, y después dice a
+                quién se le agregó y a quién no (y por qué). */}
+            {pendientesGratiCts && (
+              <div className="mb-4 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                <span>
+                  {[gc?.gratiAplica && "Gratificación", gc?.gratiAplica && "Bonificación 9%", gc?.ctsAplica && "CTS"]
+                    .filter(Boolean)
+                    .join(" · ")}{" "}
+                  pendiente para {pendientesGratiCts.personas}{" "}
+                  {pendientesGratiCts.personas === 1 ? "persona" : "personas"} — {formatSoles(pendientesGratiCts.total)} en total.
+                </span>
+                <button
+                  onClick={() => void agregarPendientesGratiCts()}
+                  disabled={guardandoBulk}
+                  className="whitespace-nowrap rounded-lg bg-ambar px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                >
+                  {guardandoBulk ? "Agregando…" : `Agregar todo (${pendientesGratiCts.movimientos})`}
+                </button>
               </div>
             )}
 

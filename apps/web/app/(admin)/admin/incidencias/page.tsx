@@ -761,7 +761,7 @@ function IncidenciasContenido() {
                     <input
                       value={respuestas[r.id] ?? ""}
                       onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
-                      placeholder="En qué quedó (lo va a leer ella)"
+                      placeholder="En qué quedó (lo va a leer la persona)"
                       className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
                     />
                     <button onClick={() => void atenderRevision(r.id)} disabled={atendiendo === r.id}

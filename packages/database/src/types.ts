@@ -90,6 +90,7 @@ export type Database = {
           estado: string
           id: string
           leido_at: string | null
+          nota_fallo: string | null
           payload: Json
           persona_id: string | null
           tipo: string
@@ -101,6 +102,7 @@ export type Database = {
           estado?: string
           id?: string
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
           tipo: string
@@ -112,6 +114,7 @@ export type Database = {
           estado?: string
           id?: string
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
           tipo?: string
@@ -743,7 +746,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
@@ -765,7 +768,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
           generado_at?: string
@@ -787,7 +790,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html?: string
-          fecha_fin?: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
           generado_at?: string
@@ -4202,7 +4205,6 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
-          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4235,6 +4237,18 @@ export type Database = {
         Returns: undefined
       }
       fn_ahora_servidor: { Args: never; Returns: string }
+      fn_alertas_email_pendientes: {
+        Args: never
+        Returns: {
+          alerta_id: string
+          destinatarios: string[]
+          destinatarios_nombres: string[]
+          payload: Json
+          persona_nombre: string
+          sede_codigo: string
+          tipo: string
+        }[]
+      }
       fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }
@@ -4247,7 +4261,6 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
-          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4414,7 +4427,6 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
-          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4448,7 +4460,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
@@ -4577,7 +4589,6 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
-          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4604,7 +4615,6 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
-          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -5164,6 +5174,10 @@ export type Database = {
           nombre: string
         }[]
       }
+      fn_grati_cts_agregar_pendientes: {
+        Args: { p_periodo_id: string | null }
+        Returns: Json
+      }
       fn_grati_cts_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
       fn_grati_trunca: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
@@ -5295,6 +5309,10 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null; p_resolucion: string | null }
         Returns: Json
       }
+      fn_marcar_alerta_resultado: {
+        Args: { p_exito: boolean | null; p_id: string | null; p_nota?: string | null }
+        Returns: undefined
+      }
       fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
       fn_marcas_apartadas: {
         Args: never
@@ -5352,6 +5370,19 @@ export type Database = {
       }
       fn_objetivos_checklist: {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id?: string | null }
+        Returns: Json
+      }
+      fn_objetivos_copiar_mes_anterior: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_objetivos_historial: {
+        Args: {
+          p_anio: number | null
+          p_mes: number | null
+          p_meses?: number | null
+          p_persona_id: string | null
+        }
         Returns: Json
       }
       fn_objetivos_resumen: {
@@ -5514,7 +5545,6 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
-          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
