@@ -217,7 +217,8 @@ with repo(numero, nombre, nunca) as (values
     (357, 'el_saldo_de_vacaciones_separa_calculo_de_permiso', false),
     (358, 'el_aviso_de_alertas_aprende_dos_audiencias', false),
     (359, 'el_aviso_de_alertas_tambien_avisa_al_propio_integrante', false),
-    (363, 'fn_provisiones_recupera_su_grant', false)
+    (363, 'fn_provisiones_recupera_su_grant', false),
+    (367, 'fn_registrar_marcaje_deja_de_tener_dos_firmas', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
