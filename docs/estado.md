@@ -37,6 +37,28 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-04 — `fn_provisiones` se quedó sin permiso de ejecución desde la 0338 (0363) · PEGADA Y VERIFICADA
+
+La 0338 le agregó un parámetro a `fn_provisiones` (de `fn_provisiones(date)` a
+`fn_provisiones(date, date)`); como Postgres no reemplaza en el sitio cuando
+cambia la firma, esa migración hizo `DROP FUNCTION` + `CREATE OR REPLACE`, y
+el nuevo objeto nació sin el `GRANT EXECUTE` para `authenticated` — desde la
+0076 esta base no regala EXECUTE por defecto. Cualquier llamada a
+`fn_provisiones` desde el panel devolvía «permission denied for function»
+antes de que el cuerpo llegara a correr; no era un bug de la pantalla de
+Provisiones, la función nunca llegaba a ejecutarse.
+
+**Arreglo (0363):** un `grant execute` de una sola línea, sin tocar el
+cuerpo ni el md5 de la función. Llegó a `main` vía [PR #180](https://github.com/felipea92p-ux/cayla-dynamic/pull/180)
+desde otra sesión (`claude/error-investigation-17ac66`) mientras esta rama
+fusionaba la 0344/0345 — se cruzaron sin chocar en la numeración.
+
+**Confirmado en producción el 2026-09-04**, corriendo la comprobación que
+la propia migración deja al final:
+`has_function_privilege('authenticated', 'fn_provisiones(date,date)', 'EXECUTE')` → `true`.
+
+---
+
 ## 2026-09-03 — El patrón «función guardián» queda escrito como convención (CLAUDE.md) · CERRADO
 
 Hallazgo #2 de la comparación Workday/Oracle, y uno de los 16 de la auditoría
