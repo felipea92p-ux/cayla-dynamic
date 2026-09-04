@@ -37,7 +37,63 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-04 — Auditoría del 2026-09-04: los importantes 14 a 24 (0360-0365) · ESCRITAS Y VERIFICADAS — FALTA PEGAR
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 25 a 34 (0367) · ESCRITA Y VERIFICADA — FALTA PEGAR
+
+Segunda tanda de diez, pedida por Felipe justo después de la primera. Nueve son
+solo panel; una lleva SQL.
+
+| Hallazgo | Qué se hizo |
+|---|---|
+| 25 El terminal decía «Nadie en esta sede todavía» mientras cargaba | Tres estados con tres textos, y botón de reintentar en el fallo |
+| 26 «Exportar CSV» lo veía cualquier cuenta | Permiso nuevo en `permisos.ts` con su prueba, filtro en el menú y guardia en la propia pantalla |
+| 27 La ficha decía «Sin antecedentes disciplinarios. Buena señal.» si fallaba la consulta | Se captura el error de cada consulta por separado |
+| 28 El PIN nuevo duraba 4,5 s en un aviso que se autodestruía | Panel fijo con botón de copiar y cierre explícito |
+| 29 Cuentas se veía vacía en vez de mostrar el error | Se revisa `res.ok`/`data.error` como el resto de la pantalla |
+| 30 El historial de correcciones no decía de qué día era el marcaje | `describirCambio` deja de tirar la fecha |
+| 31 El reporte por sede salía en blanco desde una sede inactiva | No se ofrece «Hoja» para inactivas, y se dice por qué si el código no está |
+| 32 Cambiar la clave mandaba siempre al dashboard | Misma resolución de rol que ya hacía login |
+| 33 Dos sesiones se pisaban un código de sede en silencio | **Migración 0367** + prueba 292: el alta con código repetido lanza |
+| 34 La fecha de Disciplina congelaba la fila | Input de fecha que nace con hoy, con `try/catch` |
+
+Verificado el 2026-09-04: `supabase db reset` limpio, `supabase test db` 212
+archivos y 2155 pruebas, typecheck 3/3, vitest 439/439, y cero errores de linter
+en líneas nuevas (los 35 que salen son deuda vieja, comprobado cruzando con las
+líneas que el push agrega).
+
+**Cuatro hallazgos que bloqueaban, cazados por las revisoras adversariales:**
+
+- El estado de error del terminal era **inalcanzable**: `roster.ts` se tragaba
+  cualquier fallo de red y devolvía la caché, así que una Mac mini recién
+  reiniciada y sin caché seguía leyendo «Nadie en esta sede todavía» — justo el
+  caso del hallazgo. Hubo que sumar `roster.ts` al alcance.
+- El arreglo del 30 cubría `marcaje_eliminado`, que **hoy no lo escribe nadie**, y
+  dejaba fuera `marcaje_anulado`, `marcaje_reactivado` y
+  `auto_cierre_reemplazado`, que son los que produce el propio botón de esa
+  pantalla. Se enumeró qué escribe cada función en `correcciones_auditoria` en
+  vez de deducirlo por el nombre.
+- El «se revierte» de la 0367 afirmaba algo falso sobre PostgREST, y lo afirmaba
+  en el procedimiento que alguien lee cuando ya hay algo roto en producción. La
+  revisora lo midió acuñando un JWT y lo corrigió.
+- El menú filtraba por un permiso que no existía todavía en `permisos.ts`.
+
+**Al pegar la 0367:** `donde-vive.sh fn_guardar_sede` decía que la vigente es la
+0099. Pide el md5 a producción antes, como siempre. La migración y el despliegue
+del panel van juntos; si hay que separarlos, **la migración va primero**.
+
+**Queda abierto y anotado:** `fn_crear_persona` sigue recibiendo el hash del PIN
+desde el navegador — es la otra mitad del hallazgo 22, que la 0364 solo cerró
+para `fn_regenerar_pin`. Y el hallazgo 19 (contraseñas temporales que no obligan
+a cambiarse) no entró en ninguna de las dos tandas.
+
+---
+
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 14 a 24 (0360-0366) · PEGADAS EN PRODUCCIÓN
+
+> Felipe las pegó todas el mismo día. Falta correr `quedo_bien.sql` (en el
+> scratchpad de esa sesión) para confirmar que `fn_registrar_marcaje` quedó con
+> UNA sola versión: producción tenía la firma de 8 parámetros de la 0327 y la
+> 0366 crea la de 9, así que si la 0353 no estaba pegada antes quedarían dos
+> funciones con el mismo nombre y el terminal no registraría marcajes.
 
 Felipe pidió arreglar «las 10 primeras» de la tabla de importantes de la
 auditoría adversarial del 2026-09-03/04 (el PDF `Auditoria-CAYLA-2026-09-04.pdf`,
@@ -112,6 +168,28 @@ primero, la línea de la 0365 queda redundante e inofensiva.
 - `fn_feriado_devengado`: un feriado que cae dentro de un bloque 29→28 con el
   tramo de salario cerrado a mitad valora horas de días sin tramo (S/ 7,69
   medidos en la 291). No es de la 0365; queda documentado en esa prueba.
+
+---
+
+## 2026-09-04 — `fn_provisiones` se quedó sin permiso de ejecución desde la 0338 (0363) · PEGADA Y VERIFICADA
+
+La 0338 le agregó un parámetro a `fn_provisiones` (de `fn_provisiones(date)` a
+`fn_provisiones(date, date)`); como Postgres no reemplaza en el sitio cuando
+cambia la firma, esa migración hizo `DROP FUNCTION` + `CREATE OR REPLACE`, y
+el nuevo objeto nació sin el `GRANT EXECUTE` para `authenticated` — desde la
+0076 esta base no regala EXECUTE por defecto. Cualquier llamada a
+`fn_provisiones` desde el panel devolvía «permission denied for function»
+antes de que el cuerpo llegara a correr; no era un bug de la pantalla de
+Provisiones, la función nunca llegaba a ejecutarse.
+
+**Arreglo (0363):** un `grant execute` de una sola línea, sin tocar el
+cuerpo ni el md5 de la función. Llegó a `main` vía [PR #180](https://github.com/felipea92p-ux/cayla-dynamic/pull/180)
+desde otra sesión (`claude/error-investigation-17ac66`) mientras esta rama
+fusionaba la 0344/0345 — se cruzaron sin chocar en la numeración.
+
+**Confirmado en producción el 2026-09-04**, corriendo la comprobación que
+la propia migración deja al final:
+`has_function_privilege('authenticated', 'fn_provisiones(date,date)', 'EXECUTE')` → `true`.
 
 ---
 
@@ -264,7 +342,7 @@ auditoría. Ninguno de los 16 se arregló todavía; quedan en
 
 ---
 
-## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · ESCRITA Y VERIFICADA — FALTA PEGAR
+## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · PEGADA Y VERIFICADA
 
 Encontrado siguiendo el hallazgo #7 de la comparación Workday/Oracle
 ([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)):
@@ -288,7 +366,8 @@ ninguna columna, fila, función ni cálculo — no hay pago que auditar.
 
 **Verificado:** `npx supabase db reset` limpio con las 345 migraciones en
 orden; `npx supabase test db` — 1938/1938 en verde; `typecheck` limpio.
-Falta que Felipe la pegue en el SQL Editor (`./scripts/dame-el-sql.sh 345`).
+Confirmado en producción el mismo día 18:42 UTC (ver la nota de "Aviso
+cruzado" más arriba) y fusionada a `main` el 2026-09-04.
 
 ---
 
