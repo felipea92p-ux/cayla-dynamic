@@ -300,6 +300,13 @@
 --     drop function if exists fn_persona_marca_en_sede(uuid, uuid);
 --   Reabre que un terminal escriba horas de gente de otra sede.
 --
+-- ── ANTES DE PEGAR ──────────────────────────────────────────────────────────
+--   Corre en el SQL Editor la consulta «A QUIÉN DEJARÍA FUERA ESTE CANDADO»,
+--   al final de este archivo. Si devuelve alguna fila, alguien está marcando
+--   hoy en una sede que su roster no le ofrece — y mañana a las 08:00 no
+--   podría. Eso se arregla dándole `visible_todas_sedes` desde /admin/equipo
+--   ANTES de pegar esto, no después.
+--
 -- ── CÓMO SE COMPRUEBA QUE QUEDÓ BIEN ────────────────────────────────────────
 --   La consulta del final devuelve una fila con SEIS `true`. Y después,
 --   mirar en producción la consulta de «LO QUE HAY QUE MIRAR EN PRODUCCIÓN».
@@ -669,6 +676,36 @@ select
      from pg_policy where polname = 'marcajes_select_terminal')      as la_policy_de_lectura_sigue_puesta;
 
 
+-- ── ⚠ CÓRRELA ANTES DE PEGAR: A QUIÉN DEJARÍA FUERA ESTE CANDADO ───────────
+--
+-- Esta es la consulta que de verdad hay que mirar primero, y no se puede
+-- responder desde la base local porque no tiene personas. Lista las marcas de
+-- terminal de los últimos 30 días que HOY este candado rechazaría: gente que
+-- está fichando en una sede que su roster no le ofrece.
+--
+-- Cómo se lee:
+--   · CERO filas → pega tranquilo: nadie cambia de comportamiento mañana.
+--   · Alguna fila → PARA y mira quién es antes de pegar. Puede ser el defecto
+--     (alguien marcado por error desde otro terminal) o puede ser una persona
+--     de verdad que trabaja ahí y a quien le falta `visible_todas_sedes`. En
+--     el segundo caso, dale el permiso desde /admin/equipo ANTES de pegar
+--     esto: si no, mañana a las 08:00 se queda de pie sin poder marcar.
+--
+-- select p.nombres, p.apellidos,
+--        sb.codigo as sede_de_la_persona, sm.codigo as sede_donde_marco,
+--        p.visible_todas_sedes, count(*) as marcas, max(m.timestamp_marca) as la_ultima
+--   from marcajes m
+--   join personas p on p.id = m.persona_id
+--   left join sedes sb on sb.id = p.sede_base_id
+--   left join sedes sm on sm.id = m.sede_id
+--  where m.origen = 'terminal'
+--    and m.anulada_at is null
+--    and m.timestamp_marca >= now() - interval '30 days'
+--    and p.visible_todas_sedes is not true
+--    and m.sede_id is distinct from p.sede_base_id
+--  group by 1,2,3,4,5
+--  order by la_ultima desc;
+--
 -- ── LO QUE HAY QUE MIRAR EN PRODUCCIÓN (solo lee, no cambia nada) ───────────
 --
 -- Esta consulta responde de un vistazo las dos preguntas que este candado deja
