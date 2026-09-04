@@ -1709,13 +1709,15 @@ pasado borraría su CTS retroactivamente, sin ninguna fecha que lo acote.
   puntuales; las tablas `alertas` y `push_tokens` existen desde la 0001 pero
   nunca se despachan (cero código de envío de push/email en todo el repo). El
   único cron del sistema es `auto-cierre-jornadas` (0007).
-- **El patrón "cambio sensible pasa por una función guardián" nunca se
-  declaró como convención escrita.** Se repite igual —guard, `update`,
-  auditoría— en `fn_cambiar_regimen_pension` (0261), la puerta de rol
-  (0295/0296) y `fn_set_sede_base` (0342), transmitido entre migraciones por
-  comentarios cruzados pero sin quedar centralizado en `permisos.ts` ni en
-  `CLAUDE.md`. Es literalmente la recomendación que ya hacía la sección 2 de
-  `comparacion-workday-oracle-dynamic-2026-09-02.md`, todavía sin escribir.
+- ~~**El patrón "cambio sensible pasa por una función guardián" nunca se
+  declaró como convención escrita.**~~ ✅ **CERRADO el 2026-09-03** — escrito
+  en `CLAUDE.md`, sección "Principios del sistema" ("Un campo sensible se
+  cambia por una función guardián..."), con las tres instancias
+  (`fn_cambiar_regimen_pension` 0261, rol 0295/0296, `fn_set_sede_base` 0342)
+  y el mecanismo exacto (`SECURITY DEFINER` + trigger `current_user <>
+  'postgres'`) nombrados como una sola regla. No había código que arreglar —
+  el patrón ya funcionaba en las tres; solo faltaba que dejara de transmitirse
+  por comentarios cruzados entre migraciones y quedara escrito una vez.
 
 ### Baja — 1
 

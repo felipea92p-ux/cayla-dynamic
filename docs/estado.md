@@ -37,6 +37,26 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — El patrón «función guardián» queda escrito como convención (CLAUDE.md) · CERRADO
+
+Hallazgo #2 de la comparación Workday/Oracle, y uno de los 16 de la auditoría
+de arquitectura del mismo día: el molde que ya usan `fn_cambiar_regimen_pension`
+(0261), la puerta de rol (0295/0296) y `fn_set_sede_base` (0342) —guard +
+`update` auditado + trigger que rechaza el `UPDATE` directo comparando
+`current_user <> 'postgres'`— se había reinventado tres veces sin declararse
+nunca como regla. No había ningún código que arreglar: las tres funciones ya
+funcionan bien. Lo que faltaba era que dejara de transmitirse por comentarios
+cruzados entre migraciones y quedara escrito una vez.
+
+**Arreglo:** un principio nuevo en [`CLAUDE.md`](../CLAUDE.md), sección
+"Principios del sistema", junto a los otros principios de guardas
+(`SECURITY DEFINER null-safe`, `fn_registrar_marcaje` como única puerta).
+Nombra el mecanismo exacto y las tres instancias, para que la próxima columna
+sensible lo siga por regla y no por memoria. Marcado como cerrado en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md).
+
+---
+
 ## 2026-09-03 — La misma alerta de auto-cierre, construida dos veces sin saberlo (0354 y la 0352 descartada)
 
 Al abrir el PR de esta rama (severidad en Incidencias, reporte de inspección
@@ -98,6 +118,8 @@ Lo pidió Felipe justo después de probar la 0346 en pantalla: quiere el mismo p
 Auditado local (`supabase db reset` + 1990 pruebas en verde) y a mano contra Postgres, `BEGIN … ROLLBACK`, cuatro casos: normal (dos personas, S/25.00 grati + S/2.25 bonificación cada una, 9% exacto), «ya pagada» (se salta sin intentarlo, no aparece en agregados ni en fallidos), correr la función DOS VECES seguidas (la segunda no agrega nada) y «periodo bloqueado» (el intento de esa persona falla solo, sin tumbar a las demás).
 
 Fusionada a `main` el 2026-09-03 ([PR #171](https://github.com/felipea92p-ux/cayla-dynamic/pull/171), CI en verde) y **pegada en producción el mismo día**: confirmado con `select count(*) from pg_proc where proname = 'fn_grati_cts_agregar_pendientes'` → `1`. La 0346 (el mismo pedido, solo para la bonificación 9%) también quedó confirmada contra producción el mismo día — ver su propia entrada más abajo. Con las dos pegadas, el flujo completo (Gratificación + Bonificación 9% + CTS, con «Agregar todo») ya está disponible en el panel real.
+
+---
 
 ## 2026-09-03 — Anuncios: el tablón de Desarrollo Organizacional (0351) · PEGADA Y VERIFICADA
 

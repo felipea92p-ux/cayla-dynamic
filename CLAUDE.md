@@ -424,6 +424,29 @@ Desde la 0078 los booleanos de permiso ya no devuelven `null`, pero la forma
 `is not true` sigue siendo la obligatoria: cualquier condición que compare un
 UUID contra `fn_persona_actual_id()` vuelve a producir `null` por su cuenta.
 
+**Un campo sensible se cambia por una función guardián, nunca por `UPDATE`
+directo — y la función se cierra con un trigger, no con la confianza.**
+El molde es siempre el mismo: una función `SECURITY DEFINER` que valida
+(rol, estado de la fila, reglas de negocio) y escribe con
+`insert into correcciones_auditoria`, más un trigger `before update` que
+rechaza cualquier cambio a esa columna que no venga de esa función —
+comparando `current_user <> 'postgres'`, que es como Postgres distingue "lo
+hizo una función interna" de "lo hizo un cliente por PostgREST", ya que el
+rol de conexión es el mismo (`authenticated`) en los dos casos. Son ya tres
+instancias, cada una escrita por separado sin generalizar:
+`fn_cambiar_regimen_pension` (0261), `fn_set_rol` + `fn_bloquear_rol_directo`
+(0295/0296) y `fn_set_sede_base` + `fn_bloquear_sede_directa` (0342).
+
+Se nombra acá porque nunca se había escrito como regla, solo se había
+repetido — y una comparación de arquitectura contra otros ERP (Workday,
+Oracle, BambooHR, Odoo; ver
+[`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](docs/comparacion-workday-oracle-dynamic-2026-09-02.md))
+la señaló como el mismo primitivo que esos sistemas resuelven una sola vez
+en el núcleo, mientras que acá se venía reinventando cada vez que un campo
+nuevo resultaba tocar plata o una obligación legal. La próxima columna
+sensible sigue este molde por regla, no porque alguien se acuerde de las
+tres anteriores.
+
 **El terminal marca SIN PIN, y es a propósito** (decisión de Felipe, jul-2026).
 Se prioriza que marcar sea instantáneo; el control real es que la Mac mini está
 a la vista de todo el equipo, no una clave. Esto significa que el sistema **no
