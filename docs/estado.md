@@ -148,13 +148,11 @@ comprobación del final de la 0351 devolvió las seis piezas en 1 (tabla
 
 ---
 
-## 2026-09-03 — Aviso cruzado: `main` va dos migraciones atrás de producción (0344/0345) · SIN FUSIONAR TODAVÍA
+## 2026-09-03 — Aviso cruzado: `main` va dos migraciones atrás de producción (0344/0345) · RESUELTO (2026-09-04)
 
-Comprobado contra producción a pedido de Felipe (`select numero, nombre, aplicada_at from migraciones_aplicadas where numero in (344, 345)`): esta rama trae la **0345** (corrige el comentario de `topes_educacion_rango`, no toca datos), aplicada en producción el 2026-09-03 18:42 UTC. Por separado, la rama `claude/error-new-request-f3a806` trae la **0344** (`fn_set_documento` ya no exige motivo de cambio al cargar el DNI por primera vez), aplicada el mismo día 16:41 UTC. Ninguna de las dos está fusionada a `main` todavía — el hueco de numeración que eso deja ya se investigó y no es una migración perdida: las dos están pusheadas a origin, solo en tránsito.
+Comprobado contra producción a pedido de Felipe (`select numero, nombre, aplicada_at from migraciones_aplicadas where numero in (344, 345)`): la **0345** (corrige el comentario de `topes_educacion_rango`, no toca datos) llegó a `main` el 2026-09-03. Por separado, la rama `claude/error-new-request-f3a806` traía la **0344** (`fn_set_documento` ya no exige motivo de cambio al cargar el DNI por primera vez), aplicada en producción el mismo día 16:41 UTC pero sin fusionar todavía. El hueco de numeración que eso dejaba ya se había investigado y no era una migración perdida: estaba pusheada a origin, solo en tránsito.
 
-Mientras sigan sin fusionar, `main` no es lo que producción corre. Antes de tocar `fn_set_documento` desde otra rama: `donde-vive.sh fn_set_documento` y el md5 de producción, no asumir que `main` alcanza — el mismo error de fondo que ya costó la 0276.
-
-Se resuelve solo: fusionando esta rama (y la 0344) a `main`.
+**Fusionada el 2026-09-04.** `main` ya trae las dos y vuelve a coincidir con lo que producción corre.
 
 ---
 
