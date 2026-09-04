@@ -60,9 +60,22 @@ no tocaba la función con más historia.
 **Lo único que faltaba de verdad en la 0354** era el pedido explícito de
 Felipe: que el correo llegue también a la propia persona, no solo a su
 encargada. Eso se agregó como una extensión pequeña de
-`fn_alertas_email_pendientes` (ver más abajo), en vez de reconstruir el
-sistema. Y la confirmación de refrigerio al marcar salida (0353) sí era
-trabajo nuevo sin duplicar — esa se mantiene tal cual.
+`fn_alertas_email_pendientes` — migración **0359**, prueba 285 — en vez de
+reconstruir el sistema. Y la confirmación de refrigerio al marcar salida
+(0353) sí era trabajo nuevo sin duplicar — esa se mantiene tal cual.
+
+⚠️ **PENDIENTE DE RECONCILIAR:** al empujar la 0359 apareció una TERCERA
+sesión tocando la misma función, en `claude/cola-alertas-vencimiento`
+(migración 0358, sin fusionar todavía): reenruta `contrato_por_vencer` y
+`vacaciones_por_vencer` a DO en vez de a la encargada, y deja el caso de
+`auto_cierre` **explícitamente sin tocar** ("sin tocar la que ya funciona").
+Las dos migraciones (0358 y 0359) reescriben `fn_alertas_email_pendientes`
+de formas distintas y compatibles en la intención, pero si se pegan las dos
+en el orden equivocado, la que llegue segunda pisa a la primera en silencio
+— exactamente el patrón 0297/0299. Cuando esa rama esté lista para
+fusionarse: combinar las dos lógicas en una sola migración (dos audiencias
+por TIPO de alerta, y además la propia persona en `auto_cierre`), no pegar
+ambas por separado.
 
 **La lección de método, otra vez:** `git log --all --oneline -20` antes de
 empezar algo cuesta diez segundos. Esta vez costó descartar una migración

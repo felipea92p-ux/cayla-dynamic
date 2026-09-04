@@ -2,7 +2,7 @@
 -- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local.
 -- Se corre así, en esta Mac:   npx supabase test db
 -- ============================================================================
--- 284_el_aviso_de_alertas_tambien_avisa_al_propio_integrante.test.sql — la 0359
+-- 285_el_aviso_de_alertas_tambien_avisa_al_propio_integrante.test.sql — la 0359
 -- ============================================================================
 -- La 0354 (prueba 281) ya protege que la encargada reciba el aviso. Esto
 -- protege lo que agregó la 0359 encima: que la propia persona involucrada
