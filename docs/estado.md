@@ -57,6 +57,20 @@ sensible lo siga por regla y no por memoria. Marcado como cerrado en
 
 ---
 
+## 2026-09-03 — Un clic agrega la gratificación, la bonificación 9% y la CTS pendientes de todo el periodo (0355) · FUSIONADA A MAIN, SIN PEGAR EN PRODUCCIÓN
+
+Lo pidió Felipe justo después de probar la 0346 en pantalla: quiere el mismo pedido para Gratificación y CTS, que llevan meses siendo 100% manual (una persona, un clic, repetido para todo el equipo).
+
+**Se descartó la escritura automática al llegar la fecha.** La razón salió de la propia prueba en pantalla: al probar con una integrante real, su bonificación propuesta dio S/0.00 — correcto, porque su gratificación de ese semestre ya estaba pagada — pero un proceso que escribe solo no distingue «correctamente cero» de «algo salió mal»; las dos se ven idénticas. Con una persona confirmando antes de que el número se vuelva plata, ese distingo lo sigue haciendo alguien.
+
+**Lo que sí se construyó:** `fn_grati_cts_agregar_pendientes(periodo_id)` — reutiliza `fn_grati_cts_periodo` para el monto (cero cálculo nuevo) y `fn_agregar_movimiento` (la única puerta de escritura) para cada intento. Cada persona/categoría es su propio `begin … exception` (un SAVEPOINT implícito): si una falla —por ejemplo, su sede sigue con el periodo bloqueado— las demás igual se registran, y la que falló queda listada con el motivo exacto. En Planilla hay un banner nuevo con el total pendiente y un botón «Agregar todo», con confirmación antes de escribir y un resumen de éxitos/fallos después.
+
+Auditado local (`supabase db reset` + 1990 pruebas en verde) y a mano contra Postgres, `BEGIN … ROLLBACK`, cuatro casos: normal (dos personas, S/25.00 grati + S/2.25 bonificación cada una, 9% exacto), «ya pagada» (se salta sin intentarlo, no aparece en agregados ni en fallidos), correr la función DOS VECES seguidas (la segunda no agrega nada) y «periodo bloqueado» (el intento de esa persona falla solo, sin tumbar a las demás).
+
+**Fusionada a `main`** el 2026-09-03 ([PR #171](https://github.com/felipea92p-ux/cayla-dynamic/pull/171), CI en verde). **Aún no está pegada en producción** — pendiente el md5 de `fn_grati_cts_agregar_pendientes` contra producción antes de pegar (función nueva, no reemplaza nada, pero igual hay que confirmar que no exista ya con otro nombre).
+
+---
+
 ## 2026-09-03 — Anuncios: el tablón de Desarrollo Organizacional (0351) · PEGADA Y VERIFICADA
 
 Salió de comparar CAYLA contra seis sistemas de RRHH de talla mundial

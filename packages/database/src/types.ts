@@ -90,6 +90,7 @@ export type Database = {
           estado: string
           id: string
           leido_at: string | null
+          nota_fallo: string | null
           payload: Json
           persona_id: string | null
           tipo: string
@@ -101,6 +102,7 @@ export type Database = {
           estado?: string
           id?: string
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
           tipo: string
@@ -112,6 +114,7 @@ export type Database = {
           estado?: string
           id?: string
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
           tipo?: string
@@ -4231,6 +4234,18 @@ export type Database = {
         Returns: undefined
       }
       fn_ahora_servidor: { Args: never; Returns: string }
+      fn_alertas_email_pendientes: {
+        Args: never
+        Returns: {
+          alerta_id: string
+          destinatarios: string[]
+          destinatarios_nombres: string[]
+          payload: Json
+          persona_nombre: string
+          sede_codigo: string
+          tipo: string
+        }[]
+      }
       fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }
@@ -5156,6 +5171,10 @@ export type Database = {
           nombre: string
         }[]
       }
+      fn_grati_cts_agregar_pendientes: {
+        Args: { p_periodo_id: string | null }
+        Returns: Json
+      }
       fn_grati_cts_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
       fn_grati_trunca: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
@@ -5286,6 +5305,10 @@ export type Database = {
       fn_marca_apartada_resolver: {
         Args: { p_id: string | null; p_motivo: string | null; p_resolucion: string | null }
         Returns: Json
+      }
+      fn_marcar_alerta_resultado: {
+        Args: { p_exito: boolean | null; p_id: string | null; p_nota?: string | null }
+        Returns: undefined
       }
       fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
       fn_marcas_apartadas: {

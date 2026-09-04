@@ -208,7 +208,9 @@ with repo(numero, nombre, nunca) as (values
     (348, 'objetivos_copiar_mes_anterior', false),
     (349, 'boleta_desglosa_sobretiempo_25_35', false),
     (350, 'objetivos_historial_mensual', false),
-    (351, 'el_tablon_de_anuncios_de_do', false)
+    (351, 'el_tablon_de_anuncios_de_do', false),
+    (354, 'alertas_encargada_por_correo', false),
+    (355, 'agregar_de_un_clic_la_gratificacion_cts_y_bonificacion_pendientes', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
