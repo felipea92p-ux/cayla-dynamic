@@ -76,7 +76,7 @@ una sola fila —
 
 ---
 
-## 2026-09-04 — Auditoría del 2026-09-04: los importantes 25 a 34 (0368) · ESCRITA Y VERIFICADA — FALTA PEGAR
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 25 a 34 (0368) · PEGADA Y VERIFICADA
 
 Segunda tanda de diez, pedida por Felipe justo después de la primera. Nueve son
 solo panel; una lleva SQL.
@@ -122,9 +122,17 @@ ese número el mismo día para retirar la sobrecarga vieja de
 segunda que se pegara habría quedado SIN registrar, en silencio, por el
 `on conflict (numero) do nothing`.
 
-**Al pegar la 0368:** `donde-vive.sh fn_guardar_sede` decía que la vigente es la
-0099. Pide el md5 a producción antes, como siempre. La migración y el despliegue
-del panel van juntos; si hay que separarlos, **la migración va primero**.
+**Al pegar la 0368** se encontró y corrigió, antes de entregarla, un descuido
+propio: la consulta de comprobación del final había quedado preguntando por la
+migración 367 (rastro de cuando esta migración nació con ese número), así que
+`anotada` habría dado `true` sin importar si el 368 se registraba. Arreglado en
+el repo antes de pegar.
+
+**Confirmado en producción el 2026-09-04**, con el md5 de `fn_guardar_sede`
+coincidiendo `tal_cual` contra producción antes de pegar, y la comprobación del
+final devolviendo todo en verde: una sola versión con la firma nueva de cinco
+argumentos, anotada en `migraciones_aplicadas`, `authenticated` puede llamarla
+y `anon` no, y el candado único de `codigo` sigue ahí.
 
 **Queda abierto y anotado:** `fn_crear_persona` sigue recibiendo el hash del PIN
 desde el navegador — es la otra mitad del hallazgo 22, que la 0364 solo cerró
