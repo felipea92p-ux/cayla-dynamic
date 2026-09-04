@@ -64,18 +64,19 @@ encargada. Eso se agregó como una extensión pequeña de
 reconstruir el sistema. Y la confirmación de refrigerio al marcar salida
 (0353) sí era trabajo nuevo sin duplicar — esa se mantiene tal cual.
 
-⚠️ **PENDIENTE DE RECONCILIAR:** al empujar la 0359 apareció una TERCERA
-sesión tocando la misma función, en `claude/cola-alertas-vencimiento`
-(migración 0358, sin fusionar todavía): reenruta `contrato_por_vencer` y
-`vacaciones_por_vencer` a DO en vez de a la encargada, y deja el caso de
-`auto_cierre` **explícitamente sin tocar** ("sin tocar la que ya funciona").
-Las dos migraciones (0358 y 0359) reescriben `fn_alertas_email_pendientes`
-de formas distintas y compatibles en la intención, pero si se pegan las dos
-en el orden equivocado, la que llegue segunda pisa a la primera en silencio
-— exactamente el patrón 0297/0299. Cuando esa rama esté lista para
-fusionarse: combinar las dos lógicas en una sola migración (dos audiencias
-por TIPO de alerta, y además la propia persona en `auto_cierre`), no pegar
-ambas por separado.
+**RECONCILIADO:** mientras se escribía la 0359, `claude/cola-alertas-vencimiento`
+fusionó a `main` su propia 0358 (reenruta `contrato_por_vencer` y
+`vacaciones_por_vencer` a DO, y deja `auto_cierre` explícitamente sin
+tocar). El primer push de la 0359 lo cazó el hook (`main tiene 3 migración(es)
+que esta rama no tiene... TOCÁIS LAS MISMAS FUNCIONES`) antes de que se
+pegara nada. La 0359 se reescribió por completo sobre el cuerpo real de la
+0358 (el `with combinado as (... union all ...)`, confirmado con
+`git show origin/main:...0358...sql`, no el viejo de la 0354) — extiende
+solo la Rama 1 (auto_cierre y afines) para agregar a la propia persona; la
+Rama 2 (0356/0357, ya directa a `al.persona_id`) queda intacta. Verificado
+localmente aplicando 0356→0359 en orden: las cuatro pruebas relacionadas
+(282, 283, 284, 285) pasan las 30 aserciones juntas, sin que ninguna
+interfiera con la otra.
 
 **La lección de método, otra vez:** `git log --all --oneline -20` antes de
 empezar algo cuesta diez segundos. Esta vez costó descartar una migración
