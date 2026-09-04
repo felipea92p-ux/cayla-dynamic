@@ -225,7 +225,9 @@ with repo(numero, nombre, nunca) as (values
     (365, 'las_provisiones_avisan_cuando_falta_el_tramo_de_salario', false),
     (366, 'dos_toques_seguidos_no_dejan_dos_marcas', false),
     (367, 'fn_registrar_marcaje_pierde_su_sobrecarga_vieja', false),
-    (368, 'un_codigo_de_sede_no_se_pisa_en_silencio', false)
+    (368, 'un_codigo_de_sede_no_se_pisa_en_silencio', false),
+    (370, 'el_terminal_no_marca_por_otra_sede', false),
+    (371, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
