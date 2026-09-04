@@ -89,6 +89,20 @@ export function puedeGestionarAnuncios(rol: RolPosible): boolean {
 }
 
 /**
+ * Ver si el despacho de avisos por correo está sano: cuántos quedaron
+ * atascados, cuáles fallaron tres veces, cuáles caducaron sin salir. Es una
+ * pregunta de operación del sistema, no del equipo: la encargada de una sede
+ * no tiene cómo arreglar una clave de Resend, así que mostrárselo sería
+ * ruido. Hoy equivale a DO —igual que `puedeGestionarAnuncios`— y se nombra
+ * aparte por la misma razón: que hoy compartan lista no significa que deban
+ * compartir nombre. Del lado de la base lo decide `fn_alertas_despacho_resumen`
+ * con `fn_es_admin_o_lider()`; esto solo decide si se dibuja la tarjeta.
+ */
+export function puedeVerSaludDeAlertas(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * El día a día del equipo: correcciones de marcaje, horarios, turnos,
  * ausencias, disciplina, ficha (sin identidad). DO y la encargada de sede.
  *

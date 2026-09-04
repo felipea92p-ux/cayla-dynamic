@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos,
   puedeOperarEquipo, puedeVerTodasLasSedes, puedeExportarPadron,
+  puedeVerSaludDeAlertas,
   ROLES_CON_PANEL, ROLES_DO,
 } from "@cayla-dynamic/shared";
 
@@ -29,10 +30,13 @@ describe("la encargada de sede opera a su equipo, pero no ve la plata", () => {
   it("pero solo de SU sede: el alcance es otra pregunta y responde que no", () => {
     expect(puedeVerTodasLasSedes("supervisor_sede")).toBe(false);
   });
+  it("no ve la salud del despacho de avisos por correo: no tiene cómo arreglar Resend", () => {
+    expect(puedeVerSaludDeAlertas("supervisor_sede")).toBe(false);
+  });
 });
 
 describe("quien solo marca no entra al panel", () => {
-  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes]) {
+  for (const permiso of [puedeVerPlanilla, puedeVerIdentidad, puedeGestionarCatalogos, puedeOperarEquipo, puedeVerTodasLasSedes, puedeVerSaludDeAlertas]) {
     it(`integrante: ${permiso.name} = false`, () => {
       expect(permiso("integrante")).toBe(false);
     });
@@ -48,6 +52,9 @@ describe("DO ve todo", () => {
       expect(puedeOperarEquipo(rol)).toBe(true);
       expect(puedeVerTodasLasSedes(rol)).toBe(true);
     });
+    it(`${rol} ve la salud del despacho de avisos por correo (0362)`, () => {
+      expect(puedeVerSaludDeAlertas(rol)).toBe(true);
+    });
   }
 });
 
@@ -59,6 +66,7 @@ describe("null no pasa como autorizado", () => {
     it(`rol ${JSON.stringify(raro)} → no puede`, () => {
       expect(puedeVerPlanilla(raro)).toBe(false);
       expect(puedeOperarEquipo(raro)).toBe(false);
+      expect(puedeVerSaludDeAlertas(raro)).toBe(false);
     });
   }
 });
