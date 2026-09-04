@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0361_el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues.sql
+-- 0371_el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --   Que un contrato por vencer o unas vacaciones por vencer generen su fila
@@ -119,7 +119,7 @@
 --   más pensar acá. La primera versión de esta guardia, al encontrar la
 --   cadena, se declaraba «ya aplicada» y NO comparaba nada. Como esa cadena es
 --   el arreglo mismo, toda migración futura que lo conserve —que son todas— la
---   llevaría dentro: repegar la 0361 sobre una 0375 imaginaria la revertía sin
+--   llevaría dentro: repegar la 0371 sobre una 0375 imaginaria la revertía sin
 --   un solo error, imprimiendo «Se vuelve a aplicar sin daño» mientras lo
 --   hacía, y la consulta de comprobación del final seguía devolviendo 1|2|2|1.
 --   Reproducido contra el Postgres local. Es el accidente de la 0261 sobre la
@@ -132,11 +132,11 @@
 --       alguien construyó encima y esto BLOQUEA.
 --
 --   md5 de llegada — el cuerpo que deja ESTA migración:
---       tal_cual        = 6fb28b2376967b404851e974af4f804b
+--       tal_cual        = 254aa96e63524c7efccdcb1cbf18c22b
 --       sin comentarios = c72c309fa3761cf2ed9a911d70ecade3
 --       length(prosrc)  = 3303
 --   Medido DESPUÉS de fijar el número del archivo: los marcadores «CAMBIO
---   0361» del cuerpo cambian al renumerar, y eso da la firma más
+--   0371» del cuerpo cambian al renumerar, y eso da la firma más
 --   desconcertante que hay acá — misma longitud, distinto hash.
 --
 -- ── LA TANDA QUE ESTO PRODUCE — MÍDELA ANTES DE PEGAR ──────────────────────
@@ -303,21 +303,21 @@ begin
     -- construyó encima y repegar esto lo borraría: exactamente el accidente de
     -- la 0261 sobre la 0275, por la puerta de al lado. Así que aquí también se
     -- compara — contra el md5 de LLEGADA, no el de partida.
-    if v_md5 <> '6fb28b2376967b404851e974af4f804b'
+    if v_md5 <> '254aa96e63524c7efccdcb1cbf18c22b'
        and v_md5_sin <> 'c72c309fa3761cf2ed9a911d70ecade3' then
       raise exception using
         message = 'PARA. fn_generar_alertas_vencimiento ya compara el destinatario, pero NO '
                || 'es el cuerpo que deja esta migración. md5 encontrado: ' || v_md5
                || ' (' || length(v_prosrc) || ' caracteres). Se esperaba '
-               || '6fb28b2376967b404851e974af4f804b (3303) o, sin comentarios, '
+               || '254aa96e63524c7efccdcb1cbf18c22b (3303) o, sin comentarios, '
                || 'c72c309fa3761cf2ed9a911d70ecade3.',
-        hint    = 'Una migración posterior construyó sobre la 0361 conservando el arreglo. '
+        hint    = 'Una migración posterior construyó sobre la 0371 conservando el arreglo. '
                || 'Repegar esto la revertiría EN SILENCIO, imprimiendo «sin daño» mientras '
                || 'lo hace. Corre ./scripts/donde-vive.sh fn_generar_alertas_vencimiento y '
                || 'pega esa migración posterior, no esta.';
     end if;
     raise notice 'Esta migración YA estaba aplicada (el cuerpo compara el destinatario, y es '
-                 'el cuerpo de la 0361). Se vuelve a aplicar sin daño.';
+                 'el cuerpo de la 0371). Se vuelve a aplicar sin daño.';
   else
     if v_md5 <> '2a96822b83e5d741d4e5ce390dd34751'
        and v_md5_sin <> '302fc77c9abf81e831ecfdcb484a0505' then
@@ -355,7 +355,7 @@ end
 $guardia$;
 
 -- ── 1 · El cuerpo de la 0357, con la identidad del aviso completa ──────────
--- CAMBIO 0361: los dos `not exists` comparan además el destinatario y el
+-- CAMBIO 0371: los dos `not exists` comparan además el destinatario y el
 -- canal. Todo lo demás es la 0357 palabra por palabra.
 create or replace function fn_generar_alertas_vencimiento()
 returns int
@@ -384,7 +384,7 @@ begin
     and p.fecha_fin_contrato is not null
     and p.fecha_fin_contrato >= fn_hoy_lima()
     and p.fecha_fin_contrato <= fn_hoy_lima() + 30
-    -- CAMBIO 0361: el aviso ya dado lo es PARA ALGUIEN. Sin `a.persona_id`,
+    -- CAMBIO 0371: el aviso ya dado lo es PARA ALGUIEN. Sin `a.persona_id`,
     -- la primera fila de este hecho apagaba el aviso para todo DO, incluido
     -- quien entrara después y nunca lo recibiría.
     and not exists (
@@ -422,7 +422,7 @@ begin
     and (x.r ->> 'aplica')::boolean is true
     and (x.r ->> 'records_sin_gozar')::int > 0
     and ( (x.r ->> 'dias_para_vencer')::int <= 60 or (x.r ->> 'records_vencidos')::int > 0 )
-    -- CAMBIO 0361: igual que arriba. Acá dolía más: un récord vencido sigue
+    -- CAMBIO 0371: igual que arriba. Acá dolía más: un récord vencido sigue
     -- siendo el mismo hecho durante todo un año, así que quien entrara a DO
     -- en ese año no se enteraba de una indemnización de una remuneración
     -- entera (art. 23 del D. Leg. 713) que ya estaba corriendo.
@@ -441,7 +441,7 @@ end;
 $fn$;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (361, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues')
+values (371, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';

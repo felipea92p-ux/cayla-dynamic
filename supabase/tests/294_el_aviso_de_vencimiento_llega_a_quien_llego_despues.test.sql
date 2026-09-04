@@ -4,15 +4,15 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 287_el_aviso_de_vencimiento_llega_a_quien_llego_despues.test.sql
---   defiende la 0361
+-- 294_el_aviso_de_vencimiento_llega_a_quien_llego_despues.test.sql
+--   defiende la 0371
 -- ============================================================================
 -- QUÉ DEFIENDE ESTE ARCHIVO
 --   Que el aviso de un contrato o unas vacaciones por vencer le llegue a cada
 --   persona de DO, incluida la que entró DESPUÉS de que ese vencimiento se
 --   avisara por primera vez — y que a nadie le llegue dos veces.
 --
---   Si esto se pone rojo, volvió el defecto que la 0361 arregló: la nueva
+--   Si esto se pone rojo, volvió el defecto que la 0371 arregló: la nueva
 --   líder de DO no recibe el aviso de un contrato que vence en doce días, y
 --   no se entera nunca. No llega tarde: no llega. Nadie ve un error; alguien
 --   simplemente no recibe un correo que jamás supo que debía llegarle.
@@ -35,11 +35,11 @@
 --   Porque `alertas.canal` admite 'push' desde la 0001, así que una fila de
 --   push es una fila legítima — y sin el canal en la comparación, un push ya
 --   anotado se toma por el correo y lo cancela. Hoy nada escribe push, o sea
---   que esas dos líneas de la 0361 no las defiende ningún otro caso: quien las
+--   que esas dos líneas de la 0371 no las defiende ningún otro caso: quien las
 --   borre en un refactor no vería nada ponerse rojo.
 --
 --   La versión anterior de este archivo sembraba UN solo push, de contrato. Con
---   eso, quitarle a la 0361 el `and a.canal = 'email'` de la rama de VACACIONES
+--   eso, quitarle a la 0371 el `and a.canal = 'email'` de la rama de VACACIONES
 --   dejaba las once aserciones en verde: se aplicaba a la mitad el mismo
 --   razonamiento que el encabezado usaba para justificar probar los dos tipos.
 --   Por eso ahora Nora tiene un push de CADA tipo.
@@ -165,7 +165,7 @@ select is(
 -- Llega una cuarta persona a DO y, antes de que corra el cron, ya existen
 -- filas de ESOS MISMOS hechos para ELLA, pero por push (el canal que la 0001
 -- dejó admitido y que todavía nadie usa). Los correos tienen que salir igual:
--- un push anotado no es un correo mandado. Van los DOS tipos porque la 0361
+-- un push anotado no es un correo mandado. Van los DOS tipos porque la 0371
 -- lleva el `and a.canal = 'email'` en sus dos ramas, y una sola de ellas
 -- dejaría la otra sin nada que la defienda.
 insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, email,

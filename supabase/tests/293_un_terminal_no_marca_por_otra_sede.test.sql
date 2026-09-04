@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 286_un_terminal_no_marca_por_otra_sede.test.sql — defiende la 0360
+-- 293_un_terminal_no_marca_por_otra_sede.test.sql — defiende la 0370
 -- ============================================================================
 -- QUÉ DEFIENDE ESTE ARCHIVO
 --
@@ -188,7 +188,7 @@ do $sesion$ begin
 end $sesion$;
 
 -- ── La puerta de LECTURA sigue diciendo lo mismo ────────────────────────────
--- La 0360 reescribe `terminal_roster` (0285) para que su condición de sede la
+-- La 0370 reescribe `terminal_roster` (0285) para que su condición de sede la
 -- responda `fn_persona_marca_en_sede`. Si esa delegación cambia a quién ofrece
 -- la vista, el terminal deja de pintar a alguien que sí puede marcar — una
 -- sede entera de pie sin poder fichar. Tienen que salir los de la sede A
@@ -204,7 +204,7 @@ select is(
 -- que salta RLS y tiene todos los privilegios: con ella sola, `revoke execute
 -- on fn_persona_marca_en_sede from authenticated` deja la prueba entera en
 -- verde mientras las cuatro Mac mini reciben «permission denied for function»
--- al pintar su lista. El grant que la 0360 llama «no opcional» lo sostiene
+-- al pintar su lista. El grant que la 0370 llama «no opcional» lo sostiene
 -- esta aserción y ninguna otra.
 select ok(
   has_function_privilege('authenticated', 'fn_persona_marca_en_sede(uuid,uuid)', 'execute'),
@@ -294,7 +294,7 @@ select lives_ok(
   'FUERA DE ALCANCE · la importación histórica con la sede de entonces sigue entrando');
 
 -- ── PUERTA 2 · podía marcar aquí CUANDO SE HIZO la marca ────────────────────
--- El caso que la primera versión de la 0360 decía cubrir y perdía entera: la
+-- El caso que la primera versión de la 0370 decía cubrir y perdía entera: la
 -- cola offline entrega la ENTRADA de las 09:00 DESPUÉS de que DO mudara a esa
 -- persona. La entrada es la primera marca del día, así que no hay ninguna
 -- marca viva en la que apoyarse: solo el hecho fechado del cambio de sede.

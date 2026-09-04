@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0360_el_terminal_no_marca_por_otra_sede.sql
+-- 0370_el_terminal_no_marca_por_otra_sede.sql
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -270,7 +270,7 @@
 --   · 0241 (`fn_persona_en_roster_terminal`) y 0285 (`terminal_roster`), que
 --     esta migración REESCRIBE para que dejen de llevar su propia copia de la
 --     regla. Las dos las comprueba la GUARDIA de abajo, que ABORTA si
---     producción tiene otra versión — no basta con pedirlo en prosa: la 0361
+--     producción tiene otra versión — no basta con pedirlo en prosa: la 0371
 --     de esta misma rama trae guardia ejecutable, y dos partes del mismo
 --     trabajo no pueden resolver el mismo problema de dos formas distintas.
 --
@@ -361,11 +361,11 @@ begin
         message = 'PARA. fn_persona_en_roster_terminal ya delega en fn_persona_marca_en_sede, '
                || 'pero NO es el cuerpo que deja esta migración. md5 encontrado: ' || v_md5
                || ' (' || length(v_prosrc) || ' caracteres).',
-        hint    = 'Otra migración construyó encima de la 0360. Repegar esto la revertiría '
+        hint    = 'Otra migración construyó encima de la 0370. Repegar esto la revertiría '
                || 'en silencio. Corre ./scripts/donde-vive.sh fn_persona_en_roster_terminal '
                || 'y mide DÓNDE está la diferencia antes de proponer explicaciones.';
     end if;
-    raise notice 'La 0360 ya estaba aplicada (el roster ya delega la regla de sede). '
+    raise notice 'La 0370 ya estaba aplicada (el roster ya delega la regla de sede). '
                  'Se vuelve a aplicar sin daño.';
   else
     if v_md5 <> '43efaf0bb189337d338812ced891eee5'
@@ -407,7 +407,7 @@ begin
   end if;
 
   -- 3 · fn_set_sede_base (0342). AVISA, NO BLOQUEA — y la diferencia es
-  --     deliberada, el mismo criterio que la 0361 usa con su cron. Si falta,
+  --     deliberada, el mismo criterio que la 0371 usa con su cron. Si falta,
   --     el candado sigue siendo correcto: lo que pasa es que la puerta 2 queda
   --     INERTE, porque nadie escribe las filas de auditoría que ella consulta.
   --     Eso no da un resultado equivocado, da uno más estricto — y el precio
@@ -479,7 +479,7 @@ comment on function fn_persona_marca_en_sede(uuid, uuid) is
   'Si esta persona puede marcar en esta sede: es la suya, o viaja entre sedes (visible_todas_sedes, 0008). '
   'Es la MISMA condición que pinta el roster del terminal, que deja leer las marcas del día y que ahora '
   'deja escribirlas — dicha una sola vez para que las tres no puedan volver a decir cosas distintas. '
-  'NO responde si la persona está activa: eso lo miran por separado el roster (estado) y el cese (0086, por fecha). Desde la 0360.';
+  'NO responde si la persona está activa: eso lo miran por separado el roster (estado) y el cese (0086, por fecha). Desde la 0370.';
 
 -- El `grant` a authenticated NO es opcional y se midió: `terminal_roster` es
 -- `security_invoker = false`, pero eso solo cubre los permisos sobre las TABLAS
@@ -568,7 +568,7 @@ comment on function fn_marcaje_sede_permitida() is
   'marcas de quien su roster puede ofrecer (puerta 1), de quien podía marcar ahí cuando la marca se hizo '
   '(puerta 2, contra la auditoría de cambio de sede de la 0342) y de quien continúa una jornada ya viva ahí '
   '(puerta 3, que nunca abre una jornada nueva). Acotado a origen = terminal a propósito — las correcciones '
-  'de días viejos llevan la sede antigua y tienen que seguir entrando (0342). Desde la 0360.';
+  'de días viejos llevan la sede antigua y tienen que seguir entrando (0342). Desde la 0370.';
 
 -- Idempotente: se pega a mano, y una mano se equivoca.
 drop trigger if exists trg_marcaje_sede_permitida on marcajes;
@@ -608,7 +608,7 @@ where p.estado = 'activo'
   and fn_persona_marca_en_sede(p.id, fn_sede_actual_terminal()) is true;
 
 comment on view terminal_roster is
-  'Lo unico que el kiosco de marcaje necesita ver de una persona: como se llama, de que sede es y su pin_hash. Existe porque RLS filtra filas y no columnas, asi que mientras el terminal leyera `personas` su token alcanzaba el DNI y la remuneracion (0285). Desde la 0360 su condicion de sede la responde fn_persona_marca_en_sede.';
+  'Lo unico que el kiosco de marcaje necesita ver de una persona: como se llama, de que sede es y su pin_hash. Existe porque RLS filtra filas y no columnas, asi que mientras el terminal leyera `personas` su token alcanzaba el DNI y la remuneracion (0285). Desde la 0370 su condicion de sede la responde fn_persona_marca_en_sede.';
 
 revoke all    on terminal_roster from public, anon;
 grant  select on terminal_roster to authenticated;
@@ -640,7 +640,7 @@ $$;
 
 comment on function fn_persona_en_roster_terminal(uuid) is
   'Si esta persona aparece en el roster del terminal autenticado: activa, y con derecho a marcar en su sede. '
-  'La mitad de la sede la responde fn_persona_marca_en_sede desde la 0360, la misma que usa la vista '
+  'La mitad de la sede la responde fn_persona_marca_en_sede desde la 0370, la misma que usa la vista '
   'terminal_roster y el disparador de escritura. Creada en la 0241.';
 
 revoke execute on function fn_persona_en_roster_terminal(uuid) from public, anon;
@@ -648,7 +648,7 @@ grant  execute on function fn_persona_en_roster_terminal(uuid) to authenticated,
 
 
 insert into migraciones_aplicadas (numero, nombre)
-values (360, 'el_terminal_no_marca_por_otra_sede')
+values (370, 'el_terminal_no_marca_por_otra_sede')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
