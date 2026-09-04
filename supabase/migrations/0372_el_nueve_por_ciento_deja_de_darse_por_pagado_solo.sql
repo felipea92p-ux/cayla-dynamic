@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0362_el_nueve_por_ciento_deja_de_darse_por_pagado_solo.sql
+-- 0372_el_nueve_por_ciento_deja_de_darse_por_pagado_solo.sql
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -62,7 +62,7 @@
 --   gratificaciones, que es el peor error que puede cometer este sistema: el
 --   falso positivo sobre dinero.
 --
--- LA PROPIEDAD QUE CONSERVA (y que la prueba 288 fija)
+-- LA PROPIEDAD QUE CONSERVA (y que la prueba 295 fija)
 --   Para toda ventana donde el 9% ya está saldado por cualquiera de las dos
 --   vías, el nuevo lateral `cobrado_be` vale EXACTAMENTE `cobrado.gX * v_f_be`,
 --   así que `be_sX` da el mismo número que la fórmula anterior. Algebraicamente:
@@ -82,25 +82,39 @@
 --     vías. Es un defecto distinto, de otro camino, y mezclarlos haría esta
 --     migración imposible de auditar de una pasada.
 --
--- MD5 DE PARTIDA
---   Cuerpo copiado de la 0338, la definición vigente de `fn_provisiones`
---   (confirmado con ./scripts/donde-vive.sh el 2026-09-04, con el árbol al día).
---   md5 en esta Mac:            62795c4ec4f7c197dea4c2fefa82787f
---   el mismo, sin comentarios:  67e5f56b1aa65a99cd839d2a360c91db
+-- MD5 DE PARTIDA — Y EL ACCIDENTE QUE ESTA CABECERA CASI CUENTA EN PASADO
+--   Cuerpo copiado de la **0365**, la definición vigente de `fn_provisiones`.
+--
+--   Este archivo se escribió primero como 0362, sobre el cuerpo de la 0338. En
+--   las cuatro horas que tardó en entregarse, otras sesiones fusionaron 54
+--   commits: alguien tomó el número 0362, y —lo grave— `fn_provisiones` se
+--   reescribió DOS veces. La 0363 le devolvió el `grant execute` que la 0338
+--   nunca concedió, y la 0365 le agregó el aviso de tramo de salario faltante
+--   en cinco sitios. Pegar aquella versión habría revertido las dos en
+--   silencio: la pantalla habría dejado de responderle a `authenticated`.
+--
+--   Lo cazó volver a correr `donde-vive.sh` en el momento de entregar, no en el
+--   de empezar. Esa es la regla, y este es el caso que la justifica.
+--
+--   md5 de partida MEDIDO en esta Mac tras `db reset` con las 368 migraciones,
+--   es decir el cuerpo de la 0365 antes de este cambio:
+--                               4b7b7bd996651f5e5a4d1a978cc3edb9
+--                               (44 261 caracteres)
 --
 --   ⚠ ESTE MD5 NO SE PIDIÓ A PRODUCCIÓN: esta sesión no tiene credenciales para
 --   consultarla. ANTES DE PEGAR, córrelo en el SQL Editor y compara — si
---   producción devuelve otro, PARA: significa que alguien tocó fn_provisiones
---   por fuera del repositorio y este cuerpo la revertiría en silencio.
+--   producción devuelve otro, PARA: significa que la 0363 o la 0365 no están
+--   pegadas todavía, o que alguien tocó la función por fuera del repositorio.
 --
 --     select md5(p.prosrc) as tal_cual
 --     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 --     where n.nspname = 'public' and p.proname = 'fn_provisiones';
 --
 -- CÓMO SE REVIERTE
---   Volviendo a pegar el bloque `CREATE OR REPLACE FUNCTION fn_provisiones`
---   de la 0338 tal cual. No hay cambios de esquema, ni de datos, ni de permisos:
---   esta migración solo reescribe el cuerpo de una función de lectura.
+--   Volviendo a pegar el bloque `CREATE OR REPLACE FUNCTION fn_provisiones` de
+--   la 0365 tal cual, junto con su par de `grant`/`revoke`. No hay cambios de
+--   esquema, ni de datos, ni de permisos: esta migración solo reescribe el
+--   cuerpo de una función de lectura.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_provisiones(p_as_of date DEFAULT NULL::date, p_salario_asof date DEFAULT NULL::date)
@@ -113,7 +127,7 @@ declare
   v_as_of date; v_y int;
   v_prov jsonb; v_f_grati numeric; v_f_cts numeric; v_f_vac numeric;
   v_f_be numeric;   -- CAMBIO 0134
-  -- ⇩ CAMBIO 0362 ⇩ El día en que el 9% dejó de viajar DENTRO de la
+  -- ⇩ CAMBIO 0372 ⇩ El día en que el 9% dejó de viajar DENTRO de la
   -- gratificación y pasó a tener movimiento propio (la 0346, pegada en
   -- producción ese día). Es un hecho histórico, no una configuración: por eso
   -- va como constante a la vista y no en una tabla que alguien pueda mover sin
@@ -127,6 +141,7 @@ declare
   c2_ini date; c2_fin date; c2_pago date;
   v_prox_fecha date; v_prox_tipo text; v_prox_ref text;
   v_out jsonb;
+  v_sin_salario int;   -- CAMBIO 0365
 begin
   if fn_es_admin_o_lider() is not true then
     raise exception 'Solo un administrador o lider puede ver las provisiones.';
@@ -601,7 +616,7 @@ begin
         -- bonificación se fue con ella»), y con un depósito PARCIAL eso dejaba
         -- de ser cierto: sobre media gratificación pendiente queda media
         -- bonificación pendiente, no la entera ni cero.
-        -- ⇩ CAMBIO 0362 ⇩ El 9% deja de derivarse de lo que quede de la
+        -- ⇩ CAMBIO 0372 ⇩ El 9% deja de derivarse de lo que quede de la
         -- gratificación: tiene devengado propio (9% de lo devengado por
         -- gratificación) y cobrado propio. Ver el lateral `cobrado_be`.
         'be_s1', round(devengado.g1 * v_f_be - cobrado_be.g1, 2),
@@ -641,7 +656,19 @@ begin
         -- Suma las columnas YA REDONDEADAS, a propósito: así el total cuadra
         -- con lo que se ve, hasta el céntimo. Ver el comentario del lateral
         -- `col` para por qué eso importa más de lo que parece.
-        'gran_total', col.grati_total + col.be_total + col.cts_total + col.vac
+        -- ⇩⇩⇩ CAMBIO 0365 ⇩⇩⇩ Esta línea era la última del objeto y decía:
+        --     'gran_total', col.grati_total + col.be_total + col.cts_total + col.vac
+        -- Sigue diciendo lo mismo; solo gana la coma para las dos claves de abajo.
+        'gran_total', col.grati_total + col.be_total + col.cts_total + col.vac,
+        -- ⇩⇩⇩ CAMBIO 0365 ⇩⇩⇩ DOS CEROS QUE SE VEÍAN IGUALES.
+        --
+        -- Todas las ramas de `base_cruda` hacen `join lateral` —inner— contra
+        -- `asignaciones_salario`: un día sin tramo vigente no aporta nada, y la
+        -- fila sale igual (0274) con S/ 0.00 en todo. Ese cero era idéntico al
+        -- de quien entró esta semana y al de quien no devenga. Estas dos claves
+        -- AVISAN; no cambian ni un céntimo de lo de arriba. Ver el lateral `ssv`.
+        'sin_salario_vigente', ssv.sin_salario_vigente,
+        'dias_sin_salario', ssv.dias_sin_salario
       ) as fila
     from personas p
     join sedes s on s.id = p.sede_base_id
@@ -721,7 +748,7 @@ begin
                  where m.persona_id = p.id and m.categoria = 'cts'
                    and c2_pago between pp.fecha_ini and pp.fecha_fin) as cn
     ) pag
-    -- ⇩⇩⇩ CAMBIO 0362 ⇩⇩⇩ ¿Y EL 9%? LA PREGUNTA QUE NADIE HACÍA.
+    -- ⇩⇩⇩ CAMBIO 0372 ⇩⇩⇩ ¿Y EL 9%? LA PREGUNTA QUE NADIE HACÍA.
     --
     -- Hasta la 0346 el 9% de la Ley 30334 no tenía movimiento propio: quien lo
     -- pagaba lo sumaba a mano DENTRO del monto de «Gratificación». Por eso
@@ -806,7 +833,7 @@ begin
              greatest(case when pag.cn then devengado.cn else 0 end, lib.cts_nov)  as cn,
              lib.vacaciones                                                        as vac
     ) cobrado
-    -- ⇩⇩⇩ CAMBIO 0362 ⇩⇩⇩ LO YA COBRADO DEL 9%, CON SU PROPIA CUENTA.
+    -- ⇩⇩⇩ CAMBIO 0372 ⇩⇩⇩ LO YA COBRADO DEL 9%, CON SU PROPIA CUENTA.
     --
     -- Misma forma que `cobrado` de arriba y por la misma razón: se toma la
     -- MAYOR de las dos fuentes, nunca la suma (decisión de la 0158, prueba 124).
@@ -818,7 +845,7 @@ begin
     --     registró medio depósito, con él se fue medio 9%. Es exactamente lo
     --     que esta función ya hacía, y se conserva.
     --
-    -- LA PROPIEDAD QUE ESTO CONSERVA, y que la prueba 288 fija: cuando el 9%
+    -- LA PROPIEDAD QUE ESTO CONSERVA, y que la prueba 295 fija: cuando el 9%
     -- está saldado por cualquiera de las dos vías, este lateral vale
     -- EXACTAMENTE `cobrado.gX * v_f_be` — el mismo número que daba la fórmula
     -- anterior. Lo único que cambia es el caso que nadie miraba: gratificación
@@ -842,13 +869,64 @@ begin
     -- que alguien pueda revisarla.
     cross join lateral (
       select round((devengado.g1 - cobrado.g1) + (devengado.g2 - cobrado.g2), 2)            as grati_total,
-             -- CAMBIO 0362 — suma las dos ventanas del 9%, cada una con su
+             -- CAMBIO 0372 — suma las dos ventanas del 9%, cada una con su
              -- propia resta. Antes era el 9% de la gratificación pendiente.
              round((devengado.g1 * v_f_be - cobrado_be.g1)
                  + (devengado.g2 * v_f_be - cobrado_be.g2), 2)                     as be_total,
              round((devengado.cm - cobrado.cm) + (devengado.cn - cobrado.cn), 2)            as cts_total,
              round(devengado.vac - cobrado.vac, 2)                                          as vac
     ) col
+    -- ⇩⇩⇩ CAMBIO 0365 ⇩⇩⇩ ¿FALTA EL TRAMO DE SALARIO? (hallazgo 23 de la
+    -- auditoría del 2026-09-03/04)
+    --
+    -- `sin_salario_vigente` pregunta por la FECHA DE CORTE con la MISMA
+    -- expresión de vigencia que usan los laterales `tt`, `sal` y `fac` de
+    -- arriba —`coalesce(p_salario_asof, día)`—, para que la bandera diga lo
+    -- mismo que el cálculo también en el modo «piso» de la 0338.
+    --
+    -- `dias_sin_salario` cuenta DÍAS DE CALENDARIO, no jornadas marcadas, y
+    -- es a propósito: la rama 2 (sueldo fijo) y la rama 3 (asignación
+    -- familiar) ya devengan por calendario, y la persona que más necesita
+    -- este aviso —recién ingresada, sin tramo— puede no haber marcado
+    -- todavía. Contar jornadas le diría «0 días» a quien lleva un mes sin
+    -- salario cargado. Es la medida honesta de «cuánto tiempo lleva sin
+    -- salario» sin depender de que haya marcado.
+    --
+    -- El tramo que se mira es el más ancho que alguna ventana pide, desde el
+    -- ingreso: la CTS de mayo arranca en noviembre del año anterior (el
+    -- criterio de la rama del feriado) y las VACACIONES arrancan en el
+    -- último aniversario de ingreso (`va.aniv_ini`, el mismo que usa el
+    -- lateral `vv`), que para quien entró entre enero y octubre cae antes de
+    -- ese noviembre. Sin `va.aniv_ini` un hueco de tramo dentro de la
+    -- ventana de vacaciones y anterior al 01/11 restaba reserva con 0 días
+    -- avisados (medido en la revisión: S/ 89,19). Un día sin tramo fuera de
+    -- este rango no le falta a ninguna reserva de este año. `generate_series`
+    -- sobre ~350 días contra un `exists` en `asignaciones_salario` es barato
+    -- y no vuelve a tocar `jornadas`, que es lo caro de esta función.
+    --
+    -- En modo «piso» (`p_salario_asof` dado) el conteo es todo-o-nada —0 o
+    -- el rango entero— porque `coalesce` congela la fecha y cada día pregunta
+    -- lo mismo. Es lo que el cálculo hace en ese modo; la pantalla llama sin
+    -- ese argumento.
+    cross join lateral (
+      select
+        not exists (
+          select 1 from asignaciones_salario a
+           where a.persona_id = p.id
+             and coalesce(p_salario_asof, v_as_of) >= a.vigente_desde
+             and (a.vigente_hasta is null or coalesce(p_salario_asof, v_as_of) <= a.vigente_hasta)
+        ) as sin_salario_vigente,
+        (select count(*)::int
+           from generate_series(greatest(p.fecha_ingreso, least(c1_ini, g1_ini, va.aniv_ini))::timestamp,
+                                v_as_of::timestamp, interval '1 day') gs
+          where not exists (
+            select 1 from asignaciones_salario a
+             where a.persona_id = p.id
+               and coalesce(p_salario_asof, gs::date) >= a.vigente_desde
+               and (a.vigente_hasta is null or coalesce(p_salario_asof, gs::date) <= a.vigente_hasta)
+          )
+        ) as dias_sin_salario
+    ) ssv
     -- ⇩⇩⇩ CAMBIO 0274 ⇩⇩⇩ ESTA PANTALLA ES UNA RESERVA, NO UN CENSO.
     --
     -- Hasta hoy la única condición era «activo», así que la tabla listaba a
@@ -873,6 +951,13 @@ begin
     where p.estado = 'activo' and fn_devenga_algo(p.id)   -- CAMBIO 0274
   ) sub;
 
+  -- ⇩⇩⇩ CAMBIO 0365 ⇩⇩⇩ Cuántas filas llevan la bandera. Se cuenta sobre el
+  -- jsonb ya armado —no hay un segundo recorrido de `jornadas`— para que la
+  -- pantalla lo diga una vez arriba de la tabla sin tener que recorrerla.
+  select count(*)::int into v_sin_salario
+  from jsonb_array_elements(v_out) e
+  where (e ->> 'sin_salario_vigente')::boolean is true;
+
   return jsonb_build_object(
     'as_of', v_as_of,
     'factores', v_prov,
@@ -881,7 +966,9 @@ begin
     'cts_may_pago', c1_pago, 'cts_nov_pago', c2_pago,
     'grati_s1_periodo', 'ene-jun', 'grati_s2_periodo', 'jul-dic',
     'cts_may_periodo', 'nov-abr', 'cts_nov_periodo', 'may-oct',
-    'personas', v_out
+    -- ⇩⇩⇩ CAMBIO 0365 ⇩⇩⇩ Decía:  'personas', v_out
+    'personas', v_out,
+    'personas_sin_salario', v_sin_salario
   );
 end;
 
@@ -889,49 +976,37 @@ end;
 $function$
 ;
 
--- ────────────────────────────────────────────────────────────────────────────
--- fn_feriado_devengado — gana p_salario_asof, propagado desde fn_provisiones.
--- ────────────────────────────────────────────────────────────────────────────
+-- EL PERMISO, REPETIDO A PROPÓSITO. `create or replace` conserva los grants,
+-- así que esto es redundante hoy — y se escribe igual, porque la 0363 existe
+-- justo porque la 0338 los perdió. Repetirlo cuesta dos líneas; que la pantalla
+-- deje de responder cuesta un día.
+grant execute on function fn_provisiones(date, date) to authenticated;
+revoke execute on function fn_provisiones(date, date) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (362, 'el_nueve_por_ciento_deja_de_darse_por_pagado_solo')
+values (372, 'el_nueve_por_ciento_deja_de_darse_por_pagado_solo')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
 
 -- ── Comprobación ─────────────────────────────────────────────────────────
-do $$
-declare
-  v_ok boolean;
-begin
-  select (select count(*) from pg_proc where proname = 'fn_provisiones'
-            and prosrc like '%CAMBIO 0362%') = 1
-    into v_ok;
-  if not v_ok then
-    raise exception 'fn_provisiones no quedó con el cambio 0362.';
-  end if;
-
-  -- La firma no cambia: una sola fn_provisiones, para que no se repita el
-  -- accidente de la 0297/0299 (dos funciones con el mismo nombre y Postgres
-  -- negándose a elegir, con la pantalla en blanco y sin error al pegar).
-  select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'public' and p.proname = 'fn_provisiones') = 1
-    into v_ok;
-  if not v_ok then
-    raise exception 'Hay más de una fn_provisiones: revisa las sobrecargas antes de seguir.';
-  end if;
-end $$;
-
--- Lo que conviene mirar al terminar de pegar:
---   · md5_llegada  — anótalo; es el md5 de partida de la próxima migración.
---   · la_0346_se_aplico_el — la fecha en que el 9% se separó EN ESTA BASE.
---     EN PRODUCCIÓN tiene que decir 2026-09-03: si dice otra cosa, la constante
---     `v_be_aparte_desde` está mirando el día equivocado y hay que corregirla
---     antes de confiar en la columna.
---     EN LOCAL dirá la fecha del último `db reset` y eso es normal — ahí todas
---     las migraciones se aplican el mismo día. No es una alarma.
+-- Lo que hay que ver al terminar de pegar:
+--   tiene_el_cambio   · el cuerpo nuevo entró
+--   conserva_la_0365  · el aviso de tramo de salario NO se revirtió
+--   una_sola_version  · la firma no cambió; no hay gemela (ver 0297/0299)
+--   la_pantalla_puede · `authenticated` sigue pudiendo llamarla (ver 0363)
+--   la_0346_se_aplico_el · EN PRODUCCIÓN tiene que decir 2026-09-03. Si dice
+--     otra cosa, la constante `v_be_aparte_desde` mira el día equivocado.
+--     EN LOCAL dirá la fecha del último `db reset`, y eso es normal.
 select
-  (select md5(prosrc) from pg_proc where proname = 'fn_provisiones')            as md5_llegada,
-  (select length(prosrc) from pg_proc where proname = 'fn_provisiones')         as largo,
+  position('CAMBIO 0372' in p.prosrc) > 0                                        as tiene_el_cambio,
+  position('sin_salario_vigente' in p.prosrc) > 0                                as conserva_la_0365,
+  (select count(*) from pg_proc where proname = 'fn_provisiones')                as una_sola_version,
+  (select count(*) from migraciones_aplicadas where numero = 372) = 1            as anotada,
+  has_function_privilege('authenticated', p.oid, 'execute')                      as la_pantalla_puede,
+  not has_function_privilege('anon', p.oid, 'execute')                           as anon_no_puede,
+  md5(p.prosrc)                                                                  as md5_llegada,
   (select (aplicada_at at time zone 'America/Lima')::date
-     from migraciones_aplicadas where numero = 346)                             as la_0346_se_aplico_el;
+     from migraciones_aplicadas where numero = 346)                              as la_0346_se_aplico_el
+from pg_proc p
+where p.proname = 'fn_provisiones';
