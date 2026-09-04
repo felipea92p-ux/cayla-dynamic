@@ -247,6 +247,12 @@ function ObjetivosContenido() {
   }
 
   async function copiarMesAnterior() {
+    // Pestillo barato contra un segundo clic mientras la copia anterior
+    // sigue en vuelo. Lee el estado del render, así que cubre lo mismo que
+    // `disabled` y nada más; la defensa real es el candado por persona de
+    // la 0361 en el servidor, que pone en fila las llamadas y niega la
+    // segunda con «ya tiene objetivos».
+    if (copiando) return;
     setCopiando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_objetivos_copiar_mes_anterior", {
