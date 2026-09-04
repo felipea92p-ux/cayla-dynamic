@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-03 — Un clic agrega la gratificación, la bonificación 9% y la CTS pendientes de todo el periodo (0355) · FUSIONADA A MAIN, SIN PEGAR EN PRODUCCIÓN
+## 2026-09-03 — Un clic agrega la gratificación, la bonificación 9% y la CTS pendientes de todo el periodo (0355) · PEGADA Y VERIFICADA
 
 Lo pidió Felipe justo después de probar la 0346 en pantalla: quiere el mismo pedido para Gratificación y CTS, que llevan meses siendo 100% manual (una persona, un clic, repetido para todo el equipo).
 
@@ -47,7 +47,7 @@ Lo pidió Felipe justo después de probar la 0346 en pantalla: quiere el mismo p
 
 Auditado local (`supabase db reset` + 1990 pruebas en verde) y a mano contra Postgres, `BEGIN … ROLLBACK`, cuatro casos: normal (dos personas, S/25.00 grati + S/2.25 bonificación cada una, 9% exacto), «ya pagada» (se salta sin intentarlo, no aparece en agregados ni en fallidos), correr la función DOS VECES seguidas (la segunda no agrega nada) y «periodo bloqueado» (el intento de esa persona falla solo, sin tumbar a las demás).
 
-**Fusionada a `main`** el 2026-09-03 ([PR #171](https://github.com/felipea92p-ux/cayla-dynamic/pull/171), CI en verde). **Aún no está pegada en producción** — pendiente el md5 de `fn_grati_cts_agregar_pendientes` contra producción antes de pegar (función nueva, no reemplaza nada, pero igual hay que confirmar que no exista ya con otro nombre).
+Fusionada a `main` el 2026-09-03 ([PR #171](https://github.com/felipea92p-ux/cayla-dynamic/pull/171), CI en verde) y **pegada en producción el mismo día**: confirmado con `select count(*) from pg_proc where proname = 'fn_grati_cts_agregar_pendientes'` → `1`. La 0346 (el mismo pedido, solo para la bonificación 9%) también quedó confirmada contra producción el mismo día — ver su propia entrada más abajo. Con las dos pegadas, el flujo completo (Gratificación + Bonificación 9% + CTS, con «Agregar todo») ya está disponible en el panel real.
 
 ## 2026-09-03 — Anuncios: el tablón de Desarrollo Organizacional (0351) · PEGADA Y VERIFICADA
 
