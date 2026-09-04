@@ -37,6 +37,7 @@ import {
   SelectorSalida,
   SelectorSede,
   TecladoPin,
+  type EstadoRoster,
 } from "./components";
 
 type Pantalla =
@@ -97,6 +98,11 @@ export default function MarcarPage() {
   const router = useRouter();
   const [terminal, setTerminal] = useState<TerminalInfo | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  // Un roster vacío no dice por qué está vacío, y la grilla lo contaba siempre
+  // como «Nadie en esta sede todavía» — también durante el arranque, que es
+  // justo cuando alguien lo lee (tras reiniciar la Mac mini o un corte de red)
+  // y entiende que se borró el equipo. Esta bandera separa los tres casos.
+  const [estadoRoster, setEstadoRoster] = useState<EstadoRoster>("cargando");
   const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
   const marcajesHoyRef = useRef<Map<string, MarcajeDelDia[]>>(new Map());
 
@@ -121,12 +127,38 @@ export default function MarcarPage() {
   const confirmandoRef = useRef(false); // evita doble-envío del mismo marcaje
 
   const cargarTodo = useCallback(async () => {
-    const [rosterData, marcajes] = await Promise.all([cargarRoster(), cargarMarcajesHoyPorPersona()]);
-    setRoster(rosterData);
-    marcajesHoyRef.current = marcajes;
+    try {
+      const [rosterCargado, marcajes] = await Promise.all([cargarRoster(), cargarMarcajesHoyPorPersona()]);
+      setRoster(rosterCargado.entradas);
+      marcajesHoyRef.current = marcajes;
+      // EL ERROR LO DECLARA LA FUENTE, NO EL `catch`, y esa es la mitad que
+      // faltaba: `cargarRoster` no lanza NUNCA por red ni por un 500 —devuelve
+      // la copia guardada en las cinco salidas de fallo—, así que una Mac recién
+      // reiniciada, sin caché y sin router, resolvía con `[]` y esta pantalla lo
+      // declaraba "listo": «Nadie en esta sede todavía», justo la mentira que
+      // este estado existe para quitar. Solo `fuente === "ninguna"` significa
+      // que no contestó ni el servidor ni la copia local.
+      setEstadoRoster(rosterCargado.fuente === "ninguna" ? "error" : "listo");
+    } catch {
+      // El `catch` queda para lo que sí lanza: IndexedDB (navegación privada,
+      // almacenamiento bloqueado). Un refresco que falla con la lista YA en
+      // pantalla no la borra ni asusta a nadie: se sigue marcando con lo que
+      // hay. Solo se declara error cuando no hemos llegado a tener nada.
+      setEstadoRoster((previo) => (previo === "listo" ? "listo" : "error"));
+    }
   }, []);
 
-  useEffect(() => {
+  // El arranque entero, extraído del efecto para que «Volver a intentar» pueda
+  // repetirlo. Antes el botón solo llamaba a `cargarTodo`, y el error también
+  // puede nacer acá arriba —la sesión, la ficha del terminal—: reintentar sin
+  // rehacer esa parte volvía a la lista vacía sin haber arreglado lo que falló.
+  //
+  // Devuelve la promesa en vez de ser `async`/`await` a propósito: con `await`,
+  // el linter de la casa lee la llamada del efecto de abajo como un setState
+  // síncrono dentro de un efecto y la marca. Encadenando `.then`, que es la
+  // forma que este arranque ya tenía, no hay setState hasta que la red conteste
+  // — y era verdad en las dos versiones.
+  const arrancar = useCallback(() => {
     const supabase = createTerminalSupabaseClient();
     // getSession() ES LA PRIMERA LLAMADA DE RED DEL ARRANQUE, aunque no lo parezca:
     // cuando el token guardado está vencido, auth-js sale a renovarlo, y no acepta
@@ -144,7 +176,7 @@ export default function MarcarPage() {
     // «no está vinculado». Las credenciales seguían en el disco. Por eso el
     // veredicto mira el error y no solo la sesión (`lib/terminal/sesion.ts`).
     const SIN_RESPUESTA = Symbol("sin respuesta");
-    void conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
+    return conTope(supabase.auth.getSession(), SIN_RESPUESTA).then(async (respuesta) => {
       const veredicto =
         respuesta === SIN_RESPUESTA
           ? "no_se_pudo_saber"
@@ -168,11 +200,19 @@ export default function MarcarPage() {
           : null;
       setSedeSeleccionada((actual) => actual ?? paramSede ?? info?.sedeCodigo ?? null);
       await cargarTodo();
-    });
+    })
+    // Si el arranque se cae ANTES de llegar a `cargarTodo` —la ficha del
+    // terminal, la sesión— la grilla se quedaba en «cargando» para siempre, que
+    // es la misma mentira de antes con otra cara: una pantalla que promete que
+    // ya viene. Se declara el error, y el botón de reintentar es la salida.
+    .catch(() => setEstadoRoster((previo) => (previo === "listo" ? "listo" : "error")));
+  }, [router, cargarTodo]);
 
+  useEffect(() => {
+    void arrancar();
     const detener = iniciarSincronizacionPeriodica();
     return detener;
-  }, [router, cargarTodo]);
+  }, [arrancar]);
 
   // El desfase del reloj: la última medida guardada primero —para que el aviso
   // esté en pantalla desde el primer segundo— y una medición nueva enseguida.
@@ -584,7 +624,12 @@ export default function MarcarPage() {
               activa={sedeSeleccionada}
               onCambiar={setSedeSeleccionada}
             />
-            <NombreGrid roster={rosterFiltrado} onSeleccionar={seleccionarPersona} />
+            <NombreGrid
+              roster={rosterFiltrado}
+              estado={estadoRoster}
+              onSeleccionar={seleccionarPersona}
+              onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
+            />
           </div>
         )}
 
