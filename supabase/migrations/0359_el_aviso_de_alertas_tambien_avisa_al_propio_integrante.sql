@@ -83,3 +83,7 @@ as $fn$
 $fn$;
 
 revoke all on function fn_alertas_email_pendientes() from public, anon, authenticated;
+
+insert into migraciones_aplicadas (numero, nombre)
+values (359, 'el_aviso_de_alertas_tambien_avisa_al_propio_integrante')
+on conflict (numero) do nothing;

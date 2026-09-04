@@ -383,3 +383,7 @@ $function$;
 
 grant execute on function fn_registrar_marcaje(uuid, tipo_marca, timestamptz, uuid, origen_marca, uuid, uuid, text, boolean) to authenticated;
 revoke execute on function fn_registrar_marcaje(uuid, tipo_marca, timestamptz, uuid, origen_marca, uuid, uuid, text, boolean) from public, anon;
+
+insert into migraciones_aplicadas (numero, nombre)
+values (353, 'confirmacion_de_jornada_completa_al_marcar_salida')
+on conflict (numero) do nothing;
