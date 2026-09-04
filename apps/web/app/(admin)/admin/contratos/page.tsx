@@ -7,6 +7,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -56,6 +57,12 @@ const FIRMANTE_POR_DEFECTO = { nombre: "", dni: "", cargo: "Gerencia General" };
 const MAX_BYTES = 50 * 1024 * 1024;
 
 // "2026-07-28" + 1 → "2026-07-29" (aritmética en UTC: sin sorpresas de zona)
+// "Proyecto ERP\n" → "Proyecto ERP"; "a\n\n  b" → "a b". Para lo que se imprime
+// dentro de una frase: ahí un salto de línea no significa nada y solo estorba.
+function unaLinea(texto: string): string {
+  return texto.replace(/\s+/g, " ").trim();
+}
+
 function sumarDias(iso: string, n: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
@@ -624,11 +631,16 @@ export default function ContratosPage() {
           carreraEspecialidad: carreraEspecialidadEditada.trim() || null,
           cicloAcademico: cicloAcademicoEditado.trim() || null,
           gradoTituloTexto: gradoTituloTextoEditado.trim() || null,
-          areaProyecto: areaProyectoEditado,
-          objetivoFormativoGeneral: objetivoFormativoGeneralEditado,
-          supervisorAsignado: supervisorAsignadoEditado,
-          hitoMes3: hitoMes3Editado,
-          hitoMes6: hitoMes6Editado,
+          // Estos cinco van dentro de una frase o de un «Etiqueta: valor» en
+          // un solo párrafo. Desde que se escriben en un AreaTexto admiten
+          // Enter, y un Enter final —el gesto natural al terminar— salía como
+          // «Proyecto ERP , en el puesto» y un campo con solo «⏎» pasaba por
+          // lleno. Se aplanan a una línea, igual que se leerán.
+          areaProyecto: unaLinea(areaProyectoEditado),
+          objetivoFormativoGeneral: unaLinea(objetivoFormativoGeneralEditado),
+          supervisorAsignado: unaLinea(supervisorAsignadoEditado),
+          hitoMes3: unaLinea(hitoMes3Editado),
+          hitoMes6: unaLinea(hitoMes6Editado),
         }
       : null;
 
@@ -1165,7 +1177,7 @@ export default function ContratosPage() {
               {esAdendum ? (
                 <label className="block text-sm">
                   Qué se modifica del contrato vigente — una modificación por línea
-                  <textarea
+                  <AreaTexto
                     className="mt-1 w-full rounded border border-sand p-2"
                     rows={4}
                     placeholder="Ej.: Se modifica la Cláusula Sexta, fijando la remuneración mensual base en S/ …"
@@ -1275,8 +1287,9 @@ export default function ContratosPage() {
                   ) : (
                     <label className="block text-sm">
                       Grado / título (referencial — no aplica al centro de formación, que no firma en el profesional)
-                      <input
+                      <AreaTexto
                         className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
                         placeholder="Ej.: Bachiller en Ingeniería de Sistemas — UNT, egresado el 15/12/2025"
                         value={gradoTituloTextoEditado}
                         onChange={(e) => setGradoTituloTextoEditado(e.target.value)}
@@ -1285,8 +1298,9 @@ export default function ContratosPage() {
                   )}
                   <label className="block text-sm">
                     Anexo I — área / proyecto de destino
-                    <input
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
+                      rows={2}
                       placeholder="Ej.: Proyecto ERP CAYLA — módulo de inventario"
                       value={areaProyectoEditado}
                       onChange={(e) => setAreaProyectoEditado(e.target.value)}
@@ -1294,8 +1308,9 @@ export default function ContratosPage() {
                   </label>
                   <label className="block text-sm">
                     Anexo I — objetivo formativo general
-                    <input
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
+                      rows={2}
                       placeholder="Qué debe saber hacer al finalizar"
                       value={objetivoFormativoGeneralEditado}
                       onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}
@@ -1303,7 +1318,7 @@ export default function ContratosPage() {
                   </label>
                   <label className="block text-sm">
                     Anexo I — actividades principales (una por línea; se numeran solas)
-                    <textarea
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
                       rows={3}
                       placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
@@ -1311,35 +1326,37 @@ export default function ContratosPage() {
                       onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
                     />
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="text-sm">
-                      Anexo I — supervisor(a) asignado(a)
-                      <input
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        value={supervisorAsignadoEditado}
-                        onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
-                      />
-                    </label>
+                  <label className="block text-sm">
+                    Anexo I — supervisor(a) asignado(a)
+                    <input
+                      className="mt-1 w-full rounded border border-sand p-2 sm:w-1/2"
+                      value={supervisorAsignadoEditado}
+                      onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
+                    />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm">
                       Anexo I — hito de evaluación, mes 3
-                      <input
+                      <AreaTexto
                         className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
                         value={hitoMes3Editado}
                         onChange={(e) => setHitoMes3Editado(e.target.value)}
                       />
                     </label>
+                    <label className="text-sm">
+                      Anexo I — hito de evaluación, mes 6
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
+                        value={hitoMes6Editado}
+                        onChange={(e) => setHitoMes6Editado(e.target.value)}
+                      />
+                    </label>
                   </div>
                   <label className="block text-sm">
-                    Anexo I — hito de evaluación, mes 6
-                    <input
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      value={hitoMes6Editado}
-                      onChange={(e) => setHitoMes6Editado(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
                     Anexo IV — ajuste de activos para esta persona (uno por línea)
-                    <textarea
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
                       rows={2}
                       value={activosLibre}
@@ -1367,7 +1384,7 @@ export default function ContratosPage() {
                   {!esIndefinido && (
                     <label className="block text-sm">
                       Causa objetiva (revisar antes de imprimir)
-                      <textarea
+                      <AreaTexto
                         className="mt-1 w-full rounded border border-sand p-2"
                         rows={4}
                         value={causaEditada}
@@ -1377,7 +1394,7 @@ export default function ContratosPage() {
                   )}
                   <label className="block text-sm">
                     Funciones del cargo (Anexo I) — una por línea; se numeran solas
-                    <textarea
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
                       rows={3}
                       value={funcionesEditadas}
@@ -1386,7 +1403,7 @@ export default function ContratosPage() {
                   </label>
                   <label className="block text-sm">
                     Anexo IV — ajuste de activos para esta persona (uno por línea)
-                    <textarea
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
                       rows={2}
                       value={activosLibre}
@@ -1657,7 +1674,7 @@ export default function ContratosPage() {
         {anulando && (
           <section className="space-y-2 rounded-lg border border-rojo p-4">
             <p className="font-serif text-lg">Anular contrato</p>
-            <textarea
+            <AreaTexto
               className="w-full rounded border border-sand p-2 text-sm"
               placeholder="Motivo (mínimo 3 caracteres)"
               value={motivoAnular}

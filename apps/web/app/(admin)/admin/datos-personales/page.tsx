@@ -240,6 +240,10 @@ export default function DatosPersonalesPage() {
 
   const personaSel = personas.find((p) => p.id === sel) ?? null;
   const dniCambio = !!personaSel && dni.trim() !== (personaSel.documento ?? "");
+  // Escribir el DNI por primera vez no es una corrección: no hay nada que
+  // justificar cuando antes no había ningún valor. El motivo solo tiene
+  // sentido frente a un DNI que ya existía y se está reemplazando.
+  const dniEsCorreccion = dniCambio && (personaSel?.documento ?? "").trim() !== "";
   const regimenCambio = !!personaSel && regimen !== (personaSel.regimen_pension ?? "");
   // Los DOS lados en minúsculas. Antes se bajaba solo el izquierdo, así que un
   // correo guardado con mayúsculas —medidos en producción el 2026-08-10: dos—
@@ -278,7 +282,7 @@ export default function DatosPersonalesPage() {
     }
     // El motivo del DNI se exige aquí y no solo en la base, para que el aviso
     // llegue antes de intentar guardar y no como un error del servidor.
-    if (dniCambio && !motivoDni.trim()) {
+    if (dniEsCorreccion && !motivoDni.trim()) {
       avisar("error", "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos.");
       return;
     }
@@ -790,10 +794,10 @@ export default function DatosPersonalesPage() {
                           className={`rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${dniCambio ? "border-ambar" : ""}`} />
                       </label>
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}
-                      {dniCambio && (
+                      {dniEsCorreccion && (
                         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
                           <span className="text-ambar">
-                            Motivo del cambio de DNI (obligatorio) — de {personaSel.documento ?? "vacío"} a {dni.trim()}
+                            Motivo del cambio de DNI (obligatorio) — de {personaSel.documento} a {dni.trim()}
                           </span>
                           <input value={motivoDni} onChange={(e) => setMotivoDni(e.target.value)}
                             placeholder="Por ejemplo: corregido contra la constancia de alta del T-Registro"
