@@ -12,6 +12,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
@@ -108,7 +109,10 @@ interface FormPersona {
   rol: Rol;
   funcion: string; // código de área (ver lib/areas)
   email: string;
-  conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
+  // Asignación familiar. El MONTO no se escribe acá ni en ningún sitio de la
+  // pantalla: vive versionado en `parametros_laborales` (0122) y se lee con
+  // `montoAsignacionFamiliar` para pintar la etiqueta. Se escribe por RPC fn_set_con_hijos.
+  conHijos: boolean;
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador | practicante — se escribe por RPC fn_set_tipo_vinculo
   practicanteModalidad: string; // "" | preprofesional | profesional — solo si tipoVinculo=practicante; se escribe por RPC fn_set_practicante_modalidad
   cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
@@ -301,6 +305,18 @@ export default function EquipoPage() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  // El monto vigente de la asignación familiar, para la etiqueta de la casilla.
+  // `null` mientras no haya dato — y entonces la etiqueta manda a Configuración
+  // en vez de inventar una cifra (hallazgo 24; tercera regla de la casa).
+  const [asigFamiliar, setAsigFamiliar] = useState<MontoAsignacionFamiliar | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void montoAsignacionFamiliar(createAdminSupabaseClient()).then((m) => {
+      if (vigente) setAsigFamiliar(m);
+    });
+    return () => { vigente = false; };
+  }, []);
 
   // Cuál está abierto, no si hay alguno: así también se desplaza al pasar de un
   // panel a otro (de «Editar» de una persona a «Registrar salida» de otra).
@@ -721,13 +737,16 @@ export default function EquipoPage() {
     avisar("ok", `${p.nombres} ${p.apellidos} está activa otra vez. Revísale el salario y el horario: al cesar se cerraron sus tramos.`);
   }
 
+  // El PIN nace en el servidor (0364): `fn_regenerar_pin` genera los cuatro
+  // dígitos, los hashea con bcrypt en Postgres y devuelve el PIN en claro UNA
+  // sola vez. Antes se hasheaba acá y se escribía `pin_hash` por REST directo,
+  // con la RLS como único freno; hoy un update directo a esa columna lo corta
+  // un trigger, así que este es el único camino.
   async function regenerarPin(p: Persona) {
-    const pin = generarPin();
-    const pinHash = await bcrypt.hash(pin, 10);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.from("personas").update({ pin_hash: pinHash }).eq("id", p.id);
-    if (error) {
-      avisar("error", mensajeDeError(error, "regenerar el PIN"));
+    const { data: pin, error } = await supabase.rpc("fn_regenerar_pin", { p_persona_id: p.id });
+    if (error || !pin) {
+      avisar("error", error ? mensajeDeError(error, "regenerar el PIN") : "No se recibió el PIN nuevo. Vuelve a intentarlo.");
       return;
     }
     avisar("ok", `Nuevo PIN de ${p.nombres} ${p.apellidos}: ${pin} — anótalo ahora, no se vuelve a mostrar.`);
@@ -1066,7 +1085,9 @@ export default function EquipoPage() {
             disabled={modo === "edicion" && !funcionesOk}
             className="h-4 w-4 accent-tinta disabled:opacity-50"
           />
-          Asignación familiar (tiene hijos) — S/ 113 fijos por periodo
+          {asigFamiliar
+            ? `Asignación familiar (tiene hijos) — ${formatSoles(asigFamiliar.monto)} al mes, según el monto vigente`
+            : "Asignación familiar (tiene hijos) — según el monto vigente en Configuración"}
         </label>
       )}
       {puedeSalarios && (
@@ -1600,7 +1621,13 @@ export default function EquipoPage() {
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-2 text-xs">
                         <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                        <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
+                        {/* Solo a quien está activa: desde la 0364 el servidor
+                            rechaza regenerar el PIN de una persona inactiva, y
+                            no se ofrece un botón que solo puede terminar en un
+                            error. Si vuelve al equipo, «Reactivar» primero. */}
+                        {p.estado === "activo" && (
+                          <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
+                        )}
                         {p.estado === "activo" ? (
                           // «Registrar salida» y no «Desactivar»: lo que se hace
                           // es anotar un hecho con su fecha y su motivo, no
