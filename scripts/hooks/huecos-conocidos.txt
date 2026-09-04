@@ -109,3 +109,25 @@
 # número, antes de la 0338 y con la misma trampa esperando.
 
 0337  Abandonado. Fue "fn_planilla_calcular se parte en núcleo y envoltorio"; se movió a 0339 para ir después de la 0338, que reescribe una función que comparten (fn_feriado_devengado).
+
+# ── 0352 · DESCARTADO EN UN MERGE, A PROPÓSITO (2026-09-03) ─────────────────
+#
+# No es una migración perdida: dos sesiones construyeron la misma idea el
+# mismo día —que el aviso de auto-cierre por fin salga por correo— cada una
+# por su cuenta. Una la escribió como 0352 (commit 583560b: cambia
+# fn_auto_cierre de canal='push' a 'email', más /api/enviar-alertas). La otra
+# la construyó como 0354 (fn_alertas_email_pendientes + /api/alertas-encargadas),
+# sin tocar fn_auto_cierre.
+#
+# Al fusionar (commit 7809713, "resuelve dos duplicados con la 0359"), se
+# descartó la 0352 a favor de la 0354 explícitamente: la de main llegó primero
+# y es más segura porque no toca fn_auto_cierre. Nunca se aplicó en
+# producción. Lo único que le faltaba a la 0354 —avisar también al propio
+# integrante, no solo a la encargada— se agregó después como extensión
+# aditiva: la 0359.
+#
+# NO se reutiliza: el commit 583560b sigue vivo en varias ramas (nunca se
+# borró el archivo, solo se descartó al fusionar), así que retomar el número
+# 0352 chocaría con ese contenido abandonado.
+
+0352  Abandonado en el merge 7809713 (2026-09-03) a favor de la 0354, que resuelve lo mismo (aviso de auto-cierre por correo) sin tocar fn_auto_cierre. Nunca se aplicó en producción.
