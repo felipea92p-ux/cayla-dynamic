@@ -186,7 +186,7 @@ auditoría. Ninguno de los 16 se arregló todavía; quedan en
 
 ---
 
-## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · ESCRITA Y VERIFICADA — FALTA PEGAR
+## 2026-09-03 — El comentario de `topes_educacion_rango` mentía sobre una copia que ya no existe (0345) · PEGADA Y VERIFICADA
 
 Encontrado siguiendo el hallazgo #7 de la comparación Workday/Oracle
 ([`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](comparacion-workday-oracle-dynamic-2026-09-02.md)):
@@ -210,7 +210,8 @@ ninguna columna, fila, función ni cálculo — no hay pago que auditar.
 
 **Verificado:** `npx supabase db reset` limpio con las 345 migraciones en
 orden; `npx supabase test db` — 1938/1938 en verde; `typecheck` limpio.
-Falta que Felipe la pegue en el SQL Editor (`./scripts/dame-el-sql.sh 345`).
+Confirmado en producción el mismo día 18:42 UTC (ver la nota de "Aviso
+cruzado" más arriba) y fusionada a `main` el 2026-09-04.
 
 ---
 
