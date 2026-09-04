@@ -224,7 +224,7 @@ with repo(numero, nombre, nunca) as (values
     (364, 'el_pin_nace_en_el_servidor', false),
     (365, 'las_provisiones_avisan_cuando_falta_el_tramo_de_salario', false),
     (366, 'dos_toques_seguidos_no_dejan_dos_marcas', false),
-    (367, 'un_codigo_de_sede_no_se_pisa_en_silencio', false)
+    (368, 'un_codigo_de_sede_no_se_pisa_en_silencio', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
