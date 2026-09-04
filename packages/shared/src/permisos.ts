@@ -160,6 +160,43 @@ export function puedeExportarPadron(rol: RolPosible): boolean {
 const SOLO_DIRECCION: readonly Rol[] = ["admin"];
 
 /**
+ * Bajarse en CSV el rastro de asistencia: el resumen de jornadas, los marcajes
+ * crudos y el libro de correcciones de un rango de fechas.
+ *
+ * Ninguno de los tres lleva un MONTO —ni sueldo, ni cuenta bancaria—, así que no
+ * es `puedeVerPlanilla`: es el día a día del equipo, y hoy equivale a
+ * `puedeOperarEquipo`, que es también el permiso de la pantalla hermana
+ * (`/admin/correcciones`, que pinta ese mismo libro persona por persona).
+ *
+ * Ojo con el libro de correcciones, porque su nombre engaña: desde la 0119 no
+ * registra solo marcajes. Ahí caen los cambios de vínculo, de régimen de
+ * pensión, de retención de 4ta, de rol, de sede base y las altas de documentos
+ * firmados, cada uno con su valor anterior, su valor nuevo y su motivo — y una
+ * corrección de DNI (`personas.documento`, 0344) deja el número en
+ * `valor_nuevo`. Aun así esto NO es `puedeVerIdentidad`, y la razón es
+ * incómoda: la RLS de `correcciones_auditoria` ya le entrega esas filas a la
+ * encargada de su sede, y la pantalla hermana ya se las pinta. Estrechar solo el
+ * CSV no taparía nada; el día que se decida taparlo se tapa en la RLS y en las
+ * dos pantallas, no acá.
+ *
+ * Se nombra aparte igual, por la misma razón que `puedeExportarPadron` existe al
+ * lado de `puedeVerIdentidad`: ver un dato en pantalla y poder llevárselo son dos
+ * preguntas distintas. Un archivo sale del sistema, se reenvía y ya nadie sabe
+ * dónde está — el día que alguien decida que el rastro crudo solo se lo lleva
+ * DO, se cambia acá y en
+ * `ROLES_EXPORTAN_ASISTENCIA`, que es de donde el menú saca a quién le pinta el
+ * renglón.
+ *
+ * La encargada de sede sí puede: es el archivo que pide una inspección para su
+ * tienda, y el alcance —solo su gente— no lo decide esto sino la RLS de
+ * `jornadas`, `marcajes` y `correcciones_auditoria` (0003). Permiso y alcance
+ * son dos preguntas distintas, como en `puedeOperarEquipo`.
+ */
+export function puedeExportarAsistencia(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/**
  * Las mismas listas, para filtrar datos que vienen de la base (`.in("rol", …)`,
  * `.includes(p.rol)`). Van tipadas como `string` a propósito: el rol que llega de
  * Postgres es texto libre, y exigirle el tipo `Rol` obligaría a un cast en cada
@@ -167,6 +204,17 @@ const SOLO_DIRECCION: readonly Rol[] = ["admin"];
  * código todavía no conoce.
  */
 export const ROLES_CON_PANEL: readonly Rol[] = DO_Y_ENCARGADA;
+
+/**
+ * Quiénes ven el renglón «Exportar CSV» del menú. Es la lista de
+ * `puedeExportarAsistencia`, que es quien decide de verdad dentro de la
+ * pantalla; existe porque el menú filtra por lista y no por función, y sin ella
+ * el día que ese permiso se estreche el renglón seguiría pintándose para quien
+ * ya no puede — un clic hasta un «no tienes permiso». Hoy coincide con
+ * `ROLES_CON_PANEL`, y `tests/permisos.test.ts` se pone rojo si la lista y la
+ * función dejan de decir lo mismo.
+ */
+export const ROLES_EXPORTAN_ASISTENCIA: readonly Rol[] = DO_Y_ENCARGADA;
 
 /** Los roles de DO, para filtrar listas (p. ej. "a quién puedo corregirle el marcaje"). */
 export const ROLES_DO: readonly string[] = DO;
