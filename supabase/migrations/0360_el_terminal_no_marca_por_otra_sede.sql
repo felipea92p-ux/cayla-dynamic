@@ -264,7 +264,9 @@
 --   · 0240 / 0318 (`jornadas.fecha` y la jornada que cruza medianoche).
 --   · 0342 (`fn_set_sede_base`), que es lo que hace fiable la puerta 2: desde
 --     ella, un cambio de sede base SIN fila de auditoría no puede ocurrir por
---     ninguna puerta que no sea `postgres` (migraciones, seeds y pruebas).
+--     ninguna puerta que no sea `postgres` (migraciones, seeds y pruebas). La
+--     guardia lo comprueba y AVISA si falta — sin ella la puerta 2 queda
+--     inerte, que endurece el candado en vez de aflojarlo.
 --   · 0241 (`fn_persona_en_roster_terminal`) y 0285 (`terminal_roster`), que
 --     esta migración REESCRIBE para que dejen de llevar su propia copia de la
 --     regla. Las dos las comprueba la GUARDIA de abajo, que ABORTA si
@@ -395,6 +397,21 @@ begin
       message = 'PARA. terminal_roster perdió su security_invoker = false.',
       hint    = 'Con security_invoker activado la vista arrastra las policies de personas '
              || 'y el terminal deja de ver a nadie. Mira la 0285 antes de seguir.';
+  end if;
+
+  -- 3 · fn_set_sede_base (0342). AVISA, NO BLOQUEA — y la diferencia es
+  --     deliberada, el mismo criterio que la 0361 usa con su cron. Si falta,
+  --     el candado sigue siendo correcto: lo que pasa es que la puerta 2 queda
+  --     INERTE, porque nadie escribe las filas de auditoría que ella consulta.
+  --     Eso no da un resultado equivocado, da uno más estricto — y el precio
+  --     es que la marca que la cola entrega tras un cambio de sede se apartaría
+  --     en vez de entrar. Bloquear por algo que solo endurece enseñaría que los
+  --     frenos de esta casa son trámite.
+  if to_regprocedure('public.fn_set_sede_base(uuid, uuid)') is null then
+    raise warning 'FALTA LA 0342. Sin fn_set_sede_base nadie escribe la auditoría del cambio '
+                  'de sede, así que la PUERTA 2 de este candado queda inerte: la marca que la '
+                  'cola offline entregue después de mudar a alguien se va a apartar en vez de '
+                  'entrar. El candado funciona igual; pégala cuando puedas.';
   end if;
 
   v_def := pg_get_viewdef('public.terminal_roster'::regclass, true);
