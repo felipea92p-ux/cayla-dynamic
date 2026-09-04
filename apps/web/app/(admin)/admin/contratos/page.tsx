@@ -1283,8 +1283,14 @@ export default function ContratosPage() {
                   </label>
                   <label className="block text-sm">
                     Anexo I — objetivo formativo general
-                    <input
+                    {/* Cuadro de varias líneas, no un renglón: acá se escribe un
+                        párrafo entero («al finalizar el convenio debe ser capaz
+                        de…») y en un <input> el texto se iba de largo y no se
+                        veía lo escrito. Un Enter acá llega al papel como salto
+                        de línea (ver parrafoDesdeTexto en contrato-texto). */}
+                    <textarea
                       className="mt-1 w-full rounded border border-sand p-2"
+                      rows={3}
                       placeholder="Qué debe saber hacer al finalizar"
                       value={objetivoFormativoGeneralEditado}
                       onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}

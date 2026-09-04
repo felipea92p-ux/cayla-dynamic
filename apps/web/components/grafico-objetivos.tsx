@@ -16,8 +16,18 @@
 // cargados. Un mes con total>0 y cumplidos=0 SÍ es un dato real (0% de
 // verdad) y lleva altura mínima visible en rojo — si no, una barra de 0% de
 // alto real es indistinguible del hueco gris.
+//
+// El ancho de cada barra NO es fijo: sale del espacio real de la tarjeta.
+// Con «Último mes» (un solo dato) una barra fija de 20px quedaba perdida en
+// medio de una tarjeta de ~700px — se veía flaca, como si el gráfico
+// estuviera roto, y con 2 o 3 meses apenas mejor. Se mide el contenedor con
+// ResizeObserver, porque ese ancho no se sabe antes de montar en el DOM, y
+// cada mes recibe un carril igual; la barra se dibuja centrada en su carril,
+// tan ancha como quepa hasta un máximo razonable. Con muchos meses el carril
+// ya es chico por sí solo y el gráfico se ve igual que antes — y sigue
+// scrolleando de lado cuando 24 meses no caben en una pantalla angosta.
 
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { MESES, MESES_CORTO, nivelColorObjetivos, type MesHistorial } from "@/lib/objetivos";
 
 const CLASE_FILL_NIVEL: Record<"verde" | "ambar" | "rojo", string> = {
@@ -59,7 +69,25 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   const [activo, setActivo] = useState<number | null>(null);
   const idBase = useId();
 
-  if (historial.length === 0) {
+  // Medición del contenedor. `medir()` corre síncrono dentro del layout
+  // effect para que el primer frame ya salga con el ancho correcto — sin eso
+  // se vería un salto de la versión compacta a la ancha al montar. El efecto
+  // depende de `sinDatos` y no de `[]`: el div medido no existe mientras no
+  // hay historial, y si el historial llega después hay que engancharse ahí.
+  const contenedorRef = useRef<HTMLDivElement>(null);
+  const [anchoContenedor, setAnchoContenedor] = useState(0);
+  const sinDatos = historial.length === 0;
+  useLayoutEffect(() => {
+    const el = contenedorRef.current;
+    if (!el) return;
+    const medir = () => setAnchoContenedor(el.clientWidth);
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [sinDatos]);
+
+  if (sinDatos) {
     return <p className="text-sm text-taupe">Sin historial para mostrar.</p>;
   }
 
@@ -67,12 +95,34 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   const PAD_TOP = 14;
   const PAD_BOTTOM = 34;
   const PAD_LEFT = 32;
-  const ANCHO_BARRA = 20;
-  const GAP = 10;
+  const PAD_RIGHT = 8;
   const RADIO = 4;
-  const W = PAD_LEFT + historial.length * (ANCHO_BARRA + GAP) + 8;
+  const BARRA_MIN = 14;
+  const BARRA_MAX = 64;
+  const HUECO_MIN = 6;
+
+  const n = historial.length;
+  // El "carril" de cada mes reparte TODO el ancho disponible en partes
+  // iguales. Con 1, 2 o 3 meses el carril es enorme — ahí es donde se nota:
+  // la barra se dibuja ancha (hasta BARRA_MAX) y centrada en su carril, en
+  // vez de quedar del tamaño de siempre flotando en medio de un hueco. Si los
+  // meses no caben ni al mínimo, el carril se queda en el mínimo y el SVG
+  // crece más que la tarjeta: el contenedor de afuera scrollea, como siempre.
+  // Antes de la primera medición (render en servidor, o el instante previo al
+  // layout effect) `anchoContenedor` es 0 y cae en ese mismo caso compacto,
+  // que se corrige antes de pintar.
+  const disponible = Math.max(0, anchoContenedor - PAD_LEFT - PAD_RIGHT);
+  const cabe = disponible / n >= BARRA_MIN + HUECO_MIN;
+  const carril = cabe ? disponible / n : BARRA_MIN + HUECO_MIN;
+  const ANCHO_BARRA = Math.min(BARRA_MAX, Math.max(BARRA_MIN, carril - HUECO_MIN));
+  // Cuando cabe, el SVG mide EXACTAMENTE el contenedor (no una suma de
+  // carriles con decimales que podría pasarse por una fracción de píxel y
+  // encender un scroll horizontal vacío).
+  const W = cabe ? anchoContenedor : PAD_LEFT + n * carril + PAD_RIGHT;
   const alto = H - PAD_TOP - PAD_BOTTOM;
   const y = (pct: number) => PAD_TOP + alto - (pct / 100) * alto;
+  const xCarril = (i: number) => PAD_LEFT + i * carril;
+  const xBarra = (i: number) => xCarril(i) + (carril - ANCHO_BARRA) / 2;
 
   const ticks = [0, 25, 50, 75, 100];
   const ultimo = historial.length - 1;
@@ -83,7 +133,7 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   // — se vio en vivo cambiando de 24 a 1 mes con una barra recién enfocada.
   const activoValido = activo !== null && activo < historial.length ? activo : null;
   const item = activoValido !== null ? historial[activoValido] : null;
-  const xActivo = activoValido !== null ? PAD_LEFT + activoValido * (ANCHO_BARRA + GAP) + ANCHO_BARRA / 2 : 0;
+  const xActivo = activoValido !== null ? xBarra(activoValido) + ANCHO_BARRA / 2 : 0;
   const yTopActivo =
     item !== null
       ? item.total > 0
@@ -99,22 +149,20 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
   return (
     <div>
       {/* Refetch mantiene el dibujo anterior atenuado en vez de un flash de
-          "Cargando…": cambiar el rango no debe verse como una pantalla nueva. */}
-      <div className={`overflow-x-auto transition-opacity ${cargando ? "opacity-50" : "opacity-100"}`}>
-        {/* El SVG mide W (chico con pocos meses) y NUNCA se estira con
-            `min-w-full`: sin viewBox, CSS estirando la caja del SVG no
-            escala el dibujo, solo agranda el lienzo — el trazo se queda
-            pegado a la izquierda y el resto queda vacío (el defecto real:
-            "no se acomoda" con 1 mes). `w-fit mx-auto` centra el SVG cuando
-            es más angosto que la tarjeta, con márgenes automáticos — que a
-            diferencia de centrar por flex/grid, no rompen el scroll cuando
-            el contenido SÍ desborda (24 meses): el margen simplemente se
-            colapsa a 0 y el contenedor scrollea como siempre. El tooltip
-            vive DENTRO de este envoltorio (no del scroll-container de
-            afuera) para compartir el mismo origen de coordenadas que el
-            SVG — si viviera afuera, el desplazamiento del centrado lo
-            dejaría descuadrado. */}
-        <div className="relative w-fit mx-auto">
+          "Cargando…": cambiar el rango no debe verse como una pantalla nueva.
+          Este div es el que se mide: su clientWidth es el espacio real que
+          hay para repartir en carriles. */}
+      <div
+        ref={contenedorRef}
+        className={`overflow-x-auto transition-opacity ${cargando ? "opacity-50" : "opacity-100"}`}
+      >
+        {/* El SVG mide W — el contenedor entero cuando cabe, más cuando no —
+            y NUNCA se estira con `min-w-full`: sin viewBox, CSS estirando la
+            caja del SVG no escala el dibujo, solo agranda el lienzo. `w-fit`
+            deja este envoltorio del tamaño exacto del SVG para que el tooltip,
+            que vive DENTRO de él (no del scroll-container de afuera), comparta
+            el mismo origen de coordenadas que el dibujo. */}
+        <div className="relative w-fit">
           <svg
             width={W}
             height={H}
@@ -132,7 +180,7 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
             ))}
 
             {historial.map((m, i) => {
-              const x = PAD_LEFT + i * (ANCHO_BARRA + GAP);
+              const x = xBarra(i);
               const sinDato = m.total <= 0;
               const pct = sinDato ? 0 : (m.cumplidos / m.total) * 100;
               const nivel = nivelColorObjetivos(m.cumplidos, m.total);
@@ -184,12 +232,13 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
                     {etiquetaMesCorta(m)}
                   </text>
 
-                  {/* Objetivo de foco/hover: más grande que la marca, incluye el
-                      hueco entre barras. Mismo detalle en teclado que en mouse. */}
+                  {/* Objetivo de foco/hover: el carril entero, no solo la barra —
+                      incluye el hueco entre barras. Mismo detalle en teclado que
+                      en mouse. */}
                   <rect
-                    x={x - GAP / 2}
+                    x={xCarril(i)}
                     y={PAD_TOP}
-                    width={ANCHO_BARRA + GAP}
+                    width={carril}
                     height={alto}
                     fill="transparent"
                     tabIndex={0}
