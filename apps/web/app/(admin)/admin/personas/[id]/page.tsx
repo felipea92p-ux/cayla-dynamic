@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -52,6 +53,33 @@ interface Jornada { fecha: string; entrada_ts: string | null; salida_final_ts: s
 
 type Tab = "ficha" | "desempeno";
 
+// UNA CONSULTA QUE FALLA NO SE PINTA COMO UNA QUE RESPONDIÓ VACÍA.
+//
+// En esta ficha el vacío se lee como buena noticia —«Sin antecedentes
+// disciplinarios. Buena señal.», «Sin ficha cargada», «Sin salario
+// asignado»— y quien la abre puede estar decidiendo si conversa o amonesta a
+// una integrante. Si la consulta del expediente falla y la pantalla dice lo
+// mismo que cuando no hay nada, el falso negativo es silencioso y cae justo
+// sobre la persona por la que había que actuar.
+//
+// Por eso cada sección tiene su propio aviso: dice qué falló, por qué, y —lo
+// que de verdad importa— qué NO significa. Tres estados y tres textos:
+// cargando, error y vacío.
+//
+// Va fuera del componente de la página a propósito: definirlo dentro lo
+// recrearía en cada render (regla react-hooks/static-components).
+function AvisoNoSeCargo({ que, motivo, noSignifica, reintentar }: { que: string; motivo: string; noSignifica: string; reintentar: () => void }) {
+  return (
+    <div className="rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+      <p>No se pudo cargar {que}: {motivo}</p>
+      <p className="mt-1">
+        Esto <strong>no</strong> quiere decir que {noSignifica}.{" "}
+        <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+      </p>
+    </div>
+  );
+}
+
 export default function PerfilPersonaPage() {
   const params = useParams();
   const id = (params?.id as string) ?? "";
@@ -75,6 +103,22 @@ export default function PerfilPersonaPage() {
   const [docs, setDocs] = useState<DocLite[]>([]);
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // ¿Ese `err` es un fallo (se puede reintentar) o una respuesta legítima («no
+  // existe / no tienes permiso»)? Son dos conclusiones distintas y las dos son
+  // accionables: ofrecer «Reintentar» sobre la segunda invitaría a insistir
+  // contra algo que nunca va a cambiar.
+  const [errReintentable, setErrReintentable] = useState(false);
+  // Un error por consulta, porque cada una pinta una sección distinta y el
+  // fallo de una no puede vaciar en silencio a las otras tres.
+  const [errSede, setErrSede] = useState<string | null>(null);
+  const [errFicha, setErrFicha] = useState<string | null>(null);
+  const [errSalario, setErrSalario] = useState<string | null>(null);
+  const [errDocs, setErrDocs] = useState<string | null>(null);
+  // Sube de uno en uno para volver a lanzar la carga desde cualquier
+  // «Reintentar». La carga vive en el efecto (no en un callback) para no
+  // repetir el patrón que react-hooks/set-state-in-effect ya marca abajo.
+  const [intento, setIntento] = useState(0);
+  const reintentar = () => setIntento((n) => n + 1);
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [subiendoFirma, setSubiendoFirma] = useState(false);
@@ -82,15 +126,24 @@ export default function PerfilPersonaPage() {
   useEffect(() => {
     let vivo = true;
     void (async () => {
-      setCargando(true); setErr(null);
+      setCargando(true); setErr(null); setErrReintentable(false);
       const { data: sesion } = await supabase.auth.getSession();
       if (!sesion.session) { router.replace("/admin/login"); return; }
       const { data: p, error: eP } = await supabase.from("personas")
         .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion")
         .eq("id", id).maybeSingle();
-      if (eP || !p) { if (vivo) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); } return; }
+      // La consulta que MANDA en esta pantalla tampoco funde error con vacío.
+      // `eP` (la consulta falló) y `!p` (respondió y no hay fila) llevaban el
+      // mismo texto, así que una sesión vencida o un corte de red se leían como
+      // «esa persona no existe o no tienes permiso para verla»: dos
+      // conclusiones falsas, y las dos accionables.
+      if (eP) { if (vivo) { setErr(`No se pudo cargar a la persona: ${mensajeDeError(eP)}`); setErrReintentable(true); setCargando(false); } return; }
+      if (!p) { if (vivo) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); } return; }
       if (vivo) setPersona(p as Persona);
-      const [{ data: s }, { data: dp }, { data: sal, error: eSal }, { data: dd }] = await Promise.all([
+      // Las cuatro consultas se miran UNA POR UNA. Antes solo se revisaba la
+      // del salario —y su fallo, además, tumbaba la ficha entera—; las otras
+      // tres fallaban en silencio y su sección se pintaba como vacía.
+      const [{ data: s, error: eSedes }, { data: dp, error: eFicha }, { data: sal, error: eSal }, { data: dd, error: eDocs }] = await Promise.all([
         supabase.from("sedes").select("id, codigo"),
         supabase.from("datos_personales")
           .select("nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
@@ -100,19 +153,22 @@ export default function PerfilPersonaPage() {
           .select("id, correlativo, tipo_causal, nivel, estado, creado_at, firmado_at")
           .eq("persona_id", id).order("creado_at", { ascending: false }),
       ]);
-      if (eSal) { if (vivo) { setErr("No se pudo cargar el historial de salario."); setCargando(false); } return; }
       const smap = new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo]));
       if (vivo) {
+        setErrSede(eSedes ? mensajeDeError(eSedes) : null);
+        setErrFicha(eFicha ? mensajeDeError(eFicha) : null);
+        setErrSalario(eSal ? mensajeDeError(eSal) : null);
+        setErrDocs(eDocs ? mensajeDeError(eDocs) : null);
         setSede(smap.get((p as Persona).sede_base_id) ?? "");
-        setFicha((dp as Ficha) ?? null);
-        const hist = (sal as Salario[]) ?? [];
+        setFicha(eFicha ? null : (dp as Ficha) ?? null);
+        const hist = eSal ? [] : (sal as Salario[]) ?? [];
         setSalario(hist.find((x) => !x.vigente_hasta) ?? hist[0] ?? null);
-        setDocs((dd as DocLite[]) ?? []);
+        setDocs(eDocs ? [] : (dd as DocLite[]) ?? []);
         setCargando(false);
       }
     })();
     return () => { vivo = false; };
-  }, [supabase, router, id]);
+  }, [supabase, router, id, intento]);
 
   // El nombre con el que se guarda el PDF de la ficha. Ver
   // use-titulo-documento.ts. Lleva el DNI cuando está cargado, porque una ficha
@@ -134,10 +190,17 @@ export default function PerfilPersonaPage() {
   const [cargandoDes, setCargandoDes] = useState(false);
   const [desCargado, setDesCargado] = useState(false);
   const [errDes, setErrDes] = useState<string | null>(null);
+  // Lo que se cargó A MEDIAS. Las jornadas mandan —si fallan, no hay pestaña—,
+  // pero las otras tres consultas también se miran: si fallan en silencio, lo
+  // que se pinta no es «no había nada», es otra cosa. La peor de las tres son
+  // las tardanzas levantadas: sin ellas, una tardanza YA JUSTIFICADA vuelve a
+  // verse como tardanza y a contarse en el resumen. Un falso positivo contra
+  // una persona es el error que más caro sale acá.
+  const [errParcialDes, setErrParcialDes] = useState<string[]>([]);
 
   const cargarDesempeno = useCallback(async () => {
-    setCargandoDes(true); setErrDes(null);
-    const [{ data, error: eJ }, { data: extra }, { data: objs }, { data: levData }] = await Promise.all([
+    setCargandoDes(true); setErrDes(null); setErrParcialDes([]);
+    const [{ data, error: eJ }, { data: extra, error: eExtra }, { data: objs, error: eObjs }, { data: levData, error: eLev }] = await Promise.all([
       supabase.from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado")
         .eq("persona_id", id).gte("fecha", desde).lte("fecha", hasta).order("fecha"),
@@ -145,7 +208,12 @@ export default function PerfilPersonaPage() {
       supabase.rpc("fn_objetivos_checklist", { p_anio: Number(hasta.slice(0, 4)), p_mes: Number(hasta.slice(5, 7)), p_persona_id: id }),
       supabase.from("tardanzas_justificadas").select("fecha, motivo").eq("persona_id", id).gte("fecha", desde).lte("fecha", hasta),
     ]);
-    if (eJ) { setErrDes(eJ.message); setCargandoDes(false); return; }
+    if (eJ) { setErrDes(mensajeDeError(eJ)); setCargandoDes(false); return; }
+    setErrParcialDes([
+      eLev ? `las tardanzas levantadas (${mensajeDeError(eLev)}) — una tardanza YA justificada se está viendo y contando como tardanza` : "",
+      eExtra ? `las salidas anticipadas (${mensajeDeError(eExtra)}) — la tarjeta del resumen dice «0 de 0 medidos» y la columna «—», aunque las haya` : "",
+      eObjs ? `los objetivos del mes (${mensajeDeError(eObjs)}) — su bloque no aparece, y eso no quiere decir que no tenga` : "",
+    ].filter(Boolean));
     setObjetivos(((objs as unknown as ObjetivoItem[] | null) ?? []).slice());
     const filasExtra = (extra as { fecha: string; minutos_salida_temprana: number }[] | null) ?? [];
     const minutosPorFecha = new Map(filasExtra.map((e) => [e.fecha, e.minutos_salida_temprana]));
@@ -368,7 +436,14 @@ export default function PerfilPersonaPage() {
         {cargando ? (
           <Cargando texto="Cargando el perfil…" />
         ) : err ? (
-          <p className="max-w-xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
+          <div className="max-w-xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p>{err}</p>
+            {errReintentable && (
+              <p className="mt-1">
+                <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+              </p>
+            )}
+          </div>
         ) : persona && (
           <>
             {/* Cabecera */}
@@ -377,7 +452,7 @@ export default function PerfilPersonaPage() {
               <div className="min-w-0">
                 <h1 className="font-serif text-2xl leading-tight">{ficha?.nombre_dni || nombre}</h1>
                 <p className="text-sm text-taupe">
-                  {persona.funcion} · Sede {sede || "—"}
+                  {persona.funcion} · Sede {errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"}
                   {persona.estado !== "activo" && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">{persona.estado}</span>}
                   {persona.sueldo_fijo && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">sueldo fijo</span>}
                   {/* Estar marcada como dirección le quita un derecho —no genera
@@ -395,6 +470,16 @@ export default function PerfilPersonaPage() {
                   )}
                   {!persona.en_planilla && <span className="ml-2 rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">fuera de planilla</span>}
                 </p>
+                {/* El motivo va en el CUERPO, no en un `title`. Esta ficha se
+                    abre en el iPad de la sede —donde no hay puntero que
+                    despliegue un tooltip— y se imprime en PDF, donde un `title`
+                    tampoco sale: ahí «no se pudo cargar» quedaba sin porqué. */}
+                {errSede && (
+                  <p className="mt-0.5 text-xs text-rojo">
+                    No se pudo cargar la sede: {errSede}. Esto <strong>no</strong> quiere decir que no tenga sede asignada.{" "}
+                    <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+                  </p>
+                )}
                 <p className="mt-0.5 text-xs text-taupe">DNI {persona.documento ?? "—"} · Ingresó {fechaCorta(persona.fecha_ingreso)}</p>
               </div>
             </div>
@@ -414,7 +499,9 @@ export default function PerfilPersonaPage() {
                       <h2 className="font-serif text-lg">Datos personales</h2>
                       <Link href="/admin/datos-personales" className="no-print text-xs text-tinta hover:underline">Editar →</Link>
                     </div>
-                    {ficha ? (
+                    {errFicha ? (
+                      <AvisoNoSeCargo que="la ficha" motivo={errFicha} noSignifica="esté sin llenar" reintentar={reintentar} />
+                    ) : ficha ? (
                       <div>
                         <Dato label="Celular" valor={ficha.celular} />
                         <Dato label="Correo" valor={persona.email} />
@@ -439,7 +526,9 @@ export default function PerfilPersonaPage() {
                       <h2 className="font-serif text-lg">Compensación</h2>
                       <Link href="/admin/planilla" className="no-print text-xs text-tinta hover:underline">Planilla →</Link>
                     </div>
-                    {salario ? (
+                    {errSalario ? (
+                      <AvisoNoSeCargo que="el historial de salario" motivo={errSalario} noSignifica="no tenga sueldo asignado" reintentar={reintentar} />
+                    ) : salario ? (
                       <div>
                         <Dato label="Sueldo vigente" valor={<strong>{soles(salario.salario_mensual_soles)}</strong>} />
                         <Dato label="Rango" valor={salario.rango} />
@@ -457,7 +546,9 @@ export default function PerfilPersonaPage() {
                       <h2 className="font-serif text-lg">Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</h2>
                       <Link href="/admin/disciplina" className="no-print text-xs text-tinta hover:underline">Disciplina →</Link>
                     </div>
-                    {docs.length === 0 ? (
+                    {errDocs ? (
+                      <AvisoNoSeCargo que="el legajo disciplinario" motivo={errDocs} noSignifica="no tenga antecedentes" reintentar={reintentar} />
+                    ) : docs.length === 0 ? (
                       <p className="text-sm text-taupe">Sin antecedentes disciplinarios. Buena señal.</p>
                     ) : (
                       <ul className="divide-y">
@@ -534,6 +625,16 @@ export default function PerfilPersonaPage() {
                   <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                     No se pudo cargar el desempeño: {errDes}{" "}
                     <button onClick={() => void cargarDesempeno()} className="font-medium underline">Reintentar</button>
+                  </div>
+                )}
+
+                {errParcialDes.length > 0 && (
+                  <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                    <p>El periodo se cargó, pero faltó parte de lo que se muestra:</p>
+                    <ul className="mt-1 list-disc pl-5">
+                      {errParcialDes.map((t) => <li key={t}>No se pudieron cargar {t}.</li>)}
+                    </ul>
+                    <button onClick={() => void cargarDesempeno()} className="mt-1 font-medium underline">Reintentar</button>
                   </div>
                 )}
 
