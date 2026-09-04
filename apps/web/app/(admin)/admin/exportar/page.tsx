@@ -4,12 +4,9 @@ import { useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { traerTodo } from "@/lib/admin/traer-todo";
-import { rangoDelDiaLima, TIPO_MARCA_LABELS, type TipoMarca } from "@cayla-dynamic/shared";
+import { hoyLima, puedeExportarAsistencia, rangoDelDiaLima, TIPO_MARCA_LABELS, type TipoMarca } from "@cayla-dynamic/shared";
+import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
-
-function fechaHoyISO() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 interface JornadaFila {
   fecha: string;
@@ -73,8 +70,15 @@ const ESTADO_REVISION_LABELS: Record<string, string> = {
 type Exportacion = "jornadas" | "marcajes" | "correcciones";
 
 export default function ExportarPage() {
-  const [desde, setDesde] = useState(fechaHoyISO());
-  const [hasta, setHasta] = useState(fechaHoyISO());
+  const yo = usePersonaActual();
+  const rol = yo?.rol ?? null;
+  const puedeExportar = puedeExportarAsistencia(rol);
+  // Hoy EN LIMA, no en UTC. Iba con `new Date().toISOString()`, que a partir de
+  // las 7pm de Perú ya dice el día siguiente: la encargada que cierra su día por
+  // la noche pedía «hoy» y se bajaba un archivo vacío, indistinguible de uno
+  // lleno. El resto de la pantalla ya convierte con `rangoDelDiaLima`.
+  const [desde, setDesde] = useState(hoyLima());
+  const [hasta, setHasta] = useState(hoyLima());
   const [cargando, setCargando] = useState<Exportacion | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -274,7 +278,14 @@ export default function ExportarPage() {
       campo_modificado: c.campo_modificado,
       valor_anterior: c.valor_anterior ?? "",
       valor_nuevo: c.valor_nuevo ?? "",
-      corregido_por: nombrePorId.get(c.corregido_por) ?? "",
+      // `corregido_por` es `not null` desde la 0001, así que un nombre que no
+      // está en el mapa NUNCA significa «no lo corrigió nadie»: significa que la
+      // RLS de `personas` no nos devuelve a esa persona. A una encargada le pasa
+      // siempre que la corrección la hizo DO —que está en Central— porque
+      // `personas_select_supervisor` solo le da su propia sede. Y este archivo es
+      // justo el que responde «¿quién editó esto?»: dejarlo vacío se lee como
+      // «nadie», que es peor que declarar la ausencia.
+      corregido_por: nombrePorId.get(c.corregido_por) ?? "(fuera de tu sede)",
       motivo: c.motivo,
     }));
 
@@ -290,6 +301,21 @@ export default function ExportarPage() {
 
     descargarCsv(`dynamic-correcciones-${desde}_a_${hasta}.csv`, csv);
     setCargando(null);
+  }
+
+  // El menú ya no pinta este renglón para quien no puede, pero el menú no es
+  // seguridad: quien escriba la URL a mano llega igual. Misma forma que
+  // Horarios, Feriados y Datos personales — mientras el rol carga (`null`) no
+  // se decide nada, para no parpadear un «no puedes» a quien sí puede.
+  if (rol !== null && !puedeExportar) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <AdminNav />
+        <main className="flex flex-1 items-center justify-center p-6">
+          <p className="max-w-md text-center text-taupe">No tienes permiso para exportar datos.</p>
+        </main>
+      </div>
+    );
   }
 
   return (
