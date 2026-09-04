@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0363 — Dos toques seguidos en el terminal no dejan dos marcas
+-- 0366 — Dos toques seguidos en el terminal no dejan dos marcas
 -- ----------------------------------------------------------------------------
 -- QUÉ PROMETE: que una integrante que toca «Entrada» (o «Salida») dos veces
 -- seguidas en el terminal —porque la pantalla tardó, porque el dedo rebotó,
@@ -63,7 +63,7 @@
 -- 0320 (la marca real gana al robot), la 0353 (confirmo_sin_refrigerio), el
 -- camino de marcas atrasadas de la cola offline ni las correcciones. Todo el
 -- cuerpo es el de la 0353 byte a byte salvo los dos bloques marcados
--- «CAMBIO 0363».
+-- «CAMBIO 0366».
 --
 -- SE REVIERTE: `create or replace` con el cuerpo de la 0353 (sección 2).
 --
@@ -99,7 +99,7 @@ declare
   v_jornada_estado text;                -- 0320: ¿la cerró el robot o sigue abierta?
   v_sintetica marcajes;                 -- 0320: la salida_final que puso el auto-cierre
 begin
-  -- ⇩⇩⇩ CAMBIO 0363 ⇩⇩⇩ CANDADO DE TRANSACCIÓN POR PERSONA.
+  -- ⇩⇩⇩ CAMBIO 0366 ⇩⇩⇩ CANDADO DE TRANSACCIÓN POR PERSONA.
   --
   -- Dos toques seguidos llegan como dos llamadas RPC casi simultáneas, y cada
   -- llamada es su propia transacción. Sin esto, las dos leen el día ANTES de
@@ -156,7 +156,7 @@ begin
     raise exception 'motivo_otro es obligatorio para salida_otro';
   end if;
 
-  -- ⇩⇩⇩ CAMBIO 0363 ⇩⇩⇩ DOS TOQUES SEGUIDOS SON LA MISMA MARCA.
+  -- ⇩⇩⇩ CAMBIO 0366 ⇩⇩⇩ DOS TOQUES SEGUIDOS SON LA MISMA MARCA.
   --
   -- Si esta persona ya tiene, del terminal y sin anular, una marca del MISMO
   -- tipo a dos minutos o menos de esta, esta es un toque repetido: se devuelve
@@ -444,7 +444,7 @@ grant execute on function fn_registrar_marcaje(uuid, tipo_marca, timestamptz, uu
 revoke execute on function fn_registrar_marcaje(uuid, tipo_marca, timestamptz, uuid, origen_marca, uuid, uuid, text, boolean) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (363, 'dos_toques_seguidos_no_dejan_dos_marcas')
+values (366, 'dos_toques_seguidos_no_dejan_dos_marcas')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
@@ -453,7 +453,7 @@ notify pgrst, 'reload schema';
 -- El cuerpo nuevo lleva el marcador y el candado; el de la 0353 no los tenía.
 -- Y sigue habiendo UNA sola fn_registrar_marcaje: la firma no cambió.
 select
-  position('CAMBIO 0363' in p.prosrc) > 0                as tiene_el_cambio,
+  position('CAMBIO 0366' in p.prosrc) > 0                as tiene_el_cambio,
   position('pg_advisory_xact_lock' in p.prosrc) > 0      as tiene_el_candado,
   (select count(*) from pg_proc where proname = 'fn_registrar_marcaje') as una_sola_version
 from pg_proc p

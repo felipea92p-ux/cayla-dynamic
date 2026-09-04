@@ -51,7 +51,7 @@ terminal, sede del terminal, contraseñas, liquidaciones…) siguen abiertos.
 | 15 Objetivos: «Copiar del mes anterior» duplicaba con doble clic | candado de transacción por persona antes de preguntar si el mes está vacío + `not exists` en el insert; pestillo en la pantalla | 0361 · 287 |
 | 16-18 Alertas por correo: doble envío, corte a los 10 s, fallo perdido para siempre | reserva compare-and-set antes de enviar (`fn_alertas_reservar`), `maxDuration = 60`, reintento hasta 3, ventana de 7 días, Sentry por cada fallo, `fn_alertas_despacho_resumen` + tarjeta en la Bandeja para DO | 0362 · 288 (y la 281 ajustada) |
 | 20 Cuatro funciones de turnos sin revoke de PUBLIC/anon | **Refutado con medición**: ya las cierra la 0076 (bucle + `alter default privileges`), `anon = false` en las cuatro; anotado en `hallazgos-abiertos.md` con la consulta para producción | — |
-| 21 Doble toque en el terminal dejaba dos entradas (y dos salidas finales) | `fn_registrar_marcaje` toma un candado por persona y, solo para el terminal, devuelve la marca del mismo tipo a ±2 min sin otra en medio | 0363 · 289 |
+| 21 Doble toque en el terminal dejaba dos entradas (y dos salidas finales) | `fn_registrar_marcaje` toma un candado por persona y, solo para el terminal, devuelve la marca del mismo tipo a ±2 min sin otra en medio | 0366 · 289 |
 | 22 «Nuevo PIN» hasheaba en el navegador y escribía `pin_hash` por REST | `fn_regenerar_pin` genera y hashea en Postgres (bcrypt `$2a$10$`, comprobado contra la bcryptjs del terminal); trigger que cierra la columna a `authenticated`/`anon` | 0364 · 290 |
 | 23 Provisiones: sin tramo de salario salía S/ 0.00 igual que «no le toca» | `fn_provisiones` gana `sin_salario_vigente`, `dias_sin_salario` y `personas_sin_salario`; insignia, aviso y CSV. **El número no cambia** (medido fila por fila) | 0365 · 291 |
 | 24 La casilla decía «S/ 113 fijos por periodo» | `montoAsignacionFamiliar` lee `parametros_laborales` (respaldo `configuracion`); la etiqueta muestra el monto real o manda a Configuración | — (solo panel) |
@@ -72,10 +72,13 @@ partida local está en cada encabezado; `donde-vive.sh` imprime la consulta):
 3. 0362 — `fn_alertas_email_pendientes` (esperado: el de la 0359) y
    `fn_marcar_alerta_resultado` (0354). **Pegarla ANTES de desplegar el panel**:
    la ruta nueva llama a `fn_alertas_reservar` y sin ella el cron responde 500.
-4. 0363 — `fn_registrar_marcaje` (esperado: el de la 0353).
-5. 0364 — funciones nuevas: confirmar que `fn_regenerar_pin` no existe todavía.
+4. 0364 — funciones nuevas: confirmar que `fn_regenerar_pin` no existe todavía.
    También antes de desplegar el panel: «Nuevo PIN» la llama.
-6. 0365 — `fn_provisiones` (esperado: el de la 0338) **y su `proacl`**.
+5. 0365 — `fn_provisiones` (esperado: el de la 0338) **y su `proacl`**.
+6. 0366 — `fn_registrar_marcaje` (esperado: el de la 0353). Nació como 0363 y se
+   renumeró: `claude/error-investigation-17ac66` había tomado el 0363 veintisiete
+   segundos antes —para el grant de `fn_provisiones`, la misma línea que trae la
+   0365— y el hook de numeración no alcanzó a verlo en ese push.
 
 ⚠️ **Provisiones puede llevar rota en producción desde la 0338 (2026-09-01).**
 La 0338 hizo `drop function fn_provisiones(date)` y creó la firma `(date, date)`
@@ -85,7 +88,9 @@ sin `grant execute … to authenticated`; con la revocación por defecto de la
 deja el grant escrito. Para saber si producción lo tiene hoy:
 `select has_function_privilege('authenticated', 'fn_provisiones(date, date)', 'execute');`
 — si dice `false`, la pantalla de Provisiones no abre desde el 1 de septiembre y
-la 0365 lo arregla al pegarla.
+la 0365 lo arregla al pegarla. La rama `claude/error-investigation-17ac66` llegó
+a lo mismo por otro camino y trae el grant solo, como su 0363: si se pega esa
+primero, la línea de la 0365 queda redundante e inofensiva.
 
 **Visto de paso, sin tocar (para su propio lote):**
 

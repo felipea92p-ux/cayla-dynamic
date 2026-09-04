@@ -6,7 +6,7 @@
 -- ============================================================================
 -- 289_dos_toques_seguidos_no_dejan_dos_marcas.test.sql
 -- ============================================================================
--- Cubre la 0363 (hallazgo 21 de la auditoría del 2026-09-03/04): un doble
+-- Cubre la 0366 (hallazgo 21 de la auditoría del 2026-09-03/04): un doble
 -- toque en el terminal —dos llamadas con client_uuid DISTINTO, del mismo tipo,
 -- a segundos de distancia— deja UNA marca, y la segunda llamada devuelve la
 -- misma fila que la primera (éxito silencioso, como un reintento).
@@ -27,7 +27,7 @@
 -- Lo que esta prueba NO puede medir es la carrera de verdad —dos
 -- transacciones a la vez—: eso lo cuida el pg_advisory_xact_lock, cuya
 -- presencia se comprueba en el prosrc, y se midió a mano con dos sesiones de
--- psql al escribir la 0363 (ver su encabezado y el reporte del paquete).
+-- psql al escribir la 0366 (ver su encabezado y el reporte del paquete).
 -- ============================================================================
 begin;
 select plan(16);
@@ -100,7 +100,7 @@ select throws_like(
 );
 
 -- ── 3 · Doble toque en la salida final: el hueco más ancho ─────────────────
--- Antes de la 0363 esto dejaba DOS salidas finales sin ninguna carrera:
+-- Antes de la 0366 esto dejaba DOS salidas finales sin ninguna carrera:
 -- con la jornada cerrada v_esperado es null y salida_final se acepta con null.
 select fn_registrar_marcaje(
   '00000000-0000-0000-0000-000000289004', 'salida_final',
@@ -138,15 +138,15 @@ select is(
   'repetir el MISMO client_uuid sigue devolviendo la misma fila (idempotencia de siempre)'
 );
 
--- ── 5, 6 y 7 · La función es la de la 0363, y es una sola ─────────────────
+-- ── 5, 6 y 7 · La función es la de la 0366, y es una sola ─────────────────
 select ok(
   (select prosrc from pg_proc where proname = 'fn_registrar_marcaje') like '%pg_advisory_xact_lock%',
   'fn_registrar_marcaje toma el candado de transacción por persona'
 );
 
 select ok(
-  (select prosrc from pg_proc where proname = 'fn_registrar_marcaje') like '%CAMBIO 0363%',
-  'fn_registrar_marcaje lleva el marcador CAMBIO 0363'
+  (select prosrc from pg_proc where proname = 'fn_registrar_marcaje') like '%CAMBIO 0366%',
+  'fn_registrar_marcaje lleva el marcador CAMBIO 0366'
 );
 
 select is(
@@ -185,7 +185,7 @@ select is(
 );
 
 -- ── 9 · El robot NO es un toque anterior: la salida real lo reemplaza ──────
--- Sin el filtro `m.origen = 'terminal'` de la 0363, la salida real de las
+-- Sin el filtro `m.origen = 'terminal'` de la 0366, la salida real de las
 -- 21:01 «encontraría» la salida_final sintética de las 21:00 del auto-cierre,
 -- la devolvería y nunca llegaría a la reconciliación que existe para
 -- reemplazarla: la hora real de la persona se perdería. Se imita al robot con
