@@ -3,7 +3,16 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 
 // Despacha por correo lo que hay pendiente en `alertas`, a la encargada de la
-// sede de la persona involucrada. Lo llama el cron de Vercel (vercel.json).
+// sede de la persona involucrada. Lo llama el cron de Vercel (vercel.json),
+// una vez al día a las 12:00 UTC (07:00 Lima).
+//
+// UNA VEZ AL DÍA, NO CADA POCOS MINUTOS — y no es la frecuencia ideal, es la
+// que permite el plan Hobby de Vercel: como mucho un cron por proyecto, y
+// como mucho una vez al día. El primer intento fue cada 10 minutos y el
+// despliegue del PR #162 falló en seco, señalando derecho a
+// https://vercel.com/docs/cron-jobs/usage-and-pricing. Con esto, el aviso es
+// más un digest de lo que pasó ayer que un aviso instantáneo — que el plan
+// pase a Pro es lo único que lo vuelve inmediato de verdad.
 //
 // La variable se llama `CRON_SECRET` y no algo propio de esta ruta (a
 // diferencia de `ESPEJO_TOKEN` en /api/espejo) porque Vercel reconoce ese
