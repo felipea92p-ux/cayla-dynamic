@@ -1308,6 +1308,9 @@ export default function ContratosPage() {
                   </label>
                   <label className="block text-sm">
                     Anexo I — objetivo formativo general
+                    {/* Un Enter acá llega al papel como salto de línea, no
+                        colapsado a un espacio dentro del párrafo del Anexo I
+                        (ver parrafoDesdeTexto en contrato-texto). */}
                     <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
                       rows={2}
