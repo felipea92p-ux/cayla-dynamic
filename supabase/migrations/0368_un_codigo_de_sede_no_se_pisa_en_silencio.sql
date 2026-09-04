@@ -269,7 +269,7 @@ select
   position('CAMBIO 0368' in p.prosrc) > 0                                  as tiene_el_cambio,
   (select count(*) from pg_proc where proname = 'fn_guardar_sede')         as una_sola_version,
   pg_get_function_identity_arguments(p.oid)                                as firma,
-  (select count(*) from migraciones_aplicadas where numero = 367) = 1      as anotada,
+  (select count(*) from migraciones_aplicadas where numero = 368) = 1      as anotada,
   has_function_privilege('authenticated', p.oid, 'execute')                as la_pantalla_puede,
   not has_function_privilege('anon', p.oid, 'execute')                     as anon_no_puede,
   exists (
