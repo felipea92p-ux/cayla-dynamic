@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, hoyLima, rangoDelDiaLima, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
+import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima, hoyLima, rangoDelDiaLima, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -20,20 +20,56 @@ function construirTs(fecha: string, horaHHMM: string) {
   return `${fecha}T${horaHHMM}:00-05:00`;
 }
 // Un timestamptz guardado como texto crudo en la auditoría (ej. "2026-07-18
-// 19:15:00+00") o un ISO -> hora Lima "hh:mm a.m.". Tolera el espacio en vez de
-// T y offsets cortos como "-05"; si aun así no parsea, muestra el texto crudo.
+// 19:15:00+00") o un ISO -> Date. Tolera el espacio en vez de T y offsets
+// cortos como "-05". Devuelve null si aun así no parsea.
+function tsAuditoria(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const d = new Date(s.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00"));
+  return isNaN(d.getTime()) ? null : d;
+}
+// Lo mismo -> hora Lima "hh:mm a.m."; si no parsea, muestra el texto crudo.
 function horaTextoLima(s: string | null): string {
   if (!s) return "—";
-  const t = s.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
-  const d = new Date(t);
-  if (isNaN(d.getTime())) return s;
+  const d = tsAuditoria(s);
+  if (!d) return s;
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
+// Y el DÍA de Lima de ese mismo timestamp, corto: "28 ago." (la abreviatura la
+// pone es-PE, con su punto).
+//
+// El día se pregunta a `fechaLima` —la única que sabe cuándo empieza el día en
+// Perú— y recién esa fecha ya resuelta se formatea, en UTC, para que ponerle
+// otra vez la zona no la corra un día hacia atrás (el mismo motivo que explica
+// `nombreDelMesLima` en fecha-lima.ts).
+//
+// Lleva el año solo cuando no es el de hoy: el historial trae las últimas 30
+// correcciones de la persona, así que puede cruzar un fin de año, y "28 ago" a
+// secas dejaría dos días distintos escritos igual. `forzarAnio` existe para el
+// caso en que se muestran DOS días juntos y uno de ellos ya lo lleva: ponérselo
+// a uno solo deja la pareja asimétrica ("31 dic. 2025 → 1 ene.") justo en el
+// cambio de año, que es cuando más falta hace leerlo.
+function diaTextoLima(s: string | null | undefined, forzarAnio = false): string | null {
+  const d = tsAuditoria(s);
+  if (!d) return null;
+  const [y, m, dd] = fechaLima(d).split("-").map(Number);
+  const formato: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", timeZone: "UTC" };
+  if (forzarAnio || y !== anioLima()) formato.year = "numeric";
+  return new Intl.DateTimeFormat("es-PE", formato).format(new Date(Date.UTC(y, m - 1, dd)));
+}
 // Sello de auditoría: cuándo se hizo el cambio (fecha corta + hora Lima).
+//
+// Con la misma regla del año que `diaTextoLima`, y por el mismo motivo: la fila
+// enfrenta dos fechas —el día del marcaje corregido y el día en que alguien lo
+// corrigió— y dejar el año en una sola vuelve ambigua justamente a la que dice
+// cuándo se tocó la planilla.
 function selloLima(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+  const formato: Intl.DateTimeFormatOptions = {
+    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
+  };
+  if (Number(fechaLima(d).slice(0, 4)) !== anioLima()) formato.year = "numeric";
+  return new Intl.DateTimeFormat("es-PE", formato).format(d);
 }
 
 // CAMBIO · esta pantalla calculaba "qué le tocaba ese día" con su propia
@@ -103,23 +139,102 @@ interface Auditoria {
   motivo: string;
   corregido_por: string; // id de quien hizo el cambio
 }
-// Traduce una fila de auditoría a lenguaje llano: qué acción fue y su detalle.
-// El tipo de marcaje ya viene embebido en el valor de agregado/eliminado
-// ("entrada @ ts"); para una hora corregida solo cambian las horas.
-function describirCambio(row: Auditoria): { accion: string; detalle: string } {
+// Traduce una fila de auditoría a lenguaje llano: qué acción fue, DE QUÉ DÍA y
+// su detalle. El tipo de marcaje ya viene embebido en el valor de
+// agregado/eliminado ("entrada @ ts"); para una hora corregida solo cambian las
+// horas.
+//
+// CAMBIO · `cuando` es nuevo (hallazgo 30 de la auditoría del 2026-09-03/04).
+// Hasta hoy los casos que sí estaban escritos formateaban solo la HORA del
+// timestamp y tiraban el día, aunque el día viniera dentro del mismo valor: el
+// 3 de septiembre se corregía la salida del 28 de agosto y el historial decía
+// «Hora corregida · 06:00 p. m. → 07:30 p. m.», sin decir qué jornada se había
+// tocado. Este historial es el rastro de `correcciones_auditoria`, que existe
+// justamente para auditar, y sin la fecha no se puede.
+//
+// Y peor: `marcaje_anulado` y `auto_cierre_reemplazado` NO tenían rama, así que
+// caían al último `return` y mostraban el timestamp CRUDO, en UTC — que para
+// cualquier marca de la tarde-noche de Lima nombra el DÍA SIGUIENTE. Anular es,
+// además, lo único que hace el botón de esta pantalla: borrar marcas no se hace
+// desde la 0081, así que la rama que se había escrito primero (`eliminado`) era
+// la única que ninguna pantalla produce. Se enumeran acá por eso: qué escribe
+// cada función se lee en la migración, no se supone por el nombre del campo.
+//
+// El día del marcaje CORREGIDO y el día en que se hizo la corrección son dos
+// cosas distintas, y en la fila se ven las dos: esta va pegada a la acción y la
+// otra al sello de la derecha, que dice «corregido …» para que no se confundan.
+// Una hora que pasó a ser otra. Si las dos caen el mismo día de Lima, ese día se
+// dice una vez y va en `cuando`; si la marca se movió de un día a otro —lo que
+// cambia DOS jornadas— los dos días van dentro del detalle, cada uno pegado a su
+// hora, porque decir «del 28 ago» a secas escondería justo el cambio que importa.
+function cambioDeHora(accion: string, tsAntes: string | null, tsDespues: string | null) {
+  const diaAntes = diaTextoLima(tsAntes);
+  const diaDespues = diaTextoLima(tsDespues);
+  if (diaAntes && diaDespues && diaAntes !== diaDespues) {
+    // Si uno de los dos ya lleva año (o sea, el movimiento cruza el fin de año),
+    // lo llevan los dos: si no, la pareja sale «31 dic. 2025 → 1 ene.».
+    const cruzaAnio = /\d{4}/.test(diaAntes) || /\d{4}/.test(diaDespues);
+    const antes = cruzaAnio ? diaTextoLima(tsAntes, true)! : diaAntes;
+    const despues = cruzaAnio ? diaTextoLima(tsDespues, true)! : diaDespues;
+    return {
+      accion,
+      cuando: null,
+      detalle: `${antes}, ${horaTextoLima(tsAntes)} → ${despues}, ${horaTextoLima(tsDespues)}`,
+    };
+  }
+  return {
+    accion,
+    cuando: diaAntes ?? diaDespues,
+    detalle: `${horaTextoLima(tsAntes)} → ${horaTextoLima(tsDespues)}`,
+  };
+}
+
+function describirCambio(row: Auditoria): { accion: string; cuando: string | null; detalle: string } {
   const lblTipo = (t?: string | null) => (t && TIPO_MARCA_LABELS[t as TipoMarca]) || t || "marcaje";
+  const tsDe = (v: string | null) => (v ?? "").split(" @ ")[1] ?? null;
   if (row.campo_modificado === "timestamp_marca") {
-    return { accion: "Hora corregida", detalle: `${horaTextoLima(row.valor_anterior)} → ${horaTextoLima(row.valor_nuevo)}` };
+    return cambioDeHora("Hora corregida", row.valor_anterior, row.valor_nuevo);
+  }
+  // El terminal cambió la salida final que había puesto el auto-cierre por la
+  // hora real en que se cerró tienda. Los dos valores traen "tipo @ timestamp",
+  // así que antes salían los DOS en UTC crudo — el mismo defecto, por duplicado.
+  if (row.campo_modificado === "auto_cierre_reemplazado") {
+    return cambioDeHora("Salida final repuesta", tsDe(row.valor_anterior), tsDe(row.valor_nuevo));
   }
   if (row.campo_modificado === "marcaje_agregado") {
     const [tipo, ts] = (row.valor_nuevo ?? "").split(" @ ");
-    return { accion: "Marcaje agregado", detalle: `${lblTipo(tipo)} a las ${horaTextoLima(ts)}` };
+    return { accion: "Marcaje agregado", cuando: diaTextoLima(ts), detalle: `${lblTipo(tipo)} a las ${horaTextoLima(ts)}` };
   }
+  // Anular es lo que HACE de verdad esta pantalla: desde la 0081 las marcas no
+  // se borran, se anulan (el botón de la fila llama a `fn_anular_marcaje`).
+  // `valor_anterior` trae "tipo @ timestamp" igual que las de arriba, y
+  // `valor_nuevo` es la palabra "anulada" — que no aporta nada al detalle.
+  if (row.campo_modificado === "marcaje_anulado") {
+    const [tipo, ts] = (row.valor_anterior ?? "").split(" @ ");
+    return { accion: "Marcaje anulado", cuando: diaTextoLima(ts), detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
+  }
+  // Y su vuelta atrás. Acá `valor_anterior` es "anulada: <por qué se anuló>" y
+  // `valor_nuevo` el tipo de marca: NO hay timestamp en ninguno de los dos, así
+  // que `cuando` va en null a propósito — no es un olvido, es que la fila no
+  // guarda el día. Se sigue viendo en la marca misma, arriba, destachada.
+  if (row.campo_modificado === "marcaje_reactivado") {
+    const motivoAnulacion = (row.valor_anterior ?? "").replace(/^anulada:\s*/i, "").trim();
+    return {
+      accion: "Marcaje reactivado",
+      cuando: null,
+      detalle: motivoAnulacion
+        ? `${lblTipo(row.valor_nuevo)} — se había anulado por “${motivoAnulacion}”`
+        : lblTipo(row.valor_nuevo),
+    };
+  }
+  // Ninguna pantalla borra marcas hoy —`fn_eliminar_marcaje` no la llama nadie
+  // desde la 0081—, pero la tabla guarda filas viejas de cuando sí se borraban,
+  // y el historial no está acotado por fecha. Se queda por ellas.
   if (row.campo_modificado === "marcaje_eliminado") {
     const [tipo, ts] = (row.valor_anterior ?? "").split(" @ ");
-    return { accion: "Marcaje eliminado", detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
+    return { accion: "Marcaje eliminado", cuando: diaTextoLima(ts), detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
   }
-  return { accion: row.campo_modificado, detalle: `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}` };
+  return { accion: row.campo_modificado, cuando: null, detalle: `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}` };
 }
 
 // Tipos que un admin puede agregar manualmente (los pares salida/retorno y entrada/salida final)
@@ -770,15 +885,20 @@ export default function CorreccionesPage() {
               ) : (
                 <ul className="divide-y">
                   {auditoria.map((row) => {
-                    const { accion, detalle } = describirCambio(row);
+                    const { accion, cuando, detalle } = describirCambio(row);
                     return (
                       <li key={row.id} className="px-4 py-3 text-sm">
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                          {/* Izquierda: el día del MARCAJE que se tocó. Derecha: cuándo se
+                              hizo la corrección — de ahí el «corregido», que antes faltaba y
+                              dejaba las dos fechas pareciendo la misma. */}
                           <span className="font-medium">
-                            {accion} <span className="font-normal text-taupe">· {detalle}</span>
+                            {accion}
+                            {cuando && <span className="font-normal text-taupe"> · del {cuando}</span>}
+                            <span className="font-normal text-taupe"> · {detalle}</span>
                           </span>
                           <span className="text-xs text-taupe">
-                            {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "otra persona"}
+                            corregido {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "otra persona"}
                           </span>
                         </div>
                         <p className="mt-1 text-taupe">“{row.motivo}”</p>

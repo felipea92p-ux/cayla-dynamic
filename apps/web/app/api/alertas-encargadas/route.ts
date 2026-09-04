@@ -26,11 +26,29 @@ import * as Sentry from "@sentry/nextjs";
 // Hasta que haya una app real con `push_tokens`, todo pendiente sale por
 // correo, que es el único camino de entrega que hoy existe de verdad.
 
+//
+// CÓMO SE EVITA MANDAR DOS VECES EL MISMO CORREO (0362, hallazgos 16-18 de la
+// auditoría del 2026-09-03/04). Cada fila se RESERVA antes de enviarla con
+// `fn_alertas_reservar`, que es un compare-and-set en la base: solo una
+// ejecución consigue el `true`. Si dos invocaciones se solapan —un reintento
+// del cron, un redeploy que dispara la ruta dos veces— las dos listan las
+// mismas filas, pero la segunda recibe `false` en cada una y las salta. Y
+// como la marca queda ANTES del envío, si esta función muere a mitad del
+// lote solo la fila en vuelo queda 'procesando' (la base la reintenta sola
+// pasada una hora); las ya enviadas dicen 'enviado' y no se repiten mañana.
+
 const CRON_SECRET = process.env.CRON_SECRET;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM ?? "Dynamic <onboarding@resend.dev>";
 
 export const dynamic = "force-dynamic";
+
+// 60 s es el MÁXIMO que permite el plan Hobby de Vercel para una función. Sin
+// declararlo, el tope es 10 s, y con ~15-20 pendientes acumulados (un fin de
+// semana sin cron) el lote en serie se pasaba y la función moría a medias.
+// No hace falta más que 60: con el compare-and-set de arriba, lo que no
+// alcance a salir hoy sigue 'pendiente' y sale mañana — sin duplicar nada.
+export const maxDuration = 60;
 
 interface AlertaPendiente {
   alerta_id: string;
@@ -40,6 +58,17 @@ interface AlertaPendiente {
   sede_codigo: string;
   destinatarios: string[];
   destinatarios_nombres: string[];
+  /** Cuántas veces ya se intentó (0362). El intento de esta vuelta es `intentos + 1`. */
+  intentos: number;
+  /** Estado en que estaba al listarla: 'pendiente', 'fallido' (reintento) o 'procesando' (quedó de un corte). */
+  estado_previo: string;
+}
+
+interface FalloDeEnvio {
+  alerta_id: string;
+  tipo: string;
+  intento: number;
+  error: string;
 }
 
 function textoDeFecha(payload: Record<string, unknown>): string {
@@ -131,24 +160,71 @@ export async function GET(req: Request) {
     if (error) throw new Error(error.message);
 
     const pendientes = (data ?? []) as AlertaPendiente[];
-    let enviadas = 0, fallidas = 0, sinDestinatario = 0;
+    let enviadas = 0, fallidas = 0, sinDestinatario = 0, tomadasPorOtra = 0, reintentos = 0;
+    const detalleFallos: FalloDeEnvio[] = [];
+    // Sedes sin encargada con correo activo: ese fallo no pasa por Resend ni
+    // por Sentry como excepción, así que si no se avisa aparte, al tercer
+    // día la fila es definitiva y nadie sabe que la causa está en Equipo.
+    const sedesSinDestinatario = new Set<string>();
 
     for (const a of pendientes) {
+      // La reserva va PRIMERO, antes de mirar destinatarios o de mandar nada:
+      // si otra ejecución ya la tomó, acá no se toca ni se cuenta como fallo.
+      const { data: reservada, error: errorReserva } = await sb.rpc("fn_alertas_reservar", { p_id: a.alerta_id });
+      if (errorReserva) throw new Error(errorReserva.message);
+      if (reservada !== true) { tomadasPorOtra++; continue; }
+
+      // Las que venían 'procesando' son las que una ejecución anterior dejó a
+      // medias: la base las volvió a soltar pasada una hora. No es un error de
+      // hoy, pero conviene saber que ayer hubo un corte. Se cuentan DESPUÉS de
+      // reservar, para no contar la que otra ejecución ya retomó.
+      if (a.estado_previo === "procesando") reintentos++;
+
+      const intento = a.intentos + 1;
+
       if (a.destinatarios.length === 0) {
         sinDestinatario++;
+        sedesSinDestinatario.add(a.sede_codigo);
         await sb.rpc("fn_marcar_alerta_resultado", {
-          p_id: a.alerta_id, p_exito: false, p_nota: "sin encargada con correo activo en esa sede",
+          p_id: a.alerta_id, p_exito: false, p_nota: `intento ${intento}: sin encargada con correo activo en esa sede`,
         });
         continue;
       }
 
       const { asunto, texto } = componerCorreo(a);
       const r = await enviarCorreo(a.destinatarios, asunto, texto);
-      if (r.ok) enviadas++; else fallidas++;
-      await sb.rpc("fn_marcar_alerta_resultado", { p_id: a.alerta_id, p_exito: r.ok, p_nota: r.error ?? null });
+      if (r.ok) {
+        enviadas++;
+      } else {
+        fallidas++;
+        detalleFallos.push({ alerta_id: a.alerta_id, tipo: a.tipo, intento, error: r.error ?? "sin detalle" });
+      }
+      await sb.rpc("fn_marcar_alerta_resultado", {
+        p_id: a.alerta_id, p_exito: r.ok, p_nota: r.ok ? null : `intento ${intento}: ${r.error ?? "sin detalle"}`,
+      });
     }
 
-    return NextResponse.json({ procesadas: pendientes.length, enviadas, fallidas, sinDestinatario });
+    // Un fallo de Resend antes quedaba 'fallido' en la tabla y nadie se
+    // enteraba. Ahora la base lo reintenta hasta tres veces, y Sentry avisa
+    // en cada una para que, si el tercero también falla, alguien ya esté
+    // mirando la clave o el dominio de Resend.
+    if (fallidas > 0) {
+      Sentry.captureMessage(`Alertas por correo: ${fallidas} envío(s) fallido(s)`, {
+        level: "warning",
+        extra: { detalle: detalleFallos },
+      });
+    }
+    if (sinDestinatario > 0) {
+      Sentry.captureMessage(
+        `Alertas por correo: ${sinDestinatario} aviso(s) sin encargada con correo en ${[...sedesSinDestinatario].sort().join(", ")}`,
+        { level: "warning", extra: { sedes: [...sedesSinDestinatario].sort() } },
+      );
+    }
+    if (reintentos > 0) {
+      Sentry.captureMessage(`Alertas: ${reintentos} reintento(s) tras un corte`, { level: "info" });
+    }
+
+    return NextResponse.json({ procesadas: pendientes.length, enviadas, fallidas, sinDestinatario, tomadasPorOtra, reintentos });
   } catch (e) {
     Sentry.captureException(e);
     return NextResponse.json({ error: "no se pudo despachar alertas" }, { status: 500 });
