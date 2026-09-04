@@ -28,6 +28,7 @@ import { Marca } from "@/components/marca";
 import { RelojCentral } from "@/components/reloj";
 import {
   ConfirmacionToast,
+  ConfirmarRefrigerio,
   FormularioMotivoOtro,
   MotivoReentrada,
   NombreGrid,
@@ -43,6 +44,7 @@ type Pantalla =
   | "pin"
   | "elegir_salida"
   | "motivo_otro"
+  | "confirmar_refrigerio"
   | "confirmando"
   | "mensaje"
   | "cerrado"
@@ -79,6 +81,18 @@ function historialDelDia(marks: MarcajeDelDia[]): Array<{ label: string; hora: s
     .map((m) => ({ label: TIPO_MARCA_LABELS[m.tipo], hora: horaCorta(m.timestamp) }));
 }
 
+// ¿Llega a "salida final" sin haber marcado NUNCA una salida a refrigerio hoy?
+// (0353). No es "salió a almorzar y no volvió" —ese caso el propio candado de
+// esta función ya lo bloquea antes: tras un salida_almuerzo sin retorno,
+// fn_siguiente_tipo_esperado exige retorno_almuerzo, y salida_final ni
+// siquiera llega a ofrecerse. Lo único que SÍ es alcanzable desde acá es que
+// nunca haya salido: entrada → (todo el turno) → salida_final derecho.
+// Solo mira los marcajes de HOY que el terminal ya tiene cargados — no hace
+// ninguna llamada nueva al servidor.
+function nuncaMarcoRefrigerio(marcajesHoy: MarcajeDelDia[]): boolean {
+  return !marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
+}
+
 export default function MarcarPage() {
   const router = useRouter();
   const [terminal, setTerminal] = useState<TerminalInfo | null>(null);
@@ -94,7 +108,9 @@ export default function MarcarPage() {
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
   const [marcasApartadas, setMarcasApartadas] = useState(0);
-  const [accionPendiente, setAccionPendiente] = useState<{ tipo: TipoMarca; motivoOtro?: string; clientUuid?: string } | null>(null);
+  const [accionPendiente, setAccionPendiente] = useState<{
+    tipo: TipoMarca; motivoOtro?: string; clientUuid?: string; confirmoSinRefrigerio?: boolean;
+  } | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [tonoMensaje, setTonoMensaje] = useState<"ok" | "alerta">("ok");
   // El reloj de ESTA Mac contra el del servidor. Arranca con la última medida
@@ -315,12 +331,26 @@ export default function MarcarPage() {
       setPantalla("motivo_otro");
       return;
     }
+    if (
+      tipo === "salida_final" &&
+      personaActual &&
+      nuncaMarcoRefrigerio(marcajesHoyRef.current.get(personaActual.id) ?? [])
+    ) {
+      setAccionPendiente({ tipo });
+      setPantalla("confirmar_refrigerio");
+      return;
+    }
     prepararConfirmacion({ tipo });
   }
 
   function confirmarMotivoOtro(motivo: string) {
     if (!accionPendiente) return;
     prepararConfirmacion({ tipo: accionPendiente.tipo, motivoOtro: motivo });
+  }
+
+  function confirmarRefrigerio(trabajoCorrido: boolean) {
+    if (!accionPendiente) return;
+    prepararConfirmacion({ tipo: accionPendiente.tipo, confirmoSinRefrigerio: trabajoCorrido });
   }
 
   // Reabre el día (tras salida final) vía la ruta segura del servidor.
@@ -361,7 +391,7 @@ export default function MarcarPage() {
     setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
   }
 
-  function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string }) {
+  function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string; confirmoSinRefrigerio?: boolean }) {
     // el client_uuid se fija AL PREPARAR: si por algo se envía dos veces, el
     // servidor lo reconoce como el mismo marcaje (idempotencia) y no duplica.
     setAccionPendiente({ ...accion, clientUuid: crypto.randomUUID() });
@@ -408,6 +438,7 @@ export default function MarcarPage() {
       motivoOtro: accionPendiente.motivoOtro,
       timestampCliente: new Date().toISOString(),
       intentos: 0,
+      confirmoSinRefrigerio: accionPendiente.confirmoSinRefrigerio,
     };
 
     // Optimista: refleja el marcaje localmente ya mismo para que el siguiente
@@ -592,6 +623,14 @@ export default function MarcarPage() {
 
         {pantalla === "motivo_otro" && (
           <FormularioMotivoOtro onConfirmar={confirmarMotivoOtro} onCancelar={volverALista} />
+        )}
+
+        {pantalla === "confirmar_refrigerio" && personaActual && (
+          <ConfirmarRefrigerio
+            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
+            onElegir={confirmarRefrigerio}
+            onCancelar={volverALista}
+          />
         )}
 
         {pantalla === "confirmando" && personaActual && accionPendiente && (

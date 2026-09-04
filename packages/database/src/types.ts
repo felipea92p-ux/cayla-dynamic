@@ -2293,6 +2293,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -2310,6 +2311,7 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada?: string | null
           id?: string
@@ -2327,6 +2329,7 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid?: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada?: string | null
           id?: string
@@ -5622,6 +5625,7 @@ export type Database = {
       fn_registrar_marcaje: {
         Args: {
           p_client_uuid: string | null
+          p_confirmo_sin_refrigerio?: boolean | null
           p_motivo_otro?: string | null
           p_origen?: Database["public"]["Enums"]["origen_marca"] | null
           p_persona_id: string | null
@@ -5635,6 +5639,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string

@@ -37,6 +37,56 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — La misma alerta de auto-cierre, construida dos veces sin saberlo (0354 y la 0352 descartada)
+
+Al abrir el PR de esta rama (severidad en Incidencias, reporte de inspección
+en Exportar, confirmación de refrigerio al marcar salida, aviso de
+auto-cierre por correo), `main` ya traía **dos** de esas cuatro cosas,
+construidas por otra sesión el mismo día: el reporte de inspección en
+Exportar (marcajes crudos + auditoría de correcciones — commit `241fd96`) y
+el aviso de auto-cierre por correo (`fn_alertas_email_pendientes` +
+`/api/alertas-encargadas`, migración 0354). Ninguna de las dos sesiones vio a
+la otra: la regla de CLAUDE.md de mirar `git log --all` antes de empezar no
+se siguió al comenzar el aviso de correo.
+
+**Se descartó la versión de esta rama en ambos casos**, no por estar mal
+sino porque la de `main` llegó primero y, en el caso del correo, es más
+segura: la 0354 deliberadamente NO toca `fn_auto_cierre` (7 reescrituras de
+historia, cambiarla exige el protocolo de md5 completo) — lee "quién es la
+encargada" al momento de despachar, no al escribir. La versión descartada de
+esta rama sí reescribía `fn_auto_cierre` para eso. Se prefirió la opción que
+no tocaba la función con más historia.
+
+**Lo único que faltaba de verdad en la 0354** era el pedido explícito de
+Felipe: que el correo llegue también a la propia persona, no solo a su
+encargada. Eso se agregó como una extensión pequeña de
+`fn_alertas_email_pendientes` — migración **0359**, prueba 285 — en vez de
+reconstruir el sistema. Y la confirmación de refrigerio al marcar salida
+(0353) sí era trabajo nuevo sin duplicar — esa se mantiene tal cual.
+
+**RECONCILIADO:** mientras se escribía la 0359, `claude/cola-alertas-vencimiento`
+fusionó a `main` su propia 0358 (reenruta `contrato_por_vencer` y
+`vacaciones_por_vencer` a DO, y deja `auto_cierre` explícitamente sin
+tocar). El primer push de la 0359 lo cazó el hook (`main tiene 3 migración(es)
+que esta rama no tiene... TOCÁIS LAS MISMAS FUNCIONES`) antes de que se
+pegara nada. La 0359 se reescribió por completo sobre el cuerpo real de la
+0358 (el `with combinado as (... union all ...)`, confirmado con
+`git show origin/main:...0358...sql`, no el viejo de la 0354) — extiende
+solo la Rama 1 (auto_cierre y afines) para agregar a la propia persona; la
+Rama 2 (0356/0357, ya directa a `al.persona_id`) queda intacta. Verificado
+localmente aplicando 0356→0359 en orden: las cuatro pruebas relacionadas
+(282, 283, 284, 285) pasan las 30 aserciones juntas, sin que ninguna
+interfiera con la otra.
+
+**La lección de método, otra vez:** `git log --all --oneline -20` antes de
+empezar algo cuesta diez segundos. Esta vez costó descartar una migración
+completa, un endpoint entero y una dependencia (`nodemailer`, después
+cambiada a `resend`) que nunca llegaron a pegarse en producción — caro en
+tiempo de sesión, no en riesgo real, porque ninguna de las dos versiones
+descartadas se había pegado.
+
+---
+
 ## 2026-09-03 — Un clic agrega la gratificación, la bonificación 9% y la CTS pendientes de todo el periodo (0355) · PEGADA Y VERIFICADA
 
 Lo pidió Felipe justo después de probar la 0346 en pantalla: quiere el mismo pedido para Gratificación y CTS, que llevan meses siendo 100% manual (una persona, un clic, repetido para todo el equipo).

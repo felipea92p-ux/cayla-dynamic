@@ -24,6 +24,11 @@ export interface OutboxEntry {
   ultimoError?: string;
   /** Apartada tras rechazos repetidos. NO se borra: queda recuperable. */
   descartada?: boolean;
+  /**
+   * Solo en un `salida_final` cuando el terminal preguntó por la ambigüedad
+   * de "salida a refrigerio sin retorno" (0353). Ausente en todo lo demás.
+   */
+  confirmoSinRefrigerio?: boolean;
 }
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
