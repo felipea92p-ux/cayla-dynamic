@@ -37,6 +37,63 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-04 — `fn_registrar_marcaje` quedó con dos sobrecargas en producción (0367) · SQL ENTREGADO, FALTA CONFIRMAR
+
+Felipe reportó en vivo que el terminal (marcando `retorno_almuerzo` y
+`salida_almuerzo`) y el botón "Registrarla con su hora" de Correcciones
+—sobre una marca apartada— fallaban con «Could not choose the best candidate
+function» / «function fn_registrar_marcaje(...) is not unique». Es el mismo
+accidente que ya le pasó a `fn_vacaciones_por_vencer` el 2026-08-25.
+
+**Qué pasó.** La 0353 agregó `p_confirmo_sin_refrigerio` a
+`fn_registrar_marcaje` (de 8 a 9 argumentos) y, precisamente para evitar este
+accidente, su propio texto ya traía el `drop function if exists` de la
+sobrecarga vieja antes del `create or replace`. Ese `drop` no llegó a tomar
+efecto en producción — el porqué exacto no se pudo determinar sin acceso de
+servicio, y no hizo falta para diagnosticarlo: el error en pantalla lista los
+dos candidatos completos (8 y 9 argumentos), así que confirma sin ambigüedad
+que las dos sobrecargas conviven ahí. Localmente, aplicando la 0353 completa
+con `supabase db reset`, el `drop` sí funciona y deja una sola versión — el
+problema es específico de cómo quedó producción, no del contenido de la 0353.
+
+Bloqueaba las dos cosas a la vez: marcar normal Y repararlo (`fn_registrar_marcaje`
+es la única puerta de escritura de marcajes — ver CLAUDE.md).
+
+**Arreglo (0367):** repite el mismo `drop function if exists` de la 0353, más
+`notify pgrst, 'reload schema'` (para que PostgREST no siga sirviendo desde su
+caché). No toca la versión de 9 argumentos ni su cuerpo. Auditado local:
+`supabase db reset` completo (aplica las 0001–0367 en orden) y `supabase test
+db` — 205 archivos, 2036 pruebas, todas en verde.
+
+**SQL entregado a Felipe en el chat para pegar directo en el SQL Editor**
+—la urgencia (producción bloqueada en vivo) no daba margen para esperar el
+ciclo de PR—. Falta confirmar contra producción que corrió y que
+`fn_registrar_marcaje` volvió a tener una sola fila en `pg_proc`.
+
+---
+
+## 2026-09-04 — `fn_provisiones` se quedó sin permiso de ejecución desde la 0338 (0363) · PEGADA Y VERIFICADA
+
+La 0338 le agregó un parámetro a `fn_provisiones` (de `fn_provisiones(date)` a
+`fn_provisiones(date, date)`); como Postgres no reemplaza en el sitio cuando
+cambia la firma, esa migración hizo `DROP FUNCTION` + `CREATE OR REPLACE`, y
+el nuevo objeto nació sin el `GRANT EXECUTE` para `authenticated` — desde la
+0076 esta base no regala EXECUTE por defecto. Cualquier llamada a
+`fn_provisiones` desde el panel devolvía «permission denied for function»
+antes de que el cuerpo llegara a correr; no era un bug de la pantalla de
+Provisiones, la función nunca llegaba a ejecutarse.
+
+**Arreglo (0363):** un `grant execute` de una sola línea, sin tocar el
+cuerpo ni el md5 de la función. Llegó a `main` vía [PR #180](https://github.com/felipea92p-ux/cayla-dynamic/pull/180)
+desde otra sesión (`claude/error-investigation-17ac66`) mientras esta rama
+fusionaba la 0344/0345 — se cruzaron sin chocar en la numeración.
+
+**Confirmado en producción el 2026-09-04**, corriendo la comprobación que
+la propia migración deja al final:
+`has_function_privilege('authenticated', 'fn_provisiones(date,date)', 'EXECUTE')` → `true`.
+
+---
+
 ## 2026-09-03 — El patrón «función guardián» queda escrito como convención (CLAUDE.md) · CERRADO
 
 Hallazgo #2 de la comparación Workday/Oracle, y uno de los 16 de la auditoría

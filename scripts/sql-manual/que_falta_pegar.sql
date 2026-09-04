@@ -218,6 +218,7 @@ with repo(numero, nombre, nunca) as (values
     (358, 'el_aviso_de_alertas_aprende_dos_audiencias', false),
     (359, 'el_aviso_de_alertas_tambien_avisa_al_propio_integrante', false),
     (363, 'fn_provisiones_recupera_su_grant', false),
+    (367, 'fn_registrar_marcaje_pierde_su_sobrecarga_vieja', false),
     (369, 'la_ficha_guarda_el_genero', false)
 ),
 diff as (
