@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-04 — `fn_registrar_marcaje` quedó con dos sobrecargas en producción (0367) · SQL ENTREGADO, FALTA CONFIRMAR
+## 2026-09-04 — `fn_registrar_marcaje` quedó con dos sobrecargas en producción (0367) · PEGADA Y VERIFICADA
 
 Felipe reportó en vivo que el terminal (marcando `retorno_almuerzo` y
 `salida_almuerzo`) y el botón "Registrarla con su hora" de Correcciones
@@ -65,10 +65,14 @@ caché). No toca la versión de 9 argumentos ni su cuerpo. Auditado local:
 `supabase db reset` completo (aplica las 0001–0367 en orden) y `supabase test
 db` — 205 archivos, 2036 pruebas, todas en verde.
 
-**SQL entregado a Felipe en el chat para pegar directo en el SQL Editor**
-—la urgencia (producción bloqueada en vivo) no daba margen para esperar el
-ciclo de PR—. Falta confirmar contra producción que corrió y que
-`fn_registrar_marcaje` volvió a tener una sola fila en `pg_proc`.
+**SQL entregado a Felipe con `dame-el-sql.sh` una vez fusionado a `main`**
+—la urgencia (producción bloqueada en vivo) llevó primero a pasarlo directo
+en el chat, y ese mismo mensaje llevó a fusionar el PR ([#181](https://github.com/felipea92p-ux/cayla-dynamic/pull/181))
+antes de entregar nada, para que el script pudiera verificarlo contra
+GitHub. **Confirmado en producción el 2026-09-04**: el `select` final devolvió
+una sola fila —
+`fn_registrar_marcaje(uuid,tipo_marca,timestamp with time zone,uuid,origen_marca,uuid,uuid,text,boolean)`,
+`pronargs = 9`—, así que la sobrecarga vieja quedó retirada.
 
 ---
 
