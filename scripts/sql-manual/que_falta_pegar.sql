@@ -215,7 +215,13 @@ with repo(numero, nombre, nunca) as (values
     (356, 'la_cola_de_alertas_de_vencimiento_se_llena_sola', false),
     (357, 'el_saldo_de_vacaciones_separa_calculo_de_permiso', false),
     (358, 'el_aviso_de_alertas_aprende_dos_audiencias', false),
-    (359, 'el_aviso_de_alertas_tambien_avisa_al_propio_integrante', false)
+    (359, 'el_aviso_de_alertas_tambien_avisa_al_propio_integrante', false),
+    (360, 'un_horario_retroactivo_recorta_el_tramo_que_pisa', false),
+    (361, 'copiar_objetivos_no_duplica_con_doble_clic', false),
+    (362, 'la_cola_de_alertas_se_reserva_reintenta_y_avisa', false),
+    (363, 'dos_toques_seguidos_no_dejan_dos_marcas', false),
+    (364, 'el_pin_nace_en_el_servidor', false),
+    (365, 'las_provisiones_avisan_cuando_falta_el_tramo_de_salario', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
