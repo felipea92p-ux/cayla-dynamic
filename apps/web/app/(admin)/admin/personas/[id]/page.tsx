@@ -40,6 +40,15 @@ function fmtHoras(h: number): string {
 }
 const soles = (n: number) => `S/ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
+      <span className="text-taupe">{label}</span>
+      <span className="text-right">{valor ?? "—"}</span>
+    </div>
+  );
+}
+
 const NIVEL: Record<string, string> = { verbal: "Llamada verbal", amonestacion: "Amonestación escrita", suspension: "Suspensión", imputacion: "Imputación", despido: "Despido" };
 const CAUSAL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado" };
@@ -305,15 +314,6 @@ export default function PerfilPersonaPage() {
 
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
   const iniciales = persona ? `${persona.nombres[0] ?? ""}${persona.apellidos[0] ?? ""}` : "";
-
-  function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
-    return (
-      <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
-        <span className="text-taupe">{label}</span>
-        <span className="text-right">{valor ?? "—"}</span>
-      </div>
-    );
-  }
 
   const TabBtn = ({ valor, children }: { valor: Tab; children: React.ReactNode }) => (
     <button
