@@ -3595,6 +3595,55 @@ pasaba exactamente eso hasta que se agregó a `additional_redirect_urls` en
 
 ---
 
+## 2026-08-11 — esta base tiene dos sistemas adentro, y el historial ya lo dice
+
+### El ERP de tiendas vive acá, en el schema `retail` ([`0216`](../supabase/migrations/0216_el_tipo_de_cada_sede_que_retail_necesita.sql)–[`0227`](../supabase/migrations/0227_las_once_de_retail_entran_al_registro.sql))
+
+El 2026-07-23 el ERP de tiendas (repositorio `cayla-retail`,
+`cayla-retail.vercel.app`) se mudó a **esta** base, en su propio schema, para
+dejar de tener las sedes y las personas duplicadas en dos proyectos de Supabase.
+La mudanza funcionó y está en uso. Lo que no se hizo fue registrarla acá: los
+once scripts vivían solo en el otro repositorio, y este historial —que es el que
+describe esta base— no sabía que el cajón existía.
+
+Eso se cerró hoy. Los once archivos entraron como 0216-0226 con su procedencia en
+la cabecera, y la 0227 los anota, con el mismo criterio de la
+[`0146`](../supabase/migrations/0146_las_tres_migraciones_que_no_se_anotaron.sql):
+a una migración ya aplicada no se le cambia el cuerpo. Verificado contra el
+Postgres local, dentro de `begin … rollback`: las doce corren en orden sobre una
+base que solo tiene dynamic y levantan el schema `retail` entero desde cero, y
+las dos consultas de la prueba `122_toda_migracion_deja_su_rastro` devuelven cero
+filas.
+
+**Por qué importaba:** hasta hoy, reconstruir esta base desde
+`supabase/migrations` daba asistencia y planilla completas y **ningún ERP de
+tiendas**. Sin error y sin alarma.
+
+### Lo que dynamic no puede cambiar sin romper el ERP de tiendas
+
+Retail no copia la identidad: la lee de acá. Sus vistas y sus candados cuelgan de
+**cuatro cosas de `public`**, y hoy nada avisa si alguna se mueve:
+
+| Lo que retail usa | Dónde lo usa |
+|---|---|
+| `public.fn_rol_actual()` | los 4 candados de `retail` — toda su RLS cuelga de ahí |
+| `public.fn_sede_actual_persona()` | `retail.mi_sede()`, `retail.puede_operar_sede()` |
+| `public.sedes` (`id`, `codigo`, `nombre`, `activa`) | la vista `retail.sedes` |
+| `public.personas` (`auth_user_id`, `nombres`, `apellidos`, `sede_base_id`, `rol`, `email`) | la vista `retail.personas` |
+
+Renombrar cualquiera de ellas, o cambiarle una columna, deja el ERP de tiendas
+respondiendo errores de permisos **en todas sus pantallas a la vez**, y el
+síntoma no dice por qué. No es hipotético: es el precio declarado de la
+unificación, y está anotado como pendiente en el backlog de `cayla-retail` (una
+prueba de humo que mida el contrato). Mientras no exista, esta tabla es la única
+defensa.
+
+También: el schema `retail` tiene que estar en **Settings → API → Exposed
+schemas**. Es configuración del proyecto, no SQL — ninguna migración de este
+historial puede restaurarla.
+
+---
+
 ## 2026-08-10 — un terminal sin dueño, y un diseño de plata que se cayó al medirlo
 
 ### El terminal ya no puede quedarse sin dueño ([`0202`](../supabase/migrations/0202_un_terminal_activo_sin_dueno_deja_de_poder_existir.sql))
