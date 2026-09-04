@@ -5527,8 +5527,18 @@ se deja constancia y ya. **Es una decisión de negocio, no técnica.**
   primero el impacto con
   [`consulta_impacto_regularidad_feriados.sql`](../scripts/sql-manual/consulta_impacto_regularidad_feriados.sql).
 - **Colibrí en cargas**: ~22 pantallas y ~49 estados vacíos sin marca.
-- **Integración Dynamic ↔ retail**: Fase 0 (reconciliación, solo lectura) lista
-  para arrancar — `docs/integracion-retail/`.
+- **Integración Dynamic ↔ retail**: el puente de identidad **ya está hecho y
+  en uso** desde el 2026-07-23 (`retail.personas`/`retail.sedes`, vistas
+  `security_invoker` sobre `public.personas`/`public.sedes`, más
+  `retail.ventas.usuario_id` con FK directa a `public.personas`) — no por el
+  camino que `docs/integracion-retail/00-plan.md` proponía (API de solo
+  lectura entre dos proyectos, amarrada por DNI), sino porque retail se mudó
+  al mismo Postgres. Ese documento se reescribió el 2026-09-04 para decir
+  esto. **Lo único abierto de verdad:** si los DATOS históricos (ventas,
+  stock, activos, proveedores) viajaron en la mudanza — hay una señal
+  concreta de que no, en LIM (`finanzas/activos` no muestra nada). Diagnóstico
+  listo para pegar en `docs/integracion-retail/03-donde-quedaron-los-activos.sql`,
+  solo lectura; falta que Felipe lo corra y pegue la salida.
 - **Espejo a Google Sheets legible** (encabezados fijos, una fila por persona).
 
 ## 🟢 Dependen de Felipe / redondeo
