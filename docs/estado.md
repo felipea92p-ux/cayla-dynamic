@@ -37,6 +37,194 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-04 — `fn_registrar_marcaje` quedó con dos sobrecargas en producción (0367) · PEGADA Y VERIFICADA
+
+Felipe reportó en vivo que el terminal (marcando `retorno_almuerzo` y
+`salida_almuerzo`) y el botón "Registrarla con su hora" de Correcciones
+—sobre una marca apartada— fallaban con «Could not choose the best candidate
+function» / «function fn_registrar_marcaje(...) is not unique». Es el mismo
+accidente que ya le pasó a `fn_vacaciones_por_vencer` el 2026-08-25.
+
+**Qué pasó.** La 0353 agregó `p_confirmo_sin_refrigerio` a
+`fn_registrar_marcaje` (de 8 a 9 argumentos) y, precisamente para evitar este
+accidente, su propio texto ya traía el `drop function if exists` de la
+sobrecarga vieja antes del `create or replace`. Ese `drop` no llegó a tomar
+efecto en producción — el porqué exacto no se pudo determinar sin acceso de
+servicio, y no hizo falta para diagnosticarlo: el error en pantalla lista los
+dos candidatos completos (8 y 9 argumentos), así que confirma sin ambigüedad
+que las dos sobrecargas conviven ahí. Localmente, aplicando la 0353 completa
+con `supabase db reset`, el `drop` sí funciona y deja una sola versión — el
+problema es específico de cómo quedó producción, no del contenido de la 0353.
+
+Bloqueaba las dos cosas a la vez: marcar normal Y repararlo (`fn_registrar_marcaje`
+es la única puerta de escritura de marcajes — ver CLAUDE.md).
+
+**Arreglo (0367):** repite el mismo `drop function if exists` de la 0353, más
+`notify pgrst, 'reload schema'` (para que PostgREST no siga sirviendo desde su
+caché). No toca la versión de 9 argumentos ni su cuerpo. Auditado local:
+`supabase db reset` completo (aplica las 0001–0367 en orden) y `supabase test
+db` — 205 archivos, 2036 pruebas, todas en verde.
+
+**SQL entregado a Felipe con `dame-el-sql.sh` una vez fusionado a `main`**
+—la urgencia (producción bloqueada en vivo) llevó primero a pasarlo directo
+en el chat, y ese mismo mensaje llevó a fusionar el PR ([#181](https://github.com/felipea92p-ux/cayla-dynamic/pull/181))
+antes de entregar nada, para que el script pudiera verificarlo contra
+GitHub. **Confirmado en producción el 2026-09-04**: el `select` final devolvió
+una sola fila —
+`fn_registrar_marcaje(uuid,tipo_marca,timestamp with time zone,uuid,origen_marca,uuid,uuid,text,boolean)`,
+`pronargs = 9`—, así que la sobrecarga vieja quedó retirada.
+
+---
+
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 25 a 34 (0368) · PEGADA Y VERIFICADA
+
+Segunda tanda de diez, pedida por Felipe justo después de la primera. Nueve son
+solo panel; una lleva SQL.
+
+| Hallazgo | Qué se hizo |
+|---|---|
+| 25 El terminal decía «Nadie en esta sede todavía» mientras cargaba | Tres estados con tres textos, y botón de reintentar en el fallo |
+| 26 «Exportar CSV» lo veía cualquier cuenta | Permiso nuevo en `permisos.ts` con su prueba, filtro en el menú y guardia en la propia pantalla |
+| 27 La ficha decía «Sin antecedentes disciplinarios. Buena señal.» si fallaba la consulta | Se captura el error de cada consulta por separado |
+| 28 El PIN nuevo duraba 4,5 s en un aviso que se autodestruía | Panel fijo con botón de copiar y cierre explícito |
+| 29 Cuentas se veía vacía en vez de mostrar el error | Se revisa `res.ok`/`data.error` como el resto de la pantalla |
+| 30 El historial de correcciones no decía de qué día era el marcaje | `describirCambio` deja de tirar la fecha |
+| 31 El reporte por sede salía en blanco desde una sede inactiva | No se ofrece «Hoja» para inactivas, y se dice por qué si el código no está |
+| 32 Cambiar la clave mandaba siempre al dashboard | Misma resolución de rol que ya hacía login |
+| 33 Dos sesiones se pisaban un código de sede en silencio | **Migración 0368** + prueba 292: el alta con código repetido lanza |
+| 34 La fecha de Disciplina congelaba la fila | Input de fecha que nace con hoy, con `try/catch` |
+
+Verificado el 2026-09-04: `supabase db reset` limpio, `supabase test db` 212
+archivos y 2155 pruebas, typecheck 3/3, vitest 439/439, y cero errores de linter
+en líneas nuevas (los 35 que salen son deuda vieja, comprobado cruzando con las
+líneas que el push agrega).
+
+**Cuatro hallazgos que bloqueaban, cazados por las revisoras adversariales:**
+
+- El estado de error del terminal era **inalcanzable**: `roster.ts` se tragaba
+  cualquier fallo de red y devolvía la caché, así que una Mac mini recién
+  reiniciada y sin caché seguía leyendo «Nadie en esta sede todavía» — justo el
+  caso del hallazgo. Hubo que sumar `roster.ts` al alcance.
+- El arreglo del 30 cubría `marcaje_eliminado`, que **hoy no lo escribe nadie**, y
+  dejaba fuera `marcaje_anulado`, `marcaje_reactivado` y
+  `auto_cierre_reemplazado`, que son los que produce el propio botón de esa
+  pantalla. Se enumeró qué escribe cada función en `correcciones_auditoria` en
+  vez de deducirlo por el nombre.
+- El «se revierte» de la 0368 afirmaba algo falso sobre PostgREST, y lo afirmaba
+  en el procedimiento que alguien lee cuando ya hay algo roto en producción. La
+  revisora lo midió acuñando un JWT y lo corrigió.
+- El menú filtraba por un permiso que no existía todavía en `permisos.ts`.
+
+**Nació como 0367 y se renumeró a 0368**: `claude/mensajes-molestos-5950e5` tomó
+ese número el mismo día para retirar la sobrecarga vieja de
+`fn_registrar_marcaje`. Importa más que de costumbre porque
+`migraciones_aplicadas` tiene el número como clave: con las dos en 0367, la
+segunda que se pegara habría quedado SIN registrar, en silencio, por el
+`on conflict (numero) do nothing`.
+
+**Al pegar la 0368** se encontró y corrigió, antes de entregarla, un descuido
+propio: la consulta de comprobación del final había quedado preguntando por la
+migración 367 (rastro de cuando esta migración nació con ese número), así que
+`anotada` habría dado `true` sin importar si el 368 se registraba. Arreglado en
+el repo antes de pegar.
+
+**Confirmado en producción el 2026-09-04**, con el md5 de `fn_guardar_sede`
+coincidiendo `tal_cual` contra producción antes de pegar, y la comprobación del
+final devolviendo todo en verde: una sola versión con la firma nueva de cinco
+argumentos, anotada en `migraciones_aplicadas`, `authenticated` puede llamarla
+y `anon` no, y el candado único de `codigo` sigue ahí.
+
+**Queda abierto y anotado:** `fn_crear_persona` sigue recibiendo el hash del PIN
+desde el navegador — es la otra mitad del hallazgo 22, que la 0364 solo cerró
+para `fn_regenerar_pin`. Y el hallazgo 19 (contraseñas temporales que no obligan
+a cambiarse) no entró en ninguna de las dos tandas.
+
+---
+
+## 2026-09-04 — Auditoría del 2026-09-04: los importantes 14 a 24 (0360-0366) · PEGADAS EN PRODUCCIÓN
+
+> Felipe las pegó todas el mismo día. La duda que dejó abierta esta nota —si
+> `fn_registrar_marcaje` quedó con una sola versión tras la 0366— ya se
+> resolvió, pero por otro camino: sí quedaron dos sobrecargas (8 y 9
+> parámetros), lo cazó la 0367 de `claude/mensajes-molestos-5950e5` y quedó
+> confirmado en producción (ver esa entrada, arriba).
+
+Felipe pidió arreglar «las 10 primeras» de la tabla de importantes de la
+auditoría adversarial del 2026-09-03/04 (el PDF `Auditoria-CAYLA-2026-09-04.pdf`,
+57 hallazgos; no vive en el repo): 14, 15, 16, 17, 18, 20, 21, 22, 23 y 24.
+Rama `claude/primeras-10-correcciones-08ce78`. Los críticos 1-12 (PIN del
+terminal, sede del terminal, contraseñas, liquidaciones…) siguen abiertos.
+
+| Hallazgo | Qué se hizo | Migración · prueba |
+|---|---|---|
+| 14 Horarios: corregir un tramo retroactivo reventaba con `horarios_sin_solape` en inglés | `fn_set_horario_semanal` recorta cualquier tramo que pise la fecha, no solo el abierto; `mensaje-error.ts` traduce el candado | 0360 · 286 |
+| 15 Objetivos: «Copiar del mes anterior» duplicaba con doble clic | candado de transacción por persona antes de preguntar si el mes está vacío + `not exists` en el insert; pestillo en la pantalla | 0361 · 287 |
+| 16-18 Alertas por correo: doble envío, corte a los 10 s, fallo perdido para siempre | reserva compare-and-set antes de enviar (`fn_alertas_reservar`), `maxDuration = 60`, reintento hasta 3, ventana de 7 días, Sentry por cada fallo, `fn_alertas_despacho_resumen` + tarjeta en la Bandeja para DO | 0362 · 288 (y la 281 ajustada) |
+| 20 Cuatro funciones de turnos sin revoke de PUBLIC/anon | **Refutado con medición**: ya las cierra la 0076 (bucle + `alter default privileges`), `anon = false` en las cuatro; anotado en `hallazgos-abiertos.md` con la consulta para producción | — |
+| 21 Doble toque en el terminal dejaba dos entradas (y dos salidas finales) | `fn_registrar_marcaje` toma un candado por persona y, solo para el terminal, devuelve la marca del mismo tipo a ±2 min sin otra en medio | 0366 · 289 |
+| 22 «Nuevo PIN» hasheaba en el navegador y escribía `pin_hash` por REST | `fn_regenerar_pin` genera y hashea en Postgres (bcrypt `$2a$10$`, comprobado contra la bcryptjs del terminal); trigger que cierra la columna a `authenticated`/`anon` | 0364 · 290 |
+| 23 Provisiones: sin tramo de salario salía S/ 0.00 igual que «no le toca» | `fn_provisiones` gana `sin_salario_vigente`, `dias_sin_salario` y `personas_sin_salario`; insignia, aviso y CSV. **El número no cambia** (medido fila por fila) | 0365 · 291 |
+| 24 La casilla decía «S/ 113 fijos por periodo» | `montoAsignacionFamiliar` lee `parametros_laborales` (respaldo `configuracion`); la etiqueta muestra el monto real o manda a Configuración | — (solo panel) |
+
+Verificado en esta Mac el 2026-09-04: `supabase db reset` limpio con las seis
+migraciones, `supabase test db` 211 archivos / 2139 pruebas, typecheck 3/3,
+vitest 434/434, eslint sin errores en líneas nuevas. Cada paquete pasó por dos
+revisoras adversariales (corrección/plata y reglas de la casa); las dos cosas
+que bloqueaban se corrigieron antes de commitear: el resumen de alertas contaba
+como «caducado» el backlog de julio que la 0354 dejó fuera a propósito, y la
+0365 tenía que conceder el `execute` que la 0338 olvidó (ver abajo).
+
+**Qué pegar, en este orden, y qué pedir ANTES de cada una** (el md5 de
+partida local está en cada encabezado; `donde-vive.sh` imprime la consulta):
+
+1. 0360 — pedir md5 de `fn_set_horario_semanal` (esperado: el de la 0327).
+2. 0361 — `fn_objetivos_copiar_mes_anterior` (esperado: el de la 0348).
+3. 0362 — `fn_alertas_email_pendientes` (esperado: el de la 0359) y
+   `fn_marcar_alerta_resultado` (0354). **Pegarla ANTES de desplegar el panel**:
+   la ruta nueva llama a `fn_alertas_reservar` y sin ella el cron responde 500.
+4. 0364 — funciones nuevas: confirmar que `fn_regenerar_pin` no existe todavía.
+   También antes de desplegar el panel: «Nuevo PIN» la llama.
+5. 0365 — `fn_provisiones` (esperado: el de la 0338) **y su `proacl`**.
+6. 0366 — `fn_registrar_marcaje` (esperado: el de la 0353). Nació como 0363 y se
+   renumeró: `claude/error-investigation-17ac66` había tomado el 0363 veintisiete
+   segundos antes —para el grant de `fn_provisiones`, la misma línea que trae la
+   0365— y el hook de numeración no alcanzó a verlo en ese push.
+
+⚠️ **Provisiones puede llevar rota en producción desde la 0338 (2026-09-01).**
+La 0338 hizo `drop function fn_provisiones(date)` y creó la firma `(date, date)`
+sin `grant execute … to authenticated`; con la revocación por defecto de la
+0076, en un Postgres construido desde las migraciones `authenticated` recibe
+«permission denied» al llamarla — y `/admin/provisiones` la llama así. La 0365
+deja el grant escrito. Para saber si producción lo tiene hoy:
+`select has_function_privilege('authenticated', 'fn_provisiones(date, date)', 'execute');`
+— si dice `false`, la pantalla de Provisiones no abre desde el 1 de septiembre y
+la 0365 lo arregla al pegarla. La rama `claude/error-investigation-17ac66` llegó
+a lo mismo por otro camino y trae el grant solo, como su 0363: si se pega esa
+primero, la línea de la 0365 queda redundante e inofensiva.
+
+**Visto de paso, sin tocar (para su propio lote):**
+
+- La prueba **274** (`el_generador_hace_indefinidos`) se pone en rojo según el
+  plan de consulta: registra dos contratos en la misma transacción, los dos
+  quedan con el mismo `generado_at`, y el lateral `u` de `fn_contratos_tablero`
+  (0347) ordena solo por `generado_at desc` — el empate lo decide Postgres.
+  Pasó en la primera corrida de la suite y falló en la segunda y a solas. El
+  arreglo es un desempate en la función (`generado_at desc, id desc` o similar)
+  y una prueba que no dependa del empate.
+- La política `alertas_marcar_leida_propia` (0003) más `grant update on alertas
+  to authenticated` dejan que una integrante edite CUALQUIER columna de sus
+  propias alertas (estado, intentos…). Preexistente; la 0362 lo amplía un poco.
+- `fn_crear_persona` sigue recibiendo el hash del PIN desde el navegador, y el
+  terminal sigue comparándolo con bcryptjs en el cliente: es el crítico 1.
+- `fn_planilla_calcular` conserva `coalesce(…, 113.00)` como respaldo escrito
+  a mano de la asignación familiar (0339): el mismo defecto del 24, en el
+  sitio que paga.
+- `fn_feriado_devengado`: un feriado que cae dentro de un bloque 29→28 con el
+  tramo de salario cerrado a mitad valora horas de días sin tramo (S/ 7,69
+  medidos en la 291). No es de la 0365; queda documentado en esa prueba.
+
+---
+
 ## 2026-09-04 — `fn_provisiones` se quedó sin permiso de ejecución desde la 0338 (0363) · PEGADA Y VERIFICADA
 
 La 0338 le agregó un parámetro a `fn_provisiones` (de `fn_provisiones(date)` a

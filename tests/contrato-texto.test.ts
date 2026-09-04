@@ -219,6 +219,23 @@ describe("documentoConvenio", () => {
     expect(texto).not.toContain("ANEXO I — FUNCIONES DEL CARGO");
   });
 
+  // El objetivo formativo general se escribe en un cuadro de varias líneas
+  // (era un renglón y un párrafo entero no se veía). Un Enter ahí tiene que
+  // llegar al papel como salto de línea, no colapsar a un espacio dentro
+  // del <p>; y vacío sigue diciendo «[completar]», como antes.
+  it("el objetivo formativo general conserva sus saltos de línea en el Anexo I", () => {
+    const texto = construirContrato(
+      datosConvenio({
+        objetivoFormativoGeneral: "Al finalizar, desarrolla módulos completos del ERP.\n  Y documenta cada uno.  \n\n",
+      }),
+    );
+    expect(texto).toContain(
+      "<strong>Objetivo formativo general:</strong> Al finalizar, desarrolla módulos completos del ERP.<br/>Y documenta cada uno.</p>",
+    );
+    const vacio = construirContrato(datosConvenio({ objetivoFormativoGeneral: "  \n " }));
+    expect(vacio).toContain("<strong>Objetivo formativo general:</strong> [completar]</p>");
+  });
+
   // ── 0348: preprofesional es TRIPARTITO, profesional es BIPARTITO ──────────
   // El modelo de referencia de DO (`CAYLA_CORP_CONT_202609_ConvenioPracticas.
   // docx`) trae la diferencia de fondo que la versión anterior no modelaba:

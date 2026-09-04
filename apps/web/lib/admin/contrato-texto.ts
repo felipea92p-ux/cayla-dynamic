@@ -358,6 +358,23 @@ function listaDesdeTexto(texto: string): string {
 }
 
 /**
+ * Un texto libre de varias líneas como PÁRRAFO, no como lista. El objetivo
+ * formativo general del Anexo I se escribe en un cuadro de varias líneas
+ * —era un renglón, y un párrafo entero se iba de largo sin poder leerse— y
+ * un Enter ahí tiene que llegar al papel: dentro de un `<p>` el salto de
+ * línea colapsa a un espacio, así que se vuelve `<br/>`. El texto ya llega
+ * escapado (ver `escapado`), igual que en `listaDesdeTexto`. Un texto vacío o
+ * solo de espacios devuelve "" para que el llamador pueda poner «[completar]».
+ */
+function parrafoDesdeTexto(texto: string): string {
+  return texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .join("<br/>");
+}
+
+/**
  * El marcador donde la pantalla estampa la firma escaneada justo antes de
  * imprimir. NO viaja dentro de `documento_html`: la 0272 congela el borrador
  * SIN firma a propósito, y meter la imagen en lo congelado convertiría un
@@ -1107,7 +1124,7 @@ function documentoConvenio(d: DatosContrato): string {
     <section class="anexo">
       ${encabezadoAnexo(d, "ANEXO I — PLAN ESPECÍFICO DE APRENDIZAJE", `${d.cargo} — Sede ${d.sedeNombre}`)}
       <p><strong>Área / proyecto de destino:</strong> ${d.areaProyecto || "[completar]"}</p>
-      <p><strong>Objetivo formativo general:</strong> ${d.objetivoFormativoGeneral || "[completar]"}</p>
+      <p><strong>Objetivo formativo general:</strong> ${parrafoDesdeTexto(d.objetivoFormativoGeneral) || "[completar]"}</p>
       <p><strong>Actividades principales:</strong></p>
       ${listaDesdeTexto(d.planCapacitacionTexto)}
       <p><strong>Supervisor(a) asignado(a):</strong> ${d.supervisorAsignado || "[completar]"}</p>

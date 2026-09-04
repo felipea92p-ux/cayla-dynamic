@@ -10,12 +10,21 @@
 // otra. Y `prefers-reduced-motion` ya apaga la animación para quien la tenga
 // desactivada (globals.css), así que el aleteo no molesta a nadie.
 
-/** Carga a pantalla o sección completa. El caso normal. */
-export function Cargando({ texto = "Cargando…" }: { texto?: string }) {
+/**
+ * Carga a pantalla o sección completa. El caso normal.
+ *
+ * `clase` es el tamaño del texto, y existe por una sola pantalla: el terminal
+ * de marcaje, que se mira de pie a un metro de una Mac mini a pantalla
+ * completa. Ahí `text-sm` —14 px— no se lee, y la alternativa era copiar el
+ * colibrí en el terminal: justo la duplicación que el comentario de arriba
+ * cuenta haber tardado meses en deshacer. El valor por defecto es el de
+ * siempre, así que ninguna de las pantallas que ya lo usan cambia.
+ */
+export function Cargando({ texto = "Cargando…", clase = "text-sm" }: { texto?: string; clase?: string }) {
   return (
     <div className="flex flex-col items-center gap-4 py-20 text-taupe" role="status" aria-live="polite">
       <span className="colibri aletea w-12 text-rojo/70" aria-hidden />
-      <span className="text-sm">{texto}</span>
+      <span className={clase}>{texto}</span>
     </div>
   );
 }
