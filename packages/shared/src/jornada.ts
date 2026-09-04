@@ -195,3 +195,28 @@ export function ventanaMasCargada(
   }
   return mejor;
 }
+
+// ── El tope de la noche que cruza la medianoche ─────────────────────────────
+//
+// Quien cierra tienda a las 00:30 sigue dentro de la jornada de AYER: su salida
+// pertenece a ese turno, no al día nuevo (migración 0240). Pero esa adopción no
+// puede ser eterna, porque entonces una jornada que alguien olvidó cerrar se
+// comería el día siguiente entero. Pasadas estas horas desde su ENTRADA, la
+// marca vuelve a ser del día que dice el calendario y el auto-cierre hace su
+// trabajo.
+//
+// ⚠️ ESTE NÚMERO VIVE EN DOS SITIOS Y TIENE QUE DECIR LO MISMO EN LOS DOS.
+// El otro es `fn_registrar_marcaje`, en el `select` que adopta la jornada del
+// día anterior: `p_timestamp_cliente <= j.entrada_ts + interval '16 hours'`.
+// No se puede compartir el valor —uno es TypeScript en el navegador y el otro
+// es plpgsql—, así que lo que sí se puede es que solo haya UNA copia de cada
+// lado y que las dos se nombren mutuamente.
+//
+// Que se separaran costaba esto: el navegador seguía mostrando «tu jornada de
+// ayer sigue en curso» y ofrecía un menú de SALIDAS pasadas las 16 h, mientras
+// el servidor ya había cambiado de opinión y esperaba una `entrada`. La persona
+// pulsaba, el servidor rechazaba —«tipo salida_final no válido en el estado
+// actual (se esperaba entrada)»— y no había ninguna salida hacia adelante: el
+// único botón que la pantalla ofrecía era el que el servidor iba a rechazar
+// siempre. Quedaba sin poder marcar hasta que el auto-cierre corriera.
+export const TOPE_JORNADA_CRUZA_MEDIANOCHE_HORAS = 16;
