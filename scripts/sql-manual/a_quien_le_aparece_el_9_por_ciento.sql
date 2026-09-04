@@ -1,14 +1,14 @@
 -- ============================================================================
 -- a_quien_le_aparece_el_9_por_ciento.sql
 -- ============================================================================
--- CÓRRELA ANTES DE PEGAR LA 0362, en el SQL Editor de producción. Solo lee.
+-- CÓRRELA ANTES DE PEGAR LA 0372, en el SQL Editor de producción. Solo lee.
 --
 -- QUÉ RESPONDE
 --   A quién le va a aparecer, de golpe, una bonificación extraordinaria (9%,
---   Ley 30334) PENDIENTE en /admin/provisiones cuando la 0362 entre — porque su
+--   Ley 30334) PENDIENTE en /admin/provisiones cuando la 0372 entre — porque su
 --   gratificación se registró por separado y el 9% nunca se registró.
 --
---   Si devuelve CERO FILAS, la 0362 no mueve ningún número de la pantalla: solo
+--   Si devuelve CERO FILAS, la 0372 no mueve ningún número de la pantalla: solo
 --   cierra el hueco hacia adelante. Si devuelve filas, esas son personas a las
 --   que probablemente se les deba ese 9%, y conviene revisarlas ANTES de que la
 --   pantalla empiece a pedirlo — no después.
@@ -17,7 +17,7 @@
 --   Antes de ese día la opción separada no existía: el 9% se sumaba a mano
 --   dentro del monto de «Gratificación». Esas gratificaciones ya lo llevan
 --   dentro y NO se reclaman hacia atrás — es la decisión de Felipe del
---   2026-09-03 al pegar la 0346. La 0362 respeta esa decisión, así que esta
+--   2026-09-03 al pegar la 0346. La 0372 respeta esa decisión, así que esta
 --   consulta mira exactamente lo mismo que va a mirar la función.
 --
 -- CÓMO LEER EL RESULTADO
