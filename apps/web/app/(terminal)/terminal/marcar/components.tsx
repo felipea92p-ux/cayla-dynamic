@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { TipoMarca } from "@cayla-dynamic/shared";
+import { Cargando } from "@/components/cargando";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
@@ -41,15 +42,76 @@ export function SelectorSede({
   );
 }
 
+/**
+ * En qué punto está la lista de personas de la sede.
+ *
+ * Existe porque una lista vacía significaba TRES cosas distintas y la pantalla
+ * las contaba como una sola: «esta sede no tiene gente», «todavía estoy
+ * cargando» y «no la pude cargar». Quien lo veía era una integrante a las ocho
+ * de la mañana, justo después de un reinicio de la Mac mini o de un corte de
+ * red, sin nadie de soporte al lado — y lo que leía era «Nadie en esta sede
+ * todavía», o sea que se había borrado el equipo entero.
+ */
+export type EstadoRoster = "cargando" | "listo" | "error";
+
 export function NombreGrid({
   roster,
+  estado,
   onSeleccionar,
+  onReintentar,
 }: {
   roster: RosterEntry[];
+  estado: EstadoRoster;
   onSeleccionar: (persona: RosterEntry) => void;
+  onReintentar: () => void;
 }) {
   if (roster.length === 0) {
-    return <p className="text-taupe">Nadie en esta sede todavía.</p>;
+    // El colibrí que aletea es el estado de carga de toda la casa
+    // (`components/cargando.tsx`) y no uno nuevo para el terminal: lo que
+    // distingue «trabajando» de «colgado» es el movimiento, y esa pieza ya
+    // existe. Un segundo spinner acá sería la copia que ese archivo cuenta
+    // haber tardado meses en juntar.
+    if (estado === "cargando") {
+      // En `text-2xl` y no en el `text-sm` de siempre: esto se lee de pie, a un
+      // metro de una Mac mini a pantalla completa, y era el único de los tres
+      // estados que se había quedado en 14 px — justo el que se mira a las ocho
+      // de la mañana. El tamaño es una prop del componente de la casa, no una
+      // copia suya acá.
+      return <Cargando texto="Cargando el equipo de la sede…" clase="font-serif text-2xl" />;
+    }
+
+    // El error no comparte texto con el vacío ni con la carga, y dice qué
+    // hacer. Se llega acá con `fuente === "ninguna"` (lib/terminal/roster.ts),
+    // o sea cuando NO contestó ni el servidor ni la copia local que el terminal
+    // guarda para trabajar sin red: no es «hoy no vino nadie», es que esta Mac
+    // no tiene la lista.
+    if (estado === "error") {
+      return (
+        <div className="flex max-w-xl flex-col items-center gap-5 text-center">
+          <span aria-hidden className="text-5xl">⚠️</span>
+          <p className="font-serif text-3xl text-rojo" role="alert">
+            No se pudo cargar el equipo de esta sede.
+          </p>
+          {/* Le dice qué hacer con su hora, no solo que hoy no puede marcar: lo
+              que registra este sistema alimenta el pago, y quien lee esto está
+              sola a las ocho de la mañana. Sin esa frase se va a trabajar sin
+              marca de entrada y sin saber que su llegada hay que apuntarla.
+              Y la máquina se llama «esta Mac» en las dos frases: cuatro líneas
+              más arriba «equipo» son las personas de la sede. */}
+          <p className="text-xl text-taupe">
+            Esta Mac no pudo leer la lista, ni del servidor ni de su copia guardada. Si hay internet
+            en la tienda, toca «Volver a intentar». Si sigue igual, hoy no se puede marcar en esta
+            Mac: <strong className="text-tinta">anota tu hora de llegada y dísela a tu encargada</strong>,
+            que la registra desde el panel. Tus horas no se pierden.
+          </p>
+          <button onClick={onReintentar} className={`${BTN_PRIMARIO} py-4 text-xl`}>
+            Volver a intentar
+          </button>
+        </div>
+      );
+    }
+
+    return <p className="font-serif text-2xl text-taupe">Nadie en esta sede todavía.</p>;
   }
 
   return (

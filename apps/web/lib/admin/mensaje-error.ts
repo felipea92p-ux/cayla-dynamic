@@ -64,6 +64,14 @@ const POR_CONSTRAINT: Record<string, string> = {
     "Para dar de baja a alguien hace falta su último día trabajado, y para reactivarla hay que borrarlo. Usa «Registrar salida» y «Reactivar» en Equipo.",
   personas_motivo_cese_valido:
     "Ese motivo de salida no es uno de los válidos. Elígelo de la lista.",
+  // El candado de la 0309: una persona no puede tener dos tramos de horario
+  // vigentes el mismo día. Desde la 0360 `fn_set_horario_semanal` recorta sola
+  // el tramo que pisa, así que por esa puerta ya no debería salir — se traduce
+  // igual para cualquier otra escritura, y para el tiempo entre fusionar la
+  // 0360 y pegarla en producción. Sin esto, lo que veía la encargada era
+  // «conflicting key value violates exclusion constraint».
+  horarios_sin_solape:
+    "Ese rango de fechas ya tiene otro horario asignado. Elige una fecha de vigencia posterior, o corrige primero el tramo que ya existe.",
 };
 
 /**
