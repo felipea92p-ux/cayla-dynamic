@@ -37,6 +37,26 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — El patrón «función guardián» queda escrito como convención (CLAUDE.md) · CERRADO
+
+Hallazgo #2 de la comparación Workday/Oracle, y uno de los 16 de la auditoría
+de arquitectura del mismo día: el molde que ya usan `fn_cambiar_regimen_pension`
+(0261), la puerta de rol (0295/0296) y `fn_set_sede_base` (0342) —guard +
+`update` auditado + trigger que rechaza el `UPDATE` directo comparando
+`current_user <> 'postgres'`— se había reinventado tres veces sin declararse
+nunca como regla. No había ningún código que arreglar: las tres funciones ya
+funcionan bien. Lo que faltaba era que dejara de transmitirse por comentarios
+cruzados entre migraciones y quedara escrito una vez.
+
+**Arreglo:** un principio nuevo en [`CLAUDE.md`](../CLAUDE.md), sección
+"Principios del sistema", junto a los otros principios de guardas
+(`SECURITY DEFINER null-safe`, `fn_registrar_marcaje` como única puerta).
+Nombra el mecanismo exacto y las tres instancias, para que la próxima columna
+sensible lo siga por regla y no por memoria. Marcado como cerrado en
+[`hallazgos-abiertos.md`](hallazgos-abiertos.md).
+
+---
+
 ## 2026-09-03 — Anuncios: el tablón de Desarrollo Organizacional (0351) · PEGADA Y VERIFICADA
 
 Salió de comparar CAYLA contra seis sistemas de RRHH de talla mundial
