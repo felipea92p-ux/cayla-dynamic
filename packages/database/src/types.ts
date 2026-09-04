@@ -5225,7 +5225,13 @@ export type Database = {
         Returns: undefined
       }
       fn_guardar_sede: {
-        Args: { p_codigo: string | null; p_nombre: string | null; p_tipo?: string | null }
+        Args: {
+          p_codigo: string | null
+          p_es_alta?: boolean | null
+          p_id?: string | null
+          p_nombre: string | null
+          p_tipo?: string | null
+        }
         Returns: undefined
       }
       fn_historial_salario: {
