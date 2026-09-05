@@ -37,6 +37,46 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») queda con su consulta de población · SIN CORRER TODAVÍA
+
+Hallazgo de `Auditoria-CAYLA-2026-09-04.pdf` (no vive en el repo), «sobrevivió
+2/3» refutadores, con un matiz importante que el propio refutador señaló: no
+es un bug inventado, es un efecto colateral de una decisión ya tomada y
+probada (0158, «se toma la mayor, nunca la suma», prueba 124).
+
+**El mecanismo, visto en 0338** (lateral `cobrado`, líneas 860-866 de
+[`0338_grati_cts_usan_el_sueldo_vigente_al_cierre.sql`](../supabase/migrations/0338_grati_cts_usan_el_sueldo_vigente_al_cierre.sql)):
+`pag.g1` solo dice SI existe un movimiento de planilla en la ventana — no
+CUÁNTO se pagó. Cuando `pag.g1` es verdadero, `cobrado.g1` se define como el
+`devengado.g1` de esa MISMA llamada (día a día o piso, según cuál de las dos
+invocaciones sea), así que `devengado - cobrado` da cero apenas existe el
+movimiento — el piso nunca llega a compararse contra nada para una ventana ya
+cerrada por planilla. Antes de la 0338 (antes del 2026-09-01) ninguna ventana
+tuvo la oportunidad de pasar por el piso al pagarse; hoy ya no se puede
+recuperar esa comparación desde la función, porque no puede verse a sí misma.
+
+**Por qué no se tocó `fn_provisiones` ni se escribió el arreglo todavía.**
+Reimplementar el cálculo día-a-día completo fuera de la función para poder
+auditarla es la misma duplicación de ~300 líneas que la propia cabecera de la
+0338 rechazó. Antes de correr ese riesgo hace falta la población — la misma
+regla de `a_quien_le_pega.sql`: un hallazgo sin población es una hipótesis.
+
+Consulta que la busca:
+[`scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql).
+Para cada ventana de grati/CTS pagada antes del 2026-09-01 y ya cerrada
+(con movimiento en `movimientos_planilla`), busca a quien tuvo un cambio de
+`asignaciones_salario` DENTRO de esa ventana — no en el borde—, que es la
+única situación en que el día a día puede quedar corto frente al piso.
+
+🔴 **Falta correrla en producción.** Probada solo contra el Postgres local
+(0 filas — sin personas ni historial de sueldo reales en esa base). Si sale
+vacía en producción, el hallazgo es real pero no cuesta nada hoy y se anota
+como latente, igual que otros de `hallazgos-abiertos.md`. Si aparece alguien,
+recién ahí se calcula el faltante a mano para esas personas puntuales — nunca
+reabriendo el periodo pagado, ajustando vía `fn_registrar_desembolso`.
+
+---
+
 ## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») queda con su consulta de verificación · SIN CORRER TODAVÍA
 
 Era «sin verificar» porque nadie había mirado producción. El código de
