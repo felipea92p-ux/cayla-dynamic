@@ -82,13 +82,36 @@ esa vista sigue sin exponer nada sensible. Falta el commit/push de este
 código de pantalla (la migración ya vive en el repo desde que se escribió;
 lo pegado a mano fue solo el SQL).
 
-⚠️ **Casi repite el accidente que la 0382 (abajo) documenta.** Mi `drop view` +
-`create view` de `terminal_roster` partió de la 0375 sin saber que, en
-paralelo, la 0382 ya había fusionado a `main` la delegación a
-`fn_persona_marca_en_sede`. Al pegarse mi 0381 en producción DESPUÉS,
-revirtió esa delegación en silencio — confirmado contra producción:
-`delega_en_0382 = false` con las seis columnas (incluida `foto_url`)
-presentes. Reconciliado por la 0383, ver su propia entrada.
+⚠️ **Repitió el accidente que la propia 0382 documenta — 0370/0375, tercera
+vez, y esta vez en las dos direcciones.** El `drop view` + `create view` de
+la 0381 partió del cuerpo de la 0375 sin saber que, en paralelo, la 0382 ya
+había fusionado a `main` la delegación de la regla de sede a
+`fn_persona_marca_en_sede`. Al pegarse la 0381 en producción DESPUÉS, se
+llevó esa delegación por delante en silencio — confirmado contra producción
+el 2026-09-05: `delega_en_0382 = false`, con las seis columnas (incluida
+`foto_url`) presentes.
+
+Y al revés también: la 0382, tal como estaba escrita, declaraba las CINCO
+columnas de la 0375 en un `create or replace view` — que no deja quitar ni
+reordenar columnas. En cualquier reconstrucción del esquema desde cero (CI,
+`supabase db reset`, restaurar un backup) habría fallado en seco al llegarle
+el turno, porque `foto_url` ya estaría puesta por la 0381. No era un
+problema de producción: era el pipeline de todo el equipo.
+
+**Resuelto corrigiendo el cuerpo de la 0382 antes de que llegara a pegarse
+nunca** (decisión de Felipe, 2026-09-05): ahora declara las seis columnas y
+conserva la delegación, con el relato completo en su cabecera. Se eligió eso
+en vez de una migración de parche encima porque el estado real de producción
+—seis columnas, sin delegación— es incompatible con que la 0382 haya corrido
+allí alguna vez, así que no hay estado persistente que dependa de su forma
+anterior. Auditado en local aplicando la secuencia 0377→0382 sobre el mismo
+estado que tiene producción: las pruebas 301 (11), 302 (9, con su aserción
+de columnas actualizada), 303 (4, nueva: la foto y el aislamiento de sede
+conviven) y 293 (17, el candado de sede completo) en verde.
+
+🔴 **Falta pegar la 0382 en producción** — es lo que repone la delegación.
+Antes de pegarla, confirmar que sigue dando `delega_en_0382 = false`: si
+otra sesión ya la pegó mientras tanto, su propia guardia lo dice sin daño.
 
 ---
 
