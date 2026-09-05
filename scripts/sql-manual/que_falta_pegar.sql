@@ -246,7 +246,8 @@ with repo(numero, nombre, nunca) as (values
     (374, 'el_rol_deja_de_contar_si_la_persona_no_esta_activa', false),
     (375, 'el_terminal_deja_de_tener_pin', false),
     (376, 'una_persona_cesada_deja_de_colarse_por_el_or_suelto', false),
-    (377, 'las_alertas_de_antes_del_despacho_quedan_anotadas', false)
+    (377, 'las_alertas_de_antes_del_despacho_quedan_anotadas', false),
+    (378, 'apariencia_tema_global', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte

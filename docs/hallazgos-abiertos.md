@@ -1783,6 +1783,14 @@ Felipe el 2026-09-05 (no vive en el repo, igual que el de ayer).
 
 ### Crítico — 1, nacido de un arreglo de ayer
 
+> ✅ **CERRADO por la [`0376`](../supabase/migrations/0376_una_persona_cesada_deja_de_colarse_por_el_or_suelto.sql),
+> prueba 298 — fusionada a `main`, CI en verde.** Esta sección quedó
+> desactualizada: se escribió pidiendo "una migración nueva" y esa migración
+> ya existía cuando se escribió, sin que esta nota se enterara — el mismo
+> riesgo de duplicado que ya costó `fn_vacaciones_por_vencer` (0297/0299),
+> por el otro lado (casi se reescribe algo que ya estaba hecho). **Falta
+> pegarla en producción** — ver `estado.md` para el protocolo de md5.
+
 - **La 0374 ("el rol deja de contar si la persona no está activa") reescribió
   `fn_rol_actual()` para devolver `NULL` en un cesado, pero no tocó dos
   funciones `SECURITY DEFINER` cuyo guard mezcla un `is not true` aislado con
