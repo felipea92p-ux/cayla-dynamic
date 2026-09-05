@@ -86,6 +86,30 @@ benchmark, 3 verificación adversarial), 0 errores, 4.31M tokens, ~30 minutos.
 
 ---
 
+## 2026-09-05 — `db-tests` se ponía roja según la hora de Lima a la que corriera CI (293) · CORREGIDO
+
+No es una migración rota: es la prueba
+`supabase/tests/293_un_terminal_no_marca_por_otra_sede.test.sql`. Su aserción
+PUERTA 2 fijaba la ENTRADA de Fabi a las 09:00 de Lima a mano. El candado que
+defiende (`fn_marcaje_sede_permitida`, 0370) exige `corregido_at >=
+timestamp_marca` para dejarla entrar, y `corregido_at` es el `now()` real de
+cuando corre el test — así que la aserción solo pasaba si CI arrancaba
+DESPUÉS de las 09:00 Lima. Confirmado con el push que fusionó el PR #161 (00:07
+Lima, 2026-09-05): `db-tests` se puso roja en `main` sin que ese PR tocara
+nada de marcaje, y arrastró consigo a cualquier rama nueva —incluido el PR
+[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197), abierto ese
+mismo rato.
+
+Arreglado dejando la ENTRADA en `now() - interval '30 minutes'` y la salida
+que la cierra (puerta 3, más abajo en el mismo archivo) en `now() + interval
+'30 minutes'` — `now()` es la misma marca de tiempo en TODA la transacción de
+la prueba (una sola `begin`), así que la comparación deja de depender de a
+qué hora del día corra el workflow. El resto de horas fijas del archivo
+(Beto, Iris, Gina) no comparan contra `corregido_at`, solo contra fecha y
+estado de `jornadas`: no tenían este problema y se dejaron igual.
+
+---
+
 ## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · FUSIONADA A MAIN — FALTA DESPLEGAR Y PEGAR
 
 Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
