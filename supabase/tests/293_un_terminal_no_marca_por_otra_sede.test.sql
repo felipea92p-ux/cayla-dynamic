@@ -303,13 +303,22 @@ select lives_ok(
 -- (0342) en un solo acto. Aquí van sueltos porque esa función exige una sesión
 -- de admin autenticada, y esta prueba corre con la sesión del TERMINAL: pedirle
 -- las dos a la vez la volvería una prueba de permisos y no del candado.
+--
+-- `corregido_at` se fija a mano, en vez de dejarlo en su default `now()`: la
+-- puerta 2 exige `ca.corregido_at >= new.timestamp_marca`, y `timestamp_marca`
+-- es HOY 09:00 Lima. Con el default, esta aserción dependía de la hora real a
+-- la que corriera la prueba — fallaba sola entre las 00:00 y las 09:00 hora de
+-- Lima (05:00-14:00 UTC), sin que nadie tocara el candado ni el fixture. Se
+-- fija un instante DENTRO del fixture, siempre después de la marca, para que
+-- la prueba mida el candado y no el reloj de quien la corre.
 update personas set sede_base_id = '00000000-0000-0000-0000-000000028601'
  where id = '00000000-0000-0000-0000-000000028615';
 insert into correcciones_auditoria
-  (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por)
+  (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por, corregido_at)
 values ('00000000-0000-0000-0000-000000028615', 'personas.sede_base_id', 'ZZ286A', 'ZZ286B',
         'Cambio de sede base — puede mover la tarifa de movilidad del periodo abierto.',
-        '00000000-0000-0000-0000-000000028617');
+        '00000000-0000-0000-0000-000000028617',
+        (fn_hoy_lima() + time '09:05') at time zone 'America/Lima');
 
 select lives_ok(
   $$ select fn_registrar_marcaje(
