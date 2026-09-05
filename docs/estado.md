@@ -37,6 +37,59 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Despliegue de la 0375 bloqueado por el tope diario de Vercel · SIN RESOLVER
+
+Al intentar `./scripts/desplegar.sh prod` para publicar la 0375 (retiro del
+PIN del terminal) con `main` ya en verde, Vercel devolvió: `Resource is
+limited - try again in 24 hours (more than 100, code:
+"api-deployments-free-per-day")`. No es un freno del repo ni de las pruebas
+— el enlace del proyecto (`cayla/cayla-dynamic`) y las variables de entorno
+están correctos, verificado con `vercel env ls` antes de intentarlo.
+
+**Por qué hoy:** con ~15 worktrees activos en paralelo, cada PR abre su
+propio preview de Vercel además de cualquier `vercel --prod` manual, y el
+plan gratuito tope 100 despliegues/día entre TODO eso junto. Un día de
+actividad alta como el de hoy (más de 20 PRs fusionados) puede agotarlo antes
+de que alguien intente desplegar a producción.
+
+**Qué hacer:** esperar a que el cupo se libere (ventana rolling de 24 h desde
+el primer despliegue que lo agotó — no hay una hora exacta de reset
+publicada) o que Felipe suba el plan de Vercel. Mientras tanto, la 0375 ya
+está fusionada a `main` y no hace falta rehacer nada — el próximo intento de
+`desplegar.sh prod` debería pasar sin cambios de código, si `main` sigue
+verde.
+
+---
+
+## 2026-09-05 — El guard de `fn_vacaciones_saldo` / `fn_marca_apartada_resolver` ya tiene su migración (0376) · FUSIONADA A MAIN, CI VERDE — FALTA PEGAR
+
+Cierra el crítico nuevo de la segunda auditoría (28 agentes, ver más abajo):
+la 0374 dejó `fn_rol_actual()` devolviendo `NULL` para cualquier persona
+cesada, y dos funciones `SECURITY DEFINER` armaban su guard con un
+`and not(...)` suelto en vez de envolver el OR completo en un único
+`is not true` — la misma trampa de tres valores que la 0078 y la 0126 ya
+corrigieron dos veces. Efecto: una persona cesada con sesión de Auth viva
+podía leer el saldo de vacaciones de un excolega activo de su antigua sede
+(`fn_vacaciones_saldo`) y resolver su marca apartada, escribiendo un marcaje
+real (`fn_marca_apartada_resolver`).
+
+**Esta nota existe porque casi se duplica el arreglo.** La entrada de la
+auditoría (más abajo, "Crítico — 1, nacido de un arreglo de ayer") decía
+"falta una migración nueva... es lo primero que hay que escribir mañana" —
+pero cuando llegó "mañana", la 0376 ya existía en `main`, escrita por otra
+sesión, con prueba 298 y CI en verde. `hallazgos-abiertos.md` quedó
+corregido con un aviso para no repetir la búsqueda.
+
+🔴 **Falta pegarla en producción.** Antes de pegar, pedir a producción el
+md5 de las dos funciones (`donde-vive.sh fn_vacaciones_saldo` y
+`donde-vive.sh fn_marca_apartada_resolver` imprimen la consulta lista) —
+la propia 0376 declara sus md5 de partida locales
+(`fn_vacaciones_saldo` `d466d0d9…`, `fn_marca_apartada_resolver`
+`98cc555d…`) pero, como manda la casa, eso no reemplaza pedirlo de nuevo en
+el momento de entregar el SQL.
+
+---
+
 ## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») · CORRIDO EN PRODUCCIÓN — 0 FILAS, LATENTE
 
 Hallazgo de `Auditoria-CAYLA-2026-09-04.pdf` (no vive en el repo), «sobrevivió
