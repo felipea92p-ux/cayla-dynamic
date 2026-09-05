@@ -226,14 +226,19 @@ export function AdminNav() {
 
   return (
     <header className="border-b border-sand">
-      <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <div className="flex min-w-0 flex-1 items-center gap-6 xl:gap-8">
+      <div className="flex items-start justify-between gap-4 px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 flex-1 items-start gap-6 xl:gap-8">
           <Marca tono="tinta" isotipo="rojo" />
-          {/* Barra horizontal — desktop. Una sola línea que se desplaza si no
-              cabe, en vez de partirse en varios renglones: con ~30 ítems, envolver
-              alargaba el encabezado y dejaba "Cerrar sesión" centrado a media
-              altura del bloque en vez de a la derecha. */}
-          <nav className="hidden min-w-0 flex-nowrap items-center gap-x-2 overflow-x-auto text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:flex">
+          {/* Barra horizontal — desktop. Envuelve en tantas líneas como haga
+              falta (nunca esconde ítems con scroll), y el bloque de acciones de
+              la derecha va con `items-start` en el contenedor: por defecto un
+              flex-row estira a sus hijos a la misma altura, así que con
+              `items-center` el bloque de acciones (nombre, cerrar sesión,
+              buscar) quedaba centrado a media altura del nav ya envuelto y se
+              montaba sobre las filas del medio. Con `items-start` cada bloque
+              usa solo su propia altura: el nav crece hacia abajo cuantas filas
+              necesite y las acciones se quedan arriba, sin pisarse. */}
+          <nav className="hidden min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 text-sm xl:flex">
             {grupos.map((g, gi) => (
               <div key={gi} className="flex shrink-0 items-center gap-x-0.5">
                 {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px shrink-0 bg-sand" />}
