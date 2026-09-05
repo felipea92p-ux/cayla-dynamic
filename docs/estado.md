@@ -37,6 +37,55 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 (noche) — Segunda auditoría (28 agentes): un crítico nuevo, y 8 PRs chocando entre sí · PDF entregado a Felipe
+
+Pedido explícito de Felipe: repetir la auditoría del 2026-09-03/04 con más
+profundidad —código nuevo desde entonces, vistazo general al resto,
+benchmark contra Gusto/Rippling/BambooHR/Workday/Odoo/Oracle— y entregar un
+PDF mejor explicado para la mañana. Detalle completo, con ejemplos y el
+benchmark entero: el PDF (no vive en el repo, igual que el de ayer). Catálogo
+accionable: [`docs/hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-del-2026-09-05--código-nuevo-desde-el-2026-09-04-vistazo-general-benchmark-contra-6-erps--28-agentes).
+
+🔴 **Hallazgo nuevo, crítico, confirmado por 3 refutadores independientes: la
+0374 abrió un hueco al cerrar otro.** Reescribió `fn_rol_actual()` para que
+una persona cesada no cuente como si tuviera rol — correcto en sí — pero dos
+funciones `SECURITY DEFINER` (`fn_vacaciones_saldo` en 0357,
+`fn_marca_apartada_resolver` en 0304) arman su guard con un `and not(...)`
+suelto en vez de envolver todo el OR en un solo `is not true` (el patrón
+correcto, ya usado en la 0126). Efecto: una persona cesada con sesión de Auth
+viva puede leer el saldo de vacaciones de un excolega de su misma sede, y
+resolver una marca apartada — si fue admin/líder/encargada, eso **escribe un
+marcaje real** que alimenta jornada y pago de otra persona. **Falta una
+migración nueva** que reescriba ambos guards al patrón de la 0126 — no
+existe todavía, es lo primero que hay que escribir mañana.
+
+⚠️ **Y esto no esperó al PDF: se le avisó a Felipe apenas se detectó, antes
+de terminar el informe.** Mientras esta auditoría corría, 8 sesiones de
+Claude Code abrieron 8 PRs en menos de una hora, todas atacando los mismos
+hallazgos críticos de ayer (7, 10, 11, 12), sin verse entre sí — el mismo
+patrón que ya costó la duplicación de `fn_vacaciones_por_vencer` (0297/0299).
+Dos son duplicados byte a byte (#199/#197, hallazgo 11); dos resuelven la
+misma regla con dos funciones distintas (#196/#194, hallazgo 12). Ninguno
+fusionado a esta fecha. La comparación completa y qué PR conviene fusionar
+en cada caso vive en `docs/hallazgos-abiertos.md`, sección de esta auditoría.
+
+**Lo que ya se cerró desde ayer, verificado leyendo el código vigente (no
+solo el mensaje de commit):** hallazgos 8, 13, 14, 15, 16, 17, 18, 21, 23, 25
+y 33 resueltos por las migraciones 0360-0372; el 22 parcial (regenerar PIN
+resuelto, alta de persona sigue hasheando en el navegador, impacto ya bajo).
+El PIN del terminal (hallazgo 1) sigue como se documentó abajo: fusionado a
+`main`, sin evidencia de despliegue ni de SQL pegado.
+
+**Nuevo en el repo, para que la próxima auditoría no reinvente el HTML→PDF:**
+[`scripts/auditoria-a-pdf.mjs`](../scripts/auditoria-a-pdf.mjs) — misma
+técnica sin dependencias que `reglamento-a-pdf.mjs`, generalizada para un
+documento que no vive en `docs/`.
+
+31 agentes → 28 agentes esta vez (11 código nuevo, 8 vistazo general, 6
+benchmark, 3 verificación adversarial), 0 errores, 4.31M tokens, ~30 minutos.
+
+---
+
 ## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · FUSIONADA A MAIN — FALTA DESPLEGAR Y PEGAR
 
 Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
