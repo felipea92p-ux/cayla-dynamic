@@ -1698,6 +1698,14 @@ export default function PlanillaPage() {
       avisar("error", "El monto debe ser mayor a 0.");
       return;
     }
+    // Mismo candado que las otras seis acciones de dinero de esta pantalla
+    // (quitar movimiento, marcar pagado, repagar periodo, eliminar periodo,
+    // quitar feriado, agregar pendientes de grati/CTS): confirmar el monto
+    // exacto antes de escribir, para que un typo de un dígito (S/350 →
+    // S/3500) no se guarde sin que nadie lo revise primero.
+    if (!window.confirm(`¿Registrar ${CLASE_LABEL[movForm.tipo]} de ${formatSoles(monto)} para ${f.nombre} — "${concepto}"?`)) {
+      return;
+    }
     setGuardandoMov(true);
     const { error } = await supabase.rpc("fn_agregar_movimiento", {
       p_periodo_id: proy.periodo_id,

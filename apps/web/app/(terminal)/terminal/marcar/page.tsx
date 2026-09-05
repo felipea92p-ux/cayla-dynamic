@@ -8,6 +8,7 @@ import {
   type RosterEntry,
   encolarMarcaje,
   eliminarDeOutbox,
+  marcarComoRechazadaPorServidor,
   obtenerDescartadas,
   obtenerPendientes,
 } from "@/lib/terminal/offline-db";
@@ -490,9 +491,21 @@ export default function MarcarPage() {
     // le cierra solo y cobra las horas que le invente el auto-cierre.
     let rechazadaPorElServidor = false;
     if (navigator.onLine) {
-      const { ok, llego } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
+      const { ok, error, llego } = await enviarMarcaje(createTerminalSupabaseClient(), entry);
       sincronizadoAhora = ok;
       rechazadaPorElServidor = !ok && llego;
+      // Marcarlo YA, no esperar a que sync.ts acumule 6 fallos confirmados
+      // (minuto y medio) para enterarse de algo que este intento ya sabe.
+      // Sigue en la cola y se sigue reintentando; lo único que cambia de
+      // inmediato es que deja de contar como "de hoy" (ver offline-db.ts).
+      if (rechazadaPorElServidor && encolada) {
+        try {
+          await marcarComoRechazadaPorServidor(entry.clientUuid, error ?? "sin detalle");
+        } catch {
+          // Sin almacén local no hay bandera que poner; el mensaje en pantalla
+          // ya avisó del rechazo de todos modos.
+        }
+      }
     }
 
     // De la cola sale solo lo que el servidor confirmó.

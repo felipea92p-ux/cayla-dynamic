@@ -677,7 +677,15 @@ export default function FeriadosPage() {
                           <span className="text-taupe">— paga sobretasa</span>
                         ) : (
                           <>
-                            <span className={l.estado === "OTORGADO" ? "font-medium text-tinta" : "text-taupe"}>
+                            <span
+                              className={
+                                l.estado === "OTORGADO"
+                                  ? "font-medium text-tinta"
+                                  : l.estado === "NO_OTORGADO"
+                                    ? "font-medium text-rojo"
+                                    : "text-taupe"
+                              }
+                            >
                               {l.estado}
                             </span>
                             {l.fecha_descanso && (
@@ -711,7 +719,17 @@ export default function FeriadosPage() {
                       <span className="text-taupe">
                         · trabajó el {fechaCorta(r.fecha_feriado)} · libre el {fechaCorta(r.fecha_descanso_sustitutorio)}
                       </span>{" "}
-                      <span className={r.estado === "OTORGADO" ? "font-medium" : "text-taupe"}>· {r.estado}</span>
+                      <span
+                        className={
+                          r.estado === "OTORGADO"
+                            ? "font-medium"
+                            : r.estado === "NO_OTORGADO"
+                              ? "font-medium text-rojo"
+                              : "text-taupe"
+                        }
+                      >
+                        · {r.estado}
+                      </span>
                     </span>
                     <Boton variante="peligro" tamano="sm" onClick={() => quitar(r.id)} disabled={guardando}>
                       Quitar

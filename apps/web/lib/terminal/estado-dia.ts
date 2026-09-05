@@ -95,6 +95,13 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
   const pendientes = await obtenerPendientes();
   for (const p of pendientes) {
     if (fechaLima(p.timestampCliente) !== hoy) continue;
+    // El servidor YA contestó que no a esta marca (rechazo real, no un corte
+    // de red) — sigue en la cola por si un reintento la resuelve, pero no
+    // debe seguir contando como "de hoy" mientras tanto: antes de esto, el
+    // terminal podía ofrecer una acción (p. ej. "¿volviste a entrar?") sobre
+    // una salida que el servidor nunca aceptó, hasta que sync.ts acumulara
+    // seis fallos confirmados (minuto y medio) y recién ahí la apartara.
+    if (p.rechazadaPorServidor) continue;
     const lista = mapa.get(p.personaId) ?? [];
     lista.push({ tipo: p.tipo, timestamp: p.timestampCliente });
     mapa.set(p.personaId, lista);
