@@ -712,6 +712,47 @@ export default function ContratosPage() {
   if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
     bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
   }
+  // Estos campos no tenían bloqueo (hallazgo #11, auditoría 2026-09-03/04):
+  // vacíos, `contrato-texto.ts` los imprime tal cual como «[completar]» dentro
+  // de una cláusula real del convenio o del Anexo I — no en un aparte, sino en
+  // el cuerpo que las partes firman. `gradoTituloTexto` queda afuera a
+  // propósito: su propia etiqueta en el formulario lo marca "referencial", no
+  // una declaración que el centro de formación firme.
+  if (persona && esConvenio && modalidadEfectiva === "preprofesional") {
+    if (centroFormacionNombreEditado.trim() === "") {
+      bloqueos.push("Completa la razón social del centro de formación.");
+    }
+    if (centroFormacionRucEditado.trim() === "") {
+      bloqueos.push("Completa el RUC del centro de formación.");
+    }
+    if (centroFormacionDomicilioEditado.trim() === "") {
+      bloqueos.push("Completa el domicilio del centro de formación.");
+    }
+    if (centroFormacionRepresentanteEditado.trim() === "") {
+      bloqueos.push("Completa el representante del centro de formación.");
+    }
+    if (carreraEspecialidadEditada.trim() === "") {
+      bloqueos.push("Completa la carrera / especialidad de la practicante.");
+    }
+    if (cicloAcademicoEditado.trim() === "") {
+      bloqueos.push("Completa el ciclo académico de la practicante.");
+    }
+  }
+  if (persona && esConvenio && areaProyectoEditado.trim() === "") {
+    bloqueos.push("Completa el área / proyecto de destino (Anexo I).");
+  }
+  if (persona && esConvenio && objetivoFormativoGeneralEditado.trim() === "") {
+    bloqueos.push("Completa el objetivo formativo general del Anexo I.");
+  }
+  if (persona && esConvenio && supervisorAsignadoEditado.trim() === "") {
+    bloqueos.push("Completa el/la supervisor(a) asignado(a) del Anexo I.");
+  }
+  if (persona && esConvenio && hitoMes3Editado.trim() === "") {
+    bloqueos.push("Completa el hito de evaluación del mes 3 del Anexo I.");
+  }
+  if (persona && esConvenio && hitoMes6Editado.trim() === "") {
+    bloqueos.push("Completa el hito de evaluación del mes 6 del Anexo I.");
+  }
   // La ciudad no bloquea —el documento lo dice en su propio texto— pero avisar
   // acá evita descubrirlo recién al leer el PDF impreso.
   if (persona && !ciudadFinal) {
