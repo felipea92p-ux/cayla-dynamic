@@ -47,6 +47,19 @@ function aplicarAtributo(tema: Tema) {
   else document.documentElement.setAttribute("data-tema", tema);
 }
 
+// Qué se ve realmente en pantalla con este tema — "sistema" no es un color,
+// resuelve al que diga `prefers-color-scheme` del navegador. Sirve para que
+// el selector rápido sepa cuándo un clic no va a cambiar nada visible (ver
+// SIGUIENTE en selector-tema.tsx): si acabas de elegir "oscuro" a mano y tu
+// sistema operativo también prefiere oscuro, pasar a "sistema" deja la
+// pantalla exactamente igual — el clic sí corrió, pero parece que no hizo
+// nada. Solo llamar en el navegador: matchMedia no existe en el render de
+// servidor.
+export function apariencia(tema: Tema): "claro" | "oscuro" {
+  if (tema !== "sistema") return tema;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "oscuro" : "claro";
+}
+
 function aplicar(tema: Tema) {
   aplicarAtributo(tema);
   try {
