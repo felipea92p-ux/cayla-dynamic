@@ -238,6 +238,8 @@ with repo(numero, nombre, nunca) as (values
     (366, 'dos_toques_seguidos_no_dejan_dos_marcas', false),
     (367, 'fn_registrar_marcaje_pierde_su_sobrecarga_vieja', false),
     (368, 'un_codigo_de_sede_no_se_pisa_en_silencio', false),
+    (370, 'el_terminal_no_marca_por_otra_sede', false),
+    (371, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues', false),
     (372, 'el_nueve_por_ciento_deja_de_darse_por_pagado_solo', false),
     (373, 'a_la_0353_le_faltaba_su_columna_en_produccion', false)
 ),
