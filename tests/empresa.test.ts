@@ -76,6 +76,7 @@ const DATOS_CONTRATO: DatosContrato = {
   direccion: null,
   cargo: "Asesora de tienda",
   email: null,
+  genero: null,
   sedeNombre: "Trujillo",
   sedeCodigo: "TRU",
   ciudad: "Trujillo",

@@ -111,6 +111,7 @@ interface DatoPersonal {
   persona_id: string;
   nombre_dni: string | null;
   direccion: string | null;
+  genero: string | null;
 }
 interface Salario {
   persona_id: string;
@@ -292,6 +293,18 @@ export default function ContratosPage() {
   // borrador al editar el formulario no debe cerrar lo que se está mirando.
   const [documentoAbierto, setDocumentoAbierto] = useState<string | null>(null);
 
+  // "Ver / imprimir" abre el documento en una ventana modal en vez de
+  // agregarlo al final de la página: con varios contratos en el archivo, cada
+  // clic hacía la página más larga en lugar de solo mostrar uno.
+  useEffect(() => {
+    if (!documentoAbierto) return;
+    function alPresionar(e: KeyboardEvent) {
+      if (e.key === "Escape") setDocumentoAbierto(null);
+    }
+    window.addEventListener("keydown", alPresionar);
+    return () => window.removeEventListener("keydown", alPresionar);
+  }, [documentoAbierto]);
+
   const [subiendoPara, setSubiendoPara] = useState<string | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   // NACE CON LA FECHA DE HOY, no vacía. Ver la regla en CLAUDE.md: un campo de
@@ -346,7 +359,7 @@ export default function ContratosPage() {
         .eq("estado", "activo")
         .order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo, ciudad"),
-      supabase.from("datos_personales").select("persona_id, nombre_dni, direccion"),
+      supabase.from("datos_personales").select("persona_id, nombre_dni, direccion, genero"),
       supabase.from("asignaciones_salario").select("persona_id, salario_mensual_soles").is("vigente_hasta", null),
       // Movilidad, bono y RMV: la fila vigente HOY. Sin fila aplicable, cae a
       // null y el contrato lo dice en vez de inventar un monto — misma
@@ -600,6 +613,7 @@ export default function ContratosPage() {
           nombreDni: datoPersonal.nombre_dni,
           documento: persona.documento,
           direccion: datoPersonal.direccion,
+          genero: datoPersonal.genero === "masculino" ? "masculino" : datoPersonal.genero === "femenino" ? "femenino" : null,
           cargo: cargoEditado || persona.cargo || "",
           email: persona.email,
           sedeNombre: sedeNom,
@@ -1008,7 +1022,11 @@ export default function ContratosPage() {
     return [...m.entries()];
   })();
 
-  const documentoAMostrar = documentoAbierto ?? borrador?.html ?? previewHtml;
+  // `documentoAbierto` (un contrato del historial abierto con "Ver /
+  // imprimir") ya no entra acá: se muestra en su propia ventana modal, más
+  // abajo. Esto sigue siendo el borrador/previsualización en vivo mientras se
+  // arma un contrato nuevo.
+  const documentoAMostrar = borrador?.html ?? previewHtml;
 
   // LA FIRMA SE ESTAMPA AL MOSTRAR, NUNCA AL GUARDAR. Lo que la 0272 congela en
   // `documento_html` es el borrador SIN firmar; meterle la imagen convertiría un
@@ -1024,6 +1042,9 @@ export default function ContratosPage() {
         MARCADOR_FIRMA_EMPRESA,
         puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;",
       )
+    : null;
+  const htmlFinalAbierto = documentoAbierto
+    ? documentoAbierto.replaceAll(MARCADOR_FIRMA_EMPRESA, puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;")
     : null;
 
   return (
@@ -1756,17 +1777,35 @@ export default function ContratosPage() {
         )}
       </div>
 
-      {/* Al mirar uno del historial, los botones van ARRIBA del documento: es
-          de ocho páginas, y buscarlos al final obliga a recorrerlo entero. */}
-      {documentoAbierto && (
-        <div className="mx-auto mt-6 flex max-w-3xl items-center gap-3 print:hidden">
-          <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={imprimir}>
-            Imprimir / Guardar como PDF
-          </button>
-          <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>
-            Cerrar
-          </button>
-        </div>
+      {/* Un contrato del historial se ve en una ventana modal, no agregado al
+          final de la página: con varios contratos por persona, cada "Ver /
+          imprimir" hacía la página más larga en vez de solo mostrar uno. */}
+      {documentoAbierto && htmlFinalAbierto && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/40 print:hidden"
+            onClick={() => setDocumentoAbierto(null)}
+            aria-hidden
+          />
+          <div
+            role="dialog"
+            aria-label="Ver contrato"
+            className="fixed inset-3 z-50 overflow-y-auto rounded-lg border border-sand bg-crema shadow-xl sm:inset-6 md:inset-x-auto md:inset-y-6 md:left-1/2 md:w-full md:max-w-3xl md:-translate-x-1/2 print:static print:inset-auto print:z-auto print:w-auto print:max-w-none print:translate-x-0 print:overflow-visible print:rounded-none print:border-0 print:bg-transparent print:shadow-none"
+          >
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-sand bg-crema px-4 py-3 print:hidden">
+              <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={imprimir}>
+                Imprimir / Guardar como PDF
+              </button>
+              <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>
+                Cerrar
+              </button>
+            </div>
+            <div
+              className="hoja mx-auto max-w-3xl p-8 text-sm leading-relaxed print:mt-0 print:max-w-none print:rounded-none print:border-0 print:p-0"
+              dangerouslySetInnerHTML={{ __html: htmlFinalAbierto }}
+            />
+          </div>
+        </>
       )}
 
       {htmlFinal && (
