@@ -9,17 +9,16 @@ import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "@cayla-dynamic/shared";
+// horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
+// ajuste "si la salida no es posterior a la entrada, el turno cruza
+// medianoche" que horasEntre() ya resuelve (turnos/page.tsx también la
+// reusa). Sin eso, un horario nocturno (p. ej. 21:00–05:00) daba 0 horas en
+// vez de las ocho reales, escondiendo el aviso de exceso legal semanal de
+// una practicante.
+import { horasEntre as horasDia } from "@/lib/admin/jornada-esperada";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 
-function toMin(hhmm: string): number {
-  const [h, m] = (hhmm || "0:0").split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-// horas netas del día = (salida − entrada) − refrigerio
-function horasDia(e: string, s: string, r: number): number {
-  return Math.max(0, toMin(s) - toMin(e) - (r || 0)) / 60;
-}
 function fmtH(h: number): string {
   return `${Math.round(h * 100) / 100} h`;
 }

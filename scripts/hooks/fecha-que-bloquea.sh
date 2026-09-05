@@ -24,6 +24,19 @@
 # repositorio y frenar todos los push por ellos convertiría este freno en algo
 # que se salta con --no-verify. La deuda vieja se paga en su propio lote.
 #
+# EXTENDIDO el 2026-09-05: la auditoría de esa fecha encontró que un commit del
+# 30/08 dijo haber corregido "dos formularios más con el bug de fecha-vacía-
+# bloquea-envío" (datos-personales, educación) y en realidad aplicó la
+# combinación de técnicas que este mismo archivo documenta arriba como YA
+# PROBADA Y SIN ÉXITO (onChange + onBlur + ref), no la solución real. Y este
+# freno no los vio: su expresión regular solo reconocía `useState("")` con
+# identificador simple, no un objeto (`useState({..., campo: ""})`) —
+# exactamente el patrón de esos dos casos y de un tercero ya existente en
+# admin/equipo. Ahora también reconoce `value={objeto.campo}` y busca
+# `campo: ""` dentro del literal que inicializa ese objeto — sigue siendo una
+# heurística de ventana de texto, no un parser, así que un objeto muy anidado
+# o partido en variables intermedias puede seguir sin verse.
+#
 # Para saltarlo en una urgencia real:  git push --no-verify
 
 BASE="${LINT_BASE:-origin/main}"
@@ -67,18 +80,72 @@ for ruta in [r.strip() for r in sys.stdin if r.strip()]:
     lineas = texto.split("\n")
     nuevas = lineas_agregadas(ruta)
 
-    # Qué estados pinta un input[type=date].
+    # Qué estados pinta un input[type=date]. `objeto.campo` cuenta igual que
+    # un identificador simple — es el patrón de un formulario en un solo
+    # `useState({...})` en vez de un `useState` por campo.
     de_fecha = set()
     for m in re.finditer(r"<input[^>]*type=\"date\"[^>]*>", texto, re.S):
-        v = re.search(r"value=\{([A-Za-z0-9_]+)\}", m.group(0))
+        v = re.search(r"value=\{([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?)\}", m.group(0))
         if v: de_fecha.add(v.group(1))
+
+    def declaracion_simple(nombre):
+        pat = r"const \[%s, set[A-Za-z0-9_]+\] = useState\(\"\"\)" % re.escape(nombre)
+        for i, l in enumerate(lineas, 1):
+            if re.search(pat, l):
+                return i
+        return None
+
+    def campo_vacio_desde(inicio, campo):
+        """¿"campo: \"\"" aparece en una ventana razonable después de `inicio`?"""
+        ventana = texto[inicio:inicio + 4000]
+        fm = re.search(r"\b%s\s*:\s*\"\"" % re.escape(campo), ventana)
+        if not fm:
+            return None
+        return texto.count("\n", 0, inicio + fm.start()) + 1
+
+    def declaracion_de_constante(nombre):
+        """Dónde arranca el literal de `const NOMBRE = {...}` o `const NOMBRE: Tipo = {...}`."""
+        m = re.search(r"const %s(?:\s*:\s*[A-Za-z0-9_<>]+)?\s*=\s*\{" % re.escape(nombre), texto)
+        return m.end() if m else None
+
+    def declaracion_en_objeto(objeto, campo):
+        # Busca dónde se inicializa el objeto (useState(...), con o sin tipo
+        # genérico) y, DENTRO de una ventana razonable después de eso, si el
+        # campo nace en "". La ventana evita casarse con un objeto homónimo
+        # de más abajo en el archivo.
+        #
+        # El argumento de useState no siempre es un literal en línea: el
+        # patrón real de este repo es `useState(NOMBRE_VACIO)` o
+        # `useState({ ...NOMBRE_VACIO })`, con el objeto vacío declarado
+        # aparte como constante — así se resetea el formulario sin repetir
+        # los campos en cada sitio que lo limpia. Si el argumento es un
+        # literal inline, se mira directamente ahí.
+        m = re.search(
+            r"const \[%s,\s*set[A-Za-z0-9_]+\]\s*=\s*useState(?:<[^>()]*>)?\(((?:[^()]|\([^()]*\))*)\)"
+            % re.escape(objeto),
+            texto,
+        )
+        if not m:
+            return None
+        arg = m.group(1).strip()
+
+        referencia = re.match(r"^\{\s*\.\.\.([A-Za-z0-9_]+)", arg) or re.match(r"^([A-Za-z0-9_]+)$", arg)
+        if referencia:
+            inicio_const = declaracion_de_constante(referencia.group(1))
+            if inicio_const is not None:
+                resultado = campo_vacio_desde(inicio_const, campo)
+                if resultado is not None:
+                    return resultado
+        # Última opción: el literal está inline en el propio useState(...).
+        return campo_vacio_desde(m.start(1), campo)
 
     for nombre in de_fecha:
         # ¿arranca vacío, y esa línea la agrega ESTE push?
-        decl = None
-        for i, l in enumerate(lineas, 1):
-            if re.search(r"const \[%s, set[A-Za-z0-9_]+\] = useState\(\"\"\)" % re.escape(nombre), l):
-                decl = i; break
+        if "." in nombre:
+            objeto, campo = nombre.split(".", 1)
+            decl = declaracion_en_objeto(objeto, campo)
+        else:
+            decl = declaracion_simple(nombre)
         if decl is None or decl not in nuevas:
             continue
         # ¿y su vacío corta el envío?
@@ -101,7 +168,12 @@ print("    Pasó el 2026-08-26 con un descanso médico y costó cinco despliegue
 print("")
 print("    Que nazca con el valor más probable —hoy, o la fecha de inicio—:")
 print("")
-print("      const [%s, set…] = useState(hoyLima());" % hallazgos[0][2])
+_nombre_ej = hallazgos[0][2]
+if "." in _nombre_ej:
+    _obj, _campo = _nombre_ej.split(".", 1)
+    print("      %s: hoyLima()   dentro del literal que inicializa %s" % (_campo, _obj))
+else:
+    print("      const [%s, set…] = useState(hoyLima());" % _nombre_ej)
 print("")
 print("    Sigue visible y se corrige en un clic. Si de verdad es opcional,")
 print("    quita la validación que bloquea por vacío.")

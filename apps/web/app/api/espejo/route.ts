@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const personas = await pageAll(() => sb.from("personas").select("id,nombres,apellidos,estado,sedes:sede_base_id(codigo)"));
+    const personas = await pageAll(() => sb.from("personas").select("id,nombres,apellidos,estado,fecha_cese,sedes:sede_base_id(codigo)"));
     const sedes = await pageAll(() => sb.from("sedes").select("id,codigo"));
     const jornadas = await pageAll(() => sb.from("jornadas").select("persona_id,fecha,horas_trabajadas,minutos_tarde").gte("fecha", ini).lte("fecha", fin));
     // Las marcas anuladas (mig. 0081) quedan fuera: la hoja debe reflejar el día
@@ -46,8 +46,23 @@ export async function GET(req: Request) {
 
     const sedeCod: Record<string, string> = {};
     sedes.forEach((s: any) => { sedeCod[s.id] = s.codigo; });
-    const info: Record<string, { nombre: string; sede: string; activo: boolean }> = {};
-    personas.forEach((p: any) => { info[p.id] = { nombre: `${p.nombres} ${p.apellidos}`, sede: p.sedes?.codigo ?? "?", activo: p.estado === "activo" }; });
+    const info: Record<string, { nombre: string; sede: string; activo: boolean; feriaCese: string | null }> = {};
+    type FilaPersona = {
+      id: string;
+      nombres: string;
+      apellidos: string;
+      estado: string;
+      fecha_cese: string | null;
+      sedes: { codigo: string } | null;
+    };
+    (personas as FilaPersona[]).forEach((p) => {
+      info[p.id] = {
+        nombre: `${p.nombres} ${p.apellidos}`,
+        sede: p.sedes?.codigo ?? "?",
+        activo: p.estado === "activo",
+        feriaCese: p.fecha_cese ?? null,
+      };
+    });
 
     // Resumen: matriz persona × día del mes
     const horas: Record<string, { dias: Record<number, number>; total: number; tarde: number }> = {};
@@ -60,11 +75,20 @@ export async function GET(req: Request) {
     for (let d = 1; d <= diasMes; d++) head.push(d);
     head.push("Total", "Tardanzas");
     const resumen: any[][] = [head];
-    Object.keys(info).filter((id) => info[id].activo)
+    // CAMBIO — antes filtraba por el estado ACTUAL de la persona (`activo`),
+    // así que alguien que trabajó parte del mes y cesó a mitad de camino
+    // desaparecía de "Resumen" — justo el momento de mayor riesgo (una
+    // liquidación de cese) y justo la fila que "Marcajes" sí seguía
+    // mostrando. Ahora entra cualquiera con horas reales este mes, esté
+    // activa o no hoy; a quien ya no está activa se le anota cuándo cesó.
+    Object.keys(info).filter((id) => info[id].activo || (horas[id] && horas[id].total > 0))
       .sort((a, b) => info[a].nombre.localeCompare(info[b].nombre))
       .forEach((id) => {
         const r = horas[id] || { dias: {}, total: 0, tarde: 0 };
-        const fila: any[] = [info[id].nombre, info[id].sede];
+        const nombreFila = info[id].activo || !info[id].feriaCese
+          ? info[id].nombre
+          : `${info[id].nombre} (cesó el ${info[id].feriaCese})`;
+        const fila: (string | number)[] = [nombreFila, info[id].sede];
         for (let d = 1; d <= diasMes; d++) fila.push(r.dias[d] ? Math.round(r.dias[d] * 100) / 100 : "");
         fila.push(Math.round(r.total * 100) / 100, r.tarde || "");
         resumen.push(fila);

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
@@ -63,11 +63,23 @@ const VACIO: Form = {
   discapacidad: "", discapacidad_conadis: "", cuspp: "",
 };
 
-/** Familiar nuevo, en blanco. */
-const DH_VACIO = {
-  nombres: "", apellidos: "", vinculo: "hijo", documento: "",
-  fecha_nacimiento: "", essalud: false, vida_ley: false,
-};
+/**
+ * Familiar nuevo. `fecha_nacimiento` NACE EN HOY, no en "" — la fecha de
+ * nacimiento de un derechohabiente "hijo" es obligatoria (art. ver validación
+ * de guardar()), y un campo de fecha bloqueante que arranca vacío es
+ * exactamente el bug que costó cinco despliegues el 2026-08-26 (CLAUDE.md):
+ * Safari puede pintar un valor en el input sin disparar el evento que React
+ * escucha, dejando el estado en "" mientras la pantalla ya muestra una fecha.
+ * "Hoy" es obviamente incorrecto para una fecha de nacimiento —visible y
+ * editable en un clic—, pero nunca bloquea el envío por accidente ni dispara
+ * el desajuste entre lo que se ve y lo que se manda.
+ */
+function crearDhVacio() {
+  return {
+    nombres: "", apellidos: "", vinculo: "hijo", documento: "",
+    fecha_nacimiento: hoyLima(), essalud: false, vida_ley: false,
+  };
+}
 
 export default function DatosPersonalesPage() {
   const router = useRouter();
@@ -103,10 +115,7 @@ export default function DatosPersonalesPage() {
   const [periodoAbiertoIni, setPeriodoAbiertoIni] = useState<string | null>(null);
   // El correo vive en `personas`, no en la ficha: es el usuario de acceso.
   const [email, setEmail] = useState("");
-  const [dhNuevo, setDhNuevo] = useState({ ...DH_VACIO });
-  // LO QUE SE MANDA ES LO QUE SE VE: mismo respaldo que `refDocFecha` en
-  // ausencias/page.tsx, contra el mismo bug de Safari con `input[type=date]`.
-  const refDhFecha = useRef<HTMLInputElement>(null);
+  const [dhNuevo, setDhNuevo] = useState(crearDhVacio());
   const [dhAbierto, setDhAbierto] = useState(false);
   // Qué familiar se está editando. `null` = se está creando uno nuevo. El
   // formulario es el MISMO para las dos cosas: `fn_set_derechohabiente` ya hace
@@ -210,7 +219,7 @@ export default function DatosPersonalesPage() {
   // borrarle el correo a alguien que sí lo tenía. Lo frenó el candado de la
   // 0198 —que solo cuida el correo—; el resto de la ficha ya se había escrito.
   function seleccionar(id: string, forzarScroll = false) {
-    setSel(id); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO }); setDhEditando(null);
+    setSel(id); setMotivoDni(""); setDhAbierto(false); setDhNuevo(crearDhVacio()); setDhEditando(null);
     // En móvil la ficha queda debajo de la lista: la traemos a la vista
     // (respetando la preferencia de "reducir movimiento" del sistema).
     // `forzarScroll` es para quien entra desde el bloque de arriba, donde la
@@ -365,9 +374,7 @@ export default function DatosPersonalesPage() {
       avisar("error", "El nombre y el apellido del familiar son obligatorios.");
       return;
     }
-    const vFecha = dhNuevo.fecha_nacimiento || refDhFecha.current?.value || "";
-    if (vFecha !== dhNuevo.fecha_nacimiento) setDhNuevo((d) => ({ ...d, fecha_nacimiento: vFecha }));
-    if (dhNuevo.vinculo === "hijo" && !vFecha) {
+    if (dhNuevo.vinculo === "hijo" && !dhNuevo.fecha_nacimiento) {
       avisar("error", "La fecha de nacimiento de una hija o hijo es obligatoria: es lo que define hasta cuándo lo cubre EsSalud.");
       return;
     }
@@ -377,13 +384,13 @@ export default function DatosPersonalesPage() {
       p_nombres: dhNuevo.nombres.trim(), p_apellidos: dhNuevo.apellidos.trim(),
       p_vinculo: dhNuevo.vinculo,
       p_documento: dhNuevo.documento.trim() || null,
-      p_fecha_nacimiento: vFecha || null,
+      p_fecha_nacimiento: dhNuevo.fecha_nacimiento || null,
       p_essalud: dhNuevo.essalud, p_vida_ley: dhNuevo.vida_ley, p_nota: null,
     });
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
     const editaba = dhEditando !== null;
-    setDhNuevo({ ...DH_VACIO }); setDhAbierto(false); setDhEditando(null);
+    setDhNuevo(crearDhVacio()); setDhAbierto(false); setDhEditando(null);
     await cargar();
     avisar("ok", editaba ? "Familiar corregido." : "Familiar agregado.");
   }
@@ -972,8 +979,8 @@ export default function DatosPersonalesPage() {
                           un familiar nuevo. */}
                       <button
                         onClick={() => {
-                          if (dhAbierto) { setDhAbierto(false); setDhEditando(null); setDhNuevo({ ...DH_VACIO }); }
-                          else { setDhEditando(null); setDhNuevo({ ...DH_VACIO }); setDhAbierto(true); }
+                          if (dhAbierto) { setDhAbierto(false); setDhEditando(null); setDhNuevo(crearDhVacio()); }
+                          else { setDhEditando(null); setDhNuevo(crearDhVacio()); setDhAbierto(true); }
                         }}
                         className="text-xs text-tinta hover:underline"
                       >
@@ -1049,7 +1056,7 @@ export default function DatosPersonalesPage() {
                               Fecha de nacimiento
                               {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-ambar">· obligatoria</span>}
                             </span>
-                            <input ref={refDhFecha} type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} onBlur={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.currentTarget.value }))} className="rounded-lg border px-3 py-2" />
+                            <input type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} className="rounded-lg border px-3 py-2" />
                           </label>
                           <div className="flex flex-col gap-2 text-sm sm:self-end">
                             <label className="flex items-center gap-2">
@@ -1071,7 +1078,7 @@ export default function DatosPersonalesPage() {
                               «Agregar familiar» cierra el formulario, y dos formas de
                               cerrar lo mismo confunden más de lo que ayudan. */}
                           {dhEditando && (
-                            <button onClick={() => { setDhAbierto(false); setDhEditando(null); setDhNuevo({ ...DH_VACIO }); }}
+                            <button onClick={() => { setDhAbierto(false); setDhEditando(null); setDhNuevo(crearDhVacio()); }}
                               disabled={guardando} className="text-sm text-taupe hover:underline disabled:opacity-50">
                               Cancelar
                             </button>

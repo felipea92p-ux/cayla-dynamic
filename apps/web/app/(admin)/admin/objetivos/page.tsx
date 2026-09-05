@@ -63,6 +63,7 @@ function ObjetivosContenido() {
   const [mes, setMes] = useState(Number.isInteger(mesEnlace) && mesEnlace >= 1 && mesEnlace <= 12 ? mesEnlace : hoy.mes);
   const [items, setItems] = useState<ObjetivoItem[]>([]);
   const [resumen, setResumen] = useState<ResumenMes[]>([]);
+  const [mesPagado, setMesPagado] = useState(false);
   const [historial, setHistorial] = useState<MesHistorial[]>([]);
   const [rangoHistorial, setRangoHistorial] = useState(12);
   const [cargando, setCargando] = useState(false);
@@ -103,13 +104,17 @@ function ObjetivosContenido() {
   // admin/líder gestionan a cualquiera; la encargada SOLO integrantes de su
   // sede (los objetivos de las encargadas los gestiona admin/líder). El
   // servidor re-valida esto mismo en cada RPC.
-  const puedeGestionar = useMemo(() => {
+  const tienePermisoDeRol = useMemo(() => {
     if (!persona || rol === null) return false;
     if (puedeVerTodasLasSedes(rol)) return true;
     if (rol === "supervisor_sede" && yo)
       return persona.rol === "integrante" && persona.sede_base_id === yo.sedeBaseId;
     return false;
   }, [persona, rol, yo]);
+  // El mes con planilla pagada es solo lectura aunque el rol sí tenga
+  // permiso — mismo criterio que ya usa correcciones/page.tsx con
+  // periodo_pagado, para avisar ANTES de dejar editar, no después.
+  const puedeGestionar = tienePermisoDeRol && !mesPagado;
 
   const cargar = useCallback(async () => {
     if (!personaId) return;
@@ -117,15 +122,21 @@ function ObjetivosContenido() {
     const supabase = createAdminSupabaseClient();
     // objetivos_items NUNCA se lee por REST (schema cache de PostgREST trabado):
     // solo vía RPC jsonb, patrón 0020.
-    const [{ data, error }, { data: res }] = await Promise.all([
+    const [{ data, error }, { data: res }, { data: pagado }] = await Promise.all([
       supabase.rpc("fn_objetivos_checklist", { p_anio: anio, p_mes: mes, p_persona_id: personaId }),
       supabase.rpc("fn_objetivos_resumen", { p_anio: anio, p_mes: mes }),
+      // El servidor SÍ bloquea escribir sobre un mes con planilla pagada
+      // (fn_mes_planilla_pagado, 0032); esto solo lo trae al cliente para
+      // avisar ANTES de que alguien intente editar, no después con un toast
+      // de error — a diferencia de antes, que nunca pedía este dato.
+      supabase.rpc("fn_mes_planilla_pagado", { p_anio: anio, p_mes: mes }),
     ]);
     if (error) {
       avisar("error", mensajeDeError(error));
     } else {
       setItems(((data as unknown as ObjetivoItem[] | null) ?? []).slice());
       setResumen((res as unknown as ResumenMes[] | null) ?? []);
+      setMesPagado(pagado === true);
     }
     setCargado(true);
     setCargando(false);
@@ -218,6 +229,13 @@ function ObjetivosContenido() {
     });
     if (error) {
       avisar("error", mensajeDeError(error, "marcar"));
+      // El checkbox es un input nativo: el navegador ya invirtió su estado
+      // visual al hacer clic, antes de que este onChange corriera. Sin un
+      // re-render, queda mostrando lo que la persona intentó marcar, no lo
+      // que en verdad se guardó (que el rechazo del servidor no cambió).
+      // Forzar una copia nueva del array re-sincroniza el checkbox
+      // controlado con item.cumplido, que nunca cambió.
+      setItems((prev) => [...prev]);
       return;
     }
     await cargar();
@@ -426,7 +444,13 @@ function ObjetivosContenido() {
               </div>
             )}
 
-            {!puedeGestionar && persona && (
+            {mesPagado && tienePermisoDeRol && (
+              <div className="mb-4 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                Solo lectura: la planilla de {MESES[mes - 1].toLowerCase()} {anio} ya está PAGADA. Para
+                corregir, un administrador reabre el periodo en Planilla.
+              </div>
+            )}
+            {!tienePermisoDeRol && persona && (
               <div className="mb-4 rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
                 Solo lectura. {rol === "supervisor_sede"
                   ? "Como líder de equipo gestionas los objetivos de los integrantes de tu sede; los demás los gestiona un administrador."
