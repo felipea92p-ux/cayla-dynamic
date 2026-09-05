@@ -45,6 +45,11 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // cuarto número compitiendo con los tres que ya explica, y el criterio de
     // esta casa es que un aviso que aparece en todos lados deja de ser aviso.
     { href: "/admin/bandeja", label: "Bandeja", Icon: Inbox, roles: SEDE },
+    // El tema global (claro/oscuro) de panel Y terminal — no un color libre,
+    // ver apps/web/app/(admin)/admin/apariencia/page.tsx. Mismo permiso que
+    // el resto de este grupo: es un catálogo del sistema, no un dato de una
+    // persona.
+    { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO },
   ] },
   { label: "Asistencia", items: [
     { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE },
@@ -102,11 +107,6 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // decide de verdad dentro de la pantalla; hoy coincide con `SEDE`, pero se
     // nombra aparte para que estrechar el permiso apague también el renglón.
     { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown, roles: ROLES_EXPORTAN_ASISTENCIA },
-    // El tema global (claro/oscuro) de panel Y terminal — no un color libre,
-    // ver apps/web/app/(admin)/admin/apariencia/page.tsx. Mismo permiso que
-    // el resto de este grupo: es un catálogo del sistema, no un dato de una
-    // persona.
-    { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO },
   ] },
 ];
 
@@ -226,17 +226,20 @@ export function AdminNav() {
 
   return (
     <header className="border-b border-sand">
-      <div className="flex items-center justify-between px-4 py-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-6 xl:gap-8">
+      <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-6 xl:gap-8">
           <Marca tono="tinta" isotipo="rojo" />
-          {/* Barra horizontal — desktop. Grupos separados por un divisor sutil. */}
-          <nav className="hidden flex-wrap items-center gap-x-2 gap-y-1 text-sm xl:flex">
+          {/* Barra horizontal — desktop. Una sola línea que se desplaza si no
+              cabe, en vez de partirse en varios renglones: con ~30 ítems, envolver
+              alargaba el encabezado y dejaba "Cerrar sesión" centrado a media
+              altura del bloque en vez de a la derecha. */}
+          <nav className="hidden min-w-0 flex-nowrap items-center gap-x-2 overflow-x-auto text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:flex">
             {grupos.map((g, gi) => (
-              <div key={gi} className="flex items-center gap-x-0.5">
-                {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px bg-sand" />}
+              <div key={gi} className="flex shrink-0 items-center gap-x-0.5">
+                {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px shrink-0 bg-sand" />}
                 {g.items.map((it) => (
                   <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition active:scale-[0.97] ${
+                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 transition active:scale-[0.97] ${
                       esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
                     <it.Icon size={15} strokeWidth={1.8} aria-hidden />
                     {it.label}
@@ -271,7 +274,7 @@ export function AdminNav() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           {persona && (
             <span className="hidden text-sm text-taupe xl:inline" title="Sesión activa">
               {persona.nombreCompleto}
