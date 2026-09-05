@@ -248,9 +248,13 @@ el día que la necesite el terminal, se muda. Hubo dos copias más viejas y
 parciales: en `admin/correcciones/page.tsx` (`calcularEsperado`), solo la hora
 de entrada y con un bug real —su rama legacy no comprobaba `dias_laborables`—,
 y en `admin/incidencias/page.tsx` (`trabajaEseDia`), solo booleano. Las dos se
-unificaron el 2026-08-25. **Queda una sin unificar** —`admin/turnos/page.tsx`
-(`horasDeTramo`, `celda`)— **y mientras tanto no se escribe una quinta.** Esa
-regla decide si a alguien se le cuenta una falta.
+unificaron el 2026-08-25. La cuarta copia —`admin/turnos/page.tsx`
+(`horasDeTramo`, `celda`)— se unificó el 2026-09-03: tenía una divergencia
+silenciosa (rellenaba `dias_laborables` con `[1,2,3,4,5]` cuando venía vacío,
+un default que la cascada canónica nunca aplica) que nunca disparó porque esa
+columna es NOT NULL en `horarios_asignados`, pero habría mostrado lunes a
+viernes donde el resto del sistema mostraba descanso. **No se escribe una
+quinta.** Esa regla decide si a alguien se le cuenta una falta.
 
 Y una quinta, del 2026-08-26: **un campo de fecha cuyo vacío BLOQUEA el envío
 no puede arrancar en `""`.** Nace con el valor más probable —hoy, o la fecha de

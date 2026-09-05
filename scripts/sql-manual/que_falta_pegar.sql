@@ -243,6 +243,7 @@ with repo(numero, nombre, nunca) as (values
     (371, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues', false),
     (372, 'el_nueve_por_ciento_deja_de_darse_por_pagado_solo', false),
     (373, 'a_la_0353_le_faltaba_su_columna_en_produccion', false),
+    (374, 'el_rol_deja_de_contar_si_la_persona_no_esta_activa', false),
     (375, 'el_terminal_deja_de_tener_pin', false)
 ),
 diff as (
