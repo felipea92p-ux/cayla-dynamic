@@ -670,6 +670,13 @@ export default function ContratosPage() {
   if (persona && !esIndefinido && !fechaFin) {
     bloqueos.push("Elige la fecha de fin.");
   }
+  // El input ya trae `min={fechaInicio}`, pero eso no borra un valor que
+  // quedó cargado ANTES de mover la fecha de inicio — hace falta el mismo
+  // candado acá, con un mensaje que diga cuál de las dos fechas está mal (el
+  // error del servidor no lo dice).
+  if (persona && !esIndefinido && fechaInicio && fechaFin && fechaFin < fechaInicio) {
+    bloqueos.push("La fecha de fin no puede ser anterior a la fecha de inicio.");
+  }
   if (persona && esAdendum && adendumEditado.trim() === "") {
     bloqueos.push("Escribe qué se modifica del contrato vigente.");
   }
@@ -731,6 +738,33 @@ export default function ContratosPage() {
   }
   if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
     bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
+  }
+  // Estos siete son datos del propio Anexo I (identidad del centro de
+  // formación, objetivo formativo, hitos de evaluación). Sin bloqueo,
+  // `construirContrato` los reemplaza en silencio por "[completar]" y el
+  // convenio se puede imprimir con esos huecos en cláusulas legales.
+  if (persona && esConvenio && modalidadEfectiva === "preprofesional") {
+    if (centroFormacionNombreEditado.trim() === "") {
+      bloqueos.push("Completa la razón social del centro de formación — es el Anexo I, no puede imprimirse como \"[completar]\".");
+    }
+    if (centroFormacionRucEditado.trim() === "") {
+      bloqueos.push("Completa el RUC del centro de formación.");
+    }
+    if (centroFormacionDomicilioEditado.trim() === "") {
+      bloqueos.push("Completa el domicilio del centro de formación.");
+    }
+    if (centroFormacionRepresentanteEditado.trim() === "") {
+      bloqueos.push("Completa el nombre del representante del centro de formación.");
+    }
+  }
+  if (persona && esConvenio && objetivoFormativoGeneralEditado.trim() === "") {
+    bloqueos.push("Completa el objetivo formativo general del Anexo I (Ley 28518, art. 15).");
+  }
+  if (persona && esConvenio && hitoMes3Editado.trim() === "") {
+    bloqueos.push("Completa el hito de evaluación del mes 3 (Anexo I).");
+  }
+  if (persona && esConvenio && hitoMes6Editado.trim() === "") {
+    bloqueos.push("Completa el hito de evaluación del mes 6 (Anexo I).");
   }
   // La ciudad no bloquea —el documento lo dice en su propio texto— pero avisar
   // acá evita descubrirlo recién al leer el PDF impreso.
@@ -1162,6 +1196,7 @@ export default function ContratosPage() {
                       type="date"
                       className="mt-1 w-full rounded border border-sand p-2"
                       value={fechaFin}
+                      min={fechaInicio || undefined}
                       onChange={(e) => setFechaFin(e.target.value)}
                     />
                   )}
