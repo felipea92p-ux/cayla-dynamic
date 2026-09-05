@@ -43,11 +43,16 @@ Recomendado además:
 ## 4. Uso diario (para el equipo)
 
 1. Toca tu **nombre** en la pantalla.
-2. Ingresa tu **PIN de 4 dígitos** (es personal — no lo compartas).
-3. La app decide sola si corresponde Entrada, Salida o Regreso. Si estás
+2. La app decide sola si corresponde Entrada, Salida o Regreso. Si estás
    saliendo, elige el motivo (salida final, almuerzo, asunto personal,
    trámite, salud u otro).
-4. Confirma (o espera 3 segundos y se confirma solo). Listo.
+3. Confirma (o espera 3 segundos y se confirma solo). Listo.
+
+**No hay PIN, y es a propósito.** Marcar tiene que tomar dos segundos, y el
+control real no es una clave: es que la Mac mini está a la vista de todo el
+equipo. La contrapartida está escrita y hay que conocerla — una marca por sí
+sola no prueba quién la hizo, así que **no se usa como prueba individual en un
+procedimiento disciplinario sin otro respaldo**.
 
 **¿Te equivocaste?** Presiona **Cancelar** dentro de los 3 segundos. Si ya se
 confirmó, avisa a tu supervisora para que lo corrija desde el panel.
@@ -61,5 +66,5 @@ envía solo cuando vuelva la conexión. No marques dos veces.
 |---|---|
 | "Vincular este dispositivo" aparece de nuevo | Se borraron los datos del navegador. Re-vincular con las credenciales de la sede. |
 | No aparece un nombre en la lista | La persona no está registrada como activa en esa sede — avisar a Felipe/Carlos. |
-| "PIN incorrecto" 5 veces | Espera unos segundos y reintenta. Si se olvidó el PIN, Felipe/Carlos genera uno nuevo. |
+| La app pide un PIN | No debería: el terminal no lleva PIN desde la migración 0375. Si aparece, esa Mac tiene una versión vieja del panel — avisar a Felipe/Carlos. |
 | La pantalla quedó en otra página | Volver a `URL_DE_LA_APP/terminal`. |

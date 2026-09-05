@@ -7,7 +7,7 @@
 --
 -- Y no era un fallo de la policy: RLS filtra FILAS, no COLUMNAS. La policy
 -- acotaba bien a la sede, y no podía hacer lo otro. Por eso la respuesta es una
--- vista con seis columnas y no una policy mejor: no existe una policy mejor.
+-- vista con cinco columnas y no una policy mejor: no existe una policy mejor.
 --
 -- LAS DOS MITADES. Se prueba que el sueldo y el DNI NO estén, y —la que se
 -- olvida— que el terminal SIGA VIENDO lo que necesita para marcar. Una vista
@@ -19,7 +19,7 @@
 -- nadie (la 0202 obliga a desactivarlo antes de borrar su cuenta).
 -- ============================================================================
 begin;
-select plan(8);
+select plan(9);
 
 insert into sedes (id, codigo, nombre, activa) values
   ('00000000-0000-0000-0000-000000022100', 'ZZ221', 'Sede del kiosco',  true),
@@ -73,8 +73,16 @@ select is_empty(
 
 select ok(
   (select count(*) from information_schema.columns
-    where table_name = 'terminal_roster') = 6,
-  'SEIS COLUMNAS · las que hacen falta para pintar la lista y ni una más');
+    where table_name = 'terminal_roster') = 5,
+  'CINCO COLUMNAS · las que hacen falta para pintar la lista y ni una más');
+
+-- La sexta era `pin_hash`, y se fue con la 0375: el terminal dejó de pedir PIN,
+-- así que descargarle a cada Mac mini el hash de toda su sede era regalar un
+-- dato que ya no compara nadie.
+select is_empty(
+  $$ select 1 from information_schema.columns
+      where table_name = 'terminal_roster' and column_name = 'pin_hash' $$,
+  'SIN EL HASH · el kiosco ya no descarga el pin_hash de nadie');
 
 
 -- ── 3-4 · Lo que el terminal SÍ tiene que poder hacer ───────────────────────
