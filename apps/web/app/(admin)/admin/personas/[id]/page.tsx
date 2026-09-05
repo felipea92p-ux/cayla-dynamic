@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { AdminNav } from "../../nav";
@@ -41,12 +41,21 @@ function fmtHoras(h: number): string {
 }
 const soles = (n: number) => `S/ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
+      <span className="text-taupe">{label}</span>
+      <span className="text-right">{valor ?? "—"}</span>
+    </div>
+  );
+}
+
 const NIVEL: Record<string, string> = { verbal: "Llamada verbal", amonestacion: "Amonestación escrita", suspension: "Suspensión", imputacion: "Imputación", despido: "Despido" };
 const CAUSAL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado" };
 
 interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean }
-interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
+interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface DocLite { id: string; correlativo: string | null; tipo_causal: string; nivel: string; estado: string; creado_at: string; firmado_at: string | null }
 interface Jornada { fecha: string; entrada_ts: string | null; salida_final_ts: string | null; horas_trabajadas: number | null; minutos_tarde: number | null; minutos_salida_temprana: number | null; horas_extra_detectadas: number | null; estado: string }
@@ -163,7 +172,7 @@ export default function PerfilPersonaPage() {
       const [{ data: s, error: eSedes }, { data: dp, error: eFicha }, { data: sal, error: eSal }, { data: dd, error: eDocs }, { data: vac, error: eVac }, { data: contratos, error: eContrato }] = await Promise.all([
         supabase.from("sedes").select("id, codigo"),
         supabase.from("datos_personales")
-          .select("nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
+          .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
           .eq("persona_id", id).maybeSingle(),
         supabase.rpc("fn_historial_salario", { p_persona_id: id }),
         supabase.from("expediente_disciplinario")
@@ -527,6 +536,7 @@ export default function PerfilPersonaPage() {
                         <Dato label="Correo" valor={persona.email} />
                         <Dato label="Dirección" valor={ficha.direccion} />
                         <Dato label="Nacimiento" valor={ficha.fecha_nacimiento ? fechaCorta(ficha.fecha_nacimiento) : "—"} />
+                        <Dato label="Género" valor={etiquetaDeCatalogo(ficha.genero, GENERO_LABELS)} />
                         <Dato label="Estado civil" valor={etiquetaDeCatalogo(ficha.estado_civil, ESTADO_CIVIL_LABELS)} />
                         <Dato label="Grado de instrucción" valor={etiquetaDeCatalogo(ficha.grado_instruccion, GRADO_INSTRUCCION_LABELS)} />
                         <Dato label="Hijos menores" valor={ficha.hijos_menores == null ? "—" : ficha.hijos_menores ? "Sí" : "No"} />

@@ -650,6 +650,26 @@ export default function ContratosPage() {
   // un campo sin tocar no debe poder imprimirse como si fuera una respuesta.
   // Decisión de Felipe (2026-08-19).
   const bloqueos: string[] = [];
+  // Estos cuatro son los que dejan `datosParaGenerar` en null: sin ellos el
+  // botón se apaga sin ninguna de las líneas rojas de abajo, y quien llena el
+  // formulario de la derecha no tiene forma de saber que el problema está en
+  // datos que se cargan en OTRA pantalla. Se ven en el resumen (DNI, Nombre
+  // legal, Sueldo base vigente) pero un dato en gris no explica que bloquea.
+  if (persona && !persona.documento) {
+    bloqueos.push("Carga el DNI en Datos personales — sin DNI no se puede generar el contrato.");
+  }
+  if (persona && !datoPersonal?.nombre_dni) {
+    bloqueos.push('Carga el nombre completo (como en el DNI) en Datos personales — sin él no se puede generar el contrato.');
+  }
+  if (persona && salarioVigente === null) {
+    bloqueos.push("No tiene un sueldo vigente asignado en Equipo — sin sueldo no se puede generar el contrato.");
+  }
+  if (persona && !fechaInicio) {
+    bloqueos.push("Elige la fecha de inicio.");
+  }
+  if (persona && !esIndefinido && !fechaFin) {
+    bloqueos.push("Elige la fecha de fin.");
+  }
   if (persona && esAdendum && adendumEditado.trim() === "") {
     bloqueos.push("Escribe qué se modifica del contrato vigente.");
   }

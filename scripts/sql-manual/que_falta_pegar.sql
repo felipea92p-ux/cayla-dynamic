@@ -238,6 +238,7 @@ with repo(numero, nombre, nunca) as (values
     (366, 'dos_toques_seguidos_no_dejan_dos_marcas', false),
     (367, 'fn_registrar_marcaje_pierde_su_sobrecarga_vieja', false),
     (368, 'un_codigo_de_sede_no_se_pisa_en_silencio', false),
+    (369, 'la_ficha_guarda_el_genero', false),
     (370, 'el_terminal_no_marca_por_otra_sede', false),
     (371, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues', false),
     (372, 'el_nueve_por_ciento_deja_de_darse_por_pagado_solo', false),
@@ -287,6 +288,8 @@ select * from (
          'fn_planilla_calcular · versión viva',
          coalesce((
            select case md5(prosrc)
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '0349 — al día con el repositorio'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '6ad7e6bb9d7a1678924c07c89a8e9df4' then '⚠ se quedó en la 0025 — falta pegar lo posterior'
              when '83c9996ff2c82490c8191edc5bd0a996' then '✗ 0025 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '5b263656b9ff462699eaca0db6e1a7b4' then '⚠ se quedó en la 0026 — falta pegar lo posterior'
@@ -398,8 +401,6 @@ select * from (
              when '71b1779aa219c4ea7b01d9a062563552' then '✗ 0322 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0339 — falta pegar lo posterior'
              when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0339 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'dacebb574315f3f7d880c9117cb3de7f' then '0349 — al día con el repositorio'
-             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
