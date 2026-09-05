@@ -21,3 +21,78 @@
 0108  Existió en la rama movilidad-supeditada-a-asistencia (commit 1b54c02, del 2026-07-29), BORRADA el 2026-08-05 después de revisarla. Nunca se aplicó en producción. Su contenido está superado: la jurisprudencia (Res. 239-2020-SUNAFIL, Exp. 1038-2019) vive en la 0111, 0117, 0118, 0122, 0142 y 0150; los pasajes por ciudad están en la 0142 y más actualizados; y el sustento firmado de cada ruta es el pendiente de los convenios en docs/estado.md. Lo ÚNICO exclusivo era su fn_planilla_calcular del 29/07, con tarifa S/6 única: fusionarla habría revertido ocho migraciones de planilla. Se recupera con `git checkout 1b54c02 -- supabase/migrations/0108_movilidad_supeditada_a_asistencia.sql`.
 0133  Número saltado al numerar. Comprobado contra producción el 2026-08-05: no figura en migraciones_aplicadas, así que nunca se aplicó. No hay nada que recuperar.
 0139  Número saltado al numerar, mismo caso que la 0133 y comprobado el mismo día.
+
+# ── 0258 y 0259 · NÚMEROS ABANDONADOS A PROPÓSITO (2026-08-15) ──────────────
+#
+# No son algo aplicado en producción que no llegó al repo: son dos números que
+# se reservaron y se soltaron, y conviene que quede escrito por qué.
+#
+# El subsidio por maternidad se escribió primero como 0256 (con su cuerpo
+# sacado de la 0254, la vigente entonces) y el arreglo del descanso médico como
+# 0259. Chocaron con la 0256 de otra sesión, así que se renumeraron a 0258/0259.
+#
+# Y entonces apareció el problema de fondo: la **0261** —ya fusionada a main—
+# también reescribe fn_planilla_calcular y también había partido de la 0254.
+# Dos migraciones sobre la misma base: la última en aplicarse borra a la otra
+# en silencio. Como 0261 > 0259, el orden de pegado habría hecho desaparecer
+# todo el subsidio por maternidad sin un solo error.
+#
+# La única salida correcta era ir DESPUÉS de la 0261 y volver a extraer el
+# cuerpo de ella. De ahí 0262 y 0263, y de ahí estos dos huecos.
+#
+# NO se reutilizan: cualquier migración futura que tome el 0258 o el 0259
+# quedaría, por número, antes de la 0261 y con la misma trampa esperando.
+
+0258  Abandonado. Fue el subsidio por maternidad; se movió a 0262 para ir después de la 0261, que reescribe la misma función.
+0259  Abandonado. Fue el descanso médico en la base; se movió a 0263 por la misma razón.
+0268  Número reservado y nunca commiteado. Iba a ser 0268_un_descanso_medico_sin_firma_de_do_deja_de_pagarse.sql, escrito por otra sesión el 2026-08-18 y aún sin commitear cuando otra sesión empujó la 0269 — el commit d632333 lo cuenta al renumerar la prueba de la 0269 de 206 a 207. Comprobado el 2026-08-19: el archivo no existe en ninguna rama, ninguna rama lo tuvo nunca, y no está en el disco de ninguno de los diez worktrees. Y contra producción, en el mismo registro que trajo el resultado de que falta la 0271: `migraciones_aplicadas` salta de la 267 a la 269, así que nunca se aplicó. No hay nada que recuperar. Si esa idea vuelve, toma un número nuevo con ./scripts/siguiente-numero.sh.
+
+# La 0333 se fusionó a main el 2026-08-31 (PR #117); la 0334 va en esta misma
+# rama y se fusiona con ella. Ninguna de las dos es un hueco ya — por eso no
+# quedan líneas para ellas acá, ver el aviso del propio numeracion.sh.
+
+# ── 0337 · NÚMERO ABANDONADO A PROPÓSITO (2026-09-01) ───────────────────────
+#
+# Mismo caso que el 0258/0259: no es algo aplicado en producción que no llegó
+# al repo, es un número que se reservó y se soltó por el mismo motivo — dos
+# migraciones tocando la misma función, y la de número mayor pegándose después
+# borraría en silencio a la otra.
+#
+# La rama claude/buk-cayla-dynamic-analysis-5be9ec escribió la 0337 el
+# 2026-08-31 (parte fn_planilla_calcular y fn_feriado_devengado en núcleo y
+# envoltorio) sobre el cuerpo vigente de fn_feriado_devengado en ese momento
+# (0306, cuatro argumentos). Antes de fusionarse, la 0338 —escrita en otra
+# sesión y ya pegada en producción el 2026-09-01— le agregó un quinto
+# parámetro a esa misma función (p_salario_asof, piso legal de grati/CTS). La
+# 0337 original habría revertido la 0338 en silencio si se pegaba tal cual.
+#
+# Se retomó rehaciendo el corte sobre el cuerpo que dejó la 0338, y se
+# renumeró a 0339 para ir después de ella — misma salida que tomaron la 0262
+# y la 0263 en su momento.
+#
+# NO se reutiliza: cualquier migración futura que tome el 0337 quedaría, por
+# número, antes de la 0338 y con la misma trampa esperando.
+
+0337  Abandonado. Fue "fn_planilla_calcular se parte en núcleo y envoltorio"; se movió a 0339 para ir después de la 0338, que reescribe una función que comparten (fn_feriado_devengado).
+
+# ── 0352 · DESCARTADO EN UN MERGE, A PROPÓSITO (2026-09-03) ─────────────────
+#
+# No es una migración perdida: dos sesiones construyeron la misma idea el
+# mismo día —que el aviso de auto-cierre por fin salga por correo— cada una
+# por su cuenta. Una la escribió como 0352 (commit 583560b: cambia
+# fn_auto_cierre de canal='push' a 'email', más /api/enviar-alertas). La otra
+# la construyó como 0354 (fn_alertas_email_pendientes + /api/alertas-encargadas),
+# sin tocar fn_auto_cierre.
+#
+# Al fusionar (commit 7809713, "resuelve dos duplicados con la 0359"), se
+# descartó la 0352 a favor de la 0354 explícitamente: la de main llegó primero
+# y es más segura porque no toca fn_auto_cierre. Nunca se aplicó en
+# producción. Lo único que le faltaba a la 0354 —avisar también al propio
+# integrante, no solo a la encargada— se agregó después como extensión
+# aditiva: la 0359.
+#
+# NO se reutiliza: el commit 583560b sigue vivo en varias ramas (nunca se
+# borró el archivo, solo se descartó al fusionar), así que retomar el número
+# 0352 chocaría con ese contenido abandonado.
+
+0352  Abandonado en el merge 7809713 (2026-09-03) a favor de la 0354, que resuelve lo mismo (aviso de auto-cierre por correo) sin tocar fn_auto_cierre. Nunca se aplicó en producción.

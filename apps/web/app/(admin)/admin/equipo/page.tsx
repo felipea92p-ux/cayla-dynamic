@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
-import { Cargando } from "@/components/cargando";
+import { EsqueletoTabla } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
@@ -59,6 +62,39 @@ function generarPin(): string {
   return pin;
 }
 
+/**
+ * Copiar sin depender de que `navigator.clipboard` exista.
+ *
+ * La API moderna no está fuera de HTTPS (o localhost) y puede rechazar sin
+ * permiso; el respaldo es el `textarea` de toda la vida. Devuelve si se copió
+ * de verdad, porque un botón que dice «Copiado» sin haber copiado es peor que
+ * uno que falla: quien lo lee cierra el panel y pierde el PIN.
+ */
+async function copiarAlPortapapeles(texto: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    }
+  } catch {
+    // sigue al respaldo
+  }
+  try {
+    const campo = document.createElement("textarea");
+    campo.value = texto;
+    campo.setAttribute("readonly", "");
+    campo.style.position = "fixed";
+    campo.style.opacity = "0";
+    document.body.appendChild(campo);
+    campo.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(campo);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 interface Sede {
   id: string;
   codigo: string;
@@ -84,6 +120,9 @@ interface Persona {
   // Qué es esta persona para el sistema (0085). Decide si acumula gratificación,
   // CTS y vacaciones, si recibe movilidad y si genera EsSalud (0117 y 0119).
   tipo_vinculo: string;
+  // Solo tiene sentido con tipo_vinculo='practicante' (0324): preprofesional
+  // (30h/semana) o profesional (48h/semana), art. 44 Ley 28518.
+  practicante_modalidad: string | null;
   // Qué ES esta persona para CAYLA: «Socia», «Asesor» (0182). Es lo que se
   // MUESTRA, y no decide ningún permiso — eso sigue siendo `rol`. Vacío = la
   // pantalla cae a la etiqueta del rol, como antes de la 0182.
@@ -103,8 +142,12 @@ interface FormPersona {
   rol: Rol;
   funcion: string; // código de área (ver lib/areas)
   email: string;
-  conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
-  tipoVinculo: string; // planilla | prueba | rxh | no_trabajador — se escribe por RPC fn_set_tipo_vinculo
+  // Asignación familiar. El MONTO no se escribe acá ni en ningún sitio de la
+  // pantalla: vive versionado en `parametros_laborales` (0122) y se lee con
+  // `montoAsignacionFamiliar` para pintar la etiqueta. Se escribe por RPC fn_set_con_hijos.
+  conHijos: boolean;
+  tipoVinculo: string; // planilla | prueba | rxh | no_trabajador | practicante — se escribe por RPC fn_set_tipo_vinculo
+  practicanteModalidad: string; // "" | preprofesional | profesional — solo si tipoVinculo=practicante; se escribe por RPC fn_set_practicante_modalidad
   cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
   fechaIngreso: string; // decide qué feriados le corresponden — solo edición; se escribe por RPC fn_set_fecha_ingreso
   visibleTodasSedes: boolean; // aparece en el terminal de cualquier sede — se escribe por RPC fn_set_visible_todas_sedes
@@ -112,9 +155,15 @@ interface FormPersona {
   // lo normal. Se escribe por RPC fn_set_fin_contrato, y vacío la BORRA (null).
   finContrato: string;
   motivoFinContrato: string; // por qué se fijó o se quitó — va a correcciones_auditoria
+  // Retención de renta de 4ta categoría (0245). Solo tiene sentido para `rxh`:
+  // la cuarta categoría es del trabajador independiente. Vacío = no se retiene.
+  // Se escribe por RPC fn_set_retencion_4ta, que valida el vínculo y audita.
+  // No aplica a `practicante` (0322): su subvención no genera renta de 4ta.
+  retencion4ta: string;   // "" | automatica | siempre
+  constancia4ta: string;  // fecha hasta la que vale su constancia del F.V. 1609
 }
 
-const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", cargo: "", finContrato: "", motivoFinContrato: "" };
+const FORM_VACIO: FormPersona = { nombres: "", apellidos: "", sedeId: "", rol: "integrante", funcion: AREA_DEFAULT, email: "", conHijos: false, fechaIngreso: "", visibleTodasSedes: false, tipoVinculo: "planilla", practicanteModalidad: "", cargo: "", finContrato: "", motivoFinContrato: "", retencion4ta: "", constancia4ta: "" };
 
 export default function EquipoPage() {
   const router = useRouter();
@@ -133,16 +182,26 @@ export default function EquipoPage() {
   // «contrato indefinido». Escribir sobre eso borraría una fecha real, así que
   // con la lectura en duda el campo va deshabilitado.
   const [finesOk, setFinesOk] = useState(false);
+  // Retención de 4ta por persona (0245). Se lee aparte y tolerante, por lo mismo
+  // que el fin de contrato: si la 0245 todavía no está pegada en producción,
+  // pedir columnas inexistentes haría fallar la consulta ENTERA y esta pantalla
+  // se quedaría sin nadie. Con la lectura en duda el campo va deshabilitado, para
+  // no pisar con «sin retención» una configuración real que no se pudo leer.
+  const [retenciones4ta, setRetenciones4ta] = useState<Map<string, { modo: string; hasta: string }>>(new Map());
+  const [retencionesOk, setRetencionesOk] = useState(false);
   const [cargando, setCargando] = useState(true);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
 
   // Filtros. Con ~30 personas y sin ninguno, encontrar a alguien era leer la
   // tabla entera. El de estado arranca en "activos": esconder a quien ya no está
   // en ESTA pantalla no tiene riesgo (en Planilla sí lo tendría, y allí se avisa).
+  //
+  // Sede, área y estado se acuerdan de la última vez (useFiltroGuardado);
+  // `busca` no — es texto de esta visita, no una forma de mirar la pantalla.
   const [busca, setBusca] = useState("");
-  const [fSede, setFSede] = useState("todas");
-  const [fArea, setFArea] = useState("todas");
-  const [fEstado, setFEstado] = useState<FiltroEstado>("activos");
+  const [fSede, setFSede] = useFiltroGuardado("equipo.sede", "todas");
+  const [fArea, setFArea] = useFiltroGuardado("equipo.area", "todas");
+  const [fEstado, setFEstado] = useFiltroGuardado<FiltroEstado>("equipo.estado", "activos");
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [form, setForm] = useState<FormPersona>(FORM_VACIO);
@@ -160,6 +219,19 @@ export default function EquipoPage() {
   // hasta el panel. `scroll-mt-4` deja un respiro arriba para que no quede
   // pegado al borde.
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // EL PIN NO VA POR UN TOAST, y esto no es una preferencia de forma.
+  //
+  // Un aviso «ok» se apaga solo a los 4,5 segundos (DURACION_OK_MS, en
+  // components/toast.tsx), y ahí dentro iba el único ejemplar de cuatro dígitos
+  // que el sistema muestra en su vida, con un texto que decía «anótalo ahora, no
+  // se vuelve a mostrar». No alcanza para leerlo, entenderlo y escribirlo, y si
+  // se pierde hay que regenerarlo — lo que invalida el PIN que esa persona ya
+  // tenía. Así que vive en un panel que NO se cierra solo: se cierra cuando
+  // alguien dice que ya lo tiene.
+  //
+  // El temporizador del toast no se toca: gobierna todos los avisos del panel.
+  const [pinNuevo, setPinNuevo] = useState<{ nombre: string; pin: string } | null>(null);
+  const [pinCopiado, setPinCopiado] = useState(false);
   const [ceseId, setCeseId] = useState<string | null>(null);
   const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
   const [guardandoCese, setGuardandoCese] = useState(false);
@@ -225,7 +297,7 @@ export default function EquipoPage() {
       ),
     );
     if (personasError || sedesError) {
-      setMensaje({ tipo: "error", texto: mensajeDeError((personasError ?? sedesError)!, "cargar el equipo") });
+      avisar("error", mensajeDeError((personasError ?? sedesError)!, "cargar el equipo"));
     }
     // Fin de contrato: consulta APARTE y tolerante, no una columna más del select
     // de arriba. Si la 0144 todavía no está aplicada en producción, pedir una
@@ -245,30 +317,70 @@ export default function EquipoPage() {
           .map((f) => [f.id, f.fecha_fin_contrato] as const),
       ),
     );
+    // Retención de 4ta (0245): consulta aparte y tolerante, igual que la de
+    // arriba y por la misma razón. Sin filtro: llegan también quienes la tienen
+    // en blanco, porque «en blanco» es una respuesta —no se le retiene— y no un
+    // dato que falte.
+    const { data: retData, error: retError } = await supabase
+      .from("personas")
+      .select("id, retencion_4ta, constancia_4ta_hasta");
+    setRetencionesOk(!retError);
+    setRetenciones4ta(
+      new Map(
+        ((retData as { id: string; retencion_4ta: string | null; constancia_4ta_hasta: string | null }[] | null) ?? [])
+          .map((r) => [r.id, { modo: r.retencion_4ta ?? "", hasta: r.constancia_4ta_hasta ?? "" }] as const),
+      ),
+    );
     // "funcion" y "con_hijos" viajan por RPC (el schema cache de PostgREST no expone las columnas).
     // Si la RPC falla, degradamos al área default / sin asignación para todos sin bloquear la página.
     const funciones = new Map(
-      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; cargo?: string | null; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
-        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", cargo: f.cargo ?? null, fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
+      (funcionesError ? [] : ((funcionesData as { persona_id: string; funcion: string; con_hijos: boolean; visible_todas_sedes?: boolean; tipo_vinculo?: string; practicante_modalidad?: string | null; cargo?: string | null; fecha_cese?: string | null; motivo_cese?: string | null }[] | null) ?? []))
+        .map((f) => [f.persona_id, { funcion: f.funcion, con_hijos: f.con_hijos ?? false, visible_todas_sedes: f.visible_todas_sedes ?? false, tipo_vinculo: f.tipo_vinculo ?? "planilla", practicante_modalidad: f.practicante_modalidad ?? null, cargo: f.cargo ?? null, fecha_cese: f.fecha_cese ?? null, motivo_cese: f.motivo_cese ?? null }] as const),
     );
     setFuncionesOk(!funcionesError);
     setSedes(sedesData ?? []);
     setPersonas(
-      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
+      ((personasData as Omit<Persona, "funcion" | "con_hijos" | "visible_todas_sedes" | "tipo_vinculo" | "practicante_modalidad" | "fecha_cese" | "motivo_cese">[]) ?? []).map((p) => {
         const extra = funciones.get(p.id);
-        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", cargo: extra?.cargo ?? null, fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
+        return { ...p, funcion: extra?.funcion ?? AREA_DEFAULT, con_hijos: extra?.con_hijos ?? false, visible_todas_sedes: extra?.visible_todas_sedes ?? false, tipo_vinculo: extra?.tipo_vinculo ?? "planilla", practicante_modalidad: extra?.practicante_modalidad ?? null, cargo: extra?.cargo ?? null, fecha_cese: extra?.fecha_cese ?? null, motivo_cese: extra?.motivo_cese ?? null };
       }),
     );
     setCargando(false);
-  }, [router]);
+  }, [router, avisar]);
 
   useEffect(() => {
     void cargar();
   }, [cargar]);
 
+  // El monto vigente de la asignación familiar, para la etiqueta de la casilla.
+  // `null` mientras no haya dato — y entonces la etiqueta manda a Configuración
+  // en vez de inventar una cifra (hallazgo 24; tercera regla de la casa).
+  const [asigFamiliar, setAsigFamiliar] = useState<MontoAsignacionFamiliar | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void montoAsignacionFamiliar(createAdminSupabaseClient()).then((m) => {
+      if (vigente) setAsigFamiliar(m);
+    });
+    return () => { vigente = false; };
+  }, []);
+
   // Cuál está abierto, no si hay alguno: así también se desplaza al pasar de un
   // panel a otro (de «Editar» de una persona a «Registrar salida» de otra).
-  const panelAbierto = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  // El PIN manda sobre todo lo demás: es lo único de esta pantalla que se pierde
+  // si nadie lo mira. La clave lleva el PIN dentro para que regenerarlo dos veces
+  // seguidas vuelva a desplazar hasta el panel.
+  //
+  // Y la clave se COMPONE, no se cortocircuita: con el ternario, mientras el
+  // panel del PIN estaba abierto el valor quedaba congelado en su clave, así que
+  // abrir «Editar» de alguien del final de la tabla ya no desplazaba — el
+  // formulario se abría arriba, fuera de la vista, y parecía que el botón no
+  // había hecho nada. El PIN sigue mandando en el orden visual (se pinta
+  // primero); lo que cambia es que cualquier otro panel vuelve a mover la
+  // pantalla aunque el PIN siga puesto.
+  const otroPanel = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  const panelAbierto = pinNuevo
+    ? `pin:${pinNuevo.nombre}:${pinNuevo.pin}|${otroPanel ?? ""}`
+    : otroPanel;
   useEffect(() => {
     if (panelAbierto) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [panelAbierto]);
@@ -328,10 +440,6 @@ export default function EquipoPage() {
     return sedes.find((s) => s.id === id)?.codigo ?? "?";
   }
 
-  function avisar(tipo: "ok" | "error", texto: string) {
-    setMensaje({ tipo, texto });
-  }
-
   async function crearPersona() {
     if (!form.nombres.trim() || !form.apellidos.trim() || !form.sedeId) {
       avisar("error", "Nombres, apellidos y sede son obligatorios.");
@@ -356,9 +464,12 @@ export default function EquipoPage() {
       avisar("error", mensajeDeError(error, "crear"));
       return;
     }
-    // El PIN se muestra UNA sola vez: aunque la asignación familiar falle, el aviso
-    // con el PIN no se pierde — solo se le agrega la advertencia.
-    let texto = `${form.nombres} ${form.apellidos} agregado(a). Su PIN es ${pin} — anótalo ahora, no se vuelve a mostrar.`;
+    // El PIN se muestra UNA sola vez, y por eso NO viaja en este aviso: va al
+    // panel de abajo, que no se apaga solo. Lo que quede acá es lo que sí puede
+    // desaparecer a los pocos segundos sin que se pierda nada — el «agregada» y,
+    // si toca, la advertencia de la asignación familiar.
+    const nombreCompleto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
+    let texto = `${nombreCompleto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
     if (form.conHijos) {
       const nuevaId = (creada as { id: string } | null)?.id;
@@ -366,8 +477,8 @@ export default function EquipoPage() {
         ? await supabase.rpc("fn_set_con_hijos", { p_persona_id: nuevaId, p_con_hijos: true })
         : { error: { message: "no se recibió el id de la persona" } };
       if (errorHijos) {
-        // Aviso en ROJO para que la falla no pase desapercibida, pero SIEMPRE con
-        // el PIN dentro del mismo mensaje (es la única vez que se muestra).
+        // Aviso en ROJO para que la falla no pase desapercibida. El PIN ya no
+        // depende de este mensaje: está en su panel, se muestre este aviso o no.
         tipoAviso = "error";
         texto += ` OJO: la asignación familiar no se pudo activar (${errorHijos.message}) — márcala editando a la persona.`;
       }
@@ -375,8 +486,25 @@ export default function EquipoPage() {
     setGuardando(false);
     setMostrandoAlta(false);
     setForm(FORM_VACIO);
+    // Antes de `cargar()`: el PIN tiene que estar en pantalla ya, no cuando
+    // termine de releerse el equipo entero.
+    mostrarPin(nombreCompleto, pin);
     await cargar();
     avisar(tipoAviso, texto);
+  }
+
+  function mostrarPin(nombre: string, pin: string) {
+    setPinCopiado(false);
+    setPinNuevo({ nombre, pin });
+  }
+
+  async function copiarPin() {
+    if (!pinNuevo) return;
+    if (await copiarAlPortapapeles(pinNuevo.pin)) {
+      setPinCopiado(true);
+      return;
+    }
+    avisar("error", "No se pudo copiar al portapapeles. Anótalo a mano: el PIN sigue en pantalla hasta que cierres el panel.");
   }
 
   async function guardarEdicion() {
@@ -394,20 +522,72 @@ export default function EquipoPage() {
     }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase
+    // .select('id').maybeSingle() ADEMÁS de mirar `error`: la única policy de
+    // UPDATE sobre personas exige admin/líder DO (0003_rls.sql), y Postgres NO
+    // lanza error cuando una fila no cumple la policy — simplemente actualiza
+    // 0 filas. Sin esto, una encargada de sede veía "Cambios guardados" aunque
+    // RLS hubiera descartado su escritura en silencio.
+    const { data: filaActualizada, error } = await supabase
       .from("personas")
       .update({
         nombres: form.nombres.trim(),
         apellidos: form.apellidos.trim(),
-        sede_base_id: form.sedeId,
-        rol: form.rol,
         email: form.email.trim() || null,
       })
-      .eq("id", editandoId);
+      .eq("id", editandoId)
+      .select("id")
+      .maybeSingle();
     if (error) {
       setGuardando(false);
       avisar("error", mensajeDeError(error, "guardar"));
       return;
+    }
+    if (!filaActualizada) {
+      setGuardando(false);
+      avisar("error", "No se guardó: no tienes permiso para editar esta ficha.");
+      return;
+    }
+    // Sede base: mismo patrón dirty-check que rol, y por la misma razón — un
+    // `UPDATE` directo desde el navegador no distinguía «lo pidió admin» de
+    // «lo pidió cualquiera con la columna abierta», y no dejaba rastro pese a
+    // que la sede base decide la tarifa de movilidad que `fn_planilla_calcular`
+    // aplica a todo el periodo en curso (0166). `fn_set_sede_base` (0342) exige
+    // admin o líder y audita en `correcciones_auditoria`; la base además tiene
+    // un trigger que rechaza cualquier `UPDATE` directo a esta columna, así que
+    // omitirla del bloque de arriba no es solo prolijidad — es obligatorio.
+    const sedeOriginal = personas.find((p) => p.id === editandoId)?.sede_base_id;
+    if (form.sedeId !== sedeOriginal) {
+      const { error: errorSede } = await supabase.rpc("fn_set_sede_base", {
+        p_persona_id: editandoId,
+        p_sede_id: form.sedeId,
+      });
+      if (errorSede) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero la sede no se pudo cambiar: ${mensajeDeError(errorSede)}`);
+        return;
+      }
+    }
+    // Rol: mismo patrón dirty-check, pero por una razón que va más allá de no
+    // ensuciar la auditoría. Este campo dejó de viajar en el `update` de arriba
+    // porque una fila escrita directo desde el navegador no distingue «esto lo
+    // pide un admin» de «esto lo pide cualquiera con la columna abierta» — RLS
+    // solo filtraba FILAS, y el desplegable de abajo ofrece «Admin» igual que
+    // ofrece «Integrante». `fn_set_rol` reimplementa el escalafón adentro de la
+    // base (packages/shared/src/escalafon.ts, la misma regla que ya usa
+    // /api/admin/cuentas): quien no es admin nunca puede dar un rol igual o
+    // superior al suyo, así que esto no es solo prolijidad de auditoría — es la
+    // puerta que faltaba.
+    const rolOriginal = personas.find((p) => p.id === editandoId)?.rol;
+    if (form.rol !== rolOriginal) {
+      const { error: errorRol } = await supabase.rpc("fn_set_rol", {
+        p_persona_id: editandoId,
+        p_nuevo_rol: form.rol,
+      });
+      if (errorRol) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero el rol no se pudo cambiar: ${mensajeDeError(errorRol)}`);
+        return;
+      }
     }
     // El área se guarda por RPC (columna fuera del schema cache) solo si:
     // (a) su carga fue confiable — si falló, el form muestra el default y escribirlo
@@ -502,6 +682,25 @@ export default function EquipoPage() {
         return;
       }
     }
+    // Modalidad de practicante (0324): mismo patrón dirty-check, y va DESPUÉS
+    // del cambio de vínculo por la misma razón que la retención de 4ta más
+    // abajo — la RPC valida contra el vínculo que ya está escrito en la base,
+    // no contra el del form. Si en este mismo guardado la persona DEJÓ de ser
+    // practicante, se manda vacío a propósito: la RPC de tipo de vínculo ya
+    // limpió la modalidad sola, y forzarla aquí solo repetiría el trabajo.
+    const modalidadNueva = form.tipoVinculo === "practicante" ? form.practicanteModalidad : "";
+    const modalidadOriginal = personas.find((p) => p.id === editandoId)?.practicante_modalidad ?? "";
+    if (puedeSalarios && funcionesOk && modalidadNueva !== modalidadOriginal && form.tipoVinculo === "practicante") {
+      const { error: errorModalidad } = await supabase.rpc("fn_set_practicante_modalidad", {
+        p_persona_id: editandoId,
+        p_modalidad: modalidadNueva || null,
+      });
+      if (errorModalidad) {
+        setGuardando(false);
+        avisar("error", "Datos guardados, pero la modalidad de practicante no se pudo cambiar: " + errorModalidad.message);
+        return;
+      }
+    }
     // Fecha de término del contrato: mismo patrón dirty-check. Dos cosas que no
     // son obvias leyendo la llamada:
     //  · VACÍO NO ES "no tocar": es borrarla, que es lo que corresponde cuando el
@@ -518,6 +717,33 @@ export default function EquipoPage() {
       if (errorFin) {
         setGuardando(false);
         avisar("error", `Datos guardados, pero la fecha de término del contrato no se pudo cambiar: ${mensajeDeError(errorFin)}`);
+        return;
+      }
+    }
+    // Retención de renta de 4ta categoría (0245): mismo patrón dirty-check. Dos
+    // cosas que no son obvias leyendo la llamada:
+    //  · Si en este mismo guardado la persona DEJÓ de ser locadora, se manda
+    //    vacío a propósito. La RPC permite borrar la configuración de quien ya no
+    //    es rxh —justo para esto— y así no queda un modo de cuarta categoría
+    //    colgado de alguien en planilla, que a la vista de una inspección es la
+    //    clase de contradicción que hace sospechar del vínculo entero.
+    //  · Va DESPUÉS del cambio de vínculo, y tiene que ir después: la RPC valida
+    //    contra el vínculo que ya está escrito en la base, no contra el del form.
+    const modo4ta = form.tipoVinculo === "rxh" ? form.retencion4ta : "";
+    const constancia4ta = form.tipoVinculo === "rxh" ? form.constancia4ta : "";
+    const ret4Original = retenciones4ta.get(editandoId) ?? { modo: "", hasta: "" };
+    if (
+      puedeSalarios && retencionesOk &&
+      (modo4ta !== ret4Original.modo || constancia4ta !== ret4Original.hasta)
+    ) {
+      const { error: errorRet } = await supabase.rpc("fn_set_retencion_4ta", {
+        p_persona_id: editandoId,
+        p_modo: modo4ta || null,
+        p_constancia_hasta: constancia4ta || null,
+      });
+      if (errorRet) {
+        setGuardando(false);
+        avisar("error", `Datos guardados, pero la retención de 4ta no se pudo cambiar: ${mensajeDeError(errorRet)}`);
         return;
       }
     }
@@ -550,7 +776,6 @@ export default function EquipoPage() {
     setSalEditId(null);
     setHistId(null);
     setMostrandoAlta(false);
-    setMensaje(null);
     // Si su contrato ya venció, se proponen ESA fecha y ESE motivo: es el caso
     // que el panel viene avisando, y volver a escribirlo a mano invita a
     // equivocarse. En cualquier otro caso el motivo arranca SIN elegir — un
@@ -604,16 +829,19 @@ export default function EquipoPage() {
     avisar("ok", `${p.nombres} ${p.apellidos} está activa otra vez. Revísale el salario y el horario: al cesar se cerraron sus tramos.`);
   }
 
+  // El PIN nace en el servidor (0364): `fn_regenerar_pin` genera los cuatro
+  // dígitos, los hashea con bcrypt en Postgres y devuelve el PIN en claro UNA
+  // sola vez. Antes se hasheaba acá y se escribía `pin_hash` por REST directo,
+  // con la RLS como único freno; hoy un update directo a esa columna lo corta
+  // un trigger, así que este es el único camino.
   async function regenerarPin(p: Persona) {
-    const pin = generarPin();
-    const pinHash = await bcrypt.hash(pin, 10);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.from("personas").update({ pin_hash: pinHash }).eq("id", p.id);
-    if (error) {
-      avisar("error", mensajeDeError(error, "regenerar el PIN"));
+    const { data: pin, error } = await supabase.rpc("fn_regenerar_pin", { p_persona_id: p.id });
+    if (error || !pin) {
+      avisar("error", error ? mensajeDeError(error, "regenerar el PIN") : "No se recibió el PIN nuevo. Vuelve a intentarlo.");
       return;
     }
-    avisar("ok", `Nuevo PIN de ${p.nombres} ${p.apellidos}: ${pin} — anótalo ahora, no se vuelve a mostrar.`);
+    mostrarPin(`${p.nombres} ${p.apellidos}`, pin);
   }
 
   function empezarEdicion(p: Persona) {
@@ -631,11 +859,14 @@ export default function EquipoPage() {
       email: p.email ?? "",
       conHijos: p.con_hijos,
       tipoVinculo: p.tipo_vinculo ?? "planilla",
+      practicanteModalidad: p.practicante_modalidad ?? "",
       cargo: p.cargo ?? "",
       fechaIngreso: ingresos.get(p.id)?.fecha_ingreso ?? "",
       visibleTodasSedes: p.visible_todas_sedes,
       finContrato: finesContrato.get(p.id) ?? "",
       motivoFinContrato: "",
+      retencion4ta: retenciones4ta.get(p.id)?.modo ?? "",
+      constancia4ta: retenciones4ta.get(p.id)?.hasta ?? "",
     });
   }
 
@@ -868,9 +1099,14 @@ export default function EquipoPage() {
           form.finContrato !== "" && form.fechaIngreso !== "" && form.finContrato < form.fechaIngreso;
         return (
           <div className="flex flex-col gap-1 text-sm sm:col-span-2">
+            {/* Misma columna para una practicante (0333): fragmentar "cuándo
+                termina esto" en dos campos habría sido peor que reusar uno
+                con la etiqueta equivocada. Solo cambia el texto — el candado
+                de la base (`fn_set_fin_contrato`) ya funciona igual para
+                cualquier tipo_vinculo. */}
             <label className="flex flex-col gap-1">
               <span>
-                Último día que trabaja por contrato{" "}
+                {form.tipoVinculo === "practicante" ? "Último día de su convenio" : "Último día que trabaja por contrato"}{" "}
                 <span className="text-taupe">(el último día que viene, no el siguiente)</span>
               </span>
               <input
@@ -888,8 +1124,12 @@ export default function EquipoPage() {
               {!finesOk
                 ? "No se pudo leer la fecha que tiene guardada, así que el campo está deshabilitado para no pisarla. Recarga la página; si sigue igual, avisa a Felipe."
                 : cesada
-                  ? "Ya está inactiva: su contrato terminó, no hay término que prever."
-                  : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
+                  ? form.tipoVinculo === "practicante"
+                    ? "Ya está inactiva: su convenio terminó, no hay término que prever."
+                    : "Ya está inactiva: su contrato terminó, no hay término que prever."
+                  : form.tipoVinculo === "practicante"
+                    ? "El convenio de prácticas no es indefinido: siempre tiene un plazo (Ley 28518, art. 30). Anotar la fecha NO la da de baja — sigue activa hasta ese día. Dar de baja es «Desactivar», y va aparte."
+                    : "En blanco es lo normal: el contrato indefinido no vence. Anotar la fecha NO la da de baja — sigue activa, sigue marcando y sigue cobrando hasta ese día. Dar de baja es «Desactivar», y va aparte."}
             </span>
             {antesDelIngreso && (
               <span className="text-xs text-rojo">
@@ -937,7 +1177,9 @@ export default function EquipoPage() {
             disabled={modo === "edicion" && !funcionesOk}
             className="h-4 w-4 accent-tinta disabled:opacity-50"
           />
-          Asignación familiar (tiene hijos) — S/ 113 fijos por periodo
+          {asigFamiliar
+            ? `Asignación familiar (tiene hijos) — ${formatSoles(asigFamiliar.monto)} al mes, según el monto vigente`
+            : "Asignación familiar (tiene hijos) — según el monto vigente en Configuración"}
         </label>
       )}
       {puedeSalarios && (
@@ -953,11 +1195,12 @@ export default function EquipoPage() {
             value={form.tipoVinculo}
             onChange={(e) => setForm({ ...form, tipoVinculo: e.target.value })}
             disabled={modo === "edicion" && !funcionesOk}
-            className="rounded-lg border border-sand bg-white px-3 py-2 disabled:opacity-50"
+            className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
           >
             <option value="planilla">Planilla — contrato de trabajo</option>
             <option value="prueba">Prueba — días de prueba, aún sin contrato</option>
             <option value="rxh">Recibo por honorarios</option>
+            <option value="practicante">Practicante — modalidad formativa (Ley 28518)</option>
             <option value="no_trabajador">No trabajador — accionista sin servicios</option>
           </select>
           <span className="text-xs text-taupe">
@@ -967,9 +1210,90 @@ export default function EquipoPage() {
                 ? "Días de prueba antes de contratar: se le pagan sus horas y se le mide asistencia, pero NO acumula beneficios (decisión registrada en la 0085). Si se queda, pásala a Planilla — quien trabaja sin estar registrado es infracción muy grave (num. 25.20 del RLGIT)."
                 : form.tipoVinculo === "rxh"
                   ? "Locación de servicios: cobra sus horas, pero NO acumula beneficios, NO recibe movilidad y NO genera EsSalud. Tampoco se le mide disciplina — es lo que sostiene que no sea una relación laboral."
-                  : "Ni asistencia ni beneficios."}
+                  : form.tipoVinculo === "practicante"
+                    ? "Convenio de prácticas (Ley 28518): no es relación laboral. Cobra sus horas y SÍ genera EsSalud, pero NO acumula gratificación, CTS, vacaciones ni AFP, y tampoco se le mide disciplina. Jornada máxima 30h/semana (preprofesional) u 48h/semana (profesional) — el sistema todavía no la hace cumplir sola, revísala al armar su horario."
+                    : "Ni asistencia ni beneficios."}
           </span>
         </label>
+      )}
+      {/* ── LA MODALIDAD DE LA PRACTICANTE (0324) ───────────────────────────
+          Solo aparece para quien es practicante, porque solo entonces tiene
+          sentido: decide el máximo legal contra el que la pantalla de
+          Horarios va a avisar (30h preprofesional, 48h profesional — art. 44,
+          Ley 28518). Arranca vacío a propósito, igual que "sin retenerle" en
+          la de al lado: no hay una modalidad por defecto razonable, y elegir
+          una por la persona sería inventar un dato legal. */}
+      {puedeSalarios && form.tipoVinculo === "practicante" && (
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          <span>Modalidad</span>
+          <select
+            value={form.practicanteModalidad}
+            onChange={(e) => setForm({ ...form, practicanteModalidad: e.target.value })}
+            disabled={modo === "edicion" && !funcionesOk}
+            className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
+          >
+            <option value="">Sin definir todavía</option>
+            <option value="preprofesional">Preprofesional — estudiante, máx. 30h/semana</option>
+            <option value="profesional">Profesional — egresado/a, máx. 48h/semana</option>
+          </select>
+          <span className="text-xs text-taupe">
+            {form.practicanteModalidad === ""
+              ? "Sin esto, Horarios no puede avisar si su jornada se pasa del máximo legal — no adivina un número, solo avisa que falta el dato."
+              : form.practicanteModalidad === "preprofesional"
+                ? "Sigue matriculado/a; el convenio es con la persona, la empresa Y su universidad o instituto (tripartito). No mayor a 6h/día ni 30h/semana."
+                : "Ya egresó; el convenio es solo con la persona y la empresa. No mayor a 8h/día ni 48h/semana."}
+          </span>
+        </label>
+      )}
+      {/* ── LA RETENCIÓN DE CUARTA CATEGORÍA (0245) ─────────────────────────
+          Solo aparece para un locador, porque solo un locador emite recibo por
+          honorarios. Aparece pegada al tipo de vínculo a propósito: son la misma
+          decisión mirada desde dos lados, y quien acaba de pasar a alguien a
+          honorarios tiene que decidir esto en el mismo momento.
+
+          POR QUÉ NO LO DECIDE EL SISTEMA SOLO. La regla legal —8 % si el recibo
+          supera S/1,500— la sabe la planilla y la aplica sola en modo
+          «automática». Lo que el sistema NO puede saber es si la persona pidió
+          que se le retenga igual, ni si tiene constancia de suspensión: las dos
+          cosas viven en SUNAT y en su decisión, no en esta base. */}
+      {puedeSalarios && form.tipoVinculo === "rxh" && (
+        <>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Retención de Impuesto a la Renta de 4ta</span>
+            <select
+              value={form.retencion4ta}
+              onChange={(e) => setForm({ ...form, retencion4ta: e.target.value })}
+              disabled={modo === "edicion" && !retencionesOk}
+              className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
+            >
+              <option value="">No retenerle</option>
+              <option value="automatica">Automática — 8 % solo si el recibo pasa de S/1,500</option>
+              <option value="siempre">Siempre — 8 % sea cual sea el monto</option>
+            </select>
+            <span className="text-xs text-taupe">
+              {form.retencion4ta === "automatica"
+                ? "La regla legal (art. 74 de la Ley del Impuesto a la Renta): se retiene solo cuando el recibo del mes supera el tope. Por debajo, nada."
+                : form.retencion4ta === "siempre"
+                  ? "Se retiene aunque el recibo sea chico. Es lo que pide quien factura a varias empresas: se pasa del límite anual, no califica para la suspensión y prefiere adelantar el 8 % antes que pagarlo entero en marzo."
+                  : "No se le retiene nada. Ojo: si su recibo pasa de S/1,500 y no tiene constancia de suspensión, retener es obligación de CAYLA — la planilla lo va a avisar."}
+            </span>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Constancia de suspensión — vigente hasta</span>
+            <input
+              type="date"
+              value={form.constancia4ta}
+              onChange={(e) => setForm({ ...form, constancia4ta: e.target.value })}
+              disabled={modo === "edicion" && !retencionesOk}
+              className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
+            />
+            <span className="text-xs text-taupe">
+              Su constancia del Formulario Virtual 1609. Mientras esté vigente NO se le
+              retiene, diga lo que diga el campo de al lado. Dura el año calendario y hay
+              que volver a pedirla: cuando vence, manda otra vez lo elegido arriba.
+            </span>
+          </label>
+        </>
       )}
       {modo === "edicion" && puedeSalarios && (
         // Bandera para gente que rota entre locales: aparece en el terminal de CUALQUIER
@@ -1035,11 +1359,11 @@ export default function EquipoPage() {
           Base declarada (S/)
           <input type="number" min="0" step="10" value={salForm.salario}
             onChange={(e) => setSalForm({ ...salForm, salario: e.target.value })}
-            className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-amber-400" : ""}`} />
+            className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-ambar" : ""}`} />
           {/* Lo que va al PLAME y lo que el sistema paga. Se puede pisar cuando se
               acordó otra cosa; el aviso deja constancia de que fue deliberado. */}
           {fueraDeLaBase && (
-            <span className="text-[11px] text-amber-800">
+            <span className="text-[11px] text-ambar">
               Fuera de la base del rango: {RANGO_LABEL[salForm.rango] ?? salForm.rango} declara{" "}
               {formatSoles(baseDeclaradaDe(salForm.rango) ?? 0)}. Convendría escribir el motivo abajo.
             </span>
@@ -1116,7 +1440,7 @@ export default function EquipoPage() {
             ))}
           </select>
           {ceseForm.motivo === "despido" && (
-            <span className="text-[11px] text-amber-800">
+            <span className="text-[11px] text-ambar">
               Un despido exige carta de preaviso, seis días de descargo y carta de despido (D.S. 003-97-TR).
               Si el contrato simplemente llegó a su fecha, el motivo es «terminó su contrato»: eso no exige
               ninguno de esos papeles.
@@ -1135,6 +1459,41 @@ export default function EquipoPage() {
           </button>
           <button onClick={() => setCeseId(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
         </div>
+      </div>
+    );
+  };
+
+  // El PIN recién generado. Mismo molde que los otros cinco paneles de esta
+  // pantalla (tarjeta de papel, arriba de la tabla, se desplaza sola hasta él),
+  // con dos diferencias que son todo el arreglo: no tiene temporizador y el PIN
+  // se puede copiar sin transcribirlo.
+  const panelPin = () => {
+    if (!pinNuevo) return null;
+    // `role="status"` porque este panel reemplazó a un aviso que sí se
+    // anunciaba: sin él, quien navega con lector de pantalla oye desaparecer
+    // «X agregado(a)» y nada le dice que el PIN quedó en un panel más arriba —
+    // en el único panel de la pantalla cuyo motivo entero es que no se pierda
+    // de vista.
+    return (
+      <div role="status" aria-live="polite" className="mb-6 max-w-2xl rounded-2xl border border-rojo/30 bg-papel p-5">
+        <p className="text-sm font-medium">PIN de {pinNuevo.nombre}</p>
+        <p className="mt-3 font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo.pin}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => void copiarPin()}
+            className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
+          >
+            {pinCopiado ? "Copiado" : "Copiar"}
+          </button>
+          <button onClick={() => setPinNuevo(null)} className="rounded-lg border px-4 py-2 text-sm">
+            Ya lo tengo — cerrar
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-taupe">
+          Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
+          única vez que el sistema muestra estos cuatro dígitos: si se pierden hay que generar otros, y el
+          PIN anterior de esta persona deja de servir.
+        </p>
       </div>
     );
   };
@@ -1187,7 +1546,7 @@ export default function EquipoPage() {
           {!mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setMensaje(null); setSalEditId(null); setHistId(null); setCeseId(null); }}
+                onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null); }}
                 className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
               >
                 + Agregar persona
@@ -1195,12 +1554,6 @@ export default function EquipoPage() {
             </div>
           )}
         </div>
-
-        {mensaje && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {mensaje.texto}
-          </div>
-        )}
 
         {puedeSalarios && salariosEstado === "error" && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
@@ -1213,6 +1566,7 @@ export default function EquipoPage() {
         )}
 
         <div ref={panelRef} className="scroll-mt-4">
+          {panelPin()}
           {mostrandoAlta && formulario("alta")}
           {editandoId && formulario("edicion")}
           {ceseId && editorCese()}
@@ -1270,7 +1624,9 @@ export default function EquipoPage() {
         )}
 
         {cargando ? (
-          <Cargando texto="Cargando el equipo…" />
+          <EsqueletoTabla
+            anchos={["w-36", "w-16", "w-20", "w-24", ...(puedeSalarios ? ["w-20"] : []), "w-40", "w-16", "w-24"]}
+          />
         ) : visibles.length === 0 ? (
           <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
             Ninguna persona coincide con lo que buscas.{" "}
@@ -1393,7 +1749,13 @@ export default function EquipoPage() {
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-2 text-xs">
                         <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                        <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
+                        {/* Solo a quien está activa: desde la 0364 el servidor
+                            rechaza regenerar el PIN de una persona inactiva, y
+                            no se ofrece un botón que solo puede terminar en un
+                            error. Si vuelve al equipo, «Reactivar» primero. */}
+                        {p.estado === "activo" && (
+                          <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
+                        )}
                         {p.estado === "activo" ? (
                           // «Registrar salida» y no «Desactivar»: lo que se hace
                           // es anotar un hecho con su fecha y su motivo, no
@@ -1412,8 +1774,9 @@ export default function EquipoPage() {
         )}
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">
-          Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en el aviso verde —
-          anótalo y entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
+          Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en un panel arriba de
+          esta tabla: no se cierra solo, se copia con un botón y lo cierras tú cuando ya lo tengas
+          anotado. Entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
           en el terminal pero su historial se conserva, y de la fecha que anotes salen su gratificación,
           su CTS y sus vacaciones truncas. Anotar el fin de contrato es otra cosa y no da de baja a
           nadie: es la fecha prevista de término, y está para avisar antes de que llegue.

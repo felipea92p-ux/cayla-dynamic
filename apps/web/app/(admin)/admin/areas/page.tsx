@@ -5,10 +5,14 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { type Area, AREA_DEFAULT, parseAreas, slugDeNombre } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { useToast } from "@/components/toast";
 
 interface FormArea {
   nombre: string;
@@ -22,13 +26,13 @@ export default function AreasPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeGestionarCatalogos(rol);
+  const { avisar } = useToast();
 
   const [areas, setAreas] = useState<Area[]>([]);
   const [cargando, setCargando] = useState(true);
   // Si fn_areas falla mostramos el respaldo local, pero NO dejamos editar:
   // guardar sobre datos de respaldo pisaría los valores reales del servidor.
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [editandoCodigo, setEditandoCodigo] = useState<string | null>(null);
@@ -56,22 +60,16 @@ export default function AreasPage() {
 
   const edicionHabilitada = !cargaError;
 
-  function avisar(tipo: "ok" | "error", texto: string) {
-    setMensaje({ tipo, texto });
-  }
-
   function empezarAlta() {
     setMostrandoAlta(true);
     setEditandoCodigo(null);
     setForm(FORM_VACIO);
-    setMensaje(null);
   }
 
   function empezarEdicion(a: Area) {
     setEditandoCodigo(a.codigo);
     setMostrandoAlta(false);
     setForm({ nombre: a.nombre, operativa: a.operativa, orden: String(a.orden) });
-    setMensaje(null);
   }
 
   function cancelarForm() {
@@ -181,16 +179,10 @@ export default function AreasPage() {
           />
         </label>
         <div className="flex items-end gap-3">
-          <button
-            onClick={guardarArea}
-            disabled={guardando}
-            className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
-          >
+          <Boton variante="primario" onClick={guardarArea} disabled={guardando}>
             {guardando ? "Guardando…" : modo === "alta" ? "Agregar área" : "Guardar cambios"}
-          </button>
-          <button onClick={cancelarForm} className="rounded-lg border px-4 py-2 text-sm">
-            Cancelar
-          </button>
+          </Boton>
+          <Boton variante="secundario" onClick={cancelarForm}>Cancelar</Boton>
         </div>
       </div>
     );
@@ -203,9 +195,7 @@ export default function AreasPage() {
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl">Áreas</h1>
           {puedeGestionar && edicionHabilitada && !mostrandoAlta && !editandoCodigo && (
-            <button onClick={empezarAlta} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema">
-              + Agregar área
-            </button>
+            <Boton variante="primario" onClick={empezarAlta}>+ Agregar área</Boton>
           )}
         </div>
 
@@ -217,23 +207,11 @@ export default function AreasPage() {
           </div>
         ) : (
           <>
-            {mensaje && (
-              <div
-                className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${
-                  mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"
-                }`}
-              >
-                {mensaje.texto}
-              </div>
-            )}
-
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudo cargar el catálogo desde el servidor: {cargaError}. Se muestra el respaldo
                 local y la edición queda deshabilitada (para no pisar los datos reales).{" "}
-                <button onClick={() => void cargar()} className="font-medium underline">
-                  Reintentar
-                </button>
+                <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
               </div>
             )}
 
@@ -243,64 +221,49 @@ export default function AreasPage() {
             {cargando ? (
               <Cargando />
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm">
-                  <thead className="bg-sand/70 text-left text-taupe">
-                    <tr>
-                      <th className="px-4 py-2 font-normal">Nombre</th>
-                      <th className="px-4 py-2 font-normal">Código</th>
-                      <th className="px-4 py-2 font-normal">Operativa de sede</th>
-                      <th className="px-4 py-2 font-normal">Orden</th>
-                      <th className="px-4 py-2 font-normal">Estado</th>
-                      <th className="px-4 py-2 font-normal">Acciones</th>
+              <Tabla>
+                <TablaEncabezado>
+                  <Th>Nombre</Th>
+                  <Th>Código</Th>
+                  <Th>Operativa de sede</Th>
+                  <Th>Orden</Th>
+                  <Th>Estado</Th>
+                  <Th>Acciones</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {areas.map((a) => (
+                    <tr key={a.codigo} className={`border-t ${a.activa ? "" : "text-taupe"}`}>
+                      <td className="px-4 py-2">
+                        {a.nombre}
+                        {a.codigo === AREA_DEFAULT && (
+                          <span className="ml-2 text-xs text-taupe/60">(área del sistema)</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs text-taupe">{a.codigo}</td>
+                      <td className="px-4 py-2">{a.operativa ? "✓" : <span className="text-taupe/50">—</span>}</td>
+                      <td className="px-4 py-2">{a.orden}</td>
+                      <td className="px-4 py-2">
+                        <Insignia atenuada={!a.activa}>{a.activa ? "activa" : "inactiva"}</Insignia>
+                      </td>
+                      <td className="px-4 py-2">
+                        {edicionHabilitada && (
+                          <div className="flex flex-wrap gap-2">
+                            <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(a)}>Editar</Boton>
+                            {a.activa ? (
+                              // 'calidad_servicio' no se puede desactivar (el server además lo bloquea).
+                              a.codigo !== AREA_DEFAULT && (
+                                <Boton variante="peligro" tamano="sm" onClick={() => cambiarActiva(a, false)}>Desactivar</Boton>
+                              )
+                            ) : (
+                              <Boton variante="secundario" tamano="sm" onClick={() => cambiarActiva(a, true)}>Reactivar</Boton>
+                            )}
+                          </div>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {areas.map((a) => (
-                      <tr key={a.codigo} className={`border-t ${a.activa ? "" : "text-taupe"}`}>
-                        <td className="px-4 py-2">
-                          {a.nombre}
-                          {a.codigo === AREA_DEFAULT && (
-                            <span className="ml-2 text-xs text-taupe/60">(área del sistema)</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-taupe">{a.codigo}</td>
-                        <td className="px-4 py-2">{a.operativa ? "✓" : <span className="text-taupe/50">—</span>}</td>
-                        <td className="px-4 py-2">{a.orden}</td>
-                        <td className="px-4 py-2">
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${a.activa ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
-                            {a.activa ? "activa" : "inactiva"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">
-                          {edicionHabilitada && (
-                            <div className="flex flex-wrap gap-2 text-xs">
-                              <button onClick={() => empezarEdicion(a)} className="rounded border px-2 py-1 hover:bg-sand/50">
-                                Editar
-                              </button>
-                              {a.activa ? (
-                                // 'calidad_servicio' no se puede desactivar (el server además lo bloquea).
-                                a.codigo !== AREA_DEFAULT && (
-                                  <button
-                                    onClick={() => cambiarActiva(a, false)}
-                                    className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10"
-                                  >
-                                    Desactivar
-                                  </button>
-                                )
-                              ) : (
-                                <button onClick={() => cambiarActiva(a, true)} className="rounded border px-2 py-1 hover:bg-sand/50">
-                                  Reactivar
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </Tabla>
             )}
 
             <p className="mt-4 max-w-2xl text-xs text-taupe">

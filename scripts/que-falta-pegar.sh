@@ -61,8 +61,25 @@ if [ -z "$(listar)" ]; then
   exit 2
 fi
 
+# Las que están en el repo y NUNCA se van a aplicar, con su razón. Sin esto,
+# la consulta las marcaría «FALTA PEGAR» en cada ejecución, para siempre — y un
+# resumen que sale en rojo aunque todo esté bien enseña a no mirarlo. Es la
+# misma razón por la que existe `huecos-conocidos.txt`.
+NO_SE_PEGAN="$(dirname "$0")/hooks/no-se-pegan.txt"
+nunca() {
+  [ -f "$NO_SE_PEGAN" ] || return 0
+  grep -E '^[0-9]+' "$NO_SE_PEGAN" | awk '{print $1 + 0}'
+}
+
 con_nombre() {
-  listar | sed -E "s/^0*([0-9]+)_(.*)\.sql$/    (\1, '\2'),/" | sed '$ s/,$//'
+  local excluidas
+  excluidas="$(nunca | tr '\n' ' ')"
+  listar | sed -E "s/^0*([0-9]+)_(.*)\.sql$/\1|\2/" | while IFS='|' read -r n nom; do
+    case " $excluidas " in
+      *" $n "*) echo "    ($n, '$nom', true)," ;;
+      *)        echo "    ($n, '$nom', false)," ;;
+    esac
+  done | sed '$ s/,$//'
 }
 
 # ── El catálogo de versiones de fn_planilla_calcular, CALCULADO ──────────────
@@ -113,9 +130,33 @@ catalogo_planilla() {
                supabase/migrations/*.sql 2>/dev/null | sort)
   [ -z "$ARCHIVOS" ] && return 0
   ULTIMO=$(echo "$ARCHIVOS" | tail -1)
+  NUM_ULTIMO=$(basename "$ULTIMO" | sed -E 's/^([0-9]+)_.*/\1/')
+
+  # El WHEN del md5 vigente se imprime PRIMERO, antes que ningún otro — no en su
+  # lugar cronológico. La 0339 partió la función en núcleo + envoltorio, y desde
+  # entonces el envoltorio no volvió a cambiar textualmente: su cuerpo en la 0339
+  # y en la última migración que lo redefine son el mismo md5. Un CASE de SQL
+  # resuelve por el PRIMER WHEN que coincide, así que si la etiqueta vieja
+  # («se quedó en la 0339») fuera antes, escondería para siempre a la correcta
+  # («al día») detrás de una alarma falsa — pasó el 2026-09-04 y dijo que
+  # producción llevaba diez migraciones de atraso en la función que paga a todos,
+  # cuando en realidad estaba al día. Iterar del final hacia el principio no
+  # alcanza: cualquier duplicado más viejo entre medias tendría el mismo problema.
+  # Imprimir el vigente antes que cualquier otro es la única forma de que un
+  # empate se resuelva siempre a favor de la verdad.
+  awk "$CUERPO_AWK" "$ULTIMO" > "$TMPC"
+  if tr -d '[:space:]' < "$TMPC" | grep -q .; then
+    SANO_ULTIMO=$(md5de < "$TMPC")
+    echo "             when '$SANO_ULTIMO' then '$NUM_ULTIMO — al día con el repositorio'"
+    ROTO_ULTIMO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
+    if [ -n "$ROTO_ULTIMO" ] && [ "$ROTO_ULTIMO" != "$SANO_ULTIMO" ]; then
+      echo "             when '$ROTO_ULTIMO' then '✗ $NUM_ULTIMO CON LOS ACENTOS ROTOS — vuelve a pegarla'"
+    fi
+  fi
 
   echo "$ARCHIVOS" | while read -r f; do
     [ -z "$f" ] && continue
+    [ "$f" = "$ULTIMO" ] && continue
     NUM=$(basename "$f" | sed -E 's/^([0-9]+)_.*/\1/')
     # A un archivo y no a una variable: `$(...)` se come los saltos de línea
     # finales, y varias versiones de esta función terminan con líneas en blanco
@@ -127,11 +168,7 @@ catalogo_planilla() {
     # de una cadena vacía como si fuera una versión sería peor que no tenerlo.
     tr -d '[:space:]' < "$TMPC" | grep -q . || continue
     SANO=$(md5de < "$TMPC")
-    if [ "$f" = "$ULTIMO" ]; then
-      echo "             when '$SANO' then '$NUM — al día con el repositorio'"
-    else
-      echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
-    fi
+    echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
     # La variante con los acentos rotos. Si este sistema no tiene la tabla MAC en
     # su iconv, se omite: el catálogo pierde precisión pero nunca miente, y el
     # barrido del signo «√» de más abajo sigue cazando el caso igual.
@@ -169,13 +206,18 @@ cat <<'CAB'
 --   filas miran el cuerpo real de la función y no el registro.
 -- ============================================================================
 
-with repo(numero, nombre) as (values
+with repo(numero, nombre, nunca) as (values
 CAB
 con_nombre
 cat <<'PIE'
 ),
 diff as (
-  select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
+  -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
+  -- y no cuentan como pendientes.
+  select r.numero, r.nombre, r.nunca,
+         (a.numero is null and not r.nunca) as falta,
+         (a.numero is null and r.nunca)     as nunca_ira,
+         a.aplicada_at
   from repo r
   left join migraciones_aplicadas a on a.numero = r.numero
 )
@@ -183,7 +225,9 @@ select * from (
   -- Una fila por migración.
   select d.numero::text                        as num,
          d.nombre                              as que,
-         case when d.falta then '❌  FALTA PEGAR' else '✓   aplicada' end as estado,
+         case when d.falta     then '❌  FALTA PEGAR'
+              when d.nunca_ira then '—   no se pega (ver scripts/hooks/no-se-pegan.txt)'
+              else                  '✓   aplicada' end as estado,
          to_char(d.aplicada_at, 'DD/MM/YYYY')  as cuando,
          d.numero                              as orden
   from diff d
@@ -195,7 +239,8 @@ select * from (
   union all
   select 'RESUMEN',
          (select count(*) filter (where falta) from diff)::text || ' faltan · ' ||
-         (select count(*) filter (where not falta) from diff)::text || ' aplicadas · ' ||
+         (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
+         (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
          (select count(*) from diff)::text || ' en el repo',
          case when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,

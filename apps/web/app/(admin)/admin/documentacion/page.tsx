@@ -9,8 +9,10 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
-import { hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
+import { EMPRESA, hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 // Documentación de CAYLA: eliges el documento y la persona, y sale listo para
 // imprimir y firmar con sus datos ya puestos.
@@ -24,10 +26,18 @@ import { hoyLima, rangoDelMesLima, puedeGestionarCatalogos } from "@cayla-dynami
 //
 // El sustento no puede vivir en la cabeza de Felipe ni en un Word suelto. Vive
 // aquí, sale con los datos de la persona y con fecha, y se archiva firmado.
-const EMPRESA = {
-  nombre: "CAYLA S.A.C.",
-  ruc: "20605964550",
-  firmante: "Alvarez Pereyra Felipe Miguel",
+// La razón social y el RUC ya no se escriben acá: viven en `EMPRESA`
+// (packages/shared/src/empresa.ts) desde el 2026-08-19, porque eran el mismo
+// dato copiado a mano en ocho documentos distintos.
+//
+// El firmante NO se fue con ellos, y la distinción es la que importa: la
+// identidad de la empresa es igual en cualquier papel, mientras que quién lo
+// suscribe depende del documento. Estos dos valores solo son el arranque de un
+// estado editable —el nombre y el cargo reales salen de la ficha de quien firma
+// (0147)— y compartirlos habría convertido «por si la 0147 no está pegada» en
+// «el firmante de CAYLA», que es otra cosa.
+const FIRMANTE_POR_DEFECTO = {
+  nombre: "Alvarez Pereyra Felipe Miguel",
   cargo: "Gerencia General",
 };
 
@@ -129,6 +139,7 @@ interface Persona {
 const ETIQUETA_VINCULO: Record<string, string> = {
   rxh: "recibo por honorarios",
   no_trabajador: "no trabajador",
+  practicante: "practicante — modalidad formativa",
 };
 
 // Una tarifa de movilidad vigente. `sede_codigo` en null es la general — la que
@@ -268,6 +279,25 @@ interface EstadoPolitica {
   storage_path: string | null;
 }
 
+/**
+ * Una fila de `fn_documentos_listar` — el archivo tal como quedó guardado.
+ *
+ * Se declaran solo los campos que esta pantalla usa. La RPC devuelve más (monto
+ * declarado, ruta, año, negativa); traerlos aquí sin usarlos invitaría a
+ * pintarlos, y este historial se lee para responder una sola pregunta: qué papel
+ * regía en cada momento y por qué dejó de regir.
+ */
+interface DocArchivado {
+  id: string;
+  tipo: string;
+  fecha_firma: string | null;
+  storage_path: string | null;
+  nota: string | null;
+  registrado_por: string | null;
+  anulado_at: string | null;
+  anulado_motivo: string | null;
+}
+
 const MAX_BYTES_DOC = 50 * 1024 * 1024;
 const TIPOS_DOC = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 
@@ -275,6 +305,7 @@ export default function DocumentacionPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puede = puedeGestionarCatalogos(rol);
+  const { avisar } = useToast();
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
 
   const [tipo, setTipo] = useState<TipoDoc>("ruta");
@@ -304,8 +335,8 @@ export default function DocumentacionPage() {
   // (0147) y no de un texto escrito acá: así el nombre impreso y la firma
   // estampada no pueden ser de dos personas distintas. Arrancan con la
   // constante de siempre por si la 0147 aún no está pegada en producción.
-  const [firmanteNombre, setFirmanteNombre] = useState(EMPRESA.firmante);
-  const [firmanteCargo, setFirmanteCargo] = useState(EMPRESA.cargo);
+  const [firmanteNombre, setFirmanteNombre] = useState(FIRMANTE_POR_DEFECTO.nombre);
+  const [firmanteCargo, setFirmanteCargo] = useState(FIRMANTE_POR_DEFECTO.cargo);
   const [tarifas, setTarifas] = useState<TarifaSede[]>([]);
   // El monto del bono, leído de `parametros_laborales` (0165). `null` mientras no
   // haya fila vigente — y `null` significa «no hay monto», nunca «pon el de
@@ -317,6 +348,18 @@ export default function DocumentacionPage() {
   // ── El tablero de firmas ────────────────────────────────────────────────
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
   const [politica, setPolitica] = useState<EstadoPolitica | null>(null);
+  /**
+   * Todo lo archivado, tal como lo devuelve `fn_documentos_listar` — incluidas
+   * las filas anuladas, que son el historial.
+   *
+   * Se guarda la lista entera y no solo los paths porque la política necesita
+   * las dos cosas: abrir el archivo vigente Y enseñar qué versiones hubo antes,
+   * quién las registró y por qué se reemplazaron. Ese relato es lo que sostiene
+   * los pagos de movilidad ya hechos si alguien pregunta qué documento regía.
+   */
+  const [documentos, setDocumentos] = useState<DocArchivado[]>([]);
+  /** Anulación en curso: qué fila y con qué motivo. Null = nadie está anulando. */
+  const [anulando, setAnulando] = useState<{ id: string; motivo: string } | null>(null);
   // Qué se está subiendo. `que` decide todo lo demás: la política no lleva
   // persona, el bono no lleva monto y solo la ruta admite negativa. Antes esto
   // era un `{personaId, negativa}` y el tipo iba fijo en «ruta» dentro del
@@ -325,11 +368,16 @@ export default function DocumentacionPage() {
     { que: TipoDoc; personaId: string | null; negativa: boolean } | null
   >(null);
   const [archivoDoc, setArchivoDoc] = useState<File | null>(null);
-  const [fechaFirma, setFechaFirma] = useState("");
+  // NACE CON LA FECHA DE HOY, no vacía. Ver la regla en CLAUDE.md: un campo de
+  // fecha vacío que bloquea el envío depende de que el navegador entregue el
+  // valor, y Safari no siempre lo hace — el 2026-08-26 un descanso médico real
+  // no se pudo registrar por eso, con la fecha pintada en el campo y vacía por
+  // dentro. Hoy es lo más probable para un papel que se acaba de firmar, se ve
+  // en pantalla y se corrige en un clic.
+  const [fechaFirma, setFechaFirma] = useState(hoyLima());
   const [notaDoc, setNotaDoc] = useState("");
   const [progresoDoc, setProgresoDoc] = useState<number | null>(null);
   const [guardandoDoc, setGuardandoDoc] = useState(false);
-  const [avisoDoc, setAvisoDoc] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // Las hojas que se imprimen de una vez. `null` = modo normal, una sola hoja:
   // la de la persona elegida arriba. Se llena, se imprime y se vacía; no es un
@@ -374,9 +422,8 @@ export default function DocumentacionPage() {
     // El bono necesita su monto, y sin él ninguna hoja acredita nada: eso frena
     // el lote entero porque le falta a todo el mundo a la vez.
     if (que === "bono" && bonoMonto === null) {
-      setAvisoDoc({ tipo: "error", texto:
-        "No hay monto de bono de onomástico vigente en el sistema, así que las constancias " +
-        "saldrían sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico)." });
+      avisar("error", "No hay monto de bono de onomástico vigente en el sistema, así que las constancias " +
+        "saldrían sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico).");
       return;
     }
 
@@ -389,9 +436,8 @@ export default function DocumentacionPage() {
     const quienes = candidatas.filter((per) => !fuera.includes(per));
 
     if (quienes.length === 0) {
-      setAvisoDoc({ tipo: "error", texto:
-        "Ninguna de estas personas tiene tarifa de movilidad vigente en su sede, así que no " +
-        "hay ninguna declaración que imprimir." });
+      avisar("error", "Ninguna de estas personas tiene tarifa de movilidad vigente en su sede, así que no " +
+        "hay ninguna declaración que imprimir.");
       return;
     }
 
@@ -430,14 +476,14 @@ export default function DocumentacionPage() {
     }
     const desglose = [...porSedeDelLote].map(([cod, n]) => `${cod} ${n}`).join(" · ");
 
-    setAvisoDoc(fuera.length === 0
-      ? { tipo: "ok", texto:
-          `${ordenadas.length} ${ordenadas.length === 1 ? "hoja" : "hojas"} a la impresora, `
-          + `agrupadas por sede: ${desglose}.` }
-      : { tipo: "error", texto:
-          `Se imprimieron ${ordenadas.length} (${desglose}). Quedaron fuera ${fuera.length}: ` +
-          fuera.map((per) => `${per.nombres} ${per.apellidos}`).join(", ") +
-          " — su sede no tiene tarifa de movilidad vigente, así que su declaración saldría sin monto." });
+    if (fuera.length === 0) {
+      avisar("ok", `${ordenadas.length} ${ordenadas.length === 1 ? "hoja" : "hojas"} a la impresora, `
+        + `agrupadas por sede: ${desglose}.`);
+    } else {
+      avisar("error", `Se imprimieron ${ordenadas.length} (${desglose}). Quedaron fuera ${fuera.length}: ` +
+        fuera.map((per) => `${per.nombres} ${per.apellidos}`).join(", ") +
+        " — su sede no tiene tarifa de movilidad vigente, así que su declaración saldría sin monto.");
+    }
   }
 
   function imprimirFila(personaId: string, que: TipoDoc) {
@@ -452,16 +498,14 @@ export default function DocumentacionPage() {
     // sin suma no acredita nada. Va antes que la de ruta porque no depende de la
     // ficha de la persona — falta el parámetro para todo el mundo a la vez.
     if (que === "bono" && bonoMonto === null) {
-      setAvisoDoc({ tipo: "error", texto:
-        "No hay monto de bono de onomástico vigente en el sistema, así que la constancia " +
+      avisar("error", "No hay monto de bono de onomástico vigente en el sistema, así que la constancia " +
         "saldría sin la suma que acredita. Fíjalo en parámetros laborales (bono_onomastico) " +
-        "y vuelve a imprimir." });
+        "y vuelve a imprimir.");
       return;
     }
     if (que === "ruta" && ficha && tarifaDeSede(ficha.sede_base_id) === null) {
-      setAvisoDoc({ tipo: "error", texto:
-        `La sede ${sedes.get(ficha.sede_base_id) ?? "de esta persona"} no tiene tarifa de movilidad vigente, ` +
-        "así que su declaración saldría sin monto. Créala en parámetros laborales y vuelve a imprimir." });
+      avisar("error", `La sede ${sedes.get(ficha.sede_base_id) ?? "de esta persona"} no tiene tarifa de movilidad vigente, ` +
+        "así que su declaración saldría sin monto. Créala en parámetros laborales y vuelve a imprimir.");
       return;
     }
     setTipo(que);
@@ -478,11 +522,49 @@ export default function DocumentacionPage() {
     // hoy. Proponer hoy era empujar al error: el formulario ofrecía de entrada
     // el único valor que el propio sistema iba a marcar en rojo.
     setFechaFirma(que === "politica" ? fechaDeLaPolitica : hoyLima());
-    setAvisoDoc(null);
     // El formulario es uno solo y vive arriba; el botón que lo abre puede estar
     // veinte filas más abajo. Sin esto, quien hace clic en la última fila no ve
     // que pasó nada y vuelve a hacer clic.
     setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 30);
+  }
+
+  /** id → dónde está su archivo. Derivado, para no guardar dos veces la verdad. */
+  const rutasDeArchivo = useMemo(
+    () => new Map(documentos.filter((d) => d.storage_path).map((d) => [d.id, d.storage_path as string])),
+    [documentos],
+  );
+
+  /**
+   * Las políticas ya reemplazadas, de la más reciente a la más antigua.
+   *
+   * Solo las anuladas: la vigente ya se muestra arriba, y repetirla aquí haría
+   * dudar de cuál manda — que es exactamente el problema que esta pantalla tenía.
+   */
+  const politicasAnteriores = useMemo(
+    () =>
+      documentos
+        .filter((d) => d.tipo === "politica" && d.anulado_at)
+        .sort((a, b) => (b.anulado_at ?? "").localeCompare(a.anulado_at ?? "")),
+    [documentos],
+  );
+
+  /**
+   * Anular un documento. NUNCA se borra — decisión de Felipe, 2026-08-11.
+   *
+   * Una política anulada sigue diciendo cuál regía cuando se pagó la movilidad de
+   * cada mes, y ese rastro es lo que sostiene los pagos ya hechos si alguien los
+   * discute. Es la misma regla por la que una persona nunca se borra y un marcaje
+   * se anula en vez de desaparecer.
+   */
+  async function anularDocumento(id: string, motivo: string) {
+    const { error } = await supabase.rpc("fn_documento_anular", { p_id: id, p_motivo: motivo });
+    if (error) {
+      avisar("error", mensajeDeError(error, "anular el documento"));
+      return;
+    }
+    setAnulando(null);
+    avisar("ok", "Documento anulado. Sigue guardado en el historial.");
+    await cargar();
   }
 
   // Abrir en una pestaña lo que ya está archivado. Sin esto, quien sube un
@@ -491,28 +573,24 @@ export default function DocumentacionPage() {
   // inspector. La URL se firma al momento y dura un minuto: el bucket es
   // privado y así sigue siéndolo.
   async function verDocumento(path: string) {
-    const { data, error } = await supabase.storage.from("documentos").createSignedUrl(path, 60);
-    if (error || !data) {
-      setAvisoDoc({ tipo: "error", texto: mensajeDeError(error, "abrir el documento") });
-      return;
-    }
-    window.open(data.signedUrl, "_blank", "noopener");
+    const fallo = await abrirArchivoFirmado(supabase, "documentos", path);
+    if (fallo) avisar("error", fallo);
   }
 
   async function guardarDocumento() {
     if (!subiendo) return;
     if (!archivoDoc) {
-      setAvisoDoc({ tipo: "error", texto: subiendo.negativa
+      avisar("error", subiendo.negativa
         ? "Falta el acta de la negativa. Sin el papel con el testigo, no queda constancia de que se ofreció."
-        : `Falta el archivo ${ETIQUETA_SUBIDA[subiendo.que].deQue} firmado.` });
+        : `Falta el archivo ${ETIQUETA_SUBIDA[subiendo.que].deQue} firmado.`);
       return;
     }
     if (archivoDoc.size > MAX_BYTES_DOC) {
-      setAvisoDoc({ tipo: "error", texto: `“${archivoDoc.name}” pesa ${(archivoDoc.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.` });
+      avisar("error", `“${archivoDoc.name}” pesa ${(archivoDoc.size / 1048576).toFixed(1)} MB y el máximo es 50 MB.`);
       return;
     }
     if (!fechaFirma) {
-      setAvisoDoc({ tipo: "error", texto: "Indica en qué fecha se firmó (o en qué fecha se dejó constancia de la negativa)." });
+      avisar("error", "Indica en qué fecha se firmó (o en qué fecha se dejó constancia de la negativa).");
       return;
     }
 
@@ -549,7 +627,7 @@ export default function DocumentacionPage() {
     });
     if (error || !id) {
       setGuardandoDoc(false);
-      setAvisoDoc({ tipo: "error", texto: mensajeDeError(error, "guardar") });
+      avisar("error", mensajeDeError(error, "guardar"));
       return;
     }
 
@@ -560,26 +638,46 @@ export default function DocumentacionPage() {
     setProgresoDoc(null);
     if (fallo) {
       setGuardandoDoc(false);
-      setAvisoDoc({ tipo: "error", texto: `El registro se guardó pero el archivo no subió (${fallo}). Vuelve a intentarlo desde su fila.` });
+      avisar("error", `El registro se guardó pero el archivo no subió (${fallo}). Vuelve a intentarlo desde su fila.`);
       await cargar();
       return;
     }
-    await supabase.rpc("fn_documento_registrar", {
+    // La segunda mitad del guardado: enlazar al registro el archivo que ya
+    // subió. Su `error` se comprueba por lo mismo que los dos de arriba —
+    // antes NO se comprobaba, y esta pantalla llegaba a decir «archivada» con
+    // el documento registrado y su papel sin enlazar.
+    //
+    // Falla de verdad y no en teoría: la función levanta «Ese documento no
+    // existe o está anulado» si alguien lo anuló entre las dos llamadas, y
+    // cualquier corte de red entre subir el archivo y enlazarlo cae acá.
+    //
+    // Y es la peor forma de fallar que hay en esta pantalla. Lo que se archiva
+    // son papeles con valor legal —la política de movilidad, el cargo del bono,
+    // la declaración de ruta—, y son justamente los que sostienen un pago. Un
+    // registro que consta como archivado y no tiene papel detrás no se nota al
+    // guardarlo: se nota el día que alguien pide el sustento y no está.
+    const { error: eEnlace } = await supabase.rpc("fn_documento_registrar", {
       p_tipo: subiendo.que, p_fecha_firma: fechaFirma, p_persona_id: subiendo.personaId,
       p_storage_path: ruta, p_id: id,
     });
+    if (eEnlace) {
+      setGuardandoDoc(false);
+      avisar("error", `El registro se guardó y el archivo subió, pero no se pudo enlazar (${mensajeDeError(eEnlace)}). El documento queda SIN su papel: vuelve a subirlo desde su fila.`);
+      await cargar();
+      return;
+    }
 
     const quien = fila?.persona ?? "la persona";
     setGuardandoDoc(false);
     setSubiendo(null);
     await cargar();
-    setAvisoDoc({ tipo: "ok", texto: subiendo.negativa
+    avisar("ok", subiendo.negativa
       ? `Negativa registrada para ${quien}. Queda constancia de que se ofreció; no habilita el pago de movilidad.`
       : subiendo.que === "politica"
         ? "Política de movilidad archivada. Ya sostiene a todo el equipo."
         : subiendo.que === "bono"
           ? `Cargo del bono de ${quien} archivado.`
-          : `Declaración de ${quien} archivada.` });
+          : `Declaración de ${quien} archivada.`);
   }
 
   const cargar = useCallback(async () => {
@@ -624,6 +722,31 @@ export default function DocumentacionPage() {
     ]);
     setTablero((tab.data as FilaTablero[]) ?? []);
     setPolitica(((pol.data as EstadoPolitica[]) ?? [])[0] ?? null);
+
+    // DÓNDE VIVE CADA ARCHIVO YA SUBIDO.
+    //
+    // `fn_documentos_tablero` devuelve `ruta_id` y `bono_id` pero NO el
+    // storage_path, así que hasta hoy estas dos secciones no tenían forma de
+    // abrir lo archivado: `verDocumento` existía y se llamaba desde un solo
+    // sitio, el de la política —que sí recibe su path por RPC—. Quien subía un
+    // escaneo de ruta o un cargo de cumpleaños no podía comprobar que había
+    // subido el papel correcto, que es justo lo que esa función vino a evitar.
+    //
+    // Y no hace falta ni una migración ni leer la tabla: `fn_documentos_listar`
+    // devuelve `id` y `storage_path` desde la 0157 y no la llamaba nadie.
+    //
+    // POR RPC Y NO CON .from("documentos_firmados"), que es lo primero que se me
+    // ocurrió y está mal por partida doble: los tipos generados van 26 tablas por
+    // detrás del esquema, y —lo que de verdad importa— el schema cache de
+    // PostgREST se traba con las tablas nuevas. Es la misma razón por la que
+    // turnos/page.tsx:558 dice «nunca .from("areas")». Habría compilado tras un
+    // cast y fallado en producción.
+    //
+    // Tolerante como sus vecinas: si falla, la pantalla se queda sin el botón
+    // «Ver» y todo lo demás sigue funcionando.
+    const { data: archivos } = await supabase.rpc("fn_documentos_listar");
+    // Se guardan TODAS, anuladas incluidas: las anuladas son el historial.
+    setDocumentos((archivos as DocArchivado[]) ?? []);
 
     // El monto del bono, en consulta aparte por lo mismo que el tablero: si la
     // 0165 todavía no está pegada, que falle ESTA consulta y no las demás.
@@ -947,13 +1070,13 @@ export default function DocumentacionPage() {
                 por semana.
               </li>
               <li>
-                Declaro que la información consignada es veraz, y me comprometo a informar a
-                CAYLA S.A.C. si cambio de domicilio o de ruta habitual.
+                Declaro que la información consignada es veraz, y me comprometo a informar a{" "}
+                {EMPRESA.nombre} si cambio de domicilio o de ruta habitual.
               </li>
             </ol>
 
             <p className="mb-6">
-              Tomo conocimiento de que CAYLA S.A.C. me otorga una asignación por movilidad de{" "}
+              Tomo conocimiento de que {EMPRESA.nombre} me otorga una asignación por movilidad de{" "}
               {/* LA TARIFA DE SU SEDE, no la general. Acá decía `tarifa` a
                   secas y por eso Taller LIM firmaba S/ 10.00 mientras la
                   planilla le pagaba los S/ 12.00 de la 0142. */}
@@ -1322,7 +1445,68 @@ export default function DocumentacionPage() {
               )}
               <button onClick={() => abrirSubida("politica", null)}
                 className="text-xs underline">Reemplazar</button>
+              {/* Anular, no borrar. Solo hace falta cuando se quiere retirar la
+                  política SIN subir otra —reemplazarla ya anula la anterior sola—,
+                  y deja a CAYLA pagando movilidad sin papel que la sostenga: por
+                  eso el aviso rojo de arriba vuelve a aparecer en cuanto se hace. */}
+              {politica.id && (
+                <button onClick={() => setAnulando({ id: politica.id!, motivo: "" })}
+                  className="text-xs text-taupe underline">Anular</button>
+              )}
             </div>
+          )}
+
+          {/* El motivo es obligatorio y no es burocracia: sin él, el historial se
+              convierte en una lista de papeles retirados sin decir por qué, que no
+              sirve para lo único que tiene que servir. */}
+          {anulando && (
+            <div className="mb-4 rounded-lg border border-rojo/40 bg-rojo/[0.04] p-3 text-sm">
+              <div className="font-medium text-rojo">Anular este documento</div>
+              <p className="mt-1 text-xs text-taupe">
+                No se borra: queda guardado en el historial con tu nombre, la hora y este motivo.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input value={anulando.motivo}
+                  onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
+                  placeholder="ej. se subió el escaneo equivocado"
+                  className="min-w-64 flex-1 rounded-lg border px-3 py-1.5 text-sm" />
+                <button
+                  onClick={() => void anularDocumento(anulando.id, anulando.motivo.trim())}
+                  disabled={anulando.motivo.trim().length < 4}
+                  className="rounded-lg bg-rojo px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
+                  Anular
+                </button>
+                <button onClick={() => setAnulando(null)} className="text-xs underline">Cancelar</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── El historial ─────────────────────────────────────────────────
+              Existía desde la 0157 y no se veía: cada reemplazo dejaba su fila y
+              nadie la leía nunca. Se enseña porque responde la única pregunta que
+              importa el día que alguien discuta un pago de movilidad — qué papel
+              regía entonces, quién lo registró y por qué dejó de regir. */}
+          {politicasAnteriores.length > 0 && (
+            <details className="mb-4 rounded-lg border border-sand px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-xs text-taupe">
+                Versiones anteriores de la política ({politicasAnteriores.length})
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {politicasAnteriores.map((d) => (
+                  <li key={d.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-sand pt-2 text-xs">
+                    <span className="text-tinta">
+                      Firmada el <strong>{d.fecha_firma ? fechaLarga(d.fecha_firma) : "—"}</strong>
+                    </span>
+                    {d.registrado_por && <span className="text-taupe">la registró {d.registrado_por}</span>}
+                    <span className="text-taupe">· {d.anulado_motivo ?? "sin motivo anotado"}</span>
+                    {d.storage_path && (
+                      <button onClick={() => void verDocumento(d.storage_path!)}
+                        className="font-medium underline">Ver</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
 
           {/* ── El bono del mes ─────────────────────────────────────────────
@@ -1368,13 +1552,6 @@ export default function DocumentacionPage() {
               arriba— habría abierto un formulario invisible el día que el
               tablero venga vacío. Un formulario que existe pero no se ve es
               peor que uno que falta: quien lo usa cree que hizo clic mal. */}
-          {avisoDoc && !subiendo && (
-            <div className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
-              avisoDoc.tipo === "ok" ? "border-sand text-tinta" : "border-rojo text-rojo"}`}>
-              {avisoDoc.texto}
-            </div>
-          )}
-
           {subiendo && (
             <div ref={panelRef} className="mb-6 rounded-lg border border-sand bg-sand/20 p-4">
               <h3 className="mb-1 text-sm font-medium">
@@ -1424,15 +1601,6 @@ export default function DocumentacionPage() {
                       aria-label="Subiendo el documento" />
                   </div>
                   <span className="text-xs text-taupe">Subiendo — {progresoDoc}%</span>
-                </div>
-              )}
-
-              {/* El error de guardar sale junto al botón que lo produjo. Antes
-                  salía en la cabecera del tablero, a media pantalla de distancia
-                  del formulario que había fallado. */}
-              {avisoDoc && (
-                <div className={`mt-3 text-sm ${avisoDoc.tipo === "ok" ? "text-tinta" : "text-rojo"}`}>
-                  {avisoDoc.texto}
                 </div>
               )}
 
@@ -1528,6 +1696,16 @@ export default function DocumentacionPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap items-center justify-end gap-3">
+                              {/* «Ver» va PRIMERO y solo si hay archivo: comprobar lo
+                                  que subiste es lo que se hace justo después de
+                                  subirlo, y el error de subir el papel equivocado no
+                                  se nota de ninguna otra forma hasta que lo pide un
+                                  inspector. Si la fila no tiene archivo, no hay botón
+                                  —mejor que uno que abre una pestaña en blanco—. */}
+                              {f.ruta_id && rutasDeArchivo.has(f.ruta_id) && (
+                                <button onClick={() => void verDocumento(rutasDeArchivo.get(f.ruta_id!)!)}
+                                  className="text-xs font-medium underline">Ver</button>
+                              )}
                               <button onClick={() => imprimirFila(f.persona_id, "ruta")}
                                 className="text-xs font-medium underline">Imprimir</button>
                               <button onClick={() => abrirSubida("ruta", f.persona_id)}
@@ -1604,6 +1782,10 @@ export default function DocumentacionPage() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap items-center justify-end gap-3">
+                              {f.bono_id && rutasDeArchivo.has(f.bono_id) && (
+                                <button onClick={() => void verDocumento(rutasDeArchivo.get(f.bono_id!)!)}
+                                  className="text-xs font-medium underline">Ver</button>
+                              )}
                               <button onClick={() => imprimirFila(f.persona_id, "bono")}
                                 className="text-xs font-medium underline">Imprimir</button>
                               <button onClick={() => abrirSubida("bono", f.persona_id)}

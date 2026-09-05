@@ -20,7 +20,7 @@
 //     trabajador todos los meses — que pesa más en una inspección que el contrato.
 // ============================================================================
 import { describe, it, expect } from "vitest";
-import { esPrestadorDeServicios, nombreDelDocumentoDePago } from "@cayla-dynamic/shared";
+import { esPrestadorDeServicios, leCorrespondeCuspp, nombreDelDocumentoDePago } from "@cayla-dynamic/shared";
 
 describe("esPrestadorDeServicios — solo un «no» explícito cuenta", () => {
   it("quien está en planilla NO es prestador de servicios", () => {
@@ -56,5 +56,71 @@ describe("nombreDelDocumentoDePago — el título va pegado a la regla", () => {
   it("y sin dato, la boleta de siempre — nunca el documento nuevo por descarte", () => {
     expect(nombreDelDocumentoDePago(undefined)).toBe("Boleta interna de pago");
     expect(nombreDelDocumentoDePago(null)).toBe("Boleta interna de pago");
+  });
+});
+
+// ============================================================================
+// leCorrespondeCuspp — a quién se le pide el código de su cuenta en la AFP
+// ============================================================================
+// El 2026-08-13 la pantalla de fichas le mostraba «falta CUSPP» a dos locadoras.
+// Nadie podía completarlo nunca: el CUSPP identifica a un TRABAJADOR en el
+// T-Registro, y una locadora no está en el T-Registro. Un aviso permanente e
+// imposible es lo que enseña a ignorar los avisos que sí importan.
+//
+// Las dos mitades, otra vez, y se rompen por separado:
+//
+//   · QUE NO PIDA lo que no corresponde — locadora, ONP, jubilada, sin régimen.
+//   · QUE SIGA PIDIENDO a quien sí. Y sobre todo: que un campo AUSENTE no exima
+//     a nadie. Si `en_planilla` no viaja en el JSON, el defecto tiene que ser
+//     seguir pidiendo el CUSPP a las veinte que lo necesitan — no dejar de
+//     pedírselo en silencio, que es la falla que nadie ve hasta la PLAME.
+describe("leCorrespondeCuspp — tres descartes por tres razones distintas", () => {
+  it("a quien está en planilla y en una AFP, sí se le pide", () => {
+    expect(leCorrespondeCuspp(true, "integra")).toBe(true);
+    expect(leCorrespondeCuspp(true, "profuturo")).toBe(true);
+    expect(leCorrespondeCuspp(true, "prima")).toBe(true);
+    expect(leCorrespondeCuspp(true, "habitat")).toBe(true);
+  });
+
+  // CAMBIO 0328 · los cuatro códigos de comisión mixta son la MISMA AFP con otro
+  // esquema de cobro, no otro sistema previsional: la cuenta individual existe
+  // igual y el CUSPP la identifica igual. Se comprueba porque la función mira el
+  // código como texto, así que un sufijo nuevo es justo la forma en que podría
+  // dejar de reconocerlos — y dejar de pedir el CUSPP no falla en ninguna
+  // pantalla, falla en la PLAME.
+  it("y a quien está en la misma AFP con comisión mixta, también", () => {
+    expect(leCorrespondeCuspp(true, "integra_mixta")).toBe(true);
+    expect(leCorrespondeCuspp(true, "profuturo_mixta")).toBe(true);
+    expect(leCorrespondeCuspp(true, "prima_mixta")).toBe(true);
+    expect(leCorrespondeCuspp(true, "habitat_mixta")).toBe(true);
+  });
+
+  it("a una locadora NO, aunque tenga una AFP cargada", () => {
+    // El caso real de Catherine y Claudia: régimen puesto y vínculo por
+    // honorarios. Que tengan AFP no la convierte en asunto de CAYLA.
+    expect(leCorrespondeCuspp(false, "integra")).toBe(false);
+    expect(leCorrespondeCuspp(false, "profuturo")).toBe(false);
+  });
+
+  it("en ONP no, porque no hay cuenta individual que identificar", () => {
+    expect(leCorrespondeCuspp(true, "onp")).toBe(false);
+  });
+
+  it("jubilada no, porque ya no aporta", () => {
+    expect(leCorrespondeCuspp(true, "jubilada")).toBe(false);
+  });
+
+  it("sin régimen cargado no se pide todavía: primero hay que saber cuál es", () => {
+    expect(leCorrespondeCuspp(true, null)).toBe(false);
+    expect(leCorrespondeCuspp(true, undefined)).toBe(false);
+    expect(leCorrespondeCuspp(true, "")).toBe(false);
+    expect(leCorrespondeCuspp(true, "   ")).toBe(false);
+  });
+
+  // La aserción que sostiene el defecto seguro, y la razón de que esto use
+  // `esPrestadorDeServicios` en vez de un `!enPlanilla`.
+  it("un `en_planilla` que no llegó NO exime a nadie: se sigue pidiendo", () => {
+    expect(leCorrespondeCuspp(undefined, "integra")).toBe(true);
+    expect(leCorrespondeCuspp(null, "integra")).toBe(true);
   });
 });

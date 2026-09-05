@@ -6,26 +6,33 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { ROLES_DO, hoyLima, puedeOperarEquipo } from "@cayla-dynamic/shared";
+import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "@cayla-dynamic/shared";
+// horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
+// ajuste "si la salida no es posterior a la entrada, el turno cruza
+// medianoche" que horasEntre() ya resuelve (turnos/page.tsx también la
+// reusa). Sin eso, un horario nocturno (p. ej. 21:00–05:00) daba 0 horas en
+// vez de las ocho reales, escondiendo el aviso de exceso legal semanal de
+// una practicante.
+import { horasEntre as horasDia } from "@/lib/admin/jornada-esperada";
 
 const META_SEMANA = 45; // horas objetivo por semana (7.5h × 6 días)
 
-function toMin(hhmm: string): number {
-  const [h, m] = (hhmm || "0:0").split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-// horas netas del día = (salida − entrada) − refrigerio
-function horasDia(e: string, s: string, r: number): number {
-  return Math.max(0, toMin(s) - toMin(e) - (r || 0)) / 60;
-}
 function fmtH(h: number): string {
   return `${Math.round(h * 100) / 100} h`;
 }
 
 type Dia = { e: string; s: string; r: number };
 type PorDia = Record<number, Dia>;
-interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
+interface Persona {
+  id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string;
+  // Para avisar del máximo legal de una practicante (0324) — llegan por
+  // fn_personas_funciones, no por el select directo de `personas`, porque el
+  // schema cache de PostgREST no expone estas columnas.
+  tipo_vinculo: string;
+  practicante_modalidad: string | null;
+}
 interface Horario {
   persona_id: string; hora_entrada: string; hora_salida: string; vigente_desde: string;
   almuerzo_min_minutos: number; almuerzo_max_minutos: number; dias_laborables: number[];
@@ -64,13 +71,13 @@ function analizar(h?: Horario): { porDia: PorDia; dias: number[]; uniforme: bool
 
 export default function HorariosPage() {
   const router = useRouter();
+  const { avisar } = useToast();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [horarios, setHorarios] = useState<Map<string, Horario>>(new Map());
   const [sedes, setSedes] = useState<Record<string, string>>({});
   const [cargando, setCargando] = useState(true);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [editando, setEditando] = useState<Persona | null>(null);
   const [modoPorDia, setModoPorDia] = useState(false);
@@ -91,21 +98,36 @@ export default function HorariosPage() {
       { data: p, error: errP },
       { data: h, error: errH },
       { data: s, error: errS },
+      { data: f, error: errF },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol, sede_base_id").eq("estado", "activo").order("nombres"),
       supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, vigente_desde, almuerzo_min_minutos, almuerzo_max_minutos, dias_laborables, horario_por_dia").is("vigente_hasta", null),
       supabase.from("sedes").select("id, codigo"),
+      // tipo_vinculo y practicante_modalidad no viajan en el select de arriba
+      // (schema cache de PostgREST): para saber contra qué máximo avisar
+      // hace falta esta RPC. Tolerante: si falla, nadie ve el aviso — no se
+      // cae la pantalla entera por un dato que hoy es informativo.
+      supabase.rpc("fn_personas_funciones"),
     ]);
     if (errP || errH || errS) {
-      setMensaje({ tipo: "error", texto: mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios") });
+      avisar("error", mensajeDeError((errP ?? errH ?? errS)!, "cargar los horarios"));
       setCargando(false);
       return; // no pisa `personas`/`horarios`/`sedes` con datos parciales
     }
-    setPersonas((p as Persona[]) ?? []);
+    const vinculos = new Map(
+      (errF ? [] : ((f as { persona_id: string; tipo_vinculo?: string; practicante_modalidad?: string | null }[] | null) ?? []))
+        .map((x) => [x.persona_id, { tipo_vinculo: x.tipo_vinculo ?? "planilla", practicante_modalidad: x.practicante_modalidad ?? null }] as const),
+    );
+    setPersonas(
+      ((p as Omit<Persona, "tipo_vinculo" | "practicante_modalidad">[]) ?? []).map((x) => {
+        const v = vinculos.get(x.id);
+        return { ...x, tipo_vinculo: v?.tipo_vinculo ?? "planilla", practicante_modalidad: v?.practicante_modalidad ?? null };
+      }),
+    );
     setHorarios(new Map(((h as Horario[]) ?? []).map((x) => [x.persona_id, x])));
     setSedes(Object.fromEntries(((s as any[]) ?? []).map((x) => [x.id, x.codigo])));
     setCargando(false);
-  }, [router]);
+  }, [router, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -126,7 +148,6 @@ export default function HorariosPage() {
     setRefri(a.r);
     setModoPorDia(!a.uniforme);
     setDesde(hoyLima());
-    setMensaje(null);
   }
 
   function toggleDia(v: number) {
@@ -175,21 +196,21 @@ export default function HorariosPage() {
     if (!editando) return;
     const horario = construirHorario();
     const keys = Object.keys(horario);
-    if (keys.length === 0) { setMensaje({ tipo: "error", texto: "Marca al menos un día de trabajo." }); return; }
+    if (keys.length === 0) { avisar("error", "Marca al menos un día de trabajo."); return; }
     const faltaEntrada = modoPorDia ? Object.values(porDia).some((v) => !v.e) : !entrada;
     const faltaSalida = modoPorDia ? Object.values(porDia).some((v) => !v.s) : !salida;
-    if (faltaEntrada) { setMensaje({ tipo: "error", texto: "Falta la hora de entrada de algún día." }); return; }
-    if (faltaSalida) { setMensaje({ tipo: "error", texto: "Falta la hora de salida de algún día." }); return; }
+    if (faltaEntrada) { avisar("error", "Falta la hora de entrada de algún día."); return; }
+    if (faltaSalida) { avisar("error", "Falta la hora de salida de algún día."); return; }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
       p_persona_id: editando.id, p_vigente_desde: desde, p_horario: horario,
     });
     setGuardando(false);
-    if (error) { setMensaje({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     setEditando(null);
     await cargar();
-    setMensaje({ tipo: "ok", texto: "Horario guardado. Las tardanzas desde esa fecha se recalcularon." });
+    avisar("ok", "Horario guardado. Las tardanzas desde esa fecha se recalcularon.");
   }
 
   if (rol !== null && !puedeEditar) {
@@ -220,10 +241,6 @@ export default function HorariosPage() {
           horario, elige la fecha desde la que aplica — el anterior se conserva y no altera tardanzas pasadas.
         </p>
 
-        {mensaje && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>{mensaje.texto}</div>
-        )}
-
         {cargando ? <Cargando /> : porSede.map((sede) => {
           const deSede = editables.filter((p) => (sedes[p.sede_base_id] ?? "?") === sede);
           return (
@@ -246,6 +263,11 @@ export default function HorariosPage() {
                       const h = horarios.get(p.id);
                       const a = h ? analizar(h) : null;
                       const semana = a ? a.dias.reduce((acc, d) => acc + horasDia(a.porDia[d].e, a.porDia[d].s, a.porDia[d].r), 0) : 0;
+                      // Máximo legal de una practicante (0324, art. 44 Ley 28518). `null`
+                      // para cualquiera que no sea practicante, o que lo sea pero sin
+                      // modalidad fijada todavía — en los dos casos no hay contra qué avisar.
+                      const maxLegal = maximoSemanalPracticante(p.tipo_vinculo, p.practicante_modalidad);
+                      const seExcede = maxLegal !== null && a && a.dias.length > 0 && semana > maxLegal + 0.01;
                       return (
                         <tr key={p.id} className="border-t">
                           <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
@@ -253,7 +275,19 @@ export default function HorariosPage() {
                             {!a || a.dias.length === 0 ? <span className="text-taupe/50">sin horario</span>
                               : a.uniforme ? `${a.e}–${a.s}` : <span className="text-taupe">varía por día</span>}
                           </td>
-                          <td className="px-4 py-2 text-taupe">{a && a.dias.length ? fmtH(semana) : "—"}</td>
+                          <td className="px-4 py-2 text-taupe">
+                            {a && a.dias.length ? fmtH(semana) : "—"}
+                            {seExcede && (
+                              <span className="ml-1.5 rounded bg-rojo/10 px-1.5 py-0.5 text-xs text-rojo" title={`Supera el máximo legal de ${maxLegal} h/semana de una practicante ${p.practicante_modalidad} (art. 44, Ley 28518)`}>
+                                supera {maxLegal} h legales
+                              </span>
+                            )}
+                            {maxLegal === null && p.tipo_vinculo === "practicante" && !p.practicante_modalidad && (
+                              <span className="ml-1.5 text-xs text-ambar" title="Sin modalidad fijada en Equipo, no se puede avisar de su máximo legal">
+                                falta su modalidad
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
                           <td className="px-4 py-2 text-taupe">{h ? h.vigente_desde : "—"}</td>
                           <td className="px-4 py-2">
@@ -342,12 +376,43 @@ export default function HorariosPage() {
                 </div>
               )}
 
-              <div className="mt-4 rounded-lg bg-sand/30 px-3 py-2 text-sm">
-                Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
-                <span className="text-taupe"> · meta {META_SEMANA} h</span>
-                {totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(totalSemana - META_SEMANA)})</span>}
-                {totalSemana < META_SEMANA - 0.01 && <span className="text-taupe"> (faltan {fmtH(META_SEMANA - totalSemana)})</span>}
-              </div>
+              {(() => {
+                // Para una practicante, "meta 45h" no significa nada: lo que
+                // importa es si se pasa del MÁXIMO LEGAL de su modalidad
+                // (0324, art. 44 Ley 28518) — un número muy distinto de la
+                // meta genérica de jornada del resto del equipo, y que si se
+                // cruza no es un objetivo de más, es una jornada que no le
+                // corresponde por ley.
+                const maxLegal = editando ? maximoSemanalPracticante(editando.tipo_vinculo, editando.practicante_modalidad) : null;
+                if (maxLegal !== null) {
+                  const seExcede = totalSemana > maxLegal + 0.01;
+                  return (
+                    <div className={`mt-4 rounded-lg px-3 py-2 text-sm ${seExcede ? "bg-rojo/10" : "bg-sand/30"}`}>
+                      Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
+                      <span className="text-taupe"> · máximo legal {maxLegal} h ({editando?.practicante_modalidad})</span>
+                      {seExcede && (
+                        <span className="text-rojo"> — supera el máximo del art. 44, Ley 28518, por {fmtH(totalSemana - maxLegal)}</span>
+                      )}
+                    </div>
+                  );
+                }
+                if (editando?.tipo_vinculo === "practicante") {
+                  return (
+                    <div className="mt-4 rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
+                      Total semana: {fmtH(totalSemana)} — falta fijarle la modalidad en Equipo (preprofesional o
+                      profesional) para poder avisar si esto supera su máximo legal.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mt-4 rounded-lg bg-sand/30 px-3 py-2 text-sm">
+                    Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
+                    <span className="text-taupe"> · meta {META_SEMANA} h</span>
+                    {totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(totalSemana - META_SEMANA)})</span>}
+                    {totalSemana < META_SEMANA - 0.01 && <span className="text-taupe"> (faltan {fmtH(META_SEMANA - totalSemana)})</span>}
+                  </div>
+                );
+              })()}
 
               <div className="mt-5 flex justify-end gap-3">
                 <button onClick={() => setEditando(null)} disabled={guardando} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>

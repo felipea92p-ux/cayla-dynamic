@@ -8,7 +8,11 @@ import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, typ
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
+import { useToast } from "@/components/toast";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -40,15 +44,12 @@ function etiquetaDia(iso: string): { abr: string; num: string } {
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; funcion: string; esEncargadaPiso: boolean; }
-interface Horario { hora_entrada: string; hora_salida: string; dias_laborables: number[]; horario_por_dia: Record<string, { e: string; s: string; r?: number }> | null; vigente_desde: string; vigente_hasta: string | null; }
-// De los tramos de una persona, el vigente en `fecha` (mismo criterio que fn_recalcular_jornada).
-function tramoVigente(lista: Horario[] | undefined, fecha: string): Horario | undefined {
-  if (!lista) return undefined;
-  return lista
-    .filter((h) => h.vigente_desde <= fecha && (h.vigente_hasta == null || h.vigente_hasta >= fecha))
-    .sort((a, b) => (a.vigente_desde < b.vigente_desde ? 1 : -1))[0];
-}
-interface Turno { es_descanso: boolean; hora_entrada: string | null; hora_salida: string | null; }
+// El tramo de horario y "quién le tocaba trabajar ese día" viven en
+// jornada-esperada.ts — es la misma cascada que usa el backend
+// (fn_recalcular_jornada) y que ya adoptaron incidencias/horas/correcciones.
+// Escribir una copia acá sería exactamente la quinta que CLAUDE.md prohíbe.
+type Horario = HorarioTramo;
+type Turno = TurnoDia;
 interface Sede { id: string; codigo: string; nombre: string }
 
 type Celda =
@@ -213,7 +214,7 @@ const rangoTxt = (e: string | null, s: string | null) => (e ? `${e}${s ? `–${s
 // fn_set_horario_semanal ({"1":{e,s,r}, …}). Sirve para cambiar UN día sin
 // perder el resto de la semana. Un tramo legacy (sin jsonb) se reconstruye
 // desde dias_laborables + hora_entrada/salida.
-function horarioSemanalDesdeTramo(tr: Horario | undefined): Record<string, { e: string; s: string; r?: number }> {
+function horarioSemanalDesdeTramo(tr: Horario | null): Record<string, { e: string; s: string; r?: number }> {
   const out: Record<string, { e: string; s: string; r?: number }> = {};
   if (tr?.horario_por_dia) {
     for (const [k, v] of Object.entries(tr.horario_por_dia)) {
@@ -224,14 +225,99 @@ function horarioSemanalDesdeTramo(tr: Horario | undefined): Record<string, { e: 
   }
   return out;
 }
-// Horas que ESE tramo de horario define para un día de la semana ({e:null} = descansa).
-function horasDeTramo(tr: Horario, dow: string): { e: string | null; s: string | null } {
-  if (tr.horario_por_dia) {
-    const d = tr.horario_por_dia[dow];
-    return d ? { e: hhmm(d.e), s: hhmm(d.s) } : { e: null, s: null };
+// A partir de acá se avisa. 48 es el tope legal del ciclo (no de la semana
+// calendario); avisar recién al llegar sería llegar tarde para reorganizar el
+// turno — el sentido de esto es avisar ANTES, no contar el exceso ya pagado.
+const UMBRAL_AVISO_SOBRETIEMPO = 40;
+
+// Quién está cerca (o ya pasó) el tope de 48h de SU ciclo de 7 días vigente
+// hoy — el mismo ciclo que calcula fn_planilla_calcular_nucleo, portado a
+// TypeScript en ciclo-sobretiempo.ts para poder avisar antes de que la
+// planilla lo cuente. Solo lee `jornadas`; no decide ni adelanta cuánto se
+// va a pagar, eso lo sigue diciendo la planilla.
+function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const [filas, setFilas] = useState<{ personaId: string; nombre: string; ciclo: NonNullable<ReturnType<typeof cicloVigente>> }[] | null>(null);
+  const [error, setError] = useState(false);
+  const [abierto, setAbierto] = useState(true);
+
+  useEffect(() => {
+    if (!sedeSel) return;
+    let vivo = true;
+    void (async () => {
+      setFilas(null);
+      setError(false);
+      const hoy = hoyLima();
+      // 28 días de margen: de sobra para cubrir cualquier racha real sin
+      // descanso (la ley exige uno semanal) y encontrar el inicio verdadero
+      // del ciclo vigente, no solo su cola.
+      const desde = addDays(hoy, -28);
+      const { data: personas, error: eP } = await supabase.from("personas")
+        .select("id, nombres, apellidos")
+        .eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false);
+      if (eP) { if (vivo) setError(true); return; }
+      const ids = (personas ?? []).map((p) => p.id);
+      if (ids.length === 0) { if (vivo) setFilas([]); return; }
+      const { data: jornadas, error: eJ } = await supabase.from("jornadas")
+        .select("persona_id, fecha, horas_trabajadas")
+        .in("persona_id", ids).gte("fecha", desde).lte("fecha", hoy);
+      if (eJ) { if (vivo) setError(true); return; }
+      const nombre = new Map((personas ?? []).map((p) => [p.id, `${p.nombres} ${p.apellidos}`]));
+      const diasPorPersona = new Map<string, DiaTrabajado[]>();
+      for (const j of (jornadas as { persona_id: string; fecha: string; horas_trabajadas: number | null }[]) ?? []) {
+        const arr = diasPorPersona.get(j.persona_id) ?? [];
+        arr.push({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 });
+        diasPorPersona.set(j.persona_id, arr);
+      }
+      const res = ids
+        .map((id) => ({ personaId: id, nombre: nombre.get(id) ?? "?", ciclo: cicloVigente(diasPorPersona.get(id) ?? [], hoy) }))
+        .filter((f): f is { personaId: string; nombre: string; ciclo: NonNullable<ReturnType<typeof cicloVigente>> } =>
+          f.ciclo !== null && f.ciclo.horas >= UMBRAL_AVISO_SOBRETIEMPO)
+        .sort((a, b) => b.ciclo.horas - a.ciclo.horas);
+      if (vivo) setFilas(res);
+    })();
+    return () => { vivo = false; };
+  }, [sedeSel, supabase]);
+
+  if (error) {
+    return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo calcular el sobretiempo del ciclo vigente.</div>;
   }
-  if ((tr.dias_laborables ?? []).includes(Number(dow))) return { e: hhmm(tr.hora_entrada), s: hhmm(tr.hora_salida) };
-  return { e: null, s: null };
+  if (filas === null) return null; // cargando en silencio
+  if (filas.length === 0) {
+    return (
+      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
+        <span>✓</span> Nadie está cerca del tope de 48 h de su ciclo vigente.
+      </div>
+    );
+  }
+  const algunoEnExceso = filas.some((f) => f.ciclo.horas >= 48);
+  return (
+    <div className={`mb-4 max-w-2xl overflow-hidden rounded-2xl border ${algunoEnExceso ? "border-rojo/40 bg-rojo/[0.06]" : "border-ambar/40 bg-ambar/[0.06]"}`}>
+      <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
+        <span className={`font-medium ${algunoEnExceso ? "text-rojo" : "text-ambar"}`}>
+          {filas.length} persona{filas.length === 1 ? "" : "s"} cerca o sobre las 48 h de su ciclo vigente
+        </span>
+        <span className="shrink-0 text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
+      </button>
+      {abierto && (
+        <>
+          <ul className={`divide-y border-t ${algunoEnExceso ? "divide-rojo/15 border-rojo/20" : "divide-ambar/15 border-ambar/20"}`}>
+            {filas.map((f) => (
+              <li key={f.personaId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                <span>{f.nombre}</span>
+                <span className={`tabular-nums font-medium ${f.ciclo.horas >= 48 ? "text-rojo" : "text-ambar"}`}>
+                  {f.ciclo.horas.toFixed(1)}/48 h · día {f.ciclo.dia} de 7
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={`border-t px-4 py-2 text-xs text-taupe ${algunoEnExceso ? "border-rojo/20" : "border-ambar/20"}`}>
+            Ciclo de 7 días desde que empezó su racha sin descanso — no es la semana calendario. Reorganiza el turno de quien esté más arriba antes de que siga sumando.
+          </p>
+        </>
+      )}
+    </div>
+  );
 }
 
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
@@ -257,22 +343,21 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
     if (ids.length === 0) { setDivs([]); return; }
     const [{ data: turnos, error: eT }, { data: horarios, error: eH }] = await Promise.all([
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").in("persona_id", ids).gte("fecha", hoy).order("fecha"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").in("persona_id", ids),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").in("persona_id", ids),
     ]);
     if (eT || eH) { setError(true); return; }
     const hMap = new Map<string, Horario[]>();
-    for (const h of (horarios as any[]) ?? []) {
+    for (const h of (horarios as HorarioTramo[]) ?? []) {
       const arr = hMap.get(h.persona_id) ?? [];
-      arr.push({ hora_entrada: h.hora_entrada, hora_salida: h.hora_salida, dias_laborables: h.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: h.horario_por_dia ?? null, vigente_desde: h.vigente_desde, vigente_hasta: h.vigente_hasta ?? null });
+      arr.push(h);
       hMap.set(h.persona_id, arr);
     }
     tramosRef.current = hMap;
     const res: Divergencia[] = [];
     for (const t of (turnos as any[]) ?? []) {
       const tramos = hMap.get(t.persona_id);
-      const tramo = tramoVigente(tramos, t.fecha);
-      const dow = String(diaSemana(t.fecha));
-      const base = tramo ? horasDeTramo(tramo, dow) : null;
+      const tramo = horarioVigente(tramos ?? [], t.fecha);
+      const base = tramo ? esperadoDelDia(t.fecha, null, tramo) : null;
       const tE = t.es_descanso ? null : hhmm(t.hora_entrada);
       const tS = t.es_descanso ? null : hhmm(t.hora_salida);
       // ¿Coincide con algún horario ANTERIOR (ya reemplazado) de esa persona? Entonces
@@ -281,18 +366,18 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       // a propósito (excepción real) — por eso NO se limpian en automático.
       const espejo = (tramos ?? []).some((x) => {
         if (x === tramo) return false;
-        const h = horasDeTramo(x, dow);
-        return tE === null ? h.e === null : h.e === tE && h.s === tS;
+        const h = esperadoDelDia(t.fecha, null, x);
+        return tE === null ? h.entrada === null : h.entrada === tE && h.salida === tS;
       });
       const fila = { fecha: t.fecha, personaId: t.persona_id, persona: nombre.get(t.persona_id) ?? "?", espejo, tE, tS };
       if (!base) {
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "sin horario base ese día" });
       } else if (tE === null) {
-        if (base.e) res.push({ ...fila, turnoTxt: "descanso", baseTxt: rangoTxt(base.e, base.s) });
-      } else if (!base.e) {
+        if (base.entrada) res.push({ ...fila, turnoTxt: "descanso", baseTxt: rangoTxt(base.entrada, base.salida) });
+      } else if (!base.entrada) {
         res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: "descanso" });
-      } else if (tE !== base.e || (tS && base.s && tS !== base.s)) {
-        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(base.e, base.s) });
+      } else if (tE !== base.entrada || (tS && base.salida && tS !== base.salida)) {
+        res.push({ ...fila, turnoTxt: rangoTxt(tE, tS), baseTxt: rangoTxt(base.entrada, base.salida) });
       }
     }
     setDivs(res);
@@ -317,12 +402,12 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   async function hacerPermanente(d: Divergencia, clave: string) {
     setProcesando(clave); setAviso(null);
     const tramos = tramosRef.current.get(d.personaId);
-    const tramo = tramoVigente(tramos, d.fecha);
+    const tramo = horarioVigente(tramos ?? [], d.fecha);
     const semanal = horarioSemanalDesdeTramo(tramo);
     const dow = String(diaSemana(d.fecha));
     if (d.tE) {
       const previo = tramo?.horario_por_dia?.[dow];
-      const baseS = tramo ? horasDeTramo(tramo, dow).s : null;
+      const baseS = tramo ? esperadoDelDia(d.fecha, null, tramo).salida : null;
       semanal[dow] = { e: d.tE, s: d.tS ?? baseS ?? d.tE, ...(previo?.r != null ? { r: previo.r } : {}) };
     } else {
       delete semanal[dow]; // el turno era descanso ⇒ ese día sale de su horario
@@ -336,8 +421,18 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
       p_persona_id: d.personaId, p_vigente_desde: d.fecha, p_horario: semanal,
     });
     if (e1) { setProcesando(null); setAviso(`No se pudo cambiar el horario de ${d.persona}: ${e1.message}`); return; }
-    await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
+    // Su `error` se comprueba igual que en `usarHorarioBase`, diez líneas más
+    // arriba, que llama a ESTA MISMA función y sí lo mira. Sin comprobarlo, el
+    // horario base quedaba cambiado y el turno puntual seguía ahí — y en la
+    // cascada de `jornada-esperada.ts` el turno del día le gana al horario, así
+    // que ese día seguía esperando la hora vieja sin que nadie lo dijera.
+    const { error: eQuitar } = await supabase.rpc("fn_quitar_turno", { p_persona_id: d.personaId, p_fecha: d.fecha });
     setProcesando(null);
+    if (eQuitar) {
+      setAviso(`El horario base de ${d.persona} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${eQuitar.message}. Mientras siga ahí, ese día manda el turno y no el horario base.`);
+      await cargar();
+      return;
+    }
     await cargar();
   }
 
@@ -450,26 +545,18 @@ export default function TurnosPage() {
   const rol = yo?.rol ?? null;
   const esAdmin = puedeVerTodasLasSedes(rol);
   const puedeVer = puedeOperarEquipo(rol);
+  const { avisar } = useToast();
 
   const [sedes, setSedes] = useState<Sede[]>([]);
-  const [sedeSel, setSedeSel] = useState<string>("");
+  // Se acuerda de la última vez (useFiltroGuardado); la semana que se mira no
+  // —`lunes`, abajo— porque persistirla mostraría la semana pasada al volver.
+  const [sedeSel, setSedeSel] = useFiltroGuardado("turnos.sede", "");
   const [lunes, setLunes] = useState<string>(() => lunesDeLaSemana(hoyLima()));
-  // Vista Día (línea de tiempo por persona) o Vista Semana (mapa de calor
-  // hora × día, para comparar cobertura entre los 7 días de un vistazo).
-  // Recuerda la preferencia entre visitas.
-  // La preferencia guardada se lee DESPUÉS de montar (no en el primer render):
-  // el HTML llega del servidor con "dia" y leer localStorage durante la
-  // hidratación haría chocar servidor y navegador (error de hidratación).
   // Tres vistas: Día = detalle por persona de un día · Semana = siluetas resumen
   // por día · Integrada = la sábana hora×día de toda la semana (quién cubre cada
-  // franja de un vistazo). Recuerda la preferencia entre visitas.
+  // franja de un vistazo). Se acuerda de la preferencia entre visitas.
   type Vista = "dia" | "semana" | "integrada";
-  const [vista, setVistaRaw] = useState<Vista>("dia");
-  useEffect(() => {
-    const v = localStorage.getItem("turnos_vista");
-    if (v === "semana" || v === "integrada") setVistaRaw(v);
-  }, []);
-  const setVista = (v: Vista) => { setVistaRaw(v); localStorage.setItem("turnos_vista", v); };
+  const [vista, setVista] = useFiltroGuardado<Vista>("turnos.vista", "dia");
   // Panel de la Vista Integrada: al tocar una celda (una franja de un día) se
   // abre mostrando quién cubre esa media hora, con acceso a editar por persona.
   const [panel, setPanel] = useState<{ fecha: string; franjaIdx: number } | null>(null);
@@ -502,7 +589,6 @@ export default function TurnosPage() {
   const [metasTarde, setMetasTarde] = useState<Map<number, number>>(new Map()); // meta operativas TARDE
   const [metasEncargadas, setMetasEncargadas] = useState<Map<number, number>>(new Map());
   const [cargando, setCargando] = useState(true);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   // edición de celda
   const [edit, setEdit] = useState<{ personaId: string; fecha: string } | null>(null);
@@ -551,7 +637,7 @@ export default function TurnosPage() {
       { data: ar, error: arErr },
     ] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, rol").eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false).order("nombres"),
-      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
+      supabase.from("horarios_asignados").select("persona_id, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos, vigente_desde, vigente_hasta").lte("vigente_desde", domingo).or(`vigente_hasta.is.null,vigente_hasta.gte.${lunes}`),
       supabase.from("turnos").select("persona_id, fecha, hora_entrada, hora_salida, es_descanso").gte("fecha", lunes).lte("fecha", domingo),
       supabase.from("metas_cobertura").select("dia_semana, meta, meta_tarde, meta_encargadas").eq("sede_id", sedeSel),
       supabase.rpc("fn_personas_funciones"), // "funcion" vía RPC: el schema cache de PostgREST no expone la columna
@@ -559,7 +645,7 @@ export default function TurnosPage() {
     ]);
     if (mi !== reqId.current) return; // llegó una carga más nueva; descarto ésta
     if (pErr || hErr || tErr || mErr) {
-      setMsg({ tipo: "error", texto: mensajeDeError((pErr ?? hErr ?? tErr ?? mErr)!, "cargar la semana") });
+      avisar("error", mensajeDeError((pErr ?? hErr ?? tErr ?? mErr)!, "cargar la semana"));
       setCargando(false);
       return; // no pisa personas/horarios/turnos/metas con datos parciales/vacíos
     }
@@ -570,9 +656,9 @@ export default function TurnosPage() {
     const mapF = new Map(((f as { persona_id: string; funcion: string; es_encargada_piso?: boolean }[] | null) ?? []).map((x) => [x.persona_id, { funcion: x.funcion, esEncargadaPiso: Boolean(x.es_encargada_piso) }]));
     setPersonas((((p as Omit<Persona, "funcion" | "esEncargadaPiso">[]) ?? []).map((x) => ({ ...x, funcion: mapF.get(x.id)?.funcion ?? AREA_DEFAULT, esEncargadaPiso: mapF.get(x.id)?.esEncargadaPiso ?? false }))));
     const mapH = new Map<string, Horario[]>();
-    for (const x of (h as any[]) ?? []) {
+    for (const x of (h as HorarioTramo[]) ?? []) {
       const arr = mapH.get(x.persona_id) ?? [];
-      arr.push({ hora_entrada: x.hora_entrada, hora_salida: x.hora_salida, dias_laborables: x.dias_laborables ?? [1, 2, 3, 4, 5], horario_por_dia: x.horario_por_dia ?? null, vigente_desde: x.vigente_desde, vigente_hasta: x.vigente_hasta ?? null });
+      arr.push(x);
       mapH.set(x.persona_id, arr);
     }
     setHorarios(mapH);
@@ -581,28 +667,26 @@ export default function TurnosPage() {
     setMetasTarde(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_tarde ?? x.meta ?? 0])));
     setMetasEncargadas(new Map(((m as any[]) ?? []).map((x) => [x.dia_semana, x.meta_encargadas ?? 0])));
     setCargando(false);
-  }, [supabase, sedeSel, lunes]);
+  }, [supabase, sedeSel, lunes, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
   const celda = useCallback((personaId: string, fecha: string): Celda => {
-    const t = turnos.get(`${personaId}|${fecha}`);
-    if (t) return t.es_descanso ? { tipo: "descanso" } : { tipo: "turno", entrada: hhmm(t.hora_entrada), salida: hhmm(t.hora_salida) };
-    const h = tramoVigente(horarios.get(personaId), fecha);
-    if (h) {
-      const dow = String(diaSemana(fecha));
-      if (h.horario_por_dia) {
-        const d = h.horario_por_dia[dow];
-        // el refrigerio (r, en minutos) solo se conoce para el horario base con
-        // jsonb — un turno puntual (arriba) no guarda esa hora, así que su barra
-        // queda sin hueco (dato que no tenemos, mejor no inventarlo).
-        if (d) return { tipo: "default", entrada: hhmm(d.e), salida: hhmm(d.s), refrigerio: d.r };
-        return { tipo: "libre" }; // ese día no está en el horario base = descanso
-      }
-      // legacy sin jsonb: hora única + dias_laborables
-      if ((h.dias_laborables ?? []).includes(diaSemana(fecha))) return { tipo: "default", entrada: hhmm(h.hora_entrada), salida: hhmm(h.hora_salida) };
+    const turno = turnos.get(`${personaId}|${fecha}`) ?? null;
+    const tramo = horarioVigente(horarios.get(personaId) ?? [], fecha);
+    const esp = esperadoDelDia(fecha, turno, tramo);
+    if (esp.origen === "turno") {
+      // El turno del día manda: si vino de acá, gana sobre el horario base sin
+      // mirarlo. esp.entrada nunca es null cuando esp.trabaja es true — lo
+      // garantiza el contrato de Esperado en jornada-esperada.ts.
+      return esp.trabaja ? { tipo: "turno", entrada: esp.entrada!, salida: esp.salida } : { tipo: "descanso" };
     }
-    return { tipo: "libre" };
+    if (!esp.trabaja) return { tipo: "libre" }; // sin turno y el horario base descansa (o no hay horario)
+    // el refrigerio (r, en minutos) solo se conoce para el horario base con
+    // jsonb explícito por día — el legacy (dias_laborables) no lo guarda, así
+    // que su barra queda sin hueco (dato que no tenemos, mejor no inventarlo).
+    const dow = String(diaSemana(fecha));
+    return { tipo: "default", entrada: esp.entrada!, salida: esp.salida, refrigerio: tramo?.horario_por_dia?.[dow]?.r };
   }, [turnos, horarios]);
 
   // Cuántas personas (según `filtro`) cubren cada franja del día — reusada para
@@ -651,20 +735,19 @@ export default function TurnosPage() {
     setEdit({ personaId, fecha });
     setEntrada(c.tipo === "turno" || c.tipo === "default" ? c.entrada : "");
     setSalida((c.tipo === "turno" || c.tipo === "default") && c.salida ? c.salida : "");
-    setMsg(null);
   }
 
   async function ejecutar(fn: () => PromiseLike<{ error: any }>) {
     setGuardando(true);
     const { error } = await fn();
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     setEdit(null);
     await cargar();
   }
 
   const guardarTurno = () => {
-    if (!edit || !entrada) { setMsg({ tipo: "error", texto: "Pon al menos la hora de entrada." }); return; }
+    if (!edit || !entrada) { avisar("error", "Pon al menos la hora de entrada."); return; }
     return ejecutar(() => supabase.rpc("fn_set_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha, p_hora_entrada: entrada, p_hora_salida: salida || null }));
   };
   // "De aquí en adelante": el cambio NO es puntual, es la nueva regla. Toma el
@@ -673,8 +756,8 @@ export default function TurnosPage() {
   // Además quita el turno puntual, que dejaría de tener sentido: la regla lo cubre.
   const guardarDesdeAqui = async () => {
     if (!edit) return;
-    if (!entrada || !salida) { setMsg({ tipo: "error", texto: "Para cambiar el horario base necesito entrada y salida." }); return; }
-    const tr = tramoVigente(horarios.get(edit.personaId), edit.fecha);
+    if (!entrada || !salida) { avisar("error", "Para cambiar el horario base necesito entrada y salida."); return; }
+    const tr = horarioVigente(horarios.get(edit.personaId) ?? [], edit.fecha);
     const semanal = horarioSemanalDesdeTramo(tr);
     const dow = String(diaSemana(edit.fecha));
     const previo = tr?.horario_por_dia?.[dow];
@@ -683,17 +766,24 @@ export default function TurnosPage() {
     const { error } = await supabase.rpc("fn_set_horario_semanal", {
       p_persona_id: edit.personaId, p_vigente_desde: edit.fecha, p_horario: semanal,
     });
-    if (!error) {
-      const c = celda(edit.personaId, edit.fecha);
-      if (c.tipo === "turno" || c.tipo === "descanso") {
-        await supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha });
-      }
-    }
+    // El `error` de esta segunda mitad NO se miraba, y la pantalla terminaba
+    // diciendo «Horario base actualizado» con el turno puntual todavía puesto.
+    // En la cascada de `jornada-esperada.ts` el turno del día le gana al
+    // horario, así que ese día seguía esperando la hora vieja — y de esa hora
+    // esperada salen las tardanzas y las faltas de esa persona.
+    const celdaHoy = error ? null : celda(edit.personaId, edit.fecha);
+    const eQuitar = celdaHoy && (celdaHoy.tipo === "turno" || celdaHoy.tipo === "descanso")
+      ? (await supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha })).error
+      : null;
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     setEdit(null);
     await cargar();
-    setMsg({ tipo: "ok", texto: `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.` });
+    if (eQuitar) {
+      avisar("error", `El horario base de los ${DIAS_PLURAL[Number(dow)]} sí cambió, pero el turno puntual de ese día no se pudo retirar: ${mensajeDeError(eQuitar)} Mientras siga ahí, ese día manda el turno y no el horario base.`);
+      return;
+    }
+    avisar("ok", `Horario base actualizado: los ${DIAS_PLURAL[Number(dow)]} desde esa fecha.`);
   };
   const marcarDescanso = () => edit && ejecutar(() => supabase.rpc("fn_set_descanso", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
   const quitar = () => edit && ejecutar(() => supabase.rpc("fn_quitar_turno", { p_persona_id: edit.personaId, p_fecha: edit.fecha }));
@@ -709,7 +799,7 @@ export default function TurnosPage() {
       p_sede_id: sedeSel, p_dia_semana: dia,
       p_meta_manana: metas.get(dia) ?? 0, p_meta_tarde: metasTarde.get(dia) ?? 0,
     });
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "guardar la meta") }); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta")); await cargar(); }
   }
 
   function editarMetaEncargadas(dia: number, valor: string) {
@@ -719,7 +809,7 @@ export default function TurnosPage() {
   async function comprometerMetaEncargadas(dia: number, valor: string) {
     const meta = Math.max(0, Math.round(Number(valor) || 0));
     const { error } = await supabase.rpc("fn_set_meta_encargadas", { p_sede_id: sedeSel, p_dia_semana: dia, p_meta: meta });
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error, "guardar la meta de encargadas") }); await cargar(); }
+    if (error) { avisar("error", mensajeDeError(error, "guardar la meta de encargadas")); await cargar(); }
   }
 
   if (rol !== null && !puedeVer) {
@@ -767,8 +857,6 @@ export default function TurnosPage() {
           </div>
         </div>
 
-        {msg && <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>{msg.texto}</div>}
-
         {funcionesFallo && !cargando && (
           <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudo cargar el área del personal: la cobertura está contando a <strong>todos</strong> como
@@ -776,6 +864,7 @@ export default function TurnosPage() {
           </div>
         )}
 
+        {sedeSel && <AlertaSobretiempo sedeSel={sedeSel} />}
         {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} />}
 
         {cargando ? <Cargando /> : vista === "semana" ? (

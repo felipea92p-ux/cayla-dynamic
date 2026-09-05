@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 
 // La asignación por educación (art. 19 f) D.S. 001-97-TR) no es remuneración
@@ -39,6 +41,19 @@ interface Fila {
   semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
   // Lo que de verdad decide si esta fila entra en la planilla.
   paga: boolean;
+  // Desde la 0290: cuántos papeles tiene colgados, y cuántos de los meses que ya
+  // cobró siguen sin uno. Los meses que no han llegado no cuentan.
+  papeles: number;
+  meses_sin_papel: number;
+}
+
+interface Papel {
+  id: string;
+  storage_path: string;
+  mes_cubierto: string;
+  nota: string | null;
+  subido_por: string;
+  created_at: string;
 }
 
 interface Candidato {
@@ -47,7 +62,6 @@ interface Candidato {
   sede: string;
   rango: string;
   tope: number | null;
-  ya_tiene: boolean;
 }
 
 // Ni `monto` ni `coberturaPct`: el primero lo calcula la base y el segundo es
@@ -89,16 +103,23 @@ const soles = (n: number) =>
 // de Lima desde la base, así que construir un Date solo podría estropearla.
 const fmtFecha = (iso: string) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
 
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+               "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// "2026-07-01" → "julio 2026". Por la misma razón que fmtFecha: con un Date, un
+// primero de mes se puede convertir en el último del anterior según el huso.
+const nombreMes = (iso: string) => { const [y, m] = iso.split("-"); return `${MESES[Number(m) - 1]} ${y}`; };
+
 export default function EducacionPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeVerPlanilla(rol);
+  const { avisar } = useToast();
 
   const [filas, setFilas] = useState<Fila[]>([]);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -106,11 +127,17 @@ export default function EducacionPage() {
   const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [limite, setLimite] = useState(LIMITE_RESPALDO);
+  // Cuánto techo le queda libre a esa persona EN LAS FECHAS del formulario.
+  // `undefined` = todavía no lo sé · `null` = su rango no tiene techo cargado.
+  const [saldo, setSaldo] = useState<number | null | undefined>(undefined);
   // null = no hay subida en curso. 0–100 = porcentaje real, no una animación:
   // un PDF de 40 MB desde la conexión de una tienda tarda minutos, y sin esto la
   // pantalla se ve colgada y alguien la recarga a mitad de camino.
   const [progreso, setProgreso] = useState<number | null>(null);
   const [verSoloVigentes, setVerSoloVigentes] = useState(true);
+  // El detalle de papeles de UNA fila, abierto bajo ella. null = ninguna abierta.
+  const [papelesDe, setPapelesDe] = useState<{ fila: Fila; papeles: Papel[]; faltan: string[] } | null>(null);
+  const [adjuntando, setAdjuntando] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -134,32 +161,73 @@ export default function EducacionPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  const avisar = (tipo: "ok" | "error", texto: string) => setMensaje({ tipo, texto });
-
   const candidato = useMemo(
     () => candidatos.find((c) => c.persona_id === form.personaId) ?? null,
     [candidatos, form.personaId],
   );
 
+  // El saldo se le PREGUNTA a la base, no se calcula acá. Desde la 0281 el techo
+  // del rango se reparte entre las asignaciones que se solapan, así que depende
+  // de qué otras filas tenga esa persona en esas fechas — y una segunda copia de
+  // esa cuenta en TypeScript es cómo se fabrican las dos cifras que discrepan.
+  //
+  // Antes esta pantalla mostraba el monto contra el tope BRUTO del rango: a quien
+  // ya tenía un estudio vigente le prometía una cifra que la base iba a rechazar.
+  useEffect(() => {
+    const persona = form.personaId;
+    const desde = form.vigenteDesde;
+    if (!persona || !desde) { setSaldo(undefined); return; }
+
+    let vigente = true;
+    const supabase = createAdminSupabaseClient();
+    void supabase
+      .rpc("fn_educacion_saldo", {
+        p_persona_id: persona,
+        p_desde: desde,
+        // Sin fecha de fin todavía, se pregunta por ese único día: es el tramo
+        // más corto posible, así que nunca promete más techo del que habrá.
+        p_hasta: form.vigenteHasta || desde,
+        p_excluir: editandoId,
+      })
+      .then(({ data, error }) => {
+        if (!vigente) return;
+        setSaldo(error ? undefined : (data as number | null));
+      });
+    return () => { vigente = false; };
+  }, [form.personaId, form.vigenteDesde, form.vigenteHasta, editandoId]);
+
   // El monto sale de la misma cuenta que hace `fn_educacion_monto` en la base:
-  // min(75 % del comprobante, techo del rango). Se muestra MIENTRAS se escribe
-  // para que la cifra no aparezca por sorpresa al guardar. Si mañana cambia la
-  // regla, cambia en la base y esta pantalla queda mostrando otra cosa — por eso
-  // el guardado no confía en este número: lo recalcula la función.
+  // min(75 % del comprobante, techo que queda libre). Se muestra MIENTRAS se
+  // escribe para que la cifra no aparezca por sorpresa al guardar. Si mañana
+  // cambia la regla, cambia en la base y esta pantalla queda mostrando otra cosa
+  // — por eso el guardado no confía en este número: lo recalcula la función.
   const costo = Number(form.costoDeclarado) || 0;
-  const topeComprobante = costo > 0 ? Math.round(costo * COBERTURA) / 100 : null;
-  const topeRango = candidato?.tope ?? null;
-  const monto = topeComprobante === null ? 0
-    : topeRango === null ? topeComprobante
-    : Math.min(topeComprobante, topeRango);
-  const mandaElTecho = topeComprobante !== null && topeRango !== null && topeRango < topeComprobante;
+  const delPapel = costo > 0 ? Math.round(costo * COBERTURA) / 100 : null;
+  // Mientras el saldo no ha llegado se usa el tope del rango, que es su límite
+  // superior: se puede quedar corto de información, nunca prometer de más.
+  const techoLibre = saldo !== undefined ? saldo : (candidato?.tope ?? null);
+  const monto = delPapel === null ? 0
+    : techoLibre === null ? delPapel
+    : Math.min(delPapel, techoLibre);
+  const mandaElTecho = delPapel !== null && techoLibre !== null && techoLibre < delPapel;
+  // El techo ya lo está usando otro estudio de la misma persona.
+  const techoCompartido =
+    candidato?.tope != null && saldo != null && saldo < candidato.tope;
 
   function empezarAlta() {
-    setMostrandoAlta(true); setEditandoId(null); setArchivo(null); setMensaje(null);
-    setForm({ ...FORM_VACIO, vigenteDesde: hoyLima().slice(0, 8) + "01" });
+    setMostrandoAlta(true); setEditandoId(null); setArchivo(null);
+    // `vigenteHasta` también nace con la fecha de inicio, no en "" — es
+    // obligatoria (ver guardar()), y un campo de fecha bloqueante que arranca
+    // vacío es exactamente el bug que costó cinco despliegues el 2026-08-26
+    // (CLAUDE.md): Safari puede pintar un valor en el input sin disparar el
+    // evento que React escucha, dejando el estado en "" mientras la pantalla
+    // ya muestra una fecha. Queda visible y editable en un clic para que la
+    // persona la extienda al fin real del ciclo/matrícula.
+    const inicioMes = hoyLima().slice(0, 8) + "01";
+    setForm({ ...FORM_VACIO, vigenteDesde: inicioMes, vigenteHasta: inicioMes });
   }
   function empezarEdicion(f: Fila) {
-    setEditandoId(f.id); setMostrandoAlta(false); setArchivo(null); setMensaje(null);
+    setEditandoId(f.id); setMostrandoAlta(false); setArchivo(null);
     setForm({
       personaId: f.persona_id, institucion: f.institucion,
       costoDeclarado: String(f.costo_declarado),
@@ -175,7 +243,7 @@ export default function EducacionPage() {
       avisar("error", `“${f.name}” pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es ${mb(limite.bytes)}. Si es una foto, vuelve a tomarla en menor calidad.`);
       return;
     }
-    setArchivo(f); setMensaje(null);
+    setArchivo(f);
   }
 
   async function guardar() {
@@ -183,6 +251,10 @@ export default function EducacionPage() {
     if (!form.personaId) { avisar("error", "Elige de quién es la asignación."); return; }
     if (institucion.length < 3) { avisar("error", "Escribe qué institución emite el comprobante."); return; }
     if (costo <= 0) { avisar("error", "El costo que dice el comprobante tiene que ser mayor que cero."); return; }
+    if (monto <= 0) {
+      avisar("error", "No queda techo libre en esas fechas: lo que ya tiene vigente agota el tope de su rango. Cierra o acorta la otra asignación, o mueve estas fechas.");
+      return;
+    }
     if (form.beneficiario === "hijo" && form.beneficiarioNombre.trim().length < 3) {
       avisar("error", "Si el comprobante es de un hijo o hija, escribe a nombre de quién está. Sin eso, el papel no se puede atar a quien cobra.");
       return;
@@ -260,14 +332,82 @@ export default function EducacionPage() {
     );
   }
 
-  async function verComprobante(f: Fila) {
-    if (!f.comprobante_url) return;
-    const supabase = createAdminSupabaseClient();
+  async function abrirPapel(papel: Papel) {
     // URL firmada de vida corta: el bucket es privado y estos papeles llevan el
-    // nombre de una persona (y a veces el de un menor).
-    const { data, error } = await supabase.storage.from("comprobantes").createSignedUrl(f.comprobante_url, 60);
-    if (error || !data) { avisar("error", `No se pudo abrir el comprobante: ${error?.message ?? "sin URL"}`); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    // nombre de una persona (y a veces el de un menor). La pestaña la abre el
+    // ayudante dentro del clic — ver por qué en `abrir-archivo-firmado.ts`.
+    const fallo = await abrirArchivoFirmado(createAdminSupabaseClient(), "comprobantes", papel.storage_path);
+    if (fallo) avisar("error", fallo);
+  }
+
+  // Abre —o cierra— el detalle de papeles de una fila. Los meses que faltan los
+  // dice la base, no esta pantalla: es la misma cuenta que enciende el aviso y la
+  // que suma al contador del menú, y tres copias de una cuenta discrepan.
+  async function verPapeles(f: Fila) {
+    if (papelesDe?.fila.id === f.id) { setPapelesDe(null); return; }
+    await cargarPapeles(f);
+  }
+
+  async function cargarPapeles(f: Fila) {
+    const supabase = createAdminSupabaseClient();
+    const [lista, faltan] = await Promise.all([
+      supabase.rpc("fn_educacion_papeles", { p_asignacion_id: f.id }),
+      supabase.rpc("fn_educacion_meses_sin_papel", { p_asignacion_id: f.id }),
+    ]);
+    if (lista.error) { avisar("error", mensajeDeError(lista.error, "leer los comprobantes")); return; }
+    setPapelesDe({
+      fila: f,
+      papeles: (lista.data as Papel[]) ?? [],
+      faltan: (faltan.data as string[]) ?? [],
+    });
+  }
+
+  async function adjuntarPapel(f: Fila, mes: string, archivo: File) {
+    if (archivo.size > limite.bytes) {
+      avisar("error", `“${archivo.name}” pesa ${(archivo.size / 1048576).toFixed(1)} MB y el máximo es ${mb(limite.bytes)}.`);
+      return;
+    }
+    setAdjuntando(mes);
+    const supabase = createAdminSupabaseClient();
+    const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
+    // La ruta lleva el mes: dos recibos de la misma asignación no se pisan, y
+    // mirando el bucket se sabe qué respalda cada archivo sin abrir la base.
+    const ruta = `educacion/${f.persona_id}/${f.id}-${mes.slice(0, 7)}.${ext}`;
+
+    // El archivo primero y la fila después: si la fila fallara, quedaría un
+    // archivo suelto en el bucket, que es más barato que una fila que dice tener
+    // un papel que no está.
+    const errorSubida = await subirArchivoConProgreso(supabase, "comprobantes", ruta, archivo, setProgreso);
+    setProgreso(null);
+    if (errorSubida) { setAdjuntando(null); avisar("error", `El comprobante no subió: ${errorSubida}`); return; }
+
+    const { error } = await supabase.rpc("fn_educacion_adjuntar_comprobante", {
+      p_asignacion_id: f.id, p_storage_path: ruta, p_mes_cubierto: mes, p_nota: null,
+    });
+    setAdjuntando(null);
+    if (error) { avisar("error", mensajeDeError(error, "adjuntar el comprobante")); return; }
+
+    await cargar();
+    await cargarPapeles(f);
+    avisar("ok", `Comprobante de ${nombreMes(mes)} adjuntado.`);
+  }
+
+  async function quitarPapel(f: Fila, papel: Papel) {
+    const motivo = window.prompt(
+      `¿Por qué se quita el comprobante de ${nombreMes(papel.mes_cubierto)}?\n\n` +
+      `El archivo NO se borra del almacén: solo deja de sostener esta asignación. ` +
+      `Si era el único, la asignación deja de pagarse hasta que subas otro.`,
+      "",
+    );
+    if (motivo === null) return;
+    if (motivo.trim().length < 3) { avisar("error", "Escribe el motivo: sin él, esa fila se queda sin con qué defenderse."); return; }
+
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_educacion_quitar_comprobante", { p_id: papel.id, p_motivo: motivo.trim() });
+    if (error) { avisar("error", mensajeDeError(error, "quitar el comprobante")); return; }
+    await cargar();
+    await cargarPapeles(f);
+    avisar("ok", "Comprobante quitado.");
   }
 
   async function cerrar(f: Fila) {
@@ -295,8 +435,20 @@ export default function EducacionPage() {
   const visibles = verSoloVigentes ? filas.filter((f) => f.semaforo !== "vencida") : filas;
   // El total suma sólo lo que DE VERDAD se paga: una fila sin comprobante existe
   // pero no devenga, y sumarla daría un número que la planilla no va a pagar.
-  const totalMensual = filas.filter((f) => f.paga).reduce((s, f) => s + Number(f.monto), 0);
-  const porAtender = filas.filter((f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer").length;
+  //
+  // Y sólo lo vigente HOY. `paga` mira que la vigencia no haya terminado, pero no
+  // que ya haya empezado — daba igual cuando cada persona tenía una sola fila. Con
+  // un comprobante repartido en tramos —un plan anual que se devenga mes a mes—
+  // sumaría los tres tramos de una misma persona bajo el rótulo «al mes», y ella
+  // nunca cobra los tres el mismo mes.
+  const hoy = hoyLima();
+  const pagaEsteMes = (f: Fila) => f.paga && f.vigente_desde <= hoy;
+  const totalMensual = filas.filter(pagaEsteMes).reduce((s, f) => s + Number(f.monto), 0);
+  // Mismo criterio que fn_educacion_por_atender en la base (0290): también
+  // cuenta a las que ya cobraron un mes sin papel, que era el caso invisible.
+  const porAtender = filas.filter(
+    (f) => f.semaforo === "sin_comprobante" || f.semaforo === "por_vencer" || f.meses_sin_papel > 0,
+  ).length;
 
   const formulario = (
     <div className="mb-6 grid max-w-3xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
@@ -312,13 +464,17 @@ export default function EducacionPage() {
           {candidatos.map((c) => (
             <option key={c.persona_id} value={c.persona_id}>
               {c.persona} · {c.sede} · rango {c.rango}
-              {c.ya_tiene ? " (ya tiene una vigente)" : ""}
             </option>
           ))}
         </select>
-        {candidato?.ya_tiene && !editandoId && (
+        {/* El aviso que había acá —«ya tiene una vigente»— preguntaba por una
+            columna que la 0149 dejó NOT NULL: devolvía siempre falso y no se
+            encendió nunca. Y lo que DO necesita saber tampoco era ése: es cuánto
+            techo le queda, que es lo que decide el monto. */}
+        {techoCompartido && candidato && (
           <span className="text-xs text-ambar">
-            Ya tiene una asignación vigente. Si es un estudio nuevo, cierra primero la anterior — si no, se le pagarían las dos.
+            Ya usa {soles(candidato.tope! - saldo!)} de su techo de {soles(candidato.tope!)} en
+            esas fechas: quedan {soles(saldo!)}. Dos estudios conviven, pero se reparten el mismo techo.
           </span>
         )}
         {candidato && candidato.tope === null && (
@@ -346,7 +502,7 @@ export default function EducacionPage() {
           onChange={(e) => setForm({ ...form, beneficiario: e.target.value as "trabajador" | "hijo" })}
           className="rounded-lg border bg-crema px-3 py-2"
         >
-          <option value="trabajador">De ella misma</option>
+          <option value="trabajador">De la persona misma</option>
           <option value="hijo">De su hijo o hija</option>
         </select>
         <span className="text-xs text-taupe">
@@ -408,8 +564,10 @@ export default function EducacionPage() {
           {costo <= 0
             ? "Se calcula solo en cuanto escribas el costo del comprobante."
             : mandaElTecho
-              ? `Es el tope del rango ${candidato?.rango}: el ${COBERTURA}% del comprobante daría ${soles(topeComprobante!)}.`
-              : `Es el ${COBERTURA}% de ${soles(costo)}${topeRango !== null ? `, por debajo del tope del rango (${soles(topeRango)})` : ""}.`}
+              ? techoCompartido
+                ? `Es lo que queda del techo del rango ${candidato?.rango} (${soles(candidato!.tope!)}) después de sus otros estudios vigentes: el ${COBERTURA}% del comprobante daría ${soles(delPapel!)}.`
+                : `Es el tope del rango ${candidato?.rango}: el ${COBERTURA}% del comprobante daría ${soles(delPapel!)}.`
+              : `Es el ${COBERTURA}% de ${soles(costo)}${techoLibre !== null ? `, por debajo del techo que le queda (${soles(techoLibre)})` : ""}.`}
         </span>
       </div>
 
@@ -548,11 +706,6 @@ export default function EducacionPage() {
               comprobante lo sostenga</strong>. Por eso el papel se guarda aquí y no en una carpeta aparte.
             </p>
 
-            {mensaje && (
-              <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-                {mensaje.texto}
-              </div>
-            )}
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las asignaciones: {cargaError}.{" "}
@@ -577,7 +730,7 @@ export default function EducacionPage() {
                     Solo las vigentes
                   </label>
                   <span className="text-taupe">
-                    Pagando: <strong className="text-tinta">{filas.filter((f) => f.paga).length}</strong>
+                    Pagando: <strong className="text-tinta">{filas.filter(pagaEsteMes).length}</strong>
                     {porAtender > 0 && (
                       <> · <strong className="text-rojo">{porAtender} por atender</strong></>
                     )}
@@ -601,14 +754,15 @@ export default function EducacionPage() {
                     </thead>
                     <tbody>
                       {visibles.map((f) => (
-                        <tr key={f.id} className={`border-t ${f.semaforo === "vencida" ? "text-taupe" : ""}`}>
+                        <Fragment key={f.id}>
+                        <tr className={`border-t ${f.semaforo === "vencida" ? "text-taupe" : ""}`}>
                           <td className="px-4 py-2">
                             {f.persona}
                             <span className="ml-1 text-xs text-taupe">{f.sede} · {f.rango}</span>
                           </td>
                           <td className="px-4 py-2">{f.institucion}</td>
                           <td className="px-4 py-2 text-xs">
-                            {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "ella misma"}
+                            {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "la persona misma"}
                           </td>
                           <td className="px-4 py-2 tabular-nums">{soles(Number(f.monto))}</td>
                           {/* Decir 75% de S/727 cuando se pagan S/90 es decir algo falso:
@@ -620,9 +774,17 @@ export default function EducacionPage() {
                             {(() => {
                               const delPapel = Math.round(Number(f.costo_declarado) * Number(f.cobertura_pct)) / 100;
                               const mandaElTecho = Number(f.monto) < delPapel - 0.005;
+                              // ¿Comparte el techo con otro estudio suyo? Desde la 0281 el
+                              // tope del rango se reparte entre las vigencias que se
+                              // solapan, y decir «tope del rango cayla» cuando se pagan
+                              // S/30 de un techo de S/180 sería decir algo falso.
+                              const comparte = filas.some(
+                                (o) => o.id !== f.id && o.persona_id === f.persona_id &&
+                                  o.vigente_desde <= f.vigente_hasta && o.vigente_hasta >= f.vigente_desde);
                               return mandaElTecho ? (
                                 <>
-                                  tope del rango <strong className="text-tinta">{f.rango}</strong>
+                                  {comparte ? "techo del rango, repartido" : "tope del rango"}{" "}
+                                  <strong className="text-tinta">{f.rango}</strong>
                                   <span className="block">
                                     el {f.cobertura_pct}% de {soles(Number(f.costo_declarado))} daría {soles(delPapel)}
                                   </span>
@@ -649,23 +811,92 @@ export default function EducacionPage() {
                             )}
                           </td>
                           <td className="px-4 py-2">
-                            {f.comprobante_url ? (
-                              <button onClick={() => void verComprobante(f)} className="text-xs font-medium underline">Ver</button>
+                            {/* Desde la 0290 una asignación tiene un papel por cada mes
+                                que paga, así que acá ya no hay UN comprobante que ver:
+                                hay una cuenta, y el detalle se abre debajo. */}
+                            {f.papeles > 0 ? (
+                              <button onClick={() => void verPapeles(f)} className="text-xs font-medium underline">
+                                {f.papeles} papel{f.papeles === 1 ? "" : "es"}
+                              </button>
                             ) : (
-                              <span className="rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo" title="Sin el comprobante, este pago se recategoriza como remuneración en una fiscalización">
+                              <button onClick={() => void verPapeles(f)}
+                                className="rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo"
+                                title="Sin comprobante, este pago se recategoriza como remuneración en una fiscalización">
                                 falta
+                              </button>
+                            )}
+                            {f.meses_sin_papel > 0 && f.papeles > 0 && (
+                              <span className="block text-xs text-ambar">
+                                falta{f.meses_sin_papel === 1 ? "" : "n"} {f.meses_sin_papel} mes{f.meses_sin_papel === 1 ? "" : "es"}
                               </span>
                             )}
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex flex-wrap gap-2 text-xs">
                               <button onClick={() => empezarEdicion(f)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                              {!f.vigente_hasta && (
+                              {/* La condición era `!f.vigente_hasta`, y esa columna es NOT NULL
+                                  desde la 0149 (línea 84): el botón NO se dibujaba nunca. Quien
+                                  dejaba el instituto en septiembre con la asignación puesta hasta
+                                  diciembre seguía devengando entre S/90 y S/480 al mes, porque
+                                  desde la pantalla no había forma de cerrarla salvo deducir que
+                                  se entra por «Editar». `cerrar()` y fn_educacion_cerrar existían
+                                  y no los llamaba nadie.
+                                  El criterio es el mismo del filtro «ver solo vigentes» (línea
+                                  295), para que no vuelvan a divergir: lo ya vencido no se cierra
+                                  porque ya está cerrado. */}
+                              {f.semaforo !== "vencida" && (
                                 <button onClick={() => void cerrar(f)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Cerrar</button>
                               )}
                             </div>
                           </td>
                         </tr>
+                        {papelesDe?.fila.id === f.id && (
+                          <tr className="border-t bg-sand/20">
+                            <td colSpan={8} className="px-4 py-3">
+                              <div className="flex flex-col gap-2 text-xs">
+                                <span className="font-medium text-tinta">
+                                  Los papeles de esta asignación, uno por cada mes que paga
+                                </span>
+
+                                {papelesDe.papeles.map((papel) => (
+                                  <div key={papel.id} className="flex flex-wrap items-center gap-3">
+                                    <span className="w-36 text-tinta">{nombreMes(papel.mes_cubierto)}</span>
+                                    <button onClick={() => void abrirPapel(papel)} className="font-medium underline">Ver</button>
+                                    <button onClick={() => void quitarPapel(f, papel)} className="text-rojo underline">Quitar</button>
+                                    <span className="text-taupe">lo subió {papel.subido_por}</span>
+                                  </div>
+                                ))}
+
+                                {papelesDe.faltan.map((mes) => (
+                                  <div key={mes} className="flex flex-wrap items-center gap-3">
+                                    <span className="w-36 text-ambar">{nombreMes(mes)}</span>
+                                    <label className="cursor-pointer font-medium underline">
+                                      {adjuntando === mes ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar el recibo de este mes"}
+                                      <input
+                                        type="file"
+                                        accept={limite.tipos}
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const archivo = e.target.files?.[0];
+                                          e.target.value = "";
+                                          if (archivo) void adjuntarPapel(f, mes, archivo);
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                ))}
+
+                                {papelesDe.faltan.length === 0 && (
+                                  <span className="text-taupe">
+                                    Todos los meses que esta asignación ya cobró tienen su papel. Los que
+                                    todavía no llegan se piden cuando llegue su mes.
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>

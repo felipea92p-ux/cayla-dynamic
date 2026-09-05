@@ -1,17 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
+import { MESES, lecturaObjetivos, nivelColorObjetivos, type MesHistorial, type ObjetivoItem } from "@/lib/objetivos";
+import { GraficoObjetivos } from "@/components/grafico-objetivos";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 
 
-function hoyLima(): { anio: number; mes: number } {
+// Mapa explícito (no `bg-${nivel}` interpolado) para que Tailwind encuentre
+// las clases literales al escanear el archivo.
+const CLASE_BG_NIVEL: Record<"verde" | "ambar" | "rojo", string> = {
+  verde: "bg-verde",
+  ambar: "bg-ambar",
+  rojo: "bg-rojo",
+};
+
+function mesActualLima(): { anio: number; mes: number } {
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
   return { anio: Number(f.slice(0, 4)), mes: Number(f.slice(5, 7)) };
 }
@@ -30,26 +40,42 @@ interface ResumenMes {
   con_checklist: boolean;
 }
 
-export default function ObjetivosPage() {
+function ObjetivosContenido() {
   const router = useRouter();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
-  const hoy = useMemo(hoyLima, []);
+  const hoy = useMemo(() => mesActualLima(), []);
+  const { avisar } = useToast();
+
+  // Enlace directo: /admin/objetivos?persona=<uuid>&anio=2026&mes=9 llega con
+  // la persona y el mes ya elegidos. Lo usa Desempeño, donde ves que a alguien
+  // le faltan los objetivos del mes y quieres cargárselos sin volver a buscarla.
+  // Se lee con useSearchParams —no con window.location— porque esto también se
+  // renderiza en el servidor, donde `window` no existe.
+  const sp = useSearchParams();
+  const personaEnlace = sp.get("persona");
+  const anioEnlace = Number(sp.get("anio"));
+  const mesEnlace = Number(sp.get("mes"));
 
   const [personas, setPersonas] = useState<Persona[]>([]);
-  const [personaId, setPersonaId] = useState("");
-  const [anio, setAnio] = useState(hoy.anio);
-  const [mes, setMes] = useState(hoy.mes);
+  const [personaId, setPersonaId] = useState(personaEnlace ?? "");
+  const [anio, setAnio] = useState(Number.isInteger(anioEnlace) && anioEnlace > 2000 ? anioEnlace : hoy.anio);
+  const [mes, setMes] = useState(Number.isInteger(mesEnlace) && mesEnlace >= 1 && mesEnlace <= 12 ? mesEnlace : hoy.mes);
   const [items, setItems] = useState<ObjetivoItem[]>([]);
   const [resumen, setResumen] = useState<ResumenMes[]>([]);
+  const [mesPagado, setMesPagado] = useState(false);
+  const [historial, setHistorial] = useState<MesHistorial[]>([]);
+  const [rangoHistorial, setRangoHistorial] = useState(12);
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [nuevoTexto, setNuevoTexto] = useState("");
+  const [nuevasIndicaciones, setNuevasIndicaciones] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [copiando, setCopiando] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [textoEdicion, setTextoEdicion] = useState("");
+  const [indicacionesEdicion, setIndicacionesEdicion] = useState("");
 
   useEffect(() => {
     const supabase = createAdminSupabaseClient();
@@ -78,13 +104,17 @@ export default function ObjetivosPage() {
   // admin/líder gestionan a cualquiera; la encargada SOLO integrantes de su
   // sede (los objetivos de las encargadas los gestiona admin/líder). El
   // servidor re-valida esto mismo en cada RPC.
-  const puedeGestionar = useMemo(() => {
+  const tienePermisoDeRol = useMemo(() => {
     if (!persona || rol === null) return false;
     if (puedeVerTodasLasSedes(rol)) return true;
     if (rol === "supervisor_sede" && yo)
       return persona.rol === "integrante" && persona.sede_base_id === yo.sedeBaseId;
     return false;
   }, [persona, rol, yo]);
+  // El mes con planilla pagada es solo lectura aunque el rol sí tenga
+  // permiso — mismo criterio que ya usa correcciones/page.tsx con
+  // periodo_pagado, para avisar ANTES de dejar editar, no después.
+  const puedeGestionar = tienePermisoDeRol && !mesPagado;
 
   const cargar = useCallback(async () => {
     if (!personaId) return;
@@ -92,29 +122,78 @@ export default function ObjetivosPage() {
     const supabase = createAdminSupabaseClient();
     // objetivos_items NUNCA se lee por REST (schema cache de PostgREST trabado):
     // solo vía RPC jsonb, patrón 0020.
-    const [{ data, error }, { data: res }] = await Promise.all([
+    const [{ data, error }, { data: res }, { data: pagado }] = await Promise.all([
       supabase.rpc("fn_objetivos_checklist", { p_anio: anio, p_mes: mes, p_persona_id: personaId }),
       supabase.rpc("fn_objetivos_resumen", { p_anio: anio, p_mes: mes }),
+      // El servidor SÍ bloquea escribir sobre un mes con planilla pagada
+      // (fn_mes_planilla_pagado, 0032); esto solo lo trae al cliente para
+      // avisar ANTES de que alguien intente editar, no después con un toast
+      // de error — a diferencia de antes, que nunca pedía este dato.
+      supabase.rpc("fn_mes_planilla_pagado", { p_anio: anio, p_mes: mes }),
     ]);
     if (error) {
-      setMensaje({ tipo: "error", texto: mensajeDeError(error) });
+      avisar("error", mensajeDeError(error));
     } else {
       setItems(((data as unknown as ObjetivoItem[] | null) ?? []).slice());
       setResumen((res as unknown as ResumenMes[] | null) ?? []);
-      setMensaje(null);
+      setMesPagado(pagado === true);
     }
     setCargado(true);
     setCargando(false);
-  }, [personaId, anio, mes]);
+  }, [personaId, anio, mes, avisar]);
 
   useEffect(() => {
     setCargado(false);
     if (personaId) void cargar();
   }, [personaId, anio, mes, cargar]);
 
-  function avisar(tipo: "ok" | "error", texto: string) {
-    setMensaje({ tipo, texto });
-  }
+  // El historial se pide aparte: cambiar el rango (6/12/24 meses) no debe
+  // reiniciar toda la pantalla a "Cargando…", solo refrescar el gráfico.
+  // `cargarHistorial` la usan los manejadores de abajo después de mutar algo;
+  // el efecto de mount/cambio de rango no LA LLAMA (referenciar una función
+  // useCallback desde un efecto dispara el lint set-state-in-effect) — pide
+  // los mismos datos en línea, igual que el efecto de sesión de arriba.
+  //
+  // "Cargando" del gráfico se DERIVA (estado con la clave del último
+  // historial que llegó, no un ref: leer un ref durante el render es otro
+  // lint prohibido, react-hooks/refs) en vez de un setState al ENTRAR al
+  // efecto — eso dispararía set-state-in-effect. Actualizarlo adentro del
+  // `.then()` no cuenta: ahí ya vive `setHistorial`, que tampoco lo dispara.
+  // Mientras la clave no coincide con la selección actual, el gráfico se
+  // atenúa en vez de desaparecer (refetch mantiene el dibujo anterior).
+  const [historialClave, setHistorialClave] = useState<string | null>(null);
+  const historialClaveActual = personaId ? `${personaId}|${anio}|${mes}|${rangoHistorial}` : null;
+  const historialDesactualizado = historialClaveActual !== historialClave;
+
+  const cargarHistorial = useCallback(async () => {
+    if (!personaId) return;
+    const supabase = createAdminSupabaseClient();
+    const { data: hist } = await supabase.rpc("fn_objetivos_historial", {
+      p_persona_id: personaId,
+      p_anio: anio,
+      p_mes: mes,
+      p_meses: rangoHistorial,
+    });
+    setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+    setHistorialClave(`${personaId}|${anio}|${mes}|${rangoHistorial}`);
+  }, [personaId, anio, mes, rangoHistorial]);
+
+  useEffect(() => {
+    if (!personaId) return;
+    let cancelado = false;
+    const clave = `${personaId}|${anio}|${mes}|${rangoHistorial}`;
+    createAdminSupabaseClient()
+      .rpc("fn_objetivos_historial", { p_persona_id: personaId, p_anio: anio, p_mes: mes, p_meses: rangoHistorial })
+      .then(({ data: hist }) => {
+        if (!cancelado) {
+          setHistorial((hist as unknown as MesHistorial[] | null) ?? []);
+          setHistorialClave(clave);
+        }
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [personaId, anio, mes, rangoHistorial]);
 
   async function agregar() {
     const texto = nuevoTexto.trim();
@@ -129,6 +208,7 @@ export default function ObjetivosPage() {
       p_anio: anio,
       p_mes: mes,
       p_descripcion: texto,
+      p_indicaciones: nuevasIndicaciones.trim() || null,
     });
     setGuardando(false);
     if (error) {
@@ -136,7 +216,9 @@ export default function ObjetivosPage() {
       return;
     }
     setNuevoTexto("");
+    setNuevasIndicaciones("");
     await cargar();
+    await cargarHistorial();
   }
 
   async function marcar(item: ObjetivoItem, cumplido: boolean) {
@@ -147,9 +229,17 @@ export default function ObjetivosPage() {
     });
     if (error) {
       avisar("error", mensajeDeError(error, "marcar"));
+      // El checkbox es un input nativo: el navegador ya invirtió su estado
+      // visual al hacer clic, antes de que este onChange corriera. Sin un
+      // re-render, queda mostrando lo que la persona intentó marcar, no lo
+      // que en verdad se guardó (que el rechazo del servidor no cambió).
+      // Forzar una copia nueva del array re-sincroniza el checkbox
+      // controlado con item.cumplido, que nunca cambió.
+      setItems((prev) => [...prev]);
       return;
     }
     await cargar();
+    await cargarHistorial();
   }
 
   async function guardarEdicion(item: ObjetivoItem) {
@@ -163,6 +253,7 @@ export default function ObjetivosPage() {
     const { error } = await supabase.rpc("fn_objetivo_editar", {
       p_item_id: item.id,
       p_descripcion: texto,
+      p_indicaciones: indicacionesEdicion.trim() || null,
     });
     setGuardando(false);
     if (error) {
@@ -171,6 +262,29 @@ export default function ObjetivosPage() {
     }
     setEditandoId(null);
     await cargar();
+  }
+
+  async function copiarMesAnterior() {
+    // Pestillo barato contra un segundo clic mientras la copia anterior
+    // sigue en vuelo. Lee el estado del render, así que cubre lo mismo que
+    // `disabled` y nada más; la defensa real es el candado por persona de
+    // la 0361 en el servidor, que pone en fila las llamadas y niega la
+    // segunda con «ya tiene objetivos».
+    if (copiando) return;
+    setCopiando(true);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_objetivos_copiar_mes_anterior", {
+      p_persona_id: personaId,
+      p_anio: anio,
+      p_mes: mes,
+    });
+    setCopiando(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "copiar"));
+      return;
+    }
+    await cargar();
+    await cargarHistorial();
   }
 
   async function eliminar(item: ObjetivoItem) {
@@ -182,6 +296,7 @@ export default function ObjetivosPage() {
       return;
     }
     await cargar();
+    await cargarHistorial();
   }
 
   const cumplidos = items.filter((i) => i.cumplido).length;
@@ -250,16 +365,6 @@ export default function ObjetivosPage() {
           </label>
         </div>
 
-        {mensaje && (
-          <div
-            className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${
-              mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"
-            }`}
-          >
-            {mensaje.texto}
-          </div>
-        )}
-
         {!personaId ? (
           <p className="text-sm text-taupe">Elige una persona para ver o gestionar sus objetivos.</p>
         ) : cargando && !cargado ? (
@@ -292,11 +397,44 @@ export default function ObjetivosPage() {
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-sand">
                 <div
-                  className={`h-full rounded-full transition-all ${pct >= 60 ? "bg-verde" : pct >= 30 ? "bg-ambar" : "bg-rojo"}`}
+                  className={`h-full rounded-full transition-all ${CLASE_BG_NIVEL[nivelColorObjetivos(cumplidos, total)]}`}
                   style={{ width: `${pct}%` }}
                 />
               </div>
             </div>
+
+            {/* Historial: la tendencia, no solo el mes actual. El rango se elige,
+                no queda fijo en 12 meses — fn_objetivos_historial ya aceptaba
+                p_meses desde el principio, esto solo lo expone en pantalla. */}
+            {historial.some((m) => m.total > 0) && (
+              <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-taupe">
+                    Historial ({rangoHistorial === 1 ? "1 mes" : `${rangoHistorial} meses`})
+                  </p>
+                  <label className="flex items-center gap-2 text-xs text-taupe">
+                    Rango
+                    <select
+                      value={rangoHistorial}
+                      onChange={(e) => setRangoHistorial(Number(e.target.value))}
+                      className="rounded-lg border border-sand bg-crema px-2 py-1 text-xs"
+                    >
+                      <option value={1}>Último mes</option>
+                      <option value={2}>Últimos 2 meses</option>
+                      <option value={3}>Últimos 3 meses</option>
+                      <option value={6}>Últimos 6 meses</option>
+                      <option value={12}>Últimos 12 meses</option>
+                      <option value={24}>Últimos 24 meses</option>
+                    </select>
+                  </label>
+                </div>
+                <GraficoObjetivos
+                  key={historialClave ?? "sin-historial"}
+                  historial={historial}
+                  cargando={historialDesactualizado}
+                />
+              </div>
+            )}
 
             {registroManual && total === 0 && (
               <div className="mb-4 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
@@ -306,7 +444,13 @@ export default function ObjetivosPage() {
               </div>
             )}
 
-            {!puedeGestionar && persona && (
+            {mesPagado && tienePermisoDeRol && (
+              <div className="mb-4 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                Solo lectura: la planilla de {MESES[mes - 1].toLowerCase()} {anio} ya está PAGADA. Para
+                corregir, un administrador reabre el periodo en Planilla.
+              </div>
+            )}
+            {!tienePermisoDeRol && persona && (
               <div className="mb-4 rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
                 Solo lectura. {rol === "supervisor_sede"
                   ? "Como líder de equipo gestionas los objetivos de los integrantes de tu sede; los demás los gestiona un administrador."
@@ -317,57 +461,82 @@ export default function ObjetivosPage() {
             {/* Lista */}
             <ul className="mb-4 divide-y divide-sand rounded-2xl border border-sand bg-papel">
               {items.length === 0 ? (
-                <li className="px-4 py-6 text-center text-sm text-taupe">
-                  Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.
+                <li className="flex flex-col items-center gap-3 px-4 py-6 text-center text-sm text-taupe">
+                  <span>Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.</span>
+                  {puedeGestionar && (
+                    <button
+                      onClick={() => void copiarMesAnterior()}
+                      disabled={copiando}
+                      className="rounded-lg border border-sand px-3 py-1.5 text-xs font-medium text-tinta hover:bg-sand/40 disabled:opacity-50"
+                    >
+                      {copiando ? "Copiando…" : "Copiar del mes anterior"}
+                    </button>
+                  )}
                 </li>
               ) : (
                 items.map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <li key={item.id} className="flex items-start gap-3 px-4 py-2.5">
                     <input
                       type="checkbox"
                       checked={item.cumplido}
                       disabled={!puedeGestionar}
                       onChange={(e) => void marcar(item, e.target.checked)}
-                      className="h-4 w-4 rounded border"
+                      className="mt-1 h-4 w-4 rounded border"
                     />
                     {editandoId === item.id ? (
-                      <>
+                      <div className="flex-1">
                         <input
                           value={textoEdicion}
                           onChange={(e) => setTextoEdicion(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") void guardarEdicion(item);
                             if (e.key === "Escape") setEditandoId(null);
                           }}
                           autoFocus
                           maxLength={300}
-                          className="flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
+                          placeholder="El objetivo"
+                          className="w-full rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
                         />
-                        <button
-                          onClick={() => void guardarEdicion(item)}
-                          disabled={guardando}
-                          className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-50"
-                        >
-                          Guardar
-                        </button>
-                        <button
-                          onClick={() => setEditandoId(null)}
-                          className="rounded-lg border px-3 py-1.5 text-xs"
-                        >
-                          Cancelar
-                        </button>
-                      </>
+                        <textarea
+                          value={indicacionesEdicion}
+                          onChange={(e) => setIndicacionesEdicion(e.target.value)}
+                          placeholder="Indicaciones (opcional) — el detalle que ayuda a cumplirlo"
+                          maxLength={2000}
+                          rows={2}
+                          className="mt-2 w-full rounded-lg border border-sand bg-crema px-3 py-1.5 text-sm"
+                        />
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={() => void guardarEdicion(item)}
+                            disabled={guardando}
+                            className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-50"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => setEditandoId(null)}
+                            className="rounded-lg border px-3 py-1.5 text-xs"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <>
-                        <span className={`flex-1 text-sm ${item.cumplido ? "text-taupe line-through" : ""}`}>
-                          {item.descripcion}
-                        </span>
+                        <div className="flex-1">
+                          <span className={`text-sm ${item.cumplido ? "text-taupe line-through" : ""}`}>
+                            {item.descripcion}
+                          </span>
+                          {item.indicaciones && (
+                            <p className="mt-0.5 whitespace-pre-wrap text-xs text-taupe">{item.indicaciones}</p>
+                          )}
+                        </div>
                         {puedeGestionar && (
-                          <div className="flex gap-2 text-xs">
+                          <div className="flex shrink-0 gap-2 text-xs">
                             <button
                               onClick={() => {
                                 setEditandoId(item.id);
                                 setTextoEdicion(item.descripcion);
+                                setIndicacionesEdicion(item.indicaciones ?? "");
                               }}
                               className="rounded border px-2 py-1 hover:bg-sand/50"
                             >
@@ -390,21 +559,26 @@ export default function ObjetivosPage() {
 
             {/* Agregar */}
             {puedeGestionar && (
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 rounded-2xl border border-sand bg-papel p-3">
                 <input
                   value={nuevoTexto}
                   onChange={(e) => setNuevoTexto(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void agregar();
-                  }}
                   placeholder="ej. Completar la capacitación de atención al cliente"
                   maxLength={300}
-                  className="flex-1 rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
+                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
+                />
+                <textarea
+                  value={nuevasIndicaciones}
+                  onChange={(e) => setNuevasIndicaciones(e.target.value)}
+                  placeholder="Indicaciones (opcional) — el detalle que ayuda a cumplirlo: qué se espera, cómo se mide, con quién coordinar"
+                  maxLength={2000}
+                  rows={2}
+                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm"
                 />
                 <button
                   onClick={() => void agregar()}
                   disabled={guardando || !nuevoTexto.trim()}
-                  className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                  className="self-start rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
                 >
                   {guardando ? "Agregando…" : "+ Agregar"}
                 </button>
@@ -420,5 +594,13 @@ export default function ObjetivosPage() {
         ) : null}
       </main>
     </div>
+  );
+}
+
+export default function ObjetivosPage() {
+  return (
+    <Suspense fallback={<main className="p-6"><p className="text-sm text-taupe">Cargando…</p></main>}>
+      <ObjetivosContenido />
+    </Suspense>
   );
 }

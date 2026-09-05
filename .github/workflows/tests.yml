@@ -6,6 +6,22 @@ on:
   pull_request:
   workflow_dispatch:
 
+# ── UNA CORRIDA POR RAMA, NO CINCO AMONTONADAS ──────────────────────────────
+#
+# Cada push arranca una corrida nueva y la anterior seguía hasta el final,
+# gastando minutos por un resultado que ya nadie iba a mirar. Con cinco sesiones
+# empujando a la vez eso se acumula rápido: el 2026-08-26 hubo 74 corridas en un
+# día y se agotó el plan de Actions a media jornada — los jobs dejaron de
+# arrancar y `main` quedó bloqueado para todo el mundo.
+#
+# EN `main` NO SE CANCELA, Y ESA ES LA MITAD QUE IMPORTA. Cancelar una corrida
+# de `main` porque llegó otra encima significa que ese commit se queda SIN
+# validar, y aquí el CI es el último filtro antes de que un cambio de cálculo
+# toque el pago de una persona. Ahorrar tres minutos no vale eso.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   db-tests:
     runs-on: ubuntu-latest
@@ -15,7 +31,23 @@ jobs:
       - name: Instalar Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # LA MISMA QUE ESTA MAC: `pnpm-lock.yaml` fija supabase@2.113.0.
+          # (`package.json` dice `^2.113.0`, pero quien manda es el lockfile.)
+          # Si subes una, sube la otra — o vuelven a divergir.
+          #
+          # Aquí decía `latest`, y el 2026-08-26 a las 20:00 eso puso `main` en
+          # rojo en un commit que solo tocaba un `.md`: se trajo sola una imagen
+          # nueva —supabase/postgres 17.6.1.159 → 17.6.1.165— cuyos privilegios
+          # por defecto le conceden EXECUTE a `anon`. El aviso era REAL y se
+          # arregló de raíz en la 0315, así que esto no tapa nada: lo que fija es
+          # que el CI deje de moverse solo bajo los pies de todas las sesiones.
+          #
+          # Y sobre todo iguala las dos mitades. Con `latest`, esta Mac corría
+          # 2.113.0 y el CI otra cosa, así que «en local pasa y en el CI falla»
+          # era un estado normal — se fue una hora en distinguir eso de un
+          # defecto de verdad. Con la misma versión, una corrida local vuelve a
+          # predecir lo que hará el CI.
+          version: 2.113.0
 
       - name: Iniciar base local (aplica las migraciones)
         run: supabase db start

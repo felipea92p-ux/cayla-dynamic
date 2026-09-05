@@ -4,13 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
+import { useToast } from "@/components/toast";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -39,17 +41,55 @@ function fmtHoras(h: number): string {
 }
 const soles = (n: number) => `S/ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
+      <span className="text-taupe">{label}</span>
+      <span className="text-right">{valor ?? "—"}</span>
+    </div>
+  );
+}
+
 const NIVEL: Record<string, string> = { verbal: "Llamada verbal", amonestacion: "Amonestación escrita", suspension: "Suspensión", imputacion: "Imputación", despido: "Despido" };
 const CAUSAL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado" };
 
 interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean }
-interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
+interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface DocLite { id: string; correlativo: string | null; tipo_causal: string; nivel: string; estado: string; creado_at: string; firmado_at: string | null }
 interface Jornada { fecha: string; entrada_ts: string | null; salida_final_ts: string | null; horas_trabajadas: number | null; minutos_tarde: number | null; minutos_salida_temprana: number | null; horas_extra_detectadas: number | null; estado: string }
+interface VacacionesSaldo { aplica: boolean; dias_pendientes: number; records_sin_gozar: number; records_vencidos: number; vence_el: string | null; dias_para_vencer: number | null }
+interface ContratoPorVencer { persona_id: string; fecha_fin_contrato: string; dias_restantes: number; ya_vencio: boolean }
 
 type Tab = "ficha" | "desempeno";
+
+// UNA CONSULTA QUE FALLA NO SE PINTA COMO UNA QUE RESPONDIÓ VACÍA.
+//
+// En esta ficha el vacío se lee como buena noticia —«Sin antecedentes
+// disciplinarios. Buena señal.», «Sin ficha cargada», «Sin salario
+// asignado»— y quien la abre puede estar decidiendo si conversa o amonesta a
+// una integrante. Si la consulta del expediente falla y la pantalla dice lo
+// mismo que cuando no hay nada, el falso negativo es silencioso y cae justo
+// sobre la persona por la que había que actuar.
+//
+// Por eso cada sección tiene su propio aviso: dice qué falló, por qué, y —lo
+// que de verdad importa— qué NO significa. Tres estados y tres textos:
+// cargando, error y vacío.
+//
+// Va fuera del componente de la página a propósito: definirlo dentro lo
+// recrearía en cada render (regla react-hooks/static-components).
+function AvisoNoSeCargo({ que, motivo, noSignifica, reintentar }: { que: string; motivo: string; noSignifica: string; reintentar: () => void }) {
+  return (
+    <div className="rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+      <p>No se pudo cargar {que}: {motivo}</p>
+      <p className="mt-1">
+        Esto <strong>no</strong> quiere decir que {noSignifica}.{" "}
+        <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+      </p>
+    </div>
+  );
+}
 
 export default function PerfilPersonaPage() {
   const params = useParams();
@@ -62,6 +102,7 @@ export default function PerfilPersonaPage() {
   // la sección para que a la encargada no le aparezca "sin salario" — que sería mentira).
   const puedeSalario = puedeVerPlanilla(rol);
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const { avisar } = useToast();
 
   const [tab, setTab] = useState<Tab>("ficha");
 
@@ -73,40 +114,88 @@ export default function PerfilPersonaPage() {
   const [docs, setDocs] = useState<DocLite[]>([]);
   const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // ¿Ese `err` es un fallo (se puede reintentar) o una respuesta legítima («no
+  // existe / no tienes permiso»)? Son dos conclusiones distintas y las dos son
+  // accionables: ofrecer «Reintentar» sobre la segunda invitaría a insistir
+  // contra algo que nunca va a cambiar.
+  const [errReintentable, setErrReintentable] = useState(false);
+  // Un error por consulta, porque cada una pinta una sección distinta y el
+  // fallo de una no puede vaciar en silencio a las otras tres.
+  const [errSede, setErrSede] = useState<string | null>(null);
+  const [errFicha, setErrFicha] = useState<string | null>(null);
+  const [errSalario, setErrSalario] = useState<string | null>(null);
+  const [errDocs, setErrDocs] = useState<string | null>(null);
+  const [errVacas, setErrVacas] = useState<string | null>(null);
+  const [errContrato, setErrContrato] = useState<string | null>(null);
+  // Sube de uno en uno para volver a lanzar la carga desde cualquier
+  // «Reintentar». La carga vive en el efecto (no en un callback) para no
+  // repetir el patrón que react-hooks/set-state-in-effect ya marca abajo.
+  const [intento, setIntento] = useState(0);
+  const reintentar = () => setIntento((n) => n + 1);
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [subiendoFirma, setSubiendoFirma] = useState(false);
-  const [firmaMsg, setFirmaMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
+  const [contrato, setContrato] = useState<ContratoPorVencer | null>(null);
 
-  const cargar = useCallback(async () => {
-    setCargando(true); setErr(null);
-    const { data: sesion } = await supabase.auth.getSession();
-    if (!sesion.session) { router.replace("/admin/login"); return; }
-    const { data: p, error: eP } = await supabase.from("personas")
-      .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion")
-      .eq("id", id).maybeSingle();
-    if (eP || !p) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); return; }
-    setPersona(p as Persona);
-    const [{ data: s }, { data: dp }, { data: sal }, { data: dd }] = await Promise.all([
-      supabase.from("sedes").select("id, codigo"),
-      supabase.from("datos_personales")
-        .select("nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
-        .eq("persona_id", id).maybeSingle(),
-      supabase.rpc("fn_historial_salario", { p_persona_id: id }),
-      supabase.from("expediente_disciplinario")
-        .select("id, correlativo, tipo_causal, nivel, estado, creado_at, firmado_at")
-        .eq("persona_id", id).order("creado_at", { ascending: false }),
-    ]);
-    const smap = new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo]));
-    setSede(smap.get((p as Persona).sede_base_id) ?? "");
-    setFicha((dp as Ficha) ?? null);
-    const hist = (sal as Salario[]) ?? [];
-    setSalario(hist.find((x) => !x.vigente_hasta) ?? hist[0] ?? null);
-    setDocs((dd as DocLite[]) ?? []);
-    setCargando(false);
-  }, [supabase, router, id]);
-
-  useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      setCargando(true); setErr(null); setErrReintentable(false);
+      const { data: sesion } = await supabase.auth.getSession();
+      if (!sesion.session) { router.replace("/admin/login"); return; }
+      const { data: p, error: eP } = await supabase.from("personas")
+        .select("id, nombres, apellidos, documento, funcion, sede_base_id, fecha_ingreso, email, estado, en_planilla, sueldo_fijo, personal_direccion")
+        .eq("id", id).maybeSingle();
+      // La consulta que MANDA en esta pantalla tampoco funde error con vacío.
+      // `eP` (la consulta falló) y `!p` (respondió y no hay fila) llevaban el
+      // mismo texto, así que una sesión vencida o un corte de red se leían como
+      // «esa persona no existe o no tienes permiso para verla»: dos
+      // conclusiones falsas, y las dos accionables.
+      if (eP) { if (vivo) { setErr(`No se pudo cargar a la persona: ${mensajeDeError(eP)}`); setErrReintentable(true); setCargando(false); } return; }
+      if (!p) { if (vivo) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); } return; }
+      if (vivo) setPersona(p as Persona);
+      // Las cuatro consultas se miran UNA POR UNA. Antes solo se revisaba la
+      // del salario —y su fallo, además, tumbaba la ficha entera—; las otras
+      // tres fallaban en silencio y su sección se pintaba como vacía.
+      const [{ data: s, error: eSedes }, { data: dp, error: eFicha }, { data: sal, error: eSal }, { data: dd, error: eDocs }, { data: vac, error: eVac }, { data: contratos, error: eContrato }] = await Promise.all([
+        supabase.from("sedes").select("id, codigo"),
+        supabase.from("datos_personales")
+          .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
+          .eq("persona_id", id).maybeSingle(),
+        supabase.rpc("fn_historial_salario", { p_persona_id: id }),
+        supabase.from("expediente_disciplinario")
+          .select("id, correlativo, tipo_causal, nivel, estado, creado_at, firmado_at")
+          .eq("persona_id", id).order("creado_at", { ascending: false }),
+        // Mismo saldo que ve la propia persona en "Lo mío" (fn_vacaciones_saldo);
+        // acá se lee en la ficha para no tener que ir a buscarlo aparte.
+        supabase.rpc("fn_vacaciones_saldo", { p_persona_id: id, p_as_of: null }),
+        // Ventana de 90 días, igual que el aviso del Dashboard — si no aparece
+        // acá, es que no tiene un contrato a plazo fijo por vencer pronto, no
+        // que falte el dato.
+        supabase.rpc("fn_contratos_por_vencer", { p_dias: 90 }),
+      ]);
+      const smap = new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo]));
+      if (vivo) {
+        setErrSede(eSedes ? mensajeDeError(eSedes) : null);
+        setErrFicha(eFicha ? mensajeDeError(eFicha) : null);
+        setErrSalario(eSal ? mensajeDeError(eSal) : null);
+        setErrDocs(eDocs ? mensajeDeError(eDocs) : null);
+        setErrVacas(eVac ? mensajeDeError(eVac) : null);
+        setErrContrato(eContrato ? mensajeDeError(eContrato) : null);
+        setSede(smap.get((p as Persona).sede_base_id) ?? "");
+        setFicha(eFicha ? null : (dp as Ficha) ?? null);
+        const hist = eSal ? [] : (sal as Salario[]) ?? [];
+        setSalario(hist.find((x) => !x.vigente_hasta) ?? hist[0] ?? null);
+        setDocs(eDocs ? [] : (dd as DocLite[]) ?? []);
+        const v = eVac ? null : (vac as VacacionesSaldo | null);
+        setVacas(v && v.aplica ? v : null);
+        setContrato(eContrato ? null : (((contratos as ContratoPorVencer[] | null) ?? []).find((c) => c.persona_id === id) ?? null));
+        setCargando(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [supabase, router, id, intento]);
 
   // El nombre con el que se guarda el PDF de la ficha. Ver
   // use-titulo-documento.ts. Lleva el DNI cuando está cargado, porque una ficha
@@ -128,10 +217,17 @@ export default function PerfilPersonaPage() {
   const [cargandoDes, setCargandoDes] = useState(false);
   const [desCargado, setDesCargado] = useState(false);
   const [errDes, setErrDes] = useState<string | null>(null);
+  // Lo que se cargó A MEDIAS. Las jornadas mandan —si fallan, no hay pestaña—,
+  // pero las otras tres consultas también se miran: si fallan en silencio, lo
+  // que se pinta no es «no había nada», es otra cosa. La peor de las tres son
+  // las tardanzas levantadas: sin ellas, una tardanza YA JUSTIFICADA vuelve a
+  // verse como tardanza y a contarse en el resumen. Un falso positivo contra
+  // una persona es el error que más caro sale acá.
+  const [errParcialDes, setErrParcialDes] = useState<string[]>([]);
 
   const cargarDesempeno = useCallback(async () => {
-    setCargandoDes(true); setErrDes(null);
-    const [{ data, error: eJ }, { data: extra }, { data: objs }, { data: levData }] = await Promise.all([
+    setCargandoDes(true); setErrDes(null); setErrParcialDes([]);
+    const [{ data, error: eJ }, { data: extra, error: eExtra }, { data: objs, error: eObjs }, { data: levData, error: eLev }] = await Promise.all([
       supabase.from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, horas_extra_detectadas, estado")
         .eq("persona_id", id).gte("fecha", desde).lte("fecha", hasta).order("fecha"),
@@ -139,7 +235,12 @@ export default function PerfilPersonaPage() {
       supabase.rpc("fn_objetivos_checklist", { p_anio: Number(hasta.slice(0, 4)), p_mes: Number(hasta.slice(5, 7)), p_persona_id: id }),
       supabase.from("tardanzas_justificadas").select("fecha, motivo").eq("persona_id", id).gte("fecha", desde).lte("fecha", hasta),
     ]);
-    if (eJ) { setErrDes(eJ.message); setCargandoDes(false); return; }
+    if (eJ) { setErrDes(mensajeDeError(eJ)); setCargandoDes(false); return; }
+    setErrParcialDes([
+      eLev ? `las tardanzas levantadas (${mensajeDeError(eLev)}) — una tardanza YA justificada se está viendo y contando como tardanza` : "",
+      eExtra ? `las salidas anticipadas (${mensajeDeError(eExtra)}) — la tarjeta del resumen dice «0 de 0 medidos» y la columna «—», aunque las haya` : "",
+      eObjs ? `los objetivos del mes (${mensajeDeError(eObjs)}) — su bloque no aparece, y eso no quiere decir que no tenga` : "",
+    ].filter(Boolean));
     setObjetivos(((objs as unknown as ObjetivoItem[] | null) ?? []).slice());
     const filasExtra = (extra as { fecha: string; minutos_salida_temprana: number }[] | null) ?? [];
     const minutosPorFecha = new Map(filasExtra.map((e) => [e.fecha, e.minutos_salida_temprana]));
@@ -199,7 +300,7 @@ export default function PerfilPersonaPage() {
   }, [esMiPerfil, supabase, id]);
 
   async function subirFirma(file: File) {
-    setSubiendoFirma(true); setFirmaMsg(null);
+    setSubiendoFirma(true);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -248,6 +349,24 @@ export default function PerfilPersonaPage() {
             const octx = out.getContext("2d");
             if (!octx) return reject(new Error("Sin canvas."));
             octx.drawImage(src, minX, minY, bw, bh, 0, 0, ow, oh);
+            // EL FONDO DEL PAPEL SE VUELVE TRANSPARENTE, NO BLANCO.
+            //
+            // El recorte de arriba deja la firma ajustada, pero el blanco del
+            // escaneo seguía siendo opaco. Sobre la raya de un contrato eso se
+            // ve como una pegatina blanca encima de la línea — que es
+            // exactamente lo que reportó Felipe al imprimir el primero.
+            //
+            // El borde no se corta en seco: entre 160 y 240 de luminosidad se
+            // desvanece proporcionalmente, para que el antialiasing del trazo
+            // no quede como un dentado duro.
+            const salida = octx.getImageData(0, 0, ow, oh);
+            const px = salida.data;
+            for (let i = 0; i < px.length; i += 4) {
+              const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+              if (lum >= 240) px[i + 3] = 0;
+              else if (lum > 160) px[i + 3] = Math.round(px[i + 3] * ((240 - lum) / 80));
+            }
+            octx.putImageData(salida, 0, 0);
             resolve(out.toDataURL("image/png"));
           };
           img.src = reader.result as string;
@@ -257,9 +376,9 @@ export default function PerfilPersonaPage() {
       const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl });
       if (error) throw error;
       setMiFirma(dataUrl);
-      setFirmaMsg({ tipo: "ok", texto: "Firma guardada. Aparecerá en los memos leves que firmes." });
+      avisar("ok", "Firma guardada. Aparecerá en los memos leves que firmes.");
     } catch (e) {
-      setFirmaMsg({ tipo: "error", texto: e instanceof Error ? e.message : "No se pudo guardar la firma." });
+      avisar("error", e instanceof Error ? e.message : "No se pudo guardar la firma.");
     } finally {
       setSubiendoFirma(false);
     }
@@ -267,7 +386,7 @@ export default function PerfilPersonaPage() {
   async function quitarFirma() {
     setSubiendoFirma(true);
     const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
-    if (!error) { setMiFirma(null); setFirmaMsg({ tipo: "ok", texto: "Firma quitada." }); }
+    if (!error) { setMiFirma(null); avisar("ok", "Firma quitada."); }
     setSubiendoFirma(false);
   }
 
@@ -281,15 +400,6 @@ export default function PerfilPersonaPage() {
 
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
   const iniciales = persona ? `${persona.nombres[0] ?? ""}${persona.apellidos[0] ?? ""}` : "";
-
-  function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
-    return (
-      <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
-        <span className="text-taupe">{label}</span>
-        <span className="text-right">{valor ?? "—"}</span>
-      </div>
-    );
-  }
 
   const TabBtn = ({ valor, children }: { valor: Tab; children: React.ReactNode }) => (
     <button
@@ -344,7 +454,14 @@ export default function PerfilPersonaPage() {
         {cargando ? (
           <Cargando texto="Cargando el perfil…" />
         ) : err ? (
-          <p className="max-w-xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
+          <div className="max-w-xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p>{err}</p>
+            {errReintentable && (
+              <p className="mt-1">
+                <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+              </p>
+            )}
+          </div>
         ) : persona && (
           <>
             {/* Cabecera */}
@@ -353,7 +470,7 @@ export default function PerfilPersonaPage() {
               <div className="min-w-0">
                 <h1 className="font-serif text-2xl leading-tight">{ficha?.nombre_dni || nombre}</h1>
                 <p className="text-sm text-taupe">
-                  {persona.funcion} · Sede {sede || "—"}
+                  {persona.funcion} · Sede {errSede ? <span className="text-rojo">no se pudo cargar</span> : sede || "—"}
                   {persona.estado !== "activo" && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">{persona.estado}</span>}
                   {persona.sueldo_fijo && <span className="ml-2 rounded-full bg-sand/60 px-2 py-0.5 text-xs">sueldo fijo</span>}
                   {/* Estar marcada como dirección le quita un derecho —no genera
@@ -369,8 +486,18 @@ export default function PerfilPersonaPage() {
                       dirección
                     </span>
                   )}
-                  {!persona.en_planilla && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">fuera de planilla</span>}
+                  {!persona.en_planilla && <span className="ml-2 rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">fuera de planilla</span>}
                 </p>
+                {/* El motivo va en el CUERPO, no en un `title`. Esta ficha se
+                    abre en el iPad de la sede —donde no hay puntero que
+                    despliegue un tooltip— y se imprime en PDF, donde un `title`
+                    tampoco sale: ahí «no se pudo cargar» quedaba sin porqué. */}
+                {errSede && (
+                  <p className="mt-0.5 text-xs text-rojo">
+                    No se pudo cargar la sede: {errSede}. Esto <strong>no</strong> quiere decir que no tenga sede asignada.{" "}
+                    <button onClick={reintentar} className="no-print font-medium underline">Reintentar</button>
+                  </p>
+                )}
                 <p className="mt-0.5 text-xs text-taupe">DNI {persona.documento ?? "—"} · Ingresó {fechaCorta(persona.fecha_ingreso)}</p>
               </div>
             </div>
@@ -390,12 +517,15 @@ export default function PerfilPersonaPage() {
                       <h2 className="font-serif text-lg">Datos personales</h2>
                       <Link href="/admin/datos-personales" className="no-print text-xs text-tinta hover:underline">Editar →</Link>
                     </div>
-                    {ficha ? (
+                    {errFicha ? (
+                      <AvisoNoSeCargo que="la ficha" motivo={errFicha} noSignifica="esté sin llenar" reintentar={reintentar} />
+                    ) : ficha ? (
                       <div>
                         <Dato label="Celular" valor={ficha.celular} />
                         <Dato label="Correo" valor={persona.email} />
                         <Dato label="Dirección" valor={ficha.direccion} />
                         <Dato label="Nacimiento" valor={ficha.fecha_nacimiento ? fechaCorta(ficha.fecha_nacimiento) : "—"} />
+                        <Dato label="Género" valor={etiquetaDeCatalogo(ficha.genero, GENERO_LABELS)} />
                         <Dato label="Estado civil" valor={etiquetaDeCatalogo(ficha.estado_civil, ESTADO_CIVIL_LABELS)} />
                         <Dato label="Grado de instrucción" valor={etiquetaDeCatalogo(ficha.grado_instruccion, GRADO_INSTRUCCION_LABELS)} />
                         <Dato label="Hijos menores" valor={ficha.hijos_menores == null ? "—" : ficha.hijos_menores ? "Sí" : "No"} />
@@ -415,7 +545,9 @@ export default function PerfilPersonaPage() {
                       <h2 className="font-serif text-lg">Compensación</h2>
                       <Link href="/admin/planilla" className="no-print text-xs text-tinta hover:underline">Planilla →</Link>
                     </div>
-                    {salario ? (
+                    {errSalario ? (
+                      <AvisoNoSeCargo que="el historial de salario" motivo={errSalario} noSignifica="no tenga sueldo asignado" reintentar={reintentar} />
+                    ) : salario ? (
                       <div>
                         <Dato label="Sueldo vigente" valor={<strong>{soles(salario.salario_mensual_soles)}</strong>} />
                         <Dato label="Rango" valor={salario.rango} />
@@ -427,13 +559,64 @@ export default function PerfilPersonaPage() {
                   </section>
                   )}
 
+                  {/* Vacaciones y contrato — mismos datos que ya avisan en Lo mío
+                      y en el Dashboard (fn_vacaciones_saldo, fn_contratos_por_vencer),
+                      leídos acá para no tener que ir a buscarlos aparte. */}
+                  {(vacas || contrato || errVacas || errContrato) && (
+                    <section className="rounded-2xl border border-sand bg-papel p-5">
+                      <h2 className="mb-2 font-serif text-lg">Vacaciones y contrato</h2>
+                      {errVacas ? (
+                        <AvisoNoSeCargo que="el saldo de vacaciones" motivo={errVacas} noSignifica="no tenga días pendientes" reintentar={reintentar} />
+                      ) : vacas ? (
+                        <div>
+                          <Dato label="Días pendientes" valor={<strong>{vacas.dias_pendientes} días</strong>} />
+                          {vacas.vence_el && (
+                            <Dato
+                              label="Récord más antiguo vence"
+                              valor={
+                                <span className={(vacas.dias_para_vencer ?? 999) <= 60 ? "font-medium text-ambar" : undefined}>
+                                  {fechaCorta(vacas.vence_el)}
+                                  {typeof vacas.dias_para_vencer === "number" && ` (${vacas.dias_para_vencer >= 0 ? `faltan ${vacas.dias_para_vencer} días` : "vencido"})`}
+                                </span>
+                              }
+                            />
+                          )}
+                          {vacas.records_vencidos > 0 && (
+                            <Dato label="Récords ya vencidos" valor={<span className="text-rojo">{vacas.records_vencidos}</span>} />
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-taupe">Sin días de vacaciones pendientes.</p>
+                      )}
+                      {errContrato ? (
+                        <div className={vacas || errVacas ? "mt-3 border-t border-sand/60 pt-3" : ""}>
+                          <AvisoNoSeCargo que="el contrato por vencer" motivo={errContrato} noSignifica="no tenga un contrato a plazo fijo por vencer" reintentar={reintentar} />
+                        </div>
+                      ) : contrato && (
+                        <div className={vacas ? "mt-3 border-t border-sand/60 pt-3" : ""}>
+                          <Dato
+                            label={contrato.ya_vencio ? "Contrato vencido el" : "Contrato a plazo fijo vence el"}
+                            valor={
+                              <span className={contrato.ya_vencio ? "font-medium text-rojo" : "font-medium text-ambar"}>
+                                {fechaCorta(contrato.fecha_fin_contrato)}
+                                {!contrato.ya_vencio && ` (${contrato.dias_restantes} días)`}
+                              </span>
+                            }
+                          />
+                        </div>
+                      )}
+                    </section>
+                  )}
+
                   {/* Disciplina / legajo */}
                   <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</h2>
                       <Link href="/admin/disciplina" className="no-print text-xs text-tinta hover:underline">Disciplina →</Link>
                     </div>
-                    {docs.length === 0 ? (
+                    {errDocs ? (
+                      <AvisoNoSeCargo que="el legajo disciplinario" motivo={errDocs} noSignifica="no tenga antecedentes" reintentar={reintentar} />
+                    ) : docs.length === 0 ? (
                       <p className="text-sm text-taupe">Sin antecedentes disciplinarios. Buena señal.</p>
                     ) : (
                       <ul className="divide-y">
@@ -445,7 +628,7 @@ export default function PerfilPersonaPage() {
                             </span>
                             <span className="flex items-center gap-2 text-xs text-taupe">
                               {selloLima(d.firmado_at ?? d.creado_at)}
-                              <span className={`rounded-full px-2 py-0.5 ${d.estado === "anulado" ? "bg-sand/50 text-taupe" : d.estado === "borrador" ? "bg-amber-100 text-amber-800" : "bg-sand/60 text-tinta"}`}>{ESTADO_DOC[d.estado] ?? d.estado}</span>
+                              <span className={`rounded-full px-2 py-0.5 ${d.estado === "anulado" ? "bg-sand/50 text-taupe" : d.estado === "borrador" ? "bg-ambar/15 text-ambar" : "bg-sand/60 text-tinta"}`}>{ESTADO_DOC[d.estado] ?? d.estado}</span>
                               <Link href={`/admin/disciplina/memo/${d.id}`} className="text-tinta hover:underline">ver</Link>
                             </span>
                           </li>
@@ -456,8 +639,7 @@ export default function PerfilPersonaPage() {
                   {esMiPerfil && puedeSalario && (
                     <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                       <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
-                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
-                      {firmaMsg && <div className={`mb-3 rounded-lg px-3 py-2 text-sm ${firmaMsg.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>{firmaMsg.texto}</div>}
+                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
                       <div className="flex flex-wrap items-center gap-4">
                         {miFirma ? (
                           <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
@@ -484,7 +666,11 @@ export default function PerfilPersonaPage() {
                     abre YA filtrado por esta persona (si no filtrara, el enlace mentiría). */}
                 <div className="no-print mt-6 flex flex-wrap items-center gap-2 text-sm">
                   <span className="py-1 text-taupe">Registro de {persona.nombres}:</span>
-                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Horas y tardanzas</Link>
+                  {/* Desde hoy /admin/horas es la tabla de TODO el equipo y
+                      ?persona= abre su panel encima, no recorta la tabla. El
+                      enlace ya no promete «solo esta persona» — promete verla
+                      al lado de las demás, que es para lo que se usa. */}
+                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Junto al equipo</Link>
                   <Link href={`/admin/incidencias?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Incidencias</Link>
                 </div>
               </>
@@ -507,6 +693,16 @@ export default function PerfilPersonaPage() {
                   <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                     No se pudo cargar el desempeño: {errDes}{" "}
                     <button onClick={() => void cargarDesempeno()} className="font-medium underline">Reintentar</button>
+                  </div>
+                )}
+
+                {errParcialDes.length > 0 && (
+                  <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                    <p>El periodo se cargó, pero faltó parte de lo que se muestra:</p>
+                    <ul className="mt-1 list-disc pl-5">
+                      {errParcialDes.map((t) => <li key={t}>No se pudieron cargar {t}.</li>)}
+                    </ul>
+                    <button onClick={() => void cargarDesempeno()} className="mt-1 font-medium underline">Reintentar</button>
                   </div>
                 )}
 

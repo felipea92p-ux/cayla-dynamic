@@ -1,19 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
-import { TZ_LIMA, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { hoyLima, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
-
-function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
-}
 // Fechas planas (sin hora): se formatean en UTC para que no se corran un día.
 function fechaCorta(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
@@ -44,6 +42,10 @@ interface Laborado {
   fecha_descanso: string | null;
   estado: string | null;
   acta_ref: string | null;
+  /** Por qué ese día NO compensa el feriado, o null si compensa bien (0238). */
+  no_compensa_porque: string | null;
+  /** Escrito solo cuando el día libre cae a más de 30 días del feriado. */
+  motivo_fuera_de_plazo: string | null;
 }
 interface Registro {
   id: string;
@@ -86,17 +88,37 @@ function finDeMes(): string {
 
 export default function FeriadosPage() {
   const router = useRouter();
+  const { avisar } = useToast();
   const yo = usePersonaActual();
   const rol = yo?.rol ?? null;
   const puedeGestionar = puedeGestionarCatalogos(rol);
 
   const [personas, setPersonas] = useState<Persona[]>([]);
+  // Solo para resolver nombres en "Descansos registrados": ese historial incluye
+  // a quien ya no está activa, y `personas` (abajo) se filtra a activas a
+  // propósito porque es la que arma el checklist para registrar días NUEVOS.
+  const [personasTodas, setPersonasTodas] = useState<Persona[]>([]);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [laborados, setLaborados] = useState<Laborado[]>([]);
+  /**
+   * persona + feriado → por qué ese día compensatorio no compensa.
+   *
+   * El motivo NO se calcula aquí: lo devuelve `fn_dcs_por_que_no_compensa` a
+   * través de fn_feriados_laborados, y es LA MISMA frase con la que el candado
+   * bloquea al registrar (0238). Si la pantalla tuviera su propia copia de la
+   * regla, el día que una cambie dirían cosas distintas de la misma fila.
+   *
+   * Se cruza por (persona, feriado) porque esa es la clave 1:1 de la tabla.
+   */
+  const motivoPorFila = useMemo(
+    () => new Map(laborados
+      .filter((l) => l.no_compensa_porque)
+      .map((l) => [`${l.persona_id}|${l.fecha_feriado}`, l.no_compensa_porque as string])),
+    [laborados],
+  );
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [actas, setActas] = useState<Acta[]>([]);
   const [refActa, setRefActa] = useState("");
@@ -111,6 +133,9 @@ export default function FeriadosPage() {
   const [sedeFiltro, setSedeFiltro] = useState("");
   const [elegidas, setElegidas] = useState<Set<string>>(new Set());
   const [parejas, setParejas] = useState<Pareja[]>([{ feriado: "", descanso: "" }]);
+  // Resguardo del bug de Safari (ver ausencias/page.tsx): el date picker a veces
+  // no dispara onChange, así que onBlur re-lee el valor real del input.
+  const refsDescanso = useRef<Array<HTMLInputElement | null>>([]);
   const [estado, setEstado] = useState<string>("PENDIENTE");
   const [actaRef, setActaRef] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -121,36 +146,38 @@ export default function FeriadosPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }, { data: ac }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: pt }, { data: sd }, { data: f }, { data: l, error: eL }, { data: r }, { data: ac }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos, sede_base_id")
         .eq("estado", "activo").eq("en_planilla", true).order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, sede_base_id").order("nombres"),
       supabase.from("sedes").select("id, codigo, nombre").order("codigo"),
       supabase.from("feriados").select("fecha, nombre").order("fecha", { ascending: false }).limit(40),
       supabase.rpc("fn_feriados_laborados", { p_desde: desde, p_hasta: hasta }),
       supabase.from("feriados_descanso_sustitutorio")
         .select("id, persona_id, fecha_feriado, fecha_descanso_sustitutorio, estado, acta_ref")
         .order("fecha_feriado", { ascending: false }),
-      supabase.rpc("fn_actas_descanso", {}),
+      supabase.rpc("fn_actas_descanso"),
     ]);
     if (eP) {
-      setMsg({ tipo: "error", texto: mensajeDeError(eP, "cargar") });
+      avisar("error", mensajeDeError(eP, "cargar"));
       setCargando(false);
       return;
     }
     setPersonas((p as Persona[]) ?? []);
+    setPersonasTodas((pt as Persona[]) ?? []);
     setSedes((sd as Sede[]) ?? []);
     setFeriados((f as Feriado[]) ?? []);
     setLaborados(eL ? [] : ((l as unknown as Laborado[]) ?? []));
     setRegistros((r as Registro[]) ?? []);
     setActas(Array.isArray(ac) ? (ac as unknown as Acta[]) : []);
     setCargando(false);
-  }, [supabase, router, desde, hasta]);
+  }, [supabase, router, desde, hasta, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
   const nombrePorId = useMemo(
-    () => new Map(personas.map((x) => [x.id, `${x.nombres} ${x.apellidos}`])),
-    [personas],
+    () => new Map(personasTodas.map((x) => [x.id, `${x.nombres} ${x.apellidos}`])),
+    [personasTodas],
   );
   const visibles = useMemo(
     () => (sedeFiltro ? personas.filter((p) => p.sede_base_id === sedeFiltro) : personas),
@@ -193,13 +220,12 @@ export default function FeriadosPage() {
    * subir— dejaría la lista mintiendo.
    */
   async function subirActa(file: File) {
-    if (!refActa) { setMsg({ tipo: "error", texto: "Elige a qué acuerdo pertenece el acta." }); return; }
+    if (!refActa) { avisar("error", "Elige a qué acuerdo pertenece el acta."); return; }
     if (file.size > MAX_ACTA_BYTES) {
-      setMsg({ tipo: "error", texto: `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo es ${MAX_ACTA_BYTES / 1024 / 1024} MB.` });
+      avisar("error", `El archivo pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo es ${MAX_ACTA_BYTES / 1024 / 1024} MB.`);
       return;
     }
     setSubiendo(true);
-    setMsg(null);
 
     // La referencia va en la ruta pasada por un filtro: es texto que escribe una
     // persona ("Acta 2026-07-28 Taller LIM") y no puede decidir en qué carpeta
@@ -214,7 +240,7 @@ export default function FeriadosPage() {
     setProgresoActa(null);
     if (fallo) {
       setSubiendo(false);
-      setMsg({ tipo: "error", texto: `El acta no subió (${fallo}). Vuelve a intentarlo.` });
+      avisar("error", `El acta no subió (${fallo}). Vuelve a intentarlo.`);
       return;
     }
 
@@ -224,9 +250,9 @@ export default function FeriadosPage() {
       p_nombre: file.name,
     });
     setSubiendo(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `Acta guardada para “${refActa}”.` });
+    avisar("ok", `Acta guardada para “${refActa}”.`);
   }
 
   /**
@@ -249,30 +275,30 @@ export default function FeriadosPage() {
     // quedarse a medias.
     const { data, error } = await supabase.rpc("fn_acta_descanso_ubicacion", { p_referencia: referencia });
     const fila = Array.isArray(data) ? data[0] : null;
-    if (error || !fila) { setMsg({ tipo: "error", texto: error?.message ?? "Esa acta no tiene archivo." }); return; }
+    if (error || !fila) { avisar("error", error?.message ?? "Esa acta no tiene archivo."); return; }
 
     if (fila.storage_path) {
       // URL firmada de vida corta: el bucket es privado.
       const { data: firma, error: eF } = await supabase.storage.from("actas").createSignedUrl(fila.storage_path, 120);
-      if (eF || !firma) { setMsg({ tipo: "error", texto: `No se pudo abrir: ${eF?.message ?? "sin URL"}` }); return; }
+      if (eF || !firma) { avisar("error", `No se pudo abrir: ${eF?.message ?? "sin URL"}`); return; }
       if (!window.open(firma.signedUrl, "_blank", "noopener,noreferrer")) {
-        setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio." });
+        avisar("error", "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio.");
       }
       return;
     }
 
-    if (!fila.dataurl) { setMsg({ tipo: "error", texto: "Esa acta no tiene archivo." }); return; }
+    if (!fila.dataurl) { avisar("error", "Esa acta no tiene archivo."); return; }
     let url: string;
     try {
       url = URL.createObjectURL(await (await fetch(fila.dataurl)).blob());
     } catch {
-      setMsg({ tipo: "error", texto: "No se pudo preparar el archivo para abrirlo. Vuelve a intentarlo." });
+      avisar("error", "No se pudo preparar el archivo para abrirlo. Vuelve a intentarlo.");
       return;
     }
     const w = window.open(url, "_blank", "noopener,noreferrer");
     if (!w) {
       URL.revokeObjectURL(url);
-      setMsg({ tipo: "error", texto: "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio." });
+      avisar("error", "El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio.");
       return;
     }
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -302,15 +328,21 @@ export default function FeriadosPage() {
   // Guarda de a uno y va acumulando el resultado. Secuencial a propósito: si algo
   // falla quiero saber EXACTAMENTE en qué persona y en qué pareja, no un error suelto.
   async function registrarLote() {
-    if (elegidas.size === 0) { setMsg({ tipo: "error", texto: "Elige al menos una persona." }); return; }
-    if (parejasCompletas.length === 0) { setMsg({ tipo: "error", texto: "Agrega al menos una pareja de feriado y día libre." }); return; }
+    // Último respaldo antes de enviar: si el onBlur no llegó a disparar (el
+    // campo nunca perdió el foco), lee el valor real del input del DOM en vez
+    // del estado, igual que ausencias/page.tsx hace con `vFecha` al guardar.
+    const parejasEfectivas = parejas
+      .map((p, i) => ({ ...p, descanso: p.descanso || refsDescanso.current[i]?.value || "" }))
+      .filter((p) => p.feriado && p.descanso);
+
+    if (elegidas.size === 0) { avisar("error", "Elige al menos una persona."); return; }
+    if (parejasEfectivas.length === 0) { avisar("error", "Agrega al menos una pareja de feriado y día libre."); return; }
     setGuardando(true);
-    setMsg(null);
     setResultados([]);
 
     const salida: Resultado[] = [];
     for (const personaId of elegidas) {
-      for (const par of parejasCompletas) {
+      for (const par of parejasEfectivas) {
         const { error } = await supabase.rpc("fn_otorgar_descanso_sustitutorio", {
           p_persona_id: personaId,
           p_fecha_feriado: par.feriado,
@@ -331,22 +363,27 @@ export default function FeriadosPage() {
     setResultados(salida);
     const ok = salida.filter((x) => !x.error).length;
     const mal = salida.length - ok;
+    const incompletas = parejas.length - parejasEfectivas.length;
     await cargar();
-    setMsg(
-      mal === 0
-        ? { tipo: "ok", texto: `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.` }
-        : { tipo: "error", texto: `${ok} guardado${ok === 1 ? "" : "s"}, ${mal} rechazado${mal === 1 ? "" : "s"}. El detalle está abajo.` },
-    );
+    const avisoIncompletas = incompletas > 0
+      ? ` ${incompletas} pareja${incompletas === 1 ? "" : "s"} de fecha quedó${incompletas === 1 ? "" : "aron"} sin completar y no se ${incompletas === 1 ? "envió" : "enviaron"}.`
+      : "";
+    if (mal === 0 && incompletas === 0) {
+      avisar("ok", `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.`);
+    } else if (mal === 0) {
+      avisar("error", `${ok} registro${ok === 1 ? "" : "s"} guardado${ok === 1 ? "" : "s"} como ${estado}.${avisoIncompletas}`);
+    } else {
+      avisar("error", `${ok} guardado${ok === 1 ? "" : "s"}, ${mal} rechazado${mal === 1 ? "" : "s"}. El detalle está abajo.${avisoIncompletas}`);
+    }
   }
 
   async function quitar(id: string) {
     setGuardando(true);
-    setMsg(null);
     const { error } = await supabase.rpc("fn_quitar_descanso_sustitutorio", { p_id: id });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Registro quitado. Ese feriado vuelve a pagar sobretasa." });
+    avisar("ok", "Registro quitado. Ese feriado vuelve a pagar sobretasa.");
   }
 
   if (rol !== null && !puedeGestionar) {
@@ -372,12 +409,6 @@ export default function FeriadosPage() {
           <strong>falta injustificada</strong> por no marcar.
         </p>
 
-        {msg && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
-          </div>
-        )}
-
         {/* Registrar por lotes */}
         <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
           <h2 className="mb-3 text-sm font-medium">Registrar días libres a cambio</h2>
@@ -391,10 +422,9 @@ export default function FeriadosPage() {
                 <option value="">Todas las sedes</option>
                 {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
-              <button type="button" onClick={todasVisibles}
-                className="rounded border border-sand px-2 py-1 text-xs text-taupe hover:text-tinta">
+              <Boton type="button" variante="sutil" tamano="sm" onClick={todasVisibles}>
                 Marcar / desmarcar visibles
-              </button>
+              </Boton>
               {elegidas.size > 0 && (
                 <span className="text-xs text-taupe">{elegidas.size} elegida{elegidas.size === 1 ? "" : "s"}</span>
               )}
@@ -424,24 +454,24 @@ export default function FeriadosPage() {
                     ))}
                   </select>
                   <span className="text-taupe">→</span>
-                  <input type="date" value={par.descanso} onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
+                  <input ref={(el) => { refsDescanso.current[i] = el; }} type="date" value={par.descanso}
+                    onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
+                    onBlur={(e) => cambiarPareja(i, "descanso", e.currentTarget.value)}
                     className="rounded-lg border px-3 py-2 text-sm" />
                   <span className="min-w-20 text-xs capitalize text-taupe">
                     {par.descanso ? diaSemana(par.descanso) : ""}
                   </span>
                   {parejas.length > 1 && (
-                    <button type="button" onClick={() => setParejas((prev) => prev.filter((_, k) => k !== i))}
-                      className="rounded border border-rojo/30 px-2 py-1 text-xs text-rojo hover:bg-rojo/10">
+                    <Boton type="button" variante="peligro" tamano="sm" onClick={() => setParejas((prev) => prev.filter((_, k) => k !== i))}>
                       Quitar
-                    </button>
+                    </Boton>
                   )}
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => setParejas((prev) => [...prev, { feriado: "", descanso: "" }])}
-              className="mt-2 rounded border border-sand px-2 py-1 text-xs text-taupe hover:text-tinta">
+            <Boton type="button" variante="sutil" tamano="sm" className="mt-2" onClick={() => setParejas((prev) => [...prev, { feriado: "", descanso: "" }])}>
               + Agregar otro día
-            </button>
+            </Boton>
             <p className="mt-1 text-xs text-taupe">
               Cada feriado se compensa con <strong>un</strong> día libre. Por eso se declaran de a pares:
               así ves qué compensa qué, en vez de que el sistema lo adivine.
@@ -472,10 +502,9 @@ export default function FeriadosPage() {
 
           {/* Cuántos registros van a salir — antes de crearlos. */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button onClick={registrarLote} disabled={guardando || totalRegistros === 0}
-              className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema disabled:opacity-50">
+            <Boton variante="primario" onClick={registrarLote} disabled={guardando || totalRegistros === 0}>
               {guardando ? "Guardando…" : "Registrar"}
-            </button>
+            </Boton>
             <span className="text-sm text-taupe">
               {totalRegistros === 0
                 ? "Elige personas y al menos una pareja de días."
@@ -570,10 +599,9 @@ export default function FeriadosPage() {
                     </span>
                   </span>
                   {a.tiene_archivo ? (
-                    <button onClick={() => abrirActa(a.referencia)}
-                      className="rounded border border-sand px-2 py-0.5 text-xs text-taupe hover:text-tinta">
+                    <Boton variante="sutil" tamano="sm" onClick={() => abrirActa(a.referencia)}>
                       Ver acta
-                    </button>
+                    </Boton>
                   ) : (
                     <span className="text-xs text-rojo">sin archivo</span>
                   )}
@@ -649,7 +677,15 @@ export default function FeriadosPage() {
                           <span className="text-taupe">— paga sobretasa</span>
                         ) : (
                           <>
-                            <span className={l.estado === "OTORGADO" ? "font-medium text-tinta" : "text-taupe"}>
+                            <span
+                              className={
+                                l.estado === "OTORGADO"
+                                  ? "font-medium text-tinta"
+                                  : l.estado === "NO_OTORGADO"
+                                    ? "font-medium text-rojo"
+                                    : "text-taupe"
+                              }
+                            >
                               {l.estado}
                             </span>
                             {l.fecha_descanso && (
@@ -683,14 +719,35 @@ export default function FeriadosPage() {
                       <span className="text-taupe">
                         · trabajó el {fechaCorta(r.fecha_feriado)} · libre el {fechaCorta(r.fecha_descanso_sustitutorio)}
                       </span>{" "}
-                      <span className={r.estado === "OTORGADO" ? "font-medium" : "text-taupe"}>· {r.estado}</span>
+                      <span
+                        className={
+                          r.estado === "OTORGADO"
+                            ? "font-medium"
+                            : r.estado === "NO_OTORGADO"
+                              ? "font-medium text-rojo"
+                              : "text-taupe"
+                        }
+                      >
+                        · {r.estado}
+                      </span>
                     </span>
-                    <button onClick={() => quitar(r.id)} disabled={guardando}
-                      className="rounded border border-rojo/30 px-2 py-0.5 text-xs text-rojo hover:bg-rojo/10 disabled:opacity-40">
+                    <Boton variante="peligro" tamano="sm" onClick={() => quitar(r.id)} disabled={guardando}>
                       Quitar
-                    </button>
+                    </Boton>
                   </div>
                   {r.acta_ref && <p className="mt-1 text-xs text-taupe">Acta: {r.acta_ref}</p>}
+                  {/* EN ROJO, con la razón concreta. Este registro le quitó a esa
+                      persona la sobretasa del feriado —unos cien soles— a cambio
+                      de un día libre que, según lo que la base sabe hoy, no
+                      ocurrió. No se corrige solo: quitarlo le DEVUELVE la
+                      sobretasa, o sea que mueve plata, y eso lo decide una
+                      persona con el caso delante. */}
+                  {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`) && (
+                    <p className="mt-1 rounded-lg border border-rojo/30 bg-rojo/[0.06] px-2 py-1 text-xs text-rojo">
+                      Este día no compensa: {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`)}.
+                      {r.estado === "OTORGADO" && " Mientras siga en OTORGADO, se le está descontando la sobretasa del feriado."}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

@@ -3,7 +3,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "passThroughEnv": ["SUPABASE_SERVICE_ROLE_KEY", "ESPEJO_TOKEN", "RESEND_API_KEY", "RESEND_FROM", "CRON_SECRET"]
     },
     "dev": {
       "cache": false,

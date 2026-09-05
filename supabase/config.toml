@@ -160,7 +160,15 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Sin `/admin/nueva-clave` acá, el enlace de una invitación o de «olvidé mi clave»
+# NO falla: cae en `site_url`, o sea en la raíz. La persona termina en el login,
+# con sesión y sin clave, sin nada que le diga qué hacer — y se lee igual que un
+# correo que no funcionó. Los `**` cubren también las vistas previas locales.
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3000/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -179,10 +187,27 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+#
+# ⚠️ ESTOS DOS VALORES TIENEN QUE DECIR LO MISMO QUE `packages/shared/src/clave.ts`.
+# Hasta la auditoría estaban en 6 y sin requisitos: «111111» entraba, y es el
+# único candado de las cuentas que ven la planilla entera y los sueldos por
+# persona. No hay segundo factor detrás.
+#
+# ⚠️ Y ESTE ARCHIVO NO CONFIGURA PRODUCCIÓN. Vale para la pila local (`npx
+# supabase start`). En producción lo mismo se pone a mano en el panel de
+# Supabase → Authentication → Sign In / Providers → Password. Mientras no se
+# ponga allá, la política la hacen cumplir nuestras pantallas y la ruta
+# `/api/mi-clave`, pero no protegería a quien llamara a la API de Supabase
+# directamente.
+minimum_password_length = 12
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+#
+# `lower_upper_letters_digits` y no la variante con símbolos: exigir símbolos
+# empuja a `Cayla2026!` —que cumple y es de las primeras que prueba cualquiera—
+# y vuelve la clave imposible de dictar por teléfono, que es justo lo que hace
+# falta cuando alguien pierde el acceso un domingo. Se prefiere longitud.
+password_requirements = "lower_upper_letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]

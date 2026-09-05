@@ -64,6 +64,45 @@ export function puedeGestionarCatalogos(rol: RolPosible): boolean {
 }
 
 /**
+ * Generar y ver los contratos de trabajo: junta identidad (DNI, dirección) y
+ * plata (sueldo) en un solo documento, así que no es ni `puedeVerIdentidad`
+ * ni `puedeVerPlanilla` por separado ni `puedeGestionarCatalogos` (esa es
+ * para sedes/áreas/feriados/documentación, no para datos personales). Hoy
+ * equivale a DO — igual que las dos que junta — pero se nombra por lo que
+ * autoriza, no por copiar esa lista: si el día de mañana `puedeVerIdentidad`
+ * se abre a otro rol para otra pantalla, esta no debe abrirse con ella sin
+ * que alguien lo haya decidido a propósito acá.
+ */
+export function puedeGestionarContratos(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
+ * Publicar o anular un anuncio del tablón de Desarrollo Organizacional. Hoy
+ * equivale a DO, igual que `puedeGestionarCatalogos` — pero es una pregunta
+ * distinta ("quién habla en nombre de la empresa a las cuatro sedes") y se
+ * nombra aparte por la misma razón que `puedeGestionarContratos`: que hoy
+ * compartan lista no significa que deban compartir nombre.
+ */
+export function puedeGestionarAnuncios(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
+ * Ver si el despacho de avisos por correo está sano: cuántos quedaron
+ * atascados, cuáles fallaron tres veces, cuáles caducaron sin salir. Es una
+ * pregunta de operación del sistema, no del equipo: la encargada de una sede
+ * no tiene cómo arreglar una clave de Resend, así que mostrárselo sería
+ * ruido. Hoy equivale a DO —igual que `puedeGestionarAnuncios`— y se nombra
+ * aparte por la misma razón: que hoy compartan lista no significa que deban
+ * compartir nombre. Del lado de la base lo decide `fn_alertas_despacho_resumen`
+ * con `fn_es_admin_o_lider()`; esto solo decide si se dibuja la tarjeta.
+ */
+export function puedeVerSaludDeAlertas(rol: RolPosible): boolean {
+  return tiene(DO, rol);
+}
+
+/**
  * El día a día del equipo: correcciones de marcaje, horarios, turnos,
  * ausencias, disciplina, ficha (sin identidad). DO y la encargada de sede.
  *
@@ -74,6 +113,18 @@ export function puedeGestionarCatalogos(rol: RolPosible): boolean {
  */
 export function puedeOperarEquipo(rol: RolPosible): boolean {
   return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/** Solo la encargada de sede — no DO. Ver `esRolEncargada` más abajo. */
+const SOLO_ENCARGADA: readonly Rol[] = ["supervisor_sede"];
+
+/**
+ * Es el rol de encargada de sede — no si hoy actúa como tal en una pantalla
+ * (eso puede sumar una marca local, `es_encargada_piso`), sino si el rol en
+ * base es ese. Para esa pregunta puntual, no la de permiso.
+ */
+export function esRolEncargada(rol: RolPosible): boolean {
+  return tiene(SOLO_ENCARGADA, rol);
 }
 
 /**
@@ -109,6 +160,43 @@ export function puedeExportarPadron(rol: RolPosible): boolean {
 const SOLO_DIRECCION: readonly Rol[] = ["admin"];
 
 /**
+ * Bajarse en CSV el rastro de asistencia: el resumen de jornadas, los marcajes
+ * crudos y el libro de correcciones de un rango de fechas.
+ *
+ * Ninguno de los tres lleva un MONTO —ni sueldo, ni cuenta bancaria—, así que no
+ * es `puedeVerPlanilla`: es el día a día del equipo, y hoy equivale a
+ * `puedeOperarEquipo`, que es también el permiso de la pantalla hermana
+ * (`/admin/correcciones`, que pinta ese mismo libro persona por persona).
+ *
+ * Ojo con el libro de correcciones, porque su nombre engaña: desde la 0119 no
+ * registra solo marcajes. Ahí caen los cambios de vínculo, de régimen de
+ * pensión, de retención de 4ta, de rol, de sede base y las altas de documentos
+ * firmados, cada uno con su valor anterior, su valor nuevo y su motivo — y una
+ * corrección de DNI (`personas.documento`, 0344) deja el número en
+ * `valor_nuevo`. Aun así esto NO es `puedeVerIdentidad`, y la razón es
+ * incómoda: la RLS de `correcciones_auditoria` ya le entrega esas filas a la
+ * encargada de su sede, y la pantalla hermana ya se las pinta. Estrechar solo el
+ * CSV no taparía nada; el día que se decida taparlo se tapa en la RLS y en las
+ * dos pantallas, no acá.
+ *
+ * Se nombra aparte igual, por la misma razón que `puedeExportarPadron` existe al
+ * lado de `puedeVerIdentidad`: ver un dato en pantalla y poder llevárselo son dos
+ * preguntas distintas. Un archivo sale del sistema, se reenvía y ya nadie sabe
+ * dónde está — el día que alguien decida que el rastro crudo solo se lo lleva
+ * DO, se cambia acá y en
+ * `ROLES_EXPORTAN_ASISTENCIA`, que es de donde el menú saca a quién le pinta el
+ * renglón.
+ *
+ * La encargada de sede sí puede: es el archivo que pide una inspección para su
+ * tienda, y el alcance —solo su gente— no lo decide esto sino la RLS de
+ * `jornadas`, `marcajes` y `correcciones_auditoria` (0003). Permiso y alcance
+ * son dos preguntas distintas, como en `puedeOperarEquipo`.
+ */
+export function puedeExportarAsistencia(rol: RolPosible): boolean {
+  return tiene(DO_Y_ENCARGADA, rol);
+}
+
+/**
  * Las mismas listas, para filtrar datos que vienen de la base (`.in("rol", …)`,
  * `.includes(p.rol)`). Van tipadas como `string` a propósito: el rol que llega de
  * Postgres es texto libre, y exigirle el tipo `Rol` obligaría a un cast en cada
@@ -116,6 +204,17 @@ const SOLO_DIRECCION: readonly Rol[] = ["admin"];
  * código todavía no conoce.
  */
 export const ROLES_CON_PANEL: readonly Rol[] = DO_Y_ENCARGADA;
+
+/**
+ * Quiénes ven el renglón «Exportar CSV» del menú. Es la lista de
+ * `puedeExportarAsistencia`, que es quien decide de verdad dentro de la
+ * pantalla; existe porque el menú filtra por lista y no por función, y sin ella
+ * el día que ese permiso se estreche el renglón seguiría pintándose para quien
+ * ya no puede — un clic hasta un «no tienes permiso». Hoy coincide con
+ * `ROLES_CON_PANEL`, y `tests/permisos.test.ts` se pone rojo si la lista y la
+ * función dejan de decir lo mismo.
+ */
+export const ROLES_EXPORTAN_ASISTENCIA: readonly Rol[] = DO_Y_ENCARGADA;
 
 /** Los roles de DO, para filtrar listas (p. ej. "a quién puedo corregirle el marcaje"). */
 export const ROLES_DO: readonly string[] = DO;

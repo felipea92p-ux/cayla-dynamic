@@ -1,4 +1,5 @@
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
+import { enviarMarcaje } from "./enviar-marcaje";
 import {
   obtenerPendientes,
   eliminarDeOutbox,
@@ -19,18 +20,15 @@ export async function sincronizarPendientes() {
 
     const supabase = createTerminalSupabaseClient();
     for (const entry of pendientes) {
-      const { error } = await supabase.rpc("fn_registrar_marcaje", {
-        p_persona_id: entry.personaId,
-        p_tipo: entry.tipo,
-        p_timestamp_cliente: entry.timestampCliente,
-        p_client_uuid: entry.clientUuid,
-        p_origen: "terminal",
-        p_terminal_id: entry.terminalId,
-        p_motivo_otro: entry.motivoOtro,
-      });
+      // Con tope de tiempo, y no es un detalle de cortesía: `sincronizando` se
+      // libera en el `finally` de abajo, al que no se llega si un envío se
+      // cuelga dentro del bucle. Sin tope, un solo envío colgado dejaba la cola
+      // ENTERA parada para siempre — cada tick posterior salía por la primera
+      // línea creyendo que ya había una sincronización en marcha.
+      const { ok, error, llego } = await enviarMarcaje(supabase, entry);
 
-      if (error) {
-        await registrarIntentoFallido(entry.clientUuid, error.message);
+      if (!ok) {
+        await registrarIntentoFallido(entry.clientUuid, error ?? "sin detalle");
         // Tras varios intentos se deja de reintentar para no acumular "sin enviar"
         // para siempre — pero la marca NO se borra: se APARTA.
         //
@@ -39,8 +37,13 @@ export async function sincronizarPendientes() {
         // la causa #1 de rechazo permanente era una marca ATRASADA (mig. 0068), o
         // sea justo una marca real. Se perdía asistencia en silencio, sin rastro.
         // Regla nueva: una marca que una persona hizo de verdad jamás se destruye.
-        if ((entry.intentos ?? 0) + 1 >= 6) {
-          await marcarComoDescartada(entry.clientUuid, error.message);
+        //
+        // Y solo cuenta para el tope lo que el servidor CONTESTÓ. Un envío que no
+        // llegó no dice nada sobre la marca: seis ticks son minuto y medio, así
+        // que sin esta condición una caída corta de internet apartaría marcas
+        // buenas — el mismo error de fondo que el db.delete() de antes.
+        if (llego && (entry.intentos ?? 0) + 1 >= 6) {
+          await marcarComoDescartada(entry.clientUuid, error ?? "sin detalle");
         }
         continue; // no bloquea el resto de la cola por un fallo puntual
       }

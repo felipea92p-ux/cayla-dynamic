@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { TipoMarca } from "@cayla-dynamic/shared";
+import { Cargando } from "@/components/cargando";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
@@ -41,15 +42,76 @@ export function SelectorSede({
   );
 }
 
+/**
+ * En qué punto está la lista de personas de la sede.
+ *
+ * Existe porque una lista vacía significaba TRES cosas distintas y la pantalla
+ * las contaba como una sola: «esta sede no tiene gente», «todavía estoy
+ * cargando» y «no la pude cargar». Quien lo veía era una integrante a las ocho
+ * de la mañana, justo después de un reinicio de la Mac mini o de un corte de
+ * red, sin nadie de soporte al lado — y lo que leía era «Nadie en esta sede
+ * todavía», o sea que se había borrado el equipo entero.
+ */
+export type EstadoRoster = "cargando" | "listo" | "error";
+
 export function NombreGrid({
   roster,
+  estado,
   onSeleccionar,
+  onReintentar,
 }: {
   roster: RosterEntry[];
+  estado: EstadoRoster;
   onSeleccionar: (persona: RosterEntry) => void;
+  onReintentar: () => void;
 }) {
   if (roster.length === 0) {
-    return <p className="text-taupe">Nadie en esta sede todavía.</p>;
+    // El colibrí que aletea es el estado de carga de toda la casa
+    // (`components/cargando.tsx`) y no uno nuevo para el terminal: lo que
+    // distingue «trabajando» de «colgado» es el movimiento, y esa pieza ya
+    // existe. Un segundo spinner acá sería la copia que ese archivo cuenta
+    // haber tardado meses en juntar.
+    if (estado === "cargando") {
+      // En `text-2xl` y no en el `text-sm` de siempre: esto se lee de pie, a un
+      // metro de una Mac mini a pantalla completa, y era el único de los tres
+      // estados que se había quedado en 14 px — justo el que se mira a las ocho
+      // de la mañana. El tamaño es una prop del componente de la casa, no una
+      // copia suya acá.
+      return <Cargando texto="Cargando el equipo de la sede…" clase="font-serif text-2xl" />;
+    }
+
+    // El error no comparte texto con el vacío ni con la carga, y dice qué
+    // hacer. Se llega acá con `fuente === "ninguna"` (lib/terminal/roster.ts),
+    // o sea cuando NO contestó ni el servidor ni la copia local que el terminal
+    // guarda para trabajar sin red: no es «hoy no vino nadie», es que esta Mac
+    // no tiene la lista.
+    if (estado === "error") {
+      return (
+        <div className="flex max-w-xl flex-col items-center gap-5 text-center">
+          <span aria-hidden className="text-5xl">⚠️</span>
+          <p className="font-serif text-3xl text-rojo" role="alert">
+            No se pudo cargar el equipo de esta sede.
+          </p>
+          {/* Le dice qué hacer con su hora, no solo que hoy no puede marcar: lo
+              que registra este sistema alimenta el pago, y quien lee esto está
+              sola a las ocho de la mañana. Sin esa frase se va a trabajar sin
+              marca de entrada y sin saber que su llegada hay que apuntarla.
+              Y la máquina se llama «esta Mac» en las dos frases: cuatro líneas
+              más arriba «equipo» son las personas de la sede. */}
+          <p className="text-xl text-taupe">
+            Esta Mac no pudo leer la lista, ni del servidor ni de su copia guardada. Si hay internet
+            en la tienda, toca «Volver a intentar». Si sigue igual, hoy no se puede marcar en esta
+            Mac: <strong className="text-tinta">anota tu hora de llegada y dísela a tu encargada</strong>,
+            que la registra desde el panel. Tus horas no se pierden.
+          </p>
+          <button onClick={onReintentar} className={`${BTN_PRIMARIO} py-4 text-xl`}>
+            Volver a intentar
+          </button>
+        </div>
+      );
+    }
+
+    return <p className="font-serif text-2xl text-taupe">Nadie en esta sede todavía.</p>;
   }
 
   return (
@@ -63,71 +125,6 @@ export function NombreGrid({
           {persona.nombres} {persona.apellidos}
         </button>
       ))}
-    </div>
-  );
-}
-
-export function TecladoPin({
-  nombre,
-  onCompletar,
-  onCancelar,
-  error,
-}: {
-  nombre: string;
-  onCompletar: (pin: string) => void;
-  onCancelar: () => void;
-  error: string | null;
-}) {
-  const [pin, setPin] = useState("");
-
-  useEffect(() => {
-    setPin("");
-  }, [error]);
-
-  function tocar(digito: string) {
-    if (pin.length >= 4) return;
-    const siguiente = pin + digito;
-    setPin(siguiente);
-    if (siguiente.length === 4) {
-      onCompletar(siguiente);
-    }
-  }
-
-  function borrar() {
-    setPin((p) => p.slice(0, -1));
-  }
-
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6">
-      <p className="font-serif text-2xl">{nombre}</p>
-      <p className="text-sm text-taupe">Ingresa tu PIN de 4 dígitos</p>
-      <div className="flex gap-3">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={`h-4 w-4 rounded-full border border-sand ${i < pin.length ? "bg-tinta" : "bg-transparent"}`}
-          />
-        ))}
-      </div>
-      {error && <p className="text-sm text-rojo">{error}</p>}
-      <div className="grid grid-cols-3 gap-3">
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"].map((d, i) =>
-          d === "" ? (
-            <div key={i} />
-          ) : (
-            <button
-              key={i}
-              onClick={() => (d === "⌫" ? borrar() : tocar(d))}
-              className={`${TILE} h-16 w-16 rounded-full text-xl`}
-            >
-              {d}
-            </button>
-          ),
-        )}
-      </div>
-      <button onClick={onCancelar} className="text-sm text-taupe underline">
-        Cancelar
-      </button>
     </div>
   );
 }
@@ -316,6 +313,39 @@ export function PantallaCerrado({
   );
 }
 
+// Solo aparece cuando el propio terminal ve que hoy no hay ninguna salida a
+// refrigerio marcada y la persona está cerrando su día (ver 0353) — nunca en
+// cada salida.
+export function ConfirmarRefrigerio({
+  nombre,
+  onElegir,
+  onCancelar,
+}: {
+  nombre: string;
+  onElegir: (trabajoCorrido: boolean) => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
+      <p className="font-serif text-2xl">{nombre}</p>
+      <p className="max-w-sm text-lg">
+        Hoy no marcaste una salida a refrigerio. ¿Trabajaste corrido, sin parar a almorzar?
+      </p>
+      <div className="flex w-full max-w-sm flex-col gap-3">
+        <button onClick={() => onElegir(true)} className={`${BTN_PRIMARIO} py-5 text-xl`}>
+          Sí, trabajé corrido
+        </button>
+        <button onClick={() => onElegir(false)} className={`${TILE} px-5 py-4 text-lg`}>
+          No, sí almorcé — se me olvidó marcar
+        </button>
+      </div>
+      <button onClick={onCancelar} className="text-sm text-taupe underline">
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
 const MOTIVOS_REENTRADA = ["Seguiré laborando", "Solicitud del equipo", "Mi turno aún no termina"];
 
 export function MotivoReentrada({
@@ -342,10 +372,24 @@ export function MotivoReentrada({
   );
 }
 
-export function PantallaMensaje({ mensaje }: { mensaje: string }) {
+/**
+ * El cartel que ve la persona antes de darse la vuelta.
+ *
+ * `tono` existe porque hasta el 2026-08-10 un rechazo del servidor se pintaba
+ * EXACTAMENTE igual que un «Listo»: mismo tamaño, mismo color, mismos dos
+ * segundos y medio. Cambiar solo el texto habría dejado el arreglo a medias —
+ * en una pantalla que se limpia sola, lo que distingue una buena noticia de una
+ * mala es sobre todo el color, y quien marca lo mira de reojo mientras guarda
+ * el celular.
+ */
+export function PantallaMensaje({ mensaje, tono = "ok" }: { mensaje: string; tono?: "ok" | "alerta" }) {
+  const alerta = tono === "alerta";
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-      <p className="font-serif text-3xl">{mensaje}</p>
+    <div className={`flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center ${alerta ? "bg-rojo/[0.06]" : ""}`}>
+      {alerta && <span aria-hidden className="text-5xl">⚠️</span>}
+      <p className={`font-serif text-3xl ${alerta ? "font-medium text-rojo" : ""}`} role={alerta ? "alert" : undefined}>
+        {mensaje}
+      </p>
     </div>
   );
 }

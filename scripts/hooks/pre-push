@@ -41,6 +41,73 @@ echo "→ numeración de migraciones y pruebas…"
 echo "→ la consulta de qué falta pegar…"
 "$(dirname "$0")/../que-falta-pegar.sh" --arregla || exit 1
 
+# Una migración sin commitear puede estar YA aplicada en producción, y entonces su
+# único ejemplar está en esta Mac. Pasó con la 0177 (2026-08-07) y otra vez con la
+# 0243 (2026-08-14), con cuatro pushes en el medio que no dijeron nada.
+#
+# Va acá, entre los instantáneos y antes del typecheck, porque tarda un parpadeo.
+# AVISA Y NO BLOQUEA — el motivo largo está en su cabecera, y es la misma regla
+# que la de `types.ts` de abajo: lo que solo está en el disco se avisa, porque
+# otra sesión puede estar escribiéndola ahora mismo.
+echo "→ migraciones sin guardar…"
+"$(dirname "$0")/migracion-sin-guardar.sh" || true
+
+# ── Lo que `main` tiene y esta rama no ──────────────────────────────────────
+#
+# El 2026-08-20 la 0276 se construyó sobre un cuerpo de `fn_planilla_calcular`
+# que ya no era el vigente: otra sesión había fusionado la 0275 a `main` y
+# Felipe la había pegado. `donde-vive.sh` y `db reset` no lo vieron porque los
+# dos miran el worktree, y el worktree no la tenía. Lo cazó el md5 de
+# producción, o sea el último freno, con el trabajo ya hecho y commiteado.
+#
+# AVISA, no bloquea: ir por detrás de `main` es un estado legítimo y constante
+# con varias sesiones en paralelo. Sube el tono solo cuando las migraciones que
+# faltan tocan las MISMAS funciones que las tuyas, que es el caso que hace daño.
+echo "→ lo que main tiene y tú no…"
+"$(dirname "$0")/main-tiene-migraciones-que-no-tienes.sh" || true
+
+# ── Las reglas del CLAUDE.md, preguntadas en vez de recordadas ──────────────
+#
+# La auditoría de agosto de 2026 encontró diez comparaciones de `rol` contra un
+# literal fuera de `permisos.ts` y tres `"America/Lima"` fuera de
+# `fecha-lima.ts` — las dos reglas están escritas, y las dos se escribieron
+# DESPUÉS de juntar 35 y 32 copias respectivamente. El documento no falló por
+# estar mal escrito: falló porque un documento es memoria, y aquí trabajan
+# varias sesiones a la vez.
+#
+# Va acá, con los instantáneos y antes del typecheck, porque tarda un parpadeo.
+# BLOQUEA, a diferencia de los dos de arriba, y la distinción es la que este
+# hook ya tenía escrita: esto habla de lo que SALE hacia GitHub, no del disco.
+echo "→ las reglas de la casa…"
+"$(dirname "$0")/reglas-de-la-casa.sh" || exit 1
+
+# ── Un campo de fecha que arranca vacío y bloquea el envío ─────────────────
+#
+# El 2026-08-26 no se pudo registrar un descanso médico: el campo mostraba la
+# fecha en pantalla y llegaba vacío al formulario, porque Safari la había puesto
+# sin disparar el evento que React escucha. La validación rechazaba un dato que
+# la persona estaba viendo, y reescribirlo no servía. Cinco despliegues.
+#
+# Mismo criterio que los de arriba: solo lo que el push AGREGA. Quedan tres
+# campos así en el repositorio y frenar por ellos volvería este freno un trámite.
+echo "→ fechas que arrancan vacías…"
+"$(dirname "$0")/fecha-que-bloquea.sh" || exit 1
+
+# ── El linter, pero solo sobre lo que este push agrega ─────────────────────
+#
+# ESLint llevaba instalado y apagado desde julio. La auditoría de agosto lo
+# encontró con 119 errores; una semana después eran 131. Creció en doce sin que
+# nadie lo notara, que es lo que le pasa a un guardián que nadie enciende.
+#
+# Mismo criterio que el de arriba y que numeracion.sh: solo juzga lo que el push
+# AÑADE. Los errores viejos no frenan a nadie; el 132 no entra.
+#
+# Es barato porque no lintea el repositorio entero: solo los archivos que el
+# push modifica, y si no toca ningún .ts ni .tsx sale en un parpadeo — que aquí
+# es lo normal, porque la mayoría de los push son SQL.
+echo "→ el linter, sobre lo nuevo…"
+"$(dirname "$0")/lint-de-lo-nuevo.sh" || exit 1
+
 # ── Los tipos generados, que no pueden viajar vacíos ────────────────────────
 #
 # `packages/database/src/types.ts` lo escribe `gen-types` de un tirón: si el

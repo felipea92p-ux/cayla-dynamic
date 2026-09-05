@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
@@ -12,6 +13,7 @@ import {
   construirDocumento,
   documentoAJson,
   documentoDesdeGuardado,
+  documentoTieneCambios,
   type Bloque,
   type Cuadro,
   type Documento,
@@ -36,13 +38,19 @@ import {
 // física. Lo que se guarda —quién, cuándo y QUÉ VERSIÓN— prueba más que una
 // firma a mano, que no dice qué versión se firmó.
 
-const DO = ["admin", "lider_do"];
-
 interface Vigente {
   publicada: boolean;
   version?: number;
   documento?: string;
   publicada_at?: string;
+  /**
+   * La huella cruda de `fn_politica_salarial_vigente`: compara TODO el cuadro,
+   * personas y rangos internos incluidos. Se usa solo como respaldo para una
+   * versión publicada antes de que el documento se guardara como JSON (texto
+   * plano, sin estructura que comparar) — para todo lo demás manda
+   * `documentoTieneCambios`, más abajo, que compara lo que el papel dice de
+   * verdad y no lo que la base guarda por dentro.
+   */
   desactualizada: boolean;
   mi_acuse: { acusado_at: string; nombre: string } | null;
   total_personas?: number;
@@ -63,7 +71,7 @@ function fechaLarga(iso: string): string {
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "America/Lima",
+    timeZone: TZ_LIMA,
   }).format(new Date(iso));
 }
 
@@ -74,7 +82,7 @@ function fechaHora(iso: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "America/Lima",
+    timeZone: TZ_LIMA,
   }).format(new Date(iso));
 }
 
@@ -83,7 +91,7 @@ function fechaHora(iso: string): string {
 // — y el que vale como prueba es el publicado.
 function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | null }) {
   return (
-    <article className="rounded border border-slate-300 bg-white p-6">
+    <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
       <header className="mb-6 border-b border-slate-300 pb-4">
         <h2 className="text-lg font-semibold text-slate-900">{doc.titulo}</h2>
         <p className="text-sm text-slate-600">
@@ -93,13 +101,19 @@ function DocumentoVista({ doc, firmaUrl }: { doc: Documento; firmaUrl: string | 
       </header>
       {doc.secciones.map((sec, i) => (
         <section key={i} className="mb-6">
-          <h3 className="mb-3 text-base font-semibold text-slate-900">{sec.titulo}</h3>
+          {/* Un título que se queda solo al pie de una hoja manda a la siguiente
+              página el texto que anuncia; en papel eso se lee como si faltara. */}
+          <h3 className="mb-3 text-base font-semibold text-slate-900 print:break-after-avoid">
+            {sec.titulo}
+          </h3>
           {sec.bloques.map((b, j) => (
             <BloqueVista key={j} b={b} />
           ))}
         </section>
       ))}
-      <footer className="mt-10 border-t border-slate-300 pt-6">
+      {/* La firma no se separa nunca del nombre y el cargo que la sostienen: una
+          rúbrica suelta en la última hoja no acredita a quién pertenece. */}
+      <footer className="mt-10 border-t border-slate-300 pt-6 print:break-inside-avoid">
         {firmaUrl !== null && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={firmaUrl} alt="" className="mb-1 h-16 object-contain" />
@@ -170,7 +184,7 @@ function BloqueVista({ b }: { b: Bloque }) {
 export default function PoliticaSalarialPage() {
   useTituloDocumento("Política salarial");
   const persona = usePersonaActual();
-  const esDO = persona !== null && DO.includes(persona.rol);
+  const esDO = persona !== null && ROLES_DO.includes(persona.rol);
 
   const [cuadro, setCuadro] = useState<Cuadro | null>(null);
   const [vigente, setVigente] = useState<Vigente | null>(null);
@@ -211,7 +225,7 @@ export default function PoliticaSalarialPage() {
     const vf = (cfg.data?.valor ?? null) as { persona_id?: string } | null;
     setEsFirmante(Boolean(vf?.persona_id) && vf?.persona_id === yo.data);
 
-    if (persona !== null && DO.includes(persona.rol)) {
+    if (persona !== null && ROLES_DO.includes(persona.rol)) {
       const { data: a } = await supabase.rpc("fn_acuses_politica_salarial");
       setAcuses((a as { personas?: FilaAcuse[] } | null)?.personas ?? []);
     }
@@ -233,7 +247,7 @@ export default function PoliticaSalarialPage() {
         day: "numeric",
         month: "long",
         year: "numeric",
-        timeZone: "America/Lima",
+        timeZone: TZ_LIMA,
       }).format(new Date()),
     [],
   );
@@ -253,6 +267,26 @@ export default function PoliticaSalarialPage() {
     () => (cuadro ? categoriasFueraDeOrden(cuadro.categorias) : []),
     [cuadro],
   );
+
+  // El documento tal como quedó congelado en la última versión publicada, si
+  // se pudo parsear como JSON (documentoDesdeGuardado devuelve null para las
+  // versiones viejas guardadas como texto plano).
+  const publicadoDoc: Documento | null = useMemo(
+    () => (vigente?.documento ? documentoDesdeGuardado(vigente.documento) : null),
+    [vigente],
+  );
+
+  // Si lo que se publicaría hoy dice lo mismo que lo ya publicado, no hace
+  // falta pedirle al equipo que vuelva a acusar recibo de un texto idéntico —
+  // aunque la huella cruda del servidor haya cambiado por algo que el
+  // documento no muestra (ver documentoTieneCambios). Para una versión vieja
+  // sin JSON que comparar, se usa esa huella cruda como respaldo.
+  const desactualizada = useMemo(() => {
+    if (vigente === null || !vigente.publicada) return false;
+    if (docVivo === null) return false;
+    if (publicadoDoc === null) return vigente.desactualizada;
+    return documentoTieneCambios(docVivo, publicadoDoc);
+  }, [vigente, docVivo, publicadoDoc]);
 
   const publicar = async () => {
     if (docVivo === null) return;
@@ -304,22 +338,40 @@ export default function PoliticaSalarialPage() {
 
   return (
     <>
-      <AdminNav />
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <h1 className="mb-1 text-2xl font-semibold text-slate-900">
-          Cuadro de categorías y política salarial
-        </h1>
-        <p className="mb-6 text-sm text-slate-600">
-          Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona.
-        </p>
+      <div className="print:hidden">
+        <AdminNav />
+      </div>
+      <main className="mx-auto max-w-4xl px-4 py-8 print:max-w-none print:p-0">
+        {/* En papel esta cabecera sobra: el documento trae la suya con el título,
+            el RUC y la fecha, que es la que vale como ejemplar entregado. */}
+        <div className="print:hidden">
+          <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Cuadro de categorías y política salarial
+            </h1>
+            {/* La Ley 30709 pide ENTREGAR este documento a cada integrante, así
+                que llevarse una copia no es cosa de la Gerencia: el botón lo ve
+                cualquiera que pueda leer la pantalla. */}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
+              Imprimir / Guardar como PDF
+            </button>
+          </div>
+          <p className="mb-6 text-sm text-slate-600">
+            Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona.
+          </p>
+        </div>
 
         {error !== null && (
-          <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 print:hidden">
             {error}
           </p>
         )}
         {aviso !== null && (
-          <p className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <p className="mb-4 rounded border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 print:hidden">
             {aviso}
           </p>
         )}
@@ -367,9 +419,13 @@ export default function PoliticaSalarialPage() {
                   Versión <strong>{vigente.version}</strong>, publicada el{" "}
                   {vigente.publicada_at !== undefined ? fechaLarga(vigente.publicada_at) : "—"}.{" "}
                   Constancias: <strong>{vigente.total_acuses ?? 0}</strong> de{" "}
-                  {vigente.total_personas ?? 0}.
+                  {vigente.total_personas ?? 0}.{" "}
+                  <a href="/admin/politica-salarial/constancias" target="_blank" rel="noopener"
+                    className="underline underline-offset-2 hover:text-slate-950">
+                    hoja de constancias
+                  </a>
                 </p>
-                {vigente.desactualizada && (
+                {desactualizada && (
                   <p className="mb-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                     El cuadro cambió después de publicar: alguna categoría, remuneración o tarifa
                     ya no coincide con el documento que el equipo recibió. Publica una versión
@@ -382,7 +438,7 @@ export default function PoliticaSalarialPage() {
                   disabled={guardando}
                   className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
-                  {vigente.desactualizada ? "Publicar versión nueva" : "Volver a publicar"}
+                  {desactualizada ? "Publicar versión nueva" : "Volver a publicar"}
                 </button>
               </>
             )}
@@ -390,7 +446,7 @@ export default function PoliticaSalarialPage() {
         )}
 
         {/* ── El documento ── */}
-        {vigente !== null && vigente.publicada && !vigente.desactualizada ? (
+        {vigente !== null && vigente.publicada && !desactualizada ? (
           // Lo publicado, tal cual se comunicó. NO se regenera desde las tablas:
           // si se regenerara, cambiar una banda haría que las constancias
           // apuntaran a un texto que nadie leyó.
@@ -401,19 +457,15 @@ export default function PoliticaSalarialPage() {
           // versiones anteriores se guardaron como texto plano: para esas,
           // `documentoDesdeGuardado` devuelve null y se muestran tal cual — se
           // ven peor, pero son las que la gente firmó y no se tocan.
-          (() => {
-            const publicado = documentoDesdeGuardado(vigente.documento ?? "");
-            if (publicado === null) {
-              return (
-                <article className="rounded border border-slate-300 bg-white p-6">
-                  <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
-                    {vigente.documento}
-                  </pre>
-                </article>
-              );
-            }
-            return <DocumentoVista doc={publicado} firmaUrl={esFirmante ? firmaUrl : null} />;
-          })()
+          publicadoDoc !== null ? (
+            <DocumentoVista doc={publicadoDoc} firmaUrl={esFirmante ? firmaUrl : null} />
+          ) : (
+            <article className="rounded border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
+              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
+                {vigente.documento}
+              </pre>
+            </article>
+          )
         ) : (
           docVivo !== null && (
             <DocumentoVista doc={docVivo} firmaUrl={esFirmante ? firmaUrl : null} />

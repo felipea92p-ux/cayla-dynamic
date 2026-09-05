@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
+import { ROLES_CON_PANEL, claveSirve } from "@cayla-dynamic/shared";
+import { clavePorCambiar, marcarMiClavePorCambiar } from "@/lib/admin/mi-clave";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -17,13 +19,58 @@ export default function AdminLoginPage() {
     setCargando(true);
     setError(null);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setCargando(false);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      setCargando(false);
       setError("Correo o contraseña incorrectos.");
       return;
     }
-    router.replace("/admin/dashboard");
+
+    // A DÓNDE ATERRIZA CADA QUIEN.
+    //
+    // El Dashboard es un tablero de encargada. Una integrante con cuenta —las
+    // hay: se les invita para que dejen constancia de la política salarial, Ley
+    // 30709— caía ahí y veía una pantalla que su propia RLS le devuelve casi
+    // vacía: no es una fuga, es un tablero de otra persona que se lee como que
+    // el sistema no tiene datos. Su sitio es «Lo mío».
+    //
+    // Ante la duda se manda a /mio, no al panel: equivocarse hacia lo suyo no
+    // rompe nada, y equivocarse hacia el panel deja a alguien mirando pantallas
+    // que no le hablan.
+    const { data: yo } = await supabase
+      .from("personas")
+      .select("rol")
+      .eq("auth_user_id", data.user?.id ?? "")
+      .maybeSingle();
+
+    // ── ¿HAY QUE CAMBIAR ESTA CLAVE ANTES DE SEGUIR? ────────────────────────
+    //
+    // Éste es el ÚNICO momento en que el sistema ve una clave en claro: lo que
+    // Supabase guarda es un hash, y de un hash no se puede juzgar si la clave
+    // era «111111». Así que es el único sitio donde se puede atrapar a las que
+    // YA EXISTÍAN cuando se subió la política — subir el mínimo no caduca
+    // ninguna clave vieja, solo impide poner una nueva floja.
+    //
+    // Dos motivos llevan a la misma pantalla, y por eso comparten marca:
+    //   · `debil`    — la clave con la que acaba de entrar no cumple la política.
+    //   · `temporal` — se la dictaron al crear o resetear su cuenta, y nunca la
+    //                  cambió. Si se pasó por WhatsApp, como sugiere la propia
+    //                  pantalla de Cuentas, la conoce quien la envió.
+    //
+    // Se ANOTA en la cuenta además de redirigir: una redirección se esquiva
+    // escribiendo otra dirección en la barra, y esta cuenta ve los sueldos de
+    // todo el equipo. Con la marca puesta, el panel entero la devuelve acá.
+    const debil = !claveSirve(password, email);
+    if (debil) await marcarMiClavePorCambiar(data.session?.access_token ?? "");
+    if (debil || clavePorCambiar(data.user)) {
+      setCargando(false);
+      router.replace(`/admin/nueva-clave?motivo=${debil ? "debil" : "temporal"}`);
+      return;
+    }
+
+    setCargando(false);
+    const rol = (yo as { rol?: string } | null)?.rol;
+    router.replace(rol && ROLES_CON_PANEL.includes(rol as never) ? "/admin/dashboard" : "/mio");
   }
 
   return (

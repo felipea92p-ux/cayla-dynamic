@@ -11,14 +11,91 @@
   --color-rojo-profundo: #8b2a1f; /* énfasis sobre crema */
   --color-sand: #e8e0d0; /* recuadros, headers de tabla, líneas */
   --color-taupe: #805c4c; /* acento tonal, estados intermedios */
-  /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema. */
-  --color-verde: #5b754f; /* presente / trabajando */
-  --color-ambar: #8d6726; /* en pausa */
+  /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema.
+     Retunados el 2026-09-06: los valores anteriores (#5b754f, #8d6726) daban
+     4.51:1 sobre crema — el límite exacto de WCAG AA, tal como se pinta el pill
+     de Insignia al 15% de opacidad. Verificado con la fórmula de contraste
+     relativo: estos dos dan 6.13:1 y 6.37:1, mismo matiz tierra, un paso más
+     oscuro/saturado. */
+  --color-verde: #48603f; /* presente / trabajando */
+  --color-ambar: #74501a; /* en pausa */
+  /* Once tokens, no nueve, desde el 2026-09-06 (ver CLAUDE.md): dos superficies
+     nuevas para huecos que los nueve originales no cubrían.
+     Hueso: un tercer nivel de superficie, "hundido" (crema es el fondo, papel es
+     lo elevado; hasta ahora no había nada por DEBAJO de crema). Se usa en
+     inputs y en la zebra de filas de tabla — antes la única distinción de
+     superficie era el salto de 3-5% de luminosidad entre crema y papel, casi
+     imperceptible en una pantalla mal calibrada. */
+  --color-hueso: #eae1d2;
+  /* Pizarra: el estado "informativo / en proceso" (programado, en revisión,
+     borrador, pendiente de firma) que hoy se apila sin distinguirse sobre sand
+     neutro — ninguno de los estados existentes (verde=positivo,
+     ámbar=advertencia, rojo=alerta) le queda, y esa ausencia es justo lo que
+     empuja a usar un color de Tailwind por defecto por error. 5.13:1 sobre
+     crema. */
+  --color-pizarra: #55677a;
+
+  /* ── Radios ───────────────────────────────────────────────────
+     Antes convivían 7 escalas (rounded, rounded-md, rounded-lg, rounded-xl,
+     rounded-2xl...) sin ningún criterio de qué componente usa cuál. Estos
+     cuatro son los únicos que un componente compartido debería usar de acá en
+     adelante. */
+  --radius-control: 0.625rem; /* 10px — botones, inputs, selects, badges cuadrados */
+  --radius-superficie: 1rem; /* 16px — tarjetas y el contenedor de Tabla (mismo valor que rounded-2xl de hoy, ahora con nombre) */
+  --radius-flotante: 1.25rem; /* 20px — modales, dropdowns, popovers: un paso más que "superficie" para que se sienta encima */
+  --radius-pildora: 999px; /* insignias, avatares */
 
   /* ── Tipografía ───────────────────────────────────────────────
      Serif para títulos y datos con alma; sans para el sistema. */
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-eb-garamond), ui-serif, Georgia, "Times New Roman", serif;
+}
+
+/* ── Modo oscuro ────────────────────────────────────────────────
+   Mismos nueve nombres, valores distintos: como el resto de la pantalla se
+   pinta con `bg-crema`, `text-tinta`, etc. —nunca con un hex suelto—, redefinir
+   estas variables basta para que toda la app cambie de tema sin tocar un solo
+   componente. Misma filosofía que la paleta clara: nunca negro absoluto, sin
+   gradientes ni sombras — acá "tinta sobre papel" se invierte a "papel sobre
+   tinta", no se vuelve blanco-sobre-negro.
+
+   Tres formas de decidir el tema, en orden de prioridad:
+     1. `data-tema="oscuro"` u `data-tema="claro"` en <html> — elegido a mano
+        con el selector del menú, y guardado en localStorage por `useTema`.
+     2. Sin atributo: sigue `prefers-color-scheme` del sistema operativo.
+     3. Ninguno de los dos: la paleta de arriba (clara) de toda la vida.
+
+   El script de `app/layout.tsx` pone el atributo ANTES de pintar, para que no
+   haya un parpadeo del tema equivocado al cargar (mismo motivo que el shim de
+   touchstart de esa misma pantalla: algo que solo se puede resolver antes de
+   que React monte). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --color-crema: #1c1a16;
+    --color-papel: #26221d;
+    --color-tinta: #ede7db;
+    --color-rojo: #d4634a;
+    --color-rojo-profundo: #e8836b;
+    --color-sand: #332e27;
+    --color-taupe: #ab9080;
+    --color-verde: #85a476;
+    --color-ambar: #c99a4a;
+    --color-hueso: #15110d;
+    --color-pizarra: #9db0c2;
+  }
+}
+:root[data-tema="oscuro"] {
+  --color-crema: #1c1a16;
+  --color-papel: #26221d;
+  --color-tinta: #ede7db;
+  --color-rojo: #d4634a;
+  --color-rojo-profundo: #e8836b;
+  --color-sand: #332e27;
+  --color-taupe: #ab9080;
+  --color-verde: #85a476;
+  --color-ambar: #c99a4a;
+  --color-hueso: #15110d;
+  --color-pizarra: #9db0c2;
 }
 
 @layer base {
@@ -35,6 +112,16 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Foco de teclado de sistema, agregado el 2026-09-06: antes solo 2-9 de ~40
+     archivos de admin definían algún estado de foco visible, y el resto
+     dependía del anillo azul por defecto del navegador (ni token, ni
+     garantizado sobre rounded-lg ni en modo oscuro). Una sola regla lo resuelve
+     para todos los botones, enlaces e inputs de una vez. */
+  :focus-visible {
+    outline: 2px solid var(--color-rojo);
+    outline-offset: 2px;
   }
 }
 
@@ -65,6 +152,15 @@ a.bg-tinta:hover {
 .aletea { animation: aletea 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .aletea { animation: none; } }
 
+/* El "respiro" de los esqueletos de carga (EsqueletoTabla) — opacidad que sube
+   y baja, no un brillo que cruza la pantalla: más quieto, a tono con el resto. */
+@keyframes respira {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.pulso-carga { animation: respira 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pulso-carga { animation: none; opacity: 0.75; } }
+
 /* Isotipo recoloreable: usa el PNG de línea como máscara y lo tiñe con color plano. */
 .colibri {
   display: inline-block;
@@ -74,6 +170,140 @@ a.bg-tinta:hover {
   mask: url(/colibri.png) center / contain no-repeat;
 }
 
+/* ── El contrato de trabajo ──────────────────────────────────────
+   El contrato se inyecta con `dangerouslySetInnerHTML` desde
+   `apps/web/lib/admin/contrato-texto.ts`, así que Tailwind NO lo alcanza: sus
+   `h2`, `ol` y `p` internos no pueden llevar clases de utilidad.
+
+   Y sin estas reglas el documento no salía «sin estilo»: salía ROTO. El
+   preflight de Tailwind v4 pone `font-size: inherit; font-weight: inherit` en
+   h1–h6 y `list-style: none` en ol/ul — o sea que un contrato de ocho páginas
+   imprimía «ANEXO III — DOMICILIO ELECTRÓNICO» del mismo tamaño que el párrafo
+   de al lado, y el Anexo I de funciones salía SIN NÚMEROS. Ese anexo se numera
+   justamente para poder citarlo («la función 14 del Anexo I») el día que haya
+   que sustentar un incumplimiento; sin números, no se puede citar.
+
+   Va acotado a `.contrato` y no a `.hoja` a propósito: `.hoja` la comparte la
+   boleta de pago, que es una tabla y no quiere esta tipografía.
+
+   POR QUÉ EL ESTILO VIVE ACÁ Y NO DENTRO DEL HTML CONGELADO. La 0272 congela
+   `documento_html` al generar el borrador, y lo que se congela es lo PACTADO —
+   las palabras—, no cómo se ven. Si el CSS viajara dentro de cada fila, los
+   contratos ya generados quedarían rotos para siempre y cada uno llevaría su
+   copia inarreglable; acá, se arreglan solos al reimprimirse. */
+.contrato h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  margin: 0 0 0.75rem;
+}
+.contrato h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 1.5rem 0 0.5rem;
+}
+.contrato h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 1.1rem 0 0.4rem;
+}
+.contrato p {
+  margin: 0 0 0.6rem;
+  text-align: justify;
+}
+.contrato ol {
+  list-style: decimal;
+  padding-left: 1.6rem;
+  margin: 0 0 0.6rem;
+}
+.contrato ol[type="a"] {
+  list-style: lower-alpha;
+}
+.contrato ul {
+  list-style: disc;
+  padding-left: 1.6rem;
+  margin: 0 0 0.6rem;
+}
+.contrato li {
+  margin: 0 0 0.25rem;
+}
+.contrato header {
+  text-align: center;
+  margin-bottom: 1.2rem;
+}
+.contrato header p,
+.contrato .empresa,
+.contrato .ruc,
+.contrato .norma {
+  text-align: center;
+}
+.contrato .empresa {
+  font-weight: 700;
+}
+.contrato .ruc,
+.contrato .norma {
+  font-size: 0.85em;
+}
+
+/* Los bloques de firma. `.linea` es la raya sobre la que se firma a mano: sin
+   `border-bottom` era un `&nbsp;` invisible, o sea ningún sitio donde firmar.
+   La altura deja espacio para una rúbrica de puño y letra. */
+.contrato .firmas {
+  display: flex;
+  gap: 2.5rem;
+  margin: 2.5rem 0 1rem;
+  break-inside: avoid;
+}
+.contrato .firmas > div {
+  flex: 1;
+}
+.contrato .firmas p {
+  text-align: center;
+}
+.contrato .linea {
+  border-bottom: 1px solid var(--color-tinta);
+  height: 3.2rem;
+  margin: 0 0 0.3rem;
+  position: relative;
+}
+/* La firma escaneada se apoya sobre la raya, no la reemplaza.
+   `mix-blend-mode: multiply` hace que el fondo blanco del escaneo desaparezca
+   contra el papel: sin esto se veía un recuadro blanco opaco tapando la línea,
+   como una pegatina pegada encima. Desde 2026-08-24 las firmas nuevas se
+   guardan ya con el fondo transparente, pero esto sigue haciendo falta para
+   las que se subieron antes — y no estorba a las nuevas. */
+.contrato .linea img {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-height: 3rem;
+  mix-blend-mode: multiply;
+}
+.contrato .pie-hoja {
+  text-align: center;
+  font-size: 0.75em;
+  margin-top: 1.2rem;
+}
+
+/* ── El memo disciplinario ───────────────────────────────────────
+   Vivía como un <style> local en disciplina/memo/[id]/page.tsx, con reglas de
+   impresión que ya decía @media print de acá abajo (tr { break-inside: avoid })
+   y un color de texto fijo que ya no hace falta: el texto sigue --color-tinta,
+   y esa variable se fuerza a su valor claro al imprimir sin importar el tema
+   de pantalla (ver @media print). Solo quedan las dos reglas que de verdad son
+   propias del memo. */
+.memo p {
+  margin: 0 0 10px;
+  text-align: justify;
+}
+.memo h2 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
 /* ── El papel ────────────────────────────────────────────────────
    No había ni una regla de impresión en el proyecto, así que la boleta salía
    siendo la pantalla apretada en una hoja: se partía en dos páginas y el total
@@ -81,6 +311,30 @@ a.bg-tinta:hover {
    La boleta se imprime y se ENTREGA, así que el papel es un destino de primera
    clase, no un descarte del diseño de pantalla. */
 @media print {
+  /* El papel es siempre de día, elija quien elija tema en pantalla: un
+     documento se imprime, se firma y se archiva, y tiene que leerse igual
+     dentro de dos años en un tema que puede que ni exista ya. Sin esto, quien
+     imprime en modo oscuro se lleva texto casi-blanco sobre fondo blanco —
+     técnicamente el aviso de abajo lo fuerza a `#fff`, pero nada más lo sabría.
+
+     Selector repetido con la misma especificidad que las reglas de tema de
+     arriba (0,1,0,1: un atributo) y NO solo `:root`, que perdería el empate
+     por especificidad contra `:root[data-tema="oscuro"]` aunque este bloque
+     vaya después en el archivo. */
+  :root,
+  :root[data-tema="claro"],
+  :root[data-tema="oscuro"] {
+    --color-crema: #f5f0e8;
+    --color-papel: #fbf8f2;
+    --color-tinta: #1a1a18;
+    --color-rojo: #b8412d;
+    --color-rojo-profundo: #8b2a1f;
+    --color-sand: #e8e0d0;
+    --color-taupe: #805c4c;
+    --color-verde: #5b754f;
+    --color-ambar: #8d6726;
+  }
+
   @page {
     size: A4;
     margin: 14mm;
@@ -117,5 +371,25 @@ a.bg-tinta:hover {
 
   .hoja-suelta:last-child {
     break-after: auto;
+  }
+
+  /* Cada anexo del contrato empieza en página nueva, como el contrato modelo en
+     papel. Se engancha al `h2` y no a una clase nueva porque en este documento
+     un `h2` es siempre un título de anexo — y así los contratos ya generados,
+     que no llevan la envoltura `<section class="anexo">`, también salen bien
+     al reimprimirse. */
+  .contrato h2 {
+    break-before: page;
+  }
+
+  /* Un título nunca se queda solo al pie de una página, ni un bloque de firma
+     separado del texto que lo precede. */
+  .contrato h2 + p,
+  .contrato h3 + p {
+    break-before: avoid;
+  }
+
+  .contrato .firmas {
+    break-inside: avoid;
   }
 }

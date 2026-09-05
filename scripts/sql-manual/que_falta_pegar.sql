@@ -73,7 +73,184 @@ with repo(numero, nombre) as (values
     (196, 'tres_puertas_en_vez_de_una_para_los_beneficios'),
     (197, 'el_certificado_medico_se_guarda_y_los_20_dias_avisan'),
     (198, 'el_cuspp_y_el_correo_entran_a_la_ficha'),
-    (199, 'un_locador_no_cobra_feriados_ni_aparece_provisionando')
+    (199, 'un_locador_no_cobra_feriados_ni_aparece_provisionando'),
+    (200, 'el_semaforo_sabe_en_que_escalon_esta_cada_quien'),
+    (201, 'la_foto_del_pago_aprende_el_sobretiempo'),
+    (202, 'un_terminal_activo_sin_dueno_deja_de_poder_existir'),
+    (203, 'lo_que_se_congela_al_pagar_se_descongela_al_reabrir'),
+    (204, 'un_drop_se_lleva_el_permiso_y_la_pantalla_se_calla'),
+    (205, 'la_carta_de_despido_lleva_su_fecha_de_cese'),
+    (206, 'el_descargo_entra_al_legajo_y_la_imputacion_se_puede_cerrar'),
+    (207, 'una_marca_que_cae_en_un_periodo_pagado_deja_de_entrar_muda'),
+    (208, 'el_reglamento_se_entrega_y_queda_constancia'),
+    (209, 'reactivar_devuelve_el_sueldo_desde_el_dia_que_vuelve'),
+    (210, 'la_planilla_ve_la_liquidacion_que_ya_se_pago'),
+    (211, 'reemplazar_la_politica_de_movilidad_la_reemplaza'),
+    (212, 'ninguna_sancion_sin_escuchar_antes'),
+    (213, 'solo_agrava_lo_que_se_entrego'),
+    (214, 'la_carta_de_despido_la_firma_gerencia_general'),
+    (215, 'los_cinco_anexos_del_reglamento'),
+    (216, 'el_tipo_de_cada_sede_que_retail_necesita'),
+    (217, 'el_cajon_retail_y_sus_permisos'),
+    (218, 'retail_lee_la_identidad_de_dynamic'),
+    (219, 'el_catalogo_de_tiendas_entra_al_cajon'),
+    (220, 'la_operacion_de_tiendas_entra_al_cajon'),
+    (221, 'contabilidad_y_produccion_entran_al_cajon'),
+    (222, 'las_funciones_que_mueven_stock_caja_y_ventas'),
+    (223, 'las_funciones_de_finanzas_del_cajon'),
+    (224, 'las_funciones_de_produccion_del_taller'),
+    (225, 'el_buzon_de_fotos_de_producto'),
+    (226, 'el_material_del_modelo_y_las_seis_etapas'),
+    (227, 'las_once_de_retail_entran_al_registro'),
+    (228, 'no_se_sanciona_con_un_reglamento_que_no_se_entrego'),
+    (229, 'la_lista_de_constancias_solo_cuenta_a_quien_obliga'),
+    (230, 'el_terminal_puede_preguntar_la_hora'),
+    (231, 'marcar_despues_del_contrato_deja_de_pasar_en_silencio'),
+    (232, 'la_escalera_de_tardanzas_recupera_su_cuarto_escalon'),
+    (233, 'la_educacion_se_paga_por_el_dia_en_que_empieza'),
+    (234, 'cada_quien_puede_saber_en_que_periodo_esta'),
+    (235, 'la_segunda_suspension_cae_en_dias_habiles_y_no_se_pasa_del_tope'),
+    (236, 'un_concepto_en_cero_se_escribe_no_se_borra'),
+    (237, 'la_mitad_de_la_0213_que_produccion_nunca_recibio'),
+    (238, 'un_dia_compensatorio_que_no_compensa_deja_de_entrar'),
+    (239, 'la_hora_vale_lo_que_vale_el_mes_no_lo_que_dura_la_consulta'),
+    (240, 'la_salida_pasada_la_medianoche_por_fin_se_puede_marcar'),
+    (241, 'el_terminal_ve_el_dia_entero_de_quien_puede_marcar'),
+    (242, 'un_locador_no_tiene_base_imponible'),
+    (243, 'la_liquidacion_no_vuelve_a_cobrar_el_mes_que_ya_se_pago'),
+    (244, 'la_0243_deja_de_pagar_de_menos_y_de_atascar_el_cierre'),
+    (245, 'la_retencion_de_cuarta_deja_de_hacerse_a_mano'),
+    (246, 'una_imputacion_prematura_no_tapa_el_escalon_que_falta'),
+    (247, 'una_licencia_con_goce_se_puede_registrar'),
+    (248, 'la_foto_del_pago_aprende_la_retencion_de_cuarta'),
+    (249, 'una_salida_real_siempre_se_puede_registrar'),
+    (250, 'la_boleta_no_le_dice_por_horas_a_un_monto_fijo'),
+    (251, 'una_liquidacion_marcada_por_error_se_puede_anular'),
+    (252, 'el_cierre_deja_de_caerse_por_quien_no_cobra_movilidad'),
+    (253, 'anular_deja_de_perder_el_descuento_que_el_freno_obligo_a_poner'),
+    (254, 'el_descanso_medico_deja_de_pagarse_en_cero'),
+    (255, 'marcar_una_liquidacion_pagada_no_revienta_por_una_nota_corta'),
+    (256, 'una_persona_puede_ver_sus_propias_faltas'),
+    (257, 'una_persona_puede_pedir_que_se_revise_un_dia'),
+    (260, 'la_pantalla_de_costos_dice_cuanto_salio_del_banco'),
+    (261, 'el_regimen_de_pension_recuerda_desde_cuando'),
+    (262, 'la_licencia_por_maternidad_deja_de_pagarse_en_cero'),
+    (263, 'los_veinte_dias_de_descanso_medico_entran_a_la_base'),
+    (264, 'el_risst_si_pide_constancia'),
+    (265, 'el_contador_de_constancias_cuenta_a_la_misma_gente'),
+    (266, 'una_comunicacion_de_cargos_ya_ocurrida_se_puede_declarar'),
+    (267, 'el_descargo_previo_pasa_a_ser_una_politica_de_la_empresa'),
+    (269, 'el_descanso_medico_tambien_prorratea_el_feriado'),
+    (270, 'los_dias_de_seleccion_pagados_no_piden_el_reglamento'),
+    (271, 'el_total_de_cts_descuenta_lo_mismo_que_sus_ventanas'),
+    (272, 'los_contratos_generados_entran_al_sistema'),
+    (273, 'el_libro_de_desembolsos_vale_para_los_cinco_beneficios'),
+    (274, 'las_provisiones_solo_listan_a_quien_devenga'),
+    (275, 'las_vacaciones_dejan_de_pagarse_en_cero'),
+    (276, 'una_sola_base_para_la_reserva'),
+    (277, 'cambiar_el_regimen_de_pension_vuelve_a_mover_el_descuento'),
+    (278, 'ni_los_descuentos_ni_los_beneficios_inflan_la_liquidacion'),
+    (279, 'una_sede_sabe_en_que_ciudad_esta'),
+    (280, 'el_descanso_semanal_trabajado_se_paga'),
+    (281, 'el_techo_de_educacion_se_reparte_y_sigue_al_rango'),
+    (282, 'una_sede_central_no_tiene_ciudad_propia'),
+    (283, 'las_vacaciones_no_gozadas_se_pagan_al_cesar'),
+    (284, 'no_se_cierra_el_mes_con_una_hora_que_nadie_marco'),
+    (285, 'el_kiosco_ve_solo_lo_que_necesita_para_marcar'),
+    (286, 'un_dia_fichado_no_se_paga_tambien_como_ausencia'),
+    (287, 'el_contrato_firmado_se_registra_y_sus_plazos_se_miden'),
+    (288, 'la_puerta_de_borrar_marcajes_se_cierra'),
+    (289, 'la_gratificacion_ya_depositada_no_se_paga_dos_veces'),
+    (290, 'un_comprobante_por_mes_y_no_uno_por_asignacion'),
+    (291, 'el_kiosco_deja_de_poder_leer_toda_la_fila'),
+    (292, 'nueve_funciones_dejan_de_responderle_a_cualquiera'),
+    (293, 'el_feriado_dentro_de_un_descanso_medico_se_paga'),
+    (294, 'una_suspension_no_pasa_del_tope_del_reglamento'),
+    (295, 'el_rol_ya_no_se_asigna_solo'),
+    (296, 'el_rol_solo_cambia_por_una_puerta'),
+    (297, 'avisar_antes_de_que_venza_un_record_de_vacaciones'),
+    (298, 'un_turno_que_cambia_deja_rastro'),
+    (299, 'avisar_antes_de_que_venza_un_record_de_vacaciones'),
+    (300, 'crear_a_alguien_tambien_pasa_por_el_escalafon'),
+    (301, 'retirar_la_copia_duplicada_del_aviso_de_vacaciones'),
+    (302, 'la_ausencia_pagada_se_devenga_por_dias_laborables'),
+    (303, 'la_negativa_a_firmar_entrega_el_documento'),
+    (304, 'una_marca_apartada_deja_de_vivir_en_un_solo_navegador'),
+    (305, 'un_retroactivo_dice_de_que_mes_viene'),
+    (306, 'el_descanso_medico_y_la_maternidad_pagan_solo_aprobados'),
+    (307, 'el_candado_del_mes_pagado_mide_la_jornada'),
+    (308, 'la_reserva_tampoco_devenga_sin_la_firma_de_do'),
+    (309, 'dos_horarios_no_pueden_cubrir_el_mismo_dia'),
+    (310, 'el_feriado_dentro_de_un_descanso_medico_tampoco_se_reserva_en_cero'),
+    (311, 'el_mes_cerrado_se_puede_documentar_y_el_corte_se_suma'),
+    (312, 'un_contrato_anulado_no_deja_su_fecha_puesta'),
+    (313, 'un_mes_ya_pagado_se_lee_no_se_recalcula'),
+    (314, 'el_duelo_de_un_familiar_directo_se_paga_y_las_licencias_tambien'),
+    (315, 'anon_deja_de_depender_de_una_regla_por_defecto'),
+    (316, 'lo_que_se_paga_por_licencia_tambien_se_declara'),
+    (317, 'la_remuneracion_vacacional_tambien_se_declara'),
+    (318, 'reabrir_el_dia_no_toca_la_salida_de_anoche'),
+    (319, 'que_cambio_respecto_al_mes_pasado'),
+    (320, 'la_marca_real_gana_a_la_que_adivino_el_robot'),
+    (321, 'dias_por_revisar_distingue_periodo_pagado'),
+    (322, 'se_crea_la_categoria_practicante'),
+    (323, 'pagar_planilla_y_rxh_por_separado'),
+    (324, 'la_practicante_dice_su_modalidad'),
+    (325, 'un_convenio_de_practicas_tambien_termina'),
+    (326, 'un_marcaje_sin_revisar_tampoco_cierra_el_mes'),
+    (327, 'el_candado_de_horas_pasa_a_ser_por_grupo'),
+    (328, 'la_comision_mixta_deja_de_cobrarse_como_flujo'),
+    (329, 'el_estimado_de_planilla_se_consulta_por_persona'),
+    (330, 'una_persona_puede_pedir_sus_vacaciones'),
+    (331, 'las_diecinueve_pasan_a_comision_mixta'),
+    (332, 'cambiar_el_regimen_no_reescribe_un_mes_pagado'),
+    (333, 'el_generador_de_contratos_hace_convenios_de_practicas'),
+    (334, 'desempeno_suma_ausencias_del_periodo'),
+    (335, 'objetivos_texto_de_apoyo'),
+    (336, 'el_tablero_avisa_el_tope_de_12_meses_del_convenio'),
+    (338, 'grati_cts_usan_el_sueldo_vigente_al_cierre'),
+    (339, 'fn_planilla_calcular_se_parte_en_nucleo_y_envoltorio'),
+    (340, 'meses_y_dias_no_inventaba_dias_en_un_rango_corto'),
+    (341, 'las_vacaciones_truncas_pagan_su_aporte_a_pension'),
+    (342, 'la_sede_tambien_se_cambia_por_una_puerta'),
+    (343, 'un_adelanto_de_beneficio_no_se_vuelve_a_calcular_solo'),
+    (344, 'primera_carga_de_dni_no_pide_motivo'),
+    (345, 'el_comentario_del_techo_de_educacion_deja_de_mentir'),
+    (346, 'la_bonificacion_extraordinaria_sale_aparte_al_pagar_la_grati'),
+    (347, 'el_generador_de_contratos_hace_indefinidos'),
+    (348, 'objetivos_copiar_mes_anterior'),
+    (349, 'boleta_desglosa_sobretiempo_25_35'),
+    (350, 'objetivos_historial_mensual'),
+    (351, 'el_tablon_de_anuncios_de_do'),
+    (353, 'confirmacion_de_jornada_completa_al_marcar_salida'),
+    (354, 'alertas_encargada_por_correo'),
+    (355, 'agregar_de_un_clic_la_gratificacion_cts_y_bonificacion_pendientes'),
+    (356, 'la_cola_de_alertas_de_vencimiento_se_llena_sola'),
+    (357, 'el_saldo_de_vacaciones_separa_calculo_de_permiso'),
+    (358, 'el_aviso_de_alertas_aprende_dos_audiencias'),
+    (359, 'el_aviso_de_alertas_tambien_avisa_al_propio_integrante'),
+    (360, 'un_horario_retroactivo_recorta_el_tramo_que_pisa'),
+    (361, 'copiar_objetivos_no_duplica_con_doble_clic'),
+    (362, 'la_cola_de_alertas_se_reserva_reintenta_y_avisa'),
+    (363, 'fn_provisiones_recupera_su_grant'),
+    (364, 'el_pin_nace_en_el_servidor'),
+    (365, 'las_provisiones_avisan_cuando_falta_el_tramo_de_salario'),
+    (366, 'dos_toques_seguidos_no_dejan_dos_marcas'),
+    (367, 'fn_registrar_marcaje_pierde_su_sobrecarga_vieja'),
+    (368, 'un_codigo_de_sede_no_se_pisa_en_silencio'),
+    (369, 'la_ficha_guarda_el_genero'),
+    (370, 'el_terminal_no_marca_por_otra_sede'),
+    (371, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues'),
+    (372, 'el_nueve_por_ciento_deja_de_darse_por_pagado_solo'),
+    (373, 'a_la_0353_le_faltaba_su_columna_en_produccion'),
+    (374, 'el_rol_deja_de_contar_si_la_persona_no_esta_activa'),
+    (375, 'el_terminal_deja_de_tener_pin'),
+    (376, 'una_persona_cesada_deja_de_colarse_por_el_or_suelto'),
+    (377, 'las_alertas_de_antes_del_despacho_quedan_anotadas'),
+    (378, 'apariencia_tema_global'),
+    (379, 'fn_set_meta_cobertura_vuelve_a_ser_null_safe'),
+    (380, 'fn_set_horario_semanal_gana_el_mismo_candado_que_objetivos'),
+    (382, 'el_roster_vuelve_a_preguntar_la_regla_en_vez_de_copiarla')
 ),
 diff as (
   select r.numero, r.nombre, (a.numero is null) as falta, a.aplicada_at
@@ -172,8 +349,56 @@ select * from (
              when 'f588806871f74189de370355dfb22767' then '✗ 0192 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '449cc75cc4d097096fd87cdbd13b68f1' then '⚠ se quedó en la 0193 — falta pegar lo posterior'
              when 'c6c75c8a3f12c6aeaf1cb9ac19a7044a' then '✗ 0193 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when '3ca25dd82de07418c9b9c77abffc8dec' then '0199 — al día con el repositorio'
+             when '3ca25dd82de07418c9b9c77abffc8dec' then '⚠ se quedó en la 0199 — falta pegar lo posterior'
              when '2c368e0da180350dad2221012a0a4d57' then '✗ 0199 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'f61eca56c6d2017155c990a958ecd3a6' then '⚠ se quedó en la 0233 — falta pegar lo posterior'
+             when 'f38d38f3b72f1a8aa85b8e9a79b20d28' then '✗ 0233 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '7d285ab4eb0cd8c1e5871b0eebaf78a2' then '⚠ se quedó en la 0236 — falta pegar lo posterior'
+             when '6124769053b350ff9c877b983275080a' then '✗ 0236 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '7d67ff3c1d769ebffc3de0af20ab83fe' then '⚠ se quedó en la 0239 — falta pegar lo posterior'
+             when '6a920445e3fb7ca0fc4a79bf17c89374' then '✗ 0239 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'b9765d1799dc71a9363c292b62daab5e' then '⚠ se quedó en la 0242 — falta pegar lo posterior'
+             when '8080aed645e88f7bbfa88723eb147306' then '✗ 0242 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '3fee1553db2482aa2566d54d1b67438b' then '⚠ se quedó en la 0245 — falta pegar lo posterior'
+             when '7ee382b01ac1b48e1f9cf9337afc335e' then '✗ 0245 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '7799d0a7ecabee450d2dd7609c50fab1' then '⚠ se quedó en la 0250 — falta pegar lo posterior'
+             when '31ea2d1949da27167f767dc903aecd78' then '✗ 0250 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'e8b055e5ec144e20629bdc8b7bdbd0ea' then '⚠ se quedó en la 0252 — falta pegar lo posterior'
+             when '7c038d3bbbe63aba6ae0b2a09aa4196a' then '✗ 0252 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '19eb593a757e0b7480b6a1dc99d7f8c9' then '⚠ se quedó en la 0254 — falta pegar lo posterior'
+             when '76b07847407ae03f1d24bb15096179fc' then '✗ 0254 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '0d0f5fdd5f53d29fb316be50c794cec6' then '⚠ se quedó en la 0261 — falta pegar lo posterior'
+             when '3b690e4e66251589066edfe85a009a0a' then '✗ 0261 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '261329fc2a8045ece063cfb0e5d38eca' then '⚠ se quedó en la 0262 — falta pegar lo posterior'
+             when '172b8aa710b3b06f89a53c3cf7ae6ff8' then '✗ 0262 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'f6b4f2649f4132dd2db5711b391b1f54' then '⚠ se quedó en la 0263 — falta pegar lo posterior'
+             when 'ea201e37d15fbd3ef34d0c5bf8d722fd' then '✗ 0263 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '5e755bdedd964d289104e824eb2925ec' then '⚠ se quedó en la 0269 — falta pegar lo posterior'
+             when '4f24030bdce39bd665a13f503a2e7d7e' then '✗ 0269 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'b132c828fde4aa5fedd6cf946fee7f08' then '⚠ se quedó en la 0275 — falta pegar lo posterior'
+             when '3af7cdc468be355687ad53a4af446222' then '✗ 0275 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '2f38e5ce76bcb22164cd0794671b349f' then '⚠ se quedó en la 0276 — falta pegar lo posterior'
+             when '2792fa305cc21dec63339fc03af71f30' then '✗ 0276 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '0912fcb75893b146ea778163ae9d1ecd' then '⚠ se quedó en la 0280 — falta pegar lo posterior'
+             when '2398570d2d547504320b423d9b21b12f' then '✗ 0280 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '00346e399226432bee73b1047488d178' then '⚠ se quedó en la 0286 — falta pegar lo posterior'
+             when '1be99135441ef1d937aa0cbfd059ae95' then '✗ 0286 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'b1fa2aaaee9a6e4192ea3d616e3d8304' then '⚠ se quedó en la 0293 — falta pegar lo posterior'
+             when '70e0f0270b72ea121eb5ba8edda348e6' then '✗ 0293 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '4688bf0101891f347f05cf96c0db9e68' then '⚠ se quedó en la 0306 — falta pegar lo posterior'
+             when 'cce36e70ae3d5f58d2fb9d063a451b16' then '✗ 0306 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'c8070bb865e977d2d0e6b1bb4bac58d2' then '⚠ se quedó en la 0314 — falta pegar lo posterior'
+             when 'c60b66ae4c1eca9515f4e3b79be82c4d' then '✗ 0314 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'f6ece4f8e21a8171b0d393ddf47cd1ce' then '⚠ se quedó en la 0316 — falta pegar lo posterior'
+             when '151ceaa7d2745e13718dbd5e53ca472f' then '✗ 0316 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when '6838c789a2f2444166f2dbebfd9faa0d' then '⚠ se quedó en la 0317 — falta pegar lo posterior'
+             when '00cd2aae9b8d01b943bb99c06eaa3727' then '✗ 0317 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'c86ef4707f51bf57024efac7eea41643' then '⚠ se quedó en la 0322 — falta pegar lo posterior'
+             when '71b1779aa219c4ea7b01d9a062563552' then '✗ 0322 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0339 — falta pegar lo posterior'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0339 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '0349 — al día con el repositorio'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'

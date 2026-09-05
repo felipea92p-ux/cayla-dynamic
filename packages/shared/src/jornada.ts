@@ -95,6 +95,55 @@ export function diasSeguidosTrabajados(fechas: readonly string[], hasta: string)
   return dias;
 }
 
+/** Lo que hay que avisar sobre la racha de alguien, o `null` si no hay nada. */
+export interface AvisoRacha {
+  /** Días seguidos trabajados hasta `ultimo`. */
+  seguidos: number;
+  /** Último día con marcas: la fecha a la que se ancla el aviso. */
+  ultimo: string;
+  /** Ya pasó del tope — la infracción ocurrió y no se puede deshacer. */
+  excedida: boolean;
+}
+
+/**
+ * Qué avisar sobre los días seguidos de una persona, a partir de sus días CON
+ * marcas. Devuelve `null` cuando no hay nada que decir.
+ *
+ * Lo que esta función agrega sobre `diasSeguidosTrabajados` es CUÁNDO callarse, y
+ * es la parte que se aprendió tarde:
+ *
+ * Un descanso no deja rastro en `jornadas` — simplemente no hay fila ese día. Así
+ * que lo único que distingue «lleva 6 seguidos y mañana le toca descansar» de
+ * «llevó 6 seguidos y ya descansó» es si su último día marcado se quedó atrás.
+ * Contar hacia atrás desde el último día marcado, sin mirar qué tan viejo es, da
+ * el mismo 6 en los dos casos — y el aviso pide un descanso que ya ocurrió.
+ *
+ * Por eso el aviso de 6 caduca: con `ultimo` de anteayer o antes, ya sabemos qué
+ * pasó al día siguiente —no trabajó— y sobra decir nada. Con `ultimo` de AYER se
+ * avisa igual, porque puede que hoy trabaje y aún no haya marcado, y ese es justo
+ * el momento en que mover el turno todavía sirve.
+ *
+ * El de 7+ NO caduca, y es a propósito: esa infracción ya ocurrió, y hacerla
+ * desaparecer sola sería borrarla sin que nadie la mirara. Se saca de la pantalla
+ * con visto bueno, que deja constancia de quién la revisó.
+ */
+export function avisoDeRacha(fechas: readonly string[], hoy: string): AvisoRacha | null {
+  if (fechas.length === 0) return null;
+  const ultimo = fechas.reduce((a, b) => (a > b ? a : b));
+  const seguidos = diasSeguidosTrabajados(fechas, ultimo);
+  if (seguidos < MAXIMO_DIAS_SIN_DESCANSO) return null;
+
+  const excedida = seguidos > MAXIMO_DIAS_SIN_DESCANSO;
+  if (!excedida) {
+    // Ayer, en fechas civiles: restar sobre una fecha local cruzaría mal el
+    // cambio de día en Lima, igual que en `diasSeguidosTrabajados`.
+    const ayer = new Date(`${hoy}T00:00:00Z`);
+    ayer.setUTCDate(ayer.getUTCDate() - 1);
+    if (ultimo < ayer.toISOString().slice(0, 10)) return null;
+  }
+  return { seguidos, ultimo, excedida };
+}
+
 /**
  * Las horas de la ventana de 7 días consecutivos MÁS CARGADA que termina dentro
  * del rango mirado. Devuelve la ventana y sus horas, o `null` si no hay datos.
@@ -107,6 +156,16 @@ export function diasSeguidosTrabajados(fechas: readonly string[], hasta: string)
  * calendario dan 48 y 48 —ninguna se pasa— pero cualquier ventana de siete días
  * de esa racha suma 56. Medir por calendario deja pasar justo el caso que hay
  * que ver.
+ *
+ * Pero «ventana móvil» no significa cruzar por encima de un descanso. Un día sin
+ * horas registradas CORTA la racha, igual que corta el ciclo en el cálculo de
+ * planilla (`ot_islas` en `sobretiempo_ciclo_por_ciclo.sql`) — si no se corta acá
+ * también, la ventana suma la cola de una racha de trabajo con el arranque de la
+ * siguiente, separadas por un descanso real, y reporta horas que ninguna semana
+ * de verdad trabajó. Pasó el 2026-08-29 con Lizzelott Ramírez: 18-22 ago (45.36 h)
+ * más 24-25 ago (15.6 h), puenteadas sobre el descanso del 23, dieron una alerta
+ * de «53.2 h en 7 días» que la boleta nunca pagó porque el ciclo real jamás llegó
+ * a 48.
  */
 export function ventanaMasCargada(
   dias: readonly { fecha: string; horas: number }[],
@@ -121,11 +180,14 @@ export function ventanaMasCargada(
   const tope = new Date(`${hasta}T00:00:00Z`);
   while (cursor <= tope) {
     const fin = cursor.toISOString().slice(0, 10);
-    // La ventana es el día y los seis anteriores: siete días consecutivos.
+    // La ventana es el día y los seis anteriores, pero solo mientras sigan
+    // siendo racha: un día sin horas la corta, no se sigue sumando más atrás.
     let suma = 0;
     const atras = new Date(cursor);
     for (let i = 0; i < 7; i++) {
-      suma += porFecha.get(atras.toISOString().slice(0, 10)) ?? 0;
+      const horasDia = porFecha.get(atras.toISOString().slice(0, 10)) ?? 0;
+      if (horasDia <= 0) break;
+      suma += horasDia;
       atras.setUTCDate(atras.getUTCDate() - 1);
     }
     if (mejor === null || suma > mejor.horas) mejor = { fin, horas: suma };
@@ -133,3 +195,28 @@ export function ventanaMasCargada(
   }
   return mejor;
 }
+
+// ── El tope de la noche que cruza la medianoche ─────────────────────────────
+//
+// Quien cierra tienda a las 00:30 sigue dentro de la jornada de AYER: su salida
+// pertenece a ese turno, no al día nuevo (migración 0240). Pero esa adopción no
+// puede ser eterna, porque entonces una jornada que alguien olvidó cerrar se
+// comería el día siguiente entero. Pasadas estas horas desde su ENTRADA, la
+// marca vuelve a ser del día que dice el calendario y el auto-cierre hace su
+// trabajo.
+//
+// ⚠️ ESTE NÚMERO VIVE EN DOS SITIOS Y TIENE QUE DECIR LO MISMO EN LOS DOS.
+// El otro es `fn_registrar_marcaje`, en el `select` que adopta la jornada del
+// día anterior: `p_timestamp_cliente <= j.entrada_ts + interval '16 hours'`.
+// No se puede compartir el valor —uno es TypeScript en el navegador y el otro
+// es plpgsql—, así que lo que sí se puede es que solo haya UNA copia de cada
+// lado y que las dos se nombren mutuamente.
+//
+// Que se separaran costaba esto: el navegador seguía mostrando «tu jornada de
+// ayer sigue en curso» y ofrecía un menú de SALIDAS pasadas las 16 h, mientras
+// el servidor ya había cambiado de opinión y esperaba una `entrada`. La persona
+// pulsaba, el servidor rechazaba —«tipo salida_final no válido en el estado
+// actual (se esperaba entrada)»— y no había ninguna salida hacia adelante: el
+// único botón que la pantalla ofrecía era el que el servidor iba a rechazar
+// siempre. Quedaba sin poder marcar hasta que el auto-cierre corriera.
+export const TOPE_JORNADA_CRUZA_MEDIANOCHE_HORAS = 16;

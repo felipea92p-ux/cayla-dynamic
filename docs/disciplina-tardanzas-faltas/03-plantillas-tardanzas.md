@@ -112,7 +112,19 @@ En cumplimiento del artículo 31 de la LPCL, CAYLA S.A.C. le imputa los cargos s
 - c) Suspensión sin goce N.° [[ref_suspension]] — del [[susp_inicio]] al [[susp_fin]].
 
 ### II. CARGOS IMPUTADOS
-Con posterioridad a la suspensión, el colaborador registró **[[n_tardanzas_nuevas]]** nuevas tardanzas ([[detalle_fechas]]), configurando el **umbral d) del artículo 7 del RIT** (reincidencia grave tras suspensión vigente). La **impuntualidad reiterada**, pese a haber agotado la escala de sanciones previas, configura **falta grave** conforme al artículo **25, inciso a) (incumplimiento de las obligaciones de trabajo que supone el quebrantamiento de la buena fe laboral) de la LPCL**, en concordancia con los artículos 7-d, 13-c y 14.3 del RIT.
+Con posterioridad a la suspensión, el colaborador registró **[[n_tardanzas_nuevas]]** nuevas tardanzas ([[detalle_fechas]]), configurando el **umbral d) del artículo 7 del RIT** (reincidencia grave tras suspensión vigente). La **impuntualidad reiterada**, habiéndose agotado la escala de sanciones previas, configura **falta grave** conforme al artículo **25, inciso h), de la LPCL** (*«…la impuntualidad reiterada, si ha sido acusada por el empleador, siempre que se hayan aplicado sanciones disciplinarias previas de amonestaciones escritas y suspensiones»*), en concordancia con los artículos 7-d, 13-c y 14.3 del RIT.
+
+> ⚠️ **Corregido el 2026-08-10: era «inciso a)» y estaba mal.** El inciso h) nombra
+> la impuntualidad reiterada con todas sus letras y le pone su propio requisito —
+> amonestación escrita **y** suspensión previas—; el a) es el genérico de buena fe
+> laboral. `00-normativa-y-diseno.md` §1.3 ya titulaba la sección «art. 25-h»: la
+> contradicción vivía entre ese documento y esta plantilla, y el código copió la
+> plantilla.
+>
+> **Y no es solo formalismo.** Imputar por el a) teniendo el h) disponible le
+> regala a la otra parte el argumento de que la empresa esquivó los requisitos de
+> la norma específica porque no podía cumplirlos. Si la escalera está construida
+> —y para eso existe este sistema—, se cita el artículo que nombra la conducta.
 
 *Fundamento jurisprudencial (interno, no se cita en la carta):* el despido por impuntualidad reiterada exige sanciones previas documentadas (Cas. Lab. 13768-2017-Lambayeque). Por eso la escala a)-c) es imprescindible aquí.
 
@@ -147,7 +159,12 @@ Mediante Memorándum N.° [[ref_imputacion]] de fecha [[fecha_imputacion]], CAYL
 - [ ] **No presentó** descargos dentro del plazo.
 
 ### II. CAUSA JUSTA
-Evaluados el historial disciplinario y los descargos, CAYLA concluye que el colaborador incurrió en **falta grave por impuntualidad reiterada**, conforme al artículo **25 inciso a) de la LPCL** y al artículo 13 del RIT, **pese a haber recibido amonestación y suspensión previas documentadas** (misma causa imputada — congruencia).
+Evaluados el historial disciplinario y los descargos, CAYLA concluye que el colaborador incurrió en **falta grave por impuntualidad reiterada**, conforme al artículo **25, inciso h), de la LPCL** y al artículo 13 del RIT, **habiendo recibido amonestación escrita y suspensión previas documentadas** — que es precisamente lo que ese inciso exige (misma causa imputada — congruencia).
+
+> ⚠️ **Corregido el 2026-08-10 junto con el de la imputación, y los dos van
+> atados.** La causa imputada vincula la carta de despido y no puede variarse
+> (art. 31): si la imputación dijera h) y la carta a), o al revés, el despido
+> sería incongruente con su propia imputación. Se cambian los dos o ninguno.
 
 ### III. EXTINCIÓN DEL VÍNCULO
 Conforme al artículo 32 de la LPCL, CAYLA S.A.C. comunica la **EXTINCIÓN DEL CONTRATO DE TRABAJO POR CAUSA JUSTA**, con efectividad al **[[fecha_cese]]**.

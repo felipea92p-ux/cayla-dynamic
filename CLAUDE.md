@@ -40,9 +40,22 @@ cambia cómo se pagan las vacaciones— estaba aplicada en producción y su úni
 ejemplar era un archivo sin commitear en esta Mac**. Ninguno de los otros frenos
 lo veía: `desplegar.sh` cuida el camino de Vercel, y el SQL va por otro camino.
 
-**El md5 de una función se pide a PRODUCCIÓN, no se copia del local.** Cuando
-una migración reescribe una función y su encabezado declara «md5 de partida: X»,
-ese X tiene que venir del SQL Editor. El 2026-08-08 se declaró el md5 local en la
+**El md5 de una función se pide a PRODUCCIÓN, no se copia del local, y se pide
+ANTES DE ESCRIBIR, no antes de entregar.** Cuando una migración reescribe una
+función y su encabezado declara «md5 de partida: X», ese X tiene que venir del
+SQL Editor.
+
+Lo de «antes de escribir» se aprendió el 2026-08-20 y costó una migración
+entera. La 0276 se construyó sobre el cuerpo de la 0269 de
+`fn_planilla_calcular` porque `donde-vive.sh` dijo que esa era la vigente —y lo
+era, EN ESA RAMA— mientras otra sesión ya había fusionado la 0275 a `main` y
+Felipe la había pegado. Pegar la 0276 habría devuelto a **S/ 0.00** el mes de
+quien se toma sus vacaciones completas. Las dos herramientas de la casa miraron
+el worktree y el worktree estaba incompleto; lo cazó el md5 de producción —90 707
+caracteres allá contra 89 527 acá— cuando el trabajo ya estaba hecho, verificado
+y commiteado. Pedirlo al principio cuesta un minuto; pedirlo al final cuesta
+rehacerlo todo. Y ahora `scripts/hooks/main-tiene-migraciones-que-no-tienes.sh`
+avisa además cuando `main` trae una migración que toca tus mismas funciones. El 2026-08-08 se declaró el md5 local en la
 0185 y costó una hora de falsa alarma: producción devolvía otro porque `pbcopy`
 había roto los acentos al copiar (locale `LC_CTYPE=C` → MacRoman), y el texto
 llegó como «Solo un administrador o l√≠der». El SQL corre igual, así que nada
@@ -50,10 +63,66 @@ falla — solo se vuelve ilegible, y estas migraciones se leen. Ya está arregla
 en el script, que ahora compara el portapapeles byte por byte y se niega si no
 coincide; la regla de método queda igual.
 
+**Y en una sesión larga, el md5 se vuelve a pedir JUSTO ANTES DE ENTREGAR.**
+Pedirlo una vez al principio no basta, y el 2026-08-25 costó una avería en
+producción. La sesión preguntó el número libre y la versión vigente al empezar;
+las dos herramientas contestaron bien —el árbol llegaba hasta la 0257— y sobre
+esa respuesta se construyó la 0261 partiendo del cuerpo de la 0254. Mientras
+tanto otra sesión fusionó **cuarenta y cuatro migraciones** al árbol compartido.
+Al pegarla, `fn_planilla_calcular` volvió de 96 354 caracteres a 77 493:
+revirtió la maternidad, el descanso médico, el descanso semanal trabajado y —la
+peor— la **0275, «las vacaciones dejan de pagarse en cero»**.
+
+El md5 SÍ se pidió, y coincidió. Ese es el detalle que enseña: coincidió porque
+se preguntó al principio, y entre la pregunta y la pegada el árbol se movió. Un
+md5 es una foto, no una garantía; caduca en cuanto alguien más trabaja.
+
+Así que la regla se amplía: `donde-vive.sh` y el md5 de producción se vuelven a
+consultar **en el mensaje en que se entrega el SQL**, no en el que se empieza a
+escribirlo. Cuesta un minuto. La otra opción costó repegar la 0293 entera con la
+planilla del mes a tres días de cerrar.
+
+Y la señal que lo delata sin ninguna herramienta: la línea **PLANILLA** de
+`que_falta_pegar.sql` dice qué versión de `fn_planilla_calcular` corre de verdad.
+Si dice «se quedó en la 00NN», producción tiene una función más vieja que el
+repositorio — mírala SIEMPRE después de pegar algo que la reescriba.
+
+**Y el md5 de llegada se mide DESPUÉS de renumerar, nunca antes.** Cuando el
+hook obliga a cambiar el número —pasa a menudo, con varias sesiones tomando
+números a la vez— los marcadores «CAMBIO 00NN» del cuerpo cambian con él, y el
+md5 cambia mientras la longitud NO, porque los dos números ocupan cuatro
+caracteres. Eso produce la firma más desconcertante que hay acá: **misma
+longitud, distinto hash**, que parece corrupción de acentos y no lo es. Pasó con
+la 0286 el 2026-08-24, se documentó, y volvió a pasar con la 0289 al día
+siguiente — porque lo escrito decía cómo reconocer el síntoma y no cuándo medir.
+Si aparece igual, `position('CAMBIO 00NN' in prosrc)` contra producción lo
+resuelve de un vistazo.
+
 Y cuando dos md5 no coinciden: **medir dónde está la diferencia** —posiciones de
 marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
 del principio— en vez de proponer explicaciones. Ese día se probaron tres
 hipótesis falsas antes de que el primer `substring` lo resolviera de un vistazo.
+
+**Y que no coincidan es LO NORMAL, no la excepción.** Medido el 2026-08-18 en el
+SQL Editor: **119 de las 243 funciones de producción —el 49 %— no tienen ni una
+línea de comentario**. Se pegaron sin ellos. Así que su md5 nunca va a ser el del
+repositorio, y el síntoma es idéntico al del accidente grave: «producción tiene
+otra versión».
+
+Ese día se fue media hora en distinguirlos a mano con `fn_tardanzas_resumen`
+(producción `49b3cf99…`, local `16f4991a…`). La respuesta era benigna: mismo
+código, sin los comentarios — se comprobó quitándoselos al cuerpo local, que da
+1818 caracteres y el md5 de producción exacto.
+
+`donde-vive.sh` ya no te deja en esa duda: da **los dos md5** —tal cual y sin
+comentarios— y te imprime la consulta lista para pegar en producción, con los
+tres desenlaces escritos. Si coincide el primero, seguir. Si coincide el segundo,
+seguir pero declarando en la migración el md5 de PRODUCCIÓN. Si no coincide
+ninguno, parar.
+
+Lo que **no** se propone es repegar 119 funciones. Pero conviene saber lo que
+cuesta: estas migraciones se leen como documentación del negocio, y en producción
+la mitad de esa explicación no está.
 
 **Antes de dar cualquier SQL que toque plata, se audita empíricamente.**
 Contra el Postgres local, dentro de `BEGIN … ROLLBACK`, con casos reales. No se
@@ -65,9 +134,46 @@ npx vercel --prod --yes    # solo con OK explícito de Felipe
 ```
 Vista previa sin permiso: `npx vercel --yes`.
 
-**Ojo con el entorno.** `apps/web/.env.local` apunta al Supabase **local**
-(127.0.0.1), no a producción. Para diagnosticar prod, Felipe corre SELECTs en el
-SQL Editor. Nunca asumir que lo que se ve en local es lo que pasa en prod.
+**Ojo con el entorno.** El panel apunta al Supabase **local** (127.0.0.1), no a
+producción. Para diagnosticar prod, Felipe corre SELECTs en el SQL Editor. Nunca
+asumir que lo que se ve en local es lo que pasa en prod.
+
+⚠️ **Y ese `.env.local` HOY NO EXISTE.** Este archivo decía que vivía en
+`apps/web/.env.local`; ahí no hay nada, y el de la raíz solo trae un token de
+Vercel, sin las claves de Supabase. Un clon nuevo **no puede levantar el panel**:
+cualquier pantalla revienta al renderizar con «supabaseUrl is required», y no se
+nota que es el entorno porque el síntoma parece un error de la pantalla. Se
+resuelve creando `apps/web/.env.local` con `NEXT_PUBLIC_SUPABASE_URL` y
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` de `npx supabase status` — y para eso hace falta
+que la pila entera esté arriba (`npx supabase start`), no solo Postgres:
+`npx supabase db start` levanta la base pero **no la API**, y sin API el
+navegador no tiene con quién hablar.
+
+**Desplegar desde un worktree crea un proyecto de Vercel NUEVO.** `.vercel` está
+en `.gitignore`, así que un worktree no hereda el enlace y el CLI se inventa un
+proyecto con el nombre de la carpeta. El 2026-08-10 eso mandó un despliegue a un
+proyecto vacío llamado `tardanzas-memos-issue-7f4e44`: falló por no tener
+variables de entorno, y si hubiera compilado habría publicado la app en una URL
+que nadie mira mientras alguien anunciaba «desplegado». Antes de desplegar desde
+un worktree hay que copiar el enlace y comprobarlo:
+
+```bash
+mkdir -p .vercel && cp "$(git rev-parse --path-format=absolute --git-common-dir)/../.vercel/project.json" .vercel/
+npx vercel env ls          # tienen que salir las variables de cayla-dynamic
+```
+
+**La ruta se pregunta, no se cuenta a mano.** Este archivo decía
+`cp ../../.vercel/project.json .vercel/`, y esos dos niveles solo valen si el
+worktree cuelga justo debajo del repo. Los que crea Claude Code viven en
+`.claude/worktrees/<nombre>/`, o sea **tres** niveles: el 2026-08-15 la ruta no
+existía y el `cp` falló. Falló ruidoso y no pasó nada, pero el modo en que ese
+`cp` hace daño es al revés — copiando algo que no es el enlace bueno, o no
+copiando nada mientras alguien cree que sí. `--git-common-dir` devuelve el `.git`
+del repo principal desde cualquier worktree y desde el repo mismo, así que la
+línea es una sola y no hay que saber a qué profundidad estás.
+
+Y el `npx vercel env ls` no es adorno: es lo único que distingue «copié el
+enlace» de «copié el enlace CORRECTO». Tiene que decir `cayla/cayla-dynamic`.
 
 **Datos personales fuera de git.** Correos, DNI, sueldos por persona y fechas de
 ingreso reales no se commitean. Hay dos scripts explícitamente ignorados en
@@ -133,6 +239,100 @@ misma condición de permiso y 32 del huso horario de Lima):
    falta una constante para pintar un desplegable, se dice en un comentario que
    la verdad está en la tabla (ver `REGIMENES_PENSION`).
 
+Y una cuarta, de agosto de 2026: **«qué le tocaba trabajar ese día» se pregunta a
+`apps/web/lib/admin/jornada-esperada.ts`, no se vuelve a escribir.** Ahí vive la
+cascada *turno del día → `horario_por_dia` → `dias_laborables`* que espeja
+`fn_recalcular_jornada`, con sus pruebas en `tests/jornada-esperada.test.ts`.
+Vive en `apps/web/lib` y no en `packages/shared` porque hoy solo la usa el panel;
+el día que la necesite el terminal, se muda. Hubo dos copias más viejas y
+parciales: en `admin/correcciones/page.tsx` (`calcularEsperado`), solo la hora
+de entrada y con un bug real —su rama legacy no comprobaba `dias_laborables`—,
+y en `admin/incidencias/page.tsx` (`trabajaEseDia`), solo booleano. Las dos se
+unificaron el 2026-08-25. La cuarta copia —`admin/turnos/page.tsx`
+(`horasDeTramo`, `celda`)— se unificó el 2026-09-03: tenía una divergencia
+silenciosa (rellenaba `dias_laborables` con `[1,2,3,4,5]` cuando venía vacío,
+un default que la cascada canónica nunca aplica) que nunca disparó porque esa
+columna es NOT NULL en `horarios_asignados`, pero habría mostrado lunes a
+viernes donde el resto del sistema mostraba descanso. **No se escribe una
+quinta.** Esa regla decide si a alguien se le cuenta una falta.
+
+Y una quinta, del 2026-08-26: **un campo de fecha cuyo vacío BLOQUEA el envío
+no puede arrancar en `""`.** Nace con el valor más probable —hoy, o la fecha de
+inicio de lo que se está registrando—, visible y editable en un clic.
+
+No es una preferencia de forma. Ese día no se pudo registrar un descanso médico
+real: el campo «Fecha de emisión» mostraba `26/08/2026` en pantalla y llegaba
+**vacío** al formulario, porque Safari había puesto el valor sin disparar el
+evento que React escucha. La validación de la pantalla y la del servidor pedían
+las dos un dato que estaba delante de los ojos, y no había salida — reescribirlo
+tampoco llegaba, porque el problema no era el valor sino el camino.
+
+Se intentó capturarlo por `onChange`, por `onBlur` y leyendo el valor del DOM.
+**Ninguno de los tres lo vio.** Lo que funcionó fue dejar de preguntar: lo que se
+muestra y lo que se manda pasaron a ser el mismo valor derivado. Costó cinco
+despliegues a producción y una tarde, con la planilla del mes a dos días de
+cerrar.
+
+Lo vigila `scripts/hooks/fecha-que-bloquea.sh`, sobre lo que el push agrega.
+Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados, y
+`simIni` en `planilla`, que solo afecta a una simulación—; la deuda vieja se
+paga en su lote y no a costa de que el freno mienta.
+
+Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los once
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos once
+nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
+oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
+Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
+así que al construir el modo oscuro esos sitios se quedaban como un parche
+claro pegado en medio de una pantalla ya oscura.
+
+Eran nueve hasta el 2026-09-06, cuando se sumaron `--color-hueso` (una
+superficie "hundida" — hasta entonces solo había una elevada, `papel`, y
+ninguna por debajo de `crema`; se usa en inputs y en la zebra de tablas) y
+`--color-pizarra` (el estado "informativo/en proceso" — programado, en
+revisión, pendiente de firma — que no encajaba en positivo/advertencia/alerta
+y por eso se apilaba sin distinguirse sobre `sand`). Los dos se midieron
+contra la fórmula de contraste WCAG antes de aceptarse (≥4.5:1 en los pares
+que los usan) — el mismo criterio que ya exige este archivo para planilla:
+medir, no asumir.
+
+Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
+de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de
+la base") y un par de tarjetas (`bg-white`). Dos de esos sitios no eran un
+descuido sino que corrigieron algo peor, y por eso importa distinguir un color
+suelto de un color que solo PARECE suelto: cuatro botones de
+`admin/contratos/page.tsx` tenían `bg-tinta` con `text-white` en vez de
+`text-crema` —`bg-tinta` se aclara en oscuro, así que el texto blanco fijo se
+habría vuelto ilegible sobre un botón que dejó de ser oscuro— y cuatro
+overlays de modal (buscador, atajos, acuses pendientes, cerrar el día en
+`admin/horas`) usaban `bg-tinta/NN` como scrim: en oscuro eso ACLARA el fondo
+en vez de oscurecerlo, lo contrario de lo que un scrim tiene que hacer. Esos
+pasan a `bg-black/NN`, que sí oscurece en los dos temas — el criterio que ya
+usaban los modales de turnos, incidencias, horarios y correcciones.
+
+Y la excepción, que hay que distinguir con cuidado porque son DOS excepciones
+distintas, no una:
+
+- Los documentos con la clase `.hoja` —boleta, contrato, documentación, Hoja
+  de sede, el memo disciplinario desde el 2026-08-31— NO llevan un color
+  fijo: en pantalla siguen el tema como cualquier otra pantalla (`.hoja` no
+  pinta nada por sí sola), y solo se fuerzan a la paleta clara AL IMPRIMIR,
+  por la regla ya escrita en `@media print` de `globals.css`. Es la forma
+  correcta: nadie necesita ver un contrato en modo oscuro mientras lo revisa
+  en pantalla, pero el papel que sale de la impresora sí tiene que ser
+  siempre el mismo, para siempre.
+- Política salarial (y la vista previa "así se verá en el memo" de una firma)
+  usan `bg-white`/`slate-*` fijos A PROPÓSITO, en pantalla y en papel, sin
+  pasar por `.hoja` ni por los tokens. Ahí sí es deliberado que ni siquiera la
+  pantalla cambie: es un documento legal que se muestra tal cual a quien lo
+  firma, y esa pantalla no tiene por qué mirarse distinto según quién la abra.
+
+La lección de las dos: nunca asumir cuál aplica sin mirar si el contenedor
+lleva `.hoja` o un color fijo — la resolvió al construir el memo, que hasta
+entonces caía en la segunda categoría sin que hubiera una razón para eso, solo
+porque nunca se había actualizado.
+
 ```bash
 npx pnpm install
 npx pnpm dev          # levanta todo
@@ -141,6 +341,27 @@ npx pnpm test         # vitest
 ```
 
 ---
+
+## Antes de escribir una función SQL — aunque sea nueva
+
+`donde-vive.sh` no es solo para reescribir: **se corre también antes de CREAR**.
+El 2026-08-25 la 0299 creó `fn_vacaciones_por_vencer` sin comprobar que la
+**0297** ya la había creado dos días antes desde otra rama, con su prueba, su
+banda en la pantalla, su entrada en el menú y sus tipos regenerados. Se
+construyó dos veces la misma función.
+
+Y no quedó en trabajo perdido: las dos tenían todos sus argumentos con valor por
+defecto, así que la llamada sin argumentos encajaba en las dos y Postgres se
+negaba —«function … is not unique»—. **El aviso de vacaciones dejó de mostrarse
+en producción**, y como siempre con las sobrecargas, no falló al pegar la
+migración: falló al abrir la pantalla.
+
+Con varias sesiones trabajando a la vez, «esta función no existe» es una
+suposición, no un hecho. Cuesta dos segundos comprobarlo:
+
+```bash
+./scripts/donde-vive.sh fn_lo_que_vayas_a_crear
+```
 
 ## Antes de reescribir una función SQL
 
@@ -216,6 +437,29 @@ nunca `if not fn_es_admin_o_lider()` — un `null` no debe pasar como autorizado
 Desde la 0078 los booleanos de permiso ya no devuelven `null`, pero la forma
 `is not true` sigue siendo la obligatoria: cualquier condición que compare un
 UUID contra `fn_persona_actual_id()` vuelve a producir `null` por su cuenta.
+
+**Un campo sensible se cambia por una función guardián, nunca por `UPDATE`
+directo — y la función se cierra con un trigger, no con la confianza.**
+El molde es siempre el mismo: una función `SECURITY DEFINER` que valida
+(rol, estado de la fila, reglas de negocio) y escribe con
+`insert into correcciones_auditoria`, más un trigger `before update` que
+rechaza cualquier cambio a esa columna que no venga de esa función —
+comparando `current_user <> 'postgres'`, que es como Postgres distingue "lo
+hizo una función interna" de "lo hizo un cliente por PostgREST", ya que el
+rol de conexión es el mismo (`authenticated`) en los dos casos. Son ya tres
+instancias, cada una escrita por separado sin generalizar:
+`fn_cambiar_regimen_pension` (0261), `fn_set_rol` + `fn_bloquear_rol_directo`
+(0295/0296) y `fn_set_sede_base` + `fn_bloquear_sede_directa` (0342).
+
+Se nombra acá porque nunca se había escrito como regla, solo se había
+repetido — y una comparación de arquitectura contra otros ERP (Workday,
+Oracle, BambooHR, Odoo; ver
+[`docs/comparacion-workday-oracle-dynamic-2026-09-02.md`](docs/comparacion-workday-oracle-dynamic-2026-09-02.md))
+la señaló como el mismo primitivo que esos sistemas resuelven una sola vez
+en el núcleo, mientras que acá se venía reinventando cada vez que un campo
+nuevo resultaba tocar plata o una obligación legal. La próxima columna
+sensible sigue este molde por regla, no porque alguien se acuerde de las
+tres anteriores.
 
 **El terminal marca SIN PIN, y es a propósito** (decisión de Felipe, jul-2026).
 Se prioriza que marcar sea instantáneo; el control real es que la Mac mini está
@@ -297,9 +541,11 @@ art. 19 e) y f).
 | Ruta | Qué es |
 |---|---|
 | `estado.md` | **Dónde estamos hoy.** Se sobrescribe, no se acumula. |
+| `cerrar-el-mes-sin-pagar-dos-veces.md` | El día 28, al cerrar la planilla: qué avisa el sistema cuando alguien cesó a mitad de mes y ya cobró su liquidación, y qué apretar. |
+| `prueba-restauracion-backup.md` | Cómo comprobar, con `scripts/probar-restauracion-backup.sh`, que el respaldo de producción se puede restaurar de verdad — no solo que existe. |
 | `terminales-mac-mini.md` | Manual para dejar la Mac mini de una sede como terminal. |
 | `trabajar-en-dos-maquinas.md` | Ir y venir entre MacBook y Mac mini sin perder trabajo. |
-| `disciplina-tardanzas-faltas/` | Marco legal peruano, plantillas de cartas, RIT. |
+| `disciplina-tardanzas-faltas/` | Marco legal peruano, plantillas de cartas, RIT. El `09` es el que se usa el día que alguien presenta un descargo. |
 | `revision-2026-07-15/` | Auditoría de seguridad. Vive hasta cerrar sus pendientes. |
 | `integracion-retail/` | Plan del puente con retail. Aún no arranca. |
 | `plan.md` | **Documento histórico** (jul 2026, antes de construir). Buen contexto del porqué; su estructura de carpetas y su roadmap ya no describen el sistema actual. |
@@ -314,9 +560,87 @@ archivos que se contradecían entre sí. Si algo cambió, se edita `estado.md`.
 
 ## La red de seguridad (jul-2026)
 
+**Nunca exportes `LC_ALL=C` en la shell que va a llamar a `dame-el-sql.sh`.**
+El 2026-08-25 una sesión lo hizo y el portapapeles salió con los acentos rotos
+—«QU√â PROMETE» por «QUÉ PROMETE», 76 acentos donde el archivo tiene 425—. Eso
+ya está documentado más arriba como accidente de 2026-08-08, y el script se
+arregló entonces para compararse byte por byte y negarse si no coincide.
+
+Lo nuevo, y es lo que hay que recordar: **el script se declaró conforme.** Su
+comprobación corre bajo el mismo locale roto, así que compara texto corrupto
+contra texto corrupto y coinciden. El guardián y el vigilado leían lo mismo.
+
+Un freno solo protege de lo que puede ver. La comprobación buena es externa y
+con el locale explícito:
+
+```bash
+unset LC_ALL; export LANG=en_US.UTF-8 LC_CTYPE=en_US.UTF-8
+./scripts/dame-el-sql.sh 0NNN
+diff <(pbpaste) supabase/migrations/0NNN_*.sql && echo "idéntico"
+```
+
+El SQL corrupto corre igual —nada falla— y deja la migración ilegible. Y estas
+migraciones se leen: son la documentación del negocio.
+
 **Antes de subir a GitHub** corre solo un hook (`scripts/hooks/pre-push`) que
-verifica la **numeración**, el `typecheck` y las pruebas de interfaz. Si algo está
-en rojo, el push no se hace. Toma unos 10 segundos.
+verifica la **numeración**, **las dos reglas de abajo que se cumplían de memoria**,
+el `typecheck` y las pruebas de interfaz. Si algo está en rojo, el push no se
+hace. Toma unos 10 segundos.
+
+**Dos de las reglas de este archivo ya no dependen de que alguien las recuerde**
+(`scripts/hooks/reglas-de-la-casa.sh`, ago-2026): comparar `rol` contra un
+literal fuera de `permisos.ts`, y escribir `"America/Lima"` fuera de
+`fecha-lima.ts`. Las dos estaban escritas aquí y las dos se habían vuelto a
+romper — la auditoría de agosto encontró **diez** de la primera y **tres** de la
+segunda. Y las dos reglas se habían escrito DESPUÉS de juntar 35 y 32 copias
+respectivamente, así que el problema nunca fue la redacción: era que un
+documento es memoria, y aquí trabajan varias sesiones a la vez.
+
+Solo mira **lo que el push agrega**, igual que la verificación de numeración y
+por el mismo motivo: comparar el árbol entero encontraría las trece que ya están
+y fallaría en todos los push. La deuda vieja no molesta, y una regla nueva no
+puede entrar; la deuda se paga en su propio lote, no a costa de que este freno
+mienta. Ignora comentarios a propósito — este archivo cita `rol === "admin"`
+para explicar la regla, y castigar a quien la explica sería absurdo.
+
+Bloquea en vez de avisar, y ahí la distinción es la que el hook ya tenía
+escrita: esto habla de lo que **sale** hacia GitHub, no de lo que hay a medio
+escribir en el disco.
+
+**Y desde el 2026-08-26, las fechas que arrancan vacías**
+(`scripts/hooks/fecha-que-bloquea.sh`). Ver la regla arriba: caza el
+`input[type=date]` que arranca en `""` y cuya validación corta el envío. Se
+probó con un caso que DEBE bloquear antes de entregarlo, y con dos que deben
+pasar —el mismo campo arreglado, y una fecha opcional—, que es la lección que
+dejó el linter cuando se escribió cuatro veces dando el push por bueno.
+
+**Y desde el 2026-08-25 corre también el linter, sobre lo que el push agrega**
+(`scripts/hooks/lint-de-lo-nuevo.sh`). ESLint llevaba instalado y configurado
+desde julio, con su tarea de turbo y su script en el `package.json`, y no lo
+ejecutaba nadie: ni el hook, ni GitHub, ni `desplegar.sh`. La auditoría de
+agosto lo encontró con 119 errores; **una semana después eran 131**. Creció en
+doce sin que nadie lo notara, que es exactamente lo que le pasa a un guardián
+instalado y apagado.
+
+Mismo criterio que los dos de arriba: la deuda vieja no frena a nadie, el error
+132 no entra. Y es barato porque no lintea el repositorio entero —solo los
+archivos que el push modifica—, así que un push de puro SQL sale en cuatro
+centésimas.
+
+Ojo con una cosa al tocarlo: **se escribió cuatro veces antes de funcionar, y
+las cuatro veces fallaba en silencio dando el push por bueno**. Colar una ruta
+de `packages/` hace que eslint aborte sin analizar nada; pasarle las rutas sin
+`xargs` las manda como un solo argumento; `${SALIDA#[}` nunca quita el corchete
+porque `[` es un carácter de patrón; y `echo` interpreta los `\n` que el JSON de
+eslint lleva dentro de sus mensajes, así que hay que usar `printf '%s'`. Ninguno
+de los cuatro daba error: todos devolvían «todo bien». Por eso un freno se
+prueba con un caso que DEBE bloquear, no solo con uno que debe pasar.
+
+No verifica una tercera que se probó y se descartó: buscar `horario_por_dia`
+fuera de `jornada-esperada.ts` para cazar las copias de «qué le tocaba trabajar
+ese día». Da 28 aciertos y casi todos son pantallas que leen esa columna con
+todo el derecho. Un guardián con ese ruido se desactiva a la semana, así que esa
+regla sigue dependiendo de que alguien la recuerde.
 
 **Y hay una cosa que ese hook arregla solo, en vez de pedírtela.** La consulta
 `scripts/sql-manual/que_falta_pegar.sql` lleva dentro la lista de migraciones del
@@ -330,6 +654,79 @@ Antes solo avisaba, y el 2026-08-08 frenó **cuatro** pushes en un día para ped
 siempre el mismo comando de una línea. Un guardián que te para para pedirte algo
 que él mismo puede hacer enseña que sus avisos son trámite; el día que frene por
 un número duplicado, ya le habrá enseñado a quien lo lee a usar `--no-verify`.
+
+**Y por lo mismo: `git commit --amend` NO se usa en este árbol.** Aquí trabajan
+varias sesiones a la vez —el 2026-08-14 eran cuatro— compartiendo directorio e
+índice, así que **HEAD puede moverse entre que commiteas y que amendas**. Ese día
+pasó: una sesión commiteó, otra commiteó encima en los segundos siguientes, y el
+`--amend` de la primera reescribió el commit de la segunda — le dejó su cambio de
+`CLAUDE.md` con un mensaje sobre la maternidad, que no tenía nada que ver.
+
+El contenido no se perdió: lo que se pierde es el mensaje del otro, y con él la
+única explicación de por qué existe ese cambio. **Si un mensaje sale mal, se
+arregla con un commit nuevo que lo explique, nunca reescribiendo el anterior.**
+Es la misma razón por la que se commitea con `git commit -o <ruta>`: en un árbol
+compartido, toda operación de git tiene que ser explícita sobre qué toca.
+
+**Y avisa —sin bloquear— si hay una migración sin commitear**
+(`scripts/hooks/migracion-sin-guardar.sh`). Porque el descuido de la 0177 volvió
+a pasar: el 2026-08-14 la **0243**, que cambia una liquidación por cese, quedó
+aplicada en producción con sus archivos sin commitear, y hubo cuatro pushes en el
+medio que no dijeron nada. `dame-el-sql.sh` no lo evita y no puede — solo protege
+a quien lo usa, y si tienes la migración abierta delante, copiarla del editor es
+lo natural. El agujero no estaba en el script: estaba en que **el camino cómodo no
+pasa por él**.
+
+Distingue el archivo recién escrito del que **ya sobrevivió a un commit**: el
+segundo no es trabajo en curso, es trabajo olvidado, y el aviso cambia de tono.
+No bloquea a propósito, por la regla que este hook ya tenía escrita para
+`types.ts` — *lo que sale de esta máquina se bloquea; lo que solo está en el disco
+se avisa* —, porque con varias sesiones en paralelo una migración a medio escribir
+es un caso legítimo constante.
+
+**Y ese aviso solo mira migraciones. Todo lo demás se protege solo con el
+hábito: se commitea ANTES de pasar a lo siguiente, no al terminar la jornada.**
+El 2026-08-18 se perdieron los tres informes de la auditoría de agosto —116
+agentes, dos horas— y una migración ya escrita, auditada contra la base y con su
+prueba en verde. No los borró nadie a propósito: otra sesión movió el árbol
+compartido y se llevó por delante lo que estaba sin guardar. El trabajo
+intelectual se pudo rehacer porque los datos de los agentes vivían fuera del
+repo; el resto se escribió dos veces.
+
+Con cuatro sesiones compartiendo directorio, un archivo sin commitear no es
+«trabajo en curso»: es trabajo que solo existe mientras nadie toque el árbol. Y
+la ventana no es de horas — basta con que otra sesión haga un `checkout` en el
+minuto siguiente.
+
+Lo caro no fue rehacerlo. Fue que **la migración quedó obsoleta antes de poder
+entregarla**: partía de la 0263 y, mientras se rehacía el trabajo, la función
+vigente pasó a ser la 0269. Pegada tal cual habría revertido esa migración en
+silencio — exactamente el accidente que `donde-vive.sh` existe para evitar, por
+el camino de haber tardado demasiado en guardar.
+
+**Y antes de EMPEZAR algo, mira si otra rama ya lo está haciendo.**
+
+```bash
+git log --all --oneline -20                    # qué se está construyendo ahora mismo
+git grep -l "fn_lo_que_vas_a_tocar" $(git for-each-ref --format='%(refname)' refs/heads refs/remotes)
+```
+
+Cuesta diez segundos y el 2026-08-25 habría ahorrado esto: **dos sesiones
+construyeron la misma función el mismo día**, cada una con su migración —la 0297
+y la 0299—, las dos se fusionaron a `main` y las dos se pegaron en producción.
+Como sus firmas diferían (`p_dias, p_as_of` contra `p_dias_aviso`), Postgres no
+protestó: guardó dos funciones con el mismo nombre, con ventanas distintas
+—60 días contra 90— y alcances distintos. Nada falló, y ese es el problema: dos
+puertas para la misma pregunta conviviendo en silencio hasta que alguien note que
+la pantalla y el contador no dicen lo mismo. Se descubrió contando funciones
+después de pegar, y costó dos migraciones más para retirar una —la 0301 y una
+0302 que hubo que tirar porque hacía lo mismo—.
+
+Ese mismo día, más temprano, `siguiente-numero.sh` había repartido un número ya
+ocupado por la misma razón de fondo: **aquí trabajan diez worktrees a la vez y
+cada uno solo se ve a sí mismo**. Aquello se arregló en el script; esto no lo
+caza ninguna herramienta, porque «otra rama está construyendo esta misma idea» no
+se parece a nada que se pueda comparar automáticamente sin ruido.
 
 **Antes de crear una migración o una prueba, pregunta qué número toca:**
 
@@ -378,20 +775,47 @@ pruebas de GitHub de ese commit hayan pasado —**incluidas las de base de datos
 (pgTAP)**— y recién ahí publica. Para producción pide escribir `publicar` como
 confirmación.
 
-**Las pgTAP también corren en esta Mac**, y conviene correrlas antes de subir:
-```bash
-npx supabase db start    # levanta Postgres y aplica todas las migraciones
-npx supabase test db     # 34 archivos, 302 pruebas, ~3 segundos
-```
+**La señal fiable de las pgTAP es `db-tests` de GitHub Actions, no esta Mac.**
+`.github/workflows/tests.yml` corre `supabase db start` + `supabase test db` en
+CADA pull request y en cada push a `main`, sobre una base construida desde cero.
+Eso es lo que hay que mirar antes de dar una migración por buena, y es lo que
+`desplegar.sh` ya exige. Hoy son **214 archivos y ~2 188 aserciones**, no las
+«34 archivos, 302 pruebas» que decía este párrafo.
+
+**Y ojo con correrlas en esta Mac, porque el Postgres local es UNO SOLO para los
+~10 worktrees.** `npx supabase test db` mide una base que otras sesiones mueven
+por debajo, y `npx supabase db reset` **le destruye el estado a todo el mundo**.
+El 2026-09-04, en una sola sesión, otra ventana la reinició tres veces mientras
+se verificaba un PR: `max(numero)` de `migraciones_aplicadas` fue 363 → 357 →
+348 → servidor caído → 372.
+
+Eso produjo DOS falsos rojos, y los dos se leen como deuda vieja del repositorio:
+
+- `274` fallaba porque a la base compartida le faltaban migraciones que el
+  worktree sí tenía. En CI estaba verde.
+- `194` ni siquiera fallaba: el contador casero hacía `grep` de «error» y casaba
+  con el texto de una aserción — «(por error: el dinero nunca salió del banco)».
+
+Se fue media hora en perseguir dos defectos que no existían. Así que si hace
+falta medir en local antes de subir, hay dos reglas:
+
+1. **Aísla la deriva.** Aplica dentro de `begin … rollback` las migraciones que
+   le falten a la base (compara `migraciones_aplicadas` contra
+   `ls supabase/migrations`), y corre ahí tu prueba. Nunca `db reset`.
+2. **Corre siempre el control**: la misma prueba SIN tus cambios. Sin él no se
+   puede distinguir «lo rompí yo» de «ya venía así», que es exactamente el error
+   que se cometió.
+
+Lo que sí sigue siendo cierto, y es la mitad útil de correrlas acá: `db start`
+aplica el esquema entero desde cero, así que un error de sintaxis o una
+dependencia rota de una migración nueva salta ahí y no en producción. (Este
+archivo llegó a decir que las pgTAP «no corren en esta Mac porque necesitan
+Docker», y eso era falso; comprobado el 2026-08-04 con Docker Desktop 29.6.2 y
+Supabase CLI 2.109.1.)
+
 Ojo con el resumen: `Bad plan. You planned N tests but ran M` **no** es un error de
 conteo, es un archivo que abortó a media ejecución — las pruebas que faltaron nunca
 verificaron nada. Se lee igual de discreto que un descuido y no lo es.
-
-Comprobado el 2026-08-04 con Docker Desktop 29.6.2 y Supabase CLI 2.109.1. El
-`db start` es además la mejor verificación de una migración nueva: aplica el
-esquema entero desde cero, así que un error de sintaxis o una dependencia rota
-salta ahí y no en producción. (Este archivo decía lo contrario —«no corren en
-esta Mac porque necesitan Docker»— y era falso.)
 
 En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.

@@ -17,47 +17,40 @@
 // peruana; el resto no paga porque así lo decidió CAYLA.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
-import { TZ_LIMA, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
+import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
+import { useToast } from "@/components/toast";
 
-// ── POR QUÉ ESTAS DOS FUNCIONES VAN CON UN NOMBRE SIN TIPAR ──────────────────
+// ── AQUÍ VIVÍAN TRES NOMBRES DE FUNCIÓN SIN TIPAR ───────────────────────────
 //
-// `packages/database/src/types.ts` se genera con `pnpm --filter …database
-// gen-types`, y hoy NO conoce `fn_ausencias_subsidio` ni
-// `fn_ausencia_adjuntar_certificado` porque las crea la 0197.
+// Eran `RPC_SUBSIDIO`, `RPC_ADJUNTAR` y `RPC_POR_VENCER`, tres constantes con
+// `as unknown as NombreRpcSinTipar` porque `types.ts` no conocía todavía las
+// funciones que crearon la 0197 y la 0299. El comentario que las acompañaba
+// prometía: «cuando alguien regenere los tipos, esto se borra y deja de
+// compilar si se olvida».
 //
-// Regenerarlo arreglaría esto en una línea, pero el archivo lleva tiempo sin
-// regenerarse y la versión actual del CLI emite los parámetros opcionales como
-// `string | undefined` donde la vieja ponía `string | null`. Medido el
-// 2026-08-08: **53 errores en 13 pantallas**, entre ellas planilla y
-// liquidaciones. Eso es una tarea propia, no un efecto colateral de agregar un
-// campo a Ausencias.
+// No se cumplió. Los tipos ya conocen las tres —se comprobó el 2026-08-26— y
+// esto siguió compilando igual, porque forzar un nombre CORRECTO a la unión de
+// todos los nombres nunca falla: el aviso que iba a delatarlo no podía existir.
+// Se quedaron tres llamadas sin comprobar y nada lo dijo.
 //
-// Así que el nombre se pasa sin tipar y SOLO el nombre: los argumentos y lo que
-// devuelve siguen comprobados abajo por las interfaces `Subsidio` y por el
-// `catch` de cada llamada. Cuando alguien regenere los tipos, esto se borra y
-// deja de compilar si se olvida — que es justo lo que se quiere.
-type NombreRpcSinTipar = Parameters<ReturnType<typeof createAdminSupabaseClient>["rpc"]>[0];
-const RPC_SUBSIDIO = "fn_ausencias_subsidio" as unknown as NombreRpcSinTipar;
-const RPC_ADJUNTAR = "fn_ausencia_adjuntar_certificado" as unknown as NombreRpcSinTipar;
+// Escritas con su nombre literal, las tres las comprueba el compilador.
 
 function fmt(iso: string | null | undefined): string {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return iso;
   return `${d}/${m}/${y}`;
-}
-// Hoy en Lima. Con new Date().toISOString() (UTC) a partir de las 19:00 daría mañana.
-function hoyLima(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ_LIMA, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
 }
 function haceMeses(n: number): string {
   const [y, m, d] = hoyLima().split("-").map(Number);
@@ -90,6 +83,26 @@ interface Subsidio {
   dias_para_el_umbral: number; sin_certificado: number;
 }
 
+/** Un récord de vacaciones que vence pronto, o que ya venció.
+ *  Es lo único de esta pantalla que tiene FECHA LÍMITE: pasada, el art. 23 del
+ *  D. Leg. 713 manda una indemnización de una remuneración entera.
+ *
+ *  ⇩ LOS CAMPOS SON LOS DE `fn_vacaciones_por_vencer` DE LA 0297, que es la que
+ *  sobrevive. Hubo un momento en que existieron DOS funciones con ese nombre
+ *  —la 0299 la creó sin mirar que la 0297 ya estaba— y esta interfaz describía
+ *  los campos de la que se retiró en la 0301. Si algún día los nombres no
+ *  cuadran y llegan `undefined`, es esto: mirar qué firma responde de verdad. */
+interface VacacionPorVencer {
+  persona_id: string;
+  persona: string;
+  sede: string;
+  dias_pendientes: number;
+  records_sin_gozar: number;
+  records_vencidos: number;
+  vence_el: string;
+  dias_para_vencer: number;
+}
+
 export default function AusenciasPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -101,8 +114,9 @@ export default function AusenciasPage() {
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [lista, setLista] = useState<Ausencia[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const [porVencer, setPorVencer] = useState<VacacionPorVencer[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
 
   // Formulario
@@ -114,30 +128,67 @@ export default function AusenciasPage() {
   const [docProf, setDocProf] = useState("");
   const [docColeg, setDocColeg] = useState("");
   const [docFecha, setDocFecha] = useState("");
+  // LO QUE SE MANDA ES LO QUE SE VE, y por eso hay refs además de estado.
+  //
+  // El 2026-08-26 el formulario rechazó un descanso médico diciendo que
+  // faltaba la fecha de emisión mientras el campo mostraba 26/08/2026 en
+  // pantalla. El navegador tenía la fecha; React no: el valor entró sin que el
+  // evento llegara al componente (Safari lo hace con `input[type=date]` y con
+  // el autorrelleno), así que el estado seguía vacío y la validación —la de
+  // acá y la del servidor— pedía un dato que estaba delante de los ojos.
+  //
+  // Leer del DOM al enviar no puede colar basura: un `input[type=date]`
+  // devuelve "" o una fecha válida, nunca texto a medias.
+  const refDocProf = useRef<HTMLInputElement>(null);
+  const refDocColeg = useRef<HTMLInputElement>(null);
+  const refDocFecha = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState<number | null>(null);
   const [subsidio, setSubsidio] = useState<Subsidio[]>([]);
+  // ausencia → ruta de su certificado en el almacén. Vacío para quien no puede
+  // verlos: el almacén solo responde a admin y líder de DO (0197), así que
+  // quien no tiene ese permiso recibe una lista vacía y no ve ningún botón.
+  // La regla vive en la base, no repetida acá.
+  const [certificados, setCertificados] = useState<Record<string, string>>({});
+  const [adjuntando, setAdjuntando] = useState<string | null>(null);
 
   const [desde, setDesde] = useState(haceMeses(6));
   const [hasta, setHasta] = useState(haceMeses(-6));
 
   const tipoSel = tipos.find((t) => t.codigo === tipoCod) ?? null;
 
+  // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
+  //
+  // El 2026-08-26 un descanso médico real no se pudo registrar: Safari pintaba
+  // 26/08/2026 en el campo y no se lo entregaba al formulario — ni por el
+  // evento ni leyendo el DOM. Con el campo vacío por dentro, la validación de
+  // acá y la del servidor (0101) pedían las dos un dato que estaba en pantalla,
+  // y no había salida por ningún lado. Se intentó capturarlo por `onChange`,
+  // por `onBlur` y por el valor del DOM; ninguno lo vio.
+  //
+  // Así que el campo deja de depender de que un evento llegue. Lo que se
+  // MUESTRA y lo que se MANDA son este mismo valor: el que la persona escribió
+  // si lo escribió, y si no, el primer día del descanso — que es cuando se
+  // emite el certificado casi siempre. Visible, editable en un clic, y nunca
+  // vacío mientras haya una fecha de inicio.
+  const fechaDoc = docFecha || (tipoSel?.requiere_documento ? inicio : "");
+
   const cargar = useCallback(async () => {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }, { data: pv }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
       supabase.rpc("fn_ausencias_alerta", {}),
-      supabase.rpc(RPC_SUBSIDIO, {}),
+      supabase.rpc("fn_ausencias_subsidio", {}),
+      supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
     // lista de ausencias es peor que no mostrar ninguna.
     if (eP || eA) {
-      setMsg({ tipo: "error", texto: `No se pudieron cargar las ausencias: ${(eP ?? eA)!.message}` });
+      avisar("error", `No se pudieron cargar las ausencias: ${(eP ?? eA)!.message}`);
       setCargando(false);
       return;
     }
@@ -145,31 +196,163 @@ export default function AusenciasPage() {
     const tt = (t as unknown as Tipo[]) ?? [];
     setTipos(tt);
     setTipoCod((prev) => prev || tt[0]?.codigo || "");
-    setLista((a as unknown as Ausencia[]) ?? []);
+    const ausencias = (a as unknown as Ausencia[]) ?? [];
+    setLista(ausencias);
+
+    // QUÉ CERTIFICADOS HAY, preguntándoselo al almacén y no a la tabla.
+    //
+    // `fn_ausencias` (0101) es anterior a que el certificado existiera (0197) y
+    // no devuelve `doc_storage_path`. Se podría reescribir, pero preguntarle al
+    // almacén tiene una ventaja que no se pierde: encuentra el archivo aunque
+    // la fila no lo tenga anotado, que es justo lo que pasa cuando la subida
+    // funciona y el enlace posterior falla — un caso que esta pantalla admite a
+    // propósito, porque prefiere registrar la ausencia a perderla por un
+    // archivo.
+    //
+    // Solo se pregunta por las personas que tienen alguna ausencia CON
+    // documento en el rango a la vista: son las de descanso médico y
+    // maternidad, no las treinta.
+    const conDocumento = Array.from(new Set(ausencias.filter((x) => x.doc_colegiatura).map((x) => x.persona_id)));
+    if (conDocumento.length > 0) {
+      const mapa: Record<string, string> = {};
+      await Promise.all(conDocumento.map(async (pid) => {
+        const { data: archivos } = await supabase.storage
+          .from("certificados").list(`certificados/${pid}`, { limit: 1000 });
+        for (const f of archivos ?? []) {
+          // El archivo se guarda con el id de la ausencia por nombre.
+          mapa[f.name.replace(/\.[^.]+$/, "")] = `certificados/${pid}/${f.name}`;
+        }
+      }));
+      setCertificados(mapa);
+    } else {
+      setCertificados({});
+    }
     setAlertas((al as unknown as Alerta[]) ?? []);
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
+    setPorVencer((pv as unknown as VacacionPorVencer[]) ?? []);
     setCargando(false);
-  }, [supabase, router, desde, hasta]);
+  }, [supabase, router, desde, hasta, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
+  /**
+   * Abre el certificado de una ausencia en una pestaña nueva.
+   *
+   * El almacén es privado: la dirección se firma en el momento y caduca en un
+   * minuto. Un certificado dice el diagnóstico de una persona, así que no puede
+   * quedar viviendo en una URL que alguien pegue en un chat.
+   *
+   * La pestaña se abre ANTES de pedir la firma. Si se abriera después, Safari
+   * la trata como una ventana emergente no pedida por nadie y la bloquea — el
+   * clic ya terminó para cuando llega la respuesta.
+   */
+  async function verCertificado(a: Ausencia) {
+    const ruta = certificados[a.id];
+    if (!ruta) return;
+    const pestana = window.open("", "_blank");
+    const { data, error } = await supabase.storage.from("certificados").createSignedUrl(ruta, 60);
+    if (error || !data?.signedUrl) {
+      pestana?.close();
+      avisar("error", `No se pudo abrir el certificado (${error?.message ?? "sin respuesta"}).`);
+      return;
+    }
+    if (pestana) pestana.location.href = data.signedUrl;
+    else window.open(data.signedUrl, "_blank");
+  }
+
+  /**
+   * Adjunta el certificado a una ausencia YA REGISTRADA.
+   *
+   * Faltaba, y su ausencia convertía en mentira un mensaje que esta pantalla ya
+   * daba: cuando la subida falla, dice «el papel puedes adjuntarlo después» —y
+   * hasta hoy no había por dónde—. El desenlace es corriente: la ausencia se
+   * registra aunque el archivo no suba, a propósito, porque el registro es lo
+   * que evita que esos días cuenten como falta.
+   *
+   * Y hay un segundo camino, el que lo destapó: el archivo se guarda con el id
+   * de SU ausencia, así que si una se anula y se registra otra —«me equivoqué,
+   * son 2 días»— el papel se queda en la anulada. La nueva nace sin él y no
+   * había forma de moverlo.
+   *
+   * Quién puede lo decide `fn_ausencia_adjuntar_certificado` (0197), que además
+   * solo acepta descanso médico y maternidad: no se abre un sitio para guardar
+   * papeles de salud fuera del único que se revisa.
+   */
+  async function adjuntarCertificado(a: Ausencia, archivo: File) {
+    setAdjuntando(a.id);
+    const paraSubir = await reducirImagen(archivo);
+    const ext = paraSubir.name.split(".").pop()?.toLowerCase() ?? "bin";
+    const ruta = `certificados/${a.persona_id}/${a.id}.${ext}`;
+    const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, paraSubir, setProgreso);
+    setProgreso(null);
+    if (errorSubida) {
+      setAdjuntando(null);
+      avisar("error", `El certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). La ausencia sigue registrada igual.`);
+      return;
+    }
+    const { error } = await supabase.rpc("fn_ausencia_adjuntar_certificado", {
+      p_ausencia_id: a.id, p_storage_path: ruta,
+    });
+    setAdjuntando(null);
+    if (error) { avisar("error", `El archivo subió, pero no se pudo enlazar (${error.message}).`); return; }
+    await cargar();
+    avisar("ok", `Certificado adjuntado a la ausencia de ${a.nombre}.`);
+  }
+
   async function registrar() {
-    if (!personaId) { setMsg({ tipo: "error", texto: "Elige a la persona." }); return; }
-    if (!tipoCod) { setMsg({ tipo: "error", texto: "Elige el tipo de ausencia." }); return; }
-    if (fin < inicio) { setMsg({ tipo: "error", texto: "La fecha de fin no puede ser anterior a la de inicio." }); return; }
+    if (!personaId) { avisar("error", "Elige a la persona."); return; }
+    if (!tipoCod) { avisar("error", "Elige el tipo de ausencia."); return; }
+    if (fin < inicio) { avisar("error", "La fecha de fin no puede ser anterior a la de inicio."); return; }
+
+    // Los mismos tres datos que exige `fn_registrar_ausencia` (0101), pero
+    // comprobados acá y DICIENDO CUÁL falta. El aviso del servidor los enumera
+    // juntos, y el 2026-08-26 eso costó un rato: los tres campos se veían
+    // llenos en pantalla y el aviso seguía listándolos todos, así que no había
+    // forma de saber si el que faltaba era el profesional o la fecha. Nombrar
+    // el que falta convierte «no me deja» en «ah, esto».
+    // El valor visible manda sobre el estado; ver el comentario de los refs.
+    const vProf = (docProf || refDocProf.current?.value || "").trim();
+    const vColeg = (docColeg || refDocColeg.current?.value || "").trim();
+    const vFecha = fechaDoc || refDocFecha.current?.value || "";
+    if (vProf !== docProf) setDocProf(vProf);
+    if (vColeg !== docColeg) setDocColeg(vColeg);
+    if (vFecha !== docFecha) setDocFecha(vFecha);
+
+    if (tipoSel?.requiere_documento) {
+      const faltan: string[] = [];
+      if (!vProf) faltan.push("el profesional o institución");
+      if (!vColeg) faltan.push("el número de colegiatura");
+      if (!vFecha) faltan.push("la fecha de emisión");
+      if (faltan.length > 0) {
+        avisar(
+          "error",
+          `Falta ${faltan.join(" y ")} — ${tipoSel.nombre} lo exige. Si no tienes ningún documento, regístralo como «Descanso por salud»: no paga, pero tampoco cuenta como falta.`,
+        );
+        return;
+      }
+    }
+
     setGuardando(true);
-    setMsg(null);
     const { data: nuevoId, error } = await supabase.rpc("fn_registrar_ausencia", {
       p_persona_id: personaId,
       p_tipo: tipoCod,
       p_fecha_inicio: inicio,
       p_fecha_fin: fin,
       p_motivo: motivo.trim() || null,
-      p_doc_profesional: docProf.trim() || null,
-      p_doc_colegiatura: docColeg.trim() || null,
-      p_doc_fecha: docFecha || null,
+      p_doc_profesional: vProf || null,
+      p_doc_colegiatura: vColeg || null,
+      p_doc_fecha: vFecha || null,
     });
-    if (error) { setGuardando(false); setMsg({ tipo: "error", texto: error.message }); return; }
+    // El código va entre paréntesis a propósito. Con los tres datos ya
+    // comprobados arriba, un rechazo del servidor por «falta el documento» ya
+    // no puede ser lo que parece — y sin el código (PGRST202 si la función no
+    // responde, 42501 si es permiso) no hay cómo distinguirlo de un aviso que
+    // se quedó pegado en pantalla.
+    if (error) {
+      setGuardando(false);
+      avisar("error", error.code ? `${error.message} (${error.code})` : error.message);
+      return;
+    }
 
     // El certificado, si se eligió uno. Va DESPUÉS porque su ruta lleva dentro
     // el id de la ausencia, que hasta acá no existía.
@@ -179,26 +362,29 @@ export default function AusenciasPage() {
     // un archivo que no subió sería el peor intercambio posible. El mensaje lo
     // dice para que nadie crea que no se guardó nada.
     if (archivo && nuevoId) {
-      const ext = archivo.name.split(".").pop()?.toLowerCase() ?? "bin";
+      // La foto se reduce ANTES de subir (ver `reducir-imagen.ts`): una foto de
+      // un papel tomada con el celular de la tienda trae más píxeles de los que
+      // el papel tiene información, y cada tope que se amplía solo mueve el
+      // muro más lejos. Si no es imagen o el navegador no puede, sube la
+      // original — ahí se prefiere el papel a los megas.
+      const paraSubir = await reducirImagen(archivo);
+      const ext = paraSubir.name.split(".").pop()?.toLowerCase() ?? "bin";
       const ruta = `certificados/${personaId}/${nuevoId}.${ext}`;
       setProgreso(0);
-      const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, archivo, setProgreso);
+      const errorSubida = await subirArchivoConProgreso(supabase, "certificados", ruta, paraSubir, setProgreso);
       setProgreso(null);
       if (errorSubida) {
         setGuardando(false);
-        setMsg({ tipo: "error", texto: `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.` });
+        avisar("error", `La ausencia SÍ quedó registrada, pero el certificado no subió (${errorSubida} · pesaba ${pesoLegible(paraSubir.size)}). Esos días ya no cuentan como falta; el papel puedes adjuntarlo después.`);
         await cargar();
         return;
       }
-      // El `as never` va por lo mismo que el nombre: sin la función en los tipos
-      // generados, TypeScript infiere `never` para sus argumentos. Los dos
-      // valores son los que la 0197 declara y el servidor los valida igual.
-      const { error: eAdj } = await supabase.rpc(RPC_ADJUNTAR, {
+      const { error: eAdj } = await supabase.rpc("fn_ausencia_adjuntar_certificado", {
         p_ausencia_id: nuevoId, p_storage_path: ruta,
-      } as never);
+      });
       if (eAdj) {
         setGuardando(false);
-        setMsg({ tipo: "error", texto: `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${eAdj.message}).` });
+        avisar("error", `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${eAdj.message}).`);
         await cargar();
         return;
       }
@@ -207,12 +393,12 @@ export default function AusenciasPage() {
     setGuardando(false);
     setMotivo(""); setDocProf(""); setDocColeg(""); setDocFecha(""); setArchivo(null);
     await cargar();
-    setMsg({
-      tipo: "ok",
-      texto: tipoSel?.requiere_aprobacion
+    avisar(
+      "ok",
+      tipoSel?.requiere_aprobacion
         ? "Registrada. Como es un tipo que se paga, queda pendiente de aprobación de Desarrollo Organizacional."
         : "Registrada. Esos días dejan de contar como falta injustificada.",
-    });
+    );
   }
 
   async function anular(a: Ausencia) {
@@ -221,13 +407,13 @@ export default function AusenciasPage() {
         "No se borra: queda en el historial con el motivo. ¿Por qué se anula?",
     );
     if (m === null) return;
-    if (m.trim().length < 4) { setMsg({ tipo: "error", texto: "El motivo es obligatorio (mínimo 4 caracteres)." }); return; }
+    if (m.trim().length < 4) { avisar("error", "El motivo es obligatorio (mínimo 4 caracteres)."); return; }
     setGuardando(true);
     const { error } = await supabase.rpc("fn_anular_ausencia", { p_id: a.id, p_motivo: m.trim() });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { avisar("error", error.message); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Ausencia anulada. Esos días vuelven a contarse como antes." });
+    avisar("ok", "Ausencia anulada. Esos días vuelven a contarse como antes.");
   }
 
   async function aprobar(a: Ausencia) {
@@ -238,9 +424,9 @@ export default function AusenciasPage() {
     setGuardando(true);
     const { error } = await supabase.rpc("fn_aprobar_ausencia", { p_id: a.id });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: error.message }); return; }
+    if (error) { avisar("error", error.message); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: "Aprobada." });
+    avisar("ok", "Aprobada.");
   }
 
   if (rol !== null && !puedeGestionar) {
@@ -266,9 +452,43 @@ export default function AusenciasPage() {
           descanso médico con documento y maternidad.
         </p>
 
-        {msg && (
-          <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
+        {/* ── RÉCORDS DE VACACIONES POR VENCER (0299) ──────────────────────
+            VA EN ROJO Y VA PRIMERA, y las dos cosas a propósito.
+
+            El resto de avisos de esta pantalla son «para mirar»: cuentan algo y
+            alguien decide. Éste no: tiene FECHA. Pasada esa fecha, el art. 23
+            del D. Leg. 713 manda una indemnización de una remuneración entera,
+            y ya no hay nada que decidir — solo pagarla.
+
+            Por eso existe: hasta la 0283, esto solo aparecía en la hoja de
+            liquidación, o sea el día en que la persona ya se fue y el récord ya
+            había vencido. Avisar ahí llega tarde por definición. */}
+        {porVencer.length > 0 && (
+          <div className="mb-4 max-w-3xl rounded-lg border border-sand bg-papel px-4 py-3 text-sm">
+            <p className="font-medium text-tinta">Vacaciones que vencen: hay que programarlas.</p>
+            {/* Mismo condicional de color que ya usa Bandeja para esta misma
+                lista: rojo si el récord YA venció (obliga a indemnizar), ámbar
+                si todavía hay margen para programar el descanso — antes las
+                dos se pintaban igual, en rojo, y no se distinguía cuál ya
+                costaba dinero de cuál todavía se podía evitar gratis. */}
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {porVencer.map((v) => (
+                <li key={v.persona_id} className={v.records_vencidos > 0 ? "text-rojo" : "text-ambar"}>
+                  <strong className="font-medium">{v.persona}</strong> ({v.sede}){" "}
+                  {v.records_vencidos > 0 ? (
+                    <>tiene {v.records_vencidos === 1 ? "un récord" : `${v.records_vencidos} récords`}{" "}
+                      <strong className="font-medium">ya vencidos</strong> — {v.dias_pendientes} días sin gozar.</>
+                  ) : (
+                    <>tiene {v.dias_pendientes} días sin gozar y su récord vence
+                      el {fmt(v.vence_el)}, en {v.dias_para_vencer} días.</>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs text-taupe">
+              Un récord que vence sin gozarse obliga a pagar una indemnización de una remuneración
+              (art. 23, D. Leg. 713). Programar el descanso cuesta cero.
+            </p>
           </div>
         )}
 
@@ -378,15 +598,15 @@ export default function AusenciasPage() {
               </p>
               <label className="flex flex-col gap-1 text-sm">
                 Profesional o institución
-                <input value={docProf} onChange={(e) => setDocProf(e.target.value)} placeholder="ej. Dra. Rojas / Clínica San Pablo" className="rounded-lg border px-3 py-2" />
+                <input ref={refDocProf} value={docProf} onChange={(e) => setDocProf(e.target.value)} onBlur={(e) => setDocProf(e.currentTarget.value)} placeholder="ej. Dra. Rojas / Clínica San Pablo" className="rounded-lg border px-3 py-2" />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 N.º de colegiatura (CMP) o de CITT
-                <input value={docColeg} onChange={(e) => setDocColeg(e.target.value)} placeholder="ej. CMP 12345" className="rounded-lg border px-3 py-2" />
+                <input ref={refDocColeg} value={docColeg} onChange={(e) => setDocColeg(e.target.value)} onBlur={(e) => setDocColeg(e.currentTarget.value)} placeholder="ej. CMP 12345" className="rounded-lg border px-3 py-2" />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Fecha de emisión
-                <input type="date" value={docFecha} onChange={(e) => setDocFecha(e.target.value)} className="rounded-lg border px-3 py-2" />
+                <input ref={refDocFecha} type="date" value={fechaDoc} onChange={(e) => setDocFecha(e.target.value)} onBlur={(e) => setDocFecha(e.currentTarget.value)} className="rounded-lg border px-3 py-2" />
               </label>
               {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
                   admin y líder de DO: un certificado dice el diagnóstico de una
@@ -408,9 +628,9 @@ export default function AusenciasPage() {
           )}
 
           <div className="flex items-end gap-3 sm:col-span-2">
-            <button onClick={registrar} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+            <Boton variante="primario" onClick={registrar} disabled={guardando}>
               {guardando ? "Guardando…" : "Registrar ausencia"}
-            </button>
+            </Boton>
             {tipoSel && (
               <span className="text-xs text-taupe">
                 {tipoSel.paga
@@ -440,19 +660,16 @@ export default function AusenciasPage() {
             No hay ausencias registradas en ese rango de fechas.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-sand">
-            <table className="w-full text-sm">
-              <thead className="bg-sand/70 text-left text-taupe">
-                <tr>
-                  <th className="px-4 py-2 font-normal">Persona</th>
-                  <th className="px-4 py-2 font-normal">Tipo</th>
-                  <th className="px-4 py-2 font-normal">Fechas</th>
-                  <th className="px-4 py-2 text-right font-normal">Días</th>
-                  <th className="px-4 py-2 font-normal">Estado</th>
-                  <th className="px-4 py-2 font-normal">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Tabla>
+            <TablaEncabezado>
+              <Th>Persona</Th>
+              <Th>Tipo</Th>
+              <Th>Fechas</Th>
+              <Th className="text-right">Días</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </TablaEncabezado>
+            <tbody>
                 {lista.map((a) => (
                   <tr key={a.id} className={`border-t bg-papel ${a.anulada ? "text-taupe/60" : ""}`}>
                     <td className="px-4 py-2">
@@ -461,7 +678,7 @@ export default function AusenciasPage() {
                     </td>
                     <td className="px-4 py-2">
                       {a.tipo_nombre}
-                      {a.paga && <span className="ml-1.5 rounded-full bg-sand px-2 py-0.5 text-xs">se paga</span>}
+                      {a.paga && <Insignia className="ml-1.5">se paga</Insignia>}
                       {a.motivo && <div className="text-xs text-taupe">{a.motivo}</div>}
                       {a.doc_colegiatura && (
                         <div className="text-xs text-taupe">
@@ -482,36 +699,65 @@ export default function AusenciasPage() {
                     <td className="px-4 py-2">
                       {a.anulada ? (
                         <>
-                          <span className="rounded-full bg-sand px-2 py-0.5 text-xs">anulada</span>
+                          <Insignia>anulada</Insignia>
                           <div className="text-xs text-taupe">{a.anulada_motivo}</div>
+                          {/* El papel sigue existiendo aunque la ausencia se
+                              haya anulado, y a veces es justo lo que hay que
+                              mirar para entender por qué se anuló. */}
+                          {certificados[a.id] && (
+                            <Boton variante="secundario" tamano="sm" className="mt-1" onClick={() => void verCertificado(a)}>
+                              Ver documento
+                            </Boton>
+                          )}
                         </>
                       ) : a.requiere_aprobacion && !a.aprobada ? (
-                        <span className="rounded-full bg-ambar/20 px-2 py-0.5 text-xs text-ambar">
-                          pendiente de aprobar
-                        </span>
+                        <Insignia variante="advertencia">pendiente de aprobar</Insignia>
                       ) : (
-                        <span className="rounded-full bg-sand px-2 py-0.5 text-xs">vigente</span>
+                        <Insignia>vigente</Insignia>
                       )}
                     </td>
                     <td className="px-4 py-2">
                       {!a.anulada && (
                         <div className="flex flex-wrap gap-2 text-xs">
+                          {certificados[a.id] ? (
+                            <Boton variante="secundario" tamano="sm" onClick={() => void verCertificado(a)}>
+                              Ver documento
+                            </Boton>
+                          ) : a.doc_colegiatura ? (
+                            // `doc_colegiatura` y no una lista de tipos escrita
+                            // acá: solo el descanso médico y la maternidad
+                            // exigen esos datos, que es exactamente lo que
+                            // `fn_ausencia_adjuntar_certificado` acepta.
+                            <label className="cursor-pointer rounded border px-2 py-1 hover:bg-sand/50">
+                              {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
+                              <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                                className="hidden"
+                                disabled={adjuntando !== null}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  e.target.value = "";   // para poder reintentar con el mismo archivo
+                                  if (f) void adjuntarCertificado(a, f);
+                                }}
+                              />
+                            </label>
+                          ) : null}
                           {esDO && a.requiere_aprobacion && !a.aprobada && (
-                            <button onClick={() => void aprobar(a)} disabled={guardando} className="rounded border px-2 py-1 hover:bg-sand/50 disabled:opacity-50">
+                            <Boton variante="secundario" tamano="sm" onClick={() => void aprobar(a)} disabled={guardando}>
                               Aprobar
-                            </button>
+                            </Boton>
                           )}
-                          <button onClick={() => void anular(a)} disabled={guardando} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10 disabled:opacity-50">
+                          <Boton variante="peligro" tamano="sm" onClick={() => void anular(a)} disabled={guardando}>
                             Anular
-                          </button>
+                          </Boton>
                         </div>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+          </Tabla>
         )}
 
         <p className="mt-4 max-w-3xl text-xs text-taupe">

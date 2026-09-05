@@ -41,6 +41,14 @@ function fmtDias(n: number): string {
  *
  * `pagada` es opcional a propósito: sin la 0123 aplicada llega `undefined`, la
  * función cae al monto de siempre y la pantalla se ve exactamente como antes.
+ *
+ * Y SI QUEDA SALDO, EL SALDO MANDA. Desde la 0158 «pagada» dejó de significar
+ * «liquidada del todo»: un depósito directo PARCIAL de CTS la marca pagada y aun
+ * así deja un pendiente, que es el número que entra al total. Mostrando solo lo
+ * pagado, la fila no cuadraba a la vista —se leía «pagado S/94.17» junto a un
+ * total que contaba otros S/146.77 que no aparecían por ningún lado—. La
+ * gratificación sigue siendo todo-o-nada, así que ahí el pendiente es 0 y la
+ * celda se ve igual que siempre.
  */
 function celdaVentana(
   monto: number,
@@ -50,11 +58,12 @@ function celdaVentana(
 ) {
   if (!pagada) return <>{formatSoles(monto)}</>;
   return (
-    <span className="text-taupe">
-      pagado {fechaDiaMes(fechaPago)}
-      {typeof montoPagado === "number" && (
-        <span className="block text-xs">{formatSoles(montoPagado)}</span>
-      )}
+    <span className={monto === 0 ? "text-taupe" : undefined}>
+      {monto !== 0 && <span className="block">{formatSoles(monto)}</span>}
+      <span className={monto !== 0 ? "block text-xs text-taupe" : undefined}>
+        pagado {fechaDiaMes(fechaPago)}
+        {typeof montoPagado === "number" && ` · ${formatSoles(montoPagado)}`}
+      </span>
     </span>
   );
 }
@@ -85,6 +94,15 @@ interface ProvPersona {
   grati_s1: number;
   grati_s2: number;
   grati_total: number;
+  // ⇩ 0134 ⇩ La bonificación extraordinaria de la Ley 30334: el 9% que, en vez
+  // de ir a EsSalud, se le paga a la persona junto con la gratificación. Sale
+  // del mismo número que la grati y se apaga con la misma bandera.
+  //
+  // Viaja desde la 0134 y la pantalla la ignoró hasta el 2026-08-19: el «Gran
+  // total» se sumaba acá sin ella y la reserva salía corta. Ahora tiene columna
+  // propia, para que el total que muestra `gran_total` cuadre con lo que se ve.
+  be_total: number;
+  tasa_be: number;
   cts_may: number;
   cts_nov: number;
   cts_total: number;
@@ -102,9 +120,23 @@ interface ProvPersona {
   cts_may_monto_pagado?: number | null;
   cts_nov_monto_pagado?: number | null;
   vac: number;
+  // ⇩ 0273 ⇩ Las vacaciones son la quinta ventana del libro de desembolsos y
+  // eran la única que nunca se descontaba. Opcionales por la misma razón que
+  // las de arriba: sin la 0273 pegada llegan `undefined` y la celda se ve igual
+  // que siempre.
+  vac_pagada?: boolean;
+  vac_monto_pagado?: number | null;
   vac_dias: number;
   proximo_aniversario: string;
   gran_total: number;
+  // ⇩ 0365 ⇩ Dos ceros que se veían iguales. Quien devenga y NO tiene tramo
+  // en `asignaciones_salario` salía con S/ 0.00 en todo, igual que quien entró
+  // esta semana: los días sin tramo no aportan a la base y la fila sale igual
+  // (0274). `sin_salario_vigente` lo dice, y `dias_sin_salario` cuenta los
+  // días de calendario que lleva así. Opcionales por la misma razón que las de
+  // arriba: sin la 0365 pegada llegan `undefined` y la fila se ve como antes.
+  sin_salario_vigente?: boolean;
+  dias_sin_salario?: number;
 }
 interface ProvData {
   as_of: string;
@@ -119,9 +151,12 @@ interface ProvData {
   cts_may_periodo: string;
   cts_nov_periodo: string;
   personas: ProvPersona[];
+  // ⇩ 0365 ⇩ Cuántas filas llevan `sin_salario_vigente`. Opcional: sin la
+  // 0365 pegada no viaja, y la línea de aviso simplemente no se pinta.
+  personas_sin_salario?: number;
 }
 
-const COLS = 13; // 2 + 3 grati + 3 cts + 3 vac + gran total + próximo pago
+const COLS = 14; // 2 + 3 grati + bonif + 3 cts + 3 vac + gran total + próximo pago
 
 export default function ProvisionesPage() {
   const router = useRouter();
@@ -178,6 +213,19 @@ export default function ProvisionesPage() {
     () => (data?.personas ?? []).filter((p) => sedeFiltro === "todas" || p.sede === sedeFiltro),
     [data, sedeFiltro],
   );
+  // El pie suma lo que manda la base, campo por campo — incluido `gran_total`.
+  //
+  // POR QUÉ NO SE RECALCULA ACÁ. Hasta hoy el «Gran total» de la fila y el del
+  // pie se armaban como `grati_total + cts_total + vac`, y esa suma OMITE la
+  // bonificación extraordinaria de la Ley 30334 (`be_total`, ~9% de la
+  // gratificación) que `fn_provisiones` sí incluye en su `gran_total`. La
+  // reserva salía corta en esa cifra, y el CSV que va al contador también.
+  // Medido el 2026-08-19 con una persona de S/1.500: la pantalla decía
+  // S/2.010,12 y la base S/2.095,77 — los S/85,65 que faltaban eran la bonif.
+  //
+  // La regla que queda: un total que la base ya calcula NO se vuelve a calcular
+  // acá. Si hace falta que cuadre a la vista, se agrega la columna que falta
+  // —que es lo que se hizo con «Bonif. extr.»— no se cambia el total.
   const totales = useMemo(
     () =>
       visibles.reduce(
@@ -185,6 +233,7 @@ export default function ProvisionesPage() {
           grati_s1: acc.grati_s1 + p.grati_s1,
           grati_s2: acc.grati_s2 + p.grati_s2,
           grati_total: acc.grati_total + p.grati_total,
+          be_total: acc.be_total + p.be_total,
           cts_may: acc.cts_may + p.cts_may,
           cts_nov: acc.cts_nov + p.cts_nov,
           cts_total: acc.cts_total + p.cts_total,
@@ -192,11 +241,19 @@ export default function ProvisionesPage() {
           gran_total: acc.gran_total + p.gran_total,
         }),
         {
-          grati_s1: 0, grati_s2: 0, grati_total: 0,
+          grati_s1: 0, grati_s2: 0, grati_total: 0, be_total: 0,
           cts_may: 0, cts_nov: 0, cts_total: 0,
           vac: 0, gran_total: 0,
         },
       ),
+    [visibles],
+  );
+
+  // CAMBIO 0365 — quienes hoy SÍ tienen tramo pero tuvieron un hueco dentro
+  // del año que reserva. `personas_sin_salario` (de la base) no los cuenta:
+  // la bandera mira solo la fecha de corte. Se cuenta sobre lo visible.
+  const conHueco = useMemo(
+    () => visibles.filter((p) => !p.sin_salario_vigente && (p.dias_sin_salario ?? 0) > 0).length,
     [visibles],
   );
 
@@ -217,15 +274,20 @@ export default function ProvisionesPage() {
       grati_julio_ene_jun: p.grati_s1,
       grati_diciembre_jul_dic: p.grati_s2,
       grati_total: p.grati_total,
+      bonificacion_extraordinaria: p.be_total,
       cts_mayo_nov_abr: p.cts_may,
       cts_noviembre_may_oct: p.cts_nov,
       cts_total: p.cts_total,
       vacaciones: p.vac,
       vacaciones_dias: p.vac_dias,
       proximo_aniversario: p.proximo_aniversario,
-      gran_total: p.grati_total + p.cts_total + p.vac,
+      gran_total: p.gran_total,
       proximo_pago_monto: montoProximo(p) ?? "",
       proximo_pago_fecha: data.proximo?.fecha ?? "",
+      // CAMBIO 0365 — el contador trabaja con este archivo, no con la
+      // pantalla: el cero corto tiene que ir marcado también acá.
+      sin_tramo_salario: p.sin_salario_vigente ? "sí" : "",
+      dias_sin_salario: (p.dias_sin_salario ?? 0) > 0 ? p.dias_sin_salario : "",
     }));
     const csv = generarCsv(filas, [
       "nombre",
@@ -234,6 +296,7 @@ export default function ProvisionesPage() {
       "grati_julio_ene_jun",
       "grati_diciembre_jul_dic",
       "grati_total",
+      "bonificacion_extraordinaria",
       "cts_mayo_nov_abr",
       "cts_noviembre_may_oct",
       "cts_total",
@@ -243,6 +306,8 @@ export default function ProvisionesPage() {
       "gran_total",
       "proximo_pago_monto",
       "proximo_pago_fecha",
+      "sin_tramo_salario",
+      "dias_sin_salario",
     ]);
     descargarCsv(`provisiones-${data.as_of}.csv`, csv);
   }
@@ -306,6 +371,52 @@ export default function ProvisionesPage() {
           </p>
         )}
 
+        {/* QUIÉN SALE Y QUIÉN NO — dicho aquí a propósito (CAMBIO 0274).
+            La tabla ya no lista a quien no devenga ningún beneficio: locadoras,
+            días de prueba y quien no es trabajadora. Antes salían con las cinco
+            columnas en cero y llenaban media pantalla de filas que no reservan
+            nada. Pero una fila que falta no se ve, y quien conoce al equipo
+            puede echar de menos un nombre y no saber si se perdió por error;
+            esta línea es la que contesta esa pregunta sin tener que abrir la
+            base. Sigue apareciendo quien devenga y hoy suma cero —alguien que
+            entró esta semana—, porque ese cero significa «aún no». */}
+        {data && (
+          <p className="mb-4 max-w-3xl text-xs text-taupe">
+            Aparece quien devenga beneficios. Quien no devenga ninguno —recibo por honorarios, días de
+            prueba— no ocupa una fila: no hay nada que reservarle.
+          </p>
+        )}
+
+        {/* SIN TRAMO DE SALARIO (CAMBIO 0365). Una fila en cero puede significar
+            «aún no devengó» o «nadie le cargó el tramo de salario», y hasta la
+            0365 las dos se veían igual. La base lo cuenta una vez arriba para
+            que quien reserva no tenga que recorrer la tabla buscando el cero
+            que miente. */}
+        {data && ((data.personas_sin_salario ?? 0) > 0 || conHueco > 0) && (
+          <div className="mb-4 max-w-3xl rounded-lg border border-rojo bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            {(data.personas_sin_salario ?? 0) > 0 && (
+              <>
+                <strong className="font-medium">
+                  {data.personas_sin_salario}{" "}
+                  {data.personas_sin_salario === 1 ? "persona" : "personas"} sin tramo de salario
+                  vigente:
+                </strong>{" "}
+                sus reservas salen cortas o en cero, no porque no les toque. Asígnale el salario en
+                Equipo para que la reserva se calcule.{" "}
+              </>
+            )}
+            {conHueco > 0 && (
+              <span>
+                {(data.personas_sin_salario ?? 0) > 0 ? "Y " : ""}
+                {conHueco === 1 ? "una persona" : `${conHueco} personas`}
+                {(data.personas_sin_salario ?? 0) > 0 ? " más " : " "}
+                {conHueco === 1 ? "tiene" : "tienen"} días sin tramo dentro del año que reserva: esos
+                días no cuentan.
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Error de carga */}
         {error && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
@@ -358,6 +469,9 @@ export default function ProvisionesPage() {
                       Gratificación · paga {fechaDiaMes(data.grati_s1_pago)} y{" "}
                       {fechaDiaMes(data.grati_s2_pago)}
                     </th>
+                    <th className="border-l px-4 py-2 text-center font-normal">
+                      Bonif. extr.
+                    </th>
                     <th className="border-l px-4 py-2 text-center font-normal" colSpan={3}>
                       CTS · deposita {fechaDiaMes(data.cts_may_pago)} y {fechaDiaMes(data.cts_nov_pago)}
                     </th>
@@ -380,6 +494,12 @@ export default function ProvisionesPage() {
                       <span className="text-taupe">({data.grati_s2_periodo})</span>
                     </th>
                     <th className="px-4 py-2 text-right font-normal">Total</th>
+                    <th className="border-l px-4 py-2 text-right font-normal">
+                      Ley 30334{" "}
+                      <span className="text-taupe">
+                        ({(data.personas[0]?.tasa_be ?? 0.09) * 100}%)
+                      </span>
+                    </th>
                     <th className="border-l px-4 py-2 text-right font-normal">
                       {mesDePago(data.cts_may_pago)}{" "}
                       <span className="text-taupe">({data.cts_may_periodo})</span>
@@ -408,7 +528,36 @@ export default function ProvisionesPage() {
                     const mp = montoProximo(p);
                     return (
                       <tr key={p.persona_id} className="border-t">
-                        <td className="px-4 py-2">{p.nombre}</td>
+                        <td className="px-4 py-2">
+                          {p.nombre}
+                          {/* CAMBIO 0365 — el cero de esta fila no es «aún no»:
+                              es que no hay tramo de salario que lo valore. */}
+                          {/* La insignia solo cuando falta el tramo A LA FECHA DE CORTE; los
+                              días, siempre que haya alguno: quien hoy tiene tramo pero tuvo
+                              un hueco en el año también reservó de menos, y sin este texto
+                              ese hueco no se ve en ningún sitio. */}
+                          {(p.sin_salario_vigente || (p.dias_sin_salario ?? 0) > 0) && (
+                            <span className="mt-1 flex flex-wrap items-center gap-2">
+                              {p.sin_salario_vigente && (
+                                <span
+                                  className="inline-block rounded-full border border-rojo bg-rojo/10 px-2 py-0.5 text-xs font-medium text-rojo"
+                                  title="No tiene ningún salario vigente a la fecha de corte (se asigna en Equipo). Sus reservas salen cortas o en cero, no porque no le toque."
+                                >
+                                  Sin tramo de salario vigente
+                                </span>
+                              )}
+                              {(p.dias_sin_salario ?? 0) > 0 && (
+                                <span
+                                  className="text-xs text-rojo"
+                                  title="Días de calendario del año que reserva sin ningún tramo de salario vigente: esos días no aportan a la reserva."
+                                >
+                                  {p.dias_sin_salario} {p.dias_sin_salario === 1 ? "día" : "días"} sin
+                                  salario cargado
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2">{p.sede}</td>
                         {/* Gratificación */}
                         <td className="border-l px-4 py-2 text-right">
@@ -418,6 +567,11 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.grati_s2, p.grati_s2_pagada, p.grati_s2_monto_pagado, data.grati_s2_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.grati_total)}</td>
+                        {/* Bonificación extraordinaria (Ley 30334). Desde la 0372 lleva
+                            su propia cuenta: ya no es «lo que quede de la grati». Si la
+                            gratificación se registró sin su 9% aparte, esta celda lo
+                            sigue mostrando pendiente, que es de lo que se trata. */}
+                        <td className="border-l px-4 py-2 text-right">{formatSoles(p.be_total)}</td>
                         {/* CTS */}
                         <td className="border-l px-4 py-2 text-right">
                           {celdaVentana(p.cts_may, p.cts_may_pagada, p.cts_may_monto_pagado, data.cts_may_pago)}
@@ -426,17 +580,28 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.cts_nov, p.cts_nov_pagada, p.cts_nov_monto_pagado, data.cts_nov_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.cts_total)}</td>
-                        {/* Vacaciones */}
-                        <td className="border-l px-4 py-2 text-right">{formatSoles(p.vac)}</td>
+                        {/* Vacaciones — desde la 0273 también pueden estar pagadas
+                            por fuera de planilla, así que se dice igual que en las
+                            otras ventanas: el saldo arriba y lo pagado debajo. */}
+                        <td className="border-l px-4 py-2 text-right">
+                          {formatSoles(p.vac)}
+                          {p.vac_pagada && typeof p.vac_monto_pagado === "number" && (
+                            <span className="block text-xs text-taupe">
+                              pagado · {formatSoles(p.vac_monto_pagado)}
+                            </span>
+                          )}
+                        </td>
                         <td className="whitespace-nowrap px-4 py-2 text-right text-xs text-taupe">
                           {fmtDias(p.vac_dias)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-2 text-xs text-taupe">
                           aniversario {fechaLarga(p.proximo_aniversario)}
                         </td>
-                        {/* Gran total */}
+                        {/* Gran total — el que calcula fn_provisiones, no una suma de acá.
+                            Ver el comentario de `totales`: sumarlo en el cliente omitía la
+                            bonificación extraordinaria y dejaba la reserva corta. */}
                         <td className="border-l bg-ambar/10 px-4 py-2 text-right font-bold">
-                          {formatSoles(p.grati_total + p.cts_total + p.vac)}
+                          {formatSoles(p.gran_total)}
                         </td>
                         {/* Próximo pago */}
                         <td className="whitespace-nowrap border-l px-4 py-2 text-right">
@@ -468,6 +633,9 @@ export default function ProvisionesPage() {
                       <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.grati_s2)}</td>
                       <td className="px-4 py-2 text-right font-bold">{formatSoles(totales.grati_total)}</td>
                       <td className="border-l px-4 py-2 text-right font-medium">
+                        {formatSoles(totales.be_total)}
+                      </td>
+                      <td className="border-l px-4 py-2 text-right font-medium">
                         {formatSoles(totales.cts_may)}
                       </td>
                       <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.cts_nov)}</td>
@@ -476,7 +644,7 @@ export default function ProvisionesPage() {
                       <td className="px-4 py-2" />
                       <td className="px-4 py-2" />
                       <td className="border-l bg-ambar/10 px-4 py-2 text-right font-bold">
-                        {formatSoles(totales.grati_total + totales.cts_total + totales.vac)}
+                        {formatSoles(totales.gran_total)}
                       </td>
                       <td className="border-l px-4 py-2" />
                     </tr>

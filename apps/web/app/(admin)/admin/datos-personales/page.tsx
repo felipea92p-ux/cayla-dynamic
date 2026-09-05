@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
+import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
+import { useToast } from "@/components/toast";
 
 interface Persona {
   id: string; nombres: string; apellidos: string; documento: string | null;
@@ -17,9 +18,20 @@ interface Persona {
   // Si tiene cuenta de acceso creada. Su correo pasa a ser su login, y la 0198
   // rechaza cambiarlo desde acá.
   auth_user_id: string | null;   // CAMBIO 0198
+  // Columna GENERADA en la base: `tipo_vinculo in ('planilla','prueba')`. Se lee
+  // en vez de derivarla acá justamente porque es una sola verdad, garantizada
+  // por Postgres. Decide qué datos previsionales tiene sentido pedirle a esta
+  // persona: a una locadora, ninguno.
+  //
+  // El tipo admite ausencia a propósito, aunque en la base sea NOT NULL: esta
+  // pantalla se despliega por Vercel y el SQL lo pega Felipe a mano, así que hay
+  // ventanas en las que el campo no viaja. Nunca se lee con `!`, siempre con
+  // `esPrestadorDeServicios` — ver packages/shared/src/vinculo.ts.
+  en_planilla: boolean | null | undefined;
 }
 interface Ficha {
   persona_id: string; nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
+  genero: string | null;
   direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null;
   grado_instruccion: string | null; hijos_menores: boolean | null;
   foto_dni_url: string | null; foto_personal_url: string | null; foto_profesional_url: string | null;
@@ -34,7 +46,7 @@ interface Derechohabiente {
   essalud: boolean; vida_ley: boolean; vigente_hasta: string | null; nota: string | null;
 }
 interface Form {
-  nombre_dni: string; fecha_nacimiento: string; estado_civil: string; direccion: string; celular: string;
+  nombre_dni: string; fecha_nacimiento: string; estado_civil: string; genero: string; direccion: string; celular: string;
   entidad_bancaria: string; numero_cuenta: string; grado_instruccion: string;
   hijos_menores: "" | "si" | "no";
   foto_dni_url: string; foto_personal_url: string; foto_profesional_url: string;
@@ -44,18 +56,30 @@ interface Form {
 }
 
 const VACIO: Form = {
-  nombre_dni: "", fecha_nacimiento: "", estado_civil: "", direccion: "", celular: "",
+  nombre_dni: "", fecha_nacimiento: "", estado_civil: "", genero: "", direccion: "", celular: "",
   entidad_bancaria: "", numero_cuenta: "", grado_instruccion: "", hijos_menores: "",
   foto_dni_url: "", foto_personal_url: "", foto_profesional_url: "",
   emergencia_nombre: "", emergencia_vinculo: "", emergencia_telefono: "",
   discapacidad: "", discapacidad_conadis: "", cuspp: "",
 };
 
-/** Familiar nuevo, en blanco. */
-const DH_VACIO = {
-  nombres: "", apellidos: "", vinculo: "hijo", documento: "",
-  fecha_nacimiento: "", essalud: false, vida_ley: false,
-};
+/**
+ * Familiar nuevo. `fecha_nacimiento` NACE EN HOY, no en "" — la fecha de
+ * nacimiento de un derechohabiente "hijo" es obligatoria (art. ver validación
+ * de guardar()), y un campo de fecha bloqueante que arranca vacío es
+ * exactamente el bug que costó cinco despliegues el 2026-08-26 (CLAUDE.md):
+ * Safari puede pintar un valor en el input sin disparar el evento que React
+ * escucha, dejando el estado en "" mientras la pantalla ya muestra una fecha.
+ * "Hoy" es obviamente incorrecto para una fecha de nacimiento —visible y
+ * editable en un clic—, pero nunca bloquea el envío por accidente ni dispara
+ * el desajuste entre lo que se ve y lo que se manda.
+ */
+function crearDhVacio() {
+  return {
+    nombres: "", apellidos: "", vinculo: "hijo", documento: "",
+    fecha_nacimiento: hoyLima(), essalud: false, vida_ley: false,
+  };
+}
 
 export default function DatosPersonalesPage() {
   const router = useRouter();
@@ -68,6 +92,7 @@ export default function DatosPersonalesPage() {
   // encargada, así que aquí se muestran de solo lectura en vez de dejar que el
   // guardado falle con un error que nadie entiende.
   const puedeIdentidad = puedeVerIdentidad(rol);
+  const { avisar } = useToast();
 
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -81,21 +106,38 @@ export default function DatosPersonalesPage() {
   const [dni, setDni] = useState("");
   const [motivoDni, setMotivoDni] = useState("");
   const [regimen, setRegimen] = useState("");
+  // Desde cuándo rige el régimen nuevo. Lo exige la 0277: el descuento lo decide
+  // el TRAMO vigente de `asignaciones_regimen_pension`, y un tramo sin principio
+  // no se puede leer a una fecha. Llega con el primer día del periodo abierto ya
+  // puesto —la misma fecha que la función sugiere cuando rechaza una que cae en
+  // un periodo pagado— y se puede cambiar para el caso raro.
+  const [regimenDesde, setRegimenDesde] = useState("");
+  const [periodoAbiertoIni, setPeriodoAbiertoIni] = useState<string | null>(null);
   // El correo vive en `personas`, no en la ficha: es el usuario de acceso.
   const [email, setEmail] = useState("");
-  const [dhNuevo, setDhNuevo] = useState({ ...DH_VACIO });
+  const [dhNuevo, setDhNuevo] = useState(crearDhVacio());
   const [dhAbierto, setDhAbierto] = useState(false);
   // Qué familiar se está editando. `null` = se está creando uno nuevo. El
   // formulario es el MISMO para las dos cosas: `fn_set_derechohabiente` ya hace
   // upsert según venga `p_id`, así que duplicarlo sería tener dos sitios donde
   // arreglar el próximo campo que falte.
   const [dhEditando, setDhEditando] = useState<string | null>(null);
+  // `personas.con_hijos` es OTRO campo que el `hijos_menores` de la ficha, y es
+  // el que de verdad decide si se paga la asignación familiar mensual
+  // (fn_planilla_calcular). Lo escribe la pantalla de Equipo; la ficha escribe
+  // el suyo; y nada los mantiene de acuerdo. Se trae aquí solo para poder
+  // avisar cuando difieran.
+  //
+  // `null` significa «no se pudo cargar», y NO es lo mismo que «nadie tiene
+  // hijos». La pantalla de Equipo degrada a `false` para todos cuando su RPC
+  // falla; copiar eso aquí convertiría un fallo de red en un aviso falso contra
+  // cada persona del equipo. Cuando es null, la comprobación no se hace.
+  const [conHijos, setConHijos] = useState<Map<string, boolean> | null>(null);
   // Si la carga falló, la pantalla no sabe qué hay de verdad: guardar desde aquí
   // borraría datos. Se bloquea hasta que una recarga vaya bien.
   const [cargaFallida, setCargaFallida] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [q, setQ] = useState("");
   const [soloSinFicha, setSoloSinFicha] = useState(false);
   const fichaRef = useRef<HTMLDivElement>(null);
@@ -107,11 +149,19 @@ export default function DatosPersonalesPage() {
     const [
       { data: p, error: eP }, { data: s, error: eS },
       { data: dp, error: eD }, { data: dh, error: eDH },
+      { data: fn, error: eFN },
+      { data: per, error: ePer },
     ] = await Promise.all([
-      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id").eq("estado", "activo").order("nombres"),
+      supabase.from("personas").select("id, nombres, apellidos, documento, sede_base_id, email, regimen_pension, auth_user_id, en_planilla").eq("estado", "activo").order("nombres"),
       supabase.from("sedes").select("id, codigo"),
-      supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
+      supabase.from("datos_personales").select("persona_id, nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp"),
       supabase.from("derechohabientes").select("id, persona_id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta, nota").order("apellidos"),
+      // `con_hijos` viaja por RPC porque el schema cache de PostgREST no expone
+      // esa columna — misma razón que en la pantalla de Equipo.
+      supabase.rpc("fn_personas_funciones"),
+      // La misma fuente que Planilla y Costos, para que «el periodo abierto» no
+      // tenga dos versiones. Solo alimenta la fecha sugerida del régimen.
+      supabase.rpc("fn_periodos"),
     ]);
 
     // Si una consulta falla NO se pisa el estado. Antes se hacía
@@ -122,35 +172,71 @@ export default function DatosPersonalesPage() {
     const fallo = eP ?? eS ?? eD ?? eDH;
     if (fallo) {
       setCargaFallida(true);
-      setMsg({ tipo: "error", texto: `No se pudieron cargar las fichas: ${fallo.message}. No guardes nada hasta recargar: lo que ves puede no ser lo que hay.` });
+      avisar("error", `No se pudieron cargar las fichas: ${fallo.message}. No guardes nada hasta recargar: lo que ves puede no ser lo que hay.`);
       setCargando(false);
       return;
     }
     setCargaFallida(false);
+    // A propósito FUERA del corte de arriba: esta RPC solo alimenta un aviso,
+    // nunca lo que se guarda. Que se caiga no puede bloquear la ficha entera ni
+    // impedir corregir un DNI. Si falla, el mapa queda en null y la
+    // comprobación cruzada simplemente no se hace — callarse es correcto,
+    // inventar un aviso contra cada persona no lo sería.
+    setConHijos(
+      eFN
+        ? null
+        : new Map(
+            (((fn as { persona_id: string; con_hijos: boolean | null }[] | null) ?? []))
+              .map((x) => [x.persona_id, x.con_hijos === true] as const),
+          ),
+    );
+    // Igual que `conHijos`: fuera del corte de arriba a propósito. Si falla, la
+    // fecha del régimen llega vacía y hay que escribirla, que es molesto pero
+    // honesto — sugerir una fecha inventada sí sería grave, porque decide a qué
+    // periodo se le aplica el descuento nuevo. `fn_periodos` viene ordenada por
+    // fecha_fin descendente, así que el primer 'abierto' es el vigente.
+    setPeriodoAbiertoIni(
+      ePer
+        ? null
+        : ((per as Array<{ fecha_ini: string; estado: string }> | null) ?? [])
+            .find((x) => x.estado === "abierto")?.fecha_ini ?? null,
+    );
     setPersonas((p as Persona[]) ?? []);
     setSedes(new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo])));
     setFichas(new Map(((dp as Ficha[]) ?? []).map((x) => [x.persona_id, x])));
     setDerechos((dh as Derechohabiente[]) ?? []);
     setCargando(false);
-  }, [supabase, router]);
+  }, [supabase, router, avisar]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
-  function seleccionar(id: string) {
-    setSel(id); setMsg(null); setMotivoDni(""); setDhAbierto(false); setDhNuevo({ ...DH_VACIO }); setDhEditando(null);
+  // ÚNICA puerta de entrada a la ficha. Nunca `setSel` suelto: quien cambia
+  // `sel` sin pasar por acá deja el formulario con los datos de la persona
+  // ANTERIOR, y como `fn_set_datos_personales` es un upsert que reemplaza,
+  // pulsar Guardar los escribe encima de la ficha equivocada. Pasó de verdad
+  // el 2026-08-13: el atajo de «fichas incompletas» llamaba a setSel directo,
+  // la ficha se abría con el correo y el DNI en blanco, y guardar intentó
+  // borrarle el correo a alguien que sí lo tenía. Lo frenó el candado de la
+  // 0198 —que solo cuida el correo—; el resto de la ficha ya se había escrito.
+  function seleccionar(id: string, forzarScroll = false) {
+    setSel(id); setMotivoDni(""); setDhAbierto(false); setDhNuevo(crearDhVacio()); setDhEditando(null);
     // En móvil la ficha queda debajo de la lista: la traemos a la vista
     // (respetando la preferencia de "reducir movimiento" del sistema).
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    // `forzarScroll` es para quien entra desde el bloque de arriba, donde la
+    // ficha queda fuera de vista también en pantalla grande.
+    if (typeof window !== "undefined" && (forzarScroll || window.innerWidth < 768)) {
       const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       setTimeout(() => fichaRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" }), 60);
     }
     const persona = personas.find((x) => x.id === id) ?? null;
     setDni(persona?.documento ?? "");
     setRegimen(persona?.regimen_pension ?? "");
+    setRegimenDesde(periodoAbiertoIni ?? "");
     setEmail(persona?.email ?? "");
     const f = fichas.get(id);
     setForm(f ? {
       nombre_dni: f.nombre_dni ?? "", fecha_nacimiento: f.fecha_nacimiento ?? "", estado_civil: f.estado_civil ?? "",
+      genero: f.genero ?? "",
       direccion: f.direccion ?? "", celular: f.celular ?? "", entidad_bancaria: f.entidad_bancaria ?? "",
       numero_cuenta: f.numero_cuenta ?? "", grado_instruccion: f.grado_instruccion ?? "",
       hijos_menores: f.hijos_menores === true ? "si" : f.hijos_menores === false ? "no" : "",
@@ -165,29 +251,59 @@ export default function DatosPersonalesPage() {
 
   const personaSel = personas.find((p) => p.id === sel) ?? null;
   const dniCambio = !!personaSel && dni.trim() !== (personaSel.documento ?? "");
+  // Escribir el DNI por primera vez no es una corrección: no hay nada que
+  // justificar cuando antes no había ningún valor. El motivo solo tiene
+  // sentido frente a un DNI que ya existía y se está reemplazando.
+  const dniEsCorreccion = dniCambio && (personaSel?.documento ?? "").trim() !== "";
   const regimenCambio = !!personaSel && regimen !== (personaSel.regimen_pension ?? "");
-  const emailCambio = !!personaSel && email.trim().toLowerCase() !== (personaSel.email ?? "");
+  // Los DOS lados en minúsculas. Antes se bajaba solo el izquierdo, así que un
+  // correo guardado con mayúsculas —medidos en producción el 2026-08-10: dos—
+  // daba «cambió» para siempre sin que nadie tocara el campo. Cada «Guardar
+  // ficha» llamaba entonces a fn_set_email, y si esa persona ya tiene cuenta la
+  // 0198 lo rechaza a propósito: la pantalla terminaba en «La ficha se guardó,
+  // pero el correo no» y hacía return, así que el aviso de éxito no salía nunca.
+  // Un error rojo, permanente y falso, que además no se podía corregir desde acá.
+  // Se compara como compara la base: `lower(trim())` contra `lower(trim())`.
+  const emailCambio =
+    !!personaSel && email.trim().toLowerCase() !== (personaSel.email ?? "").trim().toLowerCase();
   // Tiene acceso creado: su correo es su login y la 0198 rechaza cambiarlo acá.
   const tieneCuenta = personaSel?.auth_user_id != null;
   // El CUSPP solo existe en el sistema PRIVADO de pensiones. ONP no tiene cuenta
   // individual, y quien ya se jubiló no aporta. Se decide por el régimen que se
   // ve en pantalla —no por el guardado— para que el campo aparezca en cuanto se
   // elige la AFP, sin tener que guardar primero.
-  const esAfp = regimen !== "" && regimen !== "onp" && regimen !== "jubilada";
+  //
+  // `en_planilla` se suma a la condición (0242): el CUSPP entra al T-Registro de
+  // un TRABAJADOR, y una locadora no está en el T-Registro. Su afiliación, si la
+  // tiene, no pasa por CAYLA.
+  //
+  // `|| form.cuspp.trim() !== ""` es el escape, y hace falta: si alguien ya le
+  // cargó un código a una locadora, esconder el campo lo dejaría guardado y
+  // fuera de la vista, imposible de leer o de borrar desde la pantalla. Un dato
+  // que existe pero no se puede ver es peor que un campo de más.
+  const esAfp = !esPrestadorDeServicios(personaSel?.en_planilla)
+    && regimen !== "" && regimen !== "onp" && regimen !== "jubilada";
+  const mostrarCuspp = esAfp || form.cuspp.trim() !== "";
 
   async function guardar() {
     if (!sel) return;
     if (cargaFallida) {
-      setMsg({ tipo: "error", texto: "No se guarda: las fichas no llegaron a cargar y guardar ahora borraría los datos que ya existen. Recarga la página." });
+      avisar("error", "No se guarda: las fichas no llegaron a cargar y guardar ahora borraría los datos que ya existen. Recarga la página.");
       return;
     }
     // El motivo del DNI se exige aquí y no solo en la base, para que el aviso
     // llegue antes de intentar guardar y no como un error del servidor.
-    if (dniCambio && !motivoDni.trim()) {
-      setMsg({ tipo: "error", texto: "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos." });
+    if (dniEsCorreccion && !motivoDni.trim()) {
+      avisar("error", "Escribe el motivo del cambio de DNI: ese número se imprime en memos y contratos.");
       return;
     }
-    setGuardando(true); setMsg(null);
+    // Por lo mismo, y con más razón: sin fecha el régimen no se puede guardar, y
+    // llegar hasta el servidor significaría guardar la ficha y fallar después.
+    if (regimenCambio && !regimenDesde) {
+      avisar("error", "Escribe desde cuándo rige el régimen de pensión nuevo: esa fecha decide a qué periodo se le aplica el descuento.");
+      return;
+    }
+    setGuardando(true);
 
     // Los quince campos de la ficha SIEMPRE se mandan completos: la función de
     // la base es un upsert que reemplaza, no un update parcial. Si se omite uno,
@@ -197,6 +313,7 @@ export default function DatosPersonalesPage() {
       p_nombre_dni: form.nombre_dni.trim() || null,
       p_fecha_nacimiento: form.fecha_nacimiento || null,
       p_estado_civil: form.estado_civil.trim() || null,
+      p_genero: form.genero.trim() || null,
       p_direccion: form.direccion.trim() || null,
       p_celular: form.celular.trim() || null,
       p_entidad_bancaria: form.entidad_bancaria.trim() || null,
@@ -213,7 +330,7 @@ export default function DatosPersonalesPage() {
       p_discapacidad_conadis: form.discapacidad_conadis.trim() || null,
       p_cuspp: form.cuspp.trim() || null,   // CAMBIO 0198
     });
-    if (error) { setGuardando(false); setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { setGuardando(false); avisar("error", mensajeDeError(error)); return; }
 
     // Identidad: solo si de verdad cambió, para no ensuciar la auditoría con
     // guardados que no cambian nada.
@@ -221,13 +338,20 @@ export default function DatosPersonalesPage() {
       const { error: eDni } = await supabase.rpc("fn_set_documento", {
         p_persona_id: sel, p_documento: dni.trim(), p_motivo: motivoDni.trim(),
       });
-      if (eDni) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}` }); return; }
+      if (eDni) { setGuardando(false); avisar("error", `La ficha se guardó, pero el DNI no: ${mensajeDeError(eDni)}`); return; }
     }
     if (regimenCambio) {
-      const { error: eReg } = await supabase.rpc("fn_set_regimen_pension", {
+      // CAMBIO 0277 — Antes esto llamaba a `fn_set_regimen_pension`, que escribía
+      // solo `personas.regimen_pension`. Desde la 0261 la planilla lee el TRAMO
+      // vigente y cae a esa columna únicamente como respaldo, así que a quien ya
+      // tenía tramo el cambio no le movía el descuento — y esta pantalla decía
+      // que sí. La función buena escribe el tramo, deja auditoría y se niega si
+      // la fecha cae en un periodo pagado.
+      const { error: eReg } = await supabase.rpc("fn_cambiar_regimen_pension", {
         p_persona_id: sel, p_regimen: regimen || null,
+        p_desde: regimenDesde, p_nota: null,
       });
-      if (eReg) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}` }); return; }
+      if (eReg) { setGuardando(false); avisar("error", `La ficha se guardó, pero el régimen de pensión no: ${mensajeDeError(eReg)}`); return; }
     }
     // El correo va por su propia función (0198): con cuenta creada la base lo
     // rechaza, porque cambiarlo acá no cambiaría el acceso.
@@ -235,26 +359,26 @@ export default function DatosPersonalesPage() {
       const { error: eMail } = await supabase.rpc("fn_set_email", {
         p_persona_id: sel, p_email: email.trim() || null,
       });
-      if (eMail) { setGuardando(false); setMsg({ tipo: "error", texto: `La ficha se guardó, pero el correo no: ${mensajeDeError(eMail)}` }); return; }
+      if (eMail) { setGuardando(false); avisar("error", `La ficha se guardó, pero el correo no: ${mensajeDeError(eMail)}`); return; }
     }
 
     setGuardando(false);
     await cargar();
     setMotivoDni("");
-    setMsg({ tipo: "ok", texto: regimenCambio ? "Ficha guardada. El nuevo régimen se aplica desde el próximo cálculo de planilla." : "Ficha guardada." });
+    avisar("ok", regimenCambio ? `Ficha guardada. El régimen nuevo rige desde el ${regimenDesde} y ya cambia lo que se le descuenta.` : "Ficha guardada.");
   }
 
   async function agregarDerechohabiente() {
     if (!sel) return;
     if (!dhNuevo.nombres.trim() || !dhNuevo.apellidos.trim()) {
-      setMsg({ tipo: "error", texto: "El nombre y el apellido del familiar son obligatorios." });
+      avisar("error", "El nombre y el apellido del familiar son obligatorios.");
       return;
     }
     if (dhNuevo.vinculo === "hijo" && !dhNuevo.fecha_nacimiento) {
-      setMsg({ tipo: "error", texto: "La fecha de nacimiento de una hija o hijo es obligatoria: es lo que define hasta cuándo lo cubre EsSalud." });
+      avisar("error", "La fecha de nacimiento de una hija o hijo es obligatoria: es lo que define hasta cuándo lo cubre EsSalud.");
       return;
     }
-    setGuardando(true); setMsg(null);
+    setGuardando(true);
     const { error } = await supabase.rpc("fn_set_derechohabiente", {
       p_id: dhEditando, p_persona_id: sel,
       p_nombres: dhNuevo.nombres.trim(), p_apellidos: dhNuevo.apellidos.trim(),
@@ -264,18 +388,17 @@ export default function DatosPersonalesPage() {
       p_essalud: dhNuevo.essalud, p_vida_ley: dhNuevo.vida_ley, p_nota: null,
     });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     const editaba = dhEditando !== null;
-    setDhNuevo({ ...DH_VACIO }); setDhAbierto(false); setDhEditando(null);
+    setDhNuevo(crearDhVacio()); setDhAbierto(false); setDhEditando(null);
     await cargar();
-    setMsg({ tipo: "ok", texto: editaba ? "Familiar corregido." : "Familiar agregado." });
+    avisar("ok", editaba ? "Familiar corregido." : "Familiar agregado.");
   }
 
   /** Carga un familiar ya registrado en el formulario, para corregirlo. */
   function editarDerechohabiente(d: Derechohabiente) {
     setDhEditando(d.id);
     setDhAbierto(true);
-    setMsg(null);
     setDhNuevo({
       nombres: d.nombres, apellidos: d.apellidos, vinculo: d.vinculo,
       documento: d.documento ?? "", fecha_nacimiento: d.fecha_nacimiento ?? "",
@@ -285,12 +408,12 @@ export default function DatosPersonalesPage() {
 
   async function cerrarDerechohabiente(id: string, nombre: string) {
     if (!window.confirm(`¿Cerrar a ${nombre}? No se borra: queda registrado hasta hoy, así que el periodo en que estuvo cubierto sigue explicándose.`)) return;
-    setGuardando(true); setMsg(null);
+    setGuardando(true);
     const { error } = await supabase.rpc("fn_cerrar_derechohabiente", { p_id: id, p_hasta: null });
     setGuardando(false);
-    if (error) { setMsg({ tipo: "error", texto: mensajeDeError(error) }); return; }
+    if (error) { avisar("error", mensajeDeError(error)); return; }
     await cargar();
-    setMsg({ tipo: "ok", texto: `${nombre} quedó cerrado con la fecha de hoy.` });
+    avisar("ok", `${nombre} quedó cerrado con la fecha de hoy.`);
   }
 
   const lista = personas.filter((p) =>
@@ -313,6 +436,7 @@ export default function DatosPersonalesPage() {
     { clave: "nombre_dni", etiqueta: "nombre según DNI" },
     { clave: "fecha_nacimiento", etiqueta: "nacimiento" },
     { clave: "estado_civil", etiqueta: "estado civil" },
+    { clave: "genero", etiqueta: "género" },
     { clave: "grado_instruccion", etiqueta: "instrucción" },
     { clave: "celular", etiqueta: "celular" },
     { clave: "email", etiqueta: "correo" },
@@ -340,16 +464,28 @@ export default function DatosPersonalesPage() {
         const valor: Record<string, unknown> = { ...(f ?? {}), documento: p.documento, email: p.email, regimen_pension: p.regimen_pension };
         const faltan = FALTANTES.filter((c) => {
           const v = valor[c.clave];
-          return v === null || v === undefined || String(v).trim() === "";
+          if (v !== null && v !== undefined && String(v).trim() !== "") return false;
+          // A una locadora no se le pide el RÉGIMEN DE PENSIÓN. CAYLA no le
+          // retiene aporte previsional (0242): si ella aporta, lo hace como
+          // independiente y por su cuenta, y ese dato no es de la empresa.
+          // Pedirlo era un «falta» que nadie podía completar con sentido.
+          if (c.clave === "regimen_pension" && esPrestadorDeServicios(p.en_planilla)) return false;
+          return true;
         }).map((c) => c.etiqueta);
 
         // El CUSPP no es un campo más: solo se le pide a quien está en una
         // AFP. En ONP no hay cuenta individual y quien se jubiló no aporta, así
         // que para ellas no existe. Va acá y no en FALTANTES porque esa lista
         // es fija y esta condición depende del régimen de cada persona.
-        const enAfp = p.regimen_pension !== null && p.regimen_pension !== ""
-          && p.regimen_pension !== "onp" && p.regimen_pension !== "jubilada";
-        if (enAfp && !(f?.cuspp ?? "").trim()) faltan.push("CUSPP");
+        //
+        // ⇩ Y TAMPOCO a una locadora, por una razón distinta de la del régimen:
+        // no es que no tenga cuenta individual, es que su afiliación no pasa por
+        // CAYLA. El CUSPP entra al T-Registro de un TRABAJADOR, y un locador no
+        // está en el T-Registro. Medido el 2026-08-13: eran dos personas con un
+        // «falta CUSPP» permanente que nadie podía completar nunca — el tipo de
+        // aviso que enseña a ignorar los avisos.
+        if (leCorrespondeCuspp(p.en_planilla, p.regimen_pension)
+            && !(f?.cuspp ?? "").trim()) faltan.push("CUSPP");
 
         const avisos: string[] = [];
         // Un dato imposible se ve igual de bien que uno correcto hasta que el
@@ -358,7 +494,7 @@ export default function DatosPersonalesPage() {
           avisos.push("la fecha de nacimiento está en el futuro — corrígela arriba");
         }
         // Quien cobra asignación familiar tiene que tener a quién declararle.
-        // Son S/113 al mes: si no corresponde se está pagando de más, y si
+        // Es la asignación familiar mensual: si no corresponde se está pagando de más, y si
         // corresponde falta el respaldo que la sustenta ante una fiscalización.
         if (f?.hijos_menores === true && !derechos.some((d) => d.persona_id === p.id)) {
           avisos.push("cobra asignación familiar y no tiene ningún hijo registrado — agrégalo en Familiares, más abajo");
@@ -369,13 +505,36 @@ export default function DatosPersonalesPage() {
         if (f?.hijos_menores === false && derechos.some((d) => d.persona_id === p.id && d.vinculo === "hijo")) {
           avisos.push("tiene hijos registrados pero la ficha dice que no hay menores a cargo — si los hay, le falta cobrar la asignación familiar");
         }
+        // Las dos comprobaciones de arriba miran la ficha contra los familiares
+        // cargados. Ninguna mira el campo que DE VERDAD paga: `personas.con_hijos`,
+        // que escribe la pantalla de Equipo y lee `fn_planilla_calcular`. Son dos
+        // campos, en dos tablas, para la misma pregunta, y nada los sincroniza:
+        // se puede declarar una cosa al contador y abonar la contraria.
+        //
+        // Si `conHijos` es null la RPC no cargó, y entonces no se dice nada: un
+        // fallo de red no puede convertirse en un aviso contra cada persona.
+        // Quién decide qué es un desacuerdo vive en `asignacion-familiar.ts`,
+        // con sus pruebas: es la parte que puede producir un aviso FALSO contra
+        // una persona real, y eso cuesta más que no avisar. Aquí solo se elige
+        // la frase, que sí es asunto de esta pantalla.
+        switch (desacuerdoAsignacionFamiliar(conHijos?.get(p.id), f?.hijos_menores)) {
+          case "paga_y_declara_que_no":
+            avisos.push("se le paga la asignación familiar y esta ficha dice que NO tiene hijos menores — y es esta ficha la que sale en el padrón del contador; cuadra las dos");
+            break;
+          case "declara_y_no_cobra":
+            avisos.push("esta ficha dice que tiene hijos menores y NO se le está pagando la asignación familiar — si le corresponde, actívala en Equipo");
+            break;
+          case "paga_y_la_ficha_calla":
+            avisos.push("se le paga la asignación familiar y esta ficha no lo declara — el padrón saldrá con «SIN DATO» en esa columna");
+            break;
+        }
         return { p, faltan, avisos, sinFicha: f === undefined };
       })
       .filter((x) => x.faltan.length > 0 || x.avisos.length > 0)
       // Las contradicciones primero: un campo vacío se llena cuando se pueda,
       // pero un dato que se contradice ya está moviendo plata hoy.
       .sort((a, b) => b.avisos.length - a.avisos.length || b.faltan.length - a.faltan.length);
-  }, [personas, fichas, derechos]);
+  }, [personas, fichas, derechos, conHijos]);
 
   // El valor que llega de la base es texto libre: puede traer un código que
   // estas etiquetas todavía no conocen. Se devuelve el crudo en vez de dejar
@@ -402,16 +561,23 @@ export default function DatosPersonalesPage() {
         Celular: f?.celular ?? "", Correo: p.email ?? "", Direccion: f?.direccion ?? "",
         "Regimen pension": etiqueta(REGIMEN_PENSION_LABELS, p.regimen_pension),
         "CUSPP": f?.cuspp ?? "",
-        "Asignacion familiar": f?.hijos_menores ? "SI" : "NO",
+        // Tres estados, no dos. El ternario de antes —`f?.hijos_menores ? "SI"
+        // : "NO"`— metía en el mismo saco el `false` declarado y el `null` de
+        // una ficha que nadie llenó, así que este papel le AFIRMABA al contador
+        // que la persona no tiene hijos menores cuando la verdad es que no se
+        // sabe. Es la asignación familiar mensual, y el documento que lo
+        // niega lo emite CAYLA. Ver `siNoSinDato`.
+        "Asignacion familiar": siNoSinDato(f?.hijos_menores),
         Derechohabientes: dh,
         Banco: f?.entidad_bancaria ?? "", Cuenta: f?.numero_cuenta ?? "",
-        Discapacidad: f?.discapacidad ? "SI" : "NO", CONADIS: f?.discapacidad_conadis ?? "",
+        Discapacidad: siNoSinDato(f?.discapacidad), CONADIS: f?.discapacidad_conadis ?? "",
         "Contacto emergencia": f?.emergencia_nombre ?? "",
         "Telefono emergencia": f?.emergencia_telefono ?? "",
-        // El sistema NO guarda estos dos y el T-Registro los pide. Van como
-        // columna vacía y no omitidos: una columna que falta se pasa por alto,
-        // una vacía se ve y se llena.
-        Sexo: "", Nacionalidad: "",
+        // Sexo ya se guarda (0369) y sale con el dato real. Nacionalidad el
+        // sistema TODAVÍA no la guarda y el T-Registro la pide: va como columna
+        // vacía y no omitida — una columna que falta se pasa por alto, una
+        // vacía se ve y se llena.
+        Sexo: etiqueta(GENERO_LABELS, f?.genero ?? null), Nacionalidad: "",
         REVISAR: incompletas.find((x) => x.p.id === p.id)?.faltan.join(" · ") ?? "",
       };
     });
@@ -422,7 +588,7 @@ export default function DatosPersonalesPage() {
       `cayla-padron-${new Date().toISOString().slice(0, 10)}.csv`,
       generarCsv(filas, Object.keys(filas[0] ?? {})),
     );
-    setMsg({ tipo: "ok", texto: `Descargadas ${filas.length} fichas. Lleva DNI, dirección y cuentas bancarias: compártelo por un canal que puedas revocar y bórralo al terminar.` });
+    avisar("ok", `Descargadas ${filas.length} fichas. Lleva DNI, dirección y cuentas bancarias: compártelo por un canal que puedas revocar y bórralo al terminar.`);
   }
 
   if (rol !== null && !puede) {
@@ -460,10 +626,10 @@ export default function DatosPersonalesPage() {
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-taupe">
           {label}
-          {esAntiguo && <span className="ml-1 text-[11px] text-amber-700">· valor antiguo, elige uno de la lista</span>}
+          {esAntiguo && <span className="ml-1 text-[11px] text-ambar">· valor antiguo, elige uno de la lista</span>}
         </span>
         <select value={actual} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className={`rounded-lg border bg-crema px-3 py-2 ${esAntiguo ? "border-amber-400" : ""}`}>
+          className={`rounded-lg border bg-crema px-3 py-2 ${esAntiguo ? "border-ambar" : ""}`}>
           <option value="">—</option>
           {esAntiguo && <option value={actual}>{actual} (como estaba)</option>}
           {opciones.map((o) => (
@@ -542,7 +708,7 @@ export default function DatosPersonalesPage() {
                 <li key={p.id}>
                   <div className="flex flex-wrap items-baseline gap-x-2">
                     <button
-                      onClick={() => { setSel(p.id); fichaRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+                      onClick={() => seleccionar(p.id, true)}
                       className="font-medium underline decoration-dotted underline-offset-2"
                     >
                       {p.apellidos}, {p.nombres}
@@ -567,12 +733,6 @@ export default function DatosPersonalesPage() {
           </section>
         )}
 
-        {msg && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${msg.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {msg.texto}
-          </div>
-        )}
-
         <div className="grid gap-6 md:grid-cols-[260px_1fr]">
           {/* Lista de personas */}
           <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
@@ -581,7 +741,7 @@ export default function DatosPersonalesPage() {
                 <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
                 {sinFicha > 0 && (
                   <button onClick={() => setSoloSinFicha((v) => !v)} aria-pressed={soloSinFicha}
-                    className={`rounded-full px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-amber-200 text-amber-900" : "text-amber-800 hover:bg-amber-100"}`}>
+                    className={`rounded-full px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-ambar/25 text-ambar" : "text-ambar hover:bg-ambar/15"}`}>
                     {sinFicha} sin ficha
                   </button>
                 )}
@@ -608,7 +768,7 @@ export default function DatosPersonalesPage() {
                       <span>{p.nombres} {p.apellidos}</span>
                       <span className="flex items-center gap-1 text-xs text-taupe">
                         {sedes.get(p.sede_base_id)}
-                        {!fichas.has(p.id) && <span className="rounded-full bg-amber-100 px-1.5 text-amber-800">sin ficha</span>}
+                        {!fichas.has(p.id) && <span className="rounded-full bg-ambar/15 px-1.5 text-ambar">sin ficha</span>}
                       </span>
                     </button>
                   </li>
@@ -643,23 +803,24 @@ export default function DatosPersonalesPage() {
                         </span>
                         <input value={dni} disabled={!puedeIdentidad}
                           onChange={(e) => setDni(e.target.value)}
-                          className={`rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${dniCambio ? "border-amber-400" : ""}`} />
+                          className={`rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${dniCambio ? "border-ambar" : ""}`} />
                       </label>
                       {campo("Nombre completo (como en el DNI)", "nombre_dni")}
-                      {dniCambio && (
+                      {dniEsCorreccion && (
                         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                          <span className="text-amber-800">
-                            Motivo del cambio de DNI (obligatorio) — de {personaSel.documento ?? "vacío"} a {dni.trim()}
+                          <span className="text-ambar">
+                            Motivo del cambio de DNI (obligatorio) — de {personaSel.documento} a {dni.trim()}
                           </span>
                           <input value={motivoDni} onChange={(e) => setMotivoDni(e.target.value)}
                             placeholder="Por ejemplo: corregido contra la constancia de alta del T-Registro"
-                            className="rounded-lg border border-amber-400 px-3 py-2" />
+                            className="rounded-lg border border-ambar px-3 py-2" />
                           <span className="text-[11px] text-taupe">
                             Este número se imprime en los memos disciplinarios y en los documentos de respaldo, así que el cambio queda registrado con su motivo.
                           </span>
                         </label>
                       )}
                       {campo("Fecha de nacimiento", "fecha_nacimiento", "date")}
+                      {campoLista("Género", "genero", GENEROS, GENERO_LABELS)}
                       {campoLista("Estado civil", "estado_civil", ESTADOS_CIVILES, ESTADO_CIVIL_LABELS)}
                       {campoLista("Grado de instrucción", "grado_instruccion", GRADOS_INSTRUCCION, GRADO_INSTRUCCION_LABELS)}
                       {campoSiNo("¿Hijos menores a cargo?", "hijos_menores")}
@@ -677,25 +838,65 @@ export default function DatosPersonalesPage() {
                         </span>
                         <select value={regimen} disabled={!puedeIdentidad}
                           onChange={(e) => setRegimen(e.target.value)}
-                          className={`rounded-lg border bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${regimenCambio ? "border-amber-400" : ""}`}>
+                          className={`rounded-lg border bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe ${regimenCambio ? "border-ambar" : ""}`}>
                           <option value="">— todavía no se sabe</option>
                           {REGIMENES_PENSION.map((r) => (
                             <option key={r} value={r}>{REGIMEN_PENSION_LABELS[r]}</option>
                           ))}
                         </select>
                       </label>
+                      {/* CAMBIO 0328 — Dos correcciones en tres líneas de texto.
+                          La primera: decía que sin régimen «se le descuenta la
+                          tasa genérica del 13 %», y no es cierto desde la 0115.
+                          El interruptor global `configuracion.tasa_afp` vale 0 a
+                          propósito, así que a quien no tiene régimen NO se le
+                          descuenta NADA. Decir 13 % hacía que un dato faltante
+                          pareciera un dato razonable, y por eso podía quedarse
+                          años sin llenar sin que nadie sintiera urgencia.
+                          La segunda: se nombra el esquema de comisión, porque es
+                          lo que se venía eligiendo sin saber que se elegía. */}
                       <p className="self-end text-[11px] text-taupe">
                         {regimen === ""
-                          ? "Sin régimen se le descuenta la tasa genérica del 13 %. Conviene poner el verdadero: sale en su boleta."
+                          ? "Mientras esté vacío NO se le descuenta pensión: ni AFP ni ONP. No es un descuento genérico, es cero. Hay que poner el verdadero — sale en su boleta y lo declara el contador."
                           : "Se descuenta de su remuneración asegurable y va a su fondo de pensión — no se queda en CAYLA."}
-                        {regimenCambio && <strong className="block text-amber-800">Se aplicará desde el próximo cálculo de planilla.</strong>}
                       </p>
+                      {/* La comisión mixta es el caso normal y hasta la 0328 no se
+                          podía ni elegir: quien se afilió al SPP desde 2013 entró
+                          a mixta obligatoriamente. Elegir el esquema equivocado no
+                          da error en ninguna pantalla — solo retiene de más o de
+                          menos cada mes, así que la única defensa es que quien
+                          llena la ficha sepa dónde se comprueba. */}
+                      {regimen.endsWith("_mixta") || ["profuturo", "prima", "integra", "habitat"].includes(regimen) ? (
+                        <p className="self-end text-[11px] text-taupe sm:col-span-2">
+                          <b>Mixta o sobre flujo</b> no se adivina por la AFP: es cómo cobra su comisión.
+                          En <b>mixta</b> no cobra nada del sueldo (se retiene 11.37 %) y se cobra contra el
+                          fondo; en <b>flujo</b> la cobra del sueldo. Quien se afilió desde 2013 está en
+                          mixta. Se confirma en AFPnet o en el estado de cuenta de la persona.
+                        </p>
+                      ) : null}
+                      {/* CAMBIO 0277 — La fecha solo aparece cuando hay algo que
+                          fechar. Un campo permanente pediría una decisión en cada
+                          guardado de ficha, y la mayoría de los guardados no
+                          tocan el régimen. */}
+                      {regimenCambio && (
+                        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+                          <span className="text-taupe">Rige desde</span>
+                          <input type="date" value={regimenDesde} disabled={!puedeIdentidad}
+                            onChange={(e) => setRegimenDesde(e.target.value)}
+                            className="rounded-lg border border-ambar bg-crema px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+                          <span className="text-[11px] text-ambar">
+                            {periodoAbiertoIni
+                              ? `El descuento cambia desde esta fecha, y queda registrado quién lo cambió. Viene puesta la del periodo abierto (${periodoAbiertoIni}); si eliges una de un periodo ya pagado, la base la rechaza — ese mes ya se pagó con el régimen anterior.`
+                              : "No se pudo leer cuál es el periodo abierto, así que hay que escribir la fecha. Tiene que caer fuera de todo periodo ya pagado."}
+                          </span>
+                        </label>
+                      )}
                       {/* El CUSPP solo existe en el sistema PRIVADO: identifica
                           la cuenta individual en la AFP. En ONP no hay cuenta
                           individual, y quien ya se jubiló no aporta. Pedírselo
                           a Raquel sería pedirle un código que no existe — y un
                           campo que no aplica enseña a ignorar los que sí. */}
-                      {esAfp && (
+                      {mostrarCuspp && (
                         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
                           <span className="text-taupe">
                             CUSPP · código de su cuenta en la AFP
@@ -707,8 +908,9 @@ export default function DatosPersonalesPage() {
                             className="rounded-lg border px-3 py-2 font-mono uppercase"
                           />
                           <span className="text-xs text-taupe">
-                            Obligatorio en el T-Registro. Sin él, el aporte se declara pero puede
-                            no llegar a su cuenta.
+                            {esAfp
+                              ? "Obligatorio en el T-Registro. Sin él, el aporte se declara pero puede no llegar a su cuenta."
+                              : "Esta persona no está en planilla, así que CAYLA no declara su aporte. El código queda visible para poder corregirlo o borrarlo."}
                           </span>
                         </label>
                       )}
@@ -777,8 +979,8 @@ export default function DatosPersonalesPage() {
                           un familiar nuevo. */}
                       <button
                         onClick={() => {
-                          if (dhAbierto) { setDhAbierto(false); setDhEditando(null); setDhNuevo({ ...DH_VACIO }); }
-                          else { setDhEditando(null); setDhNuevo({ ...DH_VACIO }); setDhAbierto(true); }
+                          if (dhAbierto) { setDhAbierto(false); setDhEditando(null); setDhNuevo(crearDhVacio()); }
+                          else { setDhEditando(null); setDhNuevo(crearDhVacio()); setDhAbierto(true); }
                         }}
                         className="text-xs text-tinta hover:underline"
                       >
@@ -852,7 +1054,7 @@ export default function DatosPersonalesPage() {
                           <label className="flex flex-col gap-1 text-sm">
                             <span className="text-taupe">
                               Fecha de nacimiento
-                              {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-amber-700">· obligatoria</span>}
+                              {dhNuevo.vinculo === "hijo" && <span className="ml-1 text-[11px] text-ambar">· obligatoria</span>}
                             </span>
                             <input type="date" value={dhNuevo.fecha_nacimiento} onChange={(e) => setDhNuevo((d) => ({ ...d, fecha_nacimiento: e.target.value }))} className="rounded-lg border px-3 py-2" />
                           </label>
@@ -876,7 +1078,7 @@ export default function DatosPersonalesPage() {
                               «Agregar familiar» cierra el formulario, y dos formas de
                               cerrar lo mismo confunden más de lo que ayudan. */}
                           {dhEditando && (
-                            <button onClick={() => { setDhAbierto(false); setDhEditando(null); setDhNuevo({ ...DH_VACIO }); }}
+                            <button onClick={() => { setDhAbierto(false); setDhEditando(null); setDhNuevo(crearDhVacio()); }}
                               disabled={guardando} className="text-sm text-taupe hover:underline disabled:opacity-50">
                               Cancelar
                             </button>

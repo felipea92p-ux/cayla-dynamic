@@ -59,6 +59,15 @@ export const ESTADOS_CIVILES = [
 export type EstadoCivil = (typeof ESTADOS_CIVILES)[number];
 
 /**
+ * Género de la ficha personal. Binario porque es el que pide el T-Registro
+ * (columna "Sexo" de la PLAME, con los mismos dos valores) — no una
+ * clasificación social. Se guarda en `datos_personales`, no en `personas`, por
+ * la misma razón que `estado_civil`: es un dato de la ficha, no de la cuenta.
+ */
+export const GENEROS = ["femenino", "masculino"] as const;
+export type Genero = (typeof GENEROS)[number];
+
+/**
  * Grado de instrucción, con la escala del INEI para que los datos del equipo
  * sean comparables con estadísticas oficiales.
  *
@@ -100,17 +109,43 @@ export const VINCULOS_DERECHOHABIENTE = [
 export type VinculoDerechohabiente = (typeof VINCULOS_DERECHOHABIENTE)[number];
 
 /**
- * Regímenes pensionarios cargados en `tasas_pension` (migración 0114).
+ * Regímenes pensionarios cargados en `tasas_pension` (migraciones 0114 y 0328).
  *
  * Esta lista es solo para PINTAR el desplegable. La verdad vive en la tabla, y
- * `fn_set_regimen_pension` valida contra ella — así que si mañana entra una AFP
- * nueva, la función la acepta aunque esta constante todavía no la nombre.
+ * `fn_cambiar_regimen_pension` valida contra ella — así que si mañana entra una
+ * AFP nueva, la función la acepta aunque esta constante todavía no la nombre.
+ *
+ * (La 0261 la había cableado en un `array[...]` dentro de la función y la 0277
+ * la devolvió a la tabla. `fn_set_regimen_pension`, que es quien cumplía esta
+ * promesa antes, está retirada desde la 0277: escribía solo la columna, y desde
+ * la 0261 la planilla lee el tramo vigente.)
  */
 export const REGIMENES_PENSION = [
   "onp",
+  // ⇩ CAMBIO 0328 ⇩ CADA AFP APARECE DOS VECES, Y ES A PROPÓSITO.
+  //
+  // La ley reconoce dos esquemas de comisión y cobran distinto:
+  //
+  //   comisión MIXTA  · 0 % sobre el sueldo desde febrero de 2023. La AFP cobra
+  //     su comisión contra el saldo del fondo, no por la boleta. Se retiene
+  //     11.37 % (10 % de aporte + 1.37 % de prima), igual en las cuatro.
+  //   comisión SOBRE FLUJO · la AFP cobra su comisión del sueldo. Se retiene
+  //     entre 12.84 % y 13.06 % según la AFP.
+  //
+  // La mixta va PRIMERA en cada par porque es el caso normal: quien se afilió
+  // al SPP desde 2013 está en mixta obligatoriamente (Ley 29903), y en flujo
+  // solo siguen quienes ya estaban afiliados antes y pidieron quedarse.
+  //
+  // Hasta la 0328 solo existía el esquema de flujo, así que a quien estaba en
+  // mixta se le retenía cada mes una comisión que su AFP no le cobra. Lo
+  // encontró el contador el 2026-08-31.
+  "profuturo_mixta",
   "profuturo",
+  "prima_mixta",
   "prima",
+  "integra_mixta",
   "integra",
+  "habitat_mixta",
   "habitat",
   // Ya percibe pensión de jubilación, así que NO aporta (0190). Va en la lista
   // a propósito: si no se pudiera elegir, la única forma de expresarlo sería
@@ -139,6 +174,7 @@ export const MOTIVOS_CESE = [
   "fin_contrato",
   "fin_periodo_prueba",
   "fin_servicio_rxh",
+  "fin_convenio_practicas",
   "mutuo_acuerdo",
   "despido",
   "por_revisar",
@@ -153,3 +189,23 @@ export const PARES_SALIDA_RETORNO: Record<string, TipoMarca> = {
   salida_medico: "retorno_medico",
   salida_otro: "retorno_otro",
 };
+
+/**
+ * La escala disciplinaria del RIT art. 7 sobre el D.S. 003-97-TR art. 25, en
+ * orden. El sistema llega hasta `imputacion` y ahí se detiene: el despido se
+ * decide después de leer los descargos (art. 31) y no lo genera ninguna
+ * función.
+ *
+ * ⚠️ Esto son NOMBRES, no la regla. Qué escalón le toca hoy a una persona lo
+ * responde `fn_tardanza_escalon` en la base (migración 0200), que es el único
+ * sitio donde vive la escala. Escribir aquí un umbral en números sería la
+ * segunda copia que la 0200 existió para borrar.
+ */
+export const NIVELES_DISCIPLINARIOS = [
+  "verbal",
+  "amonestacion",
+  "suspension",
+  "imputacion",
+  "despido",
+] as const;
+export type NivelDisciplinario = (typeof NIVELES_DISCIPLINARIOS)[number];

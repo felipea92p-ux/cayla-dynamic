@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 type TipoSede = "central" | "taller" | "tienda";
@@ -29,14 +33,22 @@ export default function SedesPage() {
   const router = useRouter();
   const rol = useRolActual();
   const puedeGestionar = puedeGestionarCatalogos(rol);
+  const { avisar } = useToast();
 
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [cargando, setCargando] = useState(true);
   const [cargaError, setCargaError] = useState<string | null>(null);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [editandoCodigo, setEditandoCodigo] = useState<string | null>(null);
+  // El `id` de la sede que se está editando, además de su código. Desde la 0367
+  // `fn_guardar_sede` distingue crear de editar, y en una edición lo que
+  // identifica la fila es el id: el código es solo la etiqueta. Y el código de
+  // una sede ya creada no se cambia — ni acá ni en la base, que se niega si le
+  // llega uno distinto: tres columnas apuntan a la sede por texto y sin clave
+  // foránea (la tarifa de movilidad por sede, la planilla ya pagada y el roster
+  // del terminal), así que renombrarlo las dejaría huérfanas sin un solo error.
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<FormSede>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
 
@@ -53,11 +65,10 @@ export default function SedesPage() {
   useEffect(() => { void cargar(); }, [cargar]);
 
   const edicionHabilitada = !cargaError;
-  const avisar = (tipo: "ok" | "error", texto: string) => setMensaje({ tipo, texto });
 
-  function empezarAlta() { setMostrandoAlta(true); setEditandoCodigo(null); setForm(FORM_VACIO); setMensaje(null); }
-  function empezarEdicion(s: Sede) { setEditandoCodigo(s.codigo); setMostrandoAlta(false); setForm({ codigo: s.codigo, nombre: s.nombre, tipo: s.tipo }); setMensaje(null); }
-  function cancelarForm() { setMostrandoAlta(false); setEditandoCodigo(null); setForm(FORM_VACIO); }
+  function empezarAlta() { setMostrandoAlta(true); setEditandoCodigo(null); setEditandoId(null); setForm(FORM_VACIO); }
+  function empezarEdicion(s: Sede) { setEditandoCodigo(s.codigo); setEditandoId(s.id); setMostrandoAlta(false); setForm({ codigo: s.codigo, nombre: s.nombre, tipo: s.tipo }); }
+  function cancelarForm() { setMostrandoAlta(false); setEditandoCodigo(null); setEditandoId(null); setForm(FORM_VACIO); }
 
   async function guardarSede() {
     const nombre = form.nombre.trim();
@@ -67,7 +78,11 @@ export default function SedesPage() {
       avisar("error", "El código debe tener 2 a 8 letras o números, sin espacios (ej. LIMT).");
       return;
     }
-    // En ALTA, un código ya existente pisaría esa sede en silencio (el guardado es upsert).
+    // Este aviso llega ANTES de guardar y solo por eso existe: la lista contra
+    // la que compara se cargó al abrir la pantalla, así que no ve la sede que
+    // otra persona creó hace un minuto. Quien garantiza es la base desde la
+    // 0367 — `fn_guardar_sede` recibe `p_es_alta` y se niega a pisar un código
+    // ocupado, con el índice único de `codigo` cerrando la carrera.
     if (!editandoCodigo && sedes.some((s) => s.codigo === codigo)) {
       avisar("error", `Ya existe una sede con el código “${codigo}”. Para modificarla, usa “Editar” en su fila.`);
       return;
@@ -75,7 +90,15 @@ export default function SedesPage() {
     const eraEdicion = editandoCodigo !== null;
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.rpc("fn_guardar_sede", { p_codigo: codigo, p_nombre: nombre, p_tipo: form.tipo });
+    const { error } = await supabase.rpc("fn_guardar_sede", {
+      p_codigo: codigo,
+      p_nombre: nombre,
+      p_tipo: form.tipo,
+      // Los dos que le dicen a la base qué se está haciendo. Sin ellos, crear
+      // y editar se ven iguales desde el servidor y una de las dos pisa.
+      p_id: editandoId,
+      p_es_alta: !eraEdicion,
+    });
     setGuardando(false);
     if (error) { avisar("error", mensajeDeError(error, "guardar")); return; }
     cancelarForm();
@@ -144,10 +167,10 @@ export default function SedesPage() {
         </span>
       </label>
       <div className="flex items-end gap-3 sm:col-span-2">
-        <button onClick={guardarSede} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+        <Boton variante="primario" onClick={guardarSede} disabled={guardando}>
           {guardando ? "Guardando…" : modo === "alta" ? "Agregar sede" : "Guardar cambios"}
-        </button>
-        <button onClick={cancelarForm} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+        </Boton>
+        <Boton variante="secundario" onClick={cancelarForm}>Cancelar</Boton>
       </div>
     </div>
   );
@@ -159,7 +182,7 @@ export default function SedesPage() {
         <div className="mb-4 flex items-center justify-between">
           <h1 className="font-serif text-2xl">Sedes</h1>
           {puedeGestionar && edicionHabilitada && !mostrandoAlta && !editandoCodigo && (
-            <button onClick={empezarAlta} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema">+ Agregar sede</button>
+            <Boton variante="primario" onClick={empezarAlta}>+ Agregar sede</Boton>
           )}
         </div>
 
@@ -171,15 +194,10 @@ export default function SedesPage() {
           </div>
         ) : (
           <>
-            {mensaje && (
-              <div className={`mb-4 max-w-3xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-                {mensaje.texto}
-              </div>
-            )}
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las sedes: {cargaError}.{" "}
-                <button onClick={() => void cargar()} className="font-medium underline">Reintentar</button>
+                <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
               </div>
             )}
 
@@ -189,46 +207,62 @@ export default function SedesPage() {
             {cargando ? (
               <Cargando />
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm">
-                  <thead className="bg-sand/70 text-left text-taupe">
-                    <tr>
-                      <th className="px-4 py-2 font-normal">Nombre</th>
-                      <th className="px-4 py-2 font-normal">Código</th>
-                      <th className="px-4 py-2 font-normal">Qué es</th>
-                      <th className="px-4 py-2 font-normal">Estado</th>
-                      <th className="px-4 py-2 font-normal">Acciones</th>
+              <Tabla>
+                <TablaEncabezado>
+                  <Th>Nombre</Th>
+                  <Th>Código</Th>
+                  <Th>Qué es</Th>
+                  <Th>Estado</Th>
+                  <Th>Acciones</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {sedes.map((s) => (
+                    <tr key={s.codigo} className={`border-t ${s.activa ? "" : "text-taupe"}`}>
+                      <td className="px-4 py-2">{s.nombre}</td>
+                      <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
+                      <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
+                      <td className="px-4 py-2">
+                        <Insignia atenuada={!s.activa}>{s.activa ? "activa" : "inactiva"}</Insignia>
+                      </td>
+                      <td className="px-4 py-2">
+                        {edicionHabilitada && (
+                          <div className="flex flex-wrap gap-2">
+                            {/* CAMBIO · «Hoja» se ofrecía en TODAS las filas (hallazgo 31 de la
+                                auditoría del 2026-09-03/04), y la Hoja de sede solo carga sedes
+                                activas: desde una inactiva se llegaba a una pantalla en blanco,
+                                sin datos y sin error. Queda deshabilitado en vez de desaparecer
+                                a propósito: las acciones de la fila se quedan donde estaban, así
+                                que la columna no baila según el estado y se ve que la acción
+                                EXISTE pero hoy no aplica — que es lo que un botón ausente nunca
+                                dice.
+                                Lo que dice POR QUÉ no se puede es lo que ya se ve: la fila entera
+                                atenuada y su insignia «inactiva», más el aviso de la Hoja de sede
+                                si alguien llega igual escribiendo la dirección. El `title` de
+                                abajo lo repite donde el navegador lo muestre, pero no se le confía
+                                el mensaje: un <button disabled> queda fuera del orden de
+                                tabulación y no todos los navegadores lo enseñan. */}
+                            <Boton
+                              variante="secundario"
+                              tamano="sm"
+                              disabled={!s.activa}
+                              title={s.activa ? undefined : `“${s.nombre}” está desactivada y la Hoja de sede solo se arma para sedes activas. Reactívala para verla.`}
+                              onClick={() => router.push(`/admin/reporte-sede?sede=${s.codigo}`)}
+                            >
+                              Hoja
+                            </Boton>
+                            <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(s)}>Editar</Boton>
+                            {s.activa ? (
+                              <Boton variante="peligro" tamano="sm" onClick={() => cambiarActiva(s, false)}>Desactivar</Boton>
+                            ) : (
+                              <Boton variante="secundario" tamano="sm" onClick={() => cambiarActiva(s, true)}>Reactivar</Boton>
+                            )}
+                          </div>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {sedes.map((s) => (
-                      <tr key={s.codigo} className={`border-t ${s.activa ? "" : "text-taupe"}`}>
-                        <td className="px-4 py-2">{s.nombre}</td>
-                        <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
-                        <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
-                        <td className="px-4 py-2">
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${s.activa ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
-                            {s.activa ? "activa" : "inactiva"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">
-                          {edicionHabilitada && (
-                            <div className="flex flex-wrap gap-2 text-xs">
-                              <button onClick={() => router.push(`/admin/reporte-sede?sede=${s.codigo}`)} className="rounded border px-2 py-1 hover:bg-sand/50">Hoja</button>
-                              <button onClick={() => empezarEdicion(s)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                              {s.activa ? (
-                                <button onClick={() => cambiarActiva(s, false)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Desactivar</button>
-                              ) : (
-                                <button onClick={() => cambiarActiva(s, true)} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </Tabla>
             )}
 
             <p className="mt-4 max-w-2xl text-xs text-taupe">

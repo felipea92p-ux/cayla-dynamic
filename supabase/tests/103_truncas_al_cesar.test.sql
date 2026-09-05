@@ -34,7 +34,7 @@
 -- comprobar mentalmente no prueba nada.
 -- ============================================================================
 begin;
-select plan(19);
+select plan(22);
 
 insert into sedes (id, codigo, nombre, activa, tipo)
 values ('00000000-0000-0000-0000-0000000000c0', 'ZZTRU', 'Sede de laboratorio', true, 'tienda');
@@ -82,6 +82,16 @@ select is((select meses from fn_meses_y_dias('2026-05-10', '2026-06-30')),
           1, 'MESES · empezar a mitad de mes hace que ese mes no cuente como completo');
 select is((select dias from fn_meses_y_dias('2026-05-10', '2026-06-30')),
           22, 'MESES · y los días de arranque quedan contados aparte, no perdidos');
+
+-- Un rango corto que NUNCA llega a completar el mes siguiente (0340). Antes
+-- de la 0340 esto devolvía 29 días de la nada: el mismo defecto que dejaba
+-- pedir vacaciones a quien ingresó hoy mismo (263).
+select is((select meses from fn_meses_y_dias('2026-09-02', '2026-09-02')),
+          0, 'MESES · el mismo día no completa ningún mes');
+select is((select dias from fn_meses_y_dias('2026-09-02', '2026-09-02')),
+          1, 'MESES · y cuenta 1 día suelto, no 29 — la convención ya era inclusiva (ver el caso de arriba)');
+select is((select dias from fn_meses_y_dias('2026-09-02', '2026-09-15')),
+          14, 'MESES · un rango corto de 14 días cuenta 14, no la distancia hasta el mes que nunca llega');
 
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -175,18 +185,32 @@ select is((fn_cts_trunca('00000000-0000-0000-0000-0000000000c2', '2026-04-30')->
 --
 -- En régimen general serían 30 días al año: 15 días ganados y S/1 200. El doble.
 
+-- ⇩ LOS TRES NÚMEROS DE ABAJO SUBIERON CON LA 0283, Y ES EL ARREGLO.
+--
+-- Esta persona entró el 01/01/2024 y cesa el 30/06/2026: tiene DOS récords
+-- anuales completos sin gozar —30 días— más el trunco de 2026. Hasta la 0283 la
+-- hoja pagaba solo el trunco y esos 30 días no aparecían en ninguna línea. La
+-- expectativa vieja (7,5 días · S/600) era el defecto escrito como si fuera la
+-- regla.
+--
+--   días ganados = 15 × 2 récords + 15 × 6/12 de trunco = 37,5
+--   monto        = (2 400 / 2) × 37,5 / 15 = S/3 000,00
+--   y con 5 días ya gozados: (2 400 / 2) × 32,5 / 15 = S/2 600,00
+--
+-- El régimen NO cambió —siguen siendo 15 días por año, MYPE pequeña empresa—.
+-- Lo que cambió es cuántos años se miran.
 select is((fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000c2', '2026-06-30')->>'dias_ganados')::numeric,
-          7.50::numeric, 'VACACIONES · medio año son 7.5 días — en régimen general serían 15');
+          37.50::numeric, 'VACACIONES · dos récords completos más medio año son 37.5 días');
 
 select is((fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000c2', '2026-06-30')->>'monto')::numeric,
-          600.00::numeric, 'VACACIONES · y su valor a media remuneración por 15 días');
+          3000.00::numeric, 'VACACIONES · y su valor: media remuneración por cada 15 días');
 
 -- Lo ya gozado se descuenta: 5 días tomados dentro del récord dejan 2.5
 -- pendientes → 1 200 × 2.5 / 15 = S/200.00
 select fn_set_vacaciones('00000000-0000-0000-0000-0000000000c6', '2026-03-02', '2026-03-06', 'descanso');
 
 select is((fn_vacaciones_truncas('00000000-0000-0000-0000-0000000000c6', '2026-06-30')->>'monto')::numeric,
-          200.00::numeric, 'VACACIONES · los días ya gozados se descuentan de lo que se le debe');
+          2600.00::numeric, 'VACACIONES · los días ya gozados se descuentan de lo que se le debe');
 
 
 -- ════════════════════════════════════════════════════════════════════════════

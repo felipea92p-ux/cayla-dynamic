@@ -17,10 +17,10 @@ export type Database = {
     Functions: {
       graphql: {
         Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
+          extensions?: Json | null
+          operationName?: string | null
+          query?: string | null
+          variables?: Json | null
         }
         Returns: Json
       }
@@ -34,179 +34,53 @@ export type Database = {
   }
   public: {
     Tables: {
-      datos_personales: {
+      actas_descanso_sustitutorio: {
         Row: {
-          persona_id: string
-          nombre_dni: string | null
-          fecha_nacimiento: string | null
-          estado_civil: string | null
-          direccion: string | null
-          celular: string | null
-          entidad_bancaria: string | null
-          numero_cuenta: string | null
-          grado_instruccion: string | null
-          hijos_menores: boolean | null
-          foto_dni_url: string | null
-          foto_personal_url: string | null
-          foto_profesional_url: string | null
-          emergencia_nombre: string | null
-          emergencia_vinculo: string | null
-          emergencia_telefono: string | null
-          discapacidad: boolean | null
-          discapacidad_conadis: string | null
-          // Agregada a mano el 2026-08-08 (la creó la 0198), por el mismo
-          // motivo que los campos de personas: `supabase gen types` en esta
-          // máquina reescribe el archivo entero con otro formato. Es el código
-          // con el que la AFP identifica la cuenta individual de la persona;
-          // obligatorio en el T-Registro para afiliados al sistema privado, y
-          // null para ONP y jubilados, que no tienen cuenta individual.
-          cuspp: string | null
-          actualizado_por: string | null
-          actualizado_at: string
-        }
-        Insert: {
-          persona_id: string
-          nombre_dni?: string | null
-          fecha_nacimiento?: string | null
-          estado_civil?: string | null
-          direccion?: string | null
-          celular?: string | null
-          entidad_bancaria?: string | null
-          numero_cuenta?: string | null
-          grado_instruccion?: string | null
-          hijos_menores?: boolean | null
-          foto_dni_url?: string | null
-          foto_personal_url?: string | null
-          foto_profesional_url?: string | null
-          emergencia_nombre?: string | null
-          emergencia_vinculo?: string | null
-          emergencia_telefono?: string | null
-          discapacidad?: boolean | null
-          discapacidad_conadis?: string | null
-          cuspp?: string | null
-          actualizado_por?: string | null
-          actualizado_at?: string
-        }
-        Update: {
-          persona_id?: string
-          nombre_dni?: string | null
-          fecha_nacimiento?: string | null
-          estado_civil?: string | null
-          direccion?: string | null
-          celular?: string | null
-          entidad_bancaria?: string | null
-          numero_cuenta?: string | null
-          grado_instruccion?: string | null
-          hijos_menores?: boolean | null
-          foto_dni_url?: string | null
-          foto_personal_url?: string | null
-          foto_profesional_url?: string | null
-          emergencia_nombre?: string | null
-          emergencia_vinculo?: string | null
-          emergencia_telefono?: string | null
-          discapacidad?: boolean | null
-          discapacidad_conadis?: string | null
-          cuspp?: string | null
-          actualizado_por?: string | null
-          actualizado_at?: string
-        }
-        Relationships: []
-      }
-      // La tabla de la 0074, que no estaba en los tipos: por eso la pantalla de
-      // disciplina no podía leer los cargos archivados. Escrita a mano como el
-      // resto — `supabase gen types` no corre en esta máquina.
-      expediente_adjuntos: {
-        Row: {
+          archivo_base64: string | null
+          archivo_nombre: string | null
+          created_at: string
           id: string
-          documento_id: string
-          storage_path: string
-          tipo: string
-          nota: string | null
-          subido_por: string | null
-          subido_at: string
+          referencia: string
+          storage_path: string | null
+          subida_por: string | null
+          updated_at: string
         }
         Insert: {
+          archivo_base64?: string | null
+          archivo_nombre?: string | null
+          created_at?: string
           id?: string
-          documento_id: string
-          storage_path: string
-          tipo: string
-          nota?: string | null
-          subido_por?: string | null
-          subido_at?: string
+          referencia: string
+          storage_path?: string | null
+          subida_por?: string | null
+          updated_at?: string
         }
         Update: {
-          nota?: string | null
-        }
-        Relationships: []
-      }
-      expediente_disciplinario: {
-        Row: {
-          id: string
-          correlativo: string | null
-          persona_id: string
-          tipo_causal: string
-          nivel: string
-          estado: string
-          periodo_desde: string | null
-          periodo_hasta: string | null
-          hechos: Json
-          suspension_dias: number | null
-          suspension_desde: string | null
-          suspension_hasta: string | null
-          doc_previo_id: string | null
-          firmante_id: string | null
-          firmado_at: string | null
-          medio_entrega: string | null
-          entregado_at: string | null
-          observacion: string | null
-          creado_por: string
-          creado_at: string
-        }
-        Insert: {
+          archivo_base64?: string | null
+          archivo_nombre?: string | null
+          created_at?: string
           id?: string
-          correlativo?: string | null
-          persona_id: string
-          tipo_causal: string
-          nivel: string
-          estado?: string
-          periodo_desde?: string | null
-          periodo_hasta?: string | null
-          hechos?: Json
-          suspension_dias?: number | null
-          suspension_desde?: string | null
-          suspension_hasta?: string | null
-          doc_previo_id?: string | null
-          firmante_id?: string | null
-          firmado_at?: string | null
-          medio_entrega?: string | null
-          entregado_at?: string | null
-          observacion?: string | null
-          creado_por: string
-          creado_at?: string
+          referencia?: string
+          storage_path?: string | null
+          subida_por?: string | null
+          updated_at?: string
         }
-        Update: {
-          id?: string
-          correlativo?: string | null
-          persona_id?: string
-          tipo_causal?: string
-          nivel?: string
-          estado?: string
-          periodo_desde?: string | null
-          periodo_hasta?: string | null
-          hechos?: Json
-          suspension_dias?: number | null
-          suspension_desde?: string | null
-          suspension_hasta?: string | null
-          doc_previo_id?: string | null
-          firmante_id?: string | null
-          firmado_at?: string | null
-          medio_entrega?: string | null
-          entregado_at?: string | null
-          observacion?: string | null
-          creado_por?: string
-          creado_at?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "actas_descanso_sustitutorio_subida_por_fkey"
+            columns: ["subida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "actas_descanso_sustitutorio_subida_por_fkey"
+            columns: ["subida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       alertas: {
         Row: {
@@ -215,10 +89,14 @@ export type Database = {
           enviado_at: string | null
           estado: string
           id: string
+          intentos: number
           leido_at: string | null
+          nota_fallo: string | null
           payload: Json
           persona_id: string | null
+          procesando_desde: string | null
           tipo: string
+          ultimo_intento_at: string | null
         }
         Insert: {
           canal: string
@@ -226,10 +104,14 @@ export type Database = {
           enviado_at?: string | null
           estado?: string
           id?: string
+          intentos?: number
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
+          procesando_desde?: string | null
           tipo: string
+          ultimo_intento_at?: string | null
         }
         Update: {
           canal?: string
@@ -237,10 +119,14 @@ export type Database = {
           enviado_at?: string | null
           estado?: string
           id?: string
+          intentos?: number
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
+          procesando_desde?: string | null
           tipo?: string
+          ultimo_intento_at?: string | null
         }
         Relationships: [
           {
@@ -248,6 +134,596 @@ export type Database = {
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios: {
+        Row: {
+          anulado_at: string | null
+          anulado_por: string | null
+          cuerpo: string
+          id: string
+          publicado_at: string
+          publicado_por: string
+          sede_id: string | null
+          titulo: string
+        }
+        Insert: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo: string
+          id?: string
+          publicado_at?: string
+          publicado_por: string
+          sede_id?: string | null
+          titulo: string
+        }
+        Update: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo?: string
+          id?: string
+          publicado_at?: string
+          publicado_por?: string
+          sede_id?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios_leidos: {
+        Row: {
+          anuncio_id: string
+          leido_at: string
+          persona_id: string
+        }
+        Insert: {
+          anuncio_id: string
+          leido_at?: string
+          persona_id: string
+        }
+        Update: {
+          anuncio_id?: string
+          leido_at?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_leidos_anuncio_id_fkey"
+            columns: ["anuncio_id"]
+            isOneToOne: false
+            referencedRelation: "anuncios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      areas: {
+        Row: {
+          activa: boolean
+          codigo: string
+          created_at: string
+          nombre: string
+          operativa: boolean
+          orden: number
+        }
+        Insert: {
+          activa?: boolean
+          codigo: string
+          created_at?: string
+          nombre: string
+          operativa?: boolean
+          orden?: number
+        }
+        Update: {
+          activa?: boolean
+          codigo?: string
+          created_at?: string
+          nombre?: string
+          operativa?: boolean
+          orden?: number
+        }
+        Relationships: []
+      }
+      asignaciones_educacion: {
+        Row: {
+          beneficiario: string
+          beneficiario_nombre: string | null
+          cobertura_pct: number
+          comprobante_url: string | null
+          costo_declarado: number
+          created_at: string
+          id: string
+          institucion: string
+          monto: number
+          nota: string | null
+          persona_id: string
+          registrado_por: string | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Insert: {
+          beneficiario?: string
+          beneficiario_nombre?: string | null
+          cobertura_pct?: number
+          comprobante_url?: string | null
+          costo_declarado: number
+          created_at?: string
+          id?: string
+          institucion: string
+          monto: number
+          nota?: string | null
+          persona_id: string
+          registrado_por?: string | null
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Update: {
+          beneficiario?: string
+          beneficiario_nombre?: string | null
+          cobertura_pct?: number
+          comprobante_url?: string | null
+          costo_declarado?: number
+          created_at?: string
+          id?: string
+          institucion?: string
+          monto?: number
+          nota?: string | null
+          persona_id?: string
+          registrado_por?: string | null
+          vigente_desde?: string
+          vigente_hasta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignaciones_educacion_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_educacion_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_educacion_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_educacion_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asignaciones_regimen_pension: {
+        Row: {
+          asignado_por: string | null
+          created_at: string
+          id: string
+          nota: string | null
+          persona_id: string
+          regimen: string
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          asignado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          regimen: string
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          asignado_por?: string | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          regimen?: string
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignaciones_regimen_pension_asignado_por_fkey"
+            columns: ["asignado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_regimen_pension_asignado_por_fkey"
+            columns: ["asignado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_regimen_pension_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_regimen_pension_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asignaciones_salario: {
+        Row: {
+          asignado_por: string | null
+          base_provision: number | null
+          created_at: string
+          id: string
+          nota: string | null
+          persona_id: string
+          rango: string
+          salario_mensual_soles: number
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          asignado_por?: string | null
+          base_provision?: number | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          rango: string
+          salario_mensual_soles: number
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          asignado_por?: string | null
+          base_provision?: number | null
+          created_at?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          rango?: string
+          salario_mensual_soles?: number
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignaciones_salario_asignado_por_fkey"
+            columns: ["asignado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_salario_asignado_por_fkey"
+            columns: ["asignado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_salario_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_salario_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ausencias: {
+        Row: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          aprobada_at: string | null
+          aprobada_por: string | null
+          doc_colegiatura: string | null
+          doc_fecha: string | null
+          doc_profesional: string | null
+          doc_storage_path: string | null
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          motivo: string | null
+          persona_id: string
+          registrada_at: string
+          registrada_por: string
+          registrada_tarde: boolean
+          subsidio_diario: number | null
+          tipo: string
+        }
+        Insert: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          aprobada_at?: string | null
+          aprobada_por?: string | null
+          doc_colegiatura?: string | null
+          doc_fecha?: string | null
+          doc_profesional?: string | null
+          doc_storage_path?: string | null
+          fecha_fin: string
+          fecha_inicio: string
+          id?: string
+          motivo?: string | null
+          persona_id: string
+          registrada_at?: string
+          registrada_por: string
+          registrada_tarde?: boolean
+          subsidio_diario?: number | null
+          tipo: string
+        }
+        Update: {
+          anulada_at?: string | null
+          anulada_motivo?: string | null
+          anulada_por?: string | null
+          aprobada_at?: string | null
+          aprobada_por?: string | null
+          doc_colegiatura?: string | null
+          doc_fecha?: string | null
+          doc_profesional?: string | null
+          doc_storage_path?: string | null
+          fecha_fin?: string
+          fecha_inicio?: string
+          id?: string
+          motivo?: string | null
+          persona_id?: string
+          registrada_at?: string
+          registrada_por?: string
+          registrada_tarde?: boolean
+          subsidio_diario?: number | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ausencias_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_aprobada_por_fkey"
+            columns: ["aprobada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_aprobada_por_fkey"
+            columns: ["aprobada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["registrada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["registrada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_tipo_fkey"
+            columns: ["tipo"]
+            isOneToOne: false
+            referencedRelation: "tipos_ausencia"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
+      bonos_umbral_permitido: {
+        Row: {
+          autorizado_por: string | null
+          created_at: string
+          id: string
+          motivo: string
+          persona_id: string
+          usado_at: string | null
+        }
+        Insert: {
+          autorizado_por?: string | null
+          created_at?: string
+          id?: string
+          motivo: string
+          persona_id: string
+          usado_at?: string | null
+        }
+        Update: {
+          autorizado_por?: string | null
+          created_at?: string
+          id?: string
+          motivo?: string
+          persona_id?: string
+          usado_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bonos_umbral_permitido_autorizado_por_fkey"
+            columns: ["autorizado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bonos_umbral_permitido_autorizado_por_fkey"
+            columns: ["autorizado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bonos_umbral_permitido_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bonos_umbral_permitido_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categorias_laborales: {
+        Row: {
+          actualizado_at: string
+          actualizado_por: string | null
+          criterio: string | null
+          funciones: string | null
+          orden: number
+          proposito: string | null
+          rango: string
+          requisitos: string | null
+          salario_declarado: number | null
+        }
+        Insert: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          criterio?: string | null
+          funciones?: string | null
+          orden: number
+          proposito?: string | null
+          rango: string
+          requisitos?: string | null
+          salario_declarado?: number | null
+        }
+        Update: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          criterio?: string | null
+          funciones?: string | null
+          orden?: number
+          proposito?: string | null
+          rango?: string
+          requisitos?: string | null
+          salario_declarado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categorias_laborales_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categorias_laborales_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -269,6 +745,139 @@ export type Database = {
           valor?: Json
         }
         Relationships: []
+      }
+      contratos_generados: {
+        Row: {
+          anulado_at: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          cargo: string
+          comunicado_mtpe_at: string | null
+          copia_entregada_at: string | null
+          documento_html: string
+          fecha_fin: string | null
+          fecha_firma: string | null
+          fecha_inicio: string
+          generado_at: string
+          generado_por: string
+          horas_semanales: number | null
+          id: string
+          persona_id: string
+          registrado_por: string | null
+          remuneracion_mensual: number
+          sede_id: string
+          storage_path: string | null
+          tipo: string
+        }
+        Insert: {
+          anulado_at?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          cargo: string
+          comunicado_mtpe_at?: string | null
+          copia_entregada_at?: string | null
+          documento_html: string
+          fecha_fin?: string | null
+          fecha_firma?: string | null
+          fecha_inicio: string
+          generado_at?: string
+          generado_por: string
+          horas_semanales?: number | null
+          id?: string
+          persona_id: string
+          registrado_por?: string | null
+          remuneracion_mensual: number
+          sede_id: string
+          storage_path?: string | null
+          tipo: string
+        }
+        Update: {
+          anulado_at?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          cargo?: string
+          comunicado_mtpe_at?: string | null
+          copia_entregada_at?: string | null
+          documento_html?: string
+          fecha_fin?: string | null
+          fecha_firma?: string | null
+          fecha_inicio?: string
+          generado_at?: string
+          generado_por?: string
+          horas_semanales?: number | null
+          id?: string
+          persona_id?: string
+          registrado_por?: string | null
+          remuneracion_mensual?: number
+          sede_id?: string
+          storage_path?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratos_generados_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_generado_por_fkey"
+            columns: ["generado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_generado_por_fkey"
+            columns: ["generado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       correcciones_auditoria: {
         Row: {
@@ -313,6 +922,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "correcciones_auditoria_corregido_por_fkey"
+            columns: ["corregido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "correcciones_auditoria_marcaje_id_fkey"
             columns: ["marcaje_id"]
             isOneToOne: false
@@ -326,7 +942,1036 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "correcciones_auditoria_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      datos_personales: {
+        Row: {
+          actualizado_at: string
+          actualizado_por: string | null
+          celular: string | null
+          cuspp: string | null
+          direccion: string | null
+          discapacidad: boolean | null
+          discapacidad_conadis: string | null
+          emergencia_nombre: string | null
+          emergencia_telefono: string | null
+          emergencia_vinculo: string | null
+          entidad_bancaria: string | null
+          estado_civil: string | null
+          fecha_nacimiento: string | null
+          foto_dni_url: string | null
+          foto_personal_url: string | null
+          foto_profesional_url: string | null
+          genero: string | null
+          grado_instruccion: string | null
+          hijos_menores: boolean | null
+          nombre_dni: string | null
+          numero_cuenta: string | null
+          persona_id: string
+        }
+        Insert: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          celular?: string | null
+          cuspp?: string | null
+          direccion?: string | null
+          discapacidad?: boolean | null
+          discapacidad_conadis?: string | null
+          emergencia_nombre?: string | null
+          emergencia_telefono?: string | null
+          emergencia_vinculo?: string | null
+          entidad_bancaria?: string | null
+          estado_civil?: string | null
+          fecha_nacimiento?: string | null
+          foto_dni_url?: string | null
+          foto_personal_url?: string | null
+          foto_profesional_url?: string | null
+          genero?: string | null
+          grado_instruccion?: string | null
+          hijos_menores?: boolean | null
+          nombre_dni?: string | null
+          numero_cuenta?: string | null
+          persona_id: string
+        }
+        Update: {
+          actualizado_at?: string
+          actualizado_por?: string | null
+          celular?: string | null
+          cuspp?: string | null
+          direccion?: string | null
+          discapacidad?: boolean | null
+          discapacidad_conadis?: string | null
+          emergencia_nombre?: string | null
+          emergencia_telefono?: string | null
+          emergencia_vinculo?: string | null
+          entidad_bancaria?: string | null
+          estado_civil?: string | null
+          fecha_nacimiento?: string | null
+          foto_dni_url?: string | null
+          foto_personal_url?: string | null
+          foto_profesional_url?: string | null
+          genero?: string | null
+          grado_instruccion?: string | null
+          hijos_menores?: boolean | null
+          nombre_dni?: string | null
+          numero_cuenta?: string | null
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datos_personales_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "datos_personales_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      derechohabientes: {
+        Row: {
+          apellidos: string
+          created_at: string
+          documento: string | null
+          essalud: boolean
+          fecha_nacimiento: string | null
+          id: string
+          nombres: string
+          nota: string | null
+          persona_id: string
+          registrado_por: string | null
+          vida_ley: boolean
+          vigente_hasta: string | null
+          vinculo: string
+        }
+        Insert: {
+          apellidos: string
+          created_at?: string
+          documento?: string | null
+          essalud?: boolean
+          fecha_nacimiento?: string | null
+          id?: string
+          nombres: string
+          nota?: string | null
+          persona_id: string
+          registrado_por?: string | null
+          vida_ley?: boolean
+          vigente_hasta?: string | null
+          vinculo: string
+        }
+        Update: {
+          apellidos?: string
+          created_at?: string
+          documento?: string | null
+          essalud?: boolean
+          fecha_nacimiento?: string | null
+          id?: string
+          nombres?: string
+          nota?: string | null
+          persona_id?: string
+          registrado_por?: string | null
+          vida_ley?: boolean
+          vigente_hasta?: string | null
+          vinculo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "derechohabientes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "derechohabientes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "derechohabientes_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "derechohabientes_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      desembolsos_beneficios: {
+        Row: {
+          anio: number
+          created_at: string
+          fecha_pago: string
+          id: string
+          monto: number
+          nota: string | null
+          origen: string
+          persona_id: string
+          registrado_por: string | null
+          ventana: string
+        }
+        Insert: {
+          anio: number
+          created_at?: string
+          fecha_pago: string
+          id?: string
+          monto: number
+          nota?: string | null
+          origen: string
+          persona_id: string
+          registrado_por?: string | null
+          ventana: string
+        }
+        Update: {
+          anio?: number
+          created_at?: string
+          fecha_pago?: string
+          id?: string
+          monto?: number
+          nota?: string | null
+          origen?: string
+          persona_id?: string
+          registrado_por?: string | null
+          ventana?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "desembolsos_beneficios_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desembolsos_beneficios_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desembolsos_beneficios_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desembolsos_beneficios_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentos_acuses: {
+        Row: {
+          acusado_at: string
+          documento_id: string
+          nombre_declarado: string | null
+          nota: string | null
+          persona_id: string
+          registrado_por: string | null
+          storage_path: string | null
+          via: string
+        }
+        Insert: {
+          acusado_at?: string
+          documento_id: string
+          nombre_declarado?: string | null
+          nota?: string | null
+          persona_id: string
+          registrado_por?: string | null
+          storage_path?: string | null
+          via: string
+        }
+        Update: {
+          acusado_at?: string
+          documento_id?: string
+          nombre_declarado?: string | null
+          nota?: string | null
+          persona_id?: string
+          registrado_por?: string | null
+          storage_path?: string | null
+          via?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_acuses_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_institucionales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_acuses_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_acuses_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_acuses_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_acuses_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentos_firmados: {
+        Row: {
+          alcance: string
+          anio: number | null
+          anulado_at: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          created_at: string
+          es_negativa: boolean
+          fecha_firma: string
+          id: string
+          monto_declarado: number | null
+          nota: string | null
+          persona_id: string | null
+          registrado_por: string
+          ruta_declarada: string | null
+          storage_path: string | null
+          tipo: string
+        }
+        Insert: {
+          alcance: string
+          anio?: number | null
+          anulado_at?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          created_at?: string
+          es_negativa?: boolean
+          fecha_firma: string
+          id?: string
+          monto_declarado?: number | null
+          nota?: string | null
+          persona_id?: string | null
+          registrado_por: string
+          ruta_declarada?: string | null
+          storage_path?: string | null
+          tipo: string
+        }
+        Update: {
+          alcance?: string
+          anio?: number | null
+          anulado_at?: string | null
+          anulado_motivo?: string | null
+          anulado_por?: string | null
+          created_at?: string
+          es_negativa?: boolean
+          fecha_firma?: string
+          id?: string
+          monto_declarado?: number | null
+          nota?: string | null
+          persona_id?: string | null
+          registrado_por?: string
+          ruta_declarada?: string | null
+          storage_path?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_firmados_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_firmados_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentos_institucionales: {
+        Row: {
+          documento: string
+          etiqueta_version: string | null
+          id: string
+          notas: string | null
+          publicado_at: string
+          publicado_por: string | null
+          tipo: string
+          titulo: string
+          version: number
+          vigente_desde: string
+        }
+        Insert: {
+          documento: string
+          etiqueta_version?: string | null
+          id?: string
+          notas?: string | null
+          publicado_at?: string
+          publicado_por?: string | null
+          tipo: string
+          titulo: string
+          version: number
+          vigente_desde: string
+        }
+        Update: {
+          documento?: string
+          etiqueta_version?: string | null
+          id?: string
+          notas?: string | null
+          publicado_at?: string
+          publicado_por?: string | null
+          tipo?: string
+          titulo?: string
+          version?: number
+          vigente_desde?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_institucionales_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_institucionales_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_institucionales_tipo_fkey"
+            columns: ["tipo"]
+            isOneToOne: false
+            referencedRelation: "documentos_tipos"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
+      documentos_tipos: {
+        Row: {
+          activo: boolean
+          codigo: string
+          nombre: string
+          orden: number
+          requiere_acuse: boolean
+        }
+        Insert: {
+          activo?: boolean
+          codigo: string
+          nombre: string
+          orden?: number
+          requiere_acuse?: boolean
+        }
+        Update: {
+          activo?: boolean
+          codigo?: string
+          nombre?: string
+          orden?: number
+          requiere_acuse?: boolean
+        }
+        Relationships: []
+      }
+      educacion_comprobantes: {
+        Row: {
+          asignacion_id: string
+          created_at: string
+          id: string
+          mes_cubierto: string
+          nota: string | null
+          storage_path: string
+          subido_por: string | null
+        }
+        Insert: {
+          asignacion_id: string
+          created_at?: string
+          id?: string
+          mes_cubierto: string
+          nota?: string | null
+          storage_path: string
+          subido_por?: string | null
+        }
+        Update: {
+          asignacion_id?: string
+          created_at?: string
+          id?: string
+          mes_cubierto?: string
+          nota?: string | null
+          storage_path?: string
+          subido_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "educacion_comprobantes_asignacion_id_fkey"
+            columns: ["asignacion_id"]
+            isOneToOne: false
+            referencedRelation: "asignaciones_educacion"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_comprobantes_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "educacion_comprobantes_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etiquetas_complemento: {
+        Row: {
+          activa: boolean
+          codigo: string
+          created_at: string
+          etiqueta: string
+          nota: string | null
+          orden: number
+        }
+        Insert: {
+          activa?: boolean
+          codigo: string
+          created_at?: string
+          etiqueta: string
+          nota?: string | null
+          orden?: number
+        }
+        Update: {
+          activa?: boolean
+          codigo?: string
+          created_at?: string
+          etiqueta?: string
+          nota?: string | null
+          orden?: number
+        }
+        Relationships: []
+      }
+      expediente_adjuntos: {
+        Row: {
+          documento_id: string
+          id: string
+          nota: string | null
+          storage_path: string
+          subido_at: string
+          subido_por: string
+          tipo: string
+        }
+        Insert: {
+          documento_id: string
+          id?: string
+          nota?: string | null
+          storage_path: string
+          subido_at?: string
+          subido_por: string
+          tipo?: string
+        }
+        Update: {
+          documento_id?: string
+          id?: string
+          nota?: string | null
+          storage_path?: string
+          subido_at?: string
+          subido_por?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expediente_adjuntos_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_adjuntos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_adjuntos_subido_por_fkey"
+            columns: ["subido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expediente_correlativo_seq: {
+        Row: {
+          anio: number
+          prefijo: string
+          ultimo: number
+        }
+        Insert: {
+          anio: number
+          prefijo: string
+          ultimo?: number
+        }
+        Update: {
+          anio?: number
+          prefijo?: string
+          ultimo?: number
+        }
+        Relationships: []
+      }
+      expediente_disciplinario: {
+        Row: {
+          cargos_comunicados_at: string | null
+          correlativo: string | null
+          creado_at: string
+          creado_por: string
+          descargo_acogido: string | null
+          descargo_valoracion: string | null
+          descargo_vence_at: string | null
+          doc_previo_id: string | null
+          entrega_testigo_id: string | null
+          entrega_testigo_nombre: string | null
+          entregado_at: string | null
+          entregado_por: string | null
+          estado: string
+          fecha_cese: string | null
+          firmado_at: string | null
+          firmante_id: string | null
+          hechos: Json
+          id: string
+          medio_entrega: string | null
+          nivel: string
+          observacion: string | null
+          periodo_desde: string | null
+          periodo_hasta: string | null
+          persona_id: string
+          resuelto_at: string | null
+          resuelto_motivo: string | null
+          resuelto_por: string | null
+          resuelto_resultado: string | null
+          suspension_desde: string | null
+          suspension_dias: number | null
+          suspension_fechas: string[] | null
+          suspension_hasta: string | null
+          tipo_causal: string
+        }
+        Insert: {
+          cargos_comunicados_at?: string | null
+          correlativo?: string | null
+          creado_at?: string
+          creado_por: string
+          descargo_acogido?: string | null
+          descargo_valoracion?: string | null
+          descargo_vence_at?: string | null
+          doc_previo_id?: string | null
+          entrega_testigo_id?: string | null
+          entrega_testigo_nombre?: string | null
+          entregado_at?: string | null
+          entregado_por?: string | null
+          estado?: string
+          fecha_cese?: string | null
+          firmado_at?: string | null
+          firmante_id?: string | null
+          hechos?: Json
+          id?: string
+          medio_entrega?: string | null
+          nivel: string
+          observacion?: string | null
+          periodo_desde?: string | null
+          periodo_hasta?: string | null
+          persona_id: string
+          resuelto_at?: string | null
+          resuelto_motivo?: string | null
+          resuelto_por?: string | null
+          resuelto_resultado?: string | null
+          suspension_desde?: string | null
+          suspension_dias?: number | null
+          suspension_fechas?: string[] | null
+          suspension_hasta?: string | null
+          tipo_causal: string
+        }
+        Update: {
+          cargos_comunicados_at?: string | null
+          correlativo?: string | null
+          creado_at?: string
+          creado_por?: string
+          descargo_acogido?: string | null
+          descargo_valoracion?: string | null
+          descargo_vence_at?: string | null
+          doc_previo_id?: string | null
+          entrega_testigo_id?: string | null
+          entrega_testigo_nombre?: string | null
+          entregado_at?: string | null
+          entregado_por?: string | null
+          estado?: string
+          fecha_cese?: string | null
+          firmado_at?: string | null
+          firmante_id?: string | null
+          hechos?: Json
+          id?: string
+          medio_entrega?: string | null
+          nivel?: string
+          observacion?: string | null
+          periodo_desde?: string | null
+          periodo_hasta?: string | null
+          persona_id?: string
+          resuelto_at?: string | null
+          resuelto_motivo?: string | null
+          resuelto_por?: string | null
+          resuelto_resultado?: string | null
+          suspension_desde?: string | null
+          suspension_dias?: number | null
+          suspension_fechas?: string[] | null
+          suspension_hasta?: string | null
+          tipo_causal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expediente_disciplinario_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_doc_previo_id_fkey"
+            columns: ["doc_previo_id"]
+            isOneToOne: false
+            referencedRelation: "expediente_disciplinario"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entrega_testigo_id_fkey"
+            columns: ["entrega_testigo_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entrega_testigo_id_fkey"
+            columns: ["entrega_testigo_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entregado_por_fkey"
+            columns: ["entregado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_entregado_por_fkey"
+            columns: ["entregado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_firmante_id_fkey"
+            columns: ["firmante_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_firmante_id_fkey"
+            columns: ["firmante_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_resuelto_por_fkey"
+            columns: ["resuelto_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expediente_disciplinario_resuelto_por_fkey"
+            columns: ["resuelto_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      factores_categoria: {
+        Row: {
+          factor: string
+          factor_orden: number
+          nivel: string
+          rango: string
+        }
+        Insert: {
+          factor: string
+          factor_orden: number
+          nivel: string
+          rango: string
+        }
+        Update: {
+          factor?: string
+          factor_orden?: number
+          nivel?: string
+          rango?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factores_categoria_rango_fkey"
+            columns: ["rango"]
+            isOneToOne: false
+            referencedRelation: "categorias_laborales"
+            referencedColumns: ["rango"]
+          },
+        ]
+      }
+      feriados: {
+        Row: {
+          fecha: string
+          nombre: string
+        }
+        Insert: {
+          fecha: string
+          nombre: string
+        }
+        Update: {
+          fecha?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
+      feriados_descanso_sustitutorio: {
+        Row: {
+          acta_ref: string | null
+          created_at: string
+          estado: string
+          fecha_descanso_sustitutorio: string
+          fecha_feriado: string
+          id: string
+          motivo_fuera_de_plazo: string | null
+          otorgado_por: string | null
+          persona_id: string
+          updated_at: string
+        }
+        Insert: {
+          acta_ref?: string | null
+          created_at?: string
+          estado?: string
+          fecha_descanso_sustitutorio: string
+          fecha_feriado: string
+          id?: string
+          motivo_fuera_de_plazo?: string | null
+          otorgado_por?: string | null
+          persona_id: string
+          updated_at?: string
+        }
+        Update: {
+          acta_ref?: string | null
+          created_at?: string
+          estado?: string
+          fecha_descanso_sustitutorio?: string
+          fecha_feriado?: string
+          id?: string
+          motivo_fuera_de_plazo?: string | null
+          otorgado_por?: string | null
+          persona_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feriados_descanso_sustitutorio_fecha_feriado_fkey"
+            columns: ["fecha_feriado"]
+            isOneToOne: false
+            referencedRelation: "feriados"
+            referencedColumns: ["fecha"]
+          },
+          {
+            foreignKeyName: "feriados_descanso_sustitutorio_otorgado_por_fkey"
+            columns: ["otorgado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feriados_descanso_sustitutorio_otorgado_por_fkey"
+            columns: ["otorgado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feriados_descanso_sustitutorio_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feriados_descanso_sustitutorio_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      firmas_escaneadas: {
+        Row: {
+          actualizado_at: string
+          imagen: string
+          persona_id: string
+        }
+        Insert: {
+          actualizado_at?: string
+          imagen: string
+          persona_id: string
+        }
+        Update: {
+          actualizado_at?: string
+          imagen?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firmas_escaneadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "firmas_escaneadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funciones_nunca_para_authenticated: {
+        Row: {
+          desde: string
+          funcion: string
+          motivo: string
+        }
+        Insert: {
+          desde?: string
+          funcion: string
+          motivo: string
+        }
+        Update: {
+          desde?: string
+          funcion?: string
+          motivo?: string
+        }
+        Relationships: []
       }
       google_sheets_sync_queue: {
         Row: {
@@ -427,6 +2072,72 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "horarios_asignados_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incidencias_aceptadas: {
+        Row: {
+          aceptado_at: string
+          aceptado_por: string
+          fecha: string
+          id: string
+          nota: string | null
+          persona_id: string
+          tipo: string
+        }
+        Insert: {
+          aceptado_at?: string
+          aceptado_por: string
+          fecha: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          tipo: string
+        }
+        Update: {
+          aceptado_at?: string
+          aceptado_por?: string
+          fecha?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidencias_aceptadas_aceptado_por_fkey"
+            columns: ["aceptado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidencias_aceptadas_aceptado_por_fkey"
+            columns: ["aceptado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidencias_aceptadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidencias_aceptadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       jornadas: {
@@ -484,10 +2195,106 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jornadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jornadas_sede_id_fkey"
             columns: ["sede_id"]
             isOneToOne: false
             referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      liquidacion_pagada: {
+        Row: {
+          anula_version: number | null
+          anulada: boolean
+          congelada_at: string
+          congelada_por: string
+          detalle: Json
+          fecha_cese: string
+          fecha_ingreso: string | null
+          monto_cts: number
+          monto_grati: number
+          monto_periodo: number
+          monto_vacaciones: number
+          motivo_anulacion: string | null
+          nota: string | null
+          persona: string
+          persona_id: string
+          total: number
+          version: number
+        }
+        Insert: {
+          anula_version?: number | null
+          anulada?: boolean
+          congelada_at?: string
+          congelada_por: string
+          detalle: Json
+          fecha_cese: string
+          fecha_ingreso?: string | null
+          monto_cts?: number
+          monto_grati?: number
+          monto_periodo?: number
+          monto_vacaciones?: number
+          motivo_anulacion?: string | null
+          nota?: string | null
+          persona: string
+          persona_id: string
+          total: number
+          version: number
+        }
+        Update: {
+          anula_version?: number | null
+          anulada?: boolean
+          congelada_at?: string
+          congelada_por?: string
+          detalle?: Json
+          fecha_cese?: string
+          fecha_ingreso?: string | null
+          monto_cts?: number
+          monto_grati?: number
+          monto_periodo?: number
+          monto_vacaciones?: number
+          motivo_anulacion?: string | null
+          nota?: string | null
+          persona?: string
+          persona_id?: string
+          total?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liquidacion_pagada_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidacion_pagada_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidacion_pagada_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "liquidacion_pagada_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -498,7 +2305,9 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
           id: string
           motivo_otro: string | null
           origen: Database["public"]["Enums"]["origen_marca"]
@@ -514,7 +2323,9 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada?: string | null
           id?: string
           motivo_otro?: string | null
           origen?: Database["public"]["Enums"]["origen_marca"]
@@ -530,7 +2341,9 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid?: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada?: string | null
           id?: string
           motivo_otro?: string | null
           origen?: Database["public"]["Enums"]["origen_marca"]
@@ -543,10 +2356,31 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "marcajes_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcajes_anulada_por_fkey"
+            columns: ["anulada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "marcajes_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcajes_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
           {
@@ -565,93 +2399,434 @@ export type Database = {
           },
         ]
       }
-      // Agregada a mano el 2026-08-03: la pantalla de Equipo lee el arranque del
-      // periodo abierto para proponerlo como vigencia del salario. `supabase gen
-      // types` no corre en esta Mac, así que los tipos se mantienen a mano.
-      periodos_planilla: {
+      marcas_apartadas: {
         Row: {
+          client_uuid: string
           id: string
-          fecha_ini: string
-          fecha_fin: string
-          estado: string
-          pagado_at: string | null
-          creado_por: string | null
-          created_at: string
+          motivo: string | null
+          motivo_otro: string | null
+          persona_id: string
+          reportada_at: string
+          resolucion: string | null
+          resuelta_at: string | null
+          resuelta_por: string | null
+          terminal_id: string | null
+          timestamp_cliente: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+          ultimo_error: string | null
         }
         Insert: {
+          client_uuid: string
           id?: string
-          fecha_ini: string
-          fecha_fin: string
-          estado?: string
-          pagado_at?: string | null
-          creado_por?: string | null
-          created_at?: string
+          motivo?: string | null
+          motivo_otro?: string | null
+          persona_id: string
+          reportada_at?: string
+          resolucion?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          terminal_id?: string | null
+          timestamp_cliente: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+          ultimo_error?: string | null
         }
         Update: {
+          client_uuid?: string
           id?: string
-          fecha_ini?: string
-          fecha_fin?: string
-          estado?: string
-          pagado_at?: string | null
-          creado_por?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      // Agregada a mano junto con la migración 0125, por el mismo motivo que
-      // parametros_laborales: `supabase gen types` no corre en esta Mac.
-      derechohabientes: {
-        Row: {
-          id: string
-          persona_id: string
-          nombres: string
-          apellidos: string
-          documento: string | null
-          fecha_nacimiento: string | null
-          vinculo: string
-          essalud: boolean
-          vida_ley: boolean
-          vigente_hasta: string | null
-          nota: string | null
-          registrado_por: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          persona_id: string
-          nombres: string
-          apellidos: string
-          documento?: string | null
-          fecha_nacimiento?: string | null
-          vinculo: string
-          essalud?: boolean
-          vida_ley?: boolean
-          vigente_hasta?: string | null
-          nota?: string | null
-          registrado_por?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
+          motivo?: string | null
+          motivo_otro?: string | null
           persona_id?: string
-          nombres?: string
-          apellidos?: string
-          documento?: string | null
-          fecha_nacimiento?: string | null
-          vinculo?: string
-          essalud?: boolean
-          vida_ley?: boolean
-          vigente_hasta?: string | null
-          nota?: string | null
-          registrado_por?: string | null
-          created_at?: string
+          reportada_at?: string
+          resolucion?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          terminal_id?: string | null
+          timestamp_cliente?: string
+          tipo?: Database["public"]["Enums"]["tipo_marca"]
+          ultimo_error?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "derechohabientes_persona_id_fkey"
+            foreignKeyName: "marcas_apartadas_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcas_apartadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcas_apartadas_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marcas_apartadas_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metas_cobertura: {
+        Row: {
+          dia_semana: number
+          meta: number
+          meta_encargadas: number
+          meta_tarde: number
+          sede_id: string
+          updated_at: string
+        }
+        Insert: {
+          dia_semana: number
+          meta?: number
+          meta_encargadas?: number
+          meta_tarde?: number
+          sede_id: string
+          updated_at?: string
+        }
+        Update: {
+          dia_semana?: number
+          meta?: number
+          meta_encargadas?: number
+          meta_tarde?: number
+          sede_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metas_cobertura_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      migraciones_aplicadas: {
+        Row: {
+          aplicada_at: string
+          nombre: string
+          numero: number
+        }
+        Insert: {
+          aplicada_at?: string
+          nombre: string
+          numero: number
+        }
+        Update: {
+          aplicada_at?: string
+          nombre?: string
+          numero?: number
+        }
+        Relationships: []
+      }
+      movimientos_planilla: {
+        Row: {
+          categoria: string | null
+          concepto: string
+          creado_por: string | null
+          created_at: string
+          id: string
+          monto: number
+          periodo_id: string
+          periodo_origen_id: string | null
+          persona_id: string
+          tipo: string
+        }
+        Insert: {
+          categoria?: string | null
+          concepto: string
+          creado_por?: string | null
+          created_at?: string
+          id?: string
+          monto: number
+          periodo_id: string
+          periodo_origen_id?: string | null
+          persona_id: string
+          tipo: string
+        }
+        Update: {
+          categoria?: string | null
+          concepto?: string
+          creado_por?: string | null
+          created_at?: string
+          id?: string
+          monto?: number
+          periodo_id?: string
+          periodo_origen_id?: string | null
+          persona_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_planilla_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_planilla_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_planilla_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_planilla_periodo_origen_id_fkey"
+            columns: ["periodo_origen_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_planilla_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_planilla_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      objetivos_items: {
+        Row: {
+          anio: number
+          created_at: string
+          cumplido: boolean
+          descripcion: string
+          id: string
+          indicaciones: string | null
+          mes: number
+          orden: number
+          persona_id: string
+          updated_at: string
+        }
+        Insert: {
+          anio: number
+          created_at?: string
+          cumplido?: boolean
+          descripcion: string
+          id?: string
+          indicaciones?: string | null
+          mes: number
+          orden?: number
+          persona_id: string
+          updated_at?: string
+        }
+        Update: {
+          anio?: number
+          created_at?: string
+          cumplido?: boolean
+          descripcion?: string
+          id?: string
+          indicaciones?: string | null
+          mes?: number
+          orden?: number
+          persona_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objetivos_items_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_items_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      objetivos_mensuales: {
+        Row: {
+          anio: number
+          cumplidos: number
+          mes: number
+          persona_id: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          anio: number
+          cumplidos: number
+          mes: number
+          persona_id: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          anio?: number
+          cumplidos?: number
+          mes?: number
+          persona_id?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objetivos_mensuales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objetivos_mensuales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parametros_laborales: {
+        Row: {
+          clave: string
+          created_at: string
+          id: string
+          sede_codigo: string | null
+          sustento: string | null
+          valor: number
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          clave: string
+          created_at?: string
+          id?: string
+          sede_codigo?: string | null
+          sustento?: string | null
+          valor: number
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          clave?: string
+          created_at?: string
+          id?: string
+          sede_codigo?: string | null
+          sustento?: string | null
+          valor?: number
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: []
+      }
+      periodo_grupo_pago: {
+        Row: {
+          estado: string
+          grupo: string
+          pagado_at: string | null
+          pagado_por: string | null
+          periodo_id: string
+        }
+        Insert: {
+          estado?: string
+          grupo: string
+          pagado_at?: string | null
+          pagado_por?: string | null
+          periodo_id: string
+        }
+        Update: {
+          estado?: string
+          grupo?: string
+          pagado_at?: string | null
+          pagado_por?: string | null
+          periodo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "periodo_grupo_pago_pagado_por_fkey"
+            columns: ["pagado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "periodo_grupo_pago_pagado_por_fkey"
+            columns: ["pagado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "periodo_grupo_pago_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      periodos_planilla: {
+        Row: {
+          creado_por: string | null
+          created_at: string
+          estado: string
+          fecha_fin: string
+          fecha_ini: string
+          id: string
+          pagado_at: string | null
+        }
+        Insert: {
+          creado_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_fin: string
+          fecha_ini: string
+          id?: string
+          pagado_at?: string | null
+        }
+        Update: {
+          creado_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_fin?: string
+          fecha_ini?: string
+          id?: string
+          pagado_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "periodos_planilla_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "periodos_planilla_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
@@ -660,39 +2835,40 @@ export type Database = {
         Row: {
           apellidos: string
           auth_user_id: string | null
+          cargo: string | null
+          cobra_movilidad: boolean
+          con_hijos: boolean
+          constancia_4ta_hasta: string | null
           created_at: string
+          devenga_beneficios: boolean | null
+          devenga_cts: boolean | null
+          devenga_grati: boolean | null
+          devenga_hasta: string | null
+          devenga_vacaciones: boolean | null
           documento: string | null
           email: string | null
-          en_planilla: boolean
+          en_planilla: boolean | null
+          es_encargada_piso: boolean
           estado: string
-          sueldo_base_legal: number | null
-          sueldo_fijo: boolean
-          // Agregada a mano el 2026-08-08 (la creó la 0187), por el mismo motivo
-          // que sueldo_base_legal arriba: `supabase gen types` en esta máquina
-          // reescribe el archivo entero con otro formato. Es la marca de personal
-          // de dirección del art. 5 del D.S. 007-2002-TR — quien la tiene queda
-          // fuera de la jornada máxima y no genera sobretiempo. NO es lo mismo
-          // que sueldo_fijo (condición de pago) ni que rol (permiso del sistema).
-          personal_direccion: boolean
+          fecha_cese: string | null
           fecha_estado_cambio: string | null
-          // Agregada a mano el 2026-08-05 (la creó la 0144), por el mismo motivo
-          // que tipo_vinculo más abajo: `supabase gen types` no corre en esta
-          // máquina. Es la fecha PREVISTA de término del contrato a plazo fijo —
-          // null es lo normal (contrato indefinido) y NO es lo mismo que el cese.
           fecha_fin_contrato: string | null
           fecha_ingreso: string
           funcion: string
           id: string
+          motivo_cese: string | null
+          movilidad_motivo: string | null
           nombres: string
+          personal_direccion: boolean
           pin_hash: string
+          practicante_modalidad: string | null
           regimen_pension: string | null
+          retencion_4ta: string | null
           rol: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
-          // Agregada a mano el 2026-08-04 (la creó la 0085), por el mismo motivo
-          // que parametros_laborales más abajo: `supabase gen types` no corre en
-          // esta máquina. Al regenerar se produce sola y este comentario sobra.
-          // `en_planilla` de arriba es su columna DERIVADA: false para 'rxh' y
-          // 'no_trabajador'.
+          sede_fisica_id: string | null
+          sueldo_base_legal: number | null
+          sueldo_fijo: boolean
           tipo_vinculo: string
           updated_at: string
           visible_todas_sedes: boolean
@@ -700,24 +2876,40 @@ export type Database = {
         Insert: {
           apellidos: string
           auth_user_id?: string | null
+          cargo?: string | null
+          cobra_movilidad?: boolean
+          con_hijos?: boolean
+          constancia_4ta_hasta?: string | null
           created_at?: string
+          devenga_beneficios?: boolean | null
+          devenga_cts?: boolean | null
+          devenga_grati?: boolean | null
+          devenga_hasta?: string | null
+          devenga_vacaciones?: boolean | null
           documento?: string | null
           email?: string | null
-          en_planilla?: boolean
+          en_planilla?: boolean | null
+          es_encargada_piso?: boolean
           estado?: string
-          sueldo_base_legal?: number | null
-          sueldo_fijo?: boolean
-          personal_direccion?: boolean
+          fecha_cese?: string | null
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
+          motivo_cese?: string | null
+          movilidad_motivo?: string | null
           nombres: string
+          personal_direccion?: boolean
           pin_hash: string
+          practicante_modalidad?: string | null
           regimen_pension?: string | null
+          retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id: string
+          sede_fisica_id?: string | null
+          sueldo_base_legal?: number | null
+          sueldo_fijo?: boolean
           tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
@@ -725,35 +2917,300 @@ export type Database = {
         Update: {
           apellidos?: string
           auth_user_id?: string | null
+          cargo?: string | null
+          cobra_movilidad?: boolean
+          con_hijos?: boolean
+          constancia_4ta_hasta?: string | null
           created_at?: string
+          devenga_beneficios?: boolean | null
+          devenga_cts?: boolean | null
+          devenga_grati?: boolean | null
+          devenga_hasta?: string | null
+          devenga_vacaciones?: boolean | null
           documento?: string | null
           email?: string | null
-          en_planilla?: boolean
+          en_planilla?: boolean | null
+          es_encargada_piso?: boolean
           estado?: string
-          sueldo_base_legal?: number | null
-          sueldo_fijo?: boolean
-          personal_direccion?: boolean
+          fecha_cese?: string | null
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
           funcion?: string
           id?: string
+          motivo_cese?: string | null
+          movilidad_motivo?: string | null
           nombres?: string
+          personal_direccion?: boolean
           pin_hash?: string
+          practicante_modalidad?: string | null
           regimen_pension?: string | null
+          retencion_4ta?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           sede_base_id?: string
+          sede_fisica_id?: string | null
+          sueldo_base_legal?: number | null
+          sueldo_fijo?: boolean
           tipo_vinculo?: string
           updated_at?: string
           visible_todas_sedes?: boolean
         }
         Relationships: [
           {
+            foreignKeyName: "personas_funcion_fk"
+            columns: ["funcion"]
+            isOneToOne: false
+            referencedRelation: "areas"
+            referencedColumns: ["codigo"]
+          },
+          {
             foreignKeyName: "personas_sede_base_id_fkey"
             columns: ["sede_base_id"]
             isOneToOne: false
             referencedRelation: "sedes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "personas_sede_fisica_id_fkey"
+            columns: ["sede_fisica_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planilla_pagada_detalle: {
+        Row: {
+          aporte_essalud: number
+          area_codigo: string | null
+          asignacion_familiar: number
+          bonos: number
+          congelada_at: string
+          congelada_por: string | null
+          costo_total: number | null
+          descuento_pension: number
+          descuentos: number
+          dias_trabajados: number
+          fila: Json
+          grupo: string
+          horas_mes: number
+          monto_descanso_semanal: number
+          monto_educacion: number
+          monto_feriados: number
+          monto_movilidad: number
+          monto_plus: number
+          monto_sobretiempo: number
+          nombre: string
+          origen: string
+          pago_base: number
+          periodo_id: string
+          persona_id: string
+          provision_bonif_extraordinaria: number
+          provision_cts: number
+          provision_gratificacion: number
+          provision_total: number
+          provision_vacaciones: number
+          rango: string | null
+          retencion_4ta: number | null
+          salario_ref: number | null
+          sede_codigo: string
+          total: number
+          version: number
+        }
+        Insert: {
+          aporte_essalud?: number
+          area_codigo?: string | null
+          asignacion_familiar?: number
+          bonos?: number
+          congelada_at?: string
+          congelada_por?: string | null
+          costo_total?: number | null
+          descuento_pension?: number
+          descuentos?: number
+          dias_trabajados?: number
+          fila: Json
+          grupo?: string
+          horas_mes?: number
+          monto_descanso_semanal?: number
+          monto_educacion?: number
+          monto_feriados?: number
+          monto_movilidad?: number
+          monto_plus?: number
+          monto_sobretiempo?: number
+          nombre: string
+          origen: string
+          pago_base?: number
+          periodo_id: string
+          persona_id: string
+          provision_bonif_extraordinaria?: number
+          provision_cts?: number
+          provision_gratificacion?: number
+          provision_total?: number
+          provision_vacaciones?: number
+          rango?: string | null
+          retencion_4ta?: number | null
+          salario_ref?: number | null
+          sede_codigo: string
+          total: number
+          version: number
+        }
+        Update: {
+          aporte_essalud?: number
+          area_codigo?: string | null
+          asignacion_familiar?: number
+          bonos?: number
+          congelada_at?: string
+          congelada_por?: string | null
+          costo_total?: number | null
+          descuento_pension?: number
+          descuentos?: number
+          dias_trabajados?: number
+          fila?: Json
+          grupo?: string
+          horas_mes?: number
+          monto_descanso_semanal?: number
+          monto_educacion?: number
+          monto_feriados?: number
+          monto_movilidad?: number
+          monto_plus?: number
+          monto_sobretiempo?: number
+          nombre?: string
+          origen?: string
+          pago_base?: number
+          periodo_id?: string
+          persona_id?: string
+          provision_bonif_extraordinaria?: number
+          provision_cts?: number
+          provision_gratificacion?: number
+          provision_total?: number
+          provision_vacaciones?: number
+          rango?: string | null
+          retencion_4ta?: number | null
+          salario_ref?: number | null
+          sede_codigo?: string
+          total?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planilla_pagada_detalle_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      politica_salarial: {
+        Row: {
+          documento: string
+          huella_cuadro: string
+          notas: string | null
+          publicada_at: string
+          publicada_por: string | null
+          version: number
+        }
+        Insert: {
+          documento: string
+          huella_cuadro: string
+          notas?: string | null
+          publicada_at?: string
+          publicada_por?: string | null
+          version: number
+        }
+        Update: {
+          documento?: string
+          huella_cuadro?: string
+          notas?: string | null
+          publicada_at?: string
+          publicada_por?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "politica_salarial_publicada_por_fkey"
+            columns: ["publicada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "politica_salarial_publicada_por_fkey"
+            columns: ["publicada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      politica_salarial_acuses: {
+        Row: {
+          acusado_at: string
+          nombre_declarado: string
+          persona_id: string
+          version: number
+        }
+        Insert: {
+          acusado_at?: string
+          nombre_declarado: string
+          persona_id: string
+          version: number
+        }
+        Update: {
+          acusado_at?: string
+          nombre_declarado?: string
+          persona_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "politica_salarial_acuses_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "politica_salarial_acuses_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "politica_salarial_acuses_version_fkey"
+            columns: ["version"]
+            isOneToOne: false
+            referencedRelation: "politica_salarial"
+            referencedColumns: ["version"]
           },
         ]
       }
@@ -790,11 +3247,208 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "push_tokens_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rendimiento_mensual: {
+        Row: {
+          anio: number
+          created_at: string
+          etiqueta_codigo: string | null
+          mes: number
+          nota: string | null
+          persona_id: string
+          porcentaje: number
+          puesto_por: string | null
+          updated_at: string
+        }
+        Insert: {
+          anio: number
+          created_at?: string
+          etiqueta_codigo?: string | null
+          mes: number
+          nota?: string | null
+          persona_id: string
+          porcentaje: number
+          puesto_por?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anio?: number
+          created_at?: string
+          etiqueta_codigo?: string | null
+          mes?: number
+          nota?: string | null
+          persona_id?: string
+          porcentaje?: number
+          puesto_por?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rendimiento_mensual_etiqueta_codigo_fkey"
+            columns: ["etiqueta_codigo"]
+            isOneToOne: false
+            referencedRelation: "etiquetas_complemento"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "rendimiento_mensual_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rendimiento_mensual_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rendimiento_mensual_puesto_por_fkey"
+            columns: ["puesto_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rendimiento_mensual_puesto_por_fkey"
+            columns: ["puesto_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reversas_pago: {
+        Row: {
+          grupo: string | null
+          id: string
+          motivo: string
+          pagado_at_previo: string | null
+          periodo_id: string
+          revertido_at: string
+          revertido_por: string | null
+          tipo: string
+        }
+        Insert: {
+          grupo?: string | null
+          id?: string
+          motivo: string
+          pagado_at_previo?: string | null
+          periodo_id: string
+          revertido_at?: string
+          revertido_por?: string | null
+          tipo?: string
+        }
+        Update: {
+          grupo?: string | null
+          id?: string
+          motivo?: string
+          pagado_at_previo?: string | null
+          periodo_id?: string
+          revertido_at?: string
+          revertido_por?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reversas_pago_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reversas_pago_revertido_por_fkey"
+            columns: ["revertido_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reversas_pago_revertido_por_fkey"
+            columns: ["revertido_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revisiones_pedidas: {
+        Row: {
+          atendida_at: string | null
+          atendida_por: string | null
+          comentario: string
+          fecha: string
+          id: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+        }
+        Insert: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          comentario: string
+          fecha: string
+          id?: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+        }
+        Update: {
+          atendida_at?: string | null
+          atendida_por?: string | null
+          comentario?: string
+          fecha?: string
+          id?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revisiones_pedidas_atendida_por_fkey"
+            columns: ["atendida_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revisiones_pedidas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sedes: {
         Row: {
           activa: boolean
+          ciudad: string | null
           codigo: string
           id: string
           nombre: string
@@ -802,6 +3456,7 @@ export type Database = {
         }
         Insert: {
           activa?: boolean
+          ciudad?: string | null
           codigo: string
           id?: string
           nombre: string
@@ -809,12 +3464,164 @@ export type Database = {
         }
         Update: {
           activa?: boolean
+          ciudad?: string | null
           codigo?: string
           id?: string
           nombre?: string
           tipo?: string
         }
         Relationships: []
+      }
+      solicitudes_vacaciones: {
+        Row: {
+          ausencia_id: string | null
+          comentario: string | null
+          estado: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          pedida_at: string
+          persona_id: string
+          respuesta: string | null
+          resuelta_at: string | null
+          resuelta_por: string | null
+        }
+        Insert: {
+          ausencia_id?: string | null
+          comentario?: string | null
+          estado?: string
+          fecha_fin: string
+          fecha_inicio: string
+          id?: string
+          pedida_at?: string
+          persona_id: string
+          respuesta?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+        }
+        Update: {
+          ausencia_id?: string | null
+          comentario?: string | null
+          estado?: string
+          fecha_fin?: string
+          fecha_inicio?: string
+          id?: string
+          pedida_at?: string
+          persona_id?: string
+          respuesta?: string | null
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitudes_vacaciones_ausencia_id_fkey"
+            columns: ["ausencia_id"]
+            isOneToOne: false
+            referencedRelation: "ausencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_ausencia_id_fkey"
+            columns: ["ausencia_id"]
+            isOneToOne: false
+            referencedRelation: "justificaciones_asistencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_ausencia_id_fkey"
+            columns: ["ausencia_id"]
+            isOneToOne: false
+            referencedRelation: "vacaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_vacaciones_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tardanzas_justificadas: {
+        Row: {
+          creado_at: string
+          creado_por: string
+          fecha: string
+          id: string
+          motivo: string
+          observacion: string | null
+          persona_id: string
+        }
+        Insert: {
+          creado_at?: string
+          creado_por: string
+          fecha: string
+          id?: string
+          motivo: string
+          observacion?: string | null
+          persona_id: string
+        }
+        Update: {
+          creado_at?: string
+          creado_por?: string
+          fecha?: string
+          id?: string
+          motivo?: string
+          observacion?: string | null
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tardanzas_justificadas_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tardanzas_justificadas_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tardanzas_justificadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tardanzas_justificadas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tarifas_hora: {
         Row: {
@@ -856,13 +3663,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tarifas_hora_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tarifas_hora_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tarifas_hora_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      tasas_pension: {
+        Row: {
+          aporte: number
+          comision: number
+          created_at: string
+          grava_subsidio: boolean
+          id: string
+          nombre: string
+          nota: string | null
+          prima: number
+          regimen: string
+          vigente_desde: string
+          vigente_hasta: string | null
+        }
+        Insert: {
+          aporte: number
+          comision?: number
+          created_at?: string
+          grava_subsidio?: boolean
+          id?: string
+          nombre: string
+          nota?: string | null
+          prima?: number
+          regimen: string
+          vigente_desde: string
+          vigente_hasta?: string | null
+        }
+        Update: {
+          aporte?: number
+          comision?: number
+          created_at?: string
+          grava_subsidio?: boolean
+          id?: string
+          nombre?: string
+          nota?: string | null
+          prima?: number
+          regimen?: string
+          vigente_desde?: string
+          vigente_hasta?: string | null
+        }
+        Relationships: []
       }
       terminales: {
         Row: {
@@ -902,8 +3765,67 @@ export type Database = {
           },
         ]
       }
+      tipos_ausencia: {
+        Row: {
+          activo: boolean
+          alerta_desde: number | null
+          codigo: string
+          descuenta_vacaciones: boolean
+          nombre: string
+          orden: number
+          paga: boolean
+          requiere_aprobacion: boolean
+          requiere_documento: boolean
+          ventana_alerta_dias: number | null
+        }
+        Insert: {
+          activo?: boolean
+          alerta_desde?: number | null
+          codigo: string
+          descuenta_vacaciones?: boolean
+          nombre: string
+          orden?: number
+          paga?: boolean
+          requiere_aprobacion?: boolean
+          requiere_documento?: boolean
+          ventana_alerta_dias?: number | null
+        }
+        Update: {
+          activo?: boolean
+          alerta_desde?: number | null
+          codigo?: string
+          descuenta_vacaciones?: boolean
+          nombre?: string
+          orden?: number
+          paga?: boolean
+          requiere_aprobacion?: boolean
+          requiere_documento?: boolean
+          ventana_alerta_dias?: number | null
+        }
+        Relationships: []
+      }
+      topes_educacion_rango: {
+        Row: {
+          actualizado_at: string
+          rango: string
+          tope_mensual: number
+        }
+        Insert: {
+          actualizado_at?: string
+          rango: string
+          tope_mensual: number
+        }
+        Update: {
+          actualizado_at?: string
+          rango?: string
+          tope_mensual?: number
+        }
+        Relationships: []
+      }
       turnos: {
         Row: {
+          creado_por: string | null
+          created_at: string | null
           es_descanso: boolean
           fecha: string
           hora_entrada: string | null
@@ -913,6 +3835,8 @@ export type Database = {
           persona_id: string
         }
         Insert: {
+          creado_por?: string | null
+          created_at?: string | null
           es_descanso?: boolean
           fecha: string
           hora_entrada?: string | null
@@ -922,6 +3846,8 @@ export type Database = {
           persona_id: string
         }
         Update: {
+          creado_por?: string | null
+          created_at?: string | null
           es_descanso?: boolean
           fecha?: string
           hora_entrada?: string | null
@@ -931,6 +3857,20 @@ export type Database = {
           persona_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "turnos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turnos_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "turnos_persona_id_fkey"
             columns: ["persona_id"]
@@ -938,968 +3878,1860 @@ export type Database = {
             referencedRelation: "personas"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      tardanzas_justificadas: {
-        Row: {
-          creado_at: string
-          creado_por: string
-          fecha: string
-          id: string
-          motivo: string
-          observacion: string | null
-          persona_id: string
-        }
-        Insert: {
-          creado_at?: string
-          creado_por: string
-          fecha: string
-          id?: string
-          motivo: string
-          observacion?: string | null
-          persona_id: string
-        }
-        Update: {
-          creado_at?: string
-          creado_por?: string
-          fecha?: string
-          id?: string
-          motivo?: string
-          observacion?: string | null
-          persona_id?: string
-        }
-        Relationships: []
-      }
-      justificaciones_asistencia: {
-        Row: {
-          creado_at: string
-          creado_por: string
-          fecha: string
-          id: string
-          motivo: string
-          observacion: string | null
-          persona_id: string
-        }
-        Insert: {
-          creado_at?: string
-          creado_por: string
-          fecha: string
-          id?: string
-          motivo: string
-          observacion?: string | null
-          persona_id: string
-        }
-        Update: {
-          creado_at?: string
-          creado_por?: string
-          fecha?: string
-          id?: string
-          motivo?: string
-          observacion?: string | null
-          persona_id?: string
-        }
-        Relationships: []
-      }
-      incidencias_aceptadas: {
-        Row: {
-          aceptado_at: string
-          aceptado_por: string
-          fecha: string
-          id: string
-          nota: string | null
-          persona_id: string
-          tipo: string
-        }
-        Insert: {
-          aceptado_at?: string
-          aceptado_por: string
-          fecha: string
-          id?: string
-          nota?: string | null
-          persona_id: string
-          tipo: string
-        }
-        Update: {
-          aceptado_at?: string
-          aceptado_por?: string
-          fecha?: string
-          id?: string
-          nota?: string | null
-          persona_id?: string
-          tipo?: string
-        }
-        Relationships: []
-      }
-      // Agregada a mano el 2026-08-01 junto con las migraciones 0116 y 0118, por el
-      // mismo motivo que fn_set_tipo_vinculo: `supabase gen types` no corre en esta
-      // máquina. Al regenerar se produce sola y este comentario se puede borrar.
-      parametros_laborales: {
-        Row: {
-          id: string
-          clave: string
-          valor: number
-          vigente_desde: string
-          vigente_hasta: string | null
-          sustento: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          clave: string
-          valor: number
-          vigente_desde: string
-          vigente_hasta?: string | null
-          sustento?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          clave?: string
-          valor?: number
-          vigente_desde?: string
-          vigente_hasta?: string | null
-          sustento?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      feriados: {
-        Row: {
-          fecha: string
-          nombre: string
-        }
-        Insert: {
-          fecha: string
-          nombre: string
-        }
-        Update: {
-          fecha?: string
-          nombre?: string
-        }
-        Relationships: []
-      }
-      feriados_descanso_sustitutorio: {
-        Row: {
-          acta_ref: string | null
-          created_at: string
-          estado: string
-          fecha_descanso_sustitutorio: string
-          fecha_feriado: string
-          id: string
-          otorgado_por: string | null
-          persona_id: string
-          updated_at: string
-        }
-        Insert: {
-          acta_ref?: string | null
-          created_at?: string
-          estado?: string
-          fecha_descanso_sustitutorio: string
-          fecha_feriado: string
-          id?: string
-          otorgado_por?: string | null
-          persona_id: string
-          updated_at?: string
-        }
-        Update: {
-          acta_ref?: string | null
-          created_at?: string
-          estado?: string
-          fecha_descanso_sustitutorio?: string
-          fecha_feriado?: string
-          id?: string
-          otorgado_por?: string | null
-          persona_id?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      vacaciones: {
-        Row: {
-          creado_at: string
-          creado_por: string
-          fecha_fin: string
-          fecha_inicio: string
-          id: string
-          observacion: string | null
-          persona_id: string
-        }
-        Insert: {
-          creado_at?: string
-          creado_por: string
-          fecha_fin: string
-          fecha_inicio: string
-          id?: string
-          observacion?: string | null
-          persona_id: string
-        }
-        Update: {
-          creado_at?: string
-          creado_por?: string
-          fecha_fin?: string
-          fecha_inicio?: string
-          id?: string
-          observacion?: string | null
-          persona_id?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "vacaciones_persona_id_fkey"
+            foreignKeyName: "turnos_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
-            referencedRelation: "personas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vacaciones_creado_por_fkey"
-            columns: ["creado_por"]
-            isOneToOne: false
-            referencedRelation: "personas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      metas_cobertura: {
-        Row: {
-          dia_semana: number
-          meta: number
-          meta_encargadas: number
-          meta_tarde: number
-          sede_id: string
-          updated_at: string
-        }
-        Insert: {
-          dia_semana: number
-          meta?: number
-          meta_encargadas?: number
-          meta_tarde?: number
-          sede_id: string
-          updated_at?: string
-        }
-        Update: {
-          dia_semana?: number
-          meta?: number
-          meta_encargadas?: number
-          meta_tarde?: number
-          sede_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "metas_cobertura_sede_id_fkey"
-            columns: ["sede_id"]
-            isOneToOne: false
-            referencedRelation: "sedes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      asignaciones_salario: {
-        Row: {
-          asignado_por: string | null
-          created_at: string
-          id: string
-          nota: string | null
-          persona_id: string
-          rango: string
-          salario_mensual_soles: number
-          vigente_desde: string
-          vigente_hasta: string | null
-        }
-        Insert: {
-          asignado_por?: string | null
-          created_at?: string
-          id?: string
-          nota?: string | null
-          persona_id: string
-          rango: string
-          salario_mensual_soles: number
-          vigente_desde: string
-          vigente_hasta?: string | null
-        }
-        Update: {
-          asignado_por?: string | null
-          created_at?: string
-          id?: string
-          nota?: string | null
-          persona_id?: string
-          rango?: string
-          salario_mensual_soles?: number
-          vigente_desde?: string
-          vigente_hasta?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "asignaciones_salario_persona_id_fkey"
-            columns: ["persona_id"]
-            isOneToOne: false
-            referencedRelation: "personas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "asignaciones_salario_asignado_por_fkey"
-            columns: ["asignado_por"]
-            isOneToOne: false
-            referencedRelation: "personas"
+            referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      justificaciones_asistencia: {
+        Row: {
+          creado_at: string | null
+          creado_por: string | null
+          fecha: string | null
+          id: string | null
+          motivo: string | null
+          observacion: string | null
+          persona_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_tipo_fkey"
+            columns: ["motivo"]
+            isOneToOne: false
+            referencedRelation: "tipos_ausencia"
+            referencedColumns: ["codigo"]
+          },
+        ]
+      }
+      terminal_roster: {
+        Row: {
+          apellidos: string | null
+          id: string | null
+          nombres: string | null
+          sede_codigo: string | null
+          sede_nombre: string | null
+        }
+        Relationships: []
+      }
+      v_planilla_pagada: {
+        Row: {
+          aporte_essalud: number | null
+          area_codigo: string | null
+          asignacion_familiar: number | null
+          bonos: number | null
+          congelada_at: string | null
+          congelada_por: string | null
+          costo_total: number | null
+          descuento_pension: number | null
+          descuentos: number | null
+          dias_trabajados: number | null
+          fila: Json | null
+          grupo: string | null
+          horas_mes: number | null
+          monto_descanso_semanal: number | null
+          monto_educacion: number | null
+          monto_feriados: number | null
+          monto_movilidad: number | null
+          monto_plus: number | null
+          monto_sobretiempo: number | null
+          nombre: string | null
+          origen: string | null
+          pago_base: number | null
+          periodo_id: string | null
+          persona_id: string | null
+          provision_bonif_extraordinaria: number | null
+          provision_cts: number | null
+          provision_gratificacion: number | null
+          provision_total: number | null
+          provision_vacaciones: number | null
+          rango: string | null
+          retencion_4ta: number | null
+          salario_ref: number | null
+          sede_codigo: string | null
+          total: number | null
+          version: number | null
+        }
+        Insert: {
+          aporte_essalud?: number | null
+          area_codigo?: string | null
+          asignacion_familiar?: number | null
+          bonos?: number | null
+          congelada_at?: string | null
+          congelada_por?: string | null
+          costo_total?: number | null
+          descuento_pension?: number | null
+          descuentos?: number | null
+          dias_trabajados?: number | null
+          fila?: Json | null
+          grupo?: string | null
+          horas_mes?: number | null
+          monto_descanso_semanal?: number | null
+          monto_educacion?: number | null
+          monto_feriados?: number | null
+          monto_movilidad?: number | null
+          monto_plus?: number | null
+          monto_sobretiempo?: number | null
+          nombre?: string | null
+          origen?: string | null
+          pago_base?: number | null
+          periodo_id?: string | null
+          persona_id?: string | null
+          provision_bonif_extraordinaria?: number | null
+          provision_cts?: number | null
+          provision_gratificacion?: number | null
+          provision_total?: number | null
+          provision_vacaciones?: number | null
+          rango?: string | null
+          retencion_4ta?: number | null
+          salario_ref?: number | null
+          sede_codigo?: string | null
+          total?: number | null
+          version?: number | null
+        }
+        Update: {
+          aporte_essalud?: number | null
+          area_codigo?: string | null
+          asignacion_familiar?: number | null
+          bonos?: number | null
+          congelada_at?: string | null
+          congelada_por?: string | null
+          costo_total?: number | null
+          descuento_pension?: number | null
+          descuentos?: number | null
+          dias_trabajados?: number | null
+          fila?: Json | null
+          grupo?: string | null
+          horas_mes?: number | null
+          monto_descanso_semanal?: number | null
+          monto_educacion?: number | null
+          monto_feriados?: number | null
+          monto_movilidad?: number | null
+          monto_plus?: number | null
+          monto_sobretiempo?: number | null
+          nombre?: string | null
+          origen?: string | null
+          pago_base?: number | null
+          periodo_id?: string | null
+          persona_id?: string | null
+          provision_bonif_extraordinaria?: number | null
+          provision_cts?: number | null
+          provision_gratificacion?: number | null
+          provision_total?: number | null
+          provision_vacaciones?: number | null
+          rango?: string | null
+          retencion_4ta?: number | null
+          salario_ref?: number | null
+          sede_codigo?: string | null
+          total?: number | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planilla_pagada_detalle_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_congelada_por_fkey"
+            columns: ["congelada_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "periodos_planilla"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planilla_pagada_detalle_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vacaciones: {
+        Row: {
+          creado_at: string | null
+          creado_por: string | null
+          fecha_fin: string | null
+          fecha_inicio: string | null
+          id: string | null
+          observacion: string | null
+          persona_id: string | null
+        }
+        Insert: {
+          creado_at?: string | null
+          creado_por?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
+          id?: string | null
+          observacion?: string | null
+          persona_id?: string | null
+        }
+        Update: {
+          creado_at?: string | null
+          creado_por?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
+          id?: string | null
+          observacion?: string | null
+          persona_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ausencias_registrada_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      fn_agregar_marcaje: {
+      fn_aceptar_incidencia: {
         Args: {
-          p_motivo: string
-          p_motivo_otro?: string
-          p_persona_id: string
-          p_tipo: Database["public"]["Enums"]["tipo_marca"]
-          p_ts: string
+          p_fecha: string | null
+          p_nota?: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
         }
+        Returns: undefined
+      }
+      fn_acta_descanso: { Args: { p_referencia: string | null }; Returns: string }
+      fn_acta_descanso_ubicacion: {
+        Args: { p_referencia: string | null }
         Returns: {
-          client_uuid: string
-          estado_revision: Database["public"]["Enums"]["estado_revision"]
-          id: string
-          motivo_otro: string | null
-          origen: Database["public"]["Enums"]["origen_marca"]
-          persona_id: string
-          sede_id: string
-          server_received_at: string
-          terminal_id: string | null
-          timestamp_marca: string
-          tipo: Database["public"]["Enums"]["tipo_marca"]
-        }
-        SetofOptions: {
-          from: "*"
-          to: "marcajes"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      fn_auto_cierre: { Args: never; Returns: number }
-      fn_corregir_marcaje: {
-        Args: { p_marcaje_id: string; p_motivo: string; p_nuevo_ts: string }
-        Returns: {
-          client_uuid: string
-          estado_revision: Database["public"]["Enums"]["estado_revision"]
-          id: string
-          motivo_otro: string | null
-          origen: Database["public"]["Enums"]["origen_marca"]
-          persona_id: string
-          sede_id: string
-          server_received_at: string
-          terminal_id: string | null
-          timestamp_marca: string
-          tipo: Database["public"]["Enums"]["tipo_marca"]
-        }
-        SetofOptions: {
-          from: "*"
-          to: "marcajes"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      fn_eliminar_marcaje: {
-        Args: { p_marcaje_id: string; p_motivo: string }
-        Returns: undefined
-      }
-      fn_es_admin_o_lider: { Args: never; Returns: boolean }
-      fn_exigir_admin: { Args: never; Returns: string }
-      fn_persona_actual_id: { Args: never; Returns: string }
-      fn_quitar_horario: {
-        Args: { p_desde: string; p_persona_id: string }
-        Returns: undefined
-      }
-      fn_recalcular_jornada: {
-        Args: { p_fecha: string; p_persona_id: string }
-        Returns: undefined
-      }
-      fn_registrar_marcaje: {
-        Args: {
-          p_client_uuid: string
-          p_motivo_otro?: string
-          p_origen?: Database["public"]["Enums"]["origen_marca"]
-          p_persona_id: string
-          p_sede_id?: string
-          p_terminal_id?: string
-          p_timestamp_cliente: string
-          p_tipo: Database["public"]["Enums"]["tipo_marca"]
-        }
-        Returns: {
-          client_uuid: string
-          estado_revision: Database["public"]["Enums"]["estado_revision"]
-          id: string
-          motivo_otro: string | null
-          origen: Database["public"]["Enums"]["origen_marca"]
-          persona_id: string
-          sede_id: string
-          server_received_at: string
-          terminal_id: string | null
-          timestamp_marca: string
-          tipo: Database["public"]["Enums"]["tipo_marca"]
-        }
-        SetofOptions: {
-          from: "*"
-          to: "marcajes"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      fn_rol_actual: {
-        Args: never
-        Returns: Database["public"]["Enums"]["rol_usuario"]
-      }
-      fn_sede_actual_persona: { Args: never; Returns: string }
-      fn_sede_actual_terminal: { Args: never; Returns: string }
-      fn_set_horario: {
-        Args: {
-          p_almuerzo_max?: number
-          p_almuerzo_min?: number
-          p_dias_laborables?: number[]
-          p_hora_entrada: string
-          p_hora_salida: string
-          p_persona_id: string
-          p_vigente_desde: string
-        }
-        Returns: undefined
-      }
-      fn_set_horario_semanal: {
-        Args: {
-          p_horario: Json
-          p_persona_id: string
-          p_vigente_desde: string
-        }
-        Returns: undefined
-      }
-      fn_set_turno: {
-        Args: {
-          p_fecha: string
-          p_hora_entrada: string
-          p_hora_salida?: string | null
-          p_persona_id: string
-        }
-        Returns: undefined
-      }
-      fn_set_descanso: {
-        Args: { p_fecha: string; p_persona_id: string }
-        Returns: undefined
-      }
-      fn_quitar_turno: {
-        Args: { p_fecha: string; p_persona_id: string }
-        Returns: undefined
-      }
-      fn_set_vacaciones: {
-        Args: {
-          p_fecha_fin: string
-          p_fecha_inicio: string
-          p_observacion?: string | null
-          p_persona_id: string
-        }
-        Returns: string
-      }
-      fn_quitar_vacaciones: {
-        Args: { p_id: string }
-        Returns: undefined
-      }
-      fn_otorgar_descanso_sustitutorio: {
-        Args: {
-          p_persona_id: string
-          p_fecha_feriado: string
-          p_fecha_descanso: string
-          p_estado?: string
-          p_acta_ref?: string | null
-        }
-        Returns: string
-      }
-      fn_quitar_descanso_sustitutorio: {
-        Args: { p_id: string }
-        Returns: undefined
-      }
-      fn_feriados_laborados: {
-        Args: { p_desde: string; p_hasta: string }
-        Returns: {
-          persona_id: string
-          nombre: string
-          sede: string
-          fecha_feriado: string
-          feriado_nombre: string
-          horas: number
-          sobretasa: number
-          dcs_id: string
-          fecha_descanso: string
-          estado: string
-          acta_ref: string
+          dataurl: string
+          storage_path: string
         }[]
       }
-      fn_subir_acta_descanso: {
-        Args: { p_referencia: string; p_dataurl: string | null; p_nombre?: string | null }
-        Returns: string
-      }
       fn_actas_descanso: {
-        Args: Record<string, never>
+        Args: never
         Returns: {
-          referencia: string
-          archivo_nombre: string | null
-          tiene_archivo: boolean
-          peso_kb: number
           actualizado: string
+          archivo_nombre: string
+          peso_kb: number
+          referencia: string
+          registros: number
+          tiene_archivo: boolean
+        }[]
+      }
+      fn_acusar_documento: {
+        Args: { p_documento_id: string | null; p_nombre_declarado: string | null }
+        Returns: undefined
+      }
+      fn_acusar_politica_salarial: { Args: { p_nombre: string | null }; Returns: Json }
+      fn_acuses_documento: {
+        Args: { p_documento_id: string | null }
+        Returns: {
+          acusado_at: string
+          nombre: string
+          persona_id: string
+          sede: string
+          tiene_cuenta: boolean
+          via: string
+        }[]
+      }
+      fn_acuses_politica_salarial: { Args: never; Returns: Json }
+      fn_agregar_marcaje: {
+        Args: {
+          p_motivo: string | null
+          p_motivo_otro?: string | null
+          p_persona_id: string | null
+          p_tipo: Database["public"]["Enums"]["tipo_marca"] | null
+          p_ts: string | null
+        }
+        Returns: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_agregar_movimiento: {
+        Args: {
+          p_categoria?: string | null
+          p_concepto: string | null
+          p_monto: number | null
+          p_periodo_id: string | null
+          p_periodo_origen_id?: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
+        }
+        Returns: undefined
+      }
+      fn_ahora_servidor: { Args: never; Returns: string }
+      fn_alerta_despachable: {
+        Args: {
+          p_created_at: string | null
+          p_estado: string | null
+          p_intentos: number | null
+          p_procesando_desde: string | null
+        }
+        Returns: boolean
+      }
+      fn_alertas_despacho_resumen: { Args: never; Returns: Json }
+      fn_alertas_email_pendientes: {
+        Args: never
+        Returns: {
+          alerta_id: string
+          destinatarios: string[]
+          destinatarios_nombres: string[]
+          estado_previo: string
+          intentos: number
+          payload: Json
+          persona_nombre: string
+          sede_codigo: string
+          tipo: string
+        }[]
+      }
+      fn_alertas_reservar: { Args: { p_id: string | null }; Returns: boolean }
+      fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
+      fn_anular_ausencia: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_anular_marcaje: {
+        Args: { p_marcaje_id: string | null; p_motivo: string | null }
+        Returns: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_anuncios_vigentes: {
+        Args: { p_incluir_anulados?: boolean | null }
+        Returns: {
+          anulado_at: string
+          cuerpo: string
+          id: string
+          mi_leido_at: string
+          publicado_at: string
+          publicado_por_nombre: string
+          sede_codigo: string
+          sede_id: string
+          titulo: string
+          total_lectores: number
+        }[]
+      }
+      fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
+      fn_area_activa: {
+        Args: { p_activa: boolean | null; p_codigo: string | null }
+        Returns: undefined
+      }
+      fn_areas: { Args: never; Returns: Json }
+      fn_atender_revision: {
+        Args: { p_id: string | null; p_respuesta: string | null }
+        Returns: undefined
+      }
+      fn_ausencia_adjuntar_certificado: {
+        Args: { p_ausencia_id: string | null; p_storage_path: string | null }
+        Returns: undefined
+      }
+      fn_ausencias: {
+        Args: { p_desde: string | null; p_hasta: string | null; p_persona_id?: string | null }
+        Returns: {
+          anulada: boolean
+          anulada_motivo: string
+          aprobada: boolean
+          dias: number
+          doc_colegiatura: string
+          doc_fecha: string
+          doc_profesional: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          motivo: string
+          nombre: string
+          paga: boolean
+          persona_id: string
+          registrada_at: string
+          registrada_por_nombre: string
+          registrada_tarde: boolean
+          requiere_aprobacion: boolean
+          sede: string
+          tipo: string
+          tipo_nombre: string
+        }[]
+      }
+      fn_ausencias_alerta: {
+        Args: { p_persona_id?: string | null }
+        Returns: {
+          nombre: string
+          persona_id: string
+          tipo: string
+          tipo_nombre: string
+          umbral: number
+          veces: number
+          ventana_dias: number
+        }[]
+      }
+      fn_ausencias_resumen: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: {
+          dias_total: number
+          persona_id: string
+          por_tipo: Json
           registros: number
         }[]
       }
-      fn_acta_descanso: {
-        Args: { p_referencia: string }
-        Returns: string | null
-      }
-      // ── mig. 0175 · el acta pasó a guardarse en el almacén ──────────────
-      // Añadidas a mano y no regenerando el archivo entero: `supabase gen
-      // types` con el CLI de hoy reescribe 3.000 líneas por cambios de
-      // formato, y eso es otro cambio — uno que merece su propio commit y su
-      // propia revisión, no colarse dentro de un arreglo de subida de papeles.
-      fn_registrar_acta_descanso: {
-        Args: { p_referencia: string; p_path: string; p_nombre?: string | null }
-        Returns: string
-      }
-      fn_acta_descanso_ubicacion: {
-        Args: { p_referencia: string }
+      fn_ausencias_subsidio: {
+        Args: { p_anio?: number | null }
         Returns: {
-          storage_path: string | null
-          dataurl: string | null
-        }[]
-      }
-      fn_aceptar_incidencia: {
-        Args: { p_persona_id: string; p_fecha: string; p_tipo: string; p_nota?: string | null }
-        Returns: undefined
-      }
-      fn_quitar_aceptacion: {
-        Args: { p_persona_id: string; p_fecha: string; p_tipo: string }
-        Returns: undefined
-      }
-      fn_faltas: {
-        Args: { p_desde: string; p_hasta: string }
-        Returns: {
-          persona_id: string
+          avisar_desde: number
+          con_certificado: number
+          dias_calendario: number
+          dias_para_el_umbral: number
+          hay_que_avisar: boolean
           nombre: string
-          sede: string
-          fecha: string
-          justificada: boolean
-          motivo: string | null
-        }[]
-      }
-      fn_set_justificacion: {
-        Args: { p_persona_id: string; p_fecha: string; p_motivo: string; p_observacion?: string | null }
-        Returns: undefined
-      }
-      fn_quitar_justificacion: {
-        Args: { p_persona_id: string; p_fecha: string }
-        Returns: undefined
-      }
-      fn_levantar_tardanza: {
-        Args: { p_persona_id: string; p_fecha: string; p_motivo: string; p_observacion?: string | null }
-        Returns: undefined
-      }
-      fn_quitar_levantamiento: {
-        Args: { p_persona_id: string; p_fecha: string }
-        Returns: undefined
-      }
-      fn_tardanzas_resumen: {
-        Args: Record<PropertyKey, never>
-        Returns: {
           persona_id: string
-          nombre: string
-          sede: string
-          tardanzas_mes: number
-          umbral: string
-          ultima_fecha: string | null
+          sin_certificado: number
+          umbral: number
         }[]
       }
-      fn_dias_por_revisar: {
-        Args: { p_limite?: number }
-        Returns: {
-          persona_id: string
-          nombre: string
-          sede: string
-          fecha: string
-          marcas: number
-        }[]
-      }
-      fn_faltas_resumen: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          persona_id: string
-          nombre: string
-          sede: string
-          consecutivas: number
-          en_30: number
-          en_180: number
-          nivel: string
-        }[]
-      }
-      fn_expediente_generar_tardanza: {
-        Args: { p_persona_id: string }
-        Returns: string
-      }
-      fn_expediente_generar_falta: {
-        Args: { p_persona_id: string }
-        Returns: string
-      }
-      fn_expediente_firmar: {
-        Args: { p_id: string; p_firmante_id?: string | null }
-        Returns: string
-      }
-      fn_firmantes_disponibles: {
-        Args: Record<PropertyKey, never>
-        Returns: { id: string; nombre: string }[]
-      }
-      // ── Migración 0074 (rescate de la copia de iCloud) ──────────────────────
-      // El cargo que se imprime en un memo sale del rol de quien lo suscribe.
-      fn_cargo_de_rol: {
-        Args: { p_rol: string }
-        Returns: string | null
-      }
-      // Quiénes pueden suscribir ESTE documento (más estricta que
-      // fn_firmantes_disponibles: filtra por nivel y sede del documento).
-      fn_expediente_firmantes: {
-        Args: { p_id: string }
-        Returns: { persona_id: string; nombre: string; cargo: string; tiene_firma: boolean }[]
-      }
-      fn_expediente_adjuntar: {
-        Args: {
-          p_documento_id: string
-          p_path: string
-          p_tipo?: string
-          p_fecha_entrega?: string | null
-          p_nota?: string | null
-        }
-        Returns: string
-      }
-      fn_expediente_puede_adjuntar: {
-        Args: { p_path: string }
-        Returns: boolean
-      }
-      // ── Migración 0075 (rescate) ────────────────────────────────────────────
-      // Los días de suspensión son días LABORABLES de esa persona, no de calendario.
-      fn_es_dia_laborable: {
-        Args: { p_persona_id: string; p_fecha: string }
-        Returns: boolean
-      }
-      fn_dias_suspension: {
-        Args: { p_persona_id: string; p_desde: string; p_dias: number }
-        Returns: { fecha: string }[]
-      }
-      fn_expediente_set_suspension: {
-        Args: { p_id: string; p_dias: number; p_desde: string }
-        Returns: { fecha: string }[]
-      }
-      fn_expediente_entregar: {
-        Args: { p_id: string; p_medio: string; p_fecha?: string }
-        Returns: undefined
-      }
-      fn_expediente_editar_borrador: {
-        Args: {
-          p_id: string
-          p_suspension_dias?: number | null
-          p_suspension_desde?: string | null
-          p_suspension_hasta?: string | null
-          p_observacion?: string | null
-          p_hechos?: Json
-        }
-        Returns: undefined
-      }
-      fn_expediente_anular: {
-        Args: { p_id: string; p_motivo: string }
-        Returns: undefined
-      }
-      fn_expediente_reabrir: {
-        Args: { p_id: string }
-        Returns: undefined
-      }
-      // Firma de la 0149, escrita a mano: `supabase gen types` no corre en esta
-      // máquina («Failed to end the connection on error»). Ya no viajan ni
-      // `p_monto` (lo calcula la base) ni `p_cobertura_pct` (es 75 fijo).
-      fn_educacion_registrar: {
-        Args: {
-          p_persona_id: string
-          p_institucion: string
-          p_costo_declarado: number
-          p_beneficiario: string
-          p_vigente_desde: string
-          p_vigente_hasta: string
-          p_beneficiario_nombre?: string | null
-          p_comprobante_url?: string | null
-          p_nota?: string | null
-          p_id?: string | null
-          p_motivo?: string | null
-        }
-        Returns: string
-      }
-      fn_educacion_cerrar: {
-        Args: { p_id: string; p_hasta: string; p_motivo?: string | null }
-        Returns: undefined
-      }
-      fn_educacion_monto: {
-        Args: { p_persona_id: string; p_costo: number }
-        Returns: number
-      }
-      fn_educacion_por_atender: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      // 0154, escrita a mano como el resto: `supabase gen types` no corre acá.
-      // 0157, escritas a mano: `supabase gen types` no corre en esta máquina.
-      // 0164/0167/0169, escritas a mano: `supabase gen types` no corre acá.
-      fn_liquidacion: {
-        Args: { p_persona_id: string; p_fecha_cese?: string | null }
-        Returns: Json
-      }
-      fn_liquidacion_pagar: {
-        Args: { p_persona_id: string; p_nota?: string | null }
-        Returns: Json
-      }
-      fn_liquidacion_diferencias: {
-        Args: { p_persona_id: string }
-        Returns: {
-          concepto: string
-          pagado: number
-          ahora: number
-          diferencia: number
-        }[]
-      }
-      fn_liquidaciones_pendientes: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          persona_id: string
-          persona: string
-          sede: string
-          fecha_ingreso: string | null
-          fecha_cese: string
-          vence_el: string
-          dias_restantes: number
-          vencido: boolean
-          total: number
-          pagada: boolean
-          descuadra: boolean
-        }[]
-      }
+      fn_auto_cierre: { Args: never; Returns: number }
       fn_avisos_vinculo: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
-          persona_id: string
+          aviso: string
+          cumple_el_mes: string
+          dias: number
+          fecha_ingreso: string
           persona: string
+          persona_id: string
           sede: string
           tipo_vinculo: string
-          fecha_ingreso: string
-          dias: number
-          cumple_el_mes: string
           ya_devenga: boolean
-          aviso: string
         }[]
       }
-      fn_documento_registrar: {
+      fn_beneficio_ya_depositado: {
+        Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
+        Returns: number
+      }
+      fn_cambiar_regimen_pension: {
         Args: {
-          p_tipo: string
-          p_fecha_firma: string
-          p_persona_id?: string | null
-          p_ruta_declarada?: string | null
-          p_monto_declarado?: number | null
-          p_anio?: number | null
-          p_es_negativa?: boolean | null
+          p_desde: string | null
           p_nota?: string | null
-          p_storage_path?: string | null
-          p_id?: string | null
+          p_persona_id: string | null
+          p_regimen: string | null
+        }
+        Returns: Json
+      }
+      fn_cancelar_solicitud_vacaciones: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
+      fn_cargo_de_rol: {
+        Args: { p_rol: Database["public"]["Enums"]["rol_usuario"] | null }
+        Returns: string
+      }
+      fn_cerrar_derechohabiente: {
+        Args: { p_hasta?: string | null; p_id: string | null }
+        Returns: undefined
+      }
+      fn_cesar_persona: {
+        Args: {
+          p_fecha_cese: string | null
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_tipo_vinculo?: string | null
+        }
+        Returns: undefined
+      }
+      fn_cierre_lima: { Args: { p_fecha: string | null }; Returns: string }
+      fn_confirmar_auto_cierre: {
+        Args: { p_marcaje_id: string | null; p_motivo?: string | null }
+        Returns: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_contrato_anular: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_contrato_firmado_vigente_de: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          anulado_at: string | null
+          anulado_motivo: string | null
+          anulado_por: string | null
+          cargo: string
+          comunicado_mtpe_at: string | null
+          copia_entregada_at: string | null
+          documento_html: string
+          fecha_fin: string | null
+          fecha_firma: string | null
+          fecha_inicio: string
+          generado_at: string
+          generado_por: string
+          horas_semanales: number | null
+          id: string
+          persona_id: string
+          registrado_por: string | null
+          remuneracion_mensual: number
+          sede_id: string
+          storage_path: string | null
+          tipo: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "contratos_generados"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_contrato_marcar_tramite: {
+        Args: { p_fecha?: string | null; p_id: string | null; p_tramite: string | null }
+        Returns: undefined
+      }
+      fn_contrato_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_contrato_refrescar_vencimiento: {
+        Args: {
+          p_motivo: string | null
+          p_persona_id: string | null
+          p_puede_borrar?: boolean | null
         }
         Returns: string
       }
-      fn_documento_anular: {
-        Args: { p_id: string; p_motivo: string }
-        Returns: undefined
+      fn_contrato_registrar: {
+        Args: {
+          p_cargo?: string | null
+          p_documento_html?: string | null
+          p_fecha_fin?: string | null
+          p_fecha_firma?: string | null
+          p_fecha_inicio?: string | null
+          p_horas_semanales?: number | null
+          p_id?: string | null
+          p_persona_id?: string | null
+          p_remuneracion_mensual?: number | null
+          p_sede_id?: string | null
+          p_storage_path?: string | null
+          p_tipo?: string | null
+        }
+        Returns: string
       }
-      fn_documentos_tablero: {
-        Args: Record<PropertyKey, never>
+      fn_contratos_desnaturalizados: {
+        Args: never
         Returns: {
+          dias_marcados_despues: number
+          fecha_fin_contrato: string
+          nombre: string
           persona_id: string
-          persona: string
+          primer_dia_despues: string
           sede: string
-          fecha_ingreso: string | null
-          ruta_id: string | null
-          ruta_firmada_el: string | null
-          ruta_monto: number | null
-          ruta_negativa: boolean
-          ruta_desfasada: boolean
-          bono_id: string | null
-          bono_anio: number | null
-          estado: string
+          ultimo_dia_marcado: string
         }[]
       }
-      fn_documentos_estado_politica: {
-        Args: Record<PropertyKey, never>
+      fn_contratos_listar: {
+        Args: { p_persona_id?: string | null }
         Returns: {
-          id: string | null
+          anulado_at: string
+          anulado_motivo: string
+          cargo: string
+          comunicado_mtpe_at: string
+          copia_entregada_at: string
+          fecha_fin: string
+          fecha_firma: string
+          fecha_inicio: string
+          generado_at: string
+          generado_por: string
+          horas_semanales: number
+          id: string
+          persona: string
+          persona_id: string
+          remuneracion_mensual: number
+          sede: string
+          storage_path: string
+          tipo: string
+          vigente: boolean
+        }[]
+      }
+      fn_contratos_por_vencer: {
+        Args: { p_dias?: number | null }
+        Returns: {
+          dias_restantes: number
+          fecha_fin_contrato: string
+          nombre: string
+          persona_id: string
+          sede: string
+          ya_vencio: boolean
+        }[]
+      }
+      fn_contratos_tablero: {
+        Args: never
+        Returns: {
+          comunicado_mtpe_at: string
+          contrato_id: string
+          copia_entregada_at: string
+          copia_vence: string
+          dias_marcados_despues: number
+          dias_restantes: number
+          estado: string
+          fecha_fin_contrato: string
+          fecha_firma: string
+          mtpe_vence: string
+          persona: string
+          persona_id: string
+          sede: string
+          tipo: string
+        }[]
+      }
+      fn_corregir_marca: {
+        Args: {
+          p_marcaje_id: string | null
+          p_motivo?: string | null
+          p_nuevo_tipo?: Database["public"]["Enums"]["tipo_marca"] | null
+          p_nuevo_ts?: string | null
+        }
+        Returns: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_corregir_marcaje: {
+        Args: { p_marcaje_id: string | null; p_motivo: string | null; p_nuevo_ts: string | null }
+        Returns: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_costos_planilla: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: Json
+      }
+      fn_crear_periodo: {
+        Args: { p_fecha_fin: string | null; p_fecha_ini?: string | null }
+        Returns: Json
+      }
+      fn_crear_persona: {
+        Args: {
+          p_apellidos: string | null
+          p_email: string | null
+          p_funcion: string | null
+          p_nombres: string | null
+          p_pin_hash: string | null
+          p_rol: string | null
+          p_sede_base_id: string | null
+        }
+        Returns: Json
+      }
+      fn_cts_trunca: {
+        Args: { p_fecha_cese: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_cuadro_categorias: { Args: never; Returns: Json }
+      fn_dcs_por_que_no_compensa: {
+        Args: {
+          p_fecha_descanso: string | null
+          p_fecha_feriado: string | null
+          p_persona_id: string | null
+        }
+        Returns: string
+      }
+      fn_devenga: {
+        Args: { p_beneficio: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_devenga_algo: { Args: { p_persona_id: string | null }; Returns: boolean }
+      fn_devenga_beneficios: { Args: { p_tipo: string | null }; Returns: boolean }
+      fn_dia_incoherente: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_dia_suspendido: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_dias_por_revisar: {
+        Args: { p_limite?: number | null }
+        Returns: {
+          fecha: string
+          marcas: number
+          nombre: string
+          periodo_pagado: boolean
+          persona_id: string
+          sede: string
+        }[]
+      }
+      fn_dias_suspension: {
+        Args: { p_desde: string | null; p_dias: number | null; p_persona_id: string | null }
+        Returns: {
+          fecha: string
+        }[]
+      }
+      fn_documento_anular: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_documento_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_documento_registrar: {
+        Args: {
+          p_anio?: number | null
+          p_es_negativa?: boolean | null
+          p_fecha_firma: string | null
+          p_id?: string | null
+          p_monto_declarado?: number | null
+          p_nota?: string | null
+          p_persona_id?: string | null
+          p_ruta_declarada?: string | null
+          p_storage_path?: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_documentos_estado_politica: {
+        Args: never
+        Returns: {
           cargada: boolean
-          fecha_firma: string | null
-          primer_pago: string | null
+          fecha_firma: string
+          id: string
           llego_tarde: boolean
-          storage_path: string | null
+          primer_pago: string
+          storage_path: string
         }[]
       }
       fn_documentos_listar: {
         Args: { p_persona_id?: string | null }
         Returns: {
-          id: string
           alcance: string
-          persona_id: string | null
-          persona: string
-          tipo: string
-          fecha_firma: string
-          ruta_declarada: string | null
-          monto_declarado: number | null
-          anio: number | null
+          anio: number
+          anulado_at: string
+          anulado_motivo: string
           es_negativa: boolean
-          storage_path: string | null
-          nota: string | null
+          fecha_firma: string
+          id: string
+          monto_declarado: number
+          nota: string
+          persona: string
+          persona_id: string
           registrado_por: string
-          anulado_at: string | null
-          anulado_motivo: string | null
+          ruta_declarada: string
+          storage_path: string
+          tipo: string
           vigente: boolean
         }[]
       }
+      fn_documentos_tablero: {
+        Args: never
+        Returns: {
+          bono_anio: number
+          bono_estado: string
+          bono_firmada_el: string
+          bono_id: string
+          bono_mes: number
+          estado: string
+          fecha_ingreso: string
+          persona: string
+          persona_id: string
+          ruta_desfasada: boolean
+          ruta_firmada_el: string
+          ruta_id: string
+          ruta_monto: number
+          ruta_negativa: boolean
+          sede: string
+        }[]
+      }
+      fn_documentos_vigentes: {
+        Args: never
+        Returns: {
+          documento: string
+          documento_id: string
+          etiqueta_version: string
+          mi_acuse_at: string
+          poblacion: number
+          publicado_at: string
+          requiere_acuse: boolean
+          tipo: string
+          tipo_nombre: string
+          titulo: string
+          total_acuses: number
+          version: number
+          vigente_desde: string
+        }[]
+      }
+      fn_educacion_adjuntar_comprobante: {
+        Args: {
+          p_asignacion_id: string | null
+          p_mes_cubierto: string | null
+          p_nota?: string | null
+          p_storage_path: string | null
+        }
+        Returns: string
+      }
+      fn_educacion_candidatos: {
+        Args: never
+        Returns: {
+          persona: string
+          persona_id: string
+          rango: string
+          sede: string
+          tope: number
+        }[]
+      }
+      fn_educacion_cerrar: {
+        Args: { p_hasta: string | null; p_id: string | null; p_motivo?: string | null }
+        Returns: undefined
+      }
+      fn_educacion_desde_cuando_puede_regir: { Args: never; Returns: string }
+      fn_educacion_fecha_pagada: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
       fn_educacion_limite_comprobante: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           limite_bytes: number
           tipos: string[]
         }[]
       }
-      fn_educacion_puede_ver: {
-        Args: { p_path: string }
-        Returns: boolean
-      }
       fn_educacion_listar: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
-          id: string
-          persona_id: string
-          persona: string
-          sede: string
-          rango: string
-          monto: number
-          institucion: string
-          costo_declarado: number
-          cobertura_pct: number
           beneficiario: string
-          beneficiario_nombre: string | null
-          comprobante_url: string | null
+          beneficiario_nombre: string
+          cobertura_pct: number
+          comprobante_url: string
+          costo_declarado: number
+          dias_para_vencer: number
+          id: string
+          institucion: string
+          meses_sin_papel: number
+          monto: number
+          nota: string
+          paga: boolean
+          papeles: number
+          persona: string
+          persona_id: string
+          rango: string
+          registrada_por: string
+          sede: string
+          semaforo: string
           vigente_desde: string
           vigente_hasta: string
-          nota: string | null
-          registrada_por: string | null
-          dias_para_vencer: number
-          semaforo: string
-          paga: boolean
         }[]
       }
-      fn_educacion_candidatos: {
-        Args: Record<PropertyKey, never>
+      fn_educacion_mes_del_periodo: {
+        Args: { p_fecha: string | null }
+        Returns: string
+      }
+      fn_educacion_meses_del_tramo: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: string[]
+      }
+      fn_educacion_meses_sin_papel: {
+        Args: { p_asignacion_id: string | null }
+        Returns: string[]
+      }
+      fn_educacion_monto: {
+        Args: {
+          p_costo: number | null
+          p_desde: string | null
+          p_excluir?: string | null
+          p_hasta: string | null
+          p_persona_id: string | null
+        }
+        Returns: number
+      }
+      fn_educacion_papeles: {
+        Args: { p_asignacion_id: string | null }
         Returns: {
-          persona_id: string
-          persona: string
-          sede: string
-          rango: string
-          tope: number | null
-          ya_tiene: boolean
+          created_at: string
+          id: string
+          mes_cubierto: string
+          nota: string
+          storage_path: string
+          subido_por: string
         }[]
       }
-      fn_set_datos_personales: {
+      fn_educacion_por_atender: { Args: never; Returns: number }
+      fn_educacion_puede_ver: { Args: { p_path: string | null }; Returns: boolean }
+      fn_educacion_quitar_comprobante: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_educacion_realinear: {
+        Args: { p_actor?: string | null; p_desde: string | null; p_persona_id: string | null }
+        Returns: number
+      }
+      fn_educacion_registrar: {
         Args: {
-          p_persona_id: string
-          p_nombre_dni?: string | null
-          p_fecha_nacimiento?: string | null
-          p_estado_civil?: string | null
-          p_direccion?: string | null
-          p_celular?: string | null
-          p_entidad_bancaria?: string | null
-          p_numero_cuenta?: string | null
-          p_grado_instruccion?: string | null
-          p_hijos_menores?: boolean | null
-          p_foto_dni_url?: string | null
-          p_foto_personal_url?: string | null
-          p_foto_profesional_url?: string | null
-          p_emergencia_nombre?: string | null
-          p_emergencia_vinculo?: string | null
-          p_emergencia_telefono?: string | null
-          p_discapacidad?: boolean | null
-          p_discapacidad_conadis?: string | null
-          p_cuspp?: string | null
-        }
-        Returns: undefined
-      }
-      // La 0198. Cambia el correo SOLO si la persona no tiene cuenta de acceso:
-      // con cuenta creada su correo es su login, y la función lo rechaza.
-      fn_set_email: {
-        Args: { p_persona_id: string; p_email: string | null }
-        Returns: undefined
-      }
-      fn_set_documento: {
-        Args: { p_persona_id: string; p_documento: string; p_motivo: string }
-        Returns: undefined
-      }
-      fn_set_regimen_pension: {
-        Args: { p_persona_id: string; p_regimen: string | null }
-        Returns: undefined
-      }
-      fn_set_derechohabiente: {
-        Args: {
-          p_id: string | null
-          p_persona_id: string
-          p_nombres: string
-          p_apellidos: string
-          p_vinculo: string
-          p_documento?: string | null
-          p_fecha_nacimiento?: string | null
-          p_essalud?: boolean
-          p_vida_ley?: boolean
+          p_beneficiario: string | null
+          p_beneficiario_nombre?: string | null
+          p_comprobante_url?: string | null
+          p_costo_declarado: number | null
+          p_id?: string | null
+          p_institucion: string | null
+          p_motivo?: string | null
           p_nota?: string | null
+          p_persona_id: string | null
+          p_vigente_desde: string | null
+          p_vigente_hasta: string | null
         }
         Returns: string
       }
-      fn_cerrar_derechohabiente: {
-        Args: { p_id: string; p_hasta?: string | null }
-        Returns: undefined
-      }
-      fn_vacaciones_resumen: {
-        Args: { p_as_of?: string }
-        Returns: Json
-      }
-      fn_grati_cts_periodo: {
-        Args: { p_periodo_id: string }
-        Returns: Json
-      }
-      fn_set_meta_cobertura: {
-        Args: { p_dia_semana: number; p_meta_manana: number; p_meta_tarde: number; p_sede_id: string }
-        Returns: undefined
-      }
-      fn_set_meta_encargadas: {
-        Args: { p_dia_semana: number; p_meta: number; p_sede_id: string }
-        Returns: undefined
-      }
-      fn_siguiente_tipo_esperado: {
-        Args: { p_fecha: string; p_persona_id: string }
-        Returns: Database["public"]["Enums"]["tipo_marca"]
-      }
-      fn_verificar_corrector: {
-        Args: { p_persona_objetivo: string }
-        Returns: string
-      }
-      fn_set_salario: {
+      fn_educacion_saldo: {
         Args: {
-          p_nota?: string
-          p_persona_id: string
-          p_rango: string
-          p_salario: number
-          p_vigente_desde: string
+          p_desde: string | null
+          p_excluir?: string | null
+          p_hasta: string | null
+          p_persona_id: string | null
+        }
+        Returns: number
+      }
+      fn_educacion_tope: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: number
+      }
+      fn_eliminar_marcaje: {
+        Args: { p_marcaje_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_eliminar_periodo: {
+        Args: { p_periodo_id: string | null }
+        Returns: undefined
+      }
+      fn_es_admin_o_lider: { Args: never; Returns: boolean }
+      fn_es_dia_laborable: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_exigir_admin: { Args: never; Returns: string }
+      fn_expediente_adjuntar: {
+        Args: {
+          p_documento_id: string | null
+          p_fecha_entrega?: string | null
+          p_nota?: string | null
+          p_path: string | null
+          p_tipo?: string | null
+        }
+        Returns: string
+      }
+      fn_expediente_anular: {
+        Args: { p_id: string | null; p_motivo: string | null }
+        Returns: undefined
+      }
+      fn_expediente_comunicar_cargos: {
+        Args: { p_dias?: number | null; p_id: string | null; p_nota?: string | null }
+        Returns: string
+      }
+      fn_expediente_correlativo: {
+        Args: { p_prefijo: string | null }
+        Returns: string
+      }
+      fn_expediente_crear_borrador: {
+        Args: {
+          p_doc_previo_id?: string | null
+          p_hechos?: Json | null
+          p_nivel: string | null
+          p_observacion?: string | null
+          p_periodo_desde?: string | null
+          p_periodo_hasta?: string | null
+          p_persona_id: string | null
+          p_suspension_desde?: string | null
+          p_suspension_dias?: number | null
+          p_suspension_hasta?: string | null
+          p_tipo_causal: string | null
+        }
+        Returns: string
+      }
+      fn_expediente_declarar_cargos_comunicados: {
+        Args: {
+          p_constancia: string | null
+          p_dias?: number | null
+          p_fecha: string | null
+          p_id: string | null
+        }
+        Returns: string
+      }
+      fn_expediente_doc_code: {
+        Args: { p_nivel: string | null; p_tipo: string | null }
+        Returns: string
+      }
+      fn_expediente_editar_borrador: {
+        Args: {
+          p_fecha_cese?: string | null
+          p_hechos?: Json | null
+          p_id: string | null
+          p_observacion?: string | null
+          p_suspension_desde?: string | null
+          p_suspension_dias?: number | null
+          p_suspension_hasta?: string | null
         }
         Returns: undefined
+      }
+      fn_expediente_entregar: {
+        Args: {
+          p_fecha?: string | null
+          p_id: string | null
+          p_medio: string | null
+          p_testigo_id?: string | null
+          p_testigo_nombre?: string | null
+        }
+        Returns: undefined
+      }
+      fn_expediente_firmantes: {
+        Args: { p_id: string | null }
+        Returns: {
+          cargo: string
+          nombre: string
+          persona_id: string
+          tiene_firma: boolean
+        }[]
+      }
+      fn_expediente_firmar: {
+        Args: { p_firmante_id?: string | null; p_id: string | null }
+        Returns: string
+      }
+      fn_expediente_generar_falta: {
+        Args: { p_persona_id: string | null }
+        Returns: string
+      }
+      fn_expediente_generar_tardanza: {
+        Args: { p_mes?: string | null; p_persona_id: string | null }
+        Returns: string
+      }
+      fn_expediente_puede_actuar: {
+        Args: { p_nivel: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_expediente_puede_adjuntar: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
+      fn_expediente_puede_recibir_descargo: {
+        Args: { p_id: string | null }
+        Returns: boolean
+      }
+      fn_expediente_puede_suscribir: {
+        Args: { p_nivel: string | null; p_rol: string | null }
+        Returns: boolean
+      }
+      fn_expediente_reabrir: { Args: { p_id: string | null }; Returns: undefined }
+      fn_expediente_resolver: {
+        Args: { p_id: string | null; p_motivo: string | null; p_resultado: string | null }
+        Returns: undefined
+      }
+      fn_expediente_set_suspension: {
+        Args: { p_desde: string | null; p_dias: number | null; p_id: string | null }
+        Returns: {
+          fecha: string
+        }[]
+      }
+      fn_expediente_valorar_descargo: {
+        Args: { p_acogido: string | null; p_id: string | null; p_valoracion: string | null }
+        Returns: undefined
+      }
+      fn_falta_contadores: {
+        Args: { p_desde: string | null; p_persona_id: string | null }
+        Returns: {
+          consecutivas: number
+          en_180: number
+          en_30: number
+          fechas: string[]
+        }[]
+      }
+      fn_faltas: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: {
+          fecha: string
+          justificada: boolean
+          motivo: string
+          nombre: string
+          persona_id: string
+          sede: string
+        }[]
+      }
+      fn_faltas_resumen: {
+        Args: { p_as_of?: string | null }
+        Returns: {
+          consecutivas: number
+          en_180: number
+          en_30: number
+          nivel: string
+          nombre: string
+          persona_id: string
+          sede: string
+        }[]
+      }
+      fn_familia_marca: {
+        Args: { p_tipo: Database["public"]["Enums"]["tipo_marca"] | null }
+        Returns: string
+      }
+      fn_fecha_de_jornada: {
+        Args: { p_fecha_jornada: string | null; p_timestamp_marca: string | null }
+        Returns: string
+      }
+      fn_fecha_en_periodo_pagado: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_feriado_devengado: {
+        Args: {
+          p_desde: string | null
+          p_dias: number | null
+          p_hasta: string | null
+          p_persona: string | null
+          p_salario_asof?: string | null
+        }
+        Returns: Json
+      }
+      fn_feriado_devengado_nucleo: {
+        Args: {
+          p_desde: string | null
+          p_dias: number | null
+          p_hasta: string | null
+          p_persona: string | null
+          p_salario_asof?: string | null
+        }
+        Returns: Json
+      }
+      fn_feriados: { Args: { p_anio: number | null }; Returns: Json }
+      fn_feriados_cobertura: {
+        Args: never
+        Returns: {
+          mensaje: string
+          meses_restantes: number
+          nivel: string
+          ultimo_feriado: string
+        }[]
+      }
+      fn_feriados_laborados: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: {
+          acta_ref: string
+          dcs_id: string
+          estado: string
+          fecha_descanso: string
+          fecha_feriado: string
+          feriado_nombre: string
+          horas: number
+          motivo_fuera_de_plazo: string
+          no_compensa_porque: string
+          nombre: string
+          persona_id: string
+          sede: string
+          sobretasa: number
+        }[]
+      }
+      fn_fijar_base_declarada: {
+        Args: {
+          p_monto: number | null
+          p_omitir?: string[] | null
+          p_rango: string | null
+          p_vigente_desde: string | null
+        }
+        Returns: {
+          base_anterior: number
+          persona_id: string
+          salario_anterior: number
+        }[]
+      }
+      fn_firma_de_memo: { Args: { p_doc_id: string | null }; Returns: string }
+      fn_firma_persona: { Args: { p_persona_id: string | null }; Returns: string }
+      fn_firmantes_disponibles: {
+        Args: never
+        Returns: {
+          id: string
+          nombre: string
+        }[]
+      }
+      fn_generar_alertas_vencimiento: { Args: never; Returns: number }
+      fn_grati_cts_agregar_pendientes: {
+        Args: { p_periodo_id: string | null }
+        Returns: Json
+      }
+      fn_grati_cts_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
+      fn_grati_trunca: {
+        Args: { p_fecha_cese: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_grati_trunca_bruta: {
+        Args: { p_fecha_cese: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_guardar_area: {
+        Args: {
+          p_codigo: string | null
+          p_nombre: string | null
+          p_operativa: boolean | null
+          p_orden?: number | null
+        }
+        Returns: undefined
+      }
+      fn_guardar_sede: {
+        Args: {
+          p_codigo: string | null
+          p_es_alta?: boolean | null
+          p_id?: string | null
+          p_nombre: string | null
+          p_tipo?: string | null
+        }
+        Returns: undefined
+      }
+      fn_historial_salario: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          asignado_por: string
+          created_at: string
+          nota: string
+          rango: string
+          salario_mensual_soles: number
+          vigente_desde: string
+          vigente_hasta: string
+        }[]
+      }
+      fn_hoy_lima: { Args: never; Returns: string }
+      fn_ingresos: { Args: never; Returns: Json }
+      fn_jornadas_extra: {
+        Args: { p_desde: string | null; p_hasta: string | null; p_persona_id?: string | null }
+        Returns: Json
+      }
+      fn_justificar_falta: {
+        Args: {
+          p_fecha: string | null
+          p_motivo: string | null
+          p_observacion?: string | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
+      fn_levantar_sello_si_el_dia_cuadra: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: number
+      }
+      fn_levantar_tardanza: {
+        Args: {
+          p_fecha: string | null
+          p_motivo: string | null
+          p_observacion?: string | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
+      fn_liquidacion: {
+        Args: { p_fecha_cese?: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_liquidacion_anular: {
+        Args: { p_motivo: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_liquidacion_descuentos_del_cese: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          concepto: string
+          monto: number
+          periodo_estado: string
+          periodo_fin: string
+          periodo_id: string
+          periodo_ini: string
+          registrado_el: string
+        }[]
+      }
+      fn_liquidacion_diferencias: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          ahora: number
+          concepto: string
+          diferencia: number
+          pagado: number
+        }[]
+      }
+      fn_liquidacion_pagar: {
+        Args: { p_nota?: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_liquidaciones_del_periodo: {
+        Args: { p_periodo_id: string | null }
+        Returns: Json
+      }
+      fn_liquidaciones_pendientes: {
+        Args: never
+        Returns: {
+          descuadra: boolean
+          dias_restantes: number
+          fecha_cese: string
+          fecha_ingreso: string
+          pagada: boolean
+          persona: string
+          persona_id: string
+          sede: string
+          total: number
+          vence_el: string
+          vencido: boolean
+        }[]
+      }
+      fn_marca_apartada_reportar: {
+        Args: {
+          p_client_uuid: string | null
+          p_motivo_otro?: string | null
+          p_persona_id: string | null
+          p_terminal_id?: string | null
+          p_timestamp_cliente: string | null
+          p_tipo: Database["public"]["Enums"]["tipo_marca"] | null
+          p_ultimo_error?: string | null
+        }
+        Returns: string
+      }
+      fn_marca_apartada_resolver: {
+        Args: { p_id: string | null; p_motivo: string | null; p_resolucion: string | null }
+        Returns: Json
+      }
+      fn_marcar_alerta_resultado: {
+        Args: { p_exito: boolean | null; p_id: string | null; p_nota?: string | null }
+        Returns: undefined
+      }
+      fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
+      fn_marcas_apartadas: {
+        Args: never
+        Returns: {
+          client_uuid: string
+          fecha: string
+          id: string
+          persona: string
+          persona_id: string
+          reportada_at: string
+          sede: string
+          timestamp_cliente: string
+          tipo: string
+          ultimo_error: string
+        }[]
+      }
+      fn_marcas_apartadas_resueltas: {
+        Args: { p_client_uuids: string[] | null }
+        Returns: string[]
+      }
+      fn_mes_planilla_pagado: {
+        Args: { p_anio: number | null; p_mes: number | null }
+        Returns: boolean
+      }
+      fn_meses_y_dias: {
+        Args: { p_desde: string | null; p_hasta: string | null }
+        Returns: {
+          dias: number
+          meses: number
+        }[]
+      }
+      fn_mi_firma: { Args: never; Returns: string }
+      fn_objetivo_agregar: {
+        Args: {
+          p_anio: number | null
+          p_descripcion: string | null
+          p_indicaciones?: string | null
+          p_mes: number | null
+          p_persona_id: string | null
+        }
+        Returns: Json
+      }
+      fn_objetivo_editar: {
+        Args: {
+          p_descripcion: string | null
+          p_indicaciones?: string | null
+          p_item_id: string | null
+        }
+        Returns: undefined
+      }
+      fn_objetivo_eliminar: { Args: { p_item_id: string | null }; Returns: undefined }
+      fn_objetivo_marcar: {
+        Args: { p_cumplido: boolean | null; p_item_id: string | null }
+        Returns: undefined
+      }
+      fn_objetivos_checklist: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id?: string | null }
+        Returns: Json
+      }
+      fn_objetivos_copiar_mes_anterior: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_objetivos_historial: {
+        Args: {
+          p_anio: number | null
+          p_mes: number | null
+          p_meses?: number | null
+          p_persona_id: string | null
+        }
+        Returns: Json
+      }
+      fn_objetivos_resumen: {
+        Args: { p_anio: number | null; p_mes: number | null }
+        Returns: Json
+      }
+      fn_objetivos_sync_mes: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_otorgar_descanso_sustitutorio: {
+        Args: {
+          p_acta_ref?: string | null
+          p_estado?: string | null
+          p_fecha_descanso: string | null
+          p_fecha_feriado: string | null
+          p_motivo_fuera_de_plazo?: string | null
+          p_persona_id: string | null
+        }
+        Returns: string
+      }
+      fn_pedir_revision: {
+        Args: { p_comentario: string | null; p_fecha: string | null }
+        Returns: undefined
+      }
+      fn_periodo_grupos_estado: {
+        Args: { p_periodo_id: string | null }
+        Returns: {
+          estado: string
+          grupo: string
+          pagado_at: string
+          pagado_por_nombre: string
+          personas: number
+        }[]
+      }
+      fn_periodo_pagado: {
+        Args: { p_grupo?: string | null; p_pagado: boolean | null; p_periodo_id: string | null }
+        Returns: undefined
+      }
+      fn_periodos: { Args: never; Returns: Json }
+      fn_permitir_bono_regular: {
+        Args: { p_motivo: string | null; p_persona_id: string | null }
+        Returns: string
+      }
+      fn_persona_actual_id: { Args: never; Returns: string }
+      fn_persona_en_roster_terminal: {
+        Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_personas_funciones: { Args: never; Returns: Json }
+      fn_planilla_calcular: {
+        Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
+        Returns: Json
+      }
+      fn_planilla_calcular_nucleo: {
+        Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
+        Returns: Json
+      }
+      fn_planilla_calcular_persona: {
+        Args: { p_periodo_id: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_planilla_congelar: {
+        Args: {
+          p_autor: string | null
+          p_grupo?: string | null
+          p_origen: string | null
+          p_periodo_id: string | null
+        }
+        Returns: number
+      }
+      fn_planilla_congelar_pendientes: { Args: never; Returns: number }
+      fn_planilla_foto_diferencias: {
+        Args: { p_periodo_id: string | null }
+        Returns: {
+          diferencia: number
+          nombre: string
+          persona_id: string
+          total_ahora: number
+          total_foto: number
+        }[]
+      }
+      fn_planilla_variacion: {
+        Args: { p_periodo_id: string | null; p_previo_id?: string | null }
+        Returns: Json
+      }
+      fn_poblacion_obligada: { Args: never; Returns: string[] }
+      fn_politica_salarial_vigente: { Args: never; Returns: Json }
+      fn_provisiones: {
+        Args: { p_as_of?: string | null; p_salario_asof?: string | null }
+        Returns: Json
+      }
+      fn_proyeccion_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
+      fn_proyeccion_planilla: {
+        Args: { p_anio: number | null; p_mes: number | null }
+        Returns: Json
+      }
+      fn_publicar_anuncio: {
+        Args: { p_cuerpo: string | null; p_sede_id?: string | null; p_titulo: string | null }
+        Returns: string
+      }
+      fn_publicar_documento: {
+        Args: {
+          p_documento: string | null
+          p_etiqueta?: string | null
+          p_notas?: string | null
+          p_tipo: string | null
+          p_titulo: string | null
+          p_vigente_desde?: string | null
+        }
+        Returns: number
+      }
+      fn_publicar_politica_salarial: {
+        Args: { p_documento: string | null; p_notas?: string | null }
+        Returns: number
+      }
+      fn_puede_gestionar_objetivos: {
+        Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_quitar_aceptacion: {
+        Args: { p_fecha: string | null; p_persona_id: string | null; p_tipo: string | null }
+        Returns: undefined
+      }
+      fn_quitar_descanso_sustitutorio: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
+      fn_quitar_feriado: { Args: { p_fecha: string | null }; Returns: undefined }
+      fn_quitar_justificacion: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_quitar_levantamiento: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_quitar_movimiento: {
+        Args: { p_movimiento_id: string | null }
+        Returns: undefined
+      }
+      fn_quitar_rendimiento: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_quitar_revision: { Args: { p_fecha: string | null }; Returns: undefined }
+      fn_quitar_turno: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_quitar_vacaciones: { Args: { p_id: string | null }; Returns: undefined }
+      fn_reabrir_dia: {
+        Args: { p_motivo: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_reactivar_marcaje: {
+        Args: { p_marcaje_id: string | null; p_motivo: string | null }
+        Returns: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_reactivar_persona: {
+        Args: { p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_recalcular_jornada: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_regenerar_pin: { Args: { p_persona_id: string | null }; Returns: string }
+      fn_regimen_pension_divergentes: {
+        Args: never
+        Returns: {
+          dice_la_ficha: string
+          estado: string
+          nombre: string
+          paga_la_planilla: string
+          persona_id: string
+          tramo_desde: string
+        }[]
+      }
+      fn_registrar_acta_descanso: {
+        Args: { p_nombre?: string | null; p_path: string | null; p_referencia: string | null }
+        Returns: string
+      }
+      fn_registrar_acuse_papel: {
+        Args: {
+          p_acusado_at?: string | null
+          p_documento_id: string | null
+          p_nota?: string | null
+          p_path: string | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
+      fn_registrar_ausencia: {
+        Args: {
+          p_doc_colegiatura?: string | null
+          p_doc_fecha?: string | null
+          p_doc_profesional?: string | null
+          p_fecha_fin: string | null
+          p_fecha_inicio: string | null
+          p_motivo?: string | null
+          p_persona_id: string | null
+          p_tipo: string | null
+        }
+        Returns: string
+      }
+      fn_registrar_desembolso: {
+        Args: {
+          p_anio: number | null
+          p_fecha_pago: string | null
+          p_monto: number | null
+          p_nota?: string | null
+          p_origen: string | null
+          p_persona_id: string | null
+          p_ventana: string | null
+        }
+        Returns: string
+      }
+      fn_registrar_marcaje: {
+        Args: {
+          p_client_uuid: string | null
+          p_confirmo_sin_refrigerio?: boolean | null
+          p_motivo_otro?: string | null
+          p_origen?: Database["public"]["Enums"]["origen_marca"] | null
+          p_persona_id: string | null
+          p_sede_id?: string | null
+          p_terminal_id?: string | null
+          p_timestamp_cliente: string | null
+          p_tipo: Database["public"]["Enums"]["tipo_marca"] | null
+        }
+        Returns: {
+          anulada_at: string | null
+          anulada_motivo: string | null
+          anulada_por: string | null
+          client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
+          estado_revision: Database["public"]["Enums"]["estado_revision"]
+          fecha_jornada: string | null
+          id: string
+          motivo_otro: string | null
+          origen: Database["public"]["Enums"]["origen_marca"]
+          persona_id: string
+          sede_id: string
+          server_received_at: string
+          terminal_id: string | null
+          timestamp_marca: string
+          tipo: Database["public"]["Enums"]["tipo_marca"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "marcajes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_reglamento_no_acusado: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: string
+      }
+      fn_remuneracion_computable: {
+        Args: {
+          p_beneficio?: string | null
+          p_fecha_ref: string | null
+          p_persona_id: string | null
+        }
+        Returns: Json
+      }
+      fn_repagar_periodo: {
+        Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
+        Returns: Json
+      }
+      fn_resellar_dia: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_resolver_solicitud_vacaciones: {
+        Args: { p_aprobar: boolean | null; p_id: string | null; p_respuesta?: string | null }
+        Returns: undefined
+      }
+      fn_revertir_pago: {
+        Args: { p_grupo?: string | null; p_motivo: string | null; p_periodo_id: string | null }
+        Returns: undefined
+      }
+      fn_revisiones_pedidas: {
+        Args: { p_solo_pendientes?: boolean | null }
+        Returns: Json
+      }
+      fn_rol_actual: {
+        Args: never
+        Returns: Database["public"]["Enums"]["rol_usuario"]
       }
       fn_salarios_vigentes: {
         Args: never
@@ -1910,437 +5742,383 @@ export type Database = {
           vigente_desde: string
         }[]
       }
-      fn_historial_salario: {
-        Args: { p_persona_id: string }
-        Returns: {
-          rango: string
-          salario_mensual_soles: number
-          vigente_desde: string
-          vigente_hasta: string | null
-          asignado_por: string | null
-          nota: string | null
-          created_at: string
-        }[]
-      }
-      fn_personas_funciones: {
-        Args: never
-        Returns: Json
-      }
-      // Agregada a mano (migración 0182): `supabase gen types` no corre en esta
-      // máquina («Failed to end the connection on error»), así que las entradas
-      // nuevas se escriben acá marcadas hasta que vuelva a correr.
-      fn_set_cargo: {
-        Args: {
-          p_persona_id: string
-          p_cargo: string | null
-        }
-        Returns: undefined
-      }
-      fn_areas: {
-        Args: never
-        Returns: Json
-      }
-      fn_guardar_area: {
-        Args: {
-          p_codigo: string
-          p_nombre: string
-          p_operativa: boolean
-          p_orden?: number
-        }
-        Returns: undefined
-      }
-      fn_area_activa: {
-        Args: { p_activa: boolean; p_codigo: string }
-        Returns: undefined
-      }
-      fn_guardar_sede: {
-        Args: { p_codigo: string; p_nombre: string; p_tipo?: string | null }
-        Returns: undefined
-      }
       fn_sede_activa: {
-        Args: { p_activa: boolean; p_codigo: string }
+        Args: { p_activa: boolean | null; p_codigo: string | null }
         Returns: undefined
       }
-      fn_feriados: {
-        Args: { p_anio: number }
-        Returns: Json
+      fn_sede_actual_persona: { Args: never; Returns: string }
+      fn_sede_actual_terminal: { Args: never; Returns: string }
+      fn_set_cargo: {
+        Args: { p_cargo: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_categoria: {
+        Args: {
+          p_criterio: string | null
+          p_funciones: string | null
+          p_proposito: string | null
+          p_rango: string | null
+          p_requisitos: string | null
+        }
+        Returns: undefined
+      }
+      fn_set_con_hijos: {
+        Args: { p_con_hijos: boolean | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_datos_personales: {
+        Args: {
+          p_celular?: string | null
+          p_cuspp?: string | null
+          p_direccion?: string | null
+          p_discapacidad?: boolean | null
+          p_discapacidad_conadis?: string | null
+          p_emergencia_nombre?: string | null
+          p_emergencia_telefono?: string | null
+          p_emergencia_vinculo?: string | null
+          p_entidad_bancaria?: string | null
+          p_estado_civil?: string | null
+          p_fecha_nacimiento?: string | null
+          p_foto_dni_url?: string | null
+          p_foto_personal_url?: string | null
+          p_foto_profesional_url?: string | null
+          p_genero?: string | null
+          p_grado_instruccion?: string | null
+          p_hijos_menores?: boolean | null
+          p_nombre_dni?: string | null
+          p_numero_cuenta?: string | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
+      fn_set_derechohabiente: {
+        Args: {
+          p_apellidos: string | null
+          p_documento?: string | null
+          p_essalud?: boolean | null
+          p_fecha_nacimiento?: string | null
+          p_id: string | null
+          p_nombres: string | null
+          p_nota?: string | null
+          p_persona_id: string | null
+          p_vida_ley?: boolean | null
+          p_vinculo: string | null
+        }
+        Returns: string
+      }
+      fn_set_descanso: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_devenga_beneficio: {
+        Args: { p_beneficio: string | null; p_devenga: boolean | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_devenga_beneficios: {
+        Args: { p_devenga: boolean | null; p_hasta?: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_documento: {
+        Args: { p_documento: string | null; p_motivo: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_email: {
+        Args: { p_email: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_encargada_piso: {
+        Args: { p_persona_id: string | null; p_valor: boolean | null }
+        Returns: undefined
+      }
+      fn_set_fecha_ingreso: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: undefined
       }
       fn_set_feriado: {
-        Args: { p_fecha: string; p_nombre: string }
+        Args: { p_fecha: string | null; p_nombre: string | null }
         Returns: undefined
       }
-      fn_quitar_feriado: {
-        Args: { p_fecha: string }
+      fn_set_fin_contrato: {
+        Args: { p_fecha: string | null; p_motivo?: string | null; p_persona_id: string | null }
         Returns: undefined
       }
-      fn_set_objetivos: {
+      fn_set_funcion: {
+        Args: { p_funcion: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_horario_semanal: {
+        Args: { p_horario: Json | null; p_persona_id: string | null; p_vigente_desde: string | null }
+        Returns: undefined
+      }
+      fn_set_justificacion: {
         Args: {
-          p_anio: number
-          p_cumplidos: number
-          p_mes: number
-          p_persona_id: string
-          p_total?: number
+          p_fecha: string | null
+          p_motivo: string | null
+          p_observacion?: string | null
+          p_persona_id: string | null
         }
         Returns: undefined
       }
-      fn_set_sueldo_base_legal: {
-        Args: { p_monto: number; p_persona_id: string }
+      fn_set_meta_cobertura:
+        | {
+            Args: { p_dia_semana: number | null; p_meta: number | null; p_sede_id: string | null }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_dia_semana: number | null
+              p_meta_manana: number | null
+              p_meta_tarde: number | null
+              p_sede_id: string | null
+            }
+            Returns: undefined
+          }
+      fn_set_meta_encargadas: {
+        Args: { p_dia_semana: number | null; p_meta: number | null; p_sede_id: string | null }
+        Returns: undefined
+      }
+      fn_set_mi_firma: { Args: { p_dataurl: string | null }; Returns: undefined }
+      fn_set_objetivos: {
+        Args: {
+          p_anio: number | null
+          p_cumplidos: number | null
+          p_mes: number | null
+          p_persona_id: string | null
+          p_total?: number | null
+        }
+        Returns: undefined
+      }
+      fn_set_practicante_modalidad: {
+        Args: { p_modalidad: string | null; p_persona_id: string | null }
+        Returns: undefined
+      }
+      fn_set_regimen_pension: {
+        Args: { p_persona_id: string | null; p_regimen: string | null }
         Returns: undefined
       }
       fn_set_rendimiento: {
         Args: {
-          p_anio: number
+          p_anio: number | null
           p_etiqueta_codigo?: string | null
-          p_mes: number
-          p_persona_id: string
-          p_porcentaje: number
+          p_mes: number | null
+          p_persona_id: string | null
+          p_porcentaje: number | null
         }
         Returns: undefined
       }
-      fn_quitar_rendimiento: {
-        Args: { p_anio: number; p_mes: number; p_persona_id: string }
-        Returns: undefined
-      }
-      fn_objetivos_checklist: {
-        Args: { p_anio: number; p_mes: number; p_persona_id?: string }
-        Returns: Json
-      }
-      fn_objetivos_resumen: {
-        Args: { p_anio: number; p_mes: number }
-        Returns: Json
-      }
-      fn_objetivo_agregar: {
+      fn_set_retencion_4ta: {
         Args: {
-          p_anio: number
-          p_descripcion: string
-          p_mes: number
-          p_persona_id: string
+          p_constancia_hasta?: string | null
+          p_modo: string | null
+          p_persona_id: string | null
         }
-        Returns: Json
-      }
-      fn_objetivo_marcar: {
-        Args: { p_cumplido: boolean; p_item_id: string }
         Returns: undefined
       }
-      fn_objetivo_editar: {
-        Args: { p_descripcion: string; p_item_id: string }
-        Returns: undefined
-      }
-      fn_objetivo_eliminar: {
-        Args: { p_item_id: string }
-        Returns: undefined
-      }
-      fn_proyeccion_planilla: {
-        Args: { p_anio: number; p_mes: number }
-        Returns: Json
-      }
-      fn_periodos: {
-        Args: never
-        Returns: Json
-      }
-      fn_crear_periodo: {
-        Args: { p_fecha_fin: string; p_fecha_ini?: string }
-        Returns: Json
-      }
-      fn_periodo_pagado: {
-        Args: { p_pagado: boolean; p_periodo_id: string }
-        Returns: undefined
-      }
-      fn_eliminar_periodo: {
-        Args: { p_periodo_id: string }
-        Returns: undefined
-      }
-      fn_agregar_movimiento: {
+      fn_set_rol: {
         Args: {
-          p_categoria?: string | null
-          p_concepto: string
-          p_monto: number
-          p_periodo_id: string
-          p_persona_id: string
-          p_tipo: string
+          p_nuevo_rol: Database["public"]["Enums"]["rol_usuario"] | null
+          p_persona_id: string | null
         }
-        Returns: Json
-      }
-      fn_quitar_movimiento: {
-        Args: { p_movimiento_id: string }
         Returns: undefined
       }
-      fn_calcular_bono_puntualidad: {
-        Args: { p_periodo_id: string }
-        Returns: Json
-      }
-      fn_set_con_hijos: {
-        Args: { p_con_hijos: boolean; p_persona_id: string }
+      fn_set_salario: {
+        Args: {
+          p_nota?: string | null
+          p_persona_id: string | null
+          p_rango: string | null
+          p_salario: number | null
+          p_vigente_desde: string | null
+        }
         Returns: undefined
       }
-      fn_set_encargada_piso: {
-        Args: { p_persona_id: string; p_valor: boolean }
+      fn_set_sede_base: {
+        Args: { p_persona_id: string | null; p_sede_id: string | null }
         Returns: undefined
       }
-      // Agregada a mano el 2026-08-01 junto con la migración 0119, porque
-      // `supabase gen types` no pudo regenerar el archivo en esta máquina (falla
-      // con «Failed to end the connection on error», sin detalle). Se declara acá
-      // para no dejar la llamada de equipo/page.tsx sin tipo y sumar un error más
-      // a los que ya arrastra este archivo. Al regenerar, esta entrada se produce
-      // sola y el comentario se puede borrar.
+      fn_set_sueldo_base_legal: {
+        Args: { p_monto: number | null; p_persona_id: string | null }
+        Returns: undefined
+      }
       fn_set_tipo_vinculo: {
-        Args: { p_persona_id: string; p_tipo: string }
+        Args: { p_persona_id: string | null; p_tipo: string | null }
         Returns: undefined
       }
-      fn_set_visible_todas_sedes: {
-        Args: { p_persona_id: string; p_valor: boolean }
-        Returns: undefined
-      }
-      // Agregada a mano el 2026-08-05 junto con la columna fecha_fin_contrato, por
-      // el mismo motivo que fn_set_tipo_vinculo. `p_fecha` acepta null a propósito:
-      // así es como se BORRA la fecha cuando el contrato se renueva.
-      fn_set_fin_contrato: {
-        Args: { p_persona_id: string; p_fecha: string | null; p_motivo?: string }
-        Returns: undefined
-      }
-      // Las dos de la 0086 que ninguna pantalla llamaba hasta el 2026-08-06. El
-      // `update` directo de `estado` que hacía Equipo violaba
-      // `personas_cese_coherente` (comprobado contra el Postgres local): dar de
-      // baja y reactivar fallaban las dos.
-      fn_cesar_persona: {
-        Args: { p_persona_id: string; p_fecha_cese: string; p_motivo: string; p_tipo_vinculo?: string | null }
-        Returns: undefined
-      }
-      fn_reactivar_persona: {
-        Args: { p_persona_id: string }
-        Returns: undefined
-      }
-      // `dias_restantes` es negativo cuando la fecha ya pasó, y ese es justamente
-      // el grupo que importa: alguien que ya no viene pero sigue figurando activo.
-      fn_contratos_por_vencer: {
-        Args: { p_dias?: number }
-        Returns: {
-          persona_id: string
-          nombre: string
-          sede: string
-          fecha_fin_contrato: string
-          dias_restantes: number
-          ya_vencio: boolean
-        }[]
-      }
-      fn_set_mi_firma: {
-        Args: { p_dataurl: string | null }
-        Returns: undefined
-      }
-      fn_firma_persona: {
-        Args: { p_persona_id: string }
-        Returns: string | null
-      }
-      fn_mi_firma: {
-        Args: Record<string, never>
-        Returns: string | null
-      }
-      // Agregadas a mano el 2026-08-04 junto con las migraciones 0140 y 0141, por
-      // el mismo motivo que fn_set_tipo_vinculo: `supabase gen types` reescribe el
-      // archivo entero y borra estas mismas entradas escritas a mano. Al regenerar
-      // de verdad se producen solas y el comentario se puede borrar.
-      fn_cuadro_categorias: {
-        Args: Record<string, never>
-        Returns: unknown
-      }
-      fn_set_categoria: {
+      fn_set_turno: {
         Args: {
-          p_rango: string
-          p_proposito: string | null
-          p_funciones: string | null
-          p_requisitos: string | null
-          p_criterio: string | null
+          p_fecha: string | null
+          p_hora_entrada: string | null
+          p_hora_salida: string | null
+          p_persona_id: string | null
         }
         Returns: undefined
       }
-      fn_publicar_politica_salarial: {
-        Args: { p_documento: string; p_notas: string | null }
-        Returns: number
-      }
-      fn_politica_salarial_vigente: {
-        Args: Record<string, never>
-        Returns: unknown
-      }
-      fn_acusar_politica_salarial: {
-        Args: { p_nombre: string }
-        Returns: unknown
-      }
-      fn_acuses_politica_salarial: {
-        Args: Record<string, never>
-        Returns: unknown
-      }
-      fn_anular_marcaje: {
-        Args: { p_marcaje_id: string; p_motivo: string }
-        Returns: unknown
-      }
-      fn_reactivar_marcaje: {
-        Args: { p_marcaje_id: string; p_motivo: string }
-        Returns: unknown
-      }
-      fn_corregir_marca: {
+      fn_set_vacaciones: {
         Args: {
-          p_marcaje_id: string
-          p_nuevo_tipo?: string
-          p_nuevo_ts?: string
-          p_motivo?: string
-        }
-        Returns: unknown
-      }
-      fn_confirmar_auto_cierre: {
-        Args: { p_marcaje_id: string; p_motivo?: string }
-        Returns: unknown
-      }
-      fn_dia_incoherente: {
-        Args: { p_persona_id: string; p_fecha: string }
-        Returns: boolean
-      }
-      fn_firma_de_memo: {
-        Args: { p_doc_id: string }
-        Returns: string | null
-      }
-      fn_revertir_pago: {
-        Args: { p_periodo_id: string; p_motivo: string }
-        Returns: undefined
-      }
-      fn_proyeccion_periodo: {
-        Args: { p_periodo_id: string }
-        Returns: Json
-      }
-      fn_simular_planilla: {
-        Args: { p_fin: string; p_ini: string }
-        Returns: Json
-      }
-      fn_ingresos: {
-        Args: never
-        Returns: Json
-      }
-      fn_set_fecha_ingreso: {
-        Args: { p_fecha: string; p_persona_id: string }
-        Returns: undefined
-      }
-      fn_provisiones: {
-        Args: { p_as_of?: string }
-        Returns: Json
-      }
-      fn_planilla_congelar: {
-        Args: { p_periodo_id: string; p_origen: string; p_autor: string | null }
-        Returns: number
-      }
-      fn_repagar_periodo: {
-        Args: { p_periodo_id: string; p_motivo: string }
-        Returns: Json
-      }
-      fn_registrar_ausencia: {
-        Args: {
-          p_persona_id: string
-          p_tipo: string
-          p_fecha_inicio: string
-          p_fecha_fin: string
-          p_motivo?: string | null
-          p_doc_profesional?: string | null
-          p_doc_colegiatura?: string | null
-          p_doc_fecha?: string | null
+          p_fecha_fin: string | null
+          p_fecha_inicio: string | null
+          p_observacion?: string | null
+          p_persona_id: string | null
         }
         Returns: string
       }
-      fn_anular_ausencia: {
-        Args: { p_id: string; p_motivo: string }
+      fn_set_visible_todas_sedes: {
+        Args: { p_persona_id: string | null; p_valor: boolean | null }
         Returns: undefined
       }
-      fn_aprobar_ausencia: {
-        Args: { p_id: string }
-        Returns: undefined
+      fn_siguiente_tipo_esperado: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: Database["public"]["Enums"]["tipo_marca"]
       }
-      fn_ausencias: {
-        Args: { p_desde: string; p_hasta: string; p_persona_id?: string | null }
+      fn_simular_planilla: {
+        Args: { p_fin: string | null; p_ini: string | null }
+        Returns: Json
+      }
+      fn_sin_constancia_del_reglamento: {
+        Args: never
         Returns: {
-          id: string
+          motivo: string
           persona_id: string
-          nombre: string
-          sede: string
-          tipo: string
-          tipo_nombre: string
-          paga: boolean
-          requiere_aprobacion: boolean
-          fecha_inicio: string
-          fecha_fin: string
-          dias: number
-          motivo: string | null
-          doc_profesional: string | null
-          doc_colegiatura: string | null
-          doc_fecha: string | null
-          aprobada: boolean
-          registrada_tarde: boolean
-          registrada_por_nombre: string | null
-          registrada_at: string
-          anulada: boolean
-          anulada_motivo: string | null
         }[]
       }
-      fn_ausencias_alerta: {
-        Args: { p_persona_id?: string | null }
+      fn_solicitar_vacaciones: {
+        Args: {
+          p_comentario?: string | null
+          p_fecha_fin: string | null
+          p_fecha_inicio: string | null
+        }
+        Returns: string
+      }
+      fn_solicitudes_vacaciones: {
+        Args: { p_solo_pendientes?: boolean | null }
         Returns: {
-          persona_id: string
+          comentario: string
+          dias: number
+          estado: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
           nombre: string
-          tipo: string
-          tipo_nombre: string
-          veces: number
-          ventana_dias: number
-          umbral: number
+          pedida_at: string
+          persona_id: string
+          respuesta: string
+          resuelta_at: string
+          resuelta_por_nombre: string
+          sede: string
+        }[]
+      }
+      fn_subir_acta_descanso: {
+        Args: { p_dataurl: string | null; p_nombre?: string | null; p_referencia: string | null }
+        Returns: string
+      }
+      fn_sumar_dias_habiles: {
+        Args: { p_desde: string | null; p_dias: number | null }
+        Returns: string
+      }
+      fn_tardanza_es_medible: { Args: { p_minutos: number | null }; Returns: boolean }
+      fn_tardanza_escalon: {
+        Args: { p_persona_id: string | null }
+        Returns: {
+          bloqueado: boolean
+          corte: string
+          doc_previo: string
+          minimo: number
+          nivel_siguiente: string
+          suspension_previa_dias: number
+        }[]
+      }
+      fn_tardanza_escalon_al: {
+        Args: { p_al: string | null; p_persona_id: string | null }
+        Returns: {
+          bloqueado: boolean
+          corte: string
+          doc_previo: string
+          minimo: number
+          nivel_siguiente: string
+          suspension_previa_dias: number
+        }[]
+      }
+      fn_tardanza_ya_documentada: {
+        Args: { p_fecha: string | null; p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_tardanzas_resumen: {
+        Args: { p_as_of?: string | null }
+        Returns: {
+          minimo: number
+          nivel_siguiente: string
+          nombre: string
+          persona_id: string
+          sede: string
+          sin_medir: number
+          tardanzas_mes: number
+          ultima_fecha: string
+          umbral: string
         }[]
       }
       fn_tipos_ausencia: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
-          codigo: string
-          nombre: string
-          paga: boolean
-          requiere_documento: boolean
-          requiere_aprobacion: boolean
-          descuenta_vacaciones: boolean
-          alerta_desde: number | null
-          ventana_alerta_dias: number | null
           activo: boolean
-          orden: number
-        }[]
-      }
-      fn_costos_planilla: {
-        Args: { p_desde: string; p_hasta: string }
-        Returns: Json
-      }
-      fn_planilla_congelar_pendientes: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      fn_planilla_foto_diferencias: {
-        Args: { p_periodo_id: string }
-        Returns: {
-          persona_id: string
+          alerta_desde: number | null
+          codigo: string
+          descuenta_vacaciones: boolean
           nombre: string
-          total_foto: number
-          total_ahora: number
-          diferencia: number
+          orden: number
+          paga: boolean
+          requiere_aprobacion: boolean
+          requiere_documento: boolean
+          ventana_alerta_dias: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tipos_ausencia"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      fn_turno_texto: {
+        Args: { p_entrada: string | null; p_es_descanso: boolean | null; p_salida: string | null }
+        Returns: string
+      }
+      fn_vacaciones_por_atender: { Args: never; Returns: number }
+      fn_vacaciones_por_vencer: {
+        Args: { p_as_of?: string | null; p_dias?: number | null }
+        Returns: {
+          dias_para_vencer: number
+          dias_pendientes: number
+          fecha_ingreso: string
+          persona: string
+          persona_id: string
+          records_sin_gozar: number
+          records_vencidos: number
+          sede: string
+          vence_el: string
         }[]
       }
-      fn_jornadas_extra: {
-        Args: { p_desde: string; p_hasta: string; p_persona_id?: string }
+      fn_vacaciones_resumen: { Args: { p_as_of?: string | null }; Returns: Json }
+      fn_vacaciones_saldo: {
+        Args: { p_as_of?: string | null; p_persona_id: string | null }
         Returns: Json
       }
-      fn_set_funcion: {
-        Args: { p_funcion: string; p_persona_id: string }
-        Returns: undefined
-      }
-      fn_crear_persona: {
-        Args: {
-          p_apellidos: string
-          p_email: string | null
-          p_funcion: string
-          p_nombres: string
-          p_pin_hash: string
-          p_rol: string
-          p_sede_base_id: string
-        }
+      fn_vacaciones_saldo_interno: {
+        Args: { p_as_of?: string | null; p_persona_id: string | null }
         Returns: Json
+      }
+      fn_vacaciones_truncas: {
+        Args: { p_fecha_cese: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_ventanas_de_regularidad: {
+        Args: { p_fecha: string | null }
+        Returns: {
+          fin: string
+          ini: string
+          nombre: string
+        }[]
+      }
+      fn_verificar_corrector: {
+        Args: { p_persona_objetivo: string | null }
+        Returns: string
       }
     }
     Enums: {

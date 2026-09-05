@@ -2,20 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
+import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima, hoyLima, rangoDelDiaLima, puedeOperarEquipo, type TipoMarca } from "@cayla-dynamic/shared";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import { AdminNav } from "../nav";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { useToast } from "@/components/toast";
 
 
-function fechaHoyLima() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
-}
-// Día de la semana (0=domingo … 6=sábado) de un ISO — misma clave que horario_por_dia.
-function dowDe(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-}
 // "HH:MM" en hora Lima para el input de tipo time
 function horaInput(tsISO: string) {
   return new Intl.DateTimeFormat("en-GB", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(tsISO));
@@ -25,42 +20,75 @@ function construirTs(fecha: string, horaHHMM: string) {
   return `${fecha}T${horaHHMM}:00-05:00`;
 }
 // Un timestamptz guardado como texto crudo en la auditoría (ej. "2026-07-18
-// 19:15:00+00") o un ISO -> hora Lima "hh:mm a.m.". Tolera el espacio en vez de
-// T y offsets cortos como "-05"; si aun así no parsea, muestra el texto crudo.
+// 19:15:00+00") o un ISO -> Date. Tolera el espacio en vez de T y offsets
+// cortos como "-05". Devuelve null si aun así no parsea.
+function tsAuditoria(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const d = new Date(s.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00"));
+  return isNaN(d.getTime()) ? null : d;
+}
+// Lo mismo -> hora Lima "hh:mm a.m."; si no parsea, muestra el texto crudo.
 function horaTextoLima(s: string | null): string {
   if (!s) return "—";
-  const t = s.trim().replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
-  const d = new Date(t);
-  if (isNaN(d.getTime())) return s;
+  const d = tsAuditoria(s);
+  if (!d) return s;
   return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
 }
+// Y el DÍA de Lima de ese mismo timestamp, corto: "28 ago." (la abreviatura la
+// pone es-PE, con su punto).
+//
+// El día se pregunta a `fechaLima` —la única que sabe cuándo empieza el día en
+// Perú— y recién esa fecha ya resuelta se formatea, en UTC, para que ponerle
+// otra vez la zona no la corra un día hacia atrás (el mismo motivo que explica
+// `nombreDelMesLima` en fecha-lima.ts).
+//
+// Lleva el año solo cuando no es el de hoy: el historial trae las últimas 30
+// correcciones de la persona, así que puede cruzar un fin de año, y "28 ago" a
+// secas dejaría dos días distintos escritos igual. `forzarAnio` existe para el
+// caso en que se muestran DOS días juntos y uno de ellos ya lo lleva: ponérselo
+// a uno solo deja la pareja asimétrica ("31 dic. 2025 → 1 ene.") justo en el
+// cambio de año, que es cuando más falta hace leerlo.
+function diaTextoLima(s: string | null | undefined, forzarAnio = false): string | null {
+  const d = tsAuditoria(s);
+  if (!d) return null;
+  const [y, m, dd] = fechaLima(d).split("-").map(Number);
+  const formato: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", timeZone: "UTC" };
+  if (forzarAnio || y !== anioLima()) formato.year = "numeric";
+  return new Intl.DateTimeFormat("es-PE", formato).format(new Date(Date.UTC(y, m - 1, dd)));
+}
 // Sello de auditoría: cuándo se hizo el cambio (fecha corta + hora Lima).
+//
+// Con la misma regla del año que `diaTextoLima`, y por el mismo motivo: la fila
+// enfrenta dos fechas —el día del marcaje corregido y el día en que alguien lo
+// corrigió— y dejar el año en una sola vuelve ambigua justamente a la que dice
+// cuándo se tocó la planilla.
 function selloLima(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("es-PE", { timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+  const formato: Intl.DateTimeFormatOptions = {
+    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
+  };
+  if (Number(fechaLima(d).slice(0, 4)) !== anioLima()) formato.year = "numeric";
+  return new Intl.DateTimeFormat("es-PE", formato).format(d);
 }
 
-interface TurnoDia { hora_entrada: string | null; es_descanso: boolean; }
-interface HorarioTramo { hora_entrada: string | null; horario_por_dia: Record<string, { e?: string; s?: string; r?: number }> | null; }
-// Contra qué hora se mide la tardanza ese día y de dónde sale. Replica la
-// prioridad del backend (fn_recalcular_jornada): el turno del día manda; solo si
-// no hay turno se cae al horario base. `deTurno` marca el override para resaltarlo.
-function calcularEsperado(fecha: string, turno: TurnoDia | null, horario: HorarioTramo | null): { hora: string | null; origen: string; deTurno: boolean } | null {
-  if (turno) {
-    if (turno.es_descanso) return { hora: null, origen: "descanso (turno del día)", deTurno: true };
-    if (turno.hora_entrada) return { hora: turno.hora_entrada.slice(0, 5), origen: "turno del día", deTurno: true };
-  }
-  if (horario) {
-    const hpd = horario.horario_por_dia;
-    if (hpd) {
-      const d = hpd[String(dowDe(fecha))];
-      if (d?.e) return { hora: d.e.slice(0, 5), origen: "horario base", deTurno: false };
-      return { hora: null, origen: "descanso (horario base)", deTurno: false };
-    }
-    if (horario.hora_entrada) return { hora: horario.hora_entrada.slice(0, 5), origen: "horario base", deTurno: false };
-  }
-  return null; // sin turno ni horario vigente: no hay contra qué medir
+// CAMBIO · esta pantalla calculaba "qué le tocaba ese día" con su propia
+// copia (`calcularEsperado`), y la copia tenía un bug real: la rama legacy
+// devolvía la hora de entrada mirando solo `horario.hora_entrada`, sin
+// comprobar `dias_laborables` — porque la consulta de abajo nunca pedía esa
+// columna. A alguien con un horario del formato viejo se le podía medir
+// tardanza un día que no le tocaba trabajar. Ahora se usa la misma función
+// que ya usan /mio y /admin/horas (jornada-esperada.ts), que sí lo hace bien.
+//
+// Solo cambia CÓMO se calcula `entrada`/`trabaja`; el texto que ve la
+// encargada es el mismo — este mapa reconstruye las frases que ya existían,
+// porque `Esperado.origen` da un código corto ("turno"/"horario"/"legacy"),
+// no la frase para pantalla.
+function textoOrigen(e: Esperado): string {
+  const base = e.origen === "turno" ? "turno del día"
+    : e.origen === "sin_horario" ? "sin horario vigente"
+    : "horario base";
+  return e.trabaja ? base : `descanso (${base})`;
 }
 
 interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
@@ -81,7 +109,22 @@ function familiaDe(tipo: TipoMarca): "entrada" | "salida" | "retorno" {
 const TIPOS_DE_LA_FAMILIA = (tipo: TipoMarca): TipoMarca[] =>
   (Object.keys(TIPO_MARCA_LABELS) as TipoMarca[]).filter((t) => familiaDe(t) === familiaDe(tipo));
 /** Día que el sistema selló solo, por haber quedado con una secuencia imposible (mig. 0068). */
-interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; }
+interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; periodo_pagado: boolean; }
+
+/** Una marca que la persona hizo y el terminal no pudo enviar. No es un marcaje:
+ *  lo será si alguien la repone desde acá, con su hora original. */
+interface MarcaApartada {
+  id: string;
+  client_uuid: string;
+  persona_id: string;
+  persona: string;
+  sede: string;
+  tipo: string;
+  timestamp_cliente: string;
+  fecha: string;
+  ultimo_error: string | null;
+  reportada_at: string;
+}
 interface Jornada { estado: string; horas_trabajadas: number | null; minutos_tarde: number | null; }
 // Fila de correcciones_auditoria (el registro de quién cambió qué, cuándo y por qué).
 // Sin embeds de PostgREST a propósito: en este repo el schema cache está trabado
@@ -96,34 +139,118 @@ interface Auditoria {
   motivo: string;
   corregido_por: string; // id de quien hizo el cambio
 }
-// Traduce una fila de auditoría a lenguaje llano: qué acción fue y su detalle.
-// El tipo de marcaje ya viene embebido en el valor de agregado/eliminado
-// ("entrada @ ts"); para una hora corregida solo cambian las horas.
-function describirCambio(row: Auditoria): { accion: string; detalle: string } {
+// Traduce una fila de auditoría a lenguaje llano: qué acción fue, DE QUÉ DÍA y
+// su detalle. El tipo de marcaje ya viene embebido en el valor de
+// agregado/eliminado ("entrada @ ts"); para una hora corregida solo cambian las
+// horas.
+//
+// CAMBIO · `cuando` es nuevo (hallazgo 30 de la auditoría del 2026-09-03/04).
+// Hasta hoy los casos que sí estaban escritos formateaban solo la HORA del
+// timestamp y tiraban el día, aunque el día viniera dentro del mismo valor: el
+// 3 de septiembre se corregía la salida del 28 de agosto y el historial decía
+// «Hora corregida · 06:00 p. m. → 07:30 p. m.», sin decir qué jornada se había
+// tocado. Este historial es el rastro de `correcciones_auditoria`, que existe
+// justamente para auditar, y sin la fecha no se puede.
+//
+// Y peor: `marcaje_anulado` y `auto_cierre_reemplazado` NO tenían rama, así que
+// caían al último `return` y mostraban el timestamp CRUDO, en UTC — que para
+// cualquier marca de la tarde-noche de Lima nombra el DÍA SIGUIENTE. Anular es,
+// además, lo único que hace el botón de esta pantalla: borrar marcas no se hace
+// desde la 0081, así que la rama que se había escrito primero (`eliminado`) era
+// la única que ninguna pantalla produce. Se enumeran acá por eso: qué escribe
+// cada función se lee en la migración, no se supone por el nombre del campo.
+//
+// El día del marcaje CORREGIDO y el día en que se hizo la corrección son dos
+// cosas distintas, y en la fila se ven las dos: esta va pegada a la acción y la
+// otra al sello de la derecha, que dice «corregido …» para que no se confundan.
+// Una hora que pasó a ser otra. Si las dos caen el mismo día de Lima, ese día se
+// dice una vez y va en `cuando`; si la marca se movió de un día a otro —lo que
+// cambia DOS jornadas— los dos días van dentro del detalle, cada uno pegado a su
+// hora, porque decir «del 28 ago» a secas escondería justo el cambio que importa.
+function cambioDeHora(accion: string, tsAntes: string | null, tsDespues: string | null) {
+  const diaAntes = diaTextoLima(tsAntes);
+  const diaDespues = diaTextoLima(tsDespues);
+  if (diaAntes && diaDespues && diaAntes !== diaDespues) {
+    // Si uno de los dos ya lleva año (o sea, el movimiento cruza el fin de año),
+    // lo llevan los dos: si no, la pareja sale «31 dic. 2025 → 1 ene.».
+    const cruzaAnio = /\d{4}/.test(diaAntes) || /\d{4}/.test(diaDespues);
+    const antes = cruzaAnio ? diaTextoLima(tsAntes, true)! : diaAntes;
+    const despues = cruzaAnio ? diaTextoLima(tsDespues, true)! : diaDespues;
+    return {
+      accion,
+      cuando: null,
+      detalle: `${antes}, ${horaTextoLima(tsAntes)} → ${despues}, ${horaTextoLima(tsDespues)}`,
+    };
+  }
+  return {
+    accion,
+    cuando: diaAntes ?? diaDespues,
+    detalle: `${horaTextoLima(tsAntes)} → ${horaTextoLima(tsDespues)}`,
+  };
+}
+
+function describirCambio(row: Auditoria): { accion: string; cuando: string | null; detalle: string } {
   const lblTipo = (t?: string | null) => (t && TIPO_MARCA_LABELS[t as TipoMarca]) || t || "marcaje";
+  const tsDe = (v: string | null) => (v ?? "").split(" @ ")[1] ?? null;
   if (row.campo_modificado === "timestamp_marca") {
-    return { accion: "Hora corregida", detalle: `${horaTextoLima(row.valor_anterior)} → ${horaTextoLima(row.valor_nuevo)}` };
+    return cambioDeHora("Hora corregida", row.valor_anterior, row.valor_nuevo);
+  }
+  // El terminal cambió la salida final que había puesto el auto-cierre por la
+  // hora real en que se cerró tienda. Los dos valores traen "tipo @ timestamp",
+  // así que antes salían los DOS en UTC crudo — el mismo defecto, por duplicado.
+  if (row.campo_modificado === "auto_cierre_reemplazado") {
+    return cambioDeHora("Salida final repuesta", tsDe(row.valor_anterior), tsDe(row.valor_nuevo));
   }
   if (row.campo_modificado === "marcaje_agregado") {
     const [tipo, ts] = (row.valor_nuevo ?? "").split(" @ ");
-    return { accion: "Marcaje agregado", detalle: `${lblTipo(tipo)} a las ${horaTextoLima(ts)}` };
+    return { accion: "Marcaje agregado", cuando: diaTextoLima(ts), detalle: `${lblTipo(tipo)} a las ${horaTextoLima(ts)}` };
   }
+  // Anular es lo que HACE de verdad esta pantalla: desde la 0081 las marcas no
+  // se borran, se anulan (el botón de la fila llama a `fn_anular_marcaje`).
+  // `valor_anterior` trae "tipo @ timestamp" igual que las de arriba, y
+  // `valor_nuevo` es la palabra "anulada" — que no aporta nada al detalle.
+  if (row.campo_modificado === "marcaje_anulado") {
+    const [tipo, ts] = (row.valor_anterior ?? "").split(" @ ");
+    return { accion: "Marcaje anulado", cuando: diaTextoLima(ts), detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
+  }
+  // Y su vuelta atrás. Acá `valor_anterior` es "anulada: <por qué se anuló>" y
+  // `valor_nuevo` el tipo de marca: NO hay timestamp en ninguno de los dos, así
+  // que `cuando` va en null a propósito — no es un olvido, es que la fila no
+  // guarda el día. Se sigue viendo en la marca misma, arriba, destachada.
+  if (row.campo_modificado === "marcaje_reactivado") {
+    const motivoAnulacion = (row.valor_anterior ?? "").replace(/^anulada:\s*/i, "").trim();
+    return {
+      accion: "Marcaje reactivado",
+      cuando: null,
+      detalle: motivoAnulacion
+        ? `${lblTipo(row.valor_nuevo)} — se había anulado por “${motivoAnulacion}”`
+        : lblTipo(row.valor_nuevo),
+    };
+  }
+  // Ninguna pantalla borra marcas hoy —`fn_eliminar_marcaje` no la llama nadie
+  // desde la 0081—, pero la tabla guarda filas viejas de cuando sí se borraban,
+  // y el historial no está acotado por fecha. Se queda por ellas.
   if (row.campo_modificado === "marcaje_eliminado") {
     const [tipo, ts] = (row.valor_anterior ?? "").split(" @ ");
-    return { accion: "Marcaje eliminado", detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
+    return { accion: "Marcaje eliminado", cuando: diaTextoLima(ts), detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
   }
+  // Filas viejas: antes de que existiera `fn_marcas_apartadas` (arriba, con su
+  // propia sección "no llegaron a registrarse"), una marca que el terminal no
+  // podía enviar quedaba escrita acá mismo, con el error crudo de Postgres en
+  // `valor_anterior`/`valor_nuevo`. Ya no se escriben así, pero las filas
+  // viejas siguen en la tabla y este historial no está acotado por fecha.
   if (row.campo_modificado === "marca_apartada") {
-    return { accion: "Marca apartada", detalle: "no se pudo registrar sola; quedó pendiente de revisión manual" };
+    return { accion: "Marca apartada", cuando: diaTextoLima(row.valor_nuevo) ?? diaTextoLima(row.valor_anterior), detalle: "no se pudo registrar sola; quedó pendiente de revisión manual" };
   }
-  // Filas antiguas de campos que ya no existen, o cuyo valor es un mensaje
-  // técnico (p. ej. un error de Postgres) en vez de un dato de negocio: se
-  // muestra el nombre del campo, nunca el contenido — este historial es para
-  // Cayla, no para depurar.
+  // Cualquier otro campo desconocido, o uno cuyo valor es un mensaje técnico
+  // (un error de Postgres) en vez de un dato de negocio: se muestra el nombre
+  // del campo, nunca el contenido crudo — este historial es para Cayla, no
+  // para depurar.
   const esTexto = (v: string | null) => !!v && v.length < 80 && !/[{}();]|=>|public\./.test(v);
   const detalle = esTexto(row.valor_anterior) || esTexto(row.valor_nuevo)
     ? `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}`
     : "ver detalle con soporte técnico";
-  return { accion: row.campo_modificado, detalle };
+  return { accion: row.campo_modificado, cuando: null, detalle };
 }
 
 // Tipos que un admin puede agregar manualmente (los pares salida/retorno y entrada/salida final)
@@ -142,14 +269,14 @@ export default function CorreccionesPage() {
   const rol = yo?.rol ?? null;
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [personaId, setPersonaId] = useState("");
-  const [fecha, setFecha] = useState(fechaHoyLima());
+  const [fecha, setFecha] = useState(hoyLima());
   const [marcajes, setMarcajes] = useState<Marcaje[]>([]);
   const [jornada, setJornada] = useState<Jornada | null>(null);
   const [auditoria, setAuditoria] = useState<Auditoria[]>([]); // últimas correcciones de esta persona
   const [auditoriaError, setAuditoriaError] = useState(false); // para no confundir "sin correcciones" con "no cargó"
   // Contra qué hora se mide la tardanza ese día y de dónde sale (turno del día vs
   // horario base) — para que "N min tarde" nunca sea un número sin contexto.
-  const [esperado, setEsperado] = useState<{ hora: string | null; origen: string; deTurno: boolean } | null>(null);
+  const [esperado, setEsperado] = useState<Esperado | null>(null);
   // Levantamiento de tardanza de ese día (perdón por fuerza mayor): si existe, la
   // tardanza se muestra tachada y no cuenta. La hora real NO se toca.
   const [levTardanza, setLevTardanza] = useState<{ motivo: string; observacion: string | null } | null>(null);
@@ -160,10 +287,14 @@ export default function CorreccionesPage() {
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [autoCargar, setAutoCargar] = useState(false); // deep-link: cargar solo al llegar con ?persona=&fecha=
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const { avisar } = useToast();
   // Días sellados por el sistema (secuencia imposible). Sin esta lista el sello
   // sería inútil: nadie va a revisar persona por persona adivinando cuál quedó mal.
   const [porRevisar, setPorRevisar] = useState<DiaPorRevisar[]>([]);
+  // Marcas que el terminal no logró enviar y apartó (0304). Hasta esa migración
+  // vivían en el IndexedDB de una Mac mini y nadie podía verlas desde acá.
+  const [apartadas, setApartadas] = useState<MarcaApartada[]>([]);
+  const [resolviendo, setResolviendo] = useState<string | null>(null);
   // ¿La secuencia de ESTE día sigue siendo imposible? Se pregunta en vivo a la
   // base en cada carga, no se deduce del sello guardado en las marcas: el sello
   // dice que el día estuvo roto alguna vez, no que lo siga estando.
@@ -196,16 +327,55 @@ export default function CorreccionesPage() {
       // no tiene la migración 0068, la pantalla sigue funcionando igual (sin lista).
       const { data: dr } = await supabase.rpc("fn_dias_por_revisar", { p_limite: 50 });
       setPorRevisar((dr as DiaPorRevisar[]) ?? []);
+      // Falla suave igual que la de arriba: sin la 0304 la pantalla funciona
+      // igual, solo que sin esta lista.
+      const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
+      setApartadas((ap as unknown as MarcaApartada[]) ?? []);
     });
   }, [router]);
+
+  async function resolverApartada(m: MarcaApartada, resolucion: "repuesta" | "improcedente") {
+    const pregunta = resolucion === "repuesta"
+      ? `Vas a registrar la marca de ${m.persona} con su hora original: ${horaTextoLima(m.timestamp_cliente)} del ${m.fecha}.\n\n¿Por qué? (queda en el historial)`
+      : `Vas a declarar IMPROCEDENTE la marca de ${m.persona} del ${m.fecha} a las ${horaTextoLima(m.timestamp_cliente)}.\n\nNo se va a registrar ningún marcaje. ¿Por qué?`;
+    const motivo = window.prompt(pregunta, "");
+    if (motivo === null) return;
+    if (motivo.trim().length < 3) {
+      avisar("error", "Escribe el motivo: esto decide si un día de trabajo queda registrado o no.");
+      return;
+    }
+
+    setResolviendo(m.id);
+    const supabase = createAdminSupabaseClient();
+    const { error } = await supabase.rpc("fn_marca_apartada_resolver", {
+      p_id: m.id, p_resolucion: resolucion, p_motivo: motivo.trim(),
+    });
+    setResolviendo(null);
+
+    if (error) {
+      // El error de fn_registrar_marcaje sube tal cual: si el día está en un
+      // periodo pagado, por ejemplo, hay que reabrirlo antes — y eso es lo que
+      // dice el mensaje. La marca NO queda como resuelta.
+      avisar("error", mensajeDeError(error, "resolver la marca apartada"));
+      return;
+    }
+
+    const { data: ap } = await supabase.rpc("fn_marcas_apartadas");
+    setApartadas((ap as unknown as MarcaApartada[]) ?? []);
+    avisar(
+      "ok",
+      resolucion === "repuesta"
+        ? `Marca registrada con su hora original. El aviso del terminal bajará solo en unos minutos.`
+        : `Declarada improcedente. No se registró ningún marcaje, y queda el motivo en el historial.`,
+    );
+    if (m.persona_id === personaId && m.fecha === fecha) void cargarDia();
+  }
 
   const cargarDia = useCallback(async () => {
     if (!personaId) return;
     setCargando(true);
-    setMensaje(null);
     const supabase = createAdminSupabaseClient();
-    const inicio = `${fecha}T00:00:00-05:00`;
-    const fin = `${fecha}T23:59:59-05:00`;
+    const { inicio, fin } = rangoDelDiaLima(fecha);
     const [{ data: incoh }, { data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }] = await Promise.all([
       supabase.rpc("fn_dia_incoherente", { p_persona_id: personaId, p_fecha: fecha }),
       supabase.from("marcajes")
@@ -222,9 +392,15 @@ export default function CorreccionesPage() {
         .select("id, campo_modificado, valor_anterior, valor_nuevo, corregido_at, motivo, corregido_por")
         .eq("persona_id", personaId).order("corregido_at", { ascending: false }).limit(30),
       // Contra qué se mide la tardanza ese día: el turno puntual manda sobre el
-      // horario base (misma prioridad que fn_recalcular_jornada). Fallan suave.
-      supabase.from("turnos").select("hora_entrada, es_descanso").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
-      supabase.from("horarios_asignados").select("hora_entrada, horario_por_dia, vigente_desde")
+      // horario base (misma prioridad que fn_recalcular_jornada, espejada en
+      // jornada-esperada.ts). Fallan suave.
+      //
+      // CAMBIO · `horarios_asignados` no traía `dias_laborables`: la rama
+      // legacy de esperadoDelDia necesita esa columna para saber si el día
+      // era laborable, no solo si hay una hora de entrada declarada.
+      supabase.from("turnos").select("hora_entrada, hora_salida, es_descanso").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
+      supabase.from("horarios_asignados")
+        .select("persona_id, vigente_desde, vigente_hasta, hora_entrada, hora_salida, dias_laborables, horario_por_dia, almuerzo_min_minutos")
         .eq("persona_id", personaId).lte("vigente_desde", fecha).or(`vigente_hasta.is.null,vigente_hasta.gte.${fecha}`)
         .order("vigente_desde", { ascending: false }).limit(1).maybeSingle(),
       // ¿La tardanza de ese día fue levantada (perdonada por fuerza mayor)?
@@ -239,14 +415,14 @@ export default function CorreccionesPage() {
     // Falla suave: si la consulta no llega, no se inventa un sello que no sabemos si existe.
     setDiaIncoherente(incoh === true);
     setJornada((jor as Jornada) ?? null);
-    setEsperado(calcularEsperado(fecha, turno as TurnoDia | null, horario as HorarioTramo | null));
+    setEsperado(esperadoDelDia(fecha, (turno as TurnoDia) ?? null, (horario as HorarioTramo) ?? null));
     setLevTardanza((levT as { motivo: string; observacion: string | null } | null) ?? null);
     setAuditoriaError(Boolean(errAud));
     setAuditoria(errAud ? [] : ((aud as Auditoria[]) ?? []));
     setHorasEditadas(Object.fromEntries(((mk as Marcaje[]) ?? []).map((m) => [m.id, horaInput(m.timestamp_marca)])));
     setCargado(true);
     setCargando(false);
-  }, [personaId, fecha]);
+  }, [personaId, fecha, avisar]);
 
   // Deep-link: al llegar con ?persona=<id>&fecha=<YYYY-MM-DD> (desde un incidente del
   // dashboard), precarga esa persona y fecha y abre el día listo para corregir.
@@ -268,8 +444,6 @@ export default function CorreccionesPage() {
       setAutoCargar(false);
     }
   }, [autoCargar, personaId, cargarDia]);
-
-  function avisar(tipo: "ok" | "error", texto: string) { setMensaje({ tipo, texto }); }
 
   const MOTIVOS_TARD = [
     { valor: "fuerza_mayor", label: "Fuerza mayor" },
@@ -405,32 +579,87 @@ export default function CorreccionesPage() {
           Cada cambio pide un motivo y queda registrado (quién, qué y cuándo).
         </p>
 
-        {porRevisar.length > 0 && (
-          <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
+        {/* Va ARRIBA de los días por revisar: aquellos son días que existen y
+            están desordenados; estas son marcas que NO existen todavía. Si nadie
+            las repone, ese día se paga como si la persona no hubiera venido. */}
+        {apartadas.length > 0 && (
+          <div className="mb-6 max-w-3xl rounded-xl border border-rojo/40 bg-rojo/5 p-4">
             <p className="text-sm font-medium text-tinta">
-              {porRevisar.length === 1
-                ? "1 día quedó con una secuencia imposible"
-                : `${porRevisar.length} días quedaron con una secuencia imposible`}
+              {apartadas.length === 1
+                ? "1 marca no llegó a registrarse"
+                : `${apartadas.length} marcas no llegaron a registrarse`}
             </p>
             <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
-              Ocurre cuando la terminal pierde señal y una marca llega tarde. No se perdió nada:
-              solo hay que ordenar el día. Toca uno para cargarlo.
+              El terminal las intentó seis veces y las apartó para no perderlas. La persona sí marcó:
+              mientras no se repongan, ese día se paga como si no hubiera venido.
             </p>
-            <ul className="flex flex-col">
-              {porRevisar.map((d) => (
-                <li key={`${d.persona_id}-${d.fecha}`}>
-                  <button
-                    onClick={() => { setPersonaId(d.persona_id); setFecha(d.fecha); setCargado(false); }}
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-ambar/10"
-                  >
-                    <span className="font-medium text-tinta">{d.nombre}</span>
-                    <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
-                  </button>
+            <ul className="flex flex-col gap-2">
+              {apartadas.map((m) => (
+                <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
+                  <div>
+                    <span className="font-medium text-tinta">{m.persona}</span>
+                    <span className="text-taupe">
+                      {" "}· {m.sede} · {m.tipo} del {m.fecha} a las {horaTextoLima(m.timestamp_cliente)}
+                    </span>
+                  </div>
+                  {m.ultimo_error && (
+                    <div className="mt-0.5 text-xs text-taupe">el terminal decía: {m.ultimo_error}</div>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    <button
+                      onClick={() => void resolverApartada(m, "repuesta")}
+                      disabled={resolviendo === m.id}
+                      className="rounded border border-tinta/30 px-2 py-1 font-medium hover:bg-sand/50 disabled:opacity-50"
+                    >
+                      {resolviendo === m.id ? "Registrando…" : "Registrarla con su hora"}
+                    </button>
+                    <button
+                      onClick={() => void resolverApartada(m, "improcedente")}
+                      disabled={resolviendo === m.id}
+                      className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10 disabled:opacity-50"
+                    >
+                      No corresponde
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
         )}
+
+        {(() => {
+          // Un día de un periodo ya pagado no tiene acción posible (fn_anular_marcaje
+          // lo rechaza), así que no entra a este aviso: Felipe pidió que dejara de
+          // estorbar la vista. Sigue existiendo en fn_dias_por_revisar por si algún
+          // día hace falta un historial, solo no se pinta acá.
+          const accionables = porRevisar.filter((d) => !d.periodo_pagado);
+          return accionables.length > 0 && (
+            <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
+              <p className="text-sm font-medium text-tinta">
+                {accionables.length === 1
+                  ? "1 día quedó con una secuencia imposible"
+                  : `${accionables.length} días quedaron con una secuencia imposible`}
+              </p>
+              <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+                Ocurre cuando la terminal pierde señal y una marca llega tarde. No se perdió nada:
+                solo hay que ordenar el día. Toca uno para cargarlo.
+              </p>
+              <ul className="flex flex-col">
+                {accionables.map((d) => (
+                  <li key={`${d.persona_id}-${d.fecha}`}>
+                    <button
+                      onClick={() => { setPersonaId(d.persona_id); setFecha(d.fecha); setCargado(false); }}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-ambar/10"
+                    >
+                      <span className="font-medium text-tinta">{d.nombre}</span>
+                      <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">
@@ -448,12 +677,6 @@ export default function CorreccionesPage() {
             {cargando ? "Cargando…" : "Ver el día"}
           </button>
         </div>
-
-        {mensaje && (
-          <div className={`mb-4 max-w-2xl rounded-lg px-4 py-3 text-sm ${mensaje.tipo === "ok" ? "bg-sand/40 text-tinta" : "bg-rojo/10 text-rojo"}`}>
-            {mensaje.texto}
-          </div>
-        )}
 
         {cargado && personaSel && (
           <div className="max-w-3xl">
@@ -514,18 +737,18 @@ export default function CorreccionesPage() {
                 Si viene de un turno puntual (pisa el horario base), se resalta. */}
             {esperado && (
               <div className="mb-4 rounded-lg border px-4 py-2.5 text-sm">
-                {esperado.hora ? (
+                {esperado.entrada ? (
                   <>
-                    Entrada esperada ese día: <strong>{esperado.hora}</strong>
-                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${esperado.deTurno ? "bg-ambar/15 text-ambar" : "bg-taupe/15 text-taupe"}`}>
-                      {esperado.origen}
+                    Entrada esperada ese día: <strong>{esperado.entrada}</strong>
+                    <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${esperado.origen === "turno" ? "bg-ambar/15 text-ambar" : "bg-taupe/15 text-taupe"}`}>
+                      {textoOrigen(esperado)}
                     </span>
-                    {esperado.deTurno && (
+                    {esperado.origen === "turno" && (
                       <span className="ml-2 text-xs text-taupe">— este día tiene un turno propio que manda sobre el horario base. Se cambia en Turnos.</span>
                     )}
                   </>
                 ) : (
-                  <span className="text-taupe">Ese día no mide tardanza: {esperado.origen}.</span>
+                  <span className="text-taupe">Ese día no mide tardanza: {textoOrigen(esperado)}.</span>
                 )}
               </div>
             )}
@@ -678,15 +901,20 @@ export default function CorreccionesPage() {
               ) : (
                 <ul className="divide-y">
                   {auditoria.map((row) => {
-                    const { accion, detalle } = describirCambio(row);
+                    const { accion, cuando, detalle } = describirCambio(row);
                     return (
                       <li key={row.id} className="px-4 py-3 text-sm">
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                          {/* Izquierda: el día del MARCAJE que se tocó. Derecha: cuándo se
+                              hizo la corrección — de ahí el «corregido», que antes faltaba y
+                              dejaba las dos fechas pareciendo la misma. */}
                           <span className="font-medium">
-                            {accion} <span className="font-normal text-taupe">· {detalle}</span>
+                            {accion}
+                            {cuando && <span className="font-normal text-taupe"> · del {cuando}</span>}
+                            <span className="font-normal text-taupe"> · {detalle}</span>
                           </span>
                           <span className="text-xs text-taupe">
-                            {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "otra persona"}
+                            corregido {selloLima(row.corregido_at)} · por {nombrePorId.get(row.corregido_por) ?? "otra persona"}
                           </span>
                         </div>
                         <p className="mt-1 text-taupe">“{row.motivo}”</p>
@@ -705,7 +933,7 @@ export default function CorreccionesPage() {
             <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="mb-1 font-serif text-lg">Levantar tardanza</h3>
               <p className="mb-4 text-sm text-taupe">
-                Se perdona la tardanza (deja de contar y suma al bono de puntualidad).
+                Se perdona la tardanza: deja de contar para la escalera disciplinaria y para el umbral del mes.
                 <strong> La hora real no se toca</strong> — queda tachada con su motivo.
               </p>
               <label className="mb-3 flex flex-col gap-1 text-sm">

@@ -17,6 +17,14 @@
 // No tenerlos: infracción muy grave, numeral 25.22 del RLGIT.
 // No informarlos: numeral 25.23.
 //
+// «Al trabajador» es la palabra que importa: `fn_cuadro_categorias()` (0141)
+// solo cuenta a quien tiene `en_planilla = true`, y eso es a propósito, no un
+// vacío por cerrar. Ni un locador RxH ni una practicante (0322, Ley 28518
+// art. 47; RIT numeral 2.6) son trabajadores — la Ley 30709 no les alcanza, y
+// extender este documento a ellos declararía una obligación que no existe.
+// Decidido con Felipe el 2026-08-31 (ver docs/estado.md); no se reabre sin
+// una razón nueva.
+//
 // ── LA REGLA QUE ORDENA TODA LA REDACCIÓN ───────────────────────────────────
 //
 // El papel no puede decir nada que la planilla desmienta. Por eso las bandas, el
@@ -26,6 +34,8 @@
 // `asignaciones_salario`, `topes_educacion_rango` y `parametros_laborales`. Si
 // mañana cambia un sueldo o un pasaje, cambia el documento — y el sistema avisa
 // que hay que publicarlo de nuevo.
+
+import { EMPRESA } from "@cayla-dynamic/shared";
 
 export interface FactorCategoria {
   factor: string;
@@ -902,9 +912,20 @@ export function construirDocumento(cuadro: Cuadro, fecha: string): Documento {
 
   return {
     titulo: "Cuadro de categorías y funciones · Política salarial",
+    // ESTO ES UNA FOTO, no una referencia. Se copia dentro del documento a
+    // propósito: al publicar, la 0141 congela el documento entero y las
+    // versiones ya acusadas tienen que seguir diciendo lo que decían el día que
+    // cada integrante firmó. Por eso los renderizadores leen `doc.empresa` y no
+    // `EMPRESA` — si leyeran la constante, cambiar la razón social reescribiría
+    // hacia atrás documentos que ya están firmados.
+    //
+    // Lo que se unificó el 2026-08-19 es de dónde sale la foto: el nombre y el
+    // RUC ya no se escriben a mano acá. El firmante y su cargo sí siguen
+    // escritos, porque quién suscribe depende del documento y no es identidad
+    // de la empresa.
     empresa: {
-      nombre: "CAYLA S.A.C.",
-      ruc: "20605964550",
+      nombre: EMPRESA.nombre,
+      ruc: EMPRESA.ruc,
       firmante: "Alvarez Pereyra Felipe Miguel",
       cargo: "Gerencia General",
     },
@@ -966,6 +987,32 @@ export function documentoDesdeGuardado(guardado: string): Documento | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * ¿El documento que se publicaría HOY dice algo distinto al que ya está
+ * publicado? Compara todo salvo `fecha`, que siempre difiere sin que eso
+ * signifique nada.
+ *
+ * Existe porque `fn_cuadro_categorias()` —y por lo tanto la huella que se
+ * guarda al publicar— incluye datos que el documento nunca muestra: cuántas
+ * personas hay hoy en cada categoría y el rango real de sueldos de quien ya
+ * está en planilla. Esos dos son el respaldo de `remuneracion()` para cuando
+ * no hay monto declarado (ver esa función arriba), pero cuando SÍ lo hay —el
+ * caso normal— no aparecen en ningún lado del papel. Una alta, una baja o un
+ * cambio de categoría mueve esos números y, con ellos, la huella, sin que una
+ * sola palabra del documento cambie. Pedirle a todo el equipo que vuelva a
+ * dejar constancia de un texto idéntico no prueba nada nuevo: solo entrena a
+ * la gente a aceptar sin leer.
+ *
+ * Comparar el DOCUMENTO —lo que en verdad se lee y se firma— en vez del
+ * `Cuadro` crudo es además la forma consistente con el resto de este archivo:
+ * un solo camino (`construirDocumento`) decide qué es cierto, y acá se compara
+ * su salida consigo misma en dos momentos, no una réplica de su lógica.
+ */
+export function documentoTieneCambios(actual: Documento, publicado: Documento): boolean {
+  const sinFecha = (d: Documento) => JSON.stringify({ ...d, fecha: undefined });
+  return sinFecha(actual) !== sinFecha(publicado);
 }
 
 export function documentoATexto(doc: Documento): string {

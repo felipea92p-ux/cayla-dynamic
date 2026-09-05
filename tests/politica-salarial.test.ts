@@ -17,6 +17,7 @@ import {
   construirDocumento,
   documentoAJson,
   documentoDesdeGuardado,
+  documentoTieneCambios,
   type CategoriaCuadro,
   type Cuadro,
 } from "@/lib/politica-salarial";
@@ -340,6 +341,74 @@ describe("la sección de jornada se blinda sola", () => {
     const t = jornada();
     expect(t).toContain("un neto algo menor");
     expect(t).toContain("no se queda en CAYLA");
+  });
+});
+
+// ============================================================================
+// documentoTieneCambios — no todo lo que mueve la huella cambia el papel
+// ============================================================================
+// El 2026-08-31 la pantalla avisaba «el cuadro cambió» comparando la huella
+// cruda de fn_cuadro_categorias(), que incluye personas y salario_min/max
+// aunque la categoría tenga monto declarado —caso en el que remuneracion()
+// los ignora por completo—. Una alta o un cambio de categoría movía la huella
+// sin que una sola palabra del documento cambiara, y el aviso pedía publicar
+// de nuevo y volver a juntar las 17 constancias por nada.
+//
+// Se auditó contra producción el mismo día: seis categorías, cuatro tarifas
+// de movilidad, todas idénticas a la última versión publicada. Lo único que
+// había cambiado era cuánta gente hay hoy en cada categoría.
+// ============================================================================
+describe("documentoTieneCambios — compara el papel, no el cuadro crudo", () => {
+  const cuadroConGente = (personas: Partial<Record<string, number>>): Cuadro => ({
+    categorias: escalaBuena.map((c) => ({ ...c, personas: personas[c.rango] ?? 0 })),
+    movilidad: [{ sede: "LIM", valor: 12 }, { sede: "TRU", valor: 10 }],
+    brecha: 1.33,
+  });
+
+  it("misma fecha o no: la fecha nunca cuenta como cambio", () => {
+    const publicado = construirDocumento(cuadroConGente({}), "8 de agosto de 2026");
+    const hoy = construirDocumento(cuadroConGente({}), "31 de agosto de 2026");
+    expect(documentoTieneCambios(hoy, publicado)).toBe(false);
+  });
+
+  it("el caso real del 2026-08-31: solo cambió cuánta gente hay por categoría", () => {
+    // Con monto declarado en las seis, remuneracion() nunca mira `personas`:
+    // este es exactamente el caso que producía el falso aviso.
+    const publicado = construirDocumento(
+      cuadroConGente({ colibri: 3, cayla: 4, support: 1, aurora: 1, oraculo: 0, archicaylo: 1 }),
+      "8 de agosto de 2026",
+    );
+    const hoy = construirDocumento(
+      cuadroConGente({ colibri: 10, cayla: 4, support: 1, aurora: 1, oraculo: 0, archicaylo: 1 }),
+      "31 de agosto de 2026",
+    );
+    expect(documentoTieneCambios(hoy, publicado)).toBe(false);
+  });
+
+  it("un monto declarado que sí cambia se detecta", () => {
+    const publicado = construirDocumento(cuadroConGente({}), "8 de agosto de 2026");
+    const subida: Cuadro = {
+      ...cuadroConGente({}),
+      categorias: cuadroConGente({}).categorias.map((c) =>
+        c.rango === "cayla" ? { ...c, salario_declarado: 1250 } : c,
+      ),
+    };
+    const hoy = construirDocumento(subida, "31 de agosto de 2026");
+    expect(documentoTieneCambios(hoy, publicado)).toBe(true);
+  });
+
+  it("una tarifa de movilidad que cambia se detecta", () => {
+    const publicado = construirDocumento(cuadroConGente({}), "8 de agosto de 2026");
+    const otraTarifa: Cuadro = { ...cuadroConGente({}), movilidad: [{ sede: "LIM", valor: 15 }, { sede: "TRU", valor: 10 }] };
+    const hoy = construirDocumento(otraTarifa, "31 de agosto de 2026");
+    expect(documentoTieneCambios(hoy, publicado)).toBe(true);
+  });
+
+  it("la brecha SÍ se publica en prosa, así que si cambia, cuenta como cambio", () => {
+    const publicado = construirDocumento(cuadroConGente({}), "8 de agosto de 2026");
+    const otraBrecha: Cuadro = { ...cuadroConGente({}), brecha: 1.94 };
+    const hoy = construirDocumento(otraBrecha, "31 de agosto de 2026");
+    expect(documentoTieneCambios(hoy, publicado)).toBe(true);
   });
 });
 
