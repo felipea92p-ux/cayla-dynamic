@@ -14,6 +14,7 @@ import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { useToast } from "@/components/toast";
 import { hoyLima, maximoSemanalPracticante, puedeGestionarContratos } from "@cayla-dynamic/shared";
 import {
+  camposIncompletosDelConvenio,
   construirContrato,
   formatearFecha,
   ACTIVOS_PRINCIPALES_POR_SEDE,
@@ -731,6 +732,37 @@ export default function ContratosPage() {
   }
   if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
     bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
+  }
+  // LOS CAMPOS QUE SE IMPRIMÍAN COMO «[completar]».
+  //
+  // El generador no inventa un dato que falta: escribe «[completar]» y sigue.
+  // Eso está bien —es la regla de esta casa, un hueco se dice, no se rellena—
+  // pero acá no había nada que impidiera IMPRIMIR ese hueco. El botón se
+  // habilitaba igual, y un convenio con «[completar]» donde va el RUC del
+  // centro de formación es un documento que se firma en ridículo y que, en una
+  // fiscalización, debilita justo lo que sostiene que la práctica es formativa.
+  //
+  // La pantalla ya lo hacía bien para dos casos —`causaObjetivaTexto` con su
+  // «[REVISAR antes de imprimir]» y las funciones del Anexo I— y estos campos
+  // se quedaron fuera cuando la 0333 sumó el convenio. Es el mismo bloqueo.
+  //
+  // Se agrupan por PANEL y no uno por campo: nueve líneas rojas para un
+  // formulario que se llena de arriba abajo se leen como un muro y esconden
+  // cuál falta. Cada línea nombra los suyos.
+  // La lista NO se arma acá: la da el generador, que es quien sabe qué va a
+  // imprimir como hueco. Tenerla en dos sitios fue justo el defecto — la 0333
+  // sumó trece campos al convenio y la lista de esta pantalla no se enteró.
+  if (persona && esConvenio && datosParaGenerar) {
+    const faltan = camposIncompletosDelConvenio(datosParaGenerar);
+    if (faltan.centroFormacion.length > 0) {
+      bloqueos.push(`Completa los datos del centro de formación (${faltan.centroFormacion.join(", ")}) — el convenio preprofesional es tripartito y esos campos se imprimen como «[completar]».`);
+    }
+    if (faltan.academicos.length > 0) {
+      bloqueos.push(`Completa ${faltan.academicos.join(" y ")} — se imprime en el convenio como «[completar]».`);
+    }
+    if (faltan.anexoI.length > 0) {
+      bloqueos.push(`Completa el Anexo I (${faltan.anexoI.join(", ")}) — son el plan formativo, y vacíos se imprimen como «[completar]».`);
+    }
   }
   // La ciudad no bloquea —el documento lo dice en su propio texto— pero avisar
   // acá evita descubrirlo recién al leer el PDF impreso.

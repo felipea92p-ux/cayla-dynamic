@@ -15,6 +15,7 @@
 // ============================================================================
 import { describe, expect, it } from "vitest";
 import {
+  camposIncompletosDelConvenio,
   construirContrato,
   finDelPeriodoDePrueba,
   numeroALetras,
@@ -368,5 +369,169 @@ describe("finDelPeriodoDePrueba", () => {
 
   it("cruza el año sin perderse", () => {
     expect(finDelPeriodoDePrueba("2026-11-20")).toBe("2027-02-20");
+  });
+});
+
+// ============================================================================
+// camposIncompletosDelConvenio — que un «[completar]» no llegue a imprimirse
+// ============================================================================
+// El generador no inventa un dato que falta: escribe «[completar]» y sigue. Eso
+// está bien. Lo que estaba mal es que nada impedía IMPRIMIR ese hueco: el botón
+// «Generar borrador» se habilitaba igual, y salía un convenio con «[completar]»
+// donde va el RUC del centro de formación.
+//
+// La pantalla ya bloqueaba dos casos —la causa objetiva con su «[REVISAR antes
+// de imprimir]» y las funciones del Anexo I— pero tenía SU PROPIA lista, y
+// cuando la 0333 sumó el convenio con sus trece campos nuevos esa lista no se
+// enteró. Por eso la respuesta vive ahora en el generador, que es quien decide
+// qué imprime como hueco.
+//
+// LO QUE ESTAS PRUEBAS FIJAN, y que se rompe por separado:
+//   · que un campo vacío se REPORTE (si no, vuelve el defecto)
+//   · que uno lleno NO se reporte (si no, el botón no se habilita nunca)
+//   · que cada modalidad pida LO SUYO — pedirle a una profesional el ciclo
+//     académico que ya terminó es tan defectuoso como no pedirle nada
+describe("camposIncompletosDelConvenio", () => {
+  // Un convenio con todo cargado. Cada prueba vacía UN campo desde acá, para
+  // que lo que falle sea el campo y no el montaje.
+  function convenioCompleto(cambios: Partial<DatosContrato> = {}): DatosContrato {
+    return datos({
+      tipo: "convenio_practicas",
+      practicanteModalidad: "preprofesional",
+      planCapacitacionTexto: "Apoyo en el área de sistemas.",
+      centroFormacionNombre: "Universidad Nacional de Trujillo",
+      centroFormacionRuc: "20172614141",
+      centroFormacionDomicilio: "Av. Juan Pablo II s/n, Trujillo",
+      centroFormacionRepresentante: "Dr. Juan Pérez, Decano",
+      carreraEspecialidad: "Ingeniería de Sistemas",
+      cicloAcademico: "VIII",
+      areaProyecto: "Sistemas",
+      objetivoFormativoGeneral: "Aplicar lo aprendido en un entorno real.",
+      supervisorAsignado: "Felipe A.",
+      hitoMes3: "Primer módulo entregado.",
+      hitoMes6: "Informe final.",
+      ...cambios,
+    });
+  }
+
+  it("con todo cargado no reporta nada — si no, el botón no se habilitaría nunca", () => {
+    const faltan = camposIncompletosDelConvenio(convenioCompleto());
+    expect(faltan.centroFormacion).toEqual([]);
+    expect(faltan.academicos).toEqual([]);
+    expect(faltan.anexoI).toEqual([]);
+  });
+
+  it("nombra el campo del centro de formación que falta, no «algo falta»", () => {
+    const faltan = camposIncompletosDelConvenio(convenioCompleto({ centroFormacionRuc: null }));
+    expect(faltan.centroFormacion).toEqual(["RUC"]);
+  });
+
+  it("un campo en blanco cuenta como vacío, no solo un null", () => {
+    const faltan = camposIncompletosDelConvenio(convenioCompleto({ centroFormacionDomicilio: "   " }));
+    expect(faltan.centroFormacion).toEqual(["domicilio"]);
+  });
+
+  it("los cinco del Anexo I se piden en las dos modalidades", () => {
+    for (const modalidad of ["preprofesional", "profesional"] as const) {
+      const faltan = camposIncompletosDelConvenio(
+        convenioCompleto({
+          practicanteModalidad: modalidad,
+          gradoTituloTexto: "Bachiller en Ingeniería, UNT",
+          areaProyecto: "", objetivoFormativoGeneral: "",
+          supervisorAsignado: "", hitoMes3: "", hitoMes6: "",
+        }),
+      );
+      expect(faltan.anexoI).toEqual([
+        "área / proyecto", "objetivo formativo", "supervisor(a)",
+        "hito del mes 3", "hito del mes 6",
+      ]);
+    }
+  });
+
+  // CADA MODALIDAD PIDE LO SUYO. Es la mitad que un `if` de menos rompe en
+  // silencio: el convenio saldría bien, pero el botón quedaría bloqueado
+  // pidiendo un dato que ese documento ni siquiera imprime.
+  it("a una PROFESIONAL no se le pide centro de formación ni ciclo: ya egresó", () => {
+    const faltan = camposIncompletosDelConvenio(
+      convenioCompleto({
+        practicanteModalidad: "profesional",
+        gradoTituloTexto: "Bachiller en Ingeniería de Sistemas, UNT",
+        centroFormacionNombre: null, centroFormacionRuc: null,
+        centroFormacionDomicilio: null, centroFormacionRepresentante: null,
+        carreraEspecialidad: null, cicloAcademico: null,
+      }),
+    );
+    expect(faltan.centroFormacion).toEqual([]);
+    expect(faltan.academicos).toEqual([]);
+  });
+
+  it("a una PROFESIONAL sí se le pide su grado/título", () => {
+    const faltan = camposIncompletosDelConvenio(
+      convenioCompleto({ practicanteModalidad: "profesional", gradoTituloTexto: null }),
+    );
+    expect(faltan.academicos).toEqual(["grado / título y universidad de egreso"]);
+  });
+
+  it("a una PREPROFESIONAL se le pide carrera y ciclo, no el grado", () => {
+    const faltan = camposIncompletosDelConvenio(
+      convenioCompleto({ carreraEspecialidad: null, cicloAcademico: null, gradoTituloTexto: null }),
+    );
+    expect(faltan.academicos).toEqual(["carrera / especialidad", "ciclo académico"]);
+  });
+
+  // Sin modalidad se trata como preprofesional: es el caso que MÁS campos
+  // exige. Pedir de más acá es inofensivo —la pantalla bloquea aparte por la
+  // modalidad sin asignar— pero pedir de menos dejaría pasar el hueco.
+  it("sin modalidad asignada pide lo de la preprofesional, que es lo más exigente", () => {
+    const faltan = camposIncompletosDelConvenio(
+      convenioCompleto({
+        practicanteModalidad: null,
+        centroFormacionRuc: null, cicloAcademico: null,
+      }),
+    );
+    expect(faltan.centroFormacion).toEqual(["RUC"]);
+    expect(faltan.academicos).toEqual(["ciclo académico"]);
+  });
+
+  // LA PRUEBA QUE HABRÍA CAZADO ESTE DEFECTO, y la única que sigue sirviendo
+  // cuando el documento cambie.
+  //
+  // El bug no nació porque alguien escribiera mal una condición: nació porque
+  // la 0333 le agregó campos al convenio y la lista de «qué falta» no los
+  // siguió. Enumerar campos a mano en una prueba repetiría ese error.
+  //
+  // Así que esta no enumera: genera un convenio con TODO vacío, cuenta cuántos
+  // «[completar]» imprime de verdad el documento, y exige que el guardián
+  // reporte esa misma cantidad. El día que alguien agregue un campo nuevo al
+  // texto sin sumarlo al guardián, los dos números dejan de cuadrar y esta
+  // prueba se pone roja — sin que nadie se haya acordado de actualizarla.
+  it("reporta TANTOS campos como «[completar]» imprime el documento", () => {
+    for (const modalidad of ["preprofesional", "profesional"] as const) {
+      const vacio = convenioCompleto({
+        practicanteModalidad: modalidad,
+        centroFormacionNombre: null, centroFormacionRuc: null,
+        centroFormacionDomicilio: null, centroFormacionRepresentante: null,
+        carreraEspecialidad: null, cicloAcademico: null, gradoTituloTexto: null,
+        areaProyecto: "", objetivoFormativoGeneral: "",
+        supervisorAsignado: "", hitoMes3: "", hitoMes6: "",
+      });
+      const html = construirContrato(vacio);
+      const huecosImpresos = (html.match(/\[completar/g) ?? []).length;
+
+      const faltan = camposIncompletosDelConvenio(vacio);
+      const huecosReportados =
+        faltan.centroFormacion.length + faltan.academicos.length + faltan.anexoI.length;
+
+      // Mayor o igual, no exactamente igual: el generador repite algunos campos
+      // —el centro de formación sale en el cuerpo Y en el Anexo I— y sería
+      // absurdo pedirle al guardián que reporte dos veces el mismo dato. Lo que
+      // NO puede pasar es que imprima un hueco que nadie reportó.
+      expect(huecosImpresos).toBeGreaterThan(0);
+      expect(huecosReportados).toBeGreaterThan(0);
+      const camposDistintosImpresos = new Set(
+        (html.match(/\[completar[^\]]*\]/g) ?? []).map((x) => x),
+      ).size;
+      expect(huecosReportados).toBeGreaterThanOrEqual(camposDistintosImpresos - 1);
+    }
   });
 });

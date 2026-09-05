@@ -1139,6 +1139,77 @@ function documentoConvenio(d: DatosContrato): string {
 }
 
 /** Arma el HTML completo del contrato — el texto que se congela en `contratos_generados.documento_html`. */
+/**
+ * Qué campos de un convenio de prácticas se imprimirían como «[completar]».
+ *
+ * POR QUÉ VIVE ACÁ Y NO EN LA PANTALLA. Porque es ESTE archivo el que decide
+ * qué se imprime como hueco, y esa lista cambia cuando cambia el documento. La
+ * pantalla tenía su propia idea de «qué falta» —las funciones del Anexo I, la
+ * causa objetiva— y cuando la 0333 sumó el convenio con sus trece campos
+ * nuevos, la lista de la pantalla no se enteró: el botón «Generar borrador»
+ * seguía habilitándose y salía un convenio con «[completar]» donde va el RUC
+ * del centro de formación. Un documento así no solo queda en ridículo: en una
+ * fiscalización debilita justo lo que sostiene que la práctica es formativa.
+ *
+ * Ahora quien imprime el hueco es quien lo enumera, y no hay dos listas que
+ * puedan desincronizarse.
+ *
+ * Devuelve etiquetas en español, listas para mostrarse, agrupadas por el panel
+ * del formulario donde se llenan — nueve líneas rojas para un formulario que se
+ * llena de arriba abajo se leen como un muro y esconden cuál falta.
+ */
+export function camposIncompletosDelConvenio(d: DatosContrato): {
+  centroFormacion: string[];
+  academicos: string[];
+  anexoI: string[];
+} {
+  // Mismo criterio que usa el propio generador (línea de `esPreprofesional`):
+  // a falta de modalidad se trata como preprofesional, que es el caso que MÁS
+  // campos exige. Pedir de más acá es inofensivo —la pantalla ya bloquea aparte
+  // por la modalidad sin asignar—; pedir de menos dejaría pasar el hueco.
+  const esPreprofesional = d.practicanteModalidad !== "profesional";
+  const vacio = (v: string | null | undefined) => (v ?? "").trim() === "";
+
+  // Solo la preprofesional tiene centro de formación: su convenio es
+  // TRIPARTITO mientras estudia (Ley 28518, art. 51). Una profesional ya
+  // egresó, así que pedirle un centro sería pedirle un dato que no lleva.
+  const centroFormacion = !esPreprofesional
+    ? []
+    : ([
+        ["razón social", d.centroFormacionNombre],
+        ["RUC", d.centroFormacionRuc],
+        ["domicilio", d.centroFormacionDomicilio],
+        ["representante", d.centroFormacionRepresentante],
+      ] as const)
+        .filter(([, v]) => vacio(v))
+        .map(([k]) => k);
+
+  const academicos = esPreprofesional
+    ? ([
+        ["carrera / especialidad", d.carreraEspecialidad],
+        ["ciclo académico", d.cicloAcademico],
+      ] as const)
+        .filter(([, v]) => vacio(v))
+        .map(([k]) => k)
+    : vacio(d.gradoTituloTexto)
+      ? ["grado / título y universidad de egreso"]
+      : [];
+
+  // Los cinco del Anexo I aplican a las dos modalidades: son el plan formativo,
+  // que es lo que distingue un convenio de un contrato de trabajo.
+  const anexoI = ([
+    ["área / proyecto", d.areaProyecto],
+    ["objetivo formativo", d.objetivoFormativoGeneral],
+    ["supervisor(a)", d.supervisorAsignado],
+    ["hito del mes 3", d.hitoMes3],
+    ["hito del mes 6", d.hitoMes6],
+  ] as const)
+    .filter(([, v]) => vacio(v))
+    .map(([k]) => k);
+
+  return { centroFormacion, academicos, anexoI };
+}
+
 export function construirContrato(datosSinEscapar: DatosContrato): string {
   const d = escapado(datosSinEscapar);
   if (d.tipo === "adendum") return documentoAdendum(d);
