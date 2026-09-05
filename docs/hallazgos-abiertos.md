@@ -1742,3 +1742,191 @@ pasado borraría su CTS retroactivamente, sin ninguna fecha que lo acote.
   raíz y no guard por guard". No hay ningún caso real de dos guardas
   divergentes para el mismo verbo — el riesgo que alegaba el hallazgo no
   existe hoy, y el propio diseño lo previene.
+
+---
+
+## Auditoría del 2026-09-05 · código nuevo desde el 2026-09-04, vistazo general, benchmark contra 6 ERPs — 28 agentes
+
+Salió de repetir y ampliar la auditoría del 2026-09-03/04 (57 hallazgos, PDF
+entregado fuera del repo): 11 agentes auditaron a fondo cada migración nueva
+(0360-0375) y cada PR abierto no fusionado que dice resolver un hallazgo de
+esa auditoría, cruzando el código real contra lo pedido; 8 agentes dieron un
+vistazo general —sin lista previa— a dominios que la ronda de ayer no cubrió
+en detalle; 6 agentes investigaron con búsqueda web cómo Gusto, Rippling,
+BambooHR, Workday, Odoo y Oracle resuelven primitivos equivalentes. El único
+hallazgo nuevo de severidad crítica pasó por 3 refutadores independientes,
+cada uno con instrucción de tumbarlo leyendo el código real — los tres lo
+confirmaron, incluida una prueba empírica contra el motor de Postgres local.
+Informe completo, con el benchmark detallado y ejemplos: PDF entregado a
+Felipe el 2026-09-05 (no vive en el repo, igual que el de ayer).
+
+### Crítico — 1, nacido de un arreglo de ayer
+
+- **La 0374 ("el rol deja de contar si la persona no está activa") reescribió
+  `fn_rol_actual()` para devolver `NULL` en un cesado, pero no tocó dos
+  funciones `SECURITY DEFINER` cuyo guard mezcla un `is not true` aislado con
+  un `and not(...)` suelto — la misma trampa de tres valores que la 0078 y la
+  0126 ya corrigieron dos veces.** Antes de la 0374, el rol de un cesado
+  seguía siendo el real (`FALSE` en la comparación, guard bloqueaba). Desde la
+  0374, ese término da `NULL` para cualquier inactivo, y como `fn_cesar_persona`
+  (0327) nunca borra `sede_base_id`, la condición compuesta completa da `NULL`
+  — un `if NULL then raise exception` en PL/pgSQL no dispara. Efecto verificado:
+  una persona cesada con sesión de Auth viva puede (1) leer el saldo/fechas de
+  vacaciones de cualquier persona activa de su antigua sede vía
+  `fn_vacaciones_saldo` (`0357:144-150`), y (2) resolver como `improcedente` o
+  `repuesta` una marca apartada de un excolega vía `fn_marca_apartada_resolver`
+  (`0304:265-271`) — si fue admin/líder/encargada, esto último **escribe un
+  marcaje real** vía `fn_registrar_marcaje` que alimenta jornada y pago de otra
+  persona. Ninguna prueba pgTAP existente (237/283/294/231) cubre el caso
+  "persona cesada". **Acción:** reescribir ambos guards al patrón de la 0126 —
+  envolver el OR completo en un único `is not true`, no un término suelto —
+  en una migración nueva, con caso real de prueba (cesada + misma sede que un
+  colega activo).
+
+### En disputa — 4 hallazgos de ayer, 8 PRs abiertos sin fusionar (madrugada del 2026-09-05)
+
+Ocho sesiones abrieron ocho PRs en menos de una hora atacando los mismos
+cuatro hallazgos, sin verse entre sí — el mismo patrón que ya costó la
+duplicación de `fn_vacaciones_por_vencer` (0297/0299). Ninguno de los ocho
+está fusionado a esta fecha.
+
+- **Hallazgo 11 (Anexo I del convenio de prácticas).** PRs #199
+  (`claude/convenio-anexo-i-completar`), #197 (`claude/convenio-anexo1-campos-vacios`)
+  y la parte de contratos de #196 (`claude/audit-12-critical-issues-7da199`)
+  tienen un parche **idéntico byte a byte** — misma migración, escrita tres
+  veces. Cubre correctamente todos los campos del Anexo I que ayer se
+  listaron, condicionados a modalidad preprofesional. **Encontrado además:**
+  el correo de la practicante en el Anexo III (`contrato-texto.ts:1298`)
+  también puede imprimirse como `[completar]` y ningún PR lo cubre.
+  **Recomendación: fusionar #199 o #197 (son la misma), cerrar la otra sin
+  fusionar; no fusionar #196 tal cual** — separar antes su commit de
+  Incidencias (no relacionado con este hallazgo).
+- **Hallazgo 12 (tope de horas de practicante en Incidencias).** PRs #196 y
+  #194 (`claude/practicante-tope-en-incidencias`) resuelven la misma regla
+  legal (art. 44, Ley 28518) con **dos funciones distintas**
+  (`maximoSemanalPracticante` vs. `topeSemanalDe`/`tieneTopePropio`) sobre la
+  misma función base ya existente en `main`. #194 es superior en cobertura de
+  pruebas (90 líneas nuevas en `tests/vinculo.test.ts`, cero en #196), en
+  explicar en pantalla por qué dos filas muestran distinto "máx.", y en
+  trazabilidad del aviso. **Recomendación: fusionar #194 (rebase mecánico
+  simple — los 9 commits de atraso no tocan los archivos de este hallazgo),
+  cerrar #196 sin fusionar su parte de Incidencias.**
+- **Hallazgos 7 y 10 (piso legal grati/CTS, alertas de Resend).** PR #198
+  (`claude/12-criticos-estado-c33e88`) solo diagnostica: el script del
+  hallazgo 7 mide población (0 filas hoy, LATENTE, no auditoría día-a-día
+  como pedía la acción de ayer); el script del hallazgo 10 **no se corrió
+  todavía en producción** y tiene un error real — `caducadas_totales` no
+  reproduce el corte por fecha de despliegue (`v_desde_despacho`) que sí usa
+  `fn_alertas_despacho_resumen` (0362), así que puede sobrecontar. **Recomendación:
+  fusionar tras corregir esa columna, y correr efectivamente el script de
+  Resend contra producción.**
+
+### Alta — 16
+
+- **`fn_set_meta_cobertura` volvió a tener el guard `NOT IN` inseguro que la
+  0039 ya había corregido** — la 0195 ("las cuatro funciones que el
+  repositorio no conocía") reescribió la función copiando el cuerpo VIEJO.
+  Vigente hoy (confirmado con `donde-vive.sh`): `0195:149-166`. Falla abierto
+  para identidades sin fila en `personas` — el mismo mecanismo del crítico de
+  arriba, aquí producido al escribir una migración copiando de una versión
+  vieja, no al editar a mano.
+- **`fn_set_horario_semanal` sigue sin candado** — la 0360 arregló el recorte
+  de tramos retroactivos pero no agregó el `pg_advisory_xact_lock` que la
+  0361 sí usó para Objetivos. Un doble clic o dos pestañas chocan contra
+  `horarios_sin_solape` con un mensaje que sugiere un conflicto con OTRO
+  horario, cuando en realidad el primer clic de la misma persona ya guardó lo
+  pedido.
+- **`fn_marcar_alerta_resultado` se llama sin comprobar su `error`** en las
+  tres invocaciones de `alertas-encargadas/route.ts` (188-190, 202-204) — a
+  diferencia de `fn_alertas_reservar` (línea 173), que sí lo hace. Un fallo
+  transitorio deja una fila "procesando" tras un envío ya exitoso, y el
+  despacho de la hora siguiente la reenvía de verdad, duplicando el correo,
+  sin que Sentry se entere.
+- **`horarios/page.tsx` reimplementa el cálculo de horas del día sin el
+  manejo de medianoche** que `jornada-esperada.ts` ya resuelve (`horasEntre`)
+  — a diferencia de `turnos/page.tsx`, que sí lo reusa. Un horario nocturno
+  (salida ≤ entrada) da 0 horas en vez de las reales, escondiendo el aviso de
+  exceso legal de una practicante.
+- **Agregar un bono o descuento en Planilla no pide confirmación**
+  (`planilla/page.tsx:1689-1721`) — las otras seis acciones de dinero de la
+  misma pantalla sí confirman antes de escribir.
+- **El diálogo de "marcar como pagada" en Liquidaciones puede nombrar un
+  monto distinto al que se congela** — usa `f.total` (cargado una sola vez al
+  montar) en vez de `detalle.total` (el que el Desglose muestra en pantalla
+  en ese momento). Más grave para "volver a marcar ya pagada": ahí `f.total`
+  es el histórico congelado, mientras el texto promete "el cálculo de HOY".
+- **El espejo a Google Sheets borra del resumen mensual a quien cesó**, aunque
+  haya trabajado ese mes — filtra por el estado *actual*, no por si estuvo
+  activa durante el periodo reportado. Justo la persona con más motivo de
+  revisión (liquidación de cese a mitad de mes) desaparece de "Resumen".
+- **Una marca rechazada por el servidor sigue contando como "de hoy" hasta
+  ~90 segundos** — el intento inmediato en `marcar/page.tsx` nunca llama a
+  `registrarIntentoFallido`; el reloj del descarte no arranca hasta el
+  próximo tick de `sync.ts` (cada 15s, 6 fallos). El terminal puede ofrecer
+  "¿volviste a entrar?" sobre una salida que el servidor nunca aceptó.
+- **Un convenio preprofesional puede firmarse con la identidad del centro de
+  formación en blanco, incluso en el bloque de firmas** — `centroFormacion*`
+  no tiene ninguna entrada en `bloqueos` (`contratos/page.tsx`), aunque
+  `contrato-texto.ts:1115-1119` los imprime en el bloque de firmas tripartito
+  si llegan vacíos.
+- **El Anexo IV (confirmación de activos) se salta para convenios**, aunque
+  el documento SÍ lo incluye con fallback silencioso a "no tiene activos
+  adicionales" — `contratos/page.tsx:718` excluye `esConvenio` de la
+  validación que sí exige a un contrato normal.
+- **En /admin/equipo, una encargada de sede recibe "Cambios guardados" aunque
+  RLS descartó su UPDATE en silencio** — la única policy de UPDATE sobre
+  `personas` exige admin/líder DO; Postgres no lanza error si la fila no
+  cumple, solo actualiza 0 filas, y el código solo mira `error` (que llega
+  `null`).
+- **Objetivos no avisa que el mes ya tiene planilla pagada antes de dejar
+  editar** — el guardián existe en el servidor; el cliente nunca pide el
+  dato para avisar antes, a diferencia de `correcciones/page.tsx`.
+- **El checkbox de un objetivo puede quedar marcado visualmente aunque el
+  guardado se rechace** — la rama de error de `marcar()` no revierte
+  `items`, y el `ToastProvider` separado no fuerza un re-render de la
+  pantalla.
+- **Feriados: `NO_OTORGADO` se ve igual que `PENDIENTE`**, aunque el primero
+  revierte la justificación de una falta (vuelve a contar como injustificada
+  y la planilla vuelve a cobrar la sobretasa). Mismo gris, sin distinción.
+- **Ausencias: vacaciones ya vencidas y por vencer comparten el mismo rojo**
+  — Bandeja, consultando la misma función, sí las distingue (rojo/ámbar).
+- **Dos campos de fecha bloqueante "arreglados" el 2026-08-30 (datos-personales,
+  educación) en realidad no lo están** — el commit aplicó la combinación de
+  técnicas que CLAUDE.md documenta como ya probadas sin éxito (onChange +
+  onBlur + ref), no la solución real. Y `scripts/hooks/fecha-que-bloquea.sh`
+  no los puede ver: su regex no reconoce `useState({..., campo: ""})`, solo
+  identificadores simples.
+- **`las_alertas_de_resend_llegan.sql` (PR #198) no reproduce el criterio
+  real de `fn_alertas_despacho_resumen`** — ver «En disputa» arriba.
+
+### Baja — 2
+
+- El encabezado de la 0361 cita un `statement_timeout=8s` del rol
+  `authenticated` sin fuente verificable en el repositorio — no cambia el
+  comportamiento, pero conviene confirmarlo contra producción antes de
+  citarlo de nuevo.
+- `docs/revision-2026-07-15/D-terminal-api.md` sigue listando como abierto
+  (checkboxes sin marcar) el PIN del terminal que la 0375 ya retiró por
+  completo.
+
+### Cerrado desde la auditoría del 2026-09-04
+
+- ~~Hallazgos 13, 14, 15, 16, 17, 18, 21, 23, 25 y 33~~ — resueltos por las
+  migraciones 0360-0372. Verificado leyendo el cuerpo vigente de cada función,
+  no solo el mensaje de commit.
+- ~~Hallazgo 8 (el 9% de la Ley 30334)~~ — confirmado pegado y verificado en
+  producción el 2026-09-05 (0372); md5 de llegada coincidió exacto.
+- **Hallazgo 22 (regenerar PIN hasheaba en el navegador) — parcial.** Cerrado
+  para "Nuevo PIN" (regenerar, vía `fn_regenerar_pin` desde la 0364). Sigue
+  abierto para el alta de una persona: `fn_crear_persona` todavía recibe el
+  hash calculado en el navegador (`admin/equipo/page.tsx:449-460`) — de
+  impacto bajo porque el PIN de terminal ya no cumple ninguna función.
+- **Hallazgo 1 (PIN del terminal) — parcial.** Retirado por completo en
+  `main` (0375) — mejor que el arreglo pedido. Sin evidencia de que ya se
+  haya desplegado a Vercel ni pegado el SQL en producción: hasta que eso
+  pase, producción sigue con el código viejo.
+- **Hallazgo 2 (terminal marca en cualquier sede) — parcial, funcionalmente
+  cerrado.** La mitad de sede se cerró con la 0370 (trigger dedicado). La
+  mitad de "persona cesada" no se cerró por el camino pedido, pero ya estaba
+  cubierta desde antes por `fn_marcaje_no_posterior_al_cese` (0086, por fecha
+  de cese en vez de por estado).
