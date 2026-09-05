@@ -730,15 +730,16 @@ export default function NormasPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
+        <div className="mx-auto w-full max-w-4xl">
         <h1 className="mb-1 font-serif text-2xl">Normas</h1>
-        <p className="mb-5 max-w-2xl text-sm text-taupe">
+        <p className="mb-5 text-sm text-taupe">
           Los documentos que rigen para todo el equipo. Aquí se leen, y aquí queda la constancia
           de que se recibieron — con la <strong>versión</strong>, que es lo que un papel firmado no dice.
         </p>
 
         {/* ── Publicar, sólo para quien puede ── */}
         {puedeGestionar && (
-          <div className="mb-5 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div className="mb-5 overflow-hidden rounded-2xl border border-sand bg-papel">
             <button onClick={() => setPublicando((v) => !v)}
               className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
               <span>Publicar una versión</span>
@@ -906,7 +907,7 @@ export default function NormasPage() {
         {cargando ? (
           <Cargando texto="Cargando los documentos…" />
         ) : docs.length === 0 ? (
-          <p className="max-w-xl rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+          <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
             Todavía no hay ningún documento publicado.
             {puedeGestionar && " Publica el primero con el botón de arriba."}
           </p>
@@ -915,7 +916,7 @@ export default function NormasPage() {
             {docs.filter((d) => PRINCIPALES.includes(d.tipo)).map((d) => {
               return (
                 <div key={d.documento_id} id={`doc-${d.documento_id}`}
-                  className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+                  className="overflow-hidden rounded-2xl border border-sand bg-papel">
                   <button
                     onClick={() => setAbierto(abierto === d.documento_id ? null : d.documento_id)}
                     className="flex w-full flex-wrap items-center justify-between gap-3 border-b bg-sand/50 px-4 py-3 text-left">
@@ -999,7 +1000,7 @@ export default function NormasPage() {
             de discrepancia prevalece este Reglamento»; ponerlos al mismo nivel
             haría que la pantalla dijera lo contrario que el articulado. */}
         {!cargando && anexosVisibles.length > 0 && (
-          <div className="mt-6 max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div className="mt-6 overflow-hidden rounded-2xl border border-sand bg-papel">
             <button onClick={() => setVerAnexos((v) => !v)}
               className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
               <span>Anexos <span className="font-normal text-taupe">· {anexosVisibles.length}</span></span>
@@ -1055,6 +1056,7 @@ export default function NormasPage() {
             )}
           </div>
         )}
+        </div>
       </main>
     </div>
   );

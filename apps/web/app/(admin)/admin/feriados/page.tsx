@@ -401,8 +401,9 @@ export default function FeriadosPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
+        <div className="mx-auto w-full max-w-5xl">
         <h1 className="mb-1 font-serif text-2xl">Feriados laborados</h1>
-        <p className="mb-5 max-w-3xl text-sm text-taupe">
+        <p className="mb-5 text-sm text-taupe">
           Quien trabaja un feriado cobra <strong>triple</strong>, salvo que se le dé un{" "}
           <strong>día libre a cambio</strong>. Registrar aquí ese día libre hace dos cosas: quita la
           sobretasa de la planilla del periodo, y evita que ese día le salga como{" "}
@@ -410,7 +411,7 @@ export default function FeriadosPage() {
         </p>
 
         {/* Registrar por lotes */}
-        <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
+        <div className="mb-6 rounded-2xl border border-sand bg-papel p-5">
           <h2 className="mb-3 text-sm font-medium">Registrar días libres a cambio</h2>
 
           {/* 1 · A quiénes */}
@@ -531,9 +532,9 @@ export default function FeriadosPage() {
         </div>
 
         {/* Actas firmadas */}
-        <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
+        <div className="mb-6 rounded-2xl border border-sand bg-papel p-5">
           <h2 className="mb-1 text-sm font-medium">Actas firmadas</h2>
-          <p className="mb-3 max-w-2xl text-xs text-taupe">
+          <p className="mb-3 text-xs text-taupe">
             El acuerdo se registra arriba; aquí se guarda el <strong>papel firmado</strong> que lo
             respalda. Un acta cubre a todas las personas de ese acuerdo — se sube una sola vez.
             PDF o foto, hasta 50 MB.
@@ -622,7 +623,7 @@ export default function FeriadosPage() {
         </div>
 
         {/* Quién trabajó feriados en el rango */}
-        <div className="max-w-5xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Quién trabajó feriados</h2>
@@ -695,7 +696,7 @@ export default function FeriadosPage() {
         </div>
 
         {/* Registros existentes — incluye los de feriados futuros, que no salen arriba */}
-        <div className="mt-6 max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-sand bg-papel">
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Descansos registrados {registros.length > 0 && <span className="font-normal text-taupe">· {registros.length}</span>}
           </h2>
@@ -734,6 +735,7 @@ export default function FeriadosPage() {
               ))}
             </ul>
           )}
+        </div>
         </div>
       </main>
     </div>
