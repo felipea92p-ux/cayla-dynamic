@@ -90,6 +90,18 @@ with repo(numero, nombre, nunca) as (values
     (213, 'solo_agrava_lo_que_se_entrego', true),
     (214, 'la_carta_de_despido_la_firma_gerencia_general', false),
     (215, 'los_cinco_anexos_del_reglamento', false),
+    (216, 'el_tipo_de_cada_sede_que_retail_necesita', false),
+    (217, 'el_cajon_retail_y_sus_permisos', false),
+    (218, 'retail_lee_la_identidad_de_dynamic', false),
+    (219, 'el_catalogo_de_tiendas_entra_al_cajon', false),
+    (220, 'la_operacion_de_tiendas_entra_al_cajon', false),
+    (221, 'contabilidad_y_produccion_entran_al_cajon', false),
+    (222, 'las_funciones_que_mueven_stock_caja_y_ventas', false),
+    (223, 'las_funciones_de_finanzas_del_cajon', false),
+    (224, 'las_funciones_de_produccion_del_taller', false),
+    (225, 'el_buzon_de_fotos_de_producto', false),
+    (226, 'el_material_del_modelo_y_las_seis_etapas', false),
+    (227, 'las_once_de_retail_entran_al_registro', false),
     (228, 'no_se_sanciona_con_un_reglamento_que_no_se_entrego', false),
     (229, 'la_lista_de_constancias_solo_cuenta_a_quien_obliga', false),
     (230, 'el_terminal_puede_preguntar_la_hora', false),
@@ -226,8 +238,8 @@ with repo(numero, nombre, nunca) as (values
     (366, 'dos_toques_seguidos_no_dejan_dos_marcas', false),
     (367, 'fn_registrar_marcaje_pierde_su_sobrecarga_vieja', false),
     (368, 'un_codigo_de_sede_no_se_pisa_en_silencio', false),
-    (370, 'el_terminal_no_marca_por_otra_sede', false),
-    (371, 'el_aviso_de_vencimiento_no_se_salta_a_quien_llego_despues', false)
+    (372, 'el_nueve_por_ciento_deja_de_darse_por_pagado_solo', false),
+    (373, 'a_la_0353_le_faltaba_su_columna_en_produccion', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -271,6 +283,8 @@ select * from (
          'fn_planilla_calcular · versión viva',
          coalesce((
            select case md5(prosrc)
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '0349 — al día con el repositorio'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '6ad7e6bb9d7a1678924c07c89a8e9df4' then '⚠ se quedó en la 0025 — falta pegar lo posterior'
              when '83c9996ff2c82490c8191edc5bd0a996' then '✗ 0025 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '5b263656b9ff462699eaca0db6e1a7b4' then '⚠ se quedó en la 0026 — falta pegar lo posterior'
@@ -382,8 +396,6 @@ select * from (
              when '71b1779aa219c4ea7b01d9a062563552' then '✗ 0322 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0339 — falta pegar lo posterior'
              when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0339 CON LOS ACENTOS ROTOS — vuelve a pegarla'
-             when 'dacebb574315f3f7d880c9117cb3de7f' then '0349 — al día con el repositorio'
-             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
