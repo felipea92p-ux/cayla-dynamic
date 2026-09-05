@@ -70,7 +70,7 @@ export async function cargarRoster(): Promise<RosterCargado> {
   try {
     const res = await supabase
       .from("terminal_roster")
-      .select("id, nombres, apellidos, pin_hash, sede_codigo, sede_nombre")
+      .select("id, nombres, apellidos, sede_codigo, sede_nombre")
       .abortSignal(topeDeRed())
       .order("nombres");
     if (res.error) return respaldoLocal();
@@ -107,7 +107,6 @@ export async function cargarRoster(): Promise<RosterCargado> {
     id: p.id,
     nombres: p.nombres,
     apellidos: p.apellidos,
-    pinHash: p.pin_hash,
     sedeCodigo: p.sede_codigo ?? "?",
     sedeNombre: p.sede_nombre ?? "?",
   }));

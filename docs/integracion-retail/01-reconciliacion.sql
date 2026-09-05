@@ -1,71 +1,107 @@
 -- ============================================================================
--- FASE 0 — RECONCILIACIÓN (diagnóstico) · SOLO LECTURA, cero riesgo
+-- HIGIENE DE DNI EN DYNAMIC · SOLO LECTURA, cero riesgo
 -- ----------------------------------------------------------------------------
--- Objetivo: medir el desajuste entre `personas`/`sedes` de Dynamic y de retail
--- ANTES de construir la ventanita. Nada de esto modifica datos: solo SELECT.
+-- Esto era el "Bloque A" de la reconciliación Dynamic↔retail. Los bloques B y
+-- C (comparar contra "la base de retail") se retiraron el 2026-09-04: desde
+-- el 2026-07-23 retail vive en el MISMO Postgres que Dynamic, como schema
+-- `retail.personas` — una vista `security_invoker` sobre esta misma tabla, no
+-- una copia. No hay nada que reconciliar por DNI entre "dos bases" porque no
+-- hay dos bases. Ver `00-plan.md`.
 --
--- Cómo usarlo:
---   1) Corre la PARTE A completa en la base de DYNAMIC (proyecto cayla-dynamic).
---   2) Corre la PARTE B en la base de RETAIL (proyecto cayla-retail) — primero
---      la consulta B0 para ver las columnas reales y ajustar B1/B2 si hace falta.
---   3) Pégame las salidas de A y B → yo produzco el diff exacto (quién falta
---      dónde, DNIs que no coinciden, gente sin DNI).
+-- Lo que queda es útil por su cuenta, sin relación con retail: mide qué tan
+-- confiable es el DNI de `public.personas` como llave — formato, duplicados,
+-- gente sin documento. Correr en el SQL Editor de Supabase (el único que hay).
+--
+-- ⚠️ La salida lleva DNI y nombres reales: no se commitea ni se pega en una
+-- issue.
 -- ============================================================================
 
+with base as (
+  select
+    p.id,
+    p.nombres || ' ' || p.apellidos            as nombre,
+    p.estado,
+    nullif(btrim(coalesce(p.documento, '')), '') as doc,
+    sb.codigo                                  as sede_base,
+    sb.tipo                                    as sede_base_tipo,
+    sf.codigo                                  as sede_fisica
+  from personas p
+  join      sedes sb on sb.id = p.sede_base_id
+  left join sedes sf on sf.id = p.sede_fisica_id
+),
+activas as (select * from base where estado = 'activo')
+select * from (
+  select 1 as orden, 'Personas' as bloque,
+         'activas / inactivas' as chequeo,
+         (select count(*) from base where estado = 'activo')::text || ' activas · ' ||
+         (select count(*) from base where estado <> 'activo')::text || ' inactivas' as resultado
 
--- ############################################################################
--- PARTE A — En la base de DYNAMIC (cayla-dynamic)
--- ############################################################################
+  union all
+  select 2, 'DNI', 'ACTIVAS sin documento',
+         coalesce((select string_agg(nombre, ', ' order by nombre) from activas where doc is null),
+                  '— ninguna (bien)')
 
--- A1) Personas con su DNI, estado y sede (la lista maestra que Dynamic manda).
-select
-  p.documento                       as dni,
-  p.nombres || ' ' || p.apellidos   as nombre,
-  p.estado,
-  s.codigo                          as sede
-from personas p
-left join sedes s on s.id = p.sede_base_id
-order by p.documento nulls first;
+  union all
+  select 3, 'DNI', 'inactivas sin documento',
+         coalesce((select string_agg(nombre, ', ' order by nombre) from base
+                   where estado <> 'activo' and doc is null),
+                  '— ninguna')
 
--- A2) ¿Cuántas personas SIN DNI? (las que van a dar problema en el amarre.)
-select count(*) as dynamic_personas_sin_dni
-from personas
-where documento is null or trim(documento) = '';
+  union all
+  -- El formato que exige fn_set_documento desde la 0125: 8 a 12 alfanuméricos,
+  -- sin espacios ni guiones. Lo cargado ANTES de esa migración no pasó por ahí.
+  select 4, 'DNI', 'formato raro (espacios, guiones, largo)',
+         coalesce((select string_agg(nombre || ' → «' || doc || '»', ', ' order by nombre)
+                   from base where doc is not null and doc !~ '^[0-9A-Za-z]{8,12}$'),
+                  '— ninguno (bien)')
 
--- A3) Sedes de Dynamic.
-select codigo, nombre, activa
-from sedes
-order by codigo;
+  union all
+  select 5, 'DNI', 'documentos repetidos',
+         coalesce((select string_agg(doc || ' (' || n || ')', ', ')
+                   from (select doc, count(*) as n from base
+                         where doc is not null group by doc having count(*) > 1) d),
+                  '— ninguno (bien)')
 
+  union all
+  -- Si el índice NO existe, la 0125 se encontró duplicados el día que corrió y
+  -- se negó a crearlo. Es la forma barata de saber si esto ya pasó antes.
+  select 6, 'DNI', 'índice único idx_personas_documento_unico',
+         case when exists (select 1 from pg_indexes
+                           where schemaname = 'public'
+                             and indexname = 'idx_personas_documento_unico')
+              then 'existe (no hubo repetidos)'
+              else '⚠ NO existe — la 0125 lo abortó por duplicados' end
 
--- ############################################################################
--- PARTE B — En la base de RETAIL (cayla-retail)
--- ############################################################################
+  union all
+  select 7, 'DNI', 'empiezan con cero',
+         coalesce((select string_agg(nombre || ' → ' || doc, ', ' order by nombre)
+                   from base where doc like '0%'),
+                  '— ninguno')
 
--- B0) PRIMERO: ver las columnas reales de retail.personas, para ajustar B1.
---     (No sé de memoria cómo se llaman: dni? documento? nombre? nombres?)
-select column_name, data_type
-from information_schema.columns
-where table_schema = 'public' and table_name = 'personas'
-order by ordinal_position;
+  union all
+  select 8, 'Sedes', 'catálogo de Dynamic',
+         (select string_agg(codigo || ' · ' || nombre || ' · ' || tipo ||
+                            case when activa then '' else ' (INACTIVA)' end,
+                            '  |  ' order by codigo)
+          from sedes)
 
--- B1) Personas de retail con su DNI. AJUSTA los nombres de columna según B0.
---     (Cambia `dni`, `nombre`, `activo` por los reales si difieren.)
-select
-  dni,
-  nombre,
-  activo
-from personas
-order by dni nulls first;
+  union all
+  select 9, 'Sedes', 'activas por sede base',
+         (select string_agg(sede_base || ': ' || n, '  |  ' order by sede_base)
+          from (select sede_base, count(*) as n from activas group by sede_base) x)
 
--- B2) Sedes de retail. AJUSTA columnas si difieren.
-select *
-from sedes
-order by 1;
+  union all
+  -- Quién vende, según Dynamic: activa en un local tipo 'tienda'. retail.personas
+  -- (vista sobre esta misma tabla) va a mostrar exactamente esta lista.
+  select 10, 'Retail', 'activas en sede tipo tienda (las que retail ve)',
+         coalesce((select string_agg(nombre || ' (' || sede_base || ')', ', ' order by sede_base, nombre)
+                   from activas where sede_base_tipo = 'tienda'),
+                  '— ninguna')
 
--- B3) (opcional) Si retail asocia sus ventas a un vendedor/persona, ver cómo:
---     lista las columnas de `ventas` para saber con qué campo apunta a la persona.
-select column_name, data_type
-from information_schema.columns
-where table_schema = 'public' and table_name = 'ventas'
-order by ordinal_position;
+  union all
+  select 11, 'Retail', 'trabajan en una sede distinta a su sede base',
+         coalesce((select string_agg(nombre || ': base ' || sede_base || ' → física ' || sede_fisica,
+                                     ', ' order by nombre)
+                   from activas where sede_fisica is not null and sede_fisica <> sede_base),
+                  '— ninguna (sede base alcanza)')
+) t order by orden;

@@ -248,9 +248,13 @@ el día que la necesite el terminal, se muda. Hubo dos copias más viejas y
 parciales: en `admin/correcciones/page.tsx` (`calcularEsperado`), solo la hora
 de entrada y con un bug real —su rama legacy no comprobaba `dias_laborables`—,
 y en `admin/incidencias/page.tsx` (`trabajaEseDia`), solo booleano. Las dos se
-unificaron el 2026-08-25. **Queda una sin unificar** —`admin/turnos/page.tsx`
-(`horasDeTramo`, `celda`)— **y mientras tanto no se escribe una quinta.** Esa
-regla decide si a alguien se le cuenta una falta.
+unificaron el 2026-08-25. La cuarta copia —`admin/turnos/page.tsx`
+(`horasDeTramo`, `celda`)— se unificó el 2026-09-03: tenía una divergencia
+silenciosa (rellenaba `dias_laborables` con `[1,2,3,4,5]` cuando venía vacío,
+un default que la cascada canónica nunca aplica) que nunca disparó porque esa
+columna es NOT NULL en `horarios_asignados`, pero habría mostrado lunes a
+viernes donde el resto del sistema mostraba descanso. **No se escribe una
+quinta.** Esa regla decide si a alguien se le cuenta una falta.
 
 Y una quinta, del 2026-08-26: **un campo de fecha cuyo vacío BLOQUEA el envío
 no puede arrancar en `""`.** Nace con el valor más probable —hoy, o la fecha de
@@ -761,20 +765,47 @@ pruebas de GitHub de ese commit hayan pasado —**incluidas las de base de datos
 (pgTAP)**— y recién ahí publica. Para producción pide escribir `publicar` como
 confirmación.
 
-**Las pgTAP también corren en esta Mac**, y conviene correrlas antes de subir:
-```bash
-npx supabase db start    # levanta Postgres y aplica todas las migraciones
-npx supabase test db     # 34 archivos, 302 pruebas, ~3 segundos
-```
+**La señal fiable de las pgTAP es `db-tests` de GitHub Actions, no esta Mac.**
+`.github/workflows/tests.yml` corre `supabase db start` + `supabase test db` en
+CADA pull request y en cada push a `main`, sobre una base construida desde cero.
+Eso es lo que hay que mirar antes de dar una migración por buena, y es lo que
+`desplegar.sh` ya exige. Hoy son **214 archivos y ~2 188 aserciones**, no las
+«34 archivos, 302 pruebas» que decía este párrafo.
+
+**Y ojo con correrlas en esta Mac, porque el Postgres local es UNO SOLO para los
+~10 worktrees.** `npx supabase test db` mide una base que otras sesiones mueven
+por debajo, y `npx supabase db reset` **le destruye el estado a todo el mundo**.
+El 2026-09-04, en una sola sesión, otra ventana la reinició tres veces mientras
+se verificaba un PR: `max(numero)` de `migraciones_aplicadas` fue 363 → 357 →
+348 → servidor caído → 372.
+
+Eso produjo DOS falsos rojos, y los dos se leen como deuda vieja del repositorio:
+
+- `274` fallaba porque a la base compartida le faltaban migraciones que el
+  worktree sí tenía. En CI estaba verde.
+- `194` ni siquiera fallaba: el contador casero hacía `grep` de «error» y casaba
+  con el texto de una aserción — «(por error: el dinero nunca salió del banco)».
+
+Se fue media hora en perseguir dos defectos que no existían. Así que si hace
+falta medir en local antes de subir, hay dos reglas:
+
+1. **Aísla la deriva.** Aplica dentro de `begin … rollback` las migraciones que
+   le falten a la base (compara `migraciones_aplicadas` contra
+   `ls supabase/migrations`), y corre ahí tu prueba. Nunca `db reset`.
+2. **Corre siempre el control**: la misma prueba SIN tus cambios. Sin él no se
+   puede distinguir «lo rompí yo» de «ya venía así», que es exactamente el error
+   que se cometió.
+
+Lo que sí sigue siendo cierto, y es la mitad útil de correrlas acá: `db start`
+aplica el esquema entero desde cero, así que un error de sintaxis o una
+dependencia rota de una migración nueva salta ahí y no en producción. (Este
+archivo llegó a decir que las pgTAP «no corren en esta Mac porque necesitan
+Docker», y eso era falso; comprobado el 2026-08-04 con Docker Desktop 29.6.2 y
+Supabase CLI 2.109.1.)
+
 Ojo con el resumen: `Bad plan. You planned N tests but ran M` **no** es un error de
 conteo, es un archivo que abortó a media ejecución — las pruebas que faltaron nunca
 verificaron nada. Se lee igual de discreto que un descuido y no lo es.
-
-Comprobado el 2026-08-04 con Docker Desktop 29.6.2 y Supabase CLI 2.109.1. El
-`db start` es además la mejor verificación de una migración nueva: aplica el
-esquema entero desde cero, así que un error de sintaxis o una dependencia rota
-salta ahí y no en producción. (Este archivo decía lo contrario —«no corren en
-esta Mac porque necesitan Docker»— y era falso.)
 
 En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.
