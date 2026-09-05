@@ -10,7 +10,7 @@ import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
-  TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
+  TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL, topeSemanalDe, tieneTopePropio,
   MAXIMO_DIAS_SIN_DESCANSO, avisoDeRacha, ventanaMasCargada,
 } from "@cayla-dynamic/shared";
 
@@ -287,7 +287,13 @@ function IncidenciasContenido() {
           .from("jornadas")
           // CAMBIO 0284 — `estado` viaja para poder decir cuándo el exceso se
           // apoya en una hora que puso el sistema y nadie confirmó.
-          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          //
+          // Y `tipo_vinculo` + `practicante_modalidad` porque el tope de una
+          // practicante NO es el de todo el mundo: son 30 h si es
+          // preprofesional (art. 44 de la Ley 28518). Sin estos dos campos
+          // esta pantalla solo sabía comparar contra 48 y se quedaba callada
+          // justo con quien menos margen tiene.
+          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, sedes:sede_base_id(codigo))")
           .gte("fecha", haceDias(VENTANA_EXCESO_DIAS + 5)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
@@ -464,17 +470,47 @@ function IncidenciasContenido() {
         entrada: null,
         salida: null,
       };
+      // EL TOPE NO ES EL MISMO PARA TODO EL MUNDO.
+      //
+      // Una practicante preprofesional tiene 30 h semanales por el art. 44 de
+      // la Ley 28518, no las 48 del art. 25 de la Constitución. Son normas
+      // distintas: la de 48 es el tope de una jornada laboral; la de 30 es la
+      // condición que sostiene que el convenio sea FORMATIVO y no un contrato
+      // de trabajo encubierto. Pasarse de ella no es «una hora de más»: es uno
+      // de los indicios con los que se desnaturaliza el convenio.
+      //
+      // `/admin/horarios` ya lo resolvía al ARMAR el horario. Acá se medía lo
+      // que de verdad se marcó, y contra 48 fijas — así que una practicante que
+      // cubre turnos y termina la semana con 38 h no producía ni una línea,
+      // aunque llevara ocho horas por encima de su tope. Y esas horas quedan
+      // escritas en `marcajes`, que es append-only: es justo la evidencia que
+      // se miraría si alguien alega que la relación era laboral.
+      //
+      // La decisión de qué pasa cuando falta la modalidad NO se toma acá: vive
+      // en `topeSemanalDe`, con su porqué y su prueba. Acá solo se pregunta.
+      const topeSemanal = topeSemanalDe(
+        j.personas?.tipo_vinculo,
+        j.personas?.practicante_modalidad,
+      );
+      // Que el aviso diga de dónde sale el número. Quien lo lee tiene que poder
+      // distinguir «se pasó del tope de todos» de «se pasó del suyo, que es más
+      // bajo porque es formativo» — son dos conversaciones distintas.
+      const deQuienEsElTope =
+        tieneTopePropio(j.personas?.tipo_vinculo, j.personas?.practicante_modalidad)
+          ? " · tope de practicante, Ley 28518"
+          : "";
+
       // Dos preguntas distintas, y por eso dos ventanas.
       //
       // La primera: ¿se está pasando AHORA? Ventana que termina en los últimos
       // siete días — todavía se puede mover un turno y frenarlo.
       const v = ventanaMasCargada(dias, haceDias(EXCESO_AUN_EVITABLE_DIAS), HOY);
-      const hayExcesoVivo = v !== null && v.horas > MAXIMO_LEGAL_SEMANAL;
+      const hayExcesoVivo = v !== null && v.horas > topeSemanal;
       if (hayExcesoVivo) {
         out.push({
           ...quien,
           fecha: v!.fin,
-          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`
+          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${topeSemanal}${deQuienEsElTope})`
             + (apoyadoEnHoraInventada(sinConfirmar, v!.fin)
                  ? " · incluye días cuya salida puso el sistema y falta confirmar"
                  : ""),
@@ -494,12 +530,12 @@ function IncidenciasContenido() {
         haceDias(VENTANA_EXCESO_DIAS - 1),
         haceDias(EXCESO_AUN_EVITABLE_DIAS + 1),
       );
-      if (vieja === null || vieja.horas <= MAXIMO_LEGAL_SEMANAL) continue;
+      if (vieja === null || vieja.horas <= topeSemanal) continue;
       if (aceptadas.has(`${j.persona_id}|${vieja.fin}|jornada_excedida`)) continue;
       out.push({
         ...quien,
         fecha: vieja.fin,
-        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
+        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${topeSemanal}${deQuienEsElTope})`,
         aceptable: "jornada_excedida",
         severidad: "media",
       });
@@ -741,7 +777,7 @@ function IncidenciasContenido() {
           <h1 className="font-serif text-2xl">Incidencias</h1>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Una <strong>practicante preprofesional</strong> se mide contra <strong>30 h</strong>, no contra {MAXIMO_LEGAL_SEMANAL}: es el art. 44 de la Ley 28518, y pasarse de ahí es uno de los indicios con los que un convenio formativo se desnaturaliza en contrato de trabajo. Cuando el aviso viene por ese tope, lo dice. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde

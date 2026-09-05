@@ -1,6 +1,8 @@
 // ============================================================================
 // vinculo.ts — a quién se le habla como trabajadora y a quién no
 // ============================================================================
+// (importa el tope general de `jornada.ts`; esa no importa nada de acá, así
+//  que no hay ciclo — comprobado antes de escribirlo.)
 // QUÉ PROMETE  ·  responder, para una persona, si los documentos que CAYLA le
 //                 emite deben hablarle como trabajadora (planilla) o como
 //                 prestadora de un servicio (locación por honorarios).
@@ -29,6 +31,8 @@
 // vacaciones. Con `=== false`, un dato ausente deja los documentos exactamente
 // como estaban. El defecto seguro es el de antes, nunca el nuevo.
 // ============================================================================
+
+import { MAXIMO_LEGAL_SEMANAL } from "./jornada";
 
 /**
  * ¿A esta persona hay que hablarle como prestadora de servicios?
@@ -135,4 +139,40 @@ export function maximoSemanalPracticante(
   if (modalidad === "preprofesional") return 30;
   if (modalidad === "profesional") return 48;
   return null;
+}
+
+/**
+ * Contra cuántas horas semanales se mide a ESTA persona. Siempre un número.
+ *
+ * POR QUÉ EXISTE, SI YA ESTÁ `maximoSemanalPracticante`. Porque esa devuelve
+ * `null` en dos casos distintos —no es practicante, o lo es y le falta la
+ * modalidad— y quien la usa tiene que decidir qué hacer con ese `null`. Esa
+ * decisión ya se tomó dos veces por separado (al armar el horario y al medir lo
+ * marcado), y en esta casa la misma regla escrita en dos sitios es la forma en
+ * que nacen dos versiones: pasó con «qué toca marcar», con «qué es una falta» y
+ * con «quién puede leer la planilla».
+ *
+ * LA DECISIÓN, y por qué se cae hacia arriba y no hacia abajo. Sin modalidad
+ * cargada se devuelven las 48. Inventarle 30 a quien quizá sea profesional
+ * sería acusar de más, y acá el falso positivo es el peor error: cuesta más
+ * señalar a quien no debía que dejar pasar un caso. Lo que falta entonces es el
+ * DATO, y ese hueco se cierra en la ficha de la persona, no en quien la mide.
+ *
+ * Las 30 h de la preprofesional no son «una jornada más corta»: son la
+ * condición que sostiene que el convenio sea FORMATIVO (art. 44, Ley 28518).
+ * Pasarse es un indicio de desnaturalización, no una hora de más.
+ */
+export function topeSemanalDe(
+  tipoVinculo: string | null | undefined,
+  modalidad: string | null | undefined,
+): number {
+  return maximoSemanalPracticante(tipoVinculo, modalidad) ?? MAXIMO_LEGAL_SEMANAL;
+}
+
+/** ¿El tope de esta persona es el suyo propio, y no el de todo el mundo? */
+export function tieneTopePropio(
+  tipoVinculo: string | null | undefined,
+  modalidad: string | null | undefined,
+): boolean {
+  return topeSemanalDe(tipoVinculo, modalidad) !== MAXIMO_LEGAL_SEMANAL;
 }

@@ -20,7 +20,15 @@
 //     trabajador todos los meses — que pesa más en una inspección que el contrato.
 // ============================================================================
 import { describe, it, expect } from "vitest";
-import { esPrestadorDeServicios, leCorrespondeCuspp, nombreDelDocumentoDePago } from "@cayla-dynamic/shared";
+import {
+  MAXIMO_LEGAL_SEMANAL,
+  esPrestadorDeServicios,
+  leCorrespondeCuspp,
+  maximoSemanalPracticante,
+  nombreDelDocumentoDePago,
+  tieneTopePropio,
+  topeSemanalDe,
+} from "@cayla-dynamic/shared";
 
 describe("esPrestadorDeServicios — solo un «no» explícito cuenta", () => {
   it("quien está en planilla NO es prestador de servicios", () => {
@@ -122,5 +130,85 @@ describe("leCorrespondeCuspp — tres descartes por tres razones distintas", () 
   it("un `en_planilla` que no llegó NO exime a nadie: se sigue pidiendo", () => {
     expect(leCorrespondeCuspp(undefined, "integra")).toBe(true);
     expect(leCorrespondeCuspp(null, "integra")).toBe(true);
+  });
+});
+
+// ============================================================================
+// El tope semanal de una practicante — art. 44 de la Ley 28518
+// ============================================================================
+// Las 30 h de una preprofesional no son «una jornada más corta»: son la
+// condición que sostiene que el convenio sea FORMATIVO. Pasarse de ellas es uno
+// de los indicios con los que se desnaturaliza en contrato de trabajo, y esas
+// horas quedan escritas en `marcajes`, que es append-only — la evidencia se
+// acumula sola y no se puede corregir hacia atrás.
+//
+// `maximoSemanalPracticante` existía desde la 0324 y decidía el texto de un
+// convenio SIN UNA SOLA PRUEBA. Estas son las suyas y las de `topeSemanalDe`,
+// que es la que resuelve el `null` en un solo sitio.
+describe("maximoSemanalPracticante — el tope de la modalidad, o null si no aplica", () => {
+  it("preprofesional: 30 h mientras estudia", () => {
+    expect(maximoSemanalPracticante("practicante", "preprofesional")).toBe(30);
+  });
+
+  it("profesional: 48 h, ya egresó", () => {
+    expect(maximoSemanalPracticante("practicante", "profesional")).toBe(48);
+  });
+
+  it("quien no es practicante no tiene tope de modalidad", () => {
+    expect(maximoSemanalPracticante("planilla", "preprofesional")).toBeNull();
+    expect(maximoSemanalPracticante("rxh", null)).toBeNull();
+    expect(maximoSemanalPracticante(null, null)).toBeNull();
+  });
+
+  // El null que NO significa «sin límite», sino «falta un dato».
+  it("practicante sin modalidad: null, nunca un número inventado", () => {
+    expect(maximoSemanalPracticante("practicante", null)).toBeNull();
+    expect(maximoSemanalPracticante("practicante", undefined)).toBeNull();
+    expect(maximoSemanalPracticante("practicante", "")).toBeNull();
+  });
+});
+
+describe("topeSemanalDe — contra cuántas horas se mide ESTA persona", () => {
+  it("una preprofesional se mide contra 30, no contra las 48 de todos", () => {
+    expect(topeSemanalDe("practicante", "preprofesional")).toBe(30);
+  });
+
+  it("todo el resto del equipo, contra el tope constitucional", () => {
+    expect(topeSemanalDe("planilla", null)).toBe(MAXIMO_LEGAL_SEMANAL);
+    expect(topeSemanalDe("prueba", null)).toBe(MAXIMO_LEGAL_SEMANAL);
+    expect(topeSemanalDe("rxh", null)).toBe(MAXIMO_LEGAL_SEMANAL);
+    expect(topeSemanalDe("practicante", "profesional")).toBe(MAXIMO_LEGAL_SEMANAL);
+  });
+
+  // LA DECISIÓN QUE ESTA PRUEBA FIJA, y la que se rompe sola si alguien
+  // «simplifica» la función: sin modalidad se cae HACIA ARRIBA.
+  //
+  // Inventarle 30 a quien quizá sea profesional acusaría de más, y en esta casa
+  // el falso positivo es el peor error. Lo que falta ahí es el DATO, y ese hueco
+  // se cierra en la ficha de la persona, no en quien la mide.
+  it("practicante SIN modalidad se mide contra 48, no contra 30", () => {
+    expect(topeSemanalDe("practicante", null)).toBe(MAXIMO_LEGAL_SEMANAL);
+    expect(topeSemanalDe("practicante", undefined)).toBe(MAXIMO_LEGAL_SEMANAL);
+  });
+
+  it("un dato ausente nunca deja a alguien sin tope", () => {
+    expect(topeSemanalDe(null, null)).toBe(MAXIMO_LEGAL_SEMANAL);
+    expect(topeSemanalDe(undefined, undefined)).toBe(MAXIMO_LEGAL_SEMANAL);
+  });
+});
+
+describe("tieneTopePropio — para poder decir de dónde sale el número", () => {
+  it("solo la preprofesional, que es la única con un tope más bajo", () => {
+    expect(tieneTopePropio("practicante", "preprofesional")).toBe(true);
+  });
+
+  it("una practicante profesional NO: su tope es el de todos", () => {
+    expect(tieneTopePropio("practicante", "profesional")).toBe(false);
+  });
+
+  it("ni el resto del equipo, ni un dato ausente", () => {
+    expect(tieneTopePropio("planilla", null)).toBe(false);
+    expect(tieneTopePropio("practicante", null)).toBe(false);
+    expect(tieneTopePropio(null, null)).toBe(false);
   });
 });
