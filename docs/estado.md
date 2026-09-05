@@ -37,6 +37,58 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · FUSIONADA A MAIN — FALTA DESPLEGAR Y PEGAR
+
+Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
+sede viajaba al navegador del kiosco, `bcrypt.compare` corría en el cliente, y
+`fn_registrar_marcaje` nunca recibía ningún PIN en sus argumentos). Es el mismo
+hallazgo que `docs/revision-2026-07-15/E-seguridad.md` ya tenía anotado desde
+julio, sin marcar como resuelto.
+
+**Felipe, 2026-09-04: «el pin no me interesa, quiero agilidad».** Es la misma
+decisión que `CLAUDE.md` lleva escrita desde julio —que marcar sea instantáneo
+y que el control real sea la Mac mini a la vista del equipo, no una clave—. Lo
+que había hasta hoy era esa decisión **apagada**, no retirada:
+`terminales.requiere_pin` nació `not null default TRUE` (0012) y los terminales
+se dan de alta a mano sin mencionar esa columna, así que caían en `true`; el
+respaldo del navegador hacía lo mismo (`data.requiere_pin ?? true`). La próxima
+Mac mini vinculada le habría pedido PIN sin que nadie lo hubiera pedido.
+
+**Qué se retira:** la pantalla del teclado de PIN, `lib/terminal/pin.ts`, el
+bloqueo a los 5 intentos, el campo `pinHash` del roster y la bandera
+`requierePin`. En SQL (0375): el default pasa a `false`, las filas existentes a
+`false`, y `terminal_roster` se recrea **sin `pin_hash`** — el kiosco deja de
+descargarle a cada Mac mini el hash de toda su sede.
+
+**Lo que NO toca, a propósito:** `personas.pin_hash` (sigue `not null`,
+`fn_crear_persona` la exige) ni `fn_regenerar_pin`/su trigger de la 0364. Queda
+anotada una deuda cosmética: `/admin/equipo` sigue ofreciendo «Nuevo PIN» por
+persona aunque ya ningún terminal lo pida.
+
+**Verificación:** prueba 297 corrida primero SIN la migración (falla 3/8, las
+que afirman el cambio) y con ella 8/8. Suite completa 2188 aserciones, typecheck
+limpio, 458 vitest.
+
+⚠️ **El conflicto de fusión al traer `main`** (54+ commits de por medio, entre
+ellos la 0372) fue solo en `scripts/sql-manual/que_falta_pegar.sql` —el generado
+automático—, resuelto regenerándolo con `./scripts/que-falta-pegar.sh`, no a
+mano. CI en verde (`db-tests`, `ui-tests`) tras el merge de `main`, y **recién
+ahí se fusionó a main**, con el visto bueno de Felipe.
+
+🔴 **FALTA, y el orden importa exactamente en este sentido:**
+
+1. Desplegar `apps/web` (Vercel) — pide confirmación aparte, no va con esta nota.
+2. Comprobar en las cuatro Mac mini que la lista de nombres carga.
+3. Recién entonces pegar la 0375 con `./scripts/dame-el-sql.sh` (pidiendo el md5
+   de `terminal_roster` a producción antes de pegar, no antes de escribir).
+
+Al revés falla silencioso: si `terminal_roster` pierde `pin_hash` antes de que
+el panel nuevo esté publicado, `roster.ts` lo pide igual, PostgREST responde
+42703, `cargarRoster` lo lee como caída de red y cae a la caché — una Mac recién
+instalada no fichará en toda la mañana sin que nadie entienda por qué.
+
+---
+
 ## 2026-09-05 — El 9% de la Ley 30334 dejaba de pedirse solo (0372) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
 
 Sale de la auditoría del 2026-09-03/04 (hallazgo 8).
