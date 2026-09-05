@@ -40,7 +40,9 @@ cd "${RAIZ:-$(dirname "$0")/..}"
 SALIDA="scripts/sql-manual/que_falta_pegar.sql"
 TMP="$(mktemp)"
 TMPC="$(mktemp)"
-trap 'rm -f "$TMP" "$TMPC"' EXIT
+TMPSANO="$(mktemp)"
+TMPROTO="$(mktemp)"
+trap 'rm -f "$TMP" "$TMPC" "$TMPSANO" "$TMPROTO"' EXIT
 
 # Desde la 0150 hacia adelante. Antes de esa no hay nada pendiente de pegar y
 # listar 150 filas de historia solo esconde las que importan.
@@ -130,6 +132,10 @@ catalogo_planilla() {
                supabase/migrations/*.sql 2>/dev/null | sort)
   [ -z "$ARCHIVOS" ] && return 0
   ULTIMO=$(echo "$ARCHIVOS" | tail -1)
+  NUM_ULTIMO=$(basename "$ULTIMO" | sed -E 's/^([0-9]+)_.*/\1/')
+
+  : > "$TMPSANO"
+  : > "$TMPROTO"
 
   echo "$ARCHIVOS" | while read -r f; do
     [ -z "$f" ] && continue
@@ -144,19 +150,53 @@ catalogo_planilla() {
     # de una cadena vacía como si fuera una versión sería peor que no tenerlo.
     tr -d '[:space:]' < "$TMPC" | grep -q . || continue
     SANO=$(md5de < "$TMPC")
-    if [ "$f" = "$ULTIMO" ]; then
-      echo "             when '$SANO' then '$NUM — al día con el repositorio'"
-    else
-      echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
-    fi
+    printf '%s\t%s\n' "$NUM" "$SANO" >> "$TMPSANO"
     # La variante con los acentos rotos. Si este sistema no tiene la tabla MAC en
     # su iconv, se omite: el catálogo pierde precisión pero nunca miente, y el
     # barrido del signo «√» de más abajo sigue cazando el caso igual.
     ROTO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
     if [ -n "$ROTO" ] && [ "$ROTO" != "$SANO" ]; then
-      echo "             when '$ROTO' then '✗ $NUM CON LOS ACENTOS ROTOS — vuelve a pegarla'"
+      printf '%s\t%s\n' "$NUM" "$ROTO" >> "$TMPROTO"
     fi
   done
+
+  # Un mismo hash puede salir de MÁS DE UNA migración: el envoltorio de
+  # fn_planilla_calcular no siempre cambia aunque el archivo lo vuelva a
+  # declarar (0339 y 0349 quedaron byte a byte idénticos). Un `case` de SQL
+  # para en la PRIMERA rama que coincide, así que dos `when` con el mismo
+  # valor dejaban muerta la segunda: si la última migración compartía hash con
+  # una anterior, el mensaje se congelaba en la más vieja diciendo «falta
+  # pegar lo posterior» cuando en realidad ya estaba al día. Medido el
+  # 2026-09-04: exactamente eso pasó entre la 0339 y la 0349, y el aviso hizo
+  # sonar una alarma sobre un `fn_registrar_marcaje` en producción que en ese
+  # momento sí tenía un problema real, distinto y sin relación — la clase de
+  # ruido que enseña a no mirar el aviso correcto cuando aparece.
+  #
+  # La corrección: agrupar por hash y quedarse con el NUM más alto que lo
+  # produjo antes de escribir el `when`. Así solo hay UNA rama por valor, y
+  # esa rama dice "al día" si el hash es el mismo que el de la ÚLTIMA
+  # migración — sin importar cuál la escribió primero.
+  # `maxnum[h] = $1` (no aritmética) para no perder el cero a la izquierda del
+  # número de migración; `$1+0` solo se usa para DECIDIR cuál es mayor.
+  awk -F'\t' '
+    { h = $2; if (!(h in maxnum) || ($1+0) > (maxnum[h]+0)) maxnum[h] = $1 }
+    END { for (h in maxnum) print maxnum[h] "\t" h }
+  ' "$TMPSANO" | sort -n | while IFS="$(printf '\t')" read -r n h; do
+    if [ "$n" = "$NUM_ULTIMO" ]; then
+      echo "             when '$h' then '$n — al día con el repositorio'"
+    else
+      echo "             when '$h' then '⚠ se quedó en la $n — falta pegar lo posterior'"
+    fi
+  done
+
+  if [ -s "$TMPROTO" ]; then
+    awk -F'\t' '
+      { h = $2; if (!(h in maxnum) || ($1+0) > (maxnum[h]+0)) maxnum[h] = $1 }
+      END { for (h in maxnum) print maxnum[h] "\t" h }
+    ' "$TMPROTO" | sort -n | while IFS="$(printf '\t')" read -r n h; do
+      echo "             when '$h' then '✗ $n CON LOS ACENTOS ROTOS — vuelve a pegarla'"
+    done
+  fi
 }
 
 {
