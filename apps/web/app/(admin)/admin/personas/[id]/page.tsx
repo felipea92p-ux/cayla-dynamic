@@ -79,17 +79,6 @@ type Tab = "ficha" | "desempeno";
 //
 // Va fuera del componente de la página a propósito: definirlo dentro lo
 // recrearía en cada render (regla react-hooks/static-components).
-// Fuera del componente a propósito: no cierra sobre nada de su estado, y
-// declararla adentro la recreaba en cada render (react-hooks/static-components).
-function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
-      <span className="text-taupe">{label}</span>
-      <span className="text-right">{valor ?? "—"}</span>
-    </div>
-  );
-}
-
 function AvisoNoSeCargo({ que, motivo, noSignifica, reintentar }: { que: string; motivo: string; noSignifica: string; reintentar: () => void }) {
   return (
     <div className="rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
