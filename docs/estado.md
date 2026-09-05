@@ -247,7 +247,7 @@ resultado combinado, no solo cada diff por separado.
 
 ---
 
-## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · PANEL YA DESPLEGADO — FALTA SOLO PEGAR LA 0375
+## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · CERRADO — PEGADA Y VERIFICADA
 
 Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
 sede viajaba al navegador del kiosco, `bcrypt.compare` corría en el cliente, y
@@ -293,20 +293,19 @@ construido desde el commit `6f24bd7` — que trae tanto esta PR (#188) como la
 #185 (items 2-6). El panel sin PIN ya está publicado; esta nota decía
 «falta desplegar» y ya no es cierto.
 
-🔴 **FALTA, y el orden sigue importando exactamente en este sentido:**
+✅ **Los tres pasos, completos el 2026-09-05:**
 
-1. ~~Desplegar `apps/web` (Vercel)~~ — ✅ hecho.
-2. Comprobar en las cuatro Mac mini que la lista de nombres carga.
-3. Recién entonces pegar la 0375 con `./scripts/dame-el-sql.sh` (pidiendo el md5
-   de `terminal_roster` a producción antes de pegar, no antes de escribir).
-   Confirmado con `que_falta_pegar.sql` corrida en producción el 2026-09-05:
-   la 0375 sigue `❌ FALTA PEGAR`.
+1. ~~Desplegar `apps/web` (Vercel)~~ — hecho.
+2. ~~Comprobar en las cuatro Mac mini que la lista de nombres carga~~ —
+   confirmado por Felipe.
+3. ~~Pegar la 0375~~ — pegada y verificada. Los seis campos de la comprobación
+   final salieron en el valor esperado: `cinco_columnas`, `sin_pin_hash`,
+   `es_del_dueno`, `la_puede_leer` y `anon_no_puede` en `true`, y
+   `el_default_ahora` en `false` (texto, no booleano — es el valor por defecto
+   de la columna, correcto).
 
-Al revés falla silencioso: si `terminal_roster` pierde `pin_hash` antes de que
-el panel nuevo esté publicado, `roster.ts` lo pide igual, PostgREST responde
-42703, `cargarRoster` lo lee como caída de red y cae a la caché — una Mac recién
-instalada no fichará en toda la mañana sin que nadie entienda por qué. Ya no es
-un riesgo (el panel está publicado), pero el paso 2 sigue sin confirmarse.
+**Crítico 1 cerrado.** El terminal ya no pide PIN, y `terminal_roster` ya no
+descarga el hash de toda la sede al navegador del kiosco.
 
 ---
 
