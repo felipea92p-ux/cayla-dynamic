@@ -12,6 +12,7 @@ import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from
 import {
   TZ_LIMA, hoyLima, MAXIMO_LEGAL_SEMANAL,
   MAXIMO_DIAS_SIN_DESCANSO, avisoDeRacha, ventanaMasCargada,
+  maximoSemanalPracticante,
 } from "@cayla-dynamic/shared";
 
 function haceDias(n: number): string {
@@ -287,7 +288,12 @@ function IncidenciasContenido() {
           .from("jornadas")
           // CAMBIO 0284 — `estado` viaja para poder decir cuándo el exceso se
           // apoya en una hora que puso el sistema y nadie confirmó.
-          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, sedes:sede_base_id(codigo))")
+          // `tipo_vinculo, practicante_modalidad` viajan para el tope de una
+          // practicante (art. 44 Ley 28518: 30 h preprofesional, 48 h
+          // profesional) — antes esta pantalla medía a TODO el mundo contra
+          // las 48 h del art. 25, así que una preprofesional podía llegar a
+          // 47 h sin que nada avisara, seis por encima de su propio máximo.
+          .select("persona_id, fecha, horas_trabajadas, estado, personas:persona_id(nombres, apellidos, tipo_vinculo, practicante_modalidad, sedes:sede_base_id(codigo))")
           .gte("fecha", haceDias(VENTANA_EXCESO_DIAS + 5)).lte("fecha", HOY)
           .gt("horas_trabajadas", 0)
           .order("persona_id")
@@ -464,17 +470,22 @@ function IncidenciasContenido() {
         entrada: null,
         salida: null,
       };
+      // Una practicante tiene su propio tope (art. 44 Ley 28518), más bajo que
+      // el máximo legal general — 30 h preprofesional, 48 h profesional. `null`
+      // (no practicante, o practicante sin modalidad fijada) cae al de siempre.
+      const maxLegal = maximoSemanalPracticante(j.personas?.tipo_vinculo, j.personas?.practicante_modalidad)
+        ?? MAXIMO_LEGAL_SEMANAL;
       // Dos preguntas distintas, y por eso dos ventanas.
       //
       // La primera: ¿se está pasando AHORA? Ventana que termina en los últimos
       // siete días — todavía se puede mover un turno y frenarlo.
       const v = ventanaMasCargada(dias, haceDias(EXCESO_AUN_EVITABLE_DIAS), HOY);
-      const hayExcesoVivo = v !== null && v.horas > MAXIMO_LEGAL_SEMANAL;
+      const hayExcesoVivo = v !== null && v.horas > maxLegal;
       if (hayExcesoVivo) {
         out.push({
           ...quien,
           fecha: v!.fin,
-          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`
+          tipo: `Jornada excedida: ${v!.horas.toFixed(1)} h en 7 días (máx. ${maxLegal})`
             + (apoyadoEnHoraInventada(sinConfirmar, v!.fin)
                  ? " · incluye días cuya salida puso el sistema y falta confirmar"
                  : ""),
@@ -494,12 +505,12 @@ function IncidenciasContenido() {
         haceDias(VENTANA_EXCESO_DIAS - 1),
         haceDias(EXCESO_AUN_EVITABLE_DIAS + 1),
       );
-      if (vieja === null || vieja.horas <= MAXIMO_LEGAL_SEMANAL) continue;
+      if (vieja === null || vieja.horas <= maxLegal) continue;
       if (aceptadas.has(`${j.persona_id}|${vieja.fin}|jornada_excedida`)) continue;
       out.push({
         ...quien,
         fecha: vieja.fin,
-        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${MAXIMO_LEGAL_SEMANAL})`,
+        tipo: `Jornada excedida (ya ocurrió): ${vieja.horas.toFixed(1)} h en 7 días (máx. ${maxLegal})`,
         aceptable: "jornada_excedida",
         severidad: "media",
       });

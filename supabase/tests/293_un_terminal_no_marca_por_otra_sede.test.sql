@@ -295,7 +295,7 @@ select lives_ok(
 
 -- ── PUERTA 2 · podía marcar aquí CUANDO SE HIZO la marca ────────────────────
 -- El caso que la primera versión de la 0370 decía cubrir y perdía entera: la
--- cola offline entrega la ENTRADA de las 09:00 DESPUÉS de que DO mudara a esa
+-- cola offline entrega la ENTRADA un rato DESPUÉS de que DO mudara a esa
 -- persona. La entrada es la primera marca del día, así que no hay ninguna
 -- marca viva en la que apoyarse: solo el hecho fechado del cambio de sede.
 --
@@ -305,12 +305,29 @@ select lives_ok(
 -- las dos a la vez la volvería una prueba de permisos y no del candado.
 update personas set sede_base_id = '00000000-0000-0000-0000-000000028601'
  where id = '00000000-0000-0000-0000-000000028615';
+-- `corregido_at` se fija a mano —no al `now()` por defecto de la columna— para
+-- que la puerta 2 se mida contra un instante FIJO de hoy, no contra la hora
+-- real en que corra el CI. Con el default, esta aserción dependía de correr
+-- después de las 09:00 hora Lima: el 2026-09-05 el runner corrió dos veces de
+-- madrugada (00:03 y 00:34 Lima) y la marca de las 09:00 quedaba en el futuro
+-- respecto a `now()`, así que la puerta 2 nunca se abría y la prueba rebotaba
+-- con "no está habilitada" sin que nadie hubiera tocado el candado.
 insert into correcciones_auditoria
-  (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por)
+  (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por, corregido_at)
 values ('00000000-0000-0000-0000-000000028615', 'personas.sede_base_id', 'ZZ286A', 'ZZ286B',
         'Cambio de sede base — puede mover la tarifa de movilidad del periodo abierto.',
-        '00000000-0000-0000-0000-000000028617');
+        '00000000-0000-0000-0000-000000028617',
+        (fn_hoy_lima() + time '09:01') at time zone 'America/Lima');
 
+-- OJO: esta entrada tiene que quedar FIJA respecto del mismo «hoy» que
+-- `corregido_at` (arriba, 09:01) — nunca relativa a `now()`. Dos arreglos de
+-- este mismo defecto se escribieron el mismo día por sesiones distintas: uno
+-- fijó `corregido_at` (el de arriba) y otro dejó esta entrada en
+-- `now() - interval '30 minutes'`. Al fusionarse los dos juntos, la prueba
+-- volvió a ser sensible a la hora real: pasaba de las 00:00 a las 09:31 Lima
+-- y volvía a fallar después, porque `now() - 30min` termina cruzando las
+-- 09:01 fijas de `corregido_at`. Con las DOS puntas fijas al mismo «hoy» —09:00
+-- contra 09:01— la comparación no depende de cuándo corra CI.
 select lives_ok(
   $$ select fn_registrar_marcaje(
        '00000000-0000-0000-0000-000000028615'::uuid, 'entrada'::tipo_marca,
@@ -356,7 +373,9 @@ select lives_ok(
 -- ese botón en las cuatro sedes con el suite entero en verde.
 --
 -- Se mide con Fabi justamente porque ya está mudada: lo único que la sostiene
--- es que su jornada de hoy en la A sigue viva.
+-- es que su jornada de hoy en la A sigue viva. Fija al mismo «hoy» que su
+-- entrada (arriba, 09:00) y no a `now()`, por la misma razón: solo necesita
+-- ser POSTERIOR a esa entrada, y las 18:00 de hoy siempre lo son.
 do $cierra_fabi$ begin
   perform fn_registrar_marcaje(
     '00000000-0000-0000-0000-000000028615'::uuid, 'salida_final'::tipo_marca,
