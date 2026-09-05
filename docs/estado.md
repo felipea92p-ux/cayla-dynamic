@@ -310,7 +310,7 @@ un riesgo (el panel está publicado), pero el paso 2 sigue sin confirmarse.
 
 ---
 
-## 2026-09-05 — Críticos 2-6 ([PR #185](https://github.com/felipea92p-ux/cayla-dynamic/pull/185)) · PANEL YA DESPLEGADO — FALTAN 0370 Y 0371
+## 2026-09-05 — Críticos 2-6 ([PR #185](https://github.com/felipea92p-ux/cayla-dynamic/pull/185)) · PANEL DESPLEGADO, 0370 Y 0371 PEGADAS Y VERIFICADAS
 
 Esta PR nunca tuvo su entrada en `estado.md` — se fusionó a `main` sin dejar
 nota. Los siete hallazgos que cierra están en el cuerpo de la propia PR:
@@ -323,21 +323,21 @@ confirmación ni reversión, y las contraseñas de 6 caracteres sin complejidad.
 ✅ **El panel ya está desplegado** — mismo commit `6f24bd7` que la 0375 de
 arriba, confirmado con el CLI de Vercel el 2026-09-05.
 
-🔴 **Falta pegar 0370 y 0371** (confirmado con `que_falta_pegar.sql` en
-producción el 2026-09-05 — las dos siguen `❌ FALTA PEGAR`). Los prerrequisitos
-de la 0371 —0356 y 0357— ya están aplicados desde el 04/09, así que su propia
-guardia deja pegarla. La propia PR deja el orden por escrito:
+✅ **0371 pegada y verificada el 2026-09-05.** Sus prerrequisitos (0356, 0357)
+ya estaban aplicados desde el 04/09, así que su guardia la dejó pasar sin
+avisos. Comprobación final: `firma_intacta=1, arreglo_puesto=2,
+canal_en_la_clave=2, cron_programado=1` — los cuatro exactos.
 
-```
-0356 → 0357 → 0371      (la guardia de la 0371 lo hace cumplir sola)
-0370                    (cuando quieras, no depende de nada)
-```
+✅ **0370 pegada y verificada el 2026-09-05.** Antes de pegarla se corrió la
+consulta «⚠ CÓRRELA ANTES DE PEGAR» de su propio archivo (marcas de terminal
+de los últimos 30 días que el candado nuevo rechazaría): **0 filas**, nadie
+se queda bloqueado. La comprobación final devolvió los seis `true` esperados
+(`existe_la_regla_de_sede`, `existe_el_candado`, `el_candado_del_cese_sigue`,
+`el_roster_usa_la_regla`, `la_lectura_usa_la_regla`,
+`la_policy_de_lectura_sigue_puesta`).
 
-Antes de pegar la 0370, correr la consulta «⚠ CÓRRELA ANTES DE PEGAR» que trae
-al final de su propio archivo — lista las marcas de terminal de los últimos 30
-días que el candado nuevo rechazaría; cero filas es luz verde, y si aparece
-alguien probablemente le falta `visible_todas_sedes`. Y pedir el md5 de
-partida a producción justo antes de pegar cada una, no ahora.
+Con esto, los críticos 2-6 quedan **completos**: código en producción desde
+antes, y las dos migraciones que faltaban ya están pegadas.
 
 ---
 
