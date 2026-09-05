@@ -148,7 +148,7 @@ bueno y solo hace falta subirlo**, en vez de que la sesión de
 
 ---
 
-## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · FUSIONADA A MAIN — FALTA DESPLEGAR Y PEGAR
+## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · PANEL YA DESPLEGADO — FALTA SOLO PEGAR LA 0375
 
 Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
 sede viajaba al navegador del kiosco, `bcrypt.compare` corría en el cliente, y
@@ -186,17 +186,59 @@ automático—, resuelto regenerándolo con `./scripts/que-falta-pegar.sh`, no a
 mano. CI en verde (`db-tests`, `ui-tests`) tras el merge de `main`, y **recién
 ahí se fusionó a main**, con el visto bueno de Felipe.
 
-🔴 **FALTA, y el orden importa exactamente en este sentido:**
+✅ **Paso 1 confirmado el 2026-09-05, sin que nadie lo hubiera anotado.**
+Verificado con el CLI de Vercel (`npx vercel env ls` confirmó primero el
+proyecto correcto, `cayla/cayla-dynamic`): la producción actual
+(`cayla-dynamic.vercel.app`) corre el deploy `dpl_FDKGbke4xrR19WDAnbiieo1LWgzv`,
+construido desde el commit `6f24bd7` — que trae tanto esta PR (#188) como la
+#185 (items 2-6). El panel sin PIN ya está publicado; esta nota decía
+«falta desplegar» y ya no es cierto.
 
-1. Desplegar `apps/web` (Vercel) — pide confirmación aparte, no va con esta nota.
+🔴 **FALTA, y el orden sigue importando exactamente en este sentido:**
+
+1. ~~Desplegar `apps/web` (Vercel)~~ — ✅ hecho.
 2. Comprobar en las cuatro Mac mini que la lista de nombres carga.
 3. Recién entonces pegar la 0375 con `./scripts/dame-el-sql.sh` (pidiendo el md5
    de `terminal_roster` a producción antes de pegar, no antes de escribir).
+   Confirmado con `que_falta_pegar.sql` corrida en producción el 2026-09-05:
+   la 0375 sigue `❌ FALTA PEGAR`.
 
 Al revés falla silencioso: si `terminal_roster` pierde `pin_hash` antes de que
 el panel nuevo esté publicado, `roster.ts` lo pide igual, PostgREST responde
 42703, `cargarRoster` lo lee como caída de red y cae a la caché — una Mac recién
-instalada no fichará en toda la mañana sin que nadie entienda por qué.
+instalada no fichará en toda la mañana sin que nadie entienda por qué. Ya no es
+un riesgo (el panel está publicado), pero el paso 2 sigue sin confirmarse.
+
+---
+
+## 2026-09-05 — Críticos 2-6 ([PR #185](https://github.com/felipea92p-ux/cayla-dynamic/pull/185)) · PANEL YA DESPLEGADO — FALTAN 0370 Y 0371
+
+Esta PR nunca tuvo su entrada en `estado.md` — se fusionó a `main` sin dejar
+nota. Los siete hallazgos que cierra están en el cuerpo de la propia PR:
+terminal marcando a otra sede (0370), la mitad de «personas cesadas» ya estaba
+cerrada (nada que hacer ahí), un aviso de vencimiento que se saltaba a quien
+llegó después (0371), el borde de 16 h entre terminal y navegador, el error de
+«Descanso médico» invisible detrás del modal, «Marcar como pagada» sin
+confirmación ni reversión, y las contraseñas de 6 caracteres sin complejidad.
+
+✅ **El panel ya está desplegado** — mismo commit `6f24bd7` que la 0375 de
+arriba, confirmado con el CLI de Vercel el 2026-09-05.
+
+🔴 **Falta pegar 0370 y 0371** (confirmado con `que_falta_pegar.sql` en
+producción el 2026-09-05 — las dos siguen `❌ FALTA PEGAR`). Los prerrequisitos
+de la 0371 —0356 y 0357— ya están aplicados desde el 04/09, así que su propia
+guardia deja pegarla. La propia PR deja el orden por escrito:
+
+```
+0356 → 0357 → 0371      (la guardia de la 0371 lo hace cumplir sola)
+0370                    (cuando quieras, no depende de nada)
+```
+
+Antes de pegar la 0370, correr la consulta «⚠ CÓRRELA ANTES DE PEGAR» que trae
+al final de su propio archivo — lista las marcas de terminal de los últimos 30
+días que el candado nuevo rechazaría; cero filas es luz verde, y si aparece
+alguien probablemente le falta `visible_todas_sedes`. Y pedir el md5 de
+partida a producción justo antes de pegar cada una, no ahora.
 
 ---
 
