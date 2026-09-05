@@ -969,6 +969,7 @@ export type Database = {
           foto_dni_url: string | null
           foto_personal_url: string | null
           foto_profesional_url: string | null
+          genero: string | null
           grado_instruccion: string | null
           hijos_menores: boolean | null
           nombre_dni: string | null
@@ -992,6 +993,7 @@ export type Database = {
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
+          genero?: string | null
           grado_instruccion?: string | null
           hijos_menores?: boolean | null
           nombre_dni?: string | null
@@ -1015,6 +1017,7 @@ export type Database = {
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
+          genero?: string | null
           grado_instruccion?: string | null
           hijos_menores?: boolean | null
           nombre_dni?: string | null
@@ -5763,54 +5766,31 @@ export type Database = {
         Args: { p_con_hijos: boolean | null; p_persona_id: string | null }
         Returns: undefined
       }
-      fn_set_datos_personales:
-        | {
-            Args: {
-              p_celular?: string | null
-              p_direccion?: string | null
-              p_discapacidad?: boolean | null
-              p_discapacidad_conadis?: string | null
-              p_emergencia_nombre?: string | null
-              p_emergencia_telefono?: string | null
-              p_emergencia_vinculo?: string | null
-              p_entidad_bancaria?: string | null
-              p_estado_civil?: string | null
-              p_fecha_nacimiento?: string | null
-              p_foto_dni_url?: string | null
-              p_foto_personal_url?: string | null
-              p_foto_profesional_url?: string | null
-              p_grado_instruccion?: string | null
-              p_hijos_menores?: boolean | null
-              p_nombre_dni?: string | null
-              p_numero_cuenta?: string | null
-              p_persona_id: string | null
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_celular?: string | null
-              p_cuspp?: string | null
-              p_direccion?: string | null
-              p_discapacidad?: boolean | null
-              p_discapacidad_conadis?: string | null
-              p_emergencia_nombre?: string | null
-              p_emergencia_telefono?: string | null
-              p_emergencia_vinculo?: string | null
-              p_entidad_bancaria?: string | null
-              p_estado_civil?: string | null
-              p_fecha_nacimiento?: string | null
-              p_foto_dni_url?: string | null
-              p_foto_personal_url?: string | null
-              p_foto_profesional_url?: string | null
-              p_grado_instruccion?: string | null
-              p_hijos_menores?: boolean | null
-              p_nombre_dni?: string | null
-              p_numero_cuenta?: string | null
-              p_persona_id: string | null
-            }
-            Returns: undefined
-          }
+      fn_set_datos_personales: {
+        Args: {
+          p_celular?: string | null
+          p_cuspp?: string | null
+          p_direccion?: string | null
+          p_discapacidad?: boolean | null
+          p_discapacidad_conadis?: string | null
+          p_emergencia_nombre?: string | null
+          p_emergencia_telefono?: string | null
+          p_emergencia_vinculo?: string | null
+          p_entidad_bancaria?: string | null
+          p_estado_civil?: string | null
+          p_fecha_nacimiento?: string | null
+          p_foto_dni_url?: string | null
+          p_foto_personal_url?: string | null
+          p_foto_profesional_url?: string | null
+          p_genero?: string | null
+          p_grado_instruccion?: string | null
+          p_hijos_menores?: boolean | null
+          p_nombre_dni?: string | null
+          p_numero_cuenta?: string | null
+          p_persona_id: string | null
+        }
+        Returns: undefined
+      }
       fn_set_derechohabiente: {
         Args: {
           p_apellidos: string | null
