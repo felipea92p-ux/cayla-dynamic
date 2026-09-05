@@ -567,7 +567,10 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.grati_s2, p.grati_s2_pagada, p.grati_s2_monto_pagado, data.grati_s2_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.grati_total)}</td>
-                        {/* Bonificación extraordinaria (Ley 30334) — sale de la grati */}
+                        {/* Bonificación extraordinaria (Ley 30334). Desde la 0372 lleva
+                            su propia cuenta: ya no es «lo que quede de la grati». Si la
+                            gratificación se registró sin su 9% aparte, esta celda lo
+                            sigue mostrando pendiente, que es de lo que se trata. */}
                         <td className="border-l px-4 py-2 text-right">{formatSoles(p.be_total)}</td>
                         {/* CTS */}
                         <td className="border-l px-4 py-2 text-right">
