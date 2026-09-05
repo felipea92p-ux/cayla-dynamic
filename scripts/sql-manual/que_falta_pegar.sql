@@ -249,7 +249,8 @@ with repo(numero, nombre, nunca) as (values
     (377, 'las_alertas_de_antes_del_despacho_quedan_anotadas', false),
     (378, 'apariencia_tema_global', false),
     (379, 'fn_set_meta_cobertura_vuelve_a_ser_null_safe', false),
-    (380, 'fn_set_horario_semanal_gana_el_mismo_candado_que_objetivos', false)
+    (380, 'fn_set_horario_semanal_gana_el_mismo_candado_que_objetivos', false),
+    (382, 'el_roster_vuelve_a_preguntar_la_regla_en_vez_de_copiarla', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
