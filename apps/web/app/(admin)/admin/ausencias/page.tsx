@@ -464,11 +464,16 @@ export default function AusenciasPage() {
             liquidación, o sea el día en que la persona ya se fue y el récord ya
             había vencido. Avisar ahí llega tarde por definición. */}
         {porVencer.length > 0 && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
-            <p className="font-medium">Vacaciones que vencen: hay que programarlas.</p>
+          <div className="mb-4 max-w-3xl rounded-lg border border-sand bg-papel px-4 py-3 text-sm">
+            <p className="font-medium text-tinta">Vacaciones que vencen: hay que programarlas.</p>
+            {/* Mismo condicional de color que ya usa Bandeja para esta misma
+                lista: rojo si el récord YA venció (obliga a indemnizar), ámbar
+                si todavía hay margen para programar el descanso — antes las
+                dos se pintaban igual, en rojo, y no se distinguía cuál ya
+                costaba dinero de cuál todavía se podía evitar gratis. */}
             <ul className="mt-1 space-y-0.5 text-xs">
               {porVencer.map((v) => (
-                <li key={v.persona_id}>
+                <li key={v.persona_id} className={v.records_vencidos > 0 ? "text-rojo" : "text-ambar"}>
                   <strong className="font-medium">{v.persona}</strong> ({v.sede}){" "}
                   {v.records_vencidos > 0 ? (
                     <>tiene {v.records_vencidos === 1 ? "un récord" : `${v.records_vencidos} récords`}{" "}
@@ -480,7 +485,7 @@ export default function AusenciasPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-1.5 text-xs opacity-80">
+            <p className="mt-1.5 text-xs text-taupe">
               Un récord que vence sin gozarse obliga a pagar una indemnización de una remuneración
               (art. 23, D. Leg. 713). Programar el descanso cuesta cero.
             </p>

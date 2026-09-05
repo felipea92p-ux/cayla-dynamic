@@ -5,6 +5,7 @@
 // tres opciones no justifican un panel flotante propio.
 
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
+import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useTema, type Tema } from "@/lib/use-tema";
 
 const SIGUIENTE: Record<Tema, Tema> = { sistema: "claro", claro: "oscuro", oscuro: "sistema" };
@@ -12,7 +13,10 @@ const ICONO: Record<Tema, LucideIcon> = { sistema: Monitor, claro: Sun, oscuro: 
 const ETIQUETA: Record<Tema, string> = { sistema: "Sistema", claro: "Claro", oscuro: "Oscuro" };
 
 export function SelectorTema({ className = "" }: { className?: string }) {
-  const [tema, setTema] = useTema();
+  // Pasa el cliente de admin para que, si nadie eligió tema a mano en este
+  // navegador, se siga la configuración global de /admin/apariencia — ver
+  // lib/use-tema.ts.
+  const [tema, setTema] = useTema(createAdminSupabaseClient());
   const Icono = ICONO[tema];
   return (
     <button

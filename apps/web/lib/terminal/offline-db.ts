@@ -26,6 +26,19 @@ export interface OutboxEntry {
   /** Apartada tras rechazos repetidos. NO se borra: queda recuperable. */
   descartada?: boolean;
   /**
+   * El servidor YA contestó que no (`llego && !ok`, una regla de negocio real
+   * — no un corte de red). Distinto de `descartada`: sigue en la cola y sigue
+   * reintentándose hasta el tope de 6 fallos confirmados de sync.ts, por si el
+   * rechazo se debía a un estado transitorio que un reintento sí resuelve.
+   * Lo que SÍ cambia de inmediato: mientras esta bandera esté puesta, la
+   * marca deja de contar como "de hoy" en `cargarMarcajesHoyPorPersona` —
+   * antes de esto, quedaba contando hasta 90 segundos (el tiempo que tarda
+   * sync.ts en acumular 6 fallos y recién ahí llamar a `marcarComoDescartada`),
+   * y el terminal podía ofrecer una acción sobre una salida que el servidor
+   * nunca aceptó.
+   */
+  rechazadaPorServidor?: boolean;
+  /**
    * Solo en un `salida_final` cuando el terminal preguntó por la ambigüedad
    * de "salida a refrigerio sin retorno" (0353). Ausente en todo lo demás.
    */
@@ -89,6 +102,22 @@ export async function obtenerPendientes(): Promise<OutboxEntry[]> {
   return todas
     .filter((e) => !e.descartada)
     .sort((a, b) => a.timestampCliente.localeCompare(b.timestampCliente));
+}
+
+/**
+ * El intento INMEDIATO (marcar/page.tsx) ya sabe, en el momento, que el
+ * servidor contestó que no — no hace falta esperar a sync.ts para saberlo.
+ * Marca la entrada como rechazada sin apartarla: sigue en la cola y sigue
+ * reintentándose, pero deja de contar como "de hoy" mientras tanto.
+ */
+export async function marcarComoRechazadaPorServidor(clientUuid: string, error: string) {
+  const db = await getDb();
+  const entry: OutboxEntry | undefined = await db.get("outbox", clientUuid);
+  if (entry) {
+    entry.rechazadaPorServidor = true;
+    entry.ultimoError = error;
+    await db.put("outbox", entry);
+  }
 }
 
 /**

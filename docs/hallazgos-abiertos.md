@@ -45,17 +45,42 @@ mismo que plata perdida.
 
 ### Confirmado y pendiente · mueve plata en el pago mensual
 
+⚠️ **Esta tabla es del 2026-08-19.** Desde entonces `fn_planilla_calcular`
+recibió más de 30 migraciones (0280-0349 y sus renumeraciones), y al menos una
+fila de esta tabla (la del descanso semanal, de abajo) llevaba tres semanas
+cerrada sin que nadie lo marcara aquí — se encontró el 2026-09-05 leyendo el
+código vigente, no reproduciendo el hallazgo original. **No asumir que las
+filas sin tachar siguen abiertas tal cual se describen**: antes de tocar
+cualquiera, releer `fn_planilla_calcular_nucleo` vigente (`donde-vive.sh
+fn_planilla_calcular`) y, si el código parece seguir teniendo el defecto,
+recién ahí medirlo contra Postgres local en `BEGIN … ROLLBACK` con un caso
+real — no alcanza con no encontrar la palabra clave esperada, como casi pasó
+aquí mismo con `ot_dias` (sigue leyendo `p_ini - 7` tal cual describía el
+hallazgo original, pero eso no prueba por sí solo que el defecto sobreviva:
+otras dieciséis migraciones tocaron el bloque de sobretiempo desde entonces
+sin que se haya revisado si alguna ya lo neutralizó por otro lado).
+
 | Qué | Cuánto | Dónde |
 |---|---|---|
-| **No existe la sobretasa del 100 % por trabajar el día de descanso semanal** (art. 3 D. Leg. 713) | S/44–58 por episodio | `fn_planilla_calcular` no lee `turnos` ni una vez |
-| Un **feriado dentro de unas vacaciones se paga dos veces** | S/51.99 por feriado | `vacd` no lo excluye y `fer` sí lo paga |
+| ~~**No existe la sobretasa del 100 % por trabajar el día de descanso semanal**~~ ✅ **CERRADO por la 0280** (2026-08-20, ver `CAMBIO 0280` en `fn_planilla_calcular_nucleo`, vigente en la 0349): agrega el lateral `dsw` que paga el recargo del descanso semanal trabajado, excluyendo RxH y sueldo fijo, incluyendo personal de dirección por decisión de Felipe. Verificado leyendo el código vigente, no solo el mensaje de commit | ~~S/44–58 por episodio~~ · cerrado | ~~`fn_planilla_calcular` no lee `turnos` ni una vez~~ |
+| ~~**Un feriado dentro de unas vacaciones se paga dos veces**~~ ✅ **REFUTADO el 2026-09-05** (auditoría dedicada, verificación + refutación adversarial independiente): `fer` no paga "el día completo" del feriado, calcula un PRORRATEO del periodo completo — el mismo patrón que la 0293 ya midió para descanso médico y concluyó explícitamente "no había doble pago que evitar". Esa conclusión se reafirma, textual, en al menos 7 migraciones posteriores (0276, 0302, 0308, 0310, 0338, 0365, 0372): "`vacd` no lo excluye: el feriado se cuenta como día de vacaciones. Simétrico, no se toca." Es decisión de diseño verificada con datos reales, no un descuido | ~~S/51.99 por feriado~~ · refutado | ~~`vacd` no lo excluye y `fer` sí lo paga~~ |
 | ~~**La remuneración vacacional no entra a la base de EsSalud ni de pensión**~~ ✅ **CERRADO el 2026-08-26 por la [0317](../supabase/migrations/0317_la_remuneracion_vacacional_tambien_se_declara.sql)**, y con ella la familia entera: los TRES conceptos que la planilla paga sin marcaje —descanso médico (0263), licencia con goce y duelo directo (0316), vacaciones (0317)— ya se declaran igual. Medido antes de cerrar: quien pasaba el periodo entero de vacaciones cobraba S/3.000 y se le declaraba S/1.130 con básica legal en CERO; ahora declara S/3.223 y su aporte de pensión pasa de S/29 a S/419. Y la simetría que lo confirma: dos personas que faltan los mismos días y cobran lo mismo, una de vacaciones y otra de descanso médico, ahora dan **la misma base exacta**. No le costó un sol a nadie: cero personas con vacaciones en el periodo abierto y cero periodos ya pagados afectados | ~~S/94 + S/43 por persona~~ · cerrado | ~~va a `pago_base` pero no a `pb.basica`~~ |
-| Se pagan **ausencias posteriores al cese** | S/193.55 medidos | `vacd`, `dmd` y `mat` no miran `fecha_cese` |
-| **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad | S/1,306.45 medidos | la rama `sf` no prorratea |
-| **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes | S/1,509.64 medidos | |
-| **Sin régimen de pensión → aporte cero**, y ninguna pantalla de Planilla lo dice | ~S/208/mes por persona | `coalesce(tpen.tasa, …)` |
-| El **sobretiempo pierde el exceso** del ciclo que cruza el día 29 | S/14–19 | `ot_dias` lee desde `p_ini - 7` |
-| La **pantalla de Feriados y la planilla dividen por bases distintas** | 3.33 % de cada sobretasa | mes calendario vs periodo 29→28 |
+| 🔴 Se pagan **ausencias posteriores al cese** — CONFIRMADO ABIERTO 2026-09-05 | S/193.55 medidos | `fn_planilla_calcular_nucleo` (0349): `vacd`/`dmd`/`lic`/`mat` no miran `fecha_cese`; `fn_cesar_persona` (0327) cierra `asignaciones_salario`/`horarios_asignados` al cesar pero NO revisa `ausencias` con fecha posterior — la misma asimetría que deja el hueco |
+| 🔴 **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad — CONFIRMADO ABIERTO 2026-09-05 | S/1,306.45 medidos | `fn_planilla_calcular_nucleo` (0349) línea ~1131: `sf.salario` ignora `p_ini`/`p_fin` por completo. Golpea incluso a `fn_liquidacion` (0244), que SÍ pasa `p_fin = fecha_cese` con el comentario "ni un día más" — la rama `sueldo_fijo` lo viola en silencio |
+| 🔴 **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes — CONFIRMADO ABIERTO 2026-09-05 | S/1,509.64 medidos | `fn_planilla_calcular_nucleo` (0349), CTE `pers`: excluye a quien cesó sin ninguna `jornada` ni `movimientos_planilla` ese `periodo_id`. Ya hay un parche en el REPORTE de variación (`fn_que_cambio_respecto_al_mes_pasado`, prueba 255) pero el cálculo real de planilla sigue sin la persona |
+| 🟡 **Sin régimen de pensión → aporte cero** — CONFIRMADO ABIERTO 2026-09-05, con matiz: el hallazgo original decía "ninguna pantalla avisa" y eso ya era falso el 19/08 — `/admin/datos-personales` avisa "falta régimen de pensión" desde el commit `6039302` (2026-08-08), antes del propio hallazgo | ~S/208/mes por persona, SI `configuracion.tasa_afp` sigue en el seed `{"tasa":0}` de la 0110 — no medido en producción | `coalesce(tpen.tasa, v_tasa_afp)` en `fn_planilla_calcular_nucleo` (0349). El dato para avisar en Planilla (`tasa_es_del_regimen`) ya lo calcula la función desde la 0114; falta solo la UI en `/admin/planilla` |
+| 🔴 El **sobretiempo pierde el exceso** del ciclo que cruza el borde del periodo — CONFIRMADO ABIERTO 2026-09-05, mecanismo verificado con ejemplo de fechas | S/14–19 (no remedido hoy) | `ot_dias`/`ot_islas`/`ot_ciclos` en `fn_planilla_calcular_nucleo` (0349) siguen leyendo `p_ini - 7`: una racha real de 8+ días que cruza ese borde pierde el exceso del ciclo que cae del lado equivocado. Sin ninguna prueba pgTAP que cubra una racha cruzando el borde |
+| 🔴 La **pantalla de Feriados y la planilla dividen por bases distintas** — CONFIRMADO ABIERTO 2026-09-05 | 3.33–10.7 % de cada sobretasa según el par de meses | `fn_feriados_laborados` (0238, pantalla) sigue usando mes calendario; `fn_feriado_devengado_nucleo` (0349, el que realmente paga) usa el periodo 29→28 desde hace ~15 migraciones. Nunca se reconciliaron |
+
+**Método de esta reverificación (2026-09-05):** workflow dedicado de 13 agentes —
+uno lee el código vigente por hallazgo, otro intenta refutarlo de forma
+independiente sin ver más que el veredicto y el propio repo. Ninguna
+migración se escribió: es solo lectura, siguiendo la regla de la casa de
+auditar antes de tocar plata. **Antes de escribir cualquiera de estas
+migraciones:** `donde-vive.sh` de la función correspondiente (por si otra
+rama ya la tocó) y medir en Postgres local dentro de `BEGIN … ROLLBACK` con
+un caso real — ninguno de los seis se remidió contra datos reales hoy, solo
+se confirmó el mecanismo razonando sobre el SQL vigente.
 
 ### Confirmado y pendiente · muerde el día que alguien cese
 
@@ -214,7 +239,7 @@ antes que las migraciones que los protegen.
 
 | # | Qué | La prueba de que sigue |
 |---|---|---|
-| **V1** | 🔴 **La trunca de vacaciones cobra dos veces los mismos días** — quien gozó en este récord las vacaciones que ganó en el ANTERIOR se queda en S/0.00. **Tres personas hoy, S/905.38.** Ver su entrada completa abajo | medido en producción el 2026-08-14: Janis 9.2 días en pantalla → 0 al liquidar · Sandra 8.1 → 0 · Melany 6.3 → 0 |
+| ~~**V1**~~ | ✅ **CERRADO el 2026-08-22** por la [0283](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql), que cambió el criterio de conteo (ya no cuenta lo gozado por fecha desde el aniversario; paga todo lo devengado y no gozado, en cualquier récord). Confirmado por la auditoría del 2026-09-04: sigue cerrada 8 migraciones después | ver su entrada completa abajo, dejada como registro histórico |
 | **C12 · A16** | 🟡 `fn_registrar_marcaje` — **medido el 2026-08-10: NO cambia el pago**, el candado de la 0138 aguanta. Lo que hacía era entrar muda; lo sella la 0207 | reproducido con `BEGIN … ROLLBACK`: horas 8.00 antes y 8.00 después |
 | **A16-b** | 🔴 `fn_auto_cierre` sigue sin el candado — es la otra puerta que corre sin nadie delante | la 0207 no la toca a propósito: su arreglo es saltarse la candidata y alertar, no sellar |
 | ~~**A3**~~ | 🟡 el cron de auto-cierre — **medido el 2026-08-10: NO reescribe lo pagado.** Es cierto que no nombra `periodos_planilla`, pero solo escribe en `marcajes` y en `alertas`, nunca en `jornadas` directo: pasa por el mismo trigger que el candado de la 0138 detiene. Misma forma y mismo desenlace que C12·A16 | `insert into` en su cuerpo vigente: `marcajes` y `alertas`, y nada más. Lo que sí hacía —entrar mudo— lo sella la 0207 |
@@ -419,7 +444,16 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 ---
 
-## V1 · La trunca de vacaciones cobra dos veces los mismos días
+## ~~V1 · La trunca de vacaciones cobra dos veces los mismos días~~
+
+> ✅ **CERRADO el 2026-08-22** por la
+> [`0283`](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql),
+> ocho migraciones antes de esta nota. Cambió el criterio: ya no cuenta lo
+> gozado por fecha desde el aniversario del récord en curso, sino que paga
+> todo lo devengado y no gozado sin importar en qué récord se tomó. Reconfirmado
+> por la auditoría adversarial del 2026-09-04 (31 agentes) — sigue cerrada.
+> Queda el resto de esta ficha como registro histórico del defecto y de por qué
+> no era un arreglo de una línea.
 
 `liquidacion` · 💰 dinero · arreglo de **días** (necesita un dato que no existe)
 
@@ -1773,6 +1807,14 @@ Informe completo, con el benchmark detallado y ejemplos: PDF entregado a
 Felipe el 2026-09-05 (no vive en el repo, igual que el de ayer).
 
 ### Crítico — 1, nacido de un arreglo de ayer
+
+> ✅ **CERRADO por la [`0376`](../supabase/migrations/0376_una_persona_cesada_deja_de_colarse_por_el_or_suelto.sql),
+> prueba 298 — fusionada a `main`, CI en verde.** Esta sección quedó
+> desactualizada: se escribió pidiendo "una migración nueva" y esa migración
+> ya existía cuando se escribió, sin que esta nota se enterara — el mismo
+> riesgo de duplicado que ya costó `fn_vacaciones_por_vencer` (0297/0299),
+> por el otro lado (casi se reescribe algo que ya estaba hecho). **Falta
+> pegarla en producción** — ver `estado.md` para el protocolo de md5.
 
 - **La 0374 ("el rol deja de contar si la persona no está activa") reescribió
   `fn_rol_actual()` para devolver `NULL` en un cesado, pero no tocó dos

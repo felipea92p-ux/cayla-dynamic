@@ -661,6 +661,14 @@ export default function ContratosPage() {
   if (persona && !datoPersonal?.nombre_dni) {
     bloqueos.push('Carga el nombre completo (como en el DNI) en Datos personales — sin él no se puede generar el contrato.');
   }
+  // El Anexo III (Domicilio Electrónico, contrato-texto.ts:1298) fija el
+  // correo de LA COLABORADORA como domicilio válido para notificaciones —
+  // incluida la entrega del RIT. Sin este candado se imprimía como
+  // "[completar]" sin que nadie lo notara antes de firmar. Solo aplica al
+  // contrato general: el convenio y el adendum no traen este anexo.
+  if (persona && !esAdendum && !esConvenio && !persona.email) {
+    bloqueos.push("Carga el correo electrónico en Equipo — el Anexo III (Domicilio Electrónico) lo necesita para notificaciones válidas.");
+  }
   if (persona && salarioVigente === null) {
     bloqueos.push("No tiene un sueldo vigente asignado en Equipo — sin sueldo no se puede generar el contrato.");
   }
@@ -669,6 +677,13 @@ export default function ContratosPage() {
   }
   if (persona && !esIndefinido && !fechaFin) {
     bloqueos.push("Elige la fecha de fin.");
+  }
+  // El input ya trae `min={fechaInicio}`, pero eso no borra un valor que
+  // quedó cargado ANTES de mover la fecha de inicio — hace falta el mismo
+  // candado acá, con un mensaje que diga cuál de las dos fechas está mal (el
+  // error del servidor no lo dice).
+  if (persona && !esIndefinido && fechaInicio && fechaFin && fechaFin < fechaInicio) {
+    bloqueos.push("La fecha de fin no puede ser anterior a la fecha de inicio.");
   }
   if (persona && esAdendum && adendumEditado.trim() === "") {
     bloqueos.push("Escribe qué se modifica del contrato vigente.");
@@ -715,7 +730,12 @@ export default function ContratosPage() {
   if (persona && !esAdendum && !esConvenio && persona.sueldo_fijo) {
     bloqueos.push("Cobra sueldo fijo: la cláusula de remuneración proporcional a las horas no le corresponde. Revísalo con criterio legal antes de generar.");
   }
-  if (persona && !esAdendum && !esConvenio && activosLibre.trim() === "" && !sinActivosAdicionales) {
+  // CAMBIO — el Anexo IV se imprime igual para un convenio (contrato-texto.ts
+  // incluye anexoIV(d, "LA PRACTICANTE") también ahí), con el mismo fallback
+  // silencioso a "no tiene activos adicionales" si el campo llega vacío. Antes
+  // esta validación excluía `esConvenio` a propósito, así que ese texto se
+  // podía imprimir sin que nadie lo hubiera confirmado.
+  if (persona && !esAdendum && activosLibre.trim() === "" && !sinActivosAdicionales) {
     bloqueos.push("Marca la casilla de activos, o completa el ajuste específico del Anexo IV.");
   }
   // ── Lo que sí exige un convenio, y nada de lo anterior sabe pedir ─────────
@@ -1203,6 +1223,7 @@ export default function ContratosPage() {
                       type="date"
                       className="mt-1 w-full rounded border border-sand p-2"
                       value={fechaFin}
+                      min={fechaInicio || undefined}
                       onChange={(e) => setFechaFin(e.target.value)}
                     />
                   )}

@@ -11,9 +11,39 @@
   --color-rojo-profundo: #8b2a1f; /* énfasis sobre crema */
   --color-sand: #e8e0d0; /* recuadros, headers de tabla, líneas */
   --color-taupe: #805c4c; /* acento tonal, estados intermedios */
-  /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema. */
-  --color-verde: #5b754f; /* presente / trabajando */
-  --color-ambar: #8d6726; /* en pausa */
+  /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema.
+     Retunados el 2026-09-06: los valores anteriores (#5b754f, #8d6726) daban
+     4.51:1 sobre crema — el límite exacto de WCAG AA, tal como se pinta el pill
+     de Insignia al 15% de opacidad. Verificado con la fórmula de contraste
+     relativo: estos dos dan 6.13:1 y 6.37:1, mismo matiz tierra, un paso más
+     oscuro/saturado. */
+  --color-verde: #48603f; /* presente / trabajando */
+  --color-ambar: #74501a; /* en pausa */
+  /* Once tokens, no nueve, desde el 2026-09-06 (ver CLAUDE.md): dos superficies
+     nuevas para huecos que los nueve originales no cubrían.
+     Hueso: un tercer nivel de superficie, "hundido" (crema es el fondo, papel es
+     lo elevado; hasta ahora no había nada por DEBAJO de crema). Se usa en
+     inputs y en la zebra de filas de tabla — antes la única distinción de
+     superficie era el salto de 3-5% de luminosidad entre crema y papel, casi
+     imperceptible en una pantalla mal calibrada. */
+  --color-hueso: #eae1d2;
+  /* Pizarra: el estado "informativo / en proceso" (programado, en revisión,
+     borrador, pendiente de firma) que hoy se apila sin distinguirse sobre sand
+     neutro — ninguno de los estados existentes (verde=positivo,
+     ámbar=advertencia, rojo=alerta) le queda, y esa ausencia es justo lo que
+     empuja a usar un color de Tailwind por defecto por error. 5.13:1 sobre
+     crema. */
+  --color-pizarra: #55677a;
+
+  /* ── Radios ───────────────────────────────────────────────────
+     Antes convivían 7 escalas (rounded, rounded-md, rounded-lg, rounded-xl,
+     rounded-2xl...) sin ningún criterio de qué componente usa cuál. Estos
+     cuatro son los únicos que un componente compartido debería usar de acá en
+     adelante. */
+  --radius-control: 0.625rem; /* 10px — botones, inputs, selects, badges cuadrados */
+  --radius-superficie: 1rem; /* 16px — tarjetas y el contenedor de Tabla (mismo valor que rounded-2xl de hoy, ahora con nombre) */
+  --radius-flotante: 1.25rem; /* 20px — modales, dropdowns, popovers: un paso más que "superficie" para que se sienta encima */
+  --radius-pildora: 999px; /* insignias, avatares */
 
   /* ── Tipografía ───────────────────────────────────────────────
      Serif para títulos y datos con alma; sans para el sistema. */
@@ -50,6 +80,8 @@
     --color-taupe: #ab9080;
     --color-verde: #85a476;
     --color-ambar: #c99a4a;
+    --color-hueso: #15110d;
+    --color-pizarra: #9db0c2;
   }
 }
 :root[data-tema="oscuro"] {
@@ -62,6 +94,8 @@
   --color-taupe: #ab9080;
   --color-verde: #85a476;
   --color-ambar: #c99a4a;
+  --color-hueso: #15110d;
+  --color-pizarra: #9db0c2;
 }
 
 @layer base {
@@ -78,6 +112,16 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Foco de teclado de sistema, agregado el 2026-09-06: antes solo 2-9 de ~40
+     archivos de admin definían algún estado de foco visible, y el resto
+     dependía del anillo azul por defecto del navegador (ni token, ni
+     garantizado sobre rounded-lg ni en modo oscuro). Una sola regla lo resuelve
+     para todos los botones, enlaces e inputs de una vez. */
+  :focus-visible {
+    outline: 2px solid var(--color-rojo);
+    outline-offset: 2px;
   }
 }
 

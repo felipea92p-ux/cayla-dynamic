@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
@@ -124,9 +124,6 @@ export default function EducacionPage() {
   const [mostrandoAlta, setMostrandoAlta] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(FORM_VACIO);
-  // Mismo respaldo que usa la pantalla de ausencias para su campo de fecha:
-  // Safari puede pintar el valor sin disparar el evento que React escucha.
-  const refVigenteHasta = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [limite, setLimite] = useState(LIMITE_RESPALDO);
@@ -219,7 +216,15 @@ export default function EducacionPage() {
 
   function empezarAlta() {
     setMostrandoAlta(true); setEditandoId(null); setArchivo(null);
-    setForm({ ...FORM_VACIO, vigenteDesde: hoyLima().slice(0, 8) + "01" });
+    // `vigenteHasta` también nace con la fecha de inicio, no en "" — es
+    // obligatoria (ver guardar()), y un campo de fecha bloqueante que arranca
+    // vacío es exactamente el bug que costó cinco despliegues el 2026-08-26
+    // (CLAUDE.md): Safari puede pintar un valor en el input sin disparar el
+    // evento que React escucha, dejando el estado en "" mientras la pantalla
+    // ya muestra una fecha. Queda visible y editable en un clic para que la
+    // persona la extienda al fin real del ciclo/matrícula.
+    const inicioMes = hoyLima().slice(0, 8) + "01";
+    setForm({ ...FORM_VACIO, vigenteDesde: inicioMes, vigenteHasta: inicioMes });
   }
   function empezarEdicion(f: Fila) {
     setEditandoId(f.id); setMostrandoAlta(false); setArchivo(null);
@@ -243,7 +248,6 @@ export default function EducacionPage() {
 
   async function guardar() {
     const institucion = form.institucion.trim();
-    const vVigenteHasta = form.vigenteHasta || refVigenteHasta.current?.value || "";
     if (!form.personaId) { avisar("error", "Elige de quién es la asignación."); return; }
     if (institucion.length < 3) { avisar("error", "Escribe qué institución emite el comprobante."); return; }
     if (costo <= 0) { avisar("error", "El costo que dice el comprobante tiene que ser mayor que cero."); return; }
@@ -256,13 +260,12 @@ export default function EducacionPage() {
       return;
     }
     if (!form.vigenteDesde) { avisar("error", "Indica desde cuándo se paga."); return; }
-    if (!vVigenteHasta) { avisar("error", "Indica hasta cuándo vale el comprobante. Una matrícula cubre un ciclo, no la eternidad."); return; }
-    if (vVigenteHasta < form.vigenteDesde) { avisar("error", "La fecha de fin es anterior a la de inicio."); return; }
+    if (!form.vigenteHasta) { avisar("error", "Indica hasta cuándo vale el comprobante. Una matrícula cubre un ciclo, no la eternidad."); return; }
+    if (form.vigenteHasta < form.vigenteDesde) { avisar("error", "La fecha de fin es anterior a la de inicio."); return; }
     if (editandoId && form.motivo.trim().length < 3) {
       avisar("error", "Escribe por qué se corrige. Esto mueve lo que cobra una persona, y queda registrado.");
       return;
     }
-    if (vVigenteHasta !== form.vigenteHasta) setForm({ ...form, vigenteHasta: vVigenteHasta });
 
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
@@ -277,7 +280,7 @@ export default function EducacionPage() {
       p_costo_declarado: costo,
       p_beneficiario: form.beneficiario,
       p_vigente_desde: form.vigenteDesde,
-      p_vigente_hasta: vVigenteHasta,
+      p_vigente_hasta: form.vigenteHasta,
       p_beneficiario_nombre: form.beneficiarioNombre.trim() || null,
       p_nota: form.nota.trim() || null,
       p_id: editandoId,
@@ -302,7 +305,7 @@ export default function EducacionPage() {
       const { error: e3 } = await supabase.rpc("fn_educacion_registrar", {
         p_persona_id: form.personaId, p_institucion: institucion,
         p_costo_declarado: costo, p_beneficiario: form.beneficiario,
-        p_vigente_desde: form.vigenteDesde, p_vigente_hasta: vVigenteHasta,
+        p_vigente_desde: form.vigenteDesde, p_vigente_hasta: form.vigenteHasta,
         p_beneficiario_nombre: form.beneficiarioNombre.trim() || null,
         p_nota: form.nota.trim() || null,
         p_comprobante_url: ruta, p_id: id,
@@ -585,11 +588,9 @@ export default function EducacionPage() {
       <label className="flex flex-col gap-1 text-sm">
         Hasta cuándo vale el comprobante
         <input
-          ref={refVigenteHasta}
           type="date"
           value={form.vigenteHasta}
           onChange={(e) => setForm({ ...form, vigenteHasta: e.target.value })}
-          onBlur={(e) => setForm({ ...form, vigenteHasta: e.currentTarget.value })}
           className="rounded-lg border px-3 py-2"
         />
         <span className="text-xs text-taupe">

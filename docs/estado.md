@@ -82,6 +82,177 @@ esa vista sigue sin exponer nada sensible. Falta el commit/push de este
 código de pantalla (la migración ya vive en el repo desde que se escribió;
 lo pegado a mano fue solo el SQL).
 
+⚠️ **Casi repite el accidente que la 0382 (abajo) documenta.** Mi `drop view` +
+`create view` de `terminal_roster` partió de la 0375 sin saber que, en
+paralelo, la 0382 ya había fusionado a `main` la delegación a
+`fn_persona_marca_en_sede`. Al pegarse mi 0381 en producción DESPUÉS,
+revirtió esa delegación en silencio — confirmado contra producción:
+`delega_en_0382 = false` con las seis columnas (incluida `foto_url`)
+presentes. Reconciliado por la 0383, ver su propia entrada.
+
+---
+
+## 2026-09-05 — Reverificada la deuda de planilla del 2026-08-19: 1 refutado, 6 confirmados abiertos · SOLO LECTURA, SIN MIGRACIONES
+
+La tabla "mueve plata en el pago mensual" de [`hallazgos-abiertos.md`](hallazgos-abiertos.md#confirmado-y-pendiente--mueve-plata-en-el-pago-mensual)
+tenía 8 filas del 2026-08-19, sin revisar contra las +30 migraciones que
+tocaron `fn_planilla_calcular` desde entonces (una de ellas, el descanso
+semanal, ya estaba cerrada por la 0280 sin que nadie la tachara — corregido
+antes en esta misma sesión). Workflow dedicado de 13 agentes (verificar +
+refutar adversarialmente, solo lectura, sin tocar ninguna base de datos):
+
+- **Refutado:** "feriado dentro de vacaciones se paga dos veces" — es
+  decisión de diseño ya verificada con datos reales en la 0293 y reafirmada
+  textualmente en 7 migraciones posteriores. El hallazgo de 2026-08-19 partía
+  de una premisa falsa (que el feriado paga "el día completo").
+- **Confirmados abiertos, los 6 restantes**, cada uno con el mecanismo
+  citado línea por línea contra el código vigente (0349) y sin ninguna
+  migración posterior que lo neutralice: ausencias posteriores al cese,
+  sueldo fijo sin prorratear (afecta también a `fn_liquidacion`), quien cesa
+  sin marcas desaparece de la planilla, sin régimen de pensión el aporte da
+  cero (matiz: sí hay aviso, pero en otra pantalla y desde antes del propio
+  hallazgo), el sobretiempo pierde el exceso de un ciclo que cruza el borde
+  del periodo, y Feriados/Planilla dividen por bases de tiempo distintas.
+
+**Nada de esto se escribió como migración todavía.** Cada hallazgo trae su
+recomendación técnica y, donde aplica, qué medir en Postgres local antes de
+escribir el SQL — varios de los montos originales (S/193.55, S/1,509.64,
+S/14-19) no se remidieron contra datos reales de hoy, solo se confirmó que el
+mecanismo sigue existiendo. Antes de tocar cualquiera: `donde-vive.sh` de la
+función (por si otra rama ya la tomó) y auditar en `BEGIN … ROLLBACK`, como
+manda la casa para todo lo que toca plata.
+
+---
+
+## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») CERRADO — el correo sí llega, y el backlog de julio queda anotado (0377) · PEGADA Y VERIFICADA
+
+Cierra lo que la rama `claude/12-criticos-estado-c33e88` había dejado como
+"falta correr en producción" (ver la entrada del 2026-09-05 de esa rama, más
+arriba en este archivo).
+
+**Se corrió [`las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql)
+en producción.** Resultado: `nunca_se_envio_ningun_email = false` — pero la
+fórmula solo se activa si hay al menos una fila `canal='email'`, y había
+cero (`filas_canal_email = 0`): el sistema nuevo de vencimientos
+(contrato/vacaciones por vencer, 0356/0357) todavía no tuvo ningún caso real
+que avisar — 20 de los 21 contratos vencen recién en diciembre —, no que esté
+roto.
+
+**Se midió el canal que sí tiene tráfico real: `auto_cierre` (dispatch
+desde la 0354, que ignora `canal` a propósito y manda por correo cualquier
+`pendiente`).** En los últimos 14 días: **12 enviados con éxito**, el más
+reciente el mismo 2026-09-05. **El correo funciona.** El crítico 10, tal como
+lo temía la auditoría —"nadie recibe nada, en silencio"— no se confirma.
+
+**Lo que sí apareció: 75 alertas de `auto_cierre` en `pendiente` desde el
+2026-06-28, con `intentos = 0` — el despacho nunca las tocó.** No es un bug:
+es la deuda que la propia 0354 dejó escrita a propósito en su encabezado —
+"si esta función devolviera TODAS [las pendientes acumuladas], el primer
+despacho mandaría un correo por cada auto-cierre de los últimos meses... Si
+de verdad importa saldarlas, es una decisión aparte". `fn_alerta_despachable`
+(0362) exige `created_at` de los últimos 7 días, así que estas 75 nunca
+vuelven a ser candidatas — quedaron congeladas desde que se prendió el
+despacho el 2026-09-03.
+
+**Arreglo (0377):** anota un `nota_fallo` explicativo en esas 75 filas, sin
+tocar `estado`. **A propósito no se marcan `'fallido'`** —que es lo que
+sugería, sin saberlo, el propio comentario de la 0354—: `fn_alertas_despacho_resumen`
+(0362) cuenta como `fallidas_definitivas` cualquier fila `fallido`/`procesando`
+con `intentos >= 3`, **sin filtro de fecha**. Marcarlas así habría encendido
+en la Bandeja de DO una alarma de "75 fallidas" el mismo día — el mismo falso
+positivo permanente que la 0362 ya nombra en su encabezado como "el peor
+error de esta casa". Dejarlas `pendiente` las mantiene exactamente tan
+invisibles para la Bandeja como hoy (no caen en ninguna de las cuatro
+categorías que devuelve esa función), con el porqué ya escrito en la fila
+para quien las vuelva a encontrar.
+
+✅ **Aplicada y verificada en producción el 2026-09-05**, con las dos
+comprobaciones en verde: `filas_anotadas = 75`, `bandeja_fallidas_no_debe_subir = 0`.
+Probada antes en local dentro de `BEGIN … ROLLBACK` (0 filas, esperable — la
+base local no tiene el historial real).
+
+⚠️ **Quedó aplicada en producción antes de commitear el archivo** — la
+urgencia de cerrar el diagnóstico en vivo llevó a pasar el SQL directo en el
+chat, igual que la 0367 (arriba). Commiteada apenas se detectó, siguiendo la
+misma regla.
+
+---
+
+## 2026-09-05 — Contratos: la fecha de fin ya no admite ser anterior a la de inicio
+
+Sale de la auditoría del 2026-09-03/04 (importante 40). Elegir un fin anterior
+al inicio —fácil, son dos inputs de fecha adyacentes— dejaba "Generar borrador"
+habilitado igual, y el error del servidor no decía cuál de las dos fechas
+estaba mal.
+
+**Arreglo, en dos capas** (la misma idea que ya usa el resto de la pantalla:
+el `min`/`max` del input es una ayuda del navegador, no el candado real):
+`min={fechaInicio}` en el `<input type="date">` de fecha de fin, y una entrada
+en `bloqueos` (`fechaFin < fechaInicio`, comparación de string ISO) para el
+caso en que la fecha de fin ya estaba cargada ANTES de mover la de inicio —el
+`min` del input no la borra sola.
+
+Verificado: `pnpm typecheck` limpio, `eslint` sobre el archivo con los mismos
+4 errores preexistentes de antes del cambio (deuda vieja de
+`react-hooks/set-state-in-effect`, líneas 429/448/460/517 — lejos de esta
+edición) y ninguno nuevo. **No verificado en el navegador**: pedía una sesión
+de admin y una persona cargada, y sembrar esos datos en el Postgres local
+—compartido por todos los worktrees— no pareció justificado para una
+comparación de dos strings de fecha.
+
+---
+
+## 2026-09-05 — Despliegue de la 0375 bloqueado por el tope diario de Vercel · SIN RESOLVER
+
+Al intentar `./scripts/desplegar.sh prod` para publicar la 0375 (retiro del
+PIN del terminal) con `main` ya en verde, Vercel devolvió: `Resource is
+limited - try again in 24 hours (more than 100, code:
+"api-deployments-free-per-day")`. No es un freno del repo ni de las pruebas
+— el enlace del proyecto (`cayla/cayla-dynamic`) y las variables de entorno
+están correctos, verificado con `vercel env ls` antes de intentarlo.
+
+**Por qué hoy:** con ~15 worktrees activos en paralelo, cada PR abre su
+propio preview de Vercel además de cualquier `vercel --prod` manual, y el
+plan gratuito tope 100 despliegues/día entre TODO eso junto. Un día de
+actividad alta como el de hoy (más de 20 PRs fusionados) puede agotarlo antes
+de que alguien intente desplegar a producción.
+
+**Qué hacer:** esperar a que el cupo se libere (ventana rolling de 24 h desde
+el primer despliegue que lo agotó — no hay una hora exacta de reset
+publicada) o que Felipe suba el plan de Vercel. Mientras tanto, la 0375 ya
+está fusionada a `main` y no hace falta rehacer nada — el próximo intento de
+`desplegar.sh prod` debería pasar sin cambios de código, si `main` sigue
+verde.
+
+---
+
+## 2026-09-05 — El guard de `fn_vacaciones_saldo` / `fn_marca_apartada_resolver` ya tiene su migración (0376) · FUSIONADA A MAIN, CI VERDE — FALTA PEGAR
+
+Cierra el crítico nuevo de la segunda auditoría (28 agentes, ver más abajo):
+la 0374 dejó `fn_rol_actual()` devolviendo `NULL` para cualquier persona
+cesada, y dos funciones `SECURITY DEFINER` armaban su guard con un
+`and not(...)` suelto en vez de envolver el OR completo en un único
+`is not true` — la misma trampa de tres valores que la 0078 y la 0126 ya
+corrigieron dos veces. Efecto: una persona cesada con sesión de Auth viva
+podía leer el saldo de vacaciones de un excolega activo de su antigua sede
+(`fn_vacaciones_saldo`) y resolver su marca apartada, escribiendo un marcaje
+real (`fn_marca_apartada_resolver`).
+
+**Esta nota existe porque casi se duplica el arreglo.** La entrada de la
+auditoría (más abajo, "Crítico — 1, nacido de un arreglo de ayer") decía
+"falta una migración nueva... es lo primero que hay que escribir mañana" —
+pero cuando llegó "mañana", la 0376 ya existía en `main`, escrita por otra
+sesión, con prueba 298 y CI en verde. `hallazgos-abiertos.md` quedó
+corregido con un aviso para no repetir la búsqueda.
+
+🔴 **Falta pegarla en producción.** Antes de pegar, pedir a producción el
+md5 de las dos funciones (`donde-vive.sh fn_vacaciones_saldo` y
+`donde-vive.sh fn_marca_apartada_resolver` imprimen la consulta lista) —
+la propia 0376 declara sus md5 de partida locales
+(`fn_vacaciones_saldo` `d466d0d9…`, `fn_marca_apartada_resolver`
+`98cc555d…`) pero, como manda la casa, eso no reemplaza pedirlo de nuevo en
+el momento de entregar el SQL.
+
 ---
 
 ## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») · CORRIDO EN PRODUCCIÓN — 0 FILAS, LATENTE
@@ -6060,20 +6231,15 @@ al tope.
    Cualquier migración que hubiera copiado del repositorio los habría borrado en
    silencio — lo mismo que la 0180 tuvo que reponer el mismo día.
 
-   ⚠️ **EL INTERRUPTOR DE BENEFICIOS POR PERSONA NO ESTÁ CONECTADO.** Medido en
-   producción, no deducido: `funciones_que_lo_leen: 0`.
-   `fn_devenga_beneficios(p_tipo)` tiene como cuerpo entero
-   `select p_tipo = 'planilla'` — mira el **tipo de vínculo**, no la columna — y
-   sus cuatro consumidores la llaman con el tipo. La pantalla de Equipo dice que
-   el interruptor funciona y **no hace nada**. Quien lo haya apagado para alguien
-   verá a esa persona seguir acumulando CTS, gratificación y vacaciones.
-   Compruébalo con
-   [`quien_uso_el_interruptor.sql`](../scripts/sql-manual/quien_uso_el_interruptor.sql).
-
-   **Conectarlo es decisión de Felipe: es dinero.** Y antes hay un problema de
-   forma: `devenga_beneficios` es **un solo booleano** para los tres beneficios a
-   la vez, y la decisión sobre Carlos Espejo —«grati y CTS sí, vacaciones no»— no
-   cabe ahí. O se parte en tres banderas, o va por otro camino.
+   ~~⚠️ **EL INTERRUPTOR DE BENEFICIOS POR PERSONA NO ESTÁ CONECTADO.**~~ ✅
+   **CERRADO por la [`0196`](../supabase/migrations/0196_tres_puertas_en_vez_de_una_para_los_beneficios.sql)**,
+   el mismo día en que se midió arriba. Partió el booleano único en tres
+   banderas (`fn_persona_devenga_beneficio(persona_id, tipo_beneficio)` con
+   respaldo a `fn_devenga_beneficios(tipo_vinculo)` cuando no hay excepción
+   cargada) — resolviendo también el problema de forma que este párrafo
+   señalaba. Reconfirmado por la auditoría adversarial del 2026-09-04: los
+   cinco consumidores reales (provisiones, planilla, las tres truncas de
+   liquidación) ya leen la excepción por persona.
 
 5. **Seguridad pendiente** (de `revision-2026-07-15/`):
    - Contraseña mínima 6 sin complejidad, sin cambio forzado en primer login —

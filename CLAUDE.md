@@ -279,13 +279,23 @@ Quedan tres campos así de antes —`contratos` y `documentacion` ya arreglados,
 paga en su lote y no a costa de que el freno mienta.
 
 Y una sexta, del 2026-08-31: **nunca un color de Tailwind por defecto
-—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los nueve
-`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos nueve
+—`bg-white`, `amber-100`, `bg-black`, `text-slate-900`— fuera de los once
+`--color-*` de `globals.css`.** Toda la pantalla se pinta con esos once
 nombres (`bg-crema`, `text-tinta`, `bg-papel`…) precisamente para que el modo
 oscuro pudiera llegar redefiniéndolos, sin tocar un componente. Un color de
 Tailwind por defecto no sigue esa redefinición: se queda con su valor fijo,
 así que al construir el modo oscuro esos sitios se quedaban como un parche
 claro pegado en medio de una pantalla ya oscura.
+
+Eran nueve hasta el 2026-09-06, cuando se sumaron `--color-hueso` (una
+superficie "hundida" — hasta entonces solo había una elevada, `papel`, y
+ninguna por debajo de `crema`; se usa en inputs y en la zebra de tablas) y
+`--color-pizarra` (el estado "informativo/en proceso" — programado, en
+revisión, pendiente de firma — que no encajaba en positivo/advertencia/alerta
+y por eso se apilaba sin distinguirse sobre `sand`). Los dos se midieron
+contra la fórmula de contraste WCAG antes de aceptarse (≥4.5:1 en los pares
+que los usan) — el mismo criterio que ya exige este archivo para planilla:
+medir, no asumir.
 
 Se midió al escribirlo: ~20 usos sueltos en 11 archivos, casi todos insignias
 de aviso (`amber-100`/`amber-800` para "sin ficha", "valor antiguo", "fuera de
