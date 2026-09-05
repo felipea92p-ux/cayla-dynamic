@@ -678,6 +678,13 @@ export default function ContratosPage() {
   if (persona && !esIndefinido && !fechaFin) {
     bloqueos.push("Elige la fecha de fin.");
   }
+  // El input ya trae `min={fechaInicio}`, pero eso no borra un valor que
+  // quedó cargado ANTES de mover la fecha de inicio — hace falta el mismo
+  // candado acá, con un mensaje que diga cuál de las dos fechas está mal (el
+  // error del servidor no lo dice).
+  if (persona && !esIndefinido && fechaInicio && fechaFin && fechaFin < fechaInicio) {
+    bloqueos.push("La fecha de fin no puede ser anterior a la fecha de inicio.");
+  }
   if (persona && esAdendum && adendumEditado.trim() === "") {
     bloqueos.push("Escribe qué se modifica del contrato vigente.");
   }
@@ -1216,6 +1223,7 @@ export default function ContratosPage() {
                       type="date"
                       className="mt-1 w-full rounded border border-sand p-2"
                       value={fechaFin}
+                      min={fechaInicio || undefined}
                       onChange={(e) => setFechaFin(e.target.value)}
                     />
                   )}
