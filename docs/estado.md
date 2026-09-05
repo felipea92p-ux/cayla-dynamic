@@ -37,6 +37,38 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Reverificada la deuda de planilla del 2026-08-19: 1 refutado, 6 confirmados abiertos · SOLO LECTURA, SIN MIGRACIONES
+
+La tabla "mueve plata en el pago mensual" de [`hallazgos-abiertos.md`](hallazgos-abiertos.md#confirmado-y-pendiente--mueve-plata-en-el-pago-mensual)
+tenía 8 filas del 2026-08-19, sin revisar contra las +30 migraciones que
+tocaron `fn_planilla_calcular` desde entonces (una de ellas, el descanso
+semanal, ya estaba cerrada por la 0280 sin que nadie la tachara — corregido
+antes en esta misma sesión). Workflow dedicado de 13 agentes (verificar +
+refutar adversarialmente, solo lectura, sin tocar ninguna base de datos):
+
+- **Refutado:** "feriado dentro de vacaciones se paga dos veces" — es
+  decisión de diseño ya verificada con datos reales en la 0293 y reafirmada
+  textualmente en 7 migraciones posteriores. El hallazgo de 2026-08-19 partía
+  de una premisa falsa (que el feriado paga "el día completo").
+- **Confirmados abiertos, los 6 restantes**, cada uno con el mecanismo
+  citado línea por línea contra el código vigente (0349) y sin ninguna
+  migración posterior que lo neutralice: ausencias posteriores al cese,
+  sueldo fijo sin prorratear (afecta también a `fn_liquidacion`), quien cesa
+  sin marcas desaparece de la planilla, sin régimen de pensión el aporte da
+  cero (matiz: sí hay aviso, pero en otra pantalla y desde antes del propio
+  hallazgo), el sobretiempo pierde el exceso de un ciclo que cruza el borde
+  del periodo, y Feriados/Planilla dividen por bases de tiempo distintas.
+
+**Nada de esto se escribió como migración todavía.** Cada hallazgo trae su
+recomendación técnica y, donde aplica, qué medir en Postgres local antes de
+escribir el SQL — varios de los montos originales (S/193.55, S/1,509.64,
+S/14-19) no se remidieron contra datos reales de hoy, solo se confirmó que el
+mecanismo sigue existiendo. Antes de tocar cualquiera: `donde-vive.sh` de la
+función (por si otra rama ya la tomó) y auditar en `BEGIN … ROLLBACK`, como
+manda la casa para todo lo que toca plata.
+
+---
+
 ## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») CERRADO — el correo sí llega, y el backlog de julio queda anotado (0377) · PEGADA Y VERIFICADA
 
 Cierra lo que la rama `claude/12-criticos-estado-c33e88` había dejado como
