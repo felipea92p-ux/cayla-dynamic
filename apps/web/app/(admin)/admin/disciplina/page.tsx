@@ -266,6 +266,16 @@ export default function DisciplinaPage() {
   const [notaCargo, setNotaCargo] = useState("");
   const [testigoCargo, setTestigoCargo] = useState("");
   const [progresoCargo, setProgresoCargo] = useState<number | null>(null);
+  // ── «Ya se lo comuniqué»: qué día ────────────────────────────────────────
+  // Qué borrador tiene abierto el panel para declarar una comunicación pasada,
+  // y el día elegido. `fechaCargos` NACE EN HOY y no en "": un campo de fecha
+  // cuyo vacío bloquea el envío no puede arrancar vacío (la quinta regla de
+  // CLAUDE.md, la que costó cinco despliegues el 2026-08-26). Y es el mismo
+  // valor que pinta el campo y que viaja al servidor — no se lee del DOM,
+  // porque Safari puede poner el valor sin disparar el evento que React
+  // escucha.
+  const [declarando, setDeclarando] = useState<string | null>(null);
+  const [fechaCargos, setFechaCargos] = useState(hoyLima());
   const [verCerrados, setVerCerrados] = useState(false);
   // Quién puede suscribir CADA documento. Se pregunta por documento y no una
   // vez para todos porque la respuesta depende del nivel y de la sede: una
@@ -475,15 +485,35 @@ export default function DisciplinaPage() {
    * No adelanta nada: la base sigue exigiendo que el plazo de ESA fecha haya
    * vencido y que el descargo esté valorado. Lo único que cambia es de dónde
    * sale la fecha — del reloj, o de alguien que declara y firma con su nombre.
+   *
+   * EL DÍA SE ELIGE EN UN CALENDARIO, NO SE TECLEA (hallazgo 34 de la
+   * auditoría del 2026-09-03/04). Se pedía con `window.prompt` diciendo
+   * «AAAA-MM-DD», y quien escribía 04/09/2026 —el formato normal en Perú— o se
+   * equivocaba en un dígito no veía ningún error: `instanteEntrega` arma un
+   * `Date` inválido y su `toISOString()` revienta DENTRO de los argumentos del
+   * RPC, o sea después de `setOcupado(d.id)` y fuera de todo `catch`. La fila
+   * se quedaba con los botones apagados hasta recargar la página, sin decir
+   * por qué. Es la misma forma del bug de fecha más caro del repositorio.
+   *
+   * Por eso, además del campo, la llamada va envuelta en try/catch/finally:
+   * pase lo que pase, la fila vuelve a su estado normal con un mensaje.
    */
+  function abrirDeclaracion(d: Doc) {
+    setDeclarando(d.id);
+    setFechaCargos(hoyLima());
+  }
+
   async function declararCargos(d: Doc) {
-    const dia = window.prompt(
-      "¿Qué día se le comunicaron los cargos? (AAAA-MM-DD)\n\n" +
-      "Desde ese día corren los dos días hábiles de descargo. Si todavía no han " +
-      "pasado, el documento seguirá sin poder firmarse.",
-      hoyLima(),
-    );
-    if (!dia) return;
+    // El día sale del estado que pinta el campo, no del DOM ni de un prompt.
+    const dia = fechaCargos;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) {
+      avisar("error", "Elige en el calendario el día en que se le comunicaron los cargos.");
+      return;
+    }
+    if (dia > hoyLima()) {
+      avisar("error", "Ese día todavía no llega: los cargos no pudieron comunicarse en el futuro.");
+      return;
+    }
     const constancia = window.prompt(
       "¿Cómo consta esa comunicación? Quién se la hizo, dónde y quién más estaba delante.\n\n" +
       "Queda escrito en el expediente con tu nombre y la fecha de hoy. Si fue verbal, " +
@@ -494,16 +524,41 @@ export default function DisciplinaPage() {
       return;
     }
     setOcupado(d.id);
-    // `instanteEntrega` fija el mediodía de Lima para un día pasado y nunca
-    // devuelve un instante futuro — el mismo problema que ya resolvía al
-    // archivar un cargo.
-    const { data, error } = await supabase.rpc("fn_expediente_declarar_cargos_comunicados", {
-      p_id: d.id, p_fecha: instanteEntrega(dia, null), p_constancia: constancia.trim(), p_dias: 2,
-    });
-    setOcupado(null);
-    if (error) { avisar("error", mensajeDeError(error)); return; }
-    await cargar();
-    avisar("ok", `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(String(data))}`);
+    // El `finally` es lo que impide que la fila quede congelada: cualquier
+    // fallo entre acá y el final —incluido uno al construir los argumentos—
+    // devuelve los botones a su sitio con un mensaje, en vez de dejarlos
+    // apagados sin explicación hasta recargar.
+    //
+    // Y dentro del `try` va SOLO la llamada. Lo que pasa después —refrescar la
+    // lista, avisar— ya ocurre con la comunicación escrita, así que un fallo
+    // ahí no puede decir «no se pudo registrar»: mandaría a repetirlo, o sea a
+    // teclear la constancia entera otra vez para que la base la rechace por
+    // estar ya comunicada.
+    let vence: string;
+    try {
+      // `instanteEntrega` fija el mediodía de Lima para un día pasado y nunca
+      // devuelve un instante futuro — el mismo problema que ya resolvía al
+      // archivar un cargo.
+      const { data, error } = await supabase.rpc("fn_expediente_declarar_cargos_comunicados", {
+        p_id: d.id, p_fecha: instanteEntrega(dia, null), p_constancia: constancia.trim(), p_dias: 2,
+      });
+      if (error) { avisar("error", mensajeDeError(error, "registrar la comunicación")); return; }
+      vence = String(data);
+    } catch {
+      avisar("error", "No se pudo registrar la comunicación. Vuelve a elegir el día en el calendario y repítelo; si sigue igual, avisa a Felipe.");
+      return;
+    } finally {
+      setOcupado(null);
+    }
+    // Desde acá ya está escrito. Si refrescar falla, se dice eso y no otra cosa.
+    setDeclarando(null);
+    const plazo = `Comunicación registrada · su plazo de descargo venció o vence el ${selloLima(vence)}`;
+    try {
+      await cargar();
+      avisar("ok", plazo);
+    } catch {
+      avisar("ok", `${plazo}. La lista no se pudo actualizar: recarga la página para verla al día.`);
+    }
   }
 
   /**
@@ -1160,7 +1215,7 @@ function fechasDe(h: Hecho[]): string {
                               no como botón: el camino normal es comunicar hoy;
                               este es la excepción de quien ya lo hizo y no tuvo
                               dónde anotarlo. */}
-                          <button onClick={() => void declararCargos(d)} disabled={ocupado === d.id}
+                          <button onClick={() => abrirDeclaracion(d)} disabled={ocupado === d.id}
                             title="Registrar una comunicación que ya ocurrió, con la fecha en que ocurrió. El plazo se cuenta desde esa fecha, no desde hoy."
                             className="text-xs text-taupe underline disabled:opacity-40">ya se lo comuniqué</button>
                         </>
@@ -1328,6 +1383,36 @@ function fechasDe(h: Hecho[]): string {
                     </label>
                     );
                   })()}
+                  {/* El día de una comunicación que YA ocurrió. Panel en la
+                      fila, con el mismo aire que el de subir un papel: el día
+                      se elige en un calendario en vez de teclearse en un
+                      `prompt`, que es lo que dejaba la fila congelada cuando
+                      alguien escribía 04/09/2026. Nace en hoy, se corrige en
+                      un clic, y no admite un día futuro. */}
+                  {declarando === d.id && (
+                    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+                      <p className="mb-2 text-xs text-taupe">
+                        ¿Qué día se le comunicaron los cargos a {nombres.get(d.persona_id) ?? "esta persona"}?
+                        Desde ese día corren los dos días hábiles de descargo; si todavía no han pasado,
+                        el documento seguirá sin poder firmarse. Al continuar se te pedirá cómo consta esa
+                        comunicación.
+                      </p>
+                      <label className="flex flex-col gap-1 text-xs">
+                        Día de la comunicación
+                        <input type="date" value={fechaCargos} max={hoyLima()}
+                          onChange={(e) => setFechaCargos(e.target.value)}
+                          className="w-44 rounded border px-2 py-1 text-xs" />
+                      </label>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button onClick={() => void declararCargos(d)} disabled={ocupado === d.id}
+                          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                          {ocupado === d.id ? "Registrando…" : "Continuar"}
+                        </button>
+                        <button onClick={() => setDeclarando(null)}
+                          className="rounded-lg border px-3 py-1 text-xs">Cancelar</button>
+                      </div>
+                    </div>
+                  )}
                   {subiendoCargo?.id === d.id && (
                     <FormularioCargo
                       tipo={subiendoCargo.tipo}

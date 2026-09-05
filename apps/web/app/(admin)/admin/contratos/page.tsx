@@ -7,6 +7,7 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
+import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -56,9 +57,22 @@ const FIRMANTE_POR_DEFECTO = { nombre: "", dni: "", cargo: "Gerencia General" };
 const MAX_BYTES = 50 * 1024 * 1024;
 
 // "2026-07-28" + 1 → "2026-07-29" (aritmética en UTC: sin sorpresas de zona)
+// "Proyecto ERP\n" → "Proyecto ERP"; "a\n\n  b" → "a b". Para lo que se imprime
+// dentro de una frase: ahí un salto de línea no significa nada y solo estorba.
+function unaLinea(texto: string): string {
+  return texto.replace(/\s+/g, " ").trim();
+}
+
 function sumarDias(iso: string, n: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// "2026-09-04" + 3 meses → "2026-12-03": el día anterior al aniversario, que es
+// como se cuenta un plazo de contrato (del 4 de setiembre al 3 de diciembre).
+function finDePlazo(inicioIso: string, meses: number): string {
+  const [y, m, d] = inicioIso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + meses, d - 1)).toISOString().slice(0, 10);
 }
 
 interface Persona {
@@ -116,7 +130,8 @@ interface ContratoFila {
   sede: string | null;
   remuneracion_mensual: number;
   fecha_inicio: string;
-  fecha_fin: string;
+  // NULL cuando tipo="indefinido" (0347): ese documento no tiene fecha de término.
+  fecha_fin: string | null;
   horas_semanales: number | null;
   generado_at: string;
   storage_path: string | null;
@@ -152,6 +167,7 @@ const TIPO_CONTRATO: Record<string, string> = {
   renovacion: "Renovación",
   adendum: "Adendum",
   convenio_practicas: "Convenio de prácticas",
+  indefinido: "Indefinido",
 };
 
 /**
@@ -229,13 +245,36 @@ export default function ContratosPage() {
   const [tablero, setTablero] = useState<FilaTablero[]>([]);
 
   const [personaId, setPersonaId] = useState("");
-  const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas">("renovacion");
+  const [tipo, setTipo] = useState<"nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido">(
+    "renovacion",
+  );
   const [cargoEditado, setCargoEditado] = useState("");
   const [causaEditada, setCausaEditada] = useState("");
   const [funcionesEditadas, setFuncionesEditadas] = useState("");
-  // Solo para tipo === "convenio_practicas" (0333).
-  const [institucionEducativaEditada, setInstitucionEducativaEditada] = useState("");
+  // Solo para tipo === "convenio_practicas" (0333). Desde la 0348 el
+  // preprofesional es TRIPARTITO (CAYLA + centro de formación + practicante,
+  // art. 12 y ss. Ley 28518) — estos cuatro son del centro, que solo
+  // corresponde a esa modalidad.
   const [planCapacitacionEditado, setPlanCapacitacionEditado] = useState("");
+  const [centroFormacionNombreEditado, setCentroFormacionNombreEditado] = useState("");
+  const [centroFormacionRucEditado, setCentroFormacionRucEditado] = useState("");
+  const [centroFormacionDomicilioEditado, setCentroFormacionDomicilioEditado] = useState("");
+  const [centroFormacionRepresentanteEditado, setCentroFormacionRepresentanteEditado] = useState("");
+  const [carreraEspecialidadEditada, setCarreraEspecialidadEditada] = useState("");
+  const [cicloAcademicoEditado, setCicloAcademicoEditado] = useState("");
+  // Solo profesional (0348): "Bachiller en X — Universidad Y, egresado el Z".
+  const [gradoTituloTextoEditado, setGradoTituloTextoEditado] = useState("");
+  // Convenio elegido A MANO para alguien cuya ficha no dice tipo_vinculo=
+  // 'practicante' (0348 — antes solo se podía generar cambiando la ficha
+  // primero en Equipo). Sin esto, `persona.practicante_modalidad` sale
+  // siempre null para esa persona y no hay de dónde sacar 30h/48h.
+  const [modalidadManualEditada, setModalidadManualEditada] = useState<"preprofesional" | "profesional" | "">("");
+  // Anexo I — Plan Específico de Aprendizaje (0348, ambas modalidades).
+  const [areaProyectoEditado, setAreaProyectoEditado] = useState("");
+  const [objetivoFormativoGeneralEditado, setObjetivoFormativoGeneralEditado] = useState("");
+  const [supervisorAsignadoEditado, setSupervisorAsignadoEditado] = useState("");
+  const [hitoMes3Editado, setHitoMes3Editado] = useState("");
+  const [hitoMes6Editado, setHitoMes6Editado] = useState("");
   const [activosLibre, setActivosLibre] = useState("");
   const [adendumEditado, setAdendumEditado] = useState("");
   const [ciudadEditada, setCiudadEditada] = useState("");
@@ -439,15 +478,31 @@ export default function ContratosPage() {
     setSinActivosAdicionales(false);
     setAdendumEditado("");
     setCiudadEditada("");
-    setInstitucionEducativaEditada("");
     setPlanCapacitacionEditado("");
+    setCentroFormacionNombreEditado("");
+    setCentroFormacionRucEditado("");
+    setCentroFormacionDomicilioEditado("");
+    setCentroFormacionRepresentanteEditado("");
+    setCarreraEspecialidadEditada("");
+    setCicloAcademicoEditado("");
+    setGradoTituloTextoEditado("");
+    setAreaProyectoEditado("");
+    setObjetivoFormativoGeneralEditado("");
+    setSupervisorAsignadoEditado("");
+    setHitoMes3Editado("");
+    setHitoMes6Editado("");
+    setModalidadManualEditada("");
 
-    if (tipo === "renovacion" && p.fecha_fin_contrato) {
-      setFechaInicio(sumarDias(p.fecha_fin_contrato, 1));
-    } else {
-      setFechaInicio(hoyLima());
-    }
-    setFechaFin("");
+    const inicio = tipo === "renovacion" && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : hoyLima();
+    setFechaInicio(inicio);
+    // La fecha de fin NO arranca vacía (regla de la casa del 2026-08-26): su
+    // vacío bloquea «Generar borrador», y en Safari un valor tecleado a mano
+    // puede verse en pantalla sin llegar nunca al estado de React. El 2026-09-04
+    // pasó justo eso con un convenio: 03/12/2026 a la vista y el botón apagado.
+    // Nace con el plazo más probable —tres meses para un convenio, un año para
+    // un contrato modal— y se cambia en un clic.
+    const esConvenioDeEstaPersona = p.tipo_vinculo === "practicante" || tipo === "convenio_practicas";
+    setFechaFin(finDePlazo(inicio, esConvenioDeEstaPersona ? 3 : 12));
     // Deliberadamente NO depende de `personas`/`sedeNombreMap`: generar un
     // borrador llama a `cargar()`, que trae esos dos arreglos de nuevo con una
     // referencia distinta aunque el contenido sea el mismo. Si estuvieran acá,
@@ -469,8 +524,20 @@ export default function ContratosPage() {
     sinActivosAdicionales,
     adendumEditado,
     ciudadEditada,
-    institucionEducativaEditada,
     planCapacitacionEditado,
+    centroFormacionNombreEditado,
+    centroFormacionRucEditado,
+    centroFormacionDomicilioEditado,
+    centroFormacionRepresentanteEditado,
+    carreraEspecialidadEditada,
+    cicloAcademicoEditado,
+    gradoTituloTextoEditado,
+    areaProyectoEditado,
+    objetivoFormativoGeneralEditado,
+    supervisorAsignadoEditado,
+    hitoMes3Editado,
+    hitoMes6Editado,
+    modalidadManualEditada,
     fechaInicio,
     fechaFin,
   ]);
@@ -485,6 +552,14 @@ export default function ContratosPage() {
   // la persona es practicante, sin que quien usa la pantalla tenga que saber
   // por qué el desplegable de tipo desaparece.
   const tipoEfectivo = persona?.tipo_vinculo === "practicante" ? "convenio_practicas" : tipo;
+  // La modalidad efectiva: la de la ficha si la persona YA es practicante
+  // (0324) — eso no se pisa a mano —, o la elegida en pantalla cuando el
+  // convenio se generó eligiéndolo del desplegable para alguien que no está
+  // marcado así (0348: antes esto no existía, había que ir a Equipo primero).
+  const modalidadEfectiva: "preprofesional" | "profesional" | null =
+    persona?.practicante_modalidad === "preprofesional" || persona?.practicante_modalidad === "profesional"
+      ? persona.practicante_modalidad
+      : modalidadManualEditada || null;
   const datoPersonal = persona ? (datosPersonales.find((d) => d.persona_id === persona.id) ?? null) : null;
   const salarioVigente = persona
     ? (salarios.find((s) => s.persona_id === persona.id)?.salario_mensual_soles ?? null)
@@ -503,14 +578,23 @@ export default function ContratosPage() {
   const ciudadFinal = (ciudadEditada.trim() || ciudadDeLaSede) ?? null;
   const esAdendum = tipoEfectivo === "adendum";
   const esConvenio = tipoEfectivo === "convenio_practicas";
+  // Un indefinido no tiene causa objetiva (no es modalidad temporal) ni fecha
+  // de fin — comparte todo lo demás con el contrato a plazo fijo (0347).
+  const esIndefinido = tipoEfectivo === "indefinido";
   // `coalesce(sede_fisica, sede_base)` — el mismo criterio de
   // `fn_planilla_calcular` (0166). Leerlo solo de la sede base le imprimía a
   // quien tiene base Central y trabaja en AQP la tarifa de Central, que no
   // existe, y el contrato salía prometiendo S/ 0.00 de movilidad.
   const movilidadTarifa = persona ? tarifaDeSede(persona.sede_fisica_id ?? persona.sede_base_id) : null;
 
+  // Un indefinido no exige fechaFin — es justamente lo que no tiene (0347).
   const datosParaGenerar: DatosContrato | null =
-    persona && datoPersonal?.nombre_dni && persona.documento && salarioVigente !== null && fechaInicio && fechaFin
+    persona &&
+    datoPersonal?.nombre_dni &&
+    persona.documento &&
+    salarioVigente !== null &&
+    fechaInicio &&
+    (fechaFin || esIndefinido)
       ? {
           tipo: tipoEfectivo,
           nombreDni: datoPersonal.nombre_dni,
@@ -538,12 +622,25 @@ export default function ContratosPage() {
           firmanteNombre: firmante.nombre,
           firmanteDni: firmante.dni,
           firmanteCargo: firmante.cargo,
-          practicanteModalidad:
-            persona.practicante_modalidad === "preprofesional" || persona.practicante_modalidad === "profesional"
-              ? persona.practicante_modalidad
-              : null,
-          institucionEducativa: institucionEducativaEditada.trim() || null,
+          practicanteModalidad: modalidadEfectiva,
           planCapacitacionTexto: planCapacitacionEditado,
+          centroFormacionNombre: centroFormacionNombreEditado.trim() || null,
+          centroFormacionRuc: centroFormacionRucEditado.trim() || null,
+          centroFormacionDomicilio: centroFormacionDomicilioEditado.trim() || null,
+          centroFormacionRepresentante: centroFormacionRepresentanteEditado.trim() || null,
+          carreraEspecialidad: carreraEspecialidadEditada.trim() || null,
+          cicloAcademico: cicloAcademicoEditado.trim() || null,
+          gradoTituloTexto: gradoTituloTextoEditado.trim() || null,
+          // Estos cinco van dentro de una frase o de un «Etiqueta: valor» en
+          // un solo párrafo. Desde que se escriben en un AreaTexto admiten
+          // Enter, y un Enter final —el gesto natural al terminar— salía como
+          // «Proyecto ERP , en el puesto» y un campo con solo «⏎» pasaba por
+          // lleno. Se aplanan a una línea, igual que se leerán.
+          areaProyecto: unaLinea(areaProyectoEditado),
+          objetivoFormativoGeneral: unaLinea(objetivoFormativoGeneralEditado),
+          supervisorAsignado: unaLinea(supervisorAsignadoEditado),
+          hitoMes3: unaLinea(hitoMes3Editado),
+          hitoMes6: unaLinea(hitoMes6Editado),
         }
       : null;
 
@@ -567,10 +664,11 @@ export default function ContratosPage() {
   // nota entra TAL CUAL a la cláusula PRIMERA (`<p>${d.causaObjetivaTexto}</p>`):
   // un contrato firmado que lleva dentro «[REVISAR antes de imprimir…]» no solo
   // queda en ridículo, debilita justo la cláusula que sustenta la modalidad
-  // temporal ante una inspección. Un convenio no usa `causaObjetivaTexto`
-  // (no tiene causa objetiva — no es un contrato de trabajo), así que esta
-  // nota de relleno no es asunto suyo.
-  if (persona && !esConvenio && causaEditada.includes("[REVISAR")) {
+  // temporal ante una inspección. Ni un convenio ni un indefinido usan
+  // `causaObjetivaTexto` (no tienen causa objetiva — uno no es contrato de
+  // trabajo, el otro no es modalidad temporal), así que esta nota de relleno
+  // no es asunto suyo.
+  if (persona && !esConvenio && !esIndefinido && causaEditada.includes("[REVISAR")) {
     bloqueos.push("Revisa y quita la nota «[REVISAR antes de imprimir…]» de la causa objetiva.");
   }
   // Un beneficio con monto es un monto REAL o no se imprime. Sin tarifa vigente
@@ -604,8 +702,12 @@ export default function ContratosPage() {
   if (persona && esConvenio && planCapacitacionEditado.trim() === "") {
     bloqueos.push("Completa el plan de capacitación específico — un convenio no tiene funciones, tiene un plan de capacitación (Ley 28518, art. 15).");
   }
-  if (persona && esConvenio && persona.practicante_modalidad !== "preprofesional" && persona.practicante_modalidad !== "profesional") {
-    bloqueos.push("Asígnale modalidad (preprofesional o profesional) en Equipo antes de generar su convenio — decide su jornada máxima (30h/48h).");
+  if (persona && esConvenio && modalidadEfectiva === null) {
+    bloqueos.push(
+      persona.tipo_vinculo === "practicante"
+        ? "Asígnale modalidad (preprofesional o profesional) en Equipo antes de generar su convenio — decide su jornada máxima (30h/48h)."
+        : "Elige la modalidad (preprofesional o profesional) — decide su jornada máxima (30h/48h).",
+    );
   }
   if (persona && esConvenio && salarioVigente !== null && rmvVigente !== null && salarioVigente < rmvVigente) {
     bloqueos.push(`La subvención (S/ ${salarioVigente.toFixed(2)}) está por debajo de la RMV vigente (S/ ${rmvVigente.toFixed(2)}) — Ley 28518, art. 45: no puede ser menor a jornada completa.`);
@@ -626,7 +728,7 @@ export default function ContratosPage() {
   // Avisa, no bloquea: renovar pasado el tope puede ser una decisión tomada a
   // sabiendas, y quien la tome tiene que verlo escrito antes de firmar.
   const avisos: string[] = [];
-  if (persona && !esAdendum && !esConvenio && fechaFin) {
+  if (persona && !esAdendum && !esConvenio && !esIndefinido && fechaFin) {
     const anios = (new Date(`${fechaFin}T00:00:00`).getTime() - new Date(`${persona.fecha_ingreso}T00:00:00`).getTime()) / 31_557_600_000;
     if (anios > 5) {
       avisos.push(`Al terminar este contrato acumularía ${anios.toFixed(1)} años a plazo fijo, sobre el tope de CINCO del artículo 74. El vínculo quedaría desnaturalizado a indefinido por el artículo 77.`);
@@ -667,7 +769,9 @@ export default function ContratosPage() {
       p_sede_id: persona.sede_base_id,
       p_remuneracion_mensual: datosParaGenerar.remuneracionMensual,
       p_fecha_inicio: fechaInicio,
-      p_fecha_fin: fechaFin,
+      // Un indefinido nunca lleva fecha de fin (0347) — fn_contrato_registrar
+      // la rechaza si no es null para ese tipo.
+      p_fecha_fin: esIndefinido ? null : fechaFin,
       // La jornada del contrato es siempre 48h (ver contrato-texto.ts); no hay
       // un número calculado del horario que guardar acá.
       p_horas_semanales: null,
@@ -909,7 +1013,12 @@ export default function ContratosPage() {
                       ? { ...e, texto: "se acerca al tope de 12 meses del convenio" }
                       : esPracticanteFila && f.estado === "sin_vencimiento"
                         ? { ...e, texto: "sin fecha de fin en su convenio" }
-                        : e;
+                        : // Un indefinido nunca debe comunicación al MTPE (0347) — el
+                          // texto genérico de "trámite pendiente" menciona esa
+                          // comunicación, y ahí mentiría.
+                          f.tipo === "indefinido" && f.estado === "tramite_pendiente"
+                          ? { ...e, texto: "falta entregar copia a la colaboradora" }
+                          : e;
                 const tipoFila = esPracticanteFila
                   ? "convenio_practicas"
                   : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
@@ -988,10 +1097,20 @@ export default function ContratosPage() {
                 <select
                   className="mt-1 w-full rounded border border-sand p-2"
                   value={tipo}
-                  onChange={(e) => setTipo(e.target.value as "nuevo" | "renovacion" | "adendum")}
+                  onChange={(e) =>
+                    setTipo(
+                      e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
+                    )
+                  }
                 >
                   <option value="renovacion">Renovación</option>
                   <option value="nuevo">Nuevo ingreso</option>
+                  <option value="indefinido">Indefinido</option>
+                  {/* Elegible a mano desde la 0348 para alguien que no está
+                      marcado tipo_vinculo="practicante" en su ficha — no
+                      cambia esa ficha, solo genera el documento (ver el
+                      aviso que sale más abajo cuando se elige así). */}
+                  <option value="convenio_practicas">Convenio de prácticas</option>
                   <option value="adendum">Adendum</option>
                 </select>
               )}
@@ -1012,12 +1131,20 @@ export default function ContratosPage() {
                 </label>
                 <label className="text-sm">
                   Fecha de fin
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    value={fechaFin}
-                    onChange={(e) => setFechaFin(e.target.value)}
-                  />
+                  {esIndefinido ? (
+                    <input
+                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                      value="Sin fecha de fin — contrato indefinido"
+                      disabled
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      value={fechaFin}
+                      onChange={(e) => setFechaFin(e.target.value)}
+                    />
+                  )}
                 </label>
               </div>
 
@@ -1050,7 +1177,7 @@ export default function ContratosPage() {
               {esAdendum ? (
                 <label className="block text-sm">
                   Qué se modifica del contrato vigente — una modificación por línea
-                  <textarea
+                  <AreaTexto
                     className="mt-1 w-full rounded border border-sand p-2"
                     rows={4}
                     placeholder="Ej.: Se modifica la Cláusula Sexta, fijando la remuneración mensual base en S/ …"
@@ -1060,32 +1187,141 @@ export default function ContratosPage() {
                 </label>
               ) : esConvenio ? (
                 <>
+                  {persona.tipo_vinculo === "practicante" ? (
+                    <label className="block text-sm">
+                      Modalidad
+                      <input
+                        className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                        disabled
+                        value={
+                          persona.practicante_modalidad === "preprofesional"
+                            ? "Preprofesional — 30h/semana (art. 44)"
+                            : persona.practicante_modalidad === "profesional"
+                              ? "Profesional — 48h/semana (art. 44)"
+                              : "Sin asignar — ve a Equipo y elígela primero"
+                        }
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label className="block text-sm">
+                        Modalidad
+                        <select
+                          className="mt-1 w-full rounded border border-sand p-2"
+                          value={modalidadManualEditada}
+                          onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
+                        >
+                          <option value="">— elegir —</option>
+                          <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
+                          <option value="profesional">Profesional — 48h/semana (art. 44)</option>
+                        </select>
+                      </label>
+                      <p className="text-xs text-taupe">
+                        {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
+                        convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
+                      </p>
+                    </>
+                  )}
+                  {/* El preprofesional es TRIPARTITO (CAYLA + centro de
+                      formación + practicante, art. 12 y ss. Ley 28518) — el
+                      profesional es bipartito y solo referencia su título
+                      (0348). */}
+                  {modalidadEfectiva === "preprofesional" ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm">
+                          Centro de formación — razón social
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            placeholder="Ej.: Universidad Nacional de Trujillo"
+                            value={centroFormacionNombreEditado}
+                            onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          Centro de formación — RUC
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={centroFormacionRucEditado}
+                            onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm">
+                          Centro de formación — domicilio
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={centroFormacionDomicilioEditado}
+                            onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          Centro de formación — representante
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={centroFormacionRepresentanteEditado}
+                            onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm">
+                          Carrera / especialidad
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={carreraEspecialidadEditada}
+                            onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
+                          />
+                        </label>
+                        <label className="text-sm">
+                          Ciclo académico
+                          <input
+                            className="mt-1 w-full rounded border border-sand p-2"
+                            value={cicloAcademicoEditado}
+                            onChange={(e) => setCicloAcademicoEditado(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                    </>
+                  ) : (
+                    <label className="block text-sm">
+                      Grado / título (referencial — no aplica al centro de formación, que no firma en el profesional)
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
+                        placeholder="Ej.: Bachiller en Ingeniería de Sistemas — UNT, egresado el 15/12/2025"
+                        value={gradoTituloTextoEditado}
+                        onChange={(e) => setGradoTituloTextoEditado(e.target.value)}
+                      />
+                    </label>
+                  )}
                   <label className="block text-sm">
-                    Modalidad
-                    <input
-                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                      disabled
-                      value={
-                        persona.practicante_modalidad === "preprofesional"
-                          ? "Preprofesional — 30h/semana (art. 44)"
-                          : persona.practicante_modalidad === "profesional"
-                            ? "Profesional — 48h/semana (art. 44)"
-                            : "Sin asignar — ve a Equipo y elígela primero"
-                      }
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Institución educativa (solo aplica de verdad a una preprofesional — vacío no bloquea)
-                    <input
+                    Anexo I — área / proyecto de destino
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
-                      placeholder="Ej.: Universidad Nacional de Trujillo"
-                      value={institucionEducativaEditada}
-                      onChange={(e) => setInstitucionEducativaEditada(e.target.value)}
+                      rows={2}
+                      placeholder="Ej.: Proyecto ERP CAYLA — módulo de inventario"
+                      value={areaProyectoEditado}
+                      onChange={(e) => setAreaProyectoEditado(e.target.value)}
                     />
                   </label>
                   <label className="block text-sm">
-                    Plan de capacitación específico (Anexo I) — una por línea; se numeran solas
-                    <textarea
+                    Anexo I — objetivo formativo general
+                    {/* Un Enter acá llega al papel como salto de línea, no
+                        colapsado a un espacio dentro del párrafo del Anexo I
+                        (ver parrafoDesdeTexto en contrato-texto). */}
+                    <AreaTexto
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      rows={2}
+                      placeholder="Qué debe saber hacer al finalizar"
+                      value={objetivoFormativoGeneralEditado}
+                      onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    Anexo I — actividades principales (una por línea; se numeran solas)
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
                       rows={3}
                       placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
@@ -1094,8 +1330,36 @@ export default function ContratosPage() {
                     />
                   </label>
                   <label className="block text-sm">
+                    Anexo I — supervisor(a) asignado(a)
+                    <input
+                      className="mt-1 w-full rounded border border-sand p-2 sm:w-1/2"
+                      value={supervisorAsignadoEditado}
+                      onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
+                    />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm">
+                      Anexo I — hito de evaluación, mes 3
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
+                        value={hitoMes3Editado}
+                        onChange={(e) => setHitoMes3Editado(e.target.value)}
+                      />
+                    </label>
+                    <label className="text-sm">
+                      Anexo I — hito de evaluación, mes 6
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
+                        value={hitoMes6Editado}
+                        onChange={(e) => setHitoMes6Editado(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-sm">
                     Anexo IV — ajuste de activos para esta persona (uno por línea)
-                    <textarea
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
                       rows={2}
                       value={activosLibre}
@@ -1118,18 +1382,22 @@ export default function ContratosPage() {
                 </>
               ) : (
                 <>
-                  <label className="block text-sm">
-                    Causa objetiva (revisar antes de imprimir)
-                    <textarea
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      rows={4}
-                      value={causaEditada}
-                      onChange={(e) => setCausaEditada(e.target.value)}
-                    />
-                  </label>
+                  {/* Un indefinido no tiene causa objetiva — no es modalidad
+                      temporal, no la necesita (0347). */}
+                  {!esIndefinido && (
+                    <label className="block text-sm">
+                      Causa objetiva (revisar antes de imprimir)
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={4}
+                        value={causaEditada}
+                        onChange={(e) => setCausaEditada(e.target.value)}
+                      />
+                    </label>
+                  )}
                   <label className="block text-sm">
                     Funciones del cargo (Anexo I) — una por línea; se numeran solas
-                    <textarea
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2"
                       rows={3}
                       value={funcionesEditadas}
@@ -1138,7 +1406,7 @@ export default function ContratosPage() {
                   </label>
                   <label className="block text-sm">
                     Anexo IV — ajuste de activos para esta persona (uno por línea)
-                    <textarea
+                    <AreaTexto
                       className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
                       rows={2}
                       value={activosLibre}
@@ -1179,8 +1447,8 @@ export default function ContratosPage() {
                   <dd>
                     {esConvenio
                       ? (() => {
-                          const max = maximoSemanalPracticante("practicante", persona.practicante_modalidad);
-                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta asignar modalidad en Equipo";
+                          const max = maximoSemanalPracticante("practicante", modalidadEfectiva);
+                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta elegir la modalidad";
                         })()
                       : "48 horas semanales (el máximo legal — ver cláusula QUINTA)"}
                   </dd>
@@ -1273,7 +1541,8 @@ export default function ContratosPage() {
                   <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
                     <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
                       <span>
-                        {formatearFecha(c.fecha_inicio)} – {formatearFecha(c.fecha_fin)}
+                        {formatearFecha(c.fecha_inicio)} –{" "}
+                        {c.fecha_fin ? formatearFecha(c.fecha_fin) : "indeterminado"}
                       </span>
                       <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
                       <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
@@ -1282,16 +1551,19 @@ export default function ContratosPage() {
                     </div>
 
                     {/* Los dos plazos, solo mientras falten: confirmar en cada
-                        fila lo que ya se hizo llena la pantalla de recibos. */}
-                    {c.fecha_firma && (!c.copia_entregada_at || !c.comunicado_mtpe_at) && (
-                      <p className="text-xs text-taupe">
-                        Falta{" "}
-                        {!c.copia_entregada_at &&
-                          `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
-                        {!c.copia_entregada_at && !c.comunicado_mtpe_at && " y "}
-                        {!c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
-                      </p>
-                    )}
+                        fila lo que ya se hizo llena la pantalla de recibos.
+                        Un indefinido no se registra ante la Autoridad de
+                        Trabajo (0347) — ese trámite no le corresponde. */}
+                    {c.fecha_firma &&
+                      (!c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)) && (
+                        <p className="text-xs text-taupe">
+                          Falta{" "}
+                          {!c.copia_entregada_at &&
+                            `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
+                          {!c.copia_entregada_at && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && " y "}
+                          {c.tipo !== "indefinido" && !c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
+                        </p>
+                      )}
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                       <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
@@ -1312,7 +1584,7 @@ export default function ContratosPage() {
                           Marcar copia entregada
                         </button>
                       )}
-                      {c.fecha_firma && !c.comunicado_mtpe_at && (
+                      {c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
                         <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
                           Marcar comunicado al MTPE
                         </button>
@@ -1405,7 +1677,7 @@ export default function ContratosPage() {
         {anulando && (
           <section className="space-y-2 rounded-lg border border-rojo p-4">
             <p className="font-serif text-lg">Anular contrato</p>
-            <textarea
+            <AreaTexto
               className="w-full rounded border border-sand p-2 text-sm"
               placeholder="Motivo (mínimo 3 caracteres)"
               value={motivoAnular}

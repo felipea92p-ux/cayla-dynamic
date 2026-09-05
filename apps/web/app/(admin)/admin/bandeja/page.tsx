@@ -34,7 +34,7 @@ import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { fechaLima, puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas } from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
   id: string;
@@ -75,11 +75,30 @@ interface ItemSolicitudVacacion {
   comentario: string | null;
 }
 
+// Lo que devuelve fn_alertas_despacho_resumen (0362): lo que el despacho
+// diario de avisos por correo NO va a resolver solo.
+interface ResumenAlertas {
+  despachables: number;
+  atascadas: number;
+  fallidas_definitivas: number;
+  caducadas: number;
+  ultimo_envio_at: string | null;
+  /** Notas distintas del último fallo de las definitivas: el POR QUÉ, que no siempre está en Sentry. */
+  motivos_definitivos: string[];
+}
+
 // "2026-07-13" → "13/07/2026" — la misma aritmética de string que ya usa el
 // resto del panel, sin pasar por Date ni arriesgar un desfase de zona horaria.
 function fmtFecha(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
+}
+
+// Un timestamptz de la base ("2026-09-03T12:00:14.1+00:00") → "03/09/2026", en
+// el día de Lima. Solo hace falta el día: la hora exacta del último correo no
+// le dice nada a quien mira la tarjeta; que sea de hace una semana, sí.
+function fmtDiaLima(ts: string): string {
+  return fmtFecha(fechaLima(ts));
 }
 
 function detalleEducacion(f: ItemEducacion): string {
@@ -111,8 +130,10 @@ export default function BandejaPage() {
   // que fn_resolver_solicitud_vacaciones ya exige en el servidor, y la misma
   // que ya usa fn_aprobar_ausencia — es DO, nunca la encargada de la sede.
   const puedeResolverVacaciones = puedeVerPlanilla(rol);
+  const puedeSaludAlertas = puedeVerSaludDeAlertas(rol);
 
   const [cargando, setCargando] = useState(true);
+  const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
   const [educacion, setEducacion] = useState<ItemEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
@@ -175,9 +196,24 @@ export default function BandejaPage() {
       setSolicitudesVacaciones([]);
     }
 
+    if (puedeSaludAlertas) {
+      tareas.push(
+        supabase.rpc("fn_alertas_despacho_resumen").then(({ data, error }) => {
+          // Un fallo acá se ignora a propósito, sin toast: esta tarjeta es un
+          // chequeo de salud, no una tarea pendiente, y entre fusionar este
+          // cambio y pegar la 0362 en producción la RPC no existe todavía —
+          // un aviso rojo en cada visita a la Bandeja por eso sería ruido.
+          if (error || !data) { setResumenAlertas(null); return; }
+          setResumenAlertas(data as unknown as ResumenAlertas);
+        }),
+      );
+    } else {
+      setResumenAlertas(null);
+    }
+
     await Promise.all(tareas);
     setCargando(false);
-  }, [router, puedeEducacion, puedeEquipo, puedeResolverVacaciones, avisar]);
+  }, [router, puedeEducacion, puedeEquipo, puedeResolverVacaciones, puedeSaludAlertas, avisar]);
 
   // Cargar al montar es el mismo patrón que usa cada pantalla del panel que
   // trae datos de la base (Equipo, Ausencias, Disciplina...); el aviso de acá
@@ -209,7 +245,13 @@ export default function BandejaPage() {
     avisar("ok", aprobar ? "Vacaciones aprobadas." : "Solicitud rechazada.");
   }
 
-  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length;
+  // La tarjeta de avisos por correo solo aparece cuando hay algo que una
+  // persona tiene que mirar: lo que se va a reintentar solo no se muestra.
+  const alertasConProblema = resumenAlertas
+    ? resumenAlertas.atascadas + resumenAlertas.fallidas_definitivas + resumenAlertas.caducadas
+    : 0;
+
+  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length + alertasConProblema;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -230,6 +272,65 @@ export default function BandejaPage() {
           <SinDatos texto="No hay nada pendiente." pista="Cuando algo necesite atención, va a aparecer aquí." />
         ) : (
           <div className="flex max-w-3xl flex-col gap-8">
+            {resumenAlertas && alertasConProblema > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">Avisos por correo</h2>
+                <p className="mb-3 text-sm text-taupe">
+                  El despacho diario de avisos (auto-cierres, contratos y vacaciones por vencer) dejó
+                  {" "}{alertasConProblema} aviso{alertasConProblema === 1 ? "" : "s"} que no va{alertasConProblema === 1 ? "" : "n"} a salir solo{alertasConProblema === 1 ? "" : "s"}.
+                </p>
+                <ul className="space-y-2 text-sm">
+                  {resumenAlertas.fallidas_definitivas > 0 && (
+                    <li className="rounded-xl border border-rojo p-3">
+                      <strong className="text-rojo">
+                        {resumenAlertas.fallidas_definitivas} fall{resumenAlertas.fallidas_definitivas === 1 ? "ó" : "aron"} tres veces
+                      </strong>
+                      <span className="text-taupe"> — ya no se reintentan. </span>
+                      {resumenAlertas.motivos_definitivos.length > 0 ? (
+                        <>
+                          Motivo del último intento:
+                          <ul className="mt-1 list-disc pl-5 text-taupe">
+                            {resumenAlertas.motivos_definitivos.map((m) => <li key={m}>{m}</li>)}
+                          </ul>
+                          <span className="mt-1 block">
+                            Si dice «sin encargada con correo», se arregla en Equipo dándole correo a la encargada de esa sede;
+                            si es de Resend, revisa la clave <code>RESEND_API_KEY</code> y el dominio verificado.
+                          </span>
+                        </>
+                      ) : (
+                        <>Sin nota del motivo: revisa en Sentry el último despacho y la cuenta de Resend (clave <code>RESEND_API_KEY</code> y dominio verificado).</>
+                      )}
+                    </li>
+                  )}
+                  {resumenAlertas.atascadas > 0 && (
+                    <li className="rounded-xl border border-sand p-3">
+                      <strong className="text-ambar">
+                        {resumenAlertas.atascadas} qued{resumenAlertas.atascadas === 1 ? "ó" : "aron"} a medio despachar
+                      </strong>
+                      <span className="text-taupe"> hace más de una hora — la ejecución se cortó. </span>
+                      Se reintentan solos en el próximo despacho (hasta tres veces); si vuelve a pasar, revisa en Sentry por qué se corta.
+                    </li>
+                  )}
+                  {resumenAlertas.caducadas > 0 && (
+                    <li className="rounded-xl border border-sand p-3">
+                      <strong className="text-ambar">
+                        {resumenAlertas.caducadas} caduc{resumenAlertas.caducadas === 1 ? "ó" : "aron"} sin salir
+                      </strong>
+                      <span className="text-taupe"> — más de siete días sin despacho. </span>
+                      Ya no se van a mandar: si el aviso todavía importa, hay que darlo a mano.
+                    </li>
+                  )}
+                </ul>
+                <p className="mt-2 text-sm text-taupe">
+                  {resumenAlertas.despachables} esperando el próximo despacho ·{" "}
+                  {resumenAlertas.ultimo_envio_at
+                    ? `último correo enviado el ${fmtDiaLima(resumenAlertas.ultimo_envio_at)}`
+                    : "todavía no salió ningún correo"}
+                  {" "}— si esa fecha se aleja, el cron dejó de correr.
+                </p>
+              </section>
+            )}
+
             {revisiones.length > 0 && (
               <section>
                 <h2 className="mb-1 font-serif text-lg">

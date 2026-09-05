@@ -31,11 +31,16 @@
 // N.° 28518 y su reglamento, con el mismo tono ya usado en la boleta de un
 // practicante (PR #98), pero tampoco tuvo revisión legal de un abogado —
 // misma seriedad que el contrato de planilla, ni más ni menos.
+//
+// Y lo mismo vale para la rama `tipo === "indefinido"` (0347): el texto de
+// naturaleza/vigencia y de terminación se redactó sobre el régimen general de
+// la LPCL (arts. 16, 22-25 y 38 del TUO del D.Leg. 728), pero tampoco tuvo
+// revisión legal de un abogado.
 
 import { EMPRESA, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 
 export interface DatosContrato {
-  tipo: "nuevo" | "renovacion" | "adendum" | "convenio_practicas";
+  tipo: "nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido";
 
   // La persona
   nombreDni: string;
@@ -60,19 +65,53 @@ export interface DatosContrato {
   /**
    * Solo para `tipo: "convenio_practicas"` (0333). `practicanteModalidad`
    * decide 30h/48h semanales (Ley 28518 art. 44, ver
-   * `maximoSemanalPracticante`). `institucionEducativa` solo aplica de
-   * verdad a una preprofesional (art. 30 y ss.) — vacío no bloquea, un
-   * profesional no la necesita. `planCapacitacionTexto` reemplaza al Anexo I
+   * `maximoSemanalPracticante`). `planCapacitacionTexto` reemplaza al Anexo I
    * de funciones: un convenio no tiene "funciones de un cargo", tiene un
-   * plan de capacitación específico (art. 15).
+   * plan de capacitación específico (art. 15) — hoy solo cubre "actividades
+   * principales"; el resto del Anexo I vive en los campos de más abajo
+   * (0348).
    */
   practicanteModalidad: "preprofesional" | "profesional" | null;
-  institucionEducativa: string | null;
   planCapacitacionTexto: string;
+
+  /**
+   * SOLO PREPROFESIONAL (0348) — el convenio es TRIPARTITO: CAYLA, el centro
+   * de formación profesional y la practicante firman los tres (art. 12 y ss.,
+   * Ley 28518). El profesional es bipartito (CAYLA + practicante); el centro
+   * que la presenta es solo una referencia, no firma. Modelo de origen:
+   * `CAYLA_CORP_CONT_202609_ConvenioPracticas.docx` (DO, sep-2026).
+   * Vacío no bloquea — un dato ausente se dice ("[completar]"), no se inventa.
+   */
+  centroFormacionNombre: string | null;
+  centroFormacionRuc: string | null;
+  centroFormacionDomicilio: string | null;
+  centroFormacionRepresentante: string | null;
+  /** Preprofesional: qué carrera cursa y en qué ciclo. */
+  carreraEspecialidad: string | null;
+  cicloAcademico: string | null;
+  /** Profesional: "Bachiller en X — Universidad Y, egresado el Z", ya redactado. */
+  gradoTituloTexto: string | null;
+
+  /**
+   * ANEXO I — Plan Específico de Aprendizaje (0348, ambas modalidades). Antes
+   * era un único texto libre (`planCapacitacionTexto`, que sigue existiendo
+   * para "actividades principales"); el modelo de DO lo pide como ficha con
+   * estos campos propios, con dos hitos de evaluación porque un convenio
+   * formativo se supervisa por avance, no solo se firma y se olvida.
+   */
+  areaProyecto: string;
+  objetivoFormativoGeneral: string;
+  supervisorAsignado: string;
+  hitoMes3: string;
+  hitoMes6: string;
 
   // Plazo — la jornada es siempre de 48h, el máximo legal; no se declara un
   // número calculado del horario, que es solo la disposición operativa de hoy.
   fechaInicio: string; // ISO
+  // Ignorado cuando `tipo === "indefinido"` (0347): ese contrato no tiene
+  // fecha de término y el documento nunca lo lee. Se deja tipado como string
+  // (no string | null) porque en la base SÍ importa que sea NULL para ese
+  // tipo — la distinción vive en `contratos_generados.fecha_fin`, no acá.
   fechaFin: string; // ISO
   fechaIngresoOriginal: string; // ISO — para saber si ya pasó el período de prueba
 
@@ -244,8 +283,19 @@ function escapado(d: DatosContrato): DatosContrato {
     ciudad: d.ciudad ? escapeHtml(d.ciudad) : null,
     causaObjetivaTexto: escapeHtml(d.causaObjetivaTexto),
     funcionesTexto: escapeHtml(d.funcionesTexto),
-    institucionEducativa: d.institucionEducativa ? escapeHtml(d.institucionEducativa) : null,
     planCapacitacionTexto: escapeHtml(d.planCapacitacionTexto),
+    centroFormacionNombre: d.centroFormacionNombre ? escapeHtml(d.centroFormacionNombre) : null,
+    centroFormacionRuc: d.centroFormacionRuc ? escapeHtml(d.centroFormacionRuc) : null,
+    centroFormacionDomicilio: d.centroFormacionDomicilio ? escapeHtml(d.centroFormacionDomicilio) : null,
+    centroFormacionRepresentante: d.centroFormacionRepresentante ? escapeHtml(d.centroFormacionRepresentante) : null,
+    carreraEspecialidad: d.carreraEspecialidad ? escapeHtml(d.carreraEspecialidad) : null,
+    cicloAcademico: d.cicloAcademico ? escapeHtml(d.cicloAcademico) : null,
+    gradoTituloTexto: d.gradoTituloTexto ? escapeHtml(d.gradoTituloTexto) : null,
+    areaProyecto: escapeHtml(d.areaProyecto),
+    objetivoFormativoGeneral: escapeHtml(d.objetivoFormativoGeneral),
+    supervisorAsignado: escapeHtml(d.supervisorAsignado),
+    hitoMes3: escapeHtml(d.hitoMes3),
+    hitoMes6: escapeHtml(d.hitoMes6),
     activosPrincipales: escapeHtml(d.activosPrincipales),
     activosLibre: escapeHtml(d.activosLibre),
     adendumTexto: escapeHtml(d.adendumTexto),
@@ -308,6 +358,23 @@ function listaDesdeTexto(texto: string): string {
 }
 
 /**
+ * Un texto libre de varias líneas como PÁRRAFO, no como lista. El objetivo
+ * formativo general del Anexo I se escribe en un cuadro de varias líneas
+ * —era un renglón, y un párrafo entero se iba de largo sin poder leerse— y
+ * un Enter ahí tiene que llegar al papel: dentro de un `<p>` el salto de
+ * línea colapsa a un espacio, así que se vuelve `<br/>`. El texto ya llega
+ * escapado (ver `escapado`), igual que en `listaDesdeTexto`. Un texto vacío o
+ * solo de espacios devuelve "" para que el llamador pueda poner «[completar]».
+ */
+function parrafoDesdeTexto(texto: string): string {
+  return texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .join("<br/>");
+}
+
+/**
  * El marcador donde la pantalla estampa la firma escaneada justo antes de
  * imprimir. NO viaja dentro de `documento_html`: la 0272 congela el borrador
  * SIN firma a propósito, y meter la imagen en lo congelado convertiría un
@@ -337,13 +404,31 @@ function enLaCiudadDe(d: DatosContrato): string {
  * dice que no es una relación laboral (Ley 28518 art. 47) — sería el mismo
  * error de lenguaje que la 0322 evitó en la boleta.
  */
-function bloqueFirmas(d: DatosContrato, etiquetaPersona = "LA COLABORADORA"): string {
+/**
+ * `tercero`: SOLO el convenio preprofesional (0348) es tripartito — CAYLA, el
+ * centro de formación y la practicante firman los tres (art. 12 y ss., Ley
+ * 28518). Todo lo demás (contrato de trabajo, adendum, convenio profesional)
+ * sigue firmando entre dos.
+ */
+function bloqueFirmas(
+  d: DatosContrato,
+  etiquetaPersona = "LA COLABORADORA",
+  tercero?: { etiqueta: string; nombre: string; ruc: string },
+): string {
   return `
     <div class="firmas">
       <div>
         <p class="linea">${MARCADOR_FIRMA_EMPRESA}</p>
         <p><strong>${d.firmanteCargo.toUpperCase()}</strong><br/>${d.firmanteNombre}<br/>DNI N.° ${d.firmanteDni}<br/>${EMPRESA.nombre}</p>
       </div>
+      ${
+        tercero
+          ? `<div>
+        <p class="linea">&nbsp;</p>
+        <p><strong>${tercero.etiqueta}</strong><br/>${tercero.nombre}<br/>RUC N.° ${tercero.ruc}</p>
+      </div>`
+          : ""
+      }
       <div>
         <p class="linea">&nbsp;</p>
         <p><strong>${etiquetaPersona}</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento}</p>
@@ -585,6 +670,80 @@ export function finDelPeriodoDePrueba(fechaIngreso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * PRIMERA (naturaleza) + SEGUNDA (plazo/vigencia) del contrato de trabajo —
+ * la única parte que distingue de verdad un plazo fijo de un indefinido
+ * (0347). El resto del cuerpo (jornada, remuneración, beneficios, período de
+ * prueba, disciplina, anexos) es el mismo régimen laboral común para
+ * cualquiera de los dos, y se reutiliza sin cambios.
+ */
+function clausulaNaturalezaYPlazo(d: DatosContrato): string {
+  if (d.tipo === "indefinido") {
+    return `
+    <h3>PRIMERA. NATURALEZA</h3>
+    <p>El presente contrato se celebra a plazo indeterminado, dentro del régimen general de contratación
+    laboral del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo N.°
+    003-97-TR — no requiere causa objetiva ni modalidad temporal alguna.</p>
+
+    <h3>SEGUNDA. VIGENCIA</h3>
+    <p>El contrato inicia el ${formatearFecha(d.fechaInicio)}, sin fecha de término, y se mantiene vigente
+    en tanto no se extinga por alguna de las causales previstas en el artículo 16 del TUO del Decreto
+    Legislativo N.° 728.</p>`;
+  }
+  return `
+    <h3>PRIMERA. NATURALEZA, MODALIDAD Y CAUSA OBJETIVA</h3>
+    <p>El presente contrato se celebra bajo la modalidad de Contrato Temporal por Inicio o Incremento de Actividad,
+    conforme al artículo 57 del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo
+    N.° 003-97-TR.</p>
+    <p>${d.causaObjetivaTexto}</p>
+    <p>El vínculo laboral generado por el presente contrato es de duración determinada y no genera estabilidad
+    laboral indefinida.</p>
+
+    <h3>SEGUNDA. PLAZO</h3>
+    <p>El contrato inicia el ${formatearFecha(d.fechaInicio)} y culmina el ${formatearFecha(d.fechaFin)}, fecha en
+    la cual quedará extinguido automáticamente sin necesidad de comunicación previa, salvo renovación expresa por
+    escrito.</p>`;
+}
+
+/** DÉCIMA OCTAVA — difiere porque el registro ante la AAT (art. 72-73) solo alcanza a un plazo fijo. Ver 0347. */
+function clausulaEntregaCopia(d: DatosContrato): string {
+  if (d.tipo === "indefinido") {
+    return `
+    <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA</h3>
+    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
+    siguientes al inicio de la prestación de servicios.</p>`;
+  }
+  return `
+    <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA Y REGISTRO</h3>
+    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
+    siguientes al inicio de la prestación de servicios, y lo comunicará a la Autoridad Administrativa de Trabajo
+    para su registro dentro de los quince (15) días naturales siguientes a su suscripción.</p>`;
+}
+
+/** VIGÉSIMA — la indemnización de un indefinido se cuenta por años de servicio (art. 38), no por meses restantes de plazo (art. 76). Ver 0347. */
+function clausulaTerminacion(d: DatosContrato): string {
+  if (d.tipo === "indefinido") {
+    return `
+    <h3>VIGÉSIMA. TERMINACIÓN</h3>
+    <p>El contrato se extingue por las causales previstas en el artículo 16 del TUO del Decreto Legislativo N.°
+    728: renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación, salvo exoneración por LA
+    EMPRESA), mutuo disenso, jubilación, invalidez absoluta permanente, o comisión de falta grave u otra causa
+    justa de despido debidamente comprobada conforme a los artículos 22 a 25 del mismo cuerpo legal.</p>
+    <p>Si LA EMPRESA pusiera fin al contrato sin la existencia de causa justa, corresponderá a LA COLABORADORA la
+    indemnización equivalente a una remuneración y media (1.5) ordinaria mensual por cada año completo de
+    servicios, con las fracciones de año computadas por dozavos y treintavos, y con un tope de doce (12)
+    remuneraciones, conforme al artículo 38 del TUO del Decreto Legislativo N.° 728.</p>`;
+  }
+  return `
+    <h3>VIGÉSIMA. TERMINACIÓN</h3>
+    <p>El contrato finalizará automáticamente en la fecha pactada o podrá resolverse anticipadamente por mutuo
+    acuerdo, renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación), comisión de falta
+    grave, o resolución anticipada sin causa justa por parte de LA EMPRESA — caso en el cual corresponderá la
+    indemnización equivalente a una remuneración y media (1.5) por cada mes dejado de laborar hasta el término del
+    contrato, con el límite de doce (12) remuneraciones, conforme al artículo 76 del TUO del Decreto Legislativo
+    N.° 728.</p>`;
+}
+
 function clausulaDisciplina(d: DatosContrato): string {
   return `
     <h3>DÉCIMA CUARTA. RÉGIMEN DISCIPLINARIO</h3>
@@ -693,6 +852,22 @@ function documentoAdendum(d: DatosContrato): string {
 }
 
 /**
+ * Los ordinales de las cláusulas del convenio, EN ORDEN. Un preprofesional y
+ * un profesional no tienen el mismo número de cláusulas —el preprofesional
+ * suma "OBLIGACIONES DEL CENTRO DE FORMACIÓN", que el profesional no lleva
+ * (0348, ver `documentoConvenio`)— así que el título de cada cláusula sale de
+ * SU POSICIÓN en el arreglo que arma `documentoConvenio`, nunca escrito a
+ * mano: escribirlo a mano es exactamente lo que desalinea un "DÉCIMA" con el
+ * "9." que un lector cuenta al lado.
+ */
+const ORDINALES_CONVENIO = [
+  "PRIMERA", "SEGUNDA", "TERCERA", "CUARTA", "QUINTA", "SEXTA", "SÉPTIMA",
+  "OCTAVA", "NOVENA", "DÉCIMA", "DÉCIMA PRIMERA", "DÉCIMA SEGUNDA",
+  "DÉCIMA TERCERA", "DÉCIMA CUARTA", "DÉCIMA QUINTA", "DÉCIMA SEXTA",
+  "DÉCIMA SÉTIMA", "DÉCIMA OCTAVA",
+];
+
+/**
  * El convenio de modalidad formativa (Ley N.° 28518) para tipo_vinculo =
  * 'practicante' (0322/0333) — NO un contrato de trabajo. Documento aparte
  * desde el encabezado, igual que `documentoAdendum`: no es una rama dentro
@@ -702,15 +877,205 @@ function documentoAdendum(d: DatosContrato): string {
  * es una subvención no una remuneración, no genera beneficios laborales— son
  * las mismas que ya lee la practicante en su "Constancia de subvención"
  * (boleta, PR #98): un documento no puede prometer lo que el otro niega.
+ *
+ * Reescrito en la 0348 sobre el modelo de referencia de Desarrollo
+ * Organizacional (`CAYLA_CORP_CONT_202609_ConvenioPracticas.docx`, sep-2026),
+ * que trae la diferencia de fondo que la versión anterior no modelaba: **el
+ * preprofesional es TRIPARTITO** —CAYLA, el centro de formación y la
+ * practicante firman los tres, art. 12 y ss. de la Ley 28518— y **el
+ * profesional es BIPARTITO** —CAYLA y la practicante; el centro que la
+ * presenta es solo una referencia, no firma. De ahí en más, las cláusulas se
+ * arman en un arreglo común y solo una —OBLIGACIONES DEL CENTRO DE
+ * FORMACIÓN— se agrega condicionalmente para el preprofesional; ver
+ * `ORDINALES_CONVENIO`.
  */
 function documentoConvenio(d: DatosContrato): string {
   const horasMax = maximoSemanalPracticante("practicante", d.practicanteModalidad);
+  const esPreprofesional = d.practicanteModalidad !== "profesional";
   const modalidadTexto = d.practicanteModalidad === "profesional" ? "PROFESIONALES" : "PREPROFESIONALES";
-  const institucion = d.institucionEducativa
-    ? `<p>La presente modalidad formativa se desarrolla en el marco de los estudios que LA PRACTICANTE cursa en
-       ${d.institucionEducativa}, entidad que suscribe o avala el presente convenio en su calidad de centro de
-       formación profesional, conforme al artículo 15 de la Ley N.° 28518.</p>`
+  const numPartes = esPreprofesional ? "tres (3)" : "dos (2)";
+
+  const horasTexto =
+    horasMax !== null
+      ? `no excederá de ${
+          horasMax === 30 ? "seis (6) horas diarias ni treinta (30) horas semanales" : "ocho (8) horas diarias ni cuarenta y ocho (48) horas semanales"
+        }, conforme al artículo 44 de la Ley N.° 28518`
+      : `<strong>[FALTA ASIGNAR LA MODALIDAD DE LA PRACTICANTE EN EQUIPO — preprofesional (30h) o profesional
+        (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`;
+
+  const datosCentro = esPreprofesional
+    ? `
+    <h3>II. DATOS DEL CENTRO DE FORMACIÓN PROFESIONAL</h3>
+    <p>${d.centroFormacionNombre ?? "[completar — razón social del centro de formación]"}, identificado con
+    R.U.C. N.° ${d.centroFormacionRuc ?? "[completar]"}, con domicilio en
+    ${d.centroFormacionDomicilio ?? "[completar]"}, representado por
+    ${d.centroFormacionRepresentante ?? "[completar]"}, a quien en adelante se denominará EL CENTRO DE FORMACIÓN
+    PROFESIONAL.</p>`
     : "";
+
+  const datosAcademicos = esPreprofesional
+    ? `<p>Carrera / especialidad: ${d.carreraEspecialidad ?? "[completar]"}. Ciclo académico:
+       ${d.cicloAcademico ?? "[completar]"}.</p>`
+    : `<p>${d.gradoTituloTexto ?? "[completar — grado/título y universidad de egreso]"}.</p>`;
+
+  // ── Las cláusulas, en el orden en que se numeran. Ver ORDINALES_CONVENIO. ──
+  const clausulas: string[] = [
+    `<h3>{{N}}. OBJETO</h3>
+    <p>LA PRACTICANTE realizará su Práctica ${esPreprofesional ? "Preprofesional" : "Profesional"} para
+    ${
+      esPreprofesional
+        ? "aplicar los conocimientos, habilidades y aptitudes adquiridos durante su formación, en una situación real de trabajo. LA EMPRESA colabora con EL CENTRO DE FORMACIÓN PROFESIONAL en esta tarea formativa"
+        : "consolidar los aprendizajes adquiridos durante su formación profesional y ejercitar su desempeño en una situación real de trabajo"
+    }.</p>`,
+
+    `<h3>{{N}}. ÁREA Y ACTIVIDADES FORMATIVAS</h3>
+    <p>LA PRACTICANTE desarrollará actividades formativas en el área de ${d.areaProyecto || "[completar]"}, en el
+    puesto de ${d.cargo}, en la sede ${d.sedeNombre}, conforme al Plan Específico de Aprendizaje que se detalla en
+    el ANEXO I, el cual forma parte integrante del presente convenio (Ley N.° 28518, artículo 15).</p>`,
+
+    `<h3>{{N}}. JORNADA</h3>
+    <p>La jornada de LA PRACTICANTE ${horasTexto}. Los horarios serán determinados por LA EMPRESA de acuerdo a sus
+    necesidades operativas, dentro del máximo establecido en este párrafo, y compatibles con las obligaciones
+    académicas de LA PRACTICANTE cuando corresponda.</p>
+    <p>Que LA EMPRESA supervise, oriente y evalúe el desarrollo de las prácticas es parte propia de la modalidad
+    formativa (Ley N.° 28518, artículo 8) y no constituye, por sí sola, indicio de subordinación laboral.</p>`,
+
+    `<h3>{{N}}. DURACIÓN</h3>
+    <p>El convenio inicia el ${formatearFecha(d.fechaInicio)} y culmina el ${formatearFecha(d.fechaFin)}, fecha en
+    la cual quedará extinguido automáticamente sin necesidad de comunicación previa, salvo renovación expresa por
+    escrito${esPreprofesional ? ", por un periodo proporcional a la duración de la formación" : ", por un periodo máximo de doce (12) meses"}.</p>
+    <p>Las partes dejan constancia de que la duración de la modalidad formativa no debe exceder de doce (12) meses
+    continuos, salvo que el centro de formación profesional determine, por norma o reglamento propio, una extensión
+    mayor — en cuyo caso deberá sustentarse por escrito. Superar dicho plazo sin sustento arriesga que la relación se
+    considere desnaturalizada, con las consecuencias laborales que ello implica.</p>`,
+
+    `<h3>{{N}}. SUBVENCIÓN ECONÓMICA</h3>
+    <p>LA EMPRESA otorga a LA PRACTICANTE una subvención económica mensual de S/ ${soles(d.remuneracionMensual)}
+    (${numeroALetras(d.remuneracionMensual)} soles), no menor a la Remuneración Mínima Vital vigente${
+      esPreprofesional ? ", proporcional a la jornada pactada" : " para una jornada completa"
+    } (Ley N.° 28518, artículo 45). La subvención económica <strong>no constituye remuneración</strong>, no está
+    sujeta a descuentos, aportes ni retención del impuesto a la renta de cuarta ni de quinta categoría. El pago se
+    realiza mediante depósito bancario dentro de los primeros cinco (05) días hábiles del mes siguiente al período
+    de prácticas.</p>
+    <p>Adicionalmente, LA EMPRESA: (a) otorga una subvención adicional equivalente a media (1/2) subvención mensual
+    por cada seis (6) meses continuos de duración del convenio; (b) otorga un descanso de quince (15) días
+    debidamente subvencionado si la práctica supera los doce (12) meses continuos; y (c) otorga descanso semanal y
+    feriados no laborables debidamente subvencionados (Ley N.° 28518, artículos 42.4 y 45).</p>`,
+
+    `<h3>{{N}}. SEGURO</h3>
+    <p>LA EMPRESA cubre los riesgos de enfermedad y accidentes de LA PRACTICANTE mediante su afiliación a EsSalud
+    (Ley N.° 28518, artículo 42.8) — decisión propia de LA EMPRESA, que no le corresponde por defecto a toda
+    modalidad formativa. De optar en su lugar por un seguro privado, la cobertura no será menor a catorce (14)
+    subvenciones mensuales en caso de enfermedad y treinta (30) en caso de accidente, conforme al artículo 43 de la
+    misma ley.</p>`,
+
+    `<h3>{{N}}. OBLIGACIONES DE LA EMPRESA</h3>
+    <p>LA EMPRESA se obliga a:</p>
+    <ul>
+      ${
+        esPreprofesional
+          ? "<li>Brindar orientación y capacitación técnica dentro del área de formación de LA PRACTICANTE.</li>"
+          : "<li>Proporcionar la dirección técnica y los medios necesarios para la formación en la actividad materia del convenio.</li>"
+      }
+      <li>Designar un(a) supervisor(a) que oriente y verifique el cumplimiento del Plan Específico de Aprendizaje.</li>
+      ${
+        esPreprofesional
+          ? "<li>Emitir los informes que requiera EL CENTRO DE FORMACIÓN PROFESIONAL.</li><li>No cobrar suma alguna por la formación recibida.</li>"
+          : ""
+      }
+      <li>Pagar puntualmente la subvención pactada.</li>
+      <li>Registrar el presente convenio ante el Ministerio de Trabajo y Promoción del Empleo dentro de los quince (15) días de suscrito.</li>
+      <li>Expedir el certificado de prácticas al finalizar el convenio.</li>
+    </ul>`,
+
+    `<h3>{{N}}. OBLIGACIONES DE LA PRACTICANTE</h3>
+    <p>LA PRACTICANTE se obliga a:</p>
+    <ul>
+      <li>Desarrollar sus prácticas con disciplina y responsabilidad.</li>
+      <li>Cumplir el Plan Específico de Aprendizaje.</li>
+      <li>${
+        esPreprofesional
+          ? "Sujetarse a las disposiciones administrativas internas de LA EMPRESA."
+          : "Acatar las disposiciones formativas que le asigne LA EMPRESA y observar las normas y reglamentos internos de LA EMPRESA."
+      }</li>
+      <li>Guardar reserva sobre la información confidencial de LA EMPRESA a la que tenga acceso durante las prácticas.</li>
+    </ul>`,
+
+    `<h3>{{N}}. LO QUE ESTE CONVENIO NO GENERA</h3>
+    <p>Por no tratarse de una relación laboral, el presente convenio <strong>no genera</strong> vínculo laboral,
+    gratificaciones, Compensación por Tiempo de Servicios (CTS), vacaciones proporcionales, ni aporte a un sistema
+    pensionario (AFP u ONP) — salvo que LA PRACTICANTE decida afiliarse voluntariamente, en cuyo caso el aporte
+    corre por su cuenta (Ley N.° 28518, artículo 47).</p>`,
+
+    `<h3>{{N}}. NO SUJECIÓN AL REGLAMENTO INTERNO DE TRABAJO</h3>
+    <p>Conforme al numeral 2.6 del Reglamento Interno de Trabajo de LA EMPRESA (versión ${d.ritVersion}, vigente
+    desde el ${d.ritFecha}), LA PRACTICANTE no tiene la condición de trabajadora, no mantiene relación laboral con
+    LA EMPRESA y no está comprendida por dicho Reglamento — se rige por el presente convenio y por la Ley N.° 28518.
+    Ello no excluye las obligaciones de seguridad y salud en el trabajo, que sí alcanzan a LA PRACTICANTE desde el
+    primer día conforme al artículo 68 de la Ley N.° 29783, Ley de Seguridad y Salud en el Trabajo.</p>`,
+
+    `<h3>{{N}}. CONDUCTA Y CUSTODIA DE ACTIVOS</h3>
+    <p>LA PRACTICANTE se obliga a mantener conducta ética, respetuosa y acorde a la imagen de LA EMPRESA durante el
+    desarrollo de sus prácticas. Los bienes que LA EMPRESA le entregue bajo su custodia se detallan en el
+    ANEXO IV — Constancia de Recepción y Responsabilidad de Activos, el cual forma parte integrante del presente
+    convenio.</p>`,
+
+    `<h3>{{N}}. USO DE IMAGEN</h3>
+    <p>LA PRACTICANTE autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías o
+    videos tomados durante el desarrollo de sus prácticas o en actividades institucionales en la sede
+    ${d.sedeNombre}, con fines corporativos o institucionales, sin compensación adicional, respetando siempre su
+    dignidad e integridad personal, en los límites de la Ley N.° 29733, Ley de Protección de Datos Personales.</p>`,
+
+    `<h3>{{N}}. CONFIDENCIALIDAD</h3>
+    <p>Toda información relacionada con procesos internos, inventarios, proveedores, estrategias comerciales, datos
+    de clientes, precios, márgenes, información financiera y cualquier información sensible de LA EMPRESA tiene
+    carácter estrictamente confidencial. LA PRACTICANTE se obliga a no divulgarla, reproducirla ni utilizarla para
+    fines distintos a sus prácticas, durante la vigencia del presente convenio y hasta veinticuatro (24) meses
+    después de su culminación.</p>`,
+
+    `<h3>{{N}}. VIDEOVIGILANCIA</h3>
+    <p>LA EMPRESA cuenta con sistemas de videovigilancia en las instalaciones del centro de trabajo, debidamente
+    señalizados, que operan de forma permanente con fines de seguridad, control operativo y verificación de
+    incidencias, conforme a la Ley N.° 29733. LA PRACTICANTE declara conocer y aceptar su existencia mediante la
+    firma del presente convenio.</p>`,
+
+    `<h3>{{N}}. PROTECCIÓN DE DATOS PERSONALES</h3>
+    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a LA PRACTICANTE que sus datos personales serán
+    tratados con las finalidades exclusivas de gestión del presente convenio, cumplimiento de obligaciones legales,
+    comunicaciones internas y emisión de constancias. LA PRACTICANTE otorga su consentimiento expreso mediante la
+    firma del presente convenio.</p>`,
+
+    `<h3>{{N}}. BENEFICIOS ADICIONALES VOLUNTARIOS</h3>
+    <p>LA EMPRESA podrá, a su sola discreción, extender a LA PRACTICANTE beneficios adicionales no remunerativos
+    —como movilidad diaria supeditada a la asistencia o apoyo a estudios— en los mismos términos previstos en el
+    artículo 19 del Decreto Supremo N.° 001-97-TR para su personal regular. Su otorgamiento es voluntario, no
+    constituye remuneración, no genera derecho adquirido y no modifica la naturaleza formativa ni la ausencia de
+    vínculo laboral del presente convenio.</p>`,
+
+    `<h3>{{N}}. EXTINCIÓN</h3>
+    <p>El convenio se extingue por vencimiento del plazo, mutuo acuerdo, incumplimiento comprobado de las
+    obligaciones aquí pactadas, o decisión unilateral de LA PRACTICANTE, sin perjuicio de las demás causales
+    previstas en el Reglamento. Al no existir relación laboral, la extinción del presente convenio no genera
+    indemnización por cese ni beneficios sociales — sin perjuicio de la subvención y demás derechos devengados
+    hasta la fecha.</p>`,
+  ];
+
+  // OBLIGACIONES DEL CENTRO DE FORMACIÓN: solo el preprofesional la lleva —
+  // el profesional no tiene un centro de formación como parte firmante (ver
+  // el encabezado de esta función). Se inserta justo después de OBLIGACIONES
+  // DE LA PRACTICANTE (índice 7), como NOVENA.
+  if (esPreprofesional) {
+    clausulas.splice(
+      8,
+      0,
+      `<h3>{{N}}. OBLIGACIONES DEL CENTRO DE FORMACIÓN PROFESIONAL</h3>
+    <p>EL CENTRO DE FORMACIÓN PROFESIONAL se obliga a dirigir y supervisar académicamente el desarrollo de las
+    prácticas, evaluar y certificar las actividades formativas, y coordinar con LA EMPRESA el monitoreo de LA
+    PRACTICANTE.</p>`,
+    );
+  }
+
+  const cuerpoClausulas = clausulas.map((c, i) => c.replace("{{N}}", ORDINALES_CONVENIO[i])).join("\n\n");
 
   return `
   <article class="contrato">
@@ -719,132 +1084,53 @@ function documentoConvenio(d: DatosContrato): string {
       <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
       <h1>CONVENIO DE MODALIDAD FORMATIVA — PRÁCTICAS ${modalidadTexto}</h1>
       <p class="norma">(Ley N.° 28518, Ley sobre Modalidades Formativas Laborales, y su Reglamento aprobado
-      por Decreto Supremo N.° 007-2005-TR)</p>
+      por Decreto Supremo N.° 007-2005-TR${esPreprofesional ? " — artículo 12 y siguientes" : ""})</p>
     </header>
 
     <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Convenio de
-    Modalidad Formativa entre:</p>
+    Modalidad Formativa, que se suscribe por ${esPreprofesional ? "triplicado" : "duplicado"}, entre:</p>
 
     <h3>I. DATOS DE LA EMPRESA</h3>
     <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
     ${EMPRESA.domicilio}, debidamente representada por su representante legal, Sr(a). ${d.firmanteNombre},
     identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA.</p>
+    ${datosCentro}
 
-    <h3>II. DATOS DE LA PRACTICANTE</h3>
+    <h3>${esPreprofesional ? "III" : "II"}. DATOS DE LA PRACTICANTE</h3>
     <p>${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}${
       d.direccion ? `, con domicilio en ${d.direccion}` : ""
     }, a quien en adelante se denominará LA PRACTICANTE.</p>
-    ${institucion}
+    ${datosAcademicos}
 
-    <p>Ambas partes declaran expresamente que el presente convenio <strong>no genera relación laboral</strong>
+    <p>Todas las partes declaran expresamente que el presente convenio <strong>no genera relación laboral</strong>
     entre LA PRACTICANTE y LA EMPRESA (Ley N.° 28518, artículo 47), y se celebra sin vicios de voluntad.</p>
 
-    <h3>PRIMERA. OBJETO Y PLAN DE CAPACITACIÓN ESPECÍFICO</h3>
-    <p>LA PRACTICANTE desarrolla sus prácticas ${modalidadTexto.toLowerCase()} en el puesto de
-    ${d.cargo}, en la sede ${d.sedeNombre}, conforme al plan específico de capacitación que se detalla en el
-    ANEXO I — Plan de Capacitación Específico, el cual forma parte integrante del presente convenio
-    (Ley N.° 28518, artículo 15).</p>
-
-    <h3>SEGUNDA. PLAZO</h3>
-    <p>El convenio inicia el ${formatearFecha(d.fechaInicio)} y culmina el ${formatearFecha(d.fechaFin)}, fecha en
-    la cual quedará extinguido automáticamente sin necesidad de comunicación previa, salvo renovación expresa por
-    escrito.</p>
-    <p>Las partes dejan constancia de que la duración de la modalidad formativa no debe exceder de doce (12) meses
-    continuos, salvo que el centro de formación profesional determine, por norma o reglamento propio, una extensión
-    mayor — en cuyo caso deberá sustentarse por escrito. Superar dicho plazo sin sustento arriesga que la relación se
-    considere desnaturalizada, con las consecuencias laborales que ello implica.</p>
-
-    <h3>TERCERA. JORNADA</h3>
-    <p>La jornada de LA PRACTICANTE ${
-      horasMax !== null
-        ? `no excede de ${horasMax} horas semanales, conforme al artículo 44 de la Ley N.° 28518 (${
-            d.practicanteModalidad === "profesional" ? "48 horas para prácticas profesionales" : "30 horas para prácticas preprofesionales, mientras cursa estudios"
-          })`
-        : `<strong>[FALTA ASIGNAR LA MODALIDAD DE LA PRACTICANTE EN EQUIPO — preprofesional (30h) o profesional
-          (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`
-    }. Los horarios serán determinados por LA EMPRESA de acuerdo a sus necesidades operativas, dentro del máximo
-    establecido en este párrafo, y compatibles con las obligaciones académicas de LA PRACTICANTE cuando corresponda.</p>
-    <p>Que LA EMPRESA supervise, oriente y evalúe el desarrollo de las prácticas es parte propia de la modalidad
-    formativa (Ley N.° 28518, artículo 8) y no constituye, por sí sola, indicio de subordinación laboral.</p>
-
-    <h3>CUARTA. SUBVENCIÓN ECONÓMICA</h3>
-    <p>LA EMPRESA otorga a LA PRACTICANTE una subvención económica mensual de S/ ${soles(d.remuneracionMensual)}
-    (${numeroALetras(d.remuneracionMensual)} soles), no menor a la Remuneración Mínima Vital vigente para una
-    jornada completa (Ley N.° 28518, artículo 45). La subvención económica <strong>no constituye remuneración</strong>,
-    no está sujeta a descuentos, aportes ni retención del impuesto a la renta de cuarta ni de quinta categoría.</p>
-    <p>El pago se realizará mediante depósito bancario dentro de los primeros cinco (05) días hábiles del mes
-    siguiente al período de prácticas.</p>
-
-    <h3>QUINTA. COBERTURA DE SALUD</h3>
-    <p>LA EMPRESA cubre los riesgos de enfermedad y accidentes de LA PRACTICANTE mediante su afiliación a EsSalud
-    (Ley N.° 28518, artículo 42.8) — decisión propia de LA EMPRESA, que no le corresponde por defecto a toda
-    modalidad formativa. LA PRACTICANTE goza asimismo de descanso semanal y de los días feriados no laborables,
-    debidamente subvencionados (artículo 42.4).</p>
-
-    <h3>SEXTA. LO QUE ESTE CONVENIO NO GENERA</h3>
-    <p>Por no tratarse de una relación laboral, el presente convenio <strong>no genera</strong> gratificaciones,
-    Compensación por Tiempo de Servicios (CTS), vacaciones proporcionales, ni aporte a un sistema pensionario
-    (AFP u ONP) — salvo que LA PRACTICANTE decida afiliarse voluntariamente, en cuyo caso el aporte corre por su
-    cuenta (Ley N.° 28518, artículo 47).</p>
-    <p>Si la modalidad formativa supera los doce (12) meses continuos, corresponde a LA PRACTICANTE un descanso
-    subvencionado de quince (15) días, y una subvención adicional equivalente a la mitad de la mensual por cada
-    seis (6) meses continuos de duración — derechos que rigen aunque no se calculen automáticamente en el sistema
-    de planilla de LA EMPRESA, y que LA PRACTICANTE puede exigir de cumplirse la condición.</p>
-
-    <h3>SÉPTIMA. NO SUJECIÓN AL REGLAMENTO INTERNO DE TRABAJO</h3>
-    <p>Conforme al numeral 2.6 del Reglamento Interno de Trabajo de LA EMPRESA (versión ${d.ritVersion}, vigente
-    desde el ${d.ritFecha}), LA PRACTICANTE no tiene la condición de trabajadora, no mantiene relación laboral con
-    LA EMPRESA y no está comprendida por dicho Reglamento — se rige por el presente convenio y por la Ley N.° 28518.
-    Ello no excluye las obligaciones de seguridad y salud en el trabajo, que sí alcanzan a LA PRACTICANTE desde el
-    primer día conforme al artículo 68 de la Ley N.° 29783, Ley de Seguridad y Salud en el Trabajo.</p>
-
-    <h3>OCTAVA. CONDUCTA Y CUSTODIA DE ACTIVOS</h3>
-    <p>LA PRACTICANTE se obliga a mantener conducta ética, respetuosa y acorde a la imagen de LA EMPRESA durante el
-    desarrollo de sus prácticas. Los bienes que LA EMPRESA le entregue bajo su custodia se detallan en el
-    ANEXO IV — Constancia de Recepción y Responsabilidad de Activos, el cual forma parte integrante del presente
-    convenio.</p>
-
-    <h3>NOVENA. USO DE IMAGEN</h3>
-    <p>LA PRACTICANTE autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías o
-    videos tomados durante el desarrollo de sus prácticas o en actividades institucionales en la sede
-    ${d.sedeNombre}, con fines corporativos o institucionales, sin compensación adicional, respetando siempre su
-    dignidad e integridad personal, en los límites de la Ley N.° 29733, Ley de Protección de Datos Personales.</p>
-
-    <h3>DÉCIMA. CONFIDENCIALIDAD</h3>
-    <p>Toda información relacionada con procesos internos, inventarios, proveedores, estrategias comerciales, datos
-    de clientes, precios, márgenes, información financiera y cualquier información sensible de LA EMPRESA tiene
-    carácter estrictamente confidencial. LA PRACTICANTE se obliga a no divulgarla, reproducirla ni utilizarla para
-    fines distintos a sus prácticas, durante la vigencia del presente convenio y hasta veinticuatro (24) meses
-    después de su culminación.</p>
-
-    <h3>DÉCIMA PRIMERA. VIDEOVIGILANCIA</h3>
-    <p>LA EMPRESA cuenta con sistemas de videovigilancia en las instalaciones del centro de trabajo, debidamente
-    señalizados, que operan de forma permanente con fines de seguridad, control operativo y verificación de
-    incidencias, conforme a la Ley N.° 29733. LA PRACTICANTE declara conocer y aceptar su existencia mediante la
-    firma del presente convenio.</p>
-
-    <h3>DÉCIMA SEGUNDA. PROTECCIÓN DE DATOS PERSONALES</h3>
-    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a LA PRACTICANTE que sus datos personales serán
-    tratados con las finalidades exclusivas de gestión del presente convenio, cumplimiento de obligaciones legales,
-    comunicaciones internas y emisión de constancias. LA PRACTICANTE otorga su consentimiento expreso mediante la
-    firma del presente convenio.</p>
-
-    <h3>DÉCIMA TERCERA. RESOLUCIÓN ANTICIPADA DEL CONVENIO</h3>
-    <p>El presente convenio podrá resolverse anticipadamente por mutuo acuerdo, por decisión de LA PRACTICANTE
-    comunicada con razonable anticipación, o por incumplimiento grave y reiterado de las obligaciones aquí
-    pactadas por cualquiera de las partes. Al no existir relación laboral, la resolución del presente convenio no
-    genera indemnización por cese ni beneficios sociales — sin perjuicio de la subvención y demás derechos
-    devengados hasta la fecha de resolución.</p>
+    ${cuerpoClausulas}
 
     <p>En señal de conformidad, las partes firman el presente convenio en ${enLaCiudadDe(d)}, el
-    ${formatearFecha(d.fechaInicio)}, en tres (3) ejemplares de igual tenor.</p>
+    ${formatearFecha(d.fechaInicio)}, en ${numPartes} ejemplares de igual tenor.</p>
 
-    ${bloqueFirmas(d, "LA PRACTICANTE")}
+    ${
+      esPreprofesional
+        ? bloqueFirmas(d, "LA PRACTICANTE", {
+            etiqueta: "EL CENTRO DE FORMACIÓN PROFESIONAL",
+            nombre: d.centroFormacionNombre ?? "[completar]",
+            ruc: d.centroFormacionRuc ?? "[completar]",
+          })
+        : bloqueFirmas(d, "LA PRACTICANTE")
+    }
     <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>
 
     <section class="anexo">
-      ${encabezadoAnexo(d, "ANEXO I — PLAN DE CAPACITACIÓN ESPECÍFICO", `${d.cargo} — Sede ${d.sedeNombre}`)}
+      ${encabezadoAnexo(d, "ANEXO I — PLAN ESPECÍFICO DE APRENDIZAJE", `${d.cargo} — Sede ${d.sedeNombre}`)}
+      <p><strong>Área / proyecto de destino:</strong> ${d.areaProyecto || "[completar]"}</p>
+      <p><strong>Objetivo formativo general:</strong> ${parrafoDesdeTexto(d.objetivoFormativoGeneral) || "[completar]"}</p>
+      <p><strong>Actividades principales:</strong></p>
       ${listaDesdeTexto(d.planCapacitacionTexto)}
+      <p><strong>Supervisor(a) asignado(a):</strong> ${d.supervisorAsignado || "[completar]"}</p>
+      <p><strong>Hito de evaluación — mes 3:</strong> ${d.hitoMes3 || "[completar]"}</p>
+      <p><strong>Hito de evaluación — mes 6:</strong> ${d.hitoMes6 || "[completar]"}</p>
+      <p><strong>Fecha de inicio / término:</strong> ${formatearFecha(d.fechaInicio)} – ${formatearFecha(d.fechaFin)}</p>
       ${pieAnexo(d, "LA PRACTICANTE")}
     </section>
 
@@ -857,7 +1143,11 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
   const d = escapado(datosSinEscapar);
   if (d.tipo === "adendum") return documentoAdendum(d);
   if (d.tipo === "convenio_practicas") return documentoConvenio(d);
-  const titulo = "CONTRATO DE TRABAJO SUJETO A MODALIDAD TEMPORAL POR INICIO O INCREMENTO DE ACTIVIDAD";
+
+  const esIndefinido = d.tipo === "indefinido";
+  const titulo = esIndefinido
+    ? "CONTRATO DE TRABAJO A PLAZO INDETERMINADO"
+    : "CONTRATO DE TRABAJO SUJETO A MODALIDAD TEMPORAL POR INICIO O INCREMENTO DE ACTIVIDAD";
 
   return `
   <article class="contrato">
@@ -865,14 +1155,18 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
       <p class="empresa">${EMPRESA.nombre}</p>
       <p class="ruc">RUC N.° ${EMPRESA.ruc} · Sede ${d.sedeNombre}</p>
       <h1>${titulo}</h1>
-      <p class="norma">(TUO del Decreto Legislativo N.° 728 — Ley de Productividad y Competitividad Laboral, Art. 57)</p>
+      ${
+        esIndefinido
+          ? ""
+          : `<p class="norma">(TUO del Decreto Legislativo N.° 728 — Ley de Productividad y Competitividad Laboral, Art. 57)</p>`
+      }
       <p class="norma">Régimen Laboral Especial de la Pequeña Empresa — Texto Único Ordenado de la Ley de Impulso al
       Desarrollo Productivo y al Crecimiento Empresarial (Ley MYPE), aprobado por Decreto Supremo N.° 013-2013-PRODUCE,
       y su Reglamento aprobado por Decreto Supremo N.° 008-2008-TR</p>
     </header>
 
-    <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Contrato de
-    Trabajo Sujeto a Modalidad Temporal entre:</p>
+    <p>En ${enLaCiudadDe(d)}, al ${formatearFecha(d.fechaInicio)}, se celebra el presente Contrato de Trabajo
+    ${esIndefinido ? "a Plazo Indeterminado" : "Sujeto a Modalidad Temporal"} entre:</p>
 
     <h3>I. DATOS DEL EMPLEADOR</h3>
     <p>${EMPRESA.nombre}, identificada con R.U.C. N.° ${EMPRESA.ruc}, con domicilio legal en
@@ -887,18 +1181,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     <p>Ambas partes declaran que celebran el presente contrato conforme a la legislación laboral vigente y sin
     vicios de voluntad.</p>
 
-    <h3>PRIMERA. NATURALEZA, MODALIDAD Y CAUSA OBJETIVA</h3>
-    <p>El presente contrato se celebra bajo la modalidad de Contrato Temporal por Inicio o Incremento de Actividad,
-    conforme al artículo 57 del Texto Único Ordenado del Decreto Legislativo N.° 728, aprobado por Decreto Supremo
-    N.° 003-97-TR.</p>
-    <p>${d.causaObjetivaTexto}</p>
-    <p>El vínculo laboral generado por el presente contrato es de duración determinada y no genera estabilidad
-    laboral indefinida.</p>
-
-    <h3>SEGUNDA. PLAZO</h3>
-    <p>El contrato inicia el ${formatearFecha(d.fechaInicio)} y culmina el ${formatearFecha(d.fechaFin)}, fecha en
-    la cual quedará extinguido automáticamente sin necesidad de comunicación previa, salvo renovación expresa por
-    escrito.</p>
+    ${clausulaNaturalezaYPlazo(d)}
 
     ${clausulaPeriodoPrueba(d)}
 
@@ -970,23 +1253,14 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     comunicaciones internas y emisión de constancias. LA COLABORADORA otorga su consentimiento expreso mediante la
     firma del presente contrato.</p>
 
-    <h3>DÉCIMA OCTAVA. ENTREGA DE COPIA Y REGISTRO</h3>
-    <p>LA EMPRESA entregará a LA COLABORADORA copia del presente contrato dentro de los tres (3) días hábiles
-    siguientes al inicio de la prestación de servicios, y lo comunicará a la Autoridad Administrativa de Trabajo
-    para su registro dentro de los quince (15) días naturales siguientes a su suscripción.</p>
+    ${clausulaEntregaCopia(d)}
 
     <h3>DÉCIMA NOVENA. DOMICILIO ELECTRÓNICO Y COMUNICACIONES</h3>
     <p>Las partes acuerdan un domicilio electrónico válido para las comunicaciones de la relación laboral, conforme
     a los términos del ANEXO III — Domicilio Electrónico y Comunicaciones, el cual forma parte integrante del
     presente contrato.${d.email ? ` El domicilio electrónico de LA COLABORADORA es ${d.email}.` : ""}</p>
 
-    <h3>VIGÉSIMA. TERMINACIÓN</h3>
-    <p>El contrato finalizará automáticamente en la fecha pactada o podrá resolverse anticipadamente por mutuo
-    acuerdo, renuncia voluntaria de LA COLABORADORA (con treinta (30) días de anticipación), comisión de falta
-    grave, o resolución anticipada sin causa justa por parte de LA EMPRESA — caso en el cual corresponderá la
-    indemnización equivalente a una remuneración y media (1.5) por cada mes dejado de laborar hasta el término del
-    contrato, con el límite de doce (12) remuneraciones, conforme al artículo 76 del TUO del Decreto Legislativo
-    N.° 728.</p>
+    ${clausulaTerminacion(d)}
 
     <p>En señal de conformidad, las partes firman el presente contrato en ${enLaCiudadDe(d)}, el
     ${formatearFecha(d.fechaInicio)}, en tres (3) ejemplares de igual tenor.</p>

@@ -77,8 +77,19 @@ function datos(cambios: Partial<DatosContrato> = {}): DatosContrato {
     firmanteDni: "87654321",
     firmanteCargo: "Gerencia General",
     practicanteModalidad: null,
-    institucionEducativa: null,
     planCapacitacionTexto: "",
+    centroFormacionNombre: null,
+    centroFormacionRuc: null,
+    centroFormacionDomicilio: null,
+    centroFormacionRepresentante: null,
+    carreraEspecialidad: null,
+    cicloAcademico: null,
+    gradoTituloTexto: null,
+    areaProyecto: "",
+    objetivoFormativoGeneral: "",
+    supervisorAsignado: "",
+    hitoMes3: "",
+    hitoMes6: "",
     ...cambios,
   };
 }
@@ -154,7 +165,6 @@ describe("documentoConvenio", () => {
     return datos({
       tipo: "convenio_practicas",
       practicanteModalidad: "preprofesional",
-      institucionEducativa: null,
       planCapacitacionTexto: "Apoyo en el área de sistemas.",
       ...cambios,
     });
@@ -187,8 +197,8 @@ describe("documentoConvenio", () => {
   it("la jornada depende de la modalidad, nunca 48h fijas como en un contrato", () => {
     const preprofesional = construirContrato(datosConvenio({ practicanteModalidad: "preprofesional" }));
     const profesional = construirContrato(datosConvenio({ practicanteModalidad: "profesional" }));
-    expect(preprofesional).toContain("30 horas semanales");
-    expect(profesional).toContain("48 horas semanales");
+    expect(preprofesional).toContain("treinta (30) horas semanales");
+    expect(profesional).toContain("cuarenta y ocho (48) horas semanales");
   });
 
   it("sin modalidad asignada, avisa en el propio documento en vez de inventar una jornada", () => {
@@ -202,11 +212,65 @@ describe("documentoConvenio", () => {
     expect(texto).not.toContain("LA COLABORADORA");
   });
 
-  it("el Anexo I es el plan de capacitación, no las funciones del cargo", () => {
+  it("el Anexo I es el plan específico de aprendizaje, no las funciones del cargo", () => {
     const texto = construirContrato(datosConvenio({ planCapacitacionTexto: "Apoyo específico en X." }));
-    expect(texto).toContain("ANEXO I — PLAN DE CAPACITACIÓN ESPECÍFICO");
+    expect(texto).toContain("ANEXO I — PLAN ESPECÍFICO DE APRENDIZAJE");
     expect(texto).toContain("Apoyo específico en X.");
     expect(texto).not.toContain("ANEXO I — FUNCIONES DEL CARGO");
+  });
+
+  // El objetivo formativo general se escribe en un cuadro de varias líneas
+  // (era un renglón y un párrafo entero no se veía). Un Enter ahí tiene que
+  // llegar al papel como salto de línea, no colapsar a un espacio dentro
+  // del <p>; y vacío sigue diciendo «[completar]», como antes.
+  it("el objetivo formativo general conserva sus saltos de línea en el Anexo I", () => {
+    const texto = construirContrato(
+      datosConvenio({
+        objetivoFormativoGeneral: "Al finalizar, desarrolla módulos completos del ERP.\n  Y documenta cada uno.  \n\n",
+      }),
+    );
+    expect(texto).toContain(
+      "<strong>Objetivo formativo general:</strong> Al finalizar, desarrolla módulos completos del ERP.<br/>Y documenta cada uno.</p>",
+    );
+    const vacio = construirContrato(datosConvenio({ objetivoFormativoGeneral: "  \n " }));
+    expect(vacio).toContain("<strong>Objetivo formativo general:</strong> [completar]</p>");
+  });
+
+  // ── 0348: preprofesional es TRIPARTITO, profesional es BIPARTITO ──────────
+  // El modelo de referencia de DO (`CAYLA_CORP_CONT_202609_ConvenioPracticas.
+  // docx`) trae la diferencia de fondo que la versión anterior no modelaba:
+  // el centro de formación FIRMA en el preprofesional (art. 12 y ss., Ley
+  // 28518) y solo REFERENCIA al egresado en el profesional, sin firmar.
+  it("el preprofesional es tripartito: firma también el centro de formación", () => {
+    const texto = construirContrato(
+      datosConvenio({
+        practicanteModalidad: "preprofesional",
+        centroFormacionNombre: "Universidad de Ejemplo",
+        centroFormacionRuc: "20999999999",
+      }),
+    );
+    expect(texto).toContain("EL CENTRO DE FORMACIÓN PROFESIONAL");
+    expect(texto).toContain("Universidad de Ejemplo");
+    expect(texto).toContain("se suscribe por triplicado");
+    expect(texto.match(/class="firmas"/g)!.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("el profesional es bipartito: no lleva al centro de formación como firmante", () => {
+    const texto = construirContrato(datosConvenio({ practicanteModalidad: "profesional" }));
+    expect(texto).not.toContain("EL CENTRO DE FORMACIÓN PROFESIONAL");
+    expect(texto).toContain("se suscribe por duplicado");
+  });
+
+  it("las cláusulas se numeran corridas y sin huecos en los dos casos", () => {
+    // El preprofesional suma una cláusula (OBLIGACIONES DEL CENTRO DE
+    // FORMACIÓN) que el profesional no lleva — por eso termina una posición
+    // más adelante en el arreglo de ordinales.
+    const preprofesional = construirContrato(datosConvenio({ practicanteModalidad: "preprofesional" }));
+    const profesional = construirContrato(datosConvenio({ practicanteModalidad: "profesional" }));
+    expect(preprofesional).toContain("NOVENA. OBLIGACIONES DEL CENTRO DE FORMACIÓN PROFESIONAL");
+    expect(preprofesional).toContain("DÉCIMA OCTAVA. EXTINCIÓN");
+    expect(profesional).not.toContain("OBLIGACIONES DEL CENTRO DE FORMACIÓN");
+    expect(profesional).toContain("DÉCIMA SÉTIMA. EXTINCIÓN");
   });
 });
 

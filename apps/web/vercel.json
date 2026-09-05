@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/alertas-encargadas",
+      "schedule": "0 12 * * *"
+    }
+  ]
+}

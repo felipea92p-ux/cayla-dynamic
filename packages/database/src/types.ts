@@ -89,10 +89,14 @@ export type Database = {
           enviado_at: string | null
           estado: string
           id: string
+          intentos: number
           leido_at: string | null
+          nota_fallo: string | null
           payload: Json
           persona_id: string | null
+          procesando_desde: string | null
           tipo: string
+          ultimo_intento_at: string | null
         }
         Insert: {
           canal: string
@@ -100,10 +104,14 @@ export type Database = {
           enviado_at?: string | null
           estado?: string
           id?: string
+          intentos?: number
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
+          procesando_desde?: string | null
           tipo: string
+          ultimo_intento_at?: string | null
         }
         Update: {
           canal?: string
@@ -111,10 +119,14 @@ export type Database = {
           enviado_at?: string | null
           estado?: string
           id?: string
+          intentos?: number
           leido_at?: string | null
+          nota_fallo?: string | null
           payload?: Json
           persona_id?: string | null
+          procesando_desde?: string | null
           tipo?: string
+          ultimo_intento_at?: string | null
         }
         Relationships: [
           {
@@ -126,6 +138,115 @@ export type Database = {
           },
           {
             foreignKeyName: "alertas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios: {
+        Row: {
+          anulado_at: string | null
+          anulado_por: string | null
+          cuerpo: string
+          id: string
+          publicado_at: string
+          publicado_por: string
+          sede_id: string | null
+          titulo: string
+        }
+        Insert: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo: string
+          id?: string
+          publicado_at?: string
+          publicado_por: string
+          sede_id?: string | null
+          titulo: string
+        }
+        Update: {
+          anulado_at?: string | null
+          anulado_por?: string | null
+          cuerpo?: string
+          id?: string
+          publicado_at?: string
+          publicado_por?: string
+          sede_id?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_anulado_por_fkey"
+            columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anuncios_leidos: {
+        Row: {
+          anuncio_id: string
+          leido_at: string
+          persona_id: string
+        }
+        Insert: {
+          anuncio_id: string
+          leido_at?: string
+          persona_id: string
+        }
+        Update: {
+          anuncio_id?: string
+          leido_at?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anuncios_leidos_anuncio_id_fkey"
+            columns: ["anuncio_id"]
+            isOneToOne: false
+            referencedRelation: "anuncios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anuncios_leidos_persona_id_fkey"
             columns: ["persona_id"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
@@ -634,7 +755,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
@@ -656,7 +777,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
           generado_at?: string
@@ -678,7 +799,7 @@ export type Database = {
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
           documento_html?: string
-          fecha_fin?: string
+          fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
           generado_at?: string
@@ -2181,6 +2302,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -2198,6 +2320,7 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada?: string | null
           id?: string
@@ -2215,6 +2338,7 @@ export type Database = {
           anulada_motivo?: string | null
           anulada_por?: string | null
           client_uuid?: string
+          confirmo_sin_refrigerio?: boolean | null
           estado_revision?: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada?: string | null
           id?: string
@@ -4090,6 +4214,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4122,6 +4247,32 @@ export type Database = {
         Returns: undefined
       }
       fn_ahora_servidor: { Args: never; Returns: string }
+      fn_alerta_despachable: {
+        Args: {
+          p_created_at: string | null
+          p_estado: string | null
+          p_intentos: number | null
+          p_procesando_desde: string | null
+        }
+        Returns: boolean
+      }
+      fn_alertas_despacho_resumen: { Args: never; Returns: Json }
+      fn_alertas_email_pendientes: {
+        Args: never
+        Returns: {
+          alerta_id: string
+          destinatarios: string[]
+          destinatarios_nombres: string[]
+          estado_previo: string
+          intentos: number
+          payload: Json
+          persona_nombre: string
+          sede_codigo: string
+          tipo: string
+        }[]
+      }
+      fn_alertas_reservar: { Args: { p_id: string | null }; Returns: boolean }
+      fn_anular_anuncio: { Args: { p_id: string | null }; Returns: undefined }
       fn_anular_ausencia: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
@@ -4133,6 +4284,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4151,6 +4303,21 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_anuncios_vigentes: {
+        Args: { p_incluir_anulados?: boolean | null }
+        Returns: {
+          anulado_at: string
+          cuerpo: string
+          id: string
+          mi_leido_at: string
+          publicado_at: string
+          publicado_por_nombre: string
+          sede_codigo: string
+          sede_id: string
+          titulo: string
+          total_lectores: number
+        }[]
       }
       fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
       fn_area_activa: {
@@ -4284,6 +4451,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4317,7 +4485,7 @@ export type Database = {
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
           documento_html: string
-          fecha_fin: string
+          fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
           generado_at: string
@@ -4446,6 +4614,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -4472,6 +4641,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -5031,6 +5201,11 @@ export type Database = {
           nombre: string
         }[]
       }
+      fn_generar_alertas_vencimiento: { Args: never; Returns: number }
+      fn_grati_cts_agregar_pendientes: {
+        Args: { p_periodo_id: string | null }
+        Returns: Json
+      }
       fn_grati_cts_periodo: { Args: { p_periodo_id: string | null }; Returns: Json }
       fn_grati_trunca: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
@@ -5050,7 +5225,13 @@ export type Database = {
         Returns: undefined
       }
       fn_guardar_sede: {
-        Args: { p_codigo: string | null; p_nombre: string | null; p_tipo?: string | null }
+        Args: {
+          p_codigo: string | null
+          p_es_alta?: boolean | null
+          p_id?: string | null
+          p_nombre: string | null
+          p_tipo?: string | null
+        }
         Returns: undefined
       }
       fn_historial_salario: {
@@ -5162,6 +5343,11 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null; p_resolucion: string | null }
         Returns: Json
       }
+      fn_marcar_alerta_resultado: {
+        Args: { p_exito: boolean | null; p_id: string | null; p_nota?: string | null }
+        Returns: undefined
+      }
+      fn_marcar_anuncio_leido: { Args: { p_id: string | null }; Returns: undefined }
       fn_marcas_apartadas: {
         Args: never
         Returns: {
@@ -5218,6 +5404,19 @@ export type Database = {
       }
       fn_objetivos_checklist: {
         Args: { p_anio: number | null; p_mes: number | null; p_persona_id?: string | null }
+        Returns: Json
+      }
+      fn_objetivos_copiar_mes_anterior: {
+        Args: { p_anio: number | null; p_mes: number | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_objetivos_historial: {
+        Args: {
+          p_anio: number | null
+          p_mes: number | null
+          p_meses?: number | null
+          p_persona_id: string | null
+        }
         Returns: Json
       }
       fn_objetivos_resumen: {
@@ -5315,6 +5514,10 @@ export type Database = {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: Json
       }
+      fn_publicar_anuncio: {
+        Args: { p_cuerpo: string | null; p_sede_id?: string | null; p_titulo: string | null }
+        Returns: string
+      }
       fn_publicar_documento: {
         Args: {
           p_documento: string | null
@@ -5376,6 +5579,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -5403,6 +5607,7 @@ export type Database = {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_regenerar_pin: { Args: { p_persona_id: string | null }; Returns: string }
       fn_regimen_pension_divergentes: {
         Args: never
         Returns: {
@@ -5456,6 +5661,7 @@ export type Database = {
       fn_registrar_marcaje: {
         Args: {
           p_client_uuid: string | null
+          p_confirmo_sin_refrigerio?: boolean | null
           p_motivo_otro?: string | null
           p_origen?: Database["public"]["Enums"]["origen_marca"] | null
           p_persona_id: string | null
@@ -5469,6 +5675,7 @@ export type Database = {
           anulada_motivo: string | null
           anulada_por: string | null
           client_uuid: string
+          confirmo_sin_refrigerio: boolean | null
           estado_revision: Database["public"]["Enums"]["estado_revision"]
           fecha_jornada: string | null
           id: string
@@ -5911,6 +6118,10 @@ export type Database = {
       }
       fn_vacaciones_resumen: { Args: { p_as_of?: string | null }; Returns: Json }
       fn_vacaciones_saldo: {
+        Args: { p_as_of?: string | null; p_persona_id: string | null }
+        Returns: Json
+      }
+      fn_vacaciones_saldo_interno: {
         Args: { p_as_of?: string | null; p_persona_id: string | null }
         Returns: Json
       }

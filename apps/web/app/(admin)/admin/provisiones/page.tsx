@@ -129,6 +129,14 @@ interface ProvPersona {
   vac_dias: number;
   proximo_aniversario: string;
   gran_total: number;
+  // ⇩ 0365 ⇩ Dos ceros que se veían iguales. Quien devenga y NO tiene tramo
+  // en `asignaciones_salario` salía con S/ 0.00 en todo, igual que quien entró
+  // esta semana: los días sin tramo no aportan a la base y la fila sale igual
+  // (0274). `sin_salario_vigente` lo dice, y `dias_sin_salario` cuenta los
+  // días de calendario que lleva así. Opcionales por la misma razón que las de
+  // arriba: sin la 0365 pegada llegan `undefined` y la fila se ve como antes.
+  sin_salario_vigente?: boolean;
+  dias_sin_salario?: number;
 }
 interface ProvData {
   as_of: string;
@@ -143,6 +151,9 @@ interface ProvData {
   cts_may_periodo: string;
   cts_nov_periodo: string;
   personas: ProvPersona[];
+  // ⇩ 0365 ⇩ Cuántas filas llevan `sin_salario_vigente`. Opcional: sin la
+  // 0365 pegada no viaja, y la línea de aviso simplemente no se pinta.
+  personas_sin_salario?: number;
 }
 
 const COLS = 14; // 2 + 3 grati + bonif + 3 cts + 3 vac + gran total + próximo pago
@@ -238,6 +249,14 @@ export default function ProvisionesPage() {
     [visibles],
   );
 
+  // CAMBIO 0365 — quienes hoy SÍ tienen tramo pero tuvieron un hueco dentro
+  // del año que reserva. `personas_sin_salario` (de la base) no los cuenta:
+  // la bandera mira solo la fecha de corte. Se cuenta sobre lo visible.
+  const conHueco = useMemo(
+    () => visibles.filter((p) => !p.sin_salario_vigente && (p.dias_sin_salario ?? 0) > 0).length,
+    [visibles],
+  );
+
   // Monto del próximo pago de una persona = la fila cuya clave es data.proximo.ref
   const proximoRef = data?.proximo?.ref ?? null;
   function montoProximo(p: ProvPersona): number | null {
@@ -265,6 +284,10 @@ export default function ProvisionesPage() {
       gran_total: p.gran_total,
       proximo_pago_monto: montoProximo(p) ?? "",
       proximo_pago_fecha: data.proximo?.fecha ?? "",
+      // CAMBIO 0365 — el contador trabaja con este archivo, no con la
+      // pantalla: el cero corto tiene que ir marcado también acá.
+      sin_tramo_salario: p.sin_salario_vigente ? "sí" : "",
+      dias_sin_salario: (p.dias_sin_salario ?? 0) > 0 ? p.dias_sin_salario : "",
     }));
     const csv = generarCsv(filas, [
       "nombre",
@@ -283,6 +306,8 @@ export default function ProvisionesPage() {
       "gran_total",
       "proximo_pago_monto",
       "proximo_pago_fecha",
+      "sin_tramo_salario",
+      "dias_sin_salario",
     ]);
     descargarCsv(`provisiones-${data.as_of}.csv`, csv);
   }
@@ -360,6 +385,36 @@ export default function ProvisionesPage() {
             Aparece quien devenga beneficios. Quien no devenga ninguno —recibo por honorarios, días de
             prueba— no ocupa una fila: no hay nada que reservarle.
           </p>
+        )}
+
+        {/* SIN TRAMO DE SALARIO (CAMBIO 0365). Una fila en cero puede significar
+            «aún no devengó» o «nadie le cargó el tramo de salario», y hasta la
+            0365 las dos se veían igual. La base lo cuenta una vez arriba para
+            que quien reserva no tenga que recorrer la tabla buscando el cero
+            que miente. */}
+        {data && ((data.personas_sin_salario ?? 0) > 0 || conHueco > 0) && (
+          <div className="mb-4 max-w-3xl rounded-lg border border-rojo bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            {(data.personas_sin_salario ?? 0) > 0 && (
+              <>
+                <strong className="font-medium">
+                  {data.personas_sin_salario}{" "}
+                  {data.personas_sin_salario === 1 ? "persona" : "personas"} sin tramo de salario
+                  vigente:
+                </strong>{" "}
+                sus reservas salen cortas o en cero, no porque no les toque. Asígnale el salario en
+                Equipo para que la reserva se calcule.{" "}
+              </>
+            )}
+            {conHueco > 0 && (
+              <span>
+                {(data.personas_sin_salario ?? 0) > 0 ? "Y " : ""}
+                {conHueco === 1 ? "una persona" : `${conHueco} personas`}
+                {(data.personas_sin_salario ?? 0) > 0 ? " más " : " "}
+                {conHueco === 1 ? "tiene" : "tienen"} días sin tramo dentro del año que reserva: esos
+                días no cuentan.
+              </span>
+            )}
+          </div>
         )}
 
         {/* Error de carga */}
@@ -473,7 +528,36 @@ export default function ProvisionesPage() {
                     const mp = montoProximo(p);
                     return (
                       <tr key={p.persona_id} className="border-t">
-                        <td className="px-4 py-2">{p.nombre}</td>
+                        <td className="px-4 py-2">
+                          {p.nombre}
+                          {/* CAMBIO 0365 — el cero de esta fila no es «aún no»:
+                              es que no hay tramo de salario que lo valore. */}
+                          {/* La insignia solo cuando falta el tramo A LA FECHA DE CORTE; los
+                              días, siempre que haya alguno: quien hoy tiene tramo pero tuvo
+                              un hueco en el año también reservó de menos, y sin este texto
+                              ese hueco no se ve en ningún sitio. */}
+                          {(p.sin_salario_vigente || (p.dias_sin_salario ?? 0) > 0) && (
+                            <span className="mt-1 flex flex-wrap items-center gap-2">
+                              {p.sin_salario_vigente && (
+                                <span
+                                  className="inline-block rounded-full border border-rojo bg-rojo/10 px-2 py-0.5 text-xs font-medium text-rojo"
+                                  title="No tiene ningún salario vigente a la fecha de corte (se asigna en Equipo). Sus reservas salen cortas o en cero, no porque no le toque."
+                                >
+                                  Sin tramo de salario vigente
+                                </span>
+                              )}
+                              {(p.dias_sin_salario ?? 0) > 0 && (
+                                <span
+                                  className="text-xs text-rojo"
+                                  title="Días de calendario del año que reserva sin ningún tramo de salario vigente: esos días no aportan a la reserva."
+                                >
+                                  {p.dias_sin_salario} {p.dias_sin_salario === 1 ? "día" : "días"} sin
+                                  salario cargado
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2">{p.sede}</td>
                         {/* Gratificación */}
                         <td className="border-l px-4 py-2 text-right">
@@ -483,7 +567,10 @@ export default function ProvisionesPage() {
                           {celdaVentana(p.grati_s2, p.grati_s2_pagada, p.grati_s2_monto_pagado, data.grati_s2_pago)}
                         </td>
                         <td className="px-4 py-2 text-right font-bold">{formatSoles(p.grati_total)}</td>
-                        {/* Bonificación extraordinaria (Ley 30334) — sale de la grati */}
+                        {/* Bonificación extraordinaria (Ley 30334). Desde la 0372 lleva
+                            su propia cuenta: ya no es «lo que quede de la grati». Si la
+                            gratificación se registró sin su 9% aparte, esta celda lo
+                            sigue mostrando pendiente, que es de lo que se trata. */}
                         <td className="border-l px-4 py-2 text-right">{formatSoles(p.be_total)}</td>
                         {/* CTS */}
                         <td className="border-l px-4 py-2 text-right">

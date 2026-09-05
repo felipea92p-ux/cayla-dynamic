@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
+import { ROLES_CON_PANEL } from "@cayla-dynamic/shared";
 
 type Estado = "cargando" | "listo" | "invalido" | "guardado";
 
@@ -14,6 +15,11 @@ export default function NuevaClavePage() {
   const [confirma, setConfirma] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A dónde va esta persona al terminar. Se resuelve UNA vez, al guardar la
+  // clave, y de ahí salen las dos cosas: el texto del botón y el destino. Que
+  // sean el mismo valor derivado es a propósito — un botón que dice una cosa y
+  // lleva a otra es el error que se está corrigiendo.
+  const [destino, setDestino] = useState("/mio");
 
   // El enlace del correo trae el token en la URL; supabase-js lo detecta solo
   // y dispara PASSWORD_RECOVERY. Si en unos segundos no llega, el enlace ya
@@ -44,9 +50,27 @@ export default function NuevaClavePage() {
     if (nueva !== confirma) { setError("Las contraseñas no coinciden."); return; }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.auth.updateUser({ password: nueva });
+    const { data, error } = await supabase.auth.updateUser({ password: nueva });
+    if (error) { setGuardando(false); setError(error.message); return; }
+
+    // A DÓNDE ATERRIZA CADA QUIEN — la misma resolución que hace el login
+    // (`login/page.tsx`), por el mismo motivo: el Dashboard es un tablero de
+    // encargada, y una integrante con cuenta —las hay: se les invita para que
+    // dejen constancia de la política salarial, Ley 30709— caía ahí y veía una
+    // pantalla que su propia RLS le devuelve casi vacía. Antes esta pantalla
+    // mandaba a todo el mundo al Dashboard sin mirar el rol.
+    //
+    // Si la consulta del rol falla, se va a «Lo mío»: funciona para todo el
+    // mundo, mientras que un Dashboard vacío se lee como que el sistema se
+    // rompió justo después de cambiar la clave.
+    const { data: yo } = await supabase
+      .from("personas")
+      .select("rol")
+      .eq("auth_user_id", data.user?.id ?? "")
+      .maybeSingle();
+    const rol = (yo as { rol?: string } | null)?.rol;
+    setDestino(rol && ROLES_CON_PANEL.includes(rol as never) ? "/admin/dashboard" : "/mio");
     setGuardando(false);
-    if (error) { setError(error.message); return; }
     setEstado("guardado");
   }
 
@@ -104,10 +128,10 @@ export default function NuevaClavePage() {
         <div className="flex w-full max-w-xs flex-col gap-4 text-center">
           <p className="text-sm text-verde">Tu contraseña se actualizó correctamente.</p>
           <button
-            onClick={() => router.replace("/admin/dashboard")}
+            onClick={() => router.replace(destino)}
             className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo"
           >
-            Ir al panel
+            {destino === "/mio" ? "Ir a lo mío" : "Ir al panel"}
           </button>
         </div>
       )}
