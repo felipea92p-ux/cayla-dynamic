@@ -37,7 +37,7 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
-## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») queda con su consulta de población · SIN CORRER TODAVÍA
+## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») · CORRIDO EN PRODUCCIÓN — 0 FILAS, LATENTE
 
 Hallazgo de `Auditoria-CAYLA-2026-09-04.pdf` (no vive en el repo), «sobrevivió
 2/3» refutadores, con un matiz importante que el propio refutador señaló: no
@@ -68,12 +68,17 @@ Para cada ventana de grati/CTS pagada antes del 2026-09-01 y ya cerrada
 `asignaciones_salario` DENTRO de esa ventana — no en el borde—, que es la
 única situación en que el día a día puede quedar corto frente al piso.
 
-🔴 **Falta correrla en producción.** Probada solo contra el Postgres local
-(0 filas — sin personas ni historial de sueldo reales en esa base). Si sale
-vacía en producción, el hallazgo es real pero no cuesta nada hoy y se anota
-como latente, igual que otros de `hallazgos-abiertos.md`. Si aparece alguien,
-recién ahí se calcula el faltante a mano para esas personas puntuales — nunca
-reabriendo el periodo pagado, ajustando vía `fn_registrar_desembolso`.
+✅ **Corrida por Felipe en el SQL Editor el 2026-09-05: 0 filas.** Nadie en
+CAYLA tuvo un cambio de `asignaciones_salario` DENTRO de una ventana de
+grati/CTS ya cerrada antes del 2026-09-01. El mecanismo que el código tiene
+—`cobrado` colapsando a `devengado` de la misma llamada— sigue siendo real,
+pero hoy no le pega a nadie: no hay nada que ajustar con
+`fn_registrar_desembolso` ni motivo para tocar `fn_provisiones`. Queda
+anotado como latente en [`hallazgos-abiertos.md`](hallazgos-abiertos.md) para
+que, si algún día alguien cesa o se le sube el sueldo a mitad de un semestre
+YA CERRADO por planilla, se vuelva a correr
+[`a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql)
+antes de asumir que sigue en cero.
 
 ---
 
