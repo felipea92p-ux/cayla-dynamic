@@ -37,6 +37,81 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — El 9% de la Ley 30334 dejaba de pedirse solo (0372) · PEGADA Y VERIFICADA — SIN IMPACTO EN LO YA PAGADO
+
+Sale de la auditoría del 2026-09-03/04 (hallazgo 8).
+
+**El defecto.** Desde la 0346 la gratificación y el 9% son dos movimientos
+separados —lo pidió el contador—, pero `fn_provisiones` seguía decidiendo si el
+9% estaba pagado mirando ÚNICAMENTE si existía un movimiento de gratificación en
+esa ventana. El 9% no tenía cuenta propia: se calculaba como el 9 % de la
+gratificación PENDIENTE, así que heredaba su resta entera y caía a cero con ella.
+
+Quien registraba solo «Gratificación» —el camino manual, que sigue existiendo
+porque el desplegable no obliga a nada— dejaba de ver el 9 % como pendiente, y
+ninguna pantalla volvía a mencionarlo. Medido en local, en `BEGIN … ROLLBACK`:
+con S/585.51 de gratificación devengada, el 9 % pendiente pasaba de **S/52.70 a
+S/0.00** al registrar la gratificación sola.
+
+Antes de la 0346 esa regla era correcta por convención —el 9 % viajaba DENTRO
+del monto de «Gratificación», así que gratificación pagada ⇒ 9 % pagado—. La
+0346 rompió la convención a propósito y nadie actualizó esta función.
+
+**El arreglo.** El 9 % obtiene devengado propio y cobrado propio. Se da por
+saldado si existe su movimiento, **o** si la gratificación de esa ventana se
+registró antes del 2026-09-03, cuando el 9 % todavía viajaba dentro y no había
+otra forma de pagarlo. Esa segunda condición es la decisión ya tomada al pegar la
+0346 —«no se corrige lo ya pagado»—: sin ella, esta migración le habría inventado
+al sistema una deuda del 9 % sobre TODO el historial de gratificaciones.
+
+La propiedad que conserva, y que la prueba 295 fija: donde el 9 % ya está
+saldado, el número nuevo es EXACTAMENTE el mismo que daba la fórmula anterior.
+Solo cambia el caso que nadie miraba.
+
+✅ **Pegada en producción el 2026-09-05, con las ocho comprobaciones en verde**,
+incluidas las dos que importaban: `conserva_la_0365` (no revirtió el aviso de
+tramo de salario) y `la_pantalla_puede` (no perdió el `grant` que la 0363 había
+tenido que reponer). **El `md5_llegada` de producción —`6f33984ae7ce841d9dcbb…`—
+coincidió exacto con el medido en local**, así que las dos bases quedaron byte
+por byte iguales. Y `la_0346_se_aplico_el` devolvió `2026-09-03`, confirmando que
+la constante de corte mira el día correcto.
+
+✅ **Medido antes de pegar: a nadie le apareció una deuda nueva.** La consulta
+[`a_quien_le_aparece_el_9_por_ciento.sql`](../scripts/sql-manual/a_quien_le_aparece_el_9_por_ciento.sql)
+devolvió **cero filas**: la gratificación de julio se registró antes del corte
+—con el 9 % dentro, como correspondía— y desde que existe la opción separada
+nadie ha registrado una sin su 9 %. El arreglo llega antes del momento en que
+importa, que es el depósito del **15 de diciembre**.
+
+⚠️ **EL CASI-ACCIDENTE, que es lo que conviene leer de esta entrada.** Se
+escribió primero como **0362, sobre el cuerpo de la 0338**. En las horas que
+tardó en verificarse, otras sesiones fusionaron **54 commits**: alguien tomó el
+número 0362 y la prueba 288, y —lo grave— `fn_provisiones` se reescribió DOS
+veces (la 0363 le devolvió el `grant execute … to authenticated` que la 0338
+nunca concedió; la 0365 le agregó el aviso de tramo de salario en cinco sitios).
+
+Pegar aquella versión habría revertido las dos en silencio, y la pantalla de
+Provisiones habría dejado de responderle a `authenticated`. **Lo cazó volver a
+correr `donde-vive.sh` en el mensaje en que se entregaba el SQL, no en el que se
+empezó a escribirlo.** Es la regla que el CLAUDE.md ya tenía escrita desde la
+avería del 2026-08-25, y este es el caso que la justifica por segunda vez.
+
+**Lo que NO hace, a propósito:** no le abre ventana propia al 9 % en el libro de
+desembolsos (`desembolsos_beneficios.ventana` solo admite las cinco de siempre),
+así que quien pague el 9 % POR FUERA del sistema sigue sin poder anotarlo; y no
+toca `fn_grati_trunca_bruta`, que calcula el 9 % al cesar con la tasa CLAVADA en
+`0.09` (0343:303) en vez de leerla versionada. Ese es un defecto distinto, de
+otro camino, y mezclarlos habría hecho esta migración imposible de auditar de una
+pasada.
+
+**Y una deuda de pantalla que queda anotada:** `/admin/provisiones` ahora dice la
+verdad, pero nada avisa en el momento del pago. Quien registre «Gratificación»
+sin el 9 % no ve ninguna advertencia ahí mismo — se entera al abrir Provisiones
+después. El botón «Agregar todo» de la 0355 lo resuelve por el camino feliz; el
+manual sigue abierto.
+
+---
+
 ## 2026-09-04 — `que-falta-pegar.sh` acusaba en falso a `fn_planilla_calcular` de estar atrasada · PR #190 FUSIONADO
 
 Al pedir las migraciones 0358 y 0359 para pegar, la consulta de qué falta pegar
