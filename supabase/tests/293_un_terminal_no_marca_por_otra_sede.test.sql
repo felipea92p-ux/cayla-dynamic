@@ -319,18 +319,19 @@ values ('00000000-0000-0000-0000-000000028615', 'personas.sede_base_id', 'ZZ286A
         '00000000-0000-0000-0000-000000028617',
         (fn_hoy_lima() + time '09:01') at time zone 'America/Lima');
 
--- `now()` es la MISMA marca de tiempo en TODA esta transacción (una sola
--- `begin`, línea 68) — es a lo que `corregido_at` acaba de poner por
--- default arriba. Por eso `now() - interval` para la entrada garantiza
--- `corregido_at >= timestamp_marca` sin importar a qué hora de Lima corra
--- CI. La versión anterior fijaba las 09:00 de Lima a mano, y fallaba cada
--- vez que el workflow arrancaba antes de esa hora (00:00-09:00 Lima —
--- confirmado en producción el 2026-09-05: el push que fusionó el PR #161
--- corrió a las 00:07 Lima y se llevó `db-tests` entero por delante).
+-- OJO: esta entrada tiene que quedar FIJA respecto del mismo «hoy» que
+-- `corregido_at` (arriba, 09:01) — nunca relativa a `now()`. Dos arreglos de
+-- este mismo defecto se escribieron el mismo día por sesiones distintas: uno
+-- fijó `corregido_at` (el de arriba) y otro dejó esta entrada en
+-- `now() - interval '30 minutes'`. Al fusionarse los dos juntos, la prueba
+-- volvió a ser sensible a la hora real: pasaba de las 00:00 a las 09:31 Lima
+-- y volvía a fallar después, porque `now() - 30min` termina cruzando las
+-- 09:01 fijas de `corregido_at`. Con las DOS puntas fijas al mismo «hoy» —09:00
+-- contra 09:01— la comparación no depende de cuándo corra CI.
 select lives_ok(
   $$ select fn_registrar_marcaje(
        '00000000-0000-0000-0000-000000028615'::uuid, 'entrada'::tipo_marca,
-       now() - interval '30 minutes',
+       (fn_hoy_lima() + time '09:00') at time zone 'America/Lima',
        gen_random_uuid(), 'terminal'::origen_marca,
        '00000000-0000-0000-0000-00000002860a'::uuid, null, null) $$,
   'PUERTA 2 · la ENTRADA que la cola entrega tras el cambio de sede entra: es una jornada real');
@@ -372,16 +373,13 @@ select lives_ok(
 -- ese botón en las cuatro sedes con el suite entero en verde.
 --
 -- Se mide con Fabi justamente porque ya está mudada: lo único que la sostiene
--- es que su jornada de hoy en la A sigue viva.
---
--- `now()` otra vez y no una hora fija (ver la nota de la PUERTA 2, arriba):
--- esta salida solo necesita ser POSTERIOR a la entrada de Fabi, y una hora
--- de Lima fija podía quedar antes de `now() - interval '30 minutes'` según
--- a qué hora corriera CI.
+-- es que su jornada de hoy en la A sigue viva. Fija al mismo «hoy» que su
+-- entrada (arriba, 09:00) y no a `now()`, por la misma razón: solo necesita
+-- ser POSTERIOR a esa entrada, y las 18:00 de hoy siempre lo son.
 do $cierra_fabi$ begin
   perform fn_registrar_marcaje(
     '00000000-0000-0000-0000-000000028615'::uuid, 'salida_final'::tipo_marca,
-    now() + interval '30 minutes',
+    (fn_hoy_lima() + time '18:00') at time zone 'America/Lima',
     gen_random_uuid(), 'terminal'::origen_marca,
     '00000000-0000-0000-0000-00000002860a'::uuid, null, null);
 end $cierra_fabi$;
