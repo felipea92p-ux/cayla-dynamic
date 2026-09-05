@@ -80,7 +80,10 @@ export async function cargarMarcajesHoyPorPersona(): Promise<Map<string, Marcaje
     // navegador: el corte del día es el de Lima, y esa respuesta tiene un solo
     // sitio (fecha-lima.ts).
     const hoyStr = fechaLimaHoy();
-    for (const [personaId, enCurso] of jornadaEnCursoPorPersona(data ?? [], hoyStr, fechaLima)) {
+    // `Date.now()` se lee ACÁ y se pasa hacia adentro: `jornadaEnCursoPorPersona`
+    // aplica con él el mismo tope de 16 h que `fn_registrar_marcaje`, y una
+    // función que consulta el reloj por su cuenta no se puede probar.
+    for (const [personaId, enCurso] of jornadaEnCursoPorPersona(data ?? [], hoyStr, fechaLima, Date.now())) {
       mapa.set(personaId, enCurso);
     }
   }

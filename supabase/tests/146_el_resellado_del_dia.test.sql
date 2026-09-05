@@ -31,9 +31,18 @@ values ('00000000-0000-0000-0000-00000000d900', 'SelloAdmin', 'Laboratorio',
         '00000000-0000-0000-0000-0000000d9000');
 set session_replication_role = origin;
 
-insert into personas (id, nombres, apellidos, sede_base_id, pin_hash)
+-- `visible_todas_sedes` desde la 0360, y NO es maquillaje para que la prueba
+-- pase: la sección 5 de abajo la hace marcar en la sede VISITADA, y desde esa
+-- migración un terminal solo escribe marcas de quien puede marcar ahí. Quien
+-- visita otra tienda y ficha ahí es exactamente quien tiene este permiso — sin
+-- él, el fixture describía un estado que el sistema ya no deja existir, y la
+-- prueba abortaba a media ejecución dejando sin correr las dos aserciones que
+-- defienden la mejora de la 0188. La otra salida —meter ese insert dentro del
+-- bloque `session_replication_role = replica`— habría apagado también el
+-- candado del cese y dejado la prueba verde sin que nada la sostenga.
+insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, visible_todas_sedes)
 values ('00000000-0000-0000-0000-00000000d901', 'SelloPersona', 'Laboratorio',
-        '00000000-0000-0000-0000-0000000000d1', 'test-hash');
+        '00000000-0000-0000-0000-0000000000d1', 'test-hash', true);
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000d9000', true);
 

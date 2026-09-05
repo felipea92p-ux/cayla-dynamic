@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { ESTADO_CIVIL_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { AdminNav } from "../../nav";
@@ -41,15 +41,26 @@ function fmtHoras(h: number): string {
 }
 const soles = (n: number) => `S/ ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
+      <span className="text-taupe">{label}</span>
+      <span className="text-right">{valor ?? "—"}</span>
+    </div>
+  );
+}
+
 const NIVEL: Record<string, string> = { verbal: "Llamada verbal", amonestacion: "Amonestación escrita", suspension: "Suspensión", imputacion: "Imputación", despido: "Despido" };
 const CAUSAL: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 const ESTADO_DOC: Record<string, string> = { borrador: "Borrador", firmado: "Firmado", entregado: "Entregado", anulado: "Anulado" };
 
 interface Persona { id: string; nombres: string; apellidos: string; documento: string | null; funcion: string; sede_base_id: string; fecha_ingreso: string; email: string | null; estado: string; en_planilla: boolean; sueldo_fijo: boolean; personal_direccion: boolean }
-interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
+interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null; genero: string | null; direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null; hijos_menores: boolean | null; foto_personal_url: string | null }
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface DocLite { id: string; correlativo: string | null; tipo_causal: string; nivel: string; estado: string; creado_at: string; firmado_at: string | null }
 interface Jornada { fecha: string; entrada_ts: string | null; salida_final_ts: string | null; horas_trabajadas: number | null; minutos_tarde: number | null; minutos_salida_temprana: number | null; horas_extra_detectadas: number | null; estado: string }
+interface VacacionesSaldo { aplica: boolean; dias_pendientes: number; records_sin_gozar: number; records_vencidos: number; vence_el: string | null; dias_para_vencer: number | null }
+interface ContratoPorVencer { persona_id: string; fecha_fin_contrato: string; dias_restantes: number; ya_vencio: boolean }
 
 type Tab = "ficha" | "desempeno";
 
@@ -114,6 +125,8 @@ export default function PerfilPersonaPage() {
   const [errFicha, setErrFicha] = useState<string | null>(null);
   const [errSalario, setErrSalario] = useState<string | null>(null);
   const [errDocs, setErrDocs] = useState<string | null>(null);
+  const [errVacas, setErrVacas] = useState<string | null>(null);
+  const [errContrato, setErrContrato] = useState<string | null>(null);
   // Sube de uno en uno para volver a lanzar la carga desde cualquier
   // «Reintentar». La carga vive en el efecto (no en un callback) para no
   // repetir el patrón que react-hooks/set-state-in-effect ya marca abajo.
@@ -122,6 +135,8 @@ export default function PerfilPersonaPage() {
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [subiendoFirma, setSubiendoFirma] = useState(false);
+  const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
+  const [contrato, setContrato] = useState<ContratoPorVencer | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -143,15 +158,22 @@ export default function PerfilPersonaPage() {
       // Las cuatro consultas se miran UNA POR UNA. Antes solo se revisaba la
       // del salario —y su fallo, además, tumbaba la ficha entera—; las otras
       // tres fallaban en silencio y su sección se pintaba como vacía.
-      const [{ data: s, error: eSedes }, { data: dp, error: eFicha }, { data: sal, error: eSal }, { data: dd, error: eDocs }] = await Promise.all([
+      const [{ data: s, error: eSedes }, { data: dp, error: eFicha }, { data: sal, error: eSal }, { data: dd, error: eDocs }, { data: vac, error: eVac }, { data: contratos, error: eContrato }] = await Promise.all([
         supabase.from("sedes").select("id, codigo"),
         supabase.from("datos_personales")
-          .select("nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
+          .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
           .eq("persona_id", id).maybeSingle(),
         supabase.rpc("fn_historial_salario", { p_persona_id: id }),
         supabase.from("expediente_disciplinario")
           .select("id, correlativo, tipo_causal, nivel, estado, creado_at, firmado_at")
           .eq("persona_id", id).order("creado_at", { ascending: false }),
+        // Mismo saldo que ve la propia persona en "Lo mío" (fn_vacaciones_saldo);
+        // acá se lee en la ficha para no tener que ir a buscarlo aparte.
+        supabase.rpc("fn_vacaciones_saldo", { p_persona_id: id, p_as_of: null }),
+        // Ventana de 90 días, igual que el aviso del Dashboard — si no aparece
+        // acá, es que no tiene un contrato a plazo fijo por vencer pronto, no
+        // que falte el dato.
+        supabase.rpc("fn_contratos_por_vencer", { p_dias: 90 }),
       ]);
       const smap = new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo]));
       if (vivo) {
@@ -159,11 +181,16 @@ export default function PerfilPersonaPage() {
         setErrFicha(eFicha ? mensajeDeError(eFicha) : null);
         setErrSalario(eSal ? mensajeDeError(eSal) : null);
         setErrDocs(eDocs ? mensajeDeError(eDocs) : null);
+        setErrVacas(eVac ? mensajeDeError(eVac) : null);
+        setErrContrato(eContrato ? mensajeDeError(eContrato) : null);
         setSede(smap.get((p as Persona).sede_base_id) ?? "");
         setFicha(eFicha ? null : (dp as Ficha) ?? null);
         const hist = eSal ? [] : (sal as Salario[]) ?? [];
         setSalario(hist.find((x) => !x.vigente_hasta) ?? hist[0] ?? null);
         setDocs(eDocs ? [] : (dd as DocLite[]) ?? []);
+        const v = eVac ? null : (vac as VacacionesSaldo | null);
+        setVacas(v && v.aplica ? v : null);
+        setContrato(eContrato ? null : (((contratos as ContratoPorVencer[] | null) ?? []).find((c) => c.persona_id === id) ?? null));
         setCargando(false);
       }
     })();
@@ -374,15 +401,6 @@ export default function PerfilPersonaPage() {
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
   const iniciales = persona ? `${persona.nombres[0] ?? ""}${persona.apellidos[0] ?? ""}` : "";
 
-  function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
-    return (
-      <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
-        <span className="text-taupe">{label}</span>
-        <span className="text-right">{valor ?? "—"}</span>
-      </div>
-    );
-  }
-
   const TabBtn = ({ valor, children }: { valor: Tab; children: React.ReactNode }) => (
     <button
       onClick={() => setTab(valor)}
@@ -507,6 +525,7 @@ export default function PerfilPersonaPage() {
                         <Dato label="Correo" valor={persona.email} />
                         <Dato label="Dirección" valor={ficha.direccion} />
                         <Dato label="Nacimiento" valor={ficha.fecha_nacimiento ? fechaCorta(ficha.fecha_nacimiento) : "—"} />
+                        <Dato label="Género" valor={etiquetaDeCatalogo(ficha.genero, GENERO_LABELS)} />
                         <Dato label="Estado civil" valor={etiquetaDeCatalogo(ficha.estado_civil, ESTADO_CIVIL_LABELS)} />
                         <Dato label="Grado de instrucción" valor={etiquetaDeCatalogo(ficha.grado_instruccion, GRADO_INSTRUCCION_LABELS)} />
                         <Dato label="Hijos menores" valor={ficha.hijos_menores == null ? "—" : ficha.hijos_menores ? "Sí" : "No"} />
@@ -538,6 +557,55 @@ export default function PerfilPersonaPage() {
                       <p className="text-sm text-taupe">Sin salario asignado.</p>
                     )}
                   </section>
+                  )}
+
+                  {/* Vacaciones y contrato — mismos datos que ya avisan en Lo mío
+                      y en el Dashboard (fn_vacaciones_saldo, fn_contratos_por_vencer),
+                      leídos acá para no tener que ir a buscarlos aparte. */}
+                  {(vacas || contrato || errVacas || errContrato) && (
+                    <section className="rounded-2xl border border-sand bg-papel p-5">
+                      <h2 className="mb-2 font-serif text-lg">Vacaciones y contrato</h2>
+                      {errVacas ? (
+                        <AvisoNoSeCargo que="el saldo de vacaciones" motivo={errVacas} noSignifica="no tenga días pendientes" reintentar={reintentar} />
+                      ) : vacas ? (
+                        <div>
+                          <Dato label="Días pendientes" valor={<strong>{vacas.dias_pendientes} días</strong>} />
+                          {vacas.vence_el && (
+                            <Dato
+                              label="Récord más antiguo vence"
+                              valor={
+                                <span className={(vacas.dias_para_vencer ?? 999) <= 60 ? "font-medium text-ambar" : undefined}>
+                                  {fechaCorta(vacas.vence_el)}
+                                  {typeof vacas.dias_para_vencer === "number" && ` (${vacas.dias_para_vencer >= 0 ? `faltan ${vacas.dias_para_vencer} días` : "vencido"})`}
+                                </span>
+                              }
+                            />
+                          )}
+                          {vacas.records_vencidos > 0 && (
+                            <Dato label="Récords ya vencidos" valor={<span className="text-rojo">{vacas.records_vencidos}</span>} />
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-taupe">Sin días de vacaciones pendientes.</p>
+                      )}
+                      {errContrato ? (
+                        <div className={vacas || errVacas ? "mt-3 border-t border-sand/60 pt-3" : ""}>
+                          <AvisoNoSeCargo que="el contrato por vencer" motivo={errContrato} noSignifica="no tenga un contrato a plazo fijo por vencer" reintentar={reintentar} />
+                        </div>
+                      ) : contrato && (
+                        <div className={vacas ? "mt-3 border-t border-sand/60 pt-3" : ""}>
+                          <Dato
+                            label={contrato.ya_vencio ? "Contrato vencido el" : "Contrato a plazo fijo vence el"}
+                            valor={
+                              <span className={contrato.ya_vencio ? "font-medium text-rojo" : "font-medium text-ambar"}>
+                                {fechaCorta(contrato.fecha_fin_contrato)}
+                                {!contrato.ya_vencio && ` (${contrato.dias_restantes} días)`}
+                              </span>
+                            }
+                          />
+                        </div>
+                      )}
+                    </section>
                   )}
 
                   {/* Disciplina / legajo */}

@@ -1,5 +1,5 @@
 import type {
-  EstadoCivil, GradoInstruccion, MotivoCese, NivelDisciplinario, RegimenPension, TipoMarca,
+  EstadoCivil, Genero, GradoInstruccion, MotivoCese, NivelDisciplinario, RegimenPension, TipoMarca,
   VinculoDerechohabiente,
 } from "./enums";
 
@@ -41,6 +41,11 @@ export const ESTADO_CIVIL_LABELS: Record<EstadoCivil, string> = {
   conviviente: "Conviviente",
   divorciada: "Divorciada/o",
   viuda: "Viuda/o",
+};
+
+export const GENERO_LABELS: Record<Genero, string> = {
+  femenino: "Femenino",
+  masculino: "Masculino",
 };
 
 export const GRADO_INSTRUCCION_LABELS: Record<GradoInstruccion, string> = {

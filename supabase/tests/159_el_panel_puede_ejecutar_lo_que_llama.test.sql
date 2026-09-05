@@ -71,12 +71,18 @@ select has_function(
 -- La 0198 le añadió `p_cuspp` con un `create or replace`. Un parámetro nuevo NO
 -- reemplaza: crea otra función, sin los permisos de la anterior. El panel manda
 -- `p_cuspp`, así que PostgREST elegía justo la que no podía ejecutar.
+--
+-- La firma de abajo cambió con la 0369 (sumó `p_genero`): esta prueba compara
+-- contra un `::regprocedure` textual, así que si el número de argumentos vuelve
+-- a cambiar sin actualizar esta línea, el archivo entero aborta a media
+-- ejecución — «Bad plan» — en vez de fallar limpio en esta sola prueba. Se
+-- actualiza cada vez que la firma de `fn_set_datos_personales` cambie.
 select ok(
   has_function_privilege(
     'authenticated',
-    'public.fn_set_datos_personales(uuid,text,date,text,text,text,text,text,text,boolean,text,text,text,text,text,text,boolean,text,text)'::regprocedure,
+    'public.fn_set_datos_personales(uuid,text,date,text,text,text,text,text,text,boolean,text,text,text,text,text,text,boolean,text,text,text)'::regprocedure,
     'EXECUTE'),
-  'authenticated puede ejecutar fn_set_datos_personales con p_cuspp — la firma que el panel elige de verdad');
+  'authenticated puede ejecutar fn_set_datos_personales con p_cuspp y p_genero — la firma que el panel elige de verdad');
 
 -- ── Y que anon siga sin poder tocar nada de esto ───────────────────────────
 -- La contraparte: arreglar un permiso a base de abrirlo de más sería peor que

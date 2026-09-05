@@ -8,7 +8,6 @@ export interface RosterEntry {
   id: string;
   nombres: string;
   apellidos: string;
-  pinHash: string;
   sedeCodigo: string;
   sedeNombre: string;
 }

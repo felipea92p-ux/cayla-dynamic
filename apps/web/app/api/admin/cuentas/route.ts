@@ -2,7 +2,7 @@ import { createAnonClient, createServiceRoleClient, createUserClient } from "@ca
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { puedeActuarSobre, puedeGestionarCatalogos, ROLES_CON_PANEL } from "@cayla-dynamic/shared";
+import { problemasDeClave, puedeActuarSobre, puedeGestionarCatalogos, ROLES_CON_PANEL } from "@cayla-dynamic/shared";
 
 // Gestión de cuentas del panel — SOLO admin/lider_do. Corre en el servidor con la
 // llave de servicio; verifica que quien llama sea admin (por su sesión).
@@ -30,10 +30,41 @@ function pick(set: string, n: number) {
   return out;
 }
 
+// La clave temporal tiene que cumplir la MISMA política que se le va a exigir a
+// la persona cuando elija la suya (`packages/shared/src/clave.ts`): 12
+// caracteres, minúscula, mayúscula y número. La de antes tenía 10 y no habría
+// pasado el filtro nuevo — el sistema habría repartido claves que él mismo
+// rechaza, y el error saldría en el momento más confuso posible: al crear la
+// cuenta, hablando de la contraseña de alguien que aún no existe.
+//
+// Los grupos separados por guiones son para dictarla por teléfono sin que nadie
+// deletree dieciséis caracteres seguidos. Los alfabetos ya excluían las letras y
+// números que se confunden al leer en voz alta (l/I/1, O/0).
+//
+// Se valida lo que se genera y se vuelve a tirar si no pasa. No es paranoia: el
+// azar puede sacar una seguidilla larga, y esta casa aprendió que un guardián
+// que solo se prueba con lo que debe pasar es un guardián que no se ha probado.
 function generarClave() {
   const abc = "abcdefghijkmnpqrstuvwxyz", ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ", num = "23456789";
-  return `${pick(ABC, 1)}${pick(abc, 5)}-${pick(num, 4)}`;
+  for (let intento = 0; intento < 20; intento++) {
+    const candidata = `${pick(ABC, 1)}${pick(abc, 5)}-${pick(num, 4)}-${pick(abc, 4)}`;
+    if (problemasDeClave(candidata).length === 0) return candidata;
+  }
+  // Inalcanzable en la práctica (20 intentos independientes), pero si pasara,
+  // fallar es mejor que repartir una clave que el sistema va a rechazar después.
+  throw new Error("no se pudo generar una clave que cumpla la política");
 }
+
+// Lo que se le anota a una cuenta a la que se le acaba de dictar una clave: hay
+// que cambiarla antes de usar el panel. Sin esto, una clave repartida por
+// WhatsApp —que es el camino que la propia pantalla sugiere: «cópiala y
+// pásasela»— se queda como credencial permanente, conocida por quien la envió y
+// por cualquiera que haya visto ese chat.
+//
+// Va en `app_metadata` y no en `user_metadata` porque el segundo lo puede
+// escribir la propia persona desde el navegador con `updateUser({ data })`: una
+// marca ahí la apagaría sin cambiar la clave. Se apaga en `/api/mi-clave`.
+const CLAVE_TEMPORAL = { clave_por_cambiar: true };
 
 
 // De cada cuenta de acceso interesan tres cosas, y ninguna vive en `personas`:
@@ -374,7 +405,10 @@ export async function POST(req: Request) {
       }
       if (!p.auth_user_id) return NextResponse.json({ error: "esa persona no tiene cuenta" }, { status: 409 });
       const nueva = generarClave();
-      const { error } = await admin.auth.admin.updateUserById(p.auth_user_id, { password: nueva });
+      const { error } = await admin.auth.admin.updateUserById(p.auth_user_id, {
+        password: nueva,
+        app_metadata: CLAVE_TEMPORAL,
+      });
       if (error) {
         Sentry.captureException(error);
         return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });
@@ -397,7 +431,9 @@ export async function POST(req: Request) {
       // Se normaliza igual que en `fn_set_email`: el login no distingue
       // mayúsculas, y así la ficha y el acceso guardan exactamente el mismo texto.
       const correo = String(email).trim().toLowerCase();
-      const { data: authData, error } = await admin.auth.admin.createUser({ email: correo, password: nueva, email_confirm: true });
+      const { data: authData, error } = await admin.auth.admin.createUser({
+        email: correo, password: nueva, email_confirm: true, app_metadata: CLAVE_TEMPORAL,
+      });
       if (error) {
         Sentry.captureException(error);
         return NextResponse.json({ error: mensajeDeAuth(error) }, { status: 500 });

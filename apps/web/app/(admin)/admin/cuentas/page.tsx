@@ -10,7 +10,8 @@ import { Boton } from "@/components/ui/boton";
 import { Tabla } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
+import { guardarMiClave } from "@/lib/admin/mi-clave";
+import { REQUISITOS_CLAVE, problemasDeClave, puedeGestionarCatalogos } from "@cayla-dynamic/shared";
 
 interface Cuenta {
   id: string;
@@ -84,6 +85,10 @@ export default function CuentasPage() {
   const [nueva, setNueva] = useState("");
   const [confirma, setConfirma] = useState("");
   const [guardandoMia, setGuardandoMia] = useState(false);
+  // El correo con el que entra quien está mirando. Entra en el juicio de la
+  // clave: `felipe@…` con clave `Felipe2026x` no es una clave, es el nombre de
+  // la puerta escrito en la llave.
+  const [correoPropio, setCorreoPropio] = useState<string | null>(null);
 
   // gestión de cuentas
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
@@ -182,18 +187,23 @@ export default function CuentasPage() {
     const supabase = createAdminSupabaseClient();
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) { router.replace("/admin/login"); return; }
+      setCorreoPropio(data.session.user.email ?? null);
       if (esAdmin) void listar();
     });
   }, [router, esAdmin, listar]);
 
   async function cambiarMiClave() {
-    if (nueva.length < 6) { avisar("error", "La contraseña debe tener al menos 6 caracteres."); return; }
+    // Una sola política, un solo sitio (`packages/shared/src/clave.ts`). Acá
+    // había escrito a mano «al menos 6 caracteres», igual que en la pantalla de
+    // nueva clave y que en la configuración de Supabase: tres copias del mismo
+    // número, y ninguna sabía de las otras.
+    const problemas = problemasDeClave(nueva, correoPropio);
+    if (problemas.length > 0) { avisar("error", problemas.join(" ")); return; }
     if (nueva !== confirma) { avisar("error", "Las contraseñas no coinciden."); return; }
     setGuardandoMia(true);
-    const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.auth.updateUser({ password: nueva });
+    const problema = await guardarMiClave(nueva);
     setGuardandoMia(false);
-    if (error) { avisar("error", mensajeDeError(error)); return; }
+    if (problema) { avisar("error", problema); return; }
     setNueva(""); setConfirma("");
     avisar("ok", "Tu contraseña se cambió correctamente.");
   }
@@ -351,7 +361,10 @@ export default function CuentasPage() {
                       )}
                       {claveGenerada[c.id] && (
                         <div className="mt-1 rounded bg-sand/60 px-2 py-1 text-xs">
-                          Nueva contraseña: <span className="font-medium text-tinta">{claveGenerada[c.id]}</span> — cópiala y pásasela.
+                          Nueva contraseña <strong>temporal</strong>:{" "}
+                          <span className="font-medium text-tinta">{claveGenerada[c.id]}</span> — cópiala y pásasela.
+                          El sistema le va a pedir que elija la suya al entrar, así que ésta deja de servir
+                          en cuanto lo haga.
                         </div>
                       )}
                     </td>
@@ -577,6 +590,10 @@ function SeccionMiClave({
           className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
         <input type="password" placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)}
           className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
+        {/* Los requisitos antes de escribir, no después de fallar. */}
+        <ul className="flex flex-col gap-0.5 text-xs text-taupe">
+          {REQUISITOS_CLAVE.map((r) => <li key={r}>· {r}</li>)}
+        </ul>
         <Boton variante="primario" className="self-start" onClick={cambiarMiClave} disabled={guardandoMia}>
           {guardandoMia ? "Guardando…" : "Cambiar contraseña"}
         </Boton>
