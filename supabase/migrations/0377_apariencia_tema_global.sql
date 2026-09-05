@@ -36,3 +36,7 @@ values (
   'Tema (claro/oscuro/automatico) por defecto para el panel y el terminal, cuando quien mira no tiene una preferencia personal guardada en su propio navegador. Se edita desde /admin/apariencia.'
 )
 on conflict (clave) do nothing;
+
+insert into migraciones_aplicadas (numero, nombre)
+values (377, 'apariencia_tema_global')
+on conflict (numero) do nothing;
