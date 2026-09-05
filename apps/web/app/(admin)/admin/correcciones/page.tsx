@@ -234,7 +234,23 @@ function describirCambio(row: Auditoria): { accion: string; cuando: string | nul
     const [tipo, ts] = (row.valor_anterior ?? "").split(" @ ");
     return { accion: "Marcaje eliminado", cuando: diaTextoLima(ts), detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
   }
-  return { accion: row.campo_modificado, cuando: null, detalle: `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}` };
+  // Filas viejas: antes de que existiera `fn_marcas_apartadas` (arriba, con su
+  // propia sección "no llegaron a registrarse"), una marca que el terminal no
+  // podía enviar quedaba escrita acá mismo, con el error crudo de Postgres en
+  // `valor_anterior`/`valor_nuevo`. Ya no se escriben así, pero las filas
+  // viejas siguen en la tabla y este historial no está acotado por fecha.
+  if (row.campo_modificado === "marca_apartada") {
+    return { accion: "Marca apartada", cuando: diaTextoLima(row.valor_nuevo) ?? diaTextoLima(row.valor_anterior), detalle: "no se pudo registrar sola; quedó pendiente de revisión manual" };
+  }
+  // Cualquier otro campo desconocido, o uno cuyo valor es un mensaje técnico
+  // (un error de Postgres) en vez de un dato de negocio: se muestra el nombre
+  // del campo, nunca el contenido crudo — este historial es para Cayla, no
+  // para depurar.
+  const esTexto = (v: string | null) => !!v && v.length < 80 && !/[{}();]|=>|public\./.test(v);
+  const detalle = esTexto(row.valor_anterior) || esTexto(row.valor_nuevo)
+    ? `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}`
+    : "ver detalle con soporte técnico";
+  return { accion: row.campo_modificado, cuando: null, detalle };
 }
 
 // Tipos que un admin puede agregar manualmente (los pares salida/retorno y entrada/salida final)
