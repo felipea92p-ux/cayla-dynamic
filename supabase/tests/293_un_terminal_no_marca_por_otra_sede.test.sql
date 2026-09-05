@@ -305,28 +305,29 @@ select lives_ok(
 -- las dos a la vez la volvería una prueba de permisos y no del candado.
 update personas set sede_base_id = '00000000-0000-0000-0000-000000028601'
  where id = '00000000-0000-0000-0000-000000028615';
--- `corregido_at` se fija a mano —no al `now()` por defecto de la columna— para
--- que la puerta 2 se mida contra un instante FIJO de hoy, no contra la hora
--- real en que corra el CI. Con el default, esta aserción dependía de correr
--- después de las 09:00 hora Lima: el 2026-09-05 el runner corrió dos veces de
--- madrugada (00:03 y 00:34 Lima) y la marca de las 09:00 quedaba en el futuro
--- respecto a `now()`, así que la puerta 2 nunca se abría y la prueba rebotaba
--- con "no está habilitada" sin que nadie hubiera tocado el candado.
+-- `corregido_at` y la marca de abajo se anclan LOS DOS a `now()` —la misma
+-- marca de tiempo en TODA esta transacción (una sola `begin`, línea 68)—, con
+-- un desfase relativo constante entre ambos. Así `corregido_at >=
+-- timestamp_marca` se cumple sin importar a qué hora del día ni de qué huso
+-- corra CI.
+--
+-- La primera versión de este arreglo fijó `corregido_at` a una hora ABSOLUTA
+-- de Lima (09:01) mientras la marca seguía relativa a `now()` — dos relojes
+-- distintos que solo coinciden en la dirección correcta antes de las ~09:31
+-- hora Lima. Pasada esa hora, la comparación se invierte y la puerta 2 vuelve
+-- a rebotar: confirmado el 2026-09-05 a las 10:26 Lima, el mismo síntoma que
+-- decía resuelto. Antes de eso, con el `now()` de columna por defecto sin
+-- fijar nada, fallaba de 00:00 a 09:00 Lima (el push que fusionó el PR #161
+-- corrió a las 00:07 Lima y se llevó `db-tests` entero por delante). Ningún
+-- ancla que mezcle un reloj absoluto con uno relativo es segura; los dos
+-- valores tienen que venir del mismo `now()`.
 insert into correcciones_auditoria
   (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por, corregido_at)
 values ('00000000-0000-0000-0000-000000028615', 'personas.sede_base_id', 'ZZ286A', 'ZZ286B',
         'Cambio de sede base — puede mover la tarifa de movilidad del periodo abierto.',
         '00000000-0000-0000-0000-000000028617',
-        (fn_hoy_lima() + time '09:01') at time zone 'America/Lima');
+        now() - interval '15 minutes');
 
--- `now()` es la MISMA marca de tiempo en TODA esta transacción (una sola
--- `begin`, línea 68) — es a lo que `corregido_at` acaba de poner por
--- default arriba. Por eso `now() - interval` para la entrada garantiza
--- `corregido_at >= timestamp_marca` sin importar a qué hora de Lima corra
--- CI. La versión anterior fijaba las 09:00 de Lima a mano, y fallaba cada
--- vez que el workflow arrancaba antes de esa hora (00:00-09:00 Lima —
--- confirmado en producción el 2026-09-05: el push que fusionó el PR #161
--- corrió a las 00:07 Lima y se llevó `db-tests` entero por delante).
 select lives_ok(
   $$ select fn_registrar_marcaje(
        '00000000-0000-0000-0000-000000028615'::uuid, 'entrada'::tipo_marca,
