@@ -3939,7 +3939,6 @@ export type Database = {
           apellidos: string | null
           id: string | null
           nombres: string | null
-          pin_hash: string | null
           sede_codigo: string | null
           sede_nombre: string | null
         }

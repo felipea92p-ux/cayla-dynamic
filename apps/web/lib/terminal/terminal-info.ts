@@ -5,7 +5,6 @@ export interface TerminalInfo {
   id: string;
   sedeCodigo: string;
   sedeNombre: string;
-  requierePin: boolean;
 }
 
 const STORAGE_KEY = "cayla-terminal-info";
@@ -38,14 +37,13 @@ export async function refrescarInfoTerminal(): Promise<TerminalInfo | null> {
   // arranque, que deja a la sede igual de incapaz de marcar.
   type Fila = {
     id: string;
-    requiere_pin?: boolean;
     sedes: { codigo?: string; nombre?: string } | { codigo?: string; nombre?: string }[] | null;
   };
   let data: Fila | null = null;
   try {
     const res = await supabase
       .from("terminales")
-      .select("id, requiere_pin, sedes(codigo, nombre)")
+      .select("id, sedes(codigo, nombre)")
       .abortSignal(topeDeRed())
       .single();
     if (res.error) return null;
@@ -61,7 +59,6 @@ export async function refrescarInfoTerminal(): Promise<TerminalInfo | null> {
     id: data.id,
     sedeCodigo: sede?.codigo ?? "?",
     sedeNombre: sede?.nombre ?? "?",
-    requierePin: data.requiere_pin ?? true,
   };
   guardarInfoTerminalCacheada(info);
   return info;
