@@ -37,6 +37,123 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») · CORRIDO EN PRODUCCIÓN — 0 FILAS, LATENTE
+
+Hallazgo de `Auditoria-CAYLA-2026-09-04.pdf` (no vive en el repo), «sobrevivió
+2/3» refutadores, con un matiz importante que el propio refutador señaló: no
+es un bug inventado, es un efecto colateral de una decisión ya tomada y
+probada (0158, «se toma la mayor, nunca la suma», prueba 124).
+
+**El mecanismo, visto en 0338** (lateral `cobrado`, líneas 860-866 de
+[`0338_grati_cts_usan_el_sueldo_vigente_al_cierre.sql`](../supabase/migrations/0338_grati_cts_usan_el_sueldo_vigente_al_cierre.sql)):
+`pag.g1` solo dice SI existe un movimiento de planilla en la ventana — no
+CUÁNTO se pagó. Cuando `pag.g1` es verdadero, `cobrado.g1` se define como el
+`devengado.g1` de esa MISMA llamada (día a día o piso, según cuál de las dos
+invocaciones sea), así que `devengado - cobrado` da cero apenas existe el
+movimiento — el piso nunca llega a compararse contra nada para una ventana ya
+cerrada por planilla. Antes de la 0338 (antes del 2026-09-01) ninguna ventana
+tuvo la oportunidad de pasar por el piso al pagarse; hoy ya no se puede
+recuperar esa comparación desde la función, porque no puede verse a sí misma.
+
+**Por qué no se tocó `fn_provisiones` ni se escribió el arreglo todavía.**
+Reimplementar el cálculo día-a-día completo fuera de la función para poder
+auditarla es la misma duplicación de ~300 líneas que la propia cabecera de la
+0338 rechazó. Antes de correr ese riesgo hace falta la población — la misma
+regla de `a_quien_le_pega.sql`: un hallazgo sin población es una hipótesis.
+
+Consulta que la busca:
+[`scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql).
+Para cada ventana de grati/CTS pagada antes del 2026-09-01 y ya cerrada
+(con movimiento en `movimientos_planilla`), busca a quien tuvo un cambio de
+`asignaciones_salario` DENTRO de esa ventana — no en el borde—, que es la
+única situación en que el día a día puede quedar corto frente al piso.
+
+✅ **Corrida por Felipe en el SQL Editor el 2026-09-05: 0 filas.** Nadie en
+CAYLA tuvo un cambio de `asignaciones_salario` DENTRO de una ventana de
+grati/CTS ya cerrada antes del 2026-09-01. El mecanismo que el código tiene
+—`cobrado` colapsando a `devengado` de la misma llamada— sigue siendo real,
+pero hoy no le pega a nadie: no hay nada que ajustar con
+`fn_registrar_desembolso` ni motivo para tocar `fn_provisiones`. Queda
+anotado como latente en [`hallazgos-abiertos.md`](hallazgos-abiertos.md) para
+que, si algún día alguien cesa o se le sube el sueldo a mitad de un semestre
+YA CERRADO por planilla, se vuelva a correr
+[`a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql)
+antes de asumir que sigue en cero.
+
+---
+
+## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») · VERIFICADO EN PRODUCCIÓN — SÍ LLEGAN, A GENTE REAL DE TRES SEDES DISTINTAS
+
+Era «sin verificar» porque nadie había mirado producción. El código de
+`/api/alertas-encargadas` y la cola con reserva/reintento (0362) ya estaban
+—ver la entrada de la auditoría 0360-0366 más abajo—, así que lo que faltaba
+no era arreglar nada: era mirar si de verdad está saliendo algún correo.
+
+**Corrido en producción el 2026-09-05:**
+[`scripts/sql-manual/las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql)
+trajo una sorpresa que casi lleva a una falsa alarma: `filas_canal_email = 0`,
+porque los avisos de `auto_cierre` (el 100 % de las 87 filas de hoy) se
+insertan con `canal = 'push'` desde la 0007 —una columna vieja que la ruta
+ignora a propósito— y la consulta filtraba por `canal = 'email'`. **Corregido
+antes de sacar conclusiones**: mirando `estado = 'enviado'` sin filtrar por
+canal, **8 alertas se enviaron con éxito el mismo día**, y el reintento de la
+0362 sí está funcionando: alertas creadas desde el 2026-08-30 que llevaban
+días en `'pendiente'` salieron todas juntas en un lote.
+
+**La pregunta que faltaba —¿a la casilla de quién?— la resolvió**
+[`scripts/sql-manual/a_quien_le_llegaron_esos_8_correos.sql`](../scripts/sql-manual/a_quien_le_llegaron_esos_8_correos.sql),
+reconstruyendo los destinatarios reales de esas 8 filas con el criterio VIGENTE
+de `fn_alertas_email_pendientes` (0354 + 0359 + 0362): **los correos van a
+personas reales y distintas de TRES sedes** —
+`25.chiara.flores@gmail.com`, `gutierrezdanitza07@gmail.com`,
+`melanyenrriquez29@gmail.com`, `revillaoyolaj@gmail.com` (TRU, las cuatro con
+`es_encargada_piso`), `sandramelisaar@gmail.com` (AQP), y el correo propio de
+Carlos Espejo y Felipe Alvarez para sus propios auto-cierres en CCO. Eso
+**contradice de raíz** la sospecha del hallazgo: si `RESEND_FROM` siguiera en
+el dominio sandbox (`onboarding@resend.dev`), Resend habría rechazado —no
+aceptado— cualquier envío a un destinatario que no fuera el dueño de la
+cuenta. Que acepte seis direcciones reales distintas en tres sedes es la
+prueba end-to-end que pedía la acción de la auditoría, sin necesitar
+`npx vercel env ls` ni el panel de Resend.
+
+**Lo único que destapó esto, y no es el hallazgo 10 sino uno adyacente:**
+para CCO —que no es tienda, no tiene «encargada de piso»— el único
+destinatario de un auto-cierre es la propia persona (0359, «el aviso también
+avisa al propio integrante»). Es el comportamiento correcto y a propósito, no
+un defecto: se anota acá por si alguna vez alguien lee «destinatarios vacíos
+para CCO» en una consulta vieja y lo confunde con una falla.
+
+✅ **No hace falta tocar `RESEND_FROM` ni ningún código.** El crítico 10 queda
+cerrado: el mecanismo de envío funciona y entrega a personas reales.
+
+---
+
+## 2026-09-05 — Crítico 12 puede estar construido dos veces sin saberlo
+
+Al revisar el estado de los 12 críticos se encontró que el hallazgo 12
+(«practicante sin tope de horas en Incidencias») **ya está resuelto y
+commiteado** en la rama `claude/audit-12-critical-issues-7da199`
+(`dc64b47`, 2026-09-04: `admin/incidencias/page.tsx` ahora usa
+`maximoSemanalPracticante()` en vez de comparar siempre contra 48h) — esa
+rama no tiene PR abierto todavía. Y, por separado, hay una sesión en la Mac
+con el worktree `dos-tareas-importantes-f65950` con el mismo arreglo hecho y
+**sin commitear**.
+
+No se tocó ninguna de las dos ramas desde acá — es exactamente el escenario
+que `CLAUDE.md` pide comprobar con `git log --all` antes de empezar algo
+("dos sesiones construyeron la misma función el mismo día", 2026-08-25).
+**Antes de abrir un PR para el 12, comprobar si `dc64b47` ya es el arreglo
+bueno y solo hace falta subirlo**, en vez de que la sesión de
+`dos-tareas-importantes-f65950` lo reconstruya por su cuenta.
+
+⚠️ **Actualización posterior el mismo 2026-09-05:** el crítico 12 (y el 11) se
+resolvieron por otro camino — ver la entrada de la segunda auditoría, abajo,
+sobre los 8 PR que atacaron los mismos hallazgos sin verse entre sí. PR
+[#196](https://github.com/felipea92p-ux/cayla-dynamic/pull/196) ya está
+fusionado a `main` y cierra los hallazgos 11 y 12 juntos.
+
+---
+
 ## 2026-09-05 (noche) — Segunda auditoría (28 agentes): un crítico nuevo, y 8 PRs chocando entre sí · PDF entregado a Felipe
 
 Pedido explícito de Felipe: repetir la auditoría del 2026-09-03/04 con más
@@ -97,9 +214,11 @@ cuando corre el test — así que la aserción solo pasaba si CI arrancaba
 DESPUÉS de las 09:00 Lima. Confirmado con el push que fusionó el PR #161 (00:07
 Lima, 2026-09-05): `db-tests` se puso roja en `main` sin que ese PR tocara
 nada de marcaje, y arrastró consigo a cualquier rama nueva —incluidos los PR
-[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197) y
-[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205), abiertos ese
-mismo rato.
+[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197),
+[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205) y este mismo
+[#198](https://github.com/felipea92p-ux/cayla-dynamic/pull/198), cuyo
+`db-tests` salió rojo por la misma razón — confirmado que **no** es un
+defecto de la 0370 en sí, solo de la prueba.
 
 **El mismo defecto lo encontraron y lo arreglaron, el mismo día, cuatro
 sesiones distintas** (PR [#195](https://github.com/felipea92p-ux/cayla-dynamic/pull/195),
@@ -126,7 +245,9 @@ resultado combinado, no solo cada diff por separado.
 
 ---
 
-## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · FUSIONADA A MAIN — FALTA DESPLEGAR Y PEGAR
+---
+
+## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · PANEL YA DESPLEGADO — FALTA SOLO PEGAR LA 0375
 
 Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
 sede viajaba al navegador del kiosco, `bcrypt.compare` corría en el cliente, y
@@ -164,17 +285,59 @@ automático—, resuelto regenerándolo con `./scripts/que-falta-pegar.sh`, no a
 mano. CI en verde (`db-tests`, `ui-tests`) tras el merge de `main`, y **recién
 ahí se fusionó a main**, con el visto bueno de Felipe.
 
-🔴 **FALTA, y el orden importa exactamente en este sentido:**
+✅ **Paso 1 confirmado el 2026-09-05, sin que nadie lo hubiera anotado.**
+Verificado con el CLI de Vercel (`npx vercel env ls` confirmó primero el
+proyecto correcto, `cayla/cayla-dynamic`): la producción actual
+(`cayla-dynamic.vercel.app`) corre el deploy `dpl_FDKGbke4xrR19WDAnbiieo1LWgzv`,
+construido desde el commit `6f24bd7` — que trae tanto esta PR (#188) como la
+#185 (items 2-6). El panel sin PIN ya está publicado; esta nota decía
+«falta desplegar» y ya no es cierto.
 
-1. Desplegar `apps/web` (Vercel) — pide confirmación aparte, no va con esta nota.
+🔴 **FALTA, y el orden sigue importando exactamente en este sentido:**
+
+1. ~~Desplegar `apps/web` (Vercel)~~ — ✅ hecho.
 2. Comprobar en las cuatro Mac mini que la lista de nombres carga.
 3. Recién entonces pegar la 0375 con `./scripts/dame-el-sql.sh` (pidiendo el md5
    de `terminal_roster` a producción antes de pegar, no antes de escribir).
+   Confirmado con `que_falta_pegar.sql` corrida en producción el 2026-09-05:
+   la 0375 sigue `❌ FALTA PEGAR`.
 
 Al revés falla silencioso: si `terminal_roster` pierde `pin_hash` antes de que
 el panel nuevo esté publicado, `roster.ts` lo pide igual, PostgREST responde
 42703, `cargarRoster` lo lee como caída de red y cae a la caché — una Mac recién
-instalada no fichará en toda la mañana sin que nadie entienda por qué.
+instalada no fichará en toda la mañana sin que nadie entienda por qué. Ya no es
+un riesgo (el panel está publicado), pero el paso 2 sigue sin confirmarse.
+
+---
+
+## 2026-09-05 — Críticos 2-6 ([PR #185](https://github.com/felipea92p-ux/cayla-dynamic/pull/185)) · PANEL YA DESPLEGADO — FALTAN 0370 Y 0371
+
+Esta PR nunca tuvo su entrada en `estado.md` — se fusionó a `main` sin dejar
+nota. Los siete hallazgos que cierra están en el cuerpo de la propia PR:
+terminal marcando a otra sede (0370), la mitad de «personas cesadas» ya estaba
+cerrada (nada que hacer ahí), un aviso de vencimiento que se saltaba a quien
+llegó después (0371), el borde de 16 h entre terminal y navegador, el error de
+«Descanso médico» invisible detrás del modal, «Marcar como pagada» sin
+confirmación ni reversión, y las contraseñas de 6 caracteres sin complejidad.
+
+✅ **El panel ya está desplegado** — mismo commit `6f24bd7` que la 0375 de
+arriba, confirmado con el CLI de Vercel el 2026-09-05.
+
+🔴 **Falta pegar 0370 y 0371** (confirmado con `que_falta_pegar.sql` en
+producción el 2026-09-05 — las dos siguen `❌ FALTA PEGAR`). Los prerrequisitos
+de la 0371 —0356 y 0357— ya están aplicados desde el 04/09, así que su propia
+guardia deja pegarla. La propia PR deja el orden por escrito:
+
+```
+0356 → 0357 → 0371      (la guardia de la 0371 lo hace cumplir sola)
+0370                    (cuando quieras, no depende de nada)
+```
+
+Antes de pegar la 0370, correr la consulta «⚠ CÓRRELA ANTES DE PEGAR» que trae
+al final de su propio archivo — lista las marcas de terminal de los últimos 30
+días que el candado nuevo rechazaría; cero filas es luz verde, y si aparece
+alguien probablemente le falta `visible_todas_sedes`. Y pedir el md5 de
+partida a producción justo antes de pegar cada una, no ahora.
 
 ---
 

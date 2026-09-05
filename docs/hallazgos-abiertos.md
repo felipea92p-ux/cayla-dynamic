@@ -168,6 +168,18 @@ no haya que descubrirlos otra vez.
 - **El certificado de trabajo y la constancia de cese no existen** en ninguna
   parte del sistema. La constancia es la llave con la que la persona retira su
   CTS del banco.
+- **El piso legal de gratificación/CTS (0338) no corrige una ventana ya
+  pagada.** En `fn_provisiones`, el lateral `cobrado` colapsa a `devengado` de
+  la MISMA llamada en cuanto existe un movimiento de planilla para esa
+  ventana (`pag.gX` solo sabe que se pagó, no cuánto), así que
+  `devengado - cobrado` da cero y el piso nunca se compara contra nada para
+  una ventana ya cerrada. Solo puede pasar en ventanas cerradas ANTES del
+  2026-09-01 (después, `fn_grati_cts_periodo` ya compara bien al momento de
+  proponer el pago). Corrido
+  [`a_quien_le_pega_el_piso_grati_cts.sql`](../scripts/sql-manual/a_quien_le_pega_el_piso_grati_cts.sql)
+  en producción el 2026-09-05: **0 filas** — nadie tuvo un cambio de sueldo
+  dentro de una ventana ya cerrada antes de esa fecha. Volver a correrla si
+  algún cese o ajuste retroactivo de sueldo toca un semestre YA pagado.
 
 ---
 
