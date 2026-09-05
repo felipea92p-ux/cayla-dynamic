@@ -169,7 +169,19 @@ function MiBoletaContenido() {
   // con un Date: un date-only string parseado como UTC y leído en hora local
   // puede caer un día antes en Lima (UTC-5). Partir el string es lo mismo
   // cálculo, sin esa trampa.
-  const proy: Pick<Proyeccion, "estado" | "pagado_at" | "simulacion" | "fecha_ini" | "fecha_fin" | "anio_etiqueta" | "mes_etiqueta"> = {
+  // `base_horas` no viene en el jsonb de `fn_planilla_calcular_persona`: es una
+  // cifra del periodo, no de la persona, y esa función solo devuelve su fila.
+  // Se recalcula acá con la MISMA fórmula del núcleo (0339, `v_dias := (p_fin -
+  // p_ini) + 1; v_base := 6.5 * v_dias`) porque `periodo` es la fila real de
+  // `periodos_planilla` — no hay margen para que diverja del valor que el
+  // servidor ya usó para calcular esta boleta.
+  const dias = Math.round(
+    (new Date(`${periodo.fecha_fin}T00:00:00Z`).getTime() -
+      new Date(`${periodo.fecha_ini}T00:00:00Z`).getTime()) /
+      86_400_000,
+  ) + 1;
+
+  const proy: Pick<Proyeccion, "estado" | "pagado_at" | "simulacion" | "fecha_ini" | "fecha_fin" | "anio_etiqueta" | "mes_etiqueta" | "base_horas"> = {
     estado: fuente === "foto" ? "pagado" : "abierto",
     pagado_at: null,
     simulacion: false,
@@ -177,6 +189,7 @@ function MiBoletaContenido() {
     fecha_fin: periodo.fecha_fin,
     anio_etiqueta: Number(periodo.fecha_fin.slice(0, 4)),
     mes_etiqueta: Number(periodo.fecha_fin.slice(5, 7)),
+    base_horas: 6.5 * dias,
   };
 
   return (

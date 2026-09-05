@@ -116,7 +116,7 @@ function contextoPagoBase(f: Fila): string[] {
 
 export interface BoletaHojaProps {
   f: Fila;
-  proy: Pick<Proyeccion, "estado" | "pagado_at" | "simulacion" | "fecha_ini" | "fecha_fin" | "anio_etiqueta" | "mes_etiqueta">;
+  proy: Pick<Proyeccion, "estado" | "pagado_at" | "simulacion" | "fecha_ini" | "fecha_fin" | "anio_etiqueta" | "mes_etiqueta" | "base_horas">;
   baseLegal: number | null;
   documento: string | null;
   fechaIngreso: string | null;
@@ -235,6 +235,31 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
   // base sin la 0250 pegada se comporte exactamente como antes — etiquetando por
   // horas, que es lo que hacía — en vez de afirmar un monto fijo que no sabe.
   const sueldoFijo = f.sueldo_fijo ?? false;
+
+  // ── LA TARIFA POR HORA DE UN LOCADOR SIN MONTO FIJO ─────────────────────────
+  // Reintroducido: este bloque existió un rato el 2026-08-08 y se perdió al
+  // extraer esta hoja a su propio componente desde una copia que todavía no lo
+  // tenía. Sin él, la cabecera de arriba imprimía «Honorarios pactados (mes
+  // completo) — S/ X» a un locador que cobra por hora — un monto mensual fijo,
+  // que es justo el indicio de laboralidad que el resto de la hoja evita. Y la
+  // hoja se contradecía a sí misma: la fila de detalle, más abajo, ya decía bien
+  // «Honorarios por las horas prestadas».
+  //
+  // SALE DE `f.salario_ref`, NO DE `baseLegal` (que es `sueldo_base_legal`). Los
+  // dos suelen coincidir por diseño (ver `lib/rangos.ts`), pero el pago lo
+  // calcula `fn_planilla_calcular` con `salario_ref`. Si algún día difieren,
+  // usar el otro daría una tarifa que no reproduce el total de la propia hoja.
+  //
+  // CUATRO DECIMALES, y no dos: a S/ 8.93 la hora, 27 h 30 min dan S/ 245.58 y
+  // la hoja remata en S/ 245.66. Ocho céntimos bastan para que alguien piense
+  // que le descontaron algo; con S/ 8.9330 la multiplicación cierra.
+  //
+  // Solo aplica sin `sueldoFijo`: quien tiene un monto fijo pactado (0250) SÍ
+  // tiene un «mes completo» real que mostrar, y esa frase se queda igual.
+  const tarifaHora =
+    esLocador && !sueldoFijo && f.salario_ref !== null && proy.base_horas > 0
+      ? f.salario_ref / proy.base_horas
+      : null;
   // ⇩ CAMBIO 0254 ⇩ Los días de descanso médico que asume CAYLA van DENTRO de
   // `pago_base` —igual que los de vacaciones desde la 0177— porque sacarlos a un
   // concepto propio obligaría a tocar la tabla congelada y `chk_foto_cuadra`.
@@ -389,28 +414,40 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               (el plus por metas es 21% ENCIMA del rango) y el desmentido que
               había que poner en el pie para explicarla.
               El potencial sigue existiendo en Planilla, para gestión interna. */}
-          {baseLegal !== null && (
+          {/* A UN LOCADOR SIN MONTO FIJO SE LE DICE SU TARIFA, NO UN SUELDO
+              MENSUAL. Ver el cálculo y el porqué de los cuatro decimales donde
+              se define `tarifaHora`, más arriba. */}
+          {tarifaHora !== null ? (
             <dl className="mt-3 space-y-1 text-sm">
-              {/* «(mes completo)» no es decoración: sin eso, esta cifra y la fila
-                  del desglose se llamaban IGUAL y mostraban montos distintos
-                  (1,130.00 aquí y 947.41 abajo). Quien lo leyera rápido pensaba
-                  que había un error. Ahora una dice «mes completo» y la otra
-                  «proporcional», y se entienden sin explicación. */}
               <div className="flex justify-between gap-4">
-                <dt className="font-medium">
-                  {/* CAMBIO 0322: ni "honorarios" (locador) ni "remuneración"
-                      (trabajador) — un practicante cobra una SUBVENCIÓN
-                      económica (art. 45, Ley 28518), que es su propio término
-                      legal y no un sinónimo de los otros dos. */}
-                  {esPracticante
-                    ? "Subvención pactada (mes completo)"
-                    : esLocador
-                      ? "Honorarios pactados (mes completo)"
-                      : "Remuneración Básica Legal (mes completo)"}
-                </dt>
-                <dd className="font-medium">{formatSoles(baseLegal)}</dd>
+                <dt className="font-medium">Tarifa por hora</dt>
+                <dd className="font-medium">S/ {tarifaHora.toFixed(4)}</dd>
               </div>
             </dl>
+          ) : (
+            baseLegal !== null && (
+              <dl className="mt-3 space-y-1 text-sm">
+                {/* «(mes completo)» no es decoración: sin eso, esta cifra y la fila
+                    del desglose se llamaban IGUAL y mostraban montos distintos
+                    (1,130.00 aquí y 947.41 abajo). Quien lo leyera rápido pensaba
+                    que había un error. Ahora una dice «mes completo» y la otra
+                    «proporcional», y se entienden sin explicación. */}
+                <div className="flex justify-between gap-4">
+                  <dt className="font-medium">
+                    {/* CAMBIO 0322: ni "honorarios" (locador) ni "remuneración"
+                        (trabajador) — un practicante cobra una SUBVENCIÓN
+                        económica (art. 45, Ley 28518), que es su propio término
+                        legal y no un sinónimo de los otros dos. */}
+                    {esPracticante
+                      ? "Subvención pactada (mes completo)"
+                      : esLocador
+                        ? "Honorarios pactados (mes completo)"
+                        : "Remuneración Básica Legal (mes completo)"}
+                  </dt>
+                  <dd className="font-medium">{formatSoles(baseLegal)}</dd>
+                </div>
+              </dl>
+            )
           )}
         </div>
 
