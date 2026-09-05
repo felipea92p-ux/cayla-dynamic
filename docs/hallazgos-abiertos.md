@@ -45,9 +45,24 @@ mismo que plata perdida.
 
 ### Confirmado y pendiente · mueve plata en el pago mensual
 
+⚠️ **Esta tabla es del 2026-08-19.** Desde entonces `fn_planilla_calcular`
+recibió más de 30 migraciones (0280-0349 y sus renumeraciones), y al menos una
+fila de esta tabla (la del descanso semanal, de abajo) llevaba tres semanas
+cerrada sin que nadie lo marcara aquí — se encontró el 2026-09-05 leyendo el
+código vigente, no reproduciendo el hallazgo original. **No asumir que las
+filas sin tachar siguen abiertas tal cual se describen**: antes de tocar
+cualquiera, releer `fn_planilla_calcular_nucleo` vigente (`donde-vive.sh
+fn_planilla_calcular`) y, si el código parece seguir teniendo el defecto,
+recién ahí medirlo contra Postgres local en `BEGIN … ROLLBACK` con un caso
+real — no alcanza con no encontrar la palabra clave esperada, como casi pasó
+aquí mismo con `ot_dias` (sigue leyendo `p_ini - 7` tal cual describía el
+hallazgo original, pero eso no prueba por sí solo que el defecto sobreviva:
+otras dieciséis migraciones tocaron el bloque de sobretiempo desde entonces
+sin que se haya revisado si alguna ya lo neutralizó por otro lado).
+
 | Qué | Cuánto | Dónde |
 |---|---|---|
-| **No existe la sobretasa del 100 % por trabajar el día de descanso semanal** (art. 3 D. Leg. 713) | S/44–58 por episodio | `fn_planilla_calcular` no lee `turnos` ni una vez |
+| ~~**No existe la sobretasa del 100 % por trabajar el día de descanso semanal**~~ ✅ **CERRADO por la 0280** (2026-08-20, ver `CAMBIO 0280` en `fn_planilla_calcular_nucleo`, vigente en la 0349): agrega el lateral `dsw` que paga el recargo del descanso semanal trabajado, excluyendo RxH y sueldo fijo, incluyendo personal de dirección por decisión de Felipe. Verificado leyendo el código vigente, no solo el mensaje de commit | ~~S/44–58 por episodio~~ · cerrado | ~~`fn_planilla_calcular` no lee `turnos` ni una vez~~ |
 | Un **feriado dentro de unas vacaciones se paga dos veces** | S/51.99 por feriado | `vacd` no lo excluye y `fer` sí lo paga |
 | ~~**La remuneración vacacional no entra a la base de EsSalud ni de pensión**~~ ✅ **CERRADO el 2026-08-26 por la [0317](../supabase/migrations/0317_la_remuneracion_vacacional_tambien_se_declara.sql)**, y con ella la familia entera: los TRES conceptos que la planilla paga sin marcaje —descanso médico (0263), licencia con goce y duelo directo (0316), vacaciones (0317)— ya se declaran igual. Medido antes de cerrar: quien pasaba el periodo entero de vacaciones cobraba S/3.000 y se le declaraba S/1.130 con básica legal en CERO; ahora declara S/3.223 y su aporte de pensión pasa de S/29 a S/419. Y la simetría que lo confirma: dos personas que faltan los mismos días y cobran lo mismo, una de vacaciones y otra de descanso médico, ahora dan **la misma base exacta**. No le costó un sol a nadie: cero personas con vacaciones en el periodo abierto y cero periodos ya pagados afectados | ~~S/94 + S/43 por persona~~ · cerrado | ~~va a `pago_base` pero no a `pb.basica`~~ |
 | Se pagan **ausencias posteriores al cese** | S/193.55 medidos | `vacd`, `dmd` y `mat` no miran `fecha_cese` |
