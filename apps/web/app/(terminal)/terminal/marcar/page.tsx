@@ -16,7 +16,6 @@ import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
-import { verificarPin } from "@/lib/terminal/pin";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
@@ -36,13 +35,11 @@ import {
   PantallaMensaje,
   SelectorSalida,
   SelectorSede,
-  TecladoPin,
   type EstadoRoster,
 } from "./components";
 
 type Pantalla =
   | "lista"
-  | "pin"
   | "elegir_salida"
   | "motivo_otro"
   | "confirmar_refrigerio"
@@ -108,8 +105,6 @@ export default function MarcarPage() {
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
-  const [errorPin, setErrorPin] = useState<string | null>(null);
-  const [intentosPin, setIntentosPin] = useState(0);
   const [salidaConfig, setSalidaConfig] = useState<SalidaConfig | null>(null);
   const [historialCerrado, setHistorialCerrado] = useState<Array<{ label: string; hora: string }>>([]);
   const [pendientesSinEnviar, setPendientesSinEnviar] = useState(0);
@@ -185,13 +180,15 @@ export default function MarcarPage() {
         router.replace("/terminal/vincular");
         return;
       }
-      // La config fresca del servidor manda. Si no se puede refrescar (sin conexión o
-      // error puntual), usamos la caché pero SIN forzar PIN: nunca pedimos PIN con datos
-      // no confiables (todas las sedes están configuradas sin PIN).
+      // La config fresca del servidor manda; sin conexión se usa la caché tal cual.
+      // Antes esta línea tenía que neutralizar a mano el `requierePin` de la caché,
+      // porque el respaldo del cliente caía en `true` y una red intermitente podía
+      // hacer aparecer un teclado de PIN. Desde que el PIN se retiró del terminal
+      // (0375) no hay nada que neutralizar: la ficha ya no trae esa bandera.
       const fresca =
         typeof navigator !== "undefined" && navigator.onLine ? await refrescarInfoTerminal() : null;
       const cache = leerInfoTerminalCacheada();
-      const info = fresca ?? (cache ? { ...cache, requierePin: false } : null);
+      const info = fresca ?? cache;
       setTerminal(info);
       // Sede por defecto: la del terminal; un ?sede=CODIGO en la URL la sobreescribe.
       const paramSede =
@@ -286,45 +283,20 @@ export default function MarcarPage() {
     confirmandoRef.current = false;
     setPantalla("lista");
     setPersonaActual(null);
-    setErrorPin(null);
-    setIntentosPin(0);
     setSalidaConfig(null);
     setAccionPendiente(null);
     void cargarTodo();
   }
 
+  // Tocar un nombre marca. Sin paso intermedio, y es una decisión, no un descuido:
+  // el control real es que la Mac mini está a la vista de todo el equipo, y lo que
+  // se prioriza es que marcar sea instantáneo (Felipe, jul-2026 y 2026-09-04).
   function seleccionarPersona(persona: RosterEntry) {
     setPersonaActual(persona);
-    setErrorPin(null);
-    // Solo se pide PIN si el terminal lo exige EXPLÍCITAMENTE (requiere_pin=true fresco).
-    // Ante cualquier duda (sin PIN configurado, o dato incierto) se marca directo, para
-    // no bloquear el marcaje. Hoy las 3 sedes están sin PIN.
-    if (!terminal || terminal.requierePin !== true) {
-      continuarConPersona(persona);
-      return;
-    }
-    setPantalla("pin");
+    continuarConPersona(persona);
   }
 
-  async function onPinCompletado(pin: string) {
-    if (!personaActual) return;
-    const ok = await verificarPin(pin, personaActual.pinHash);
-    if (!ok) {
-      const intentos = intentosPin + 1;
-      setIntentosPin(intentos);
-      if (intentos >= 5) {
-        setMensaje("Demasiados intentos. Vuelve a intentar en un momento.");
-        setPantalla("mensaje");
-        setTimeout(volverALista, 4000);
-        return;
-      }
-      setErrorPin("PIN incorrecto, intenta de nuevo.");
-      return;
-    }
-    continuarConPersona(personaActual);
-  }
-
-  // Determina y presenta la siguiente acción de la persona (tras autenticar, o directo si el terminal no pide PIN).
+  // Determina y presenta la siguiente acción de la persona.
   function continuarConPersona(persona: RosterEntry) {
     const marcajesHoy = marcajesHoyRef.current.get(persona.id) ?? [];
     const accion = siguienteAccionPara(marcajesHoy);
@@ -631,15 +603,6 @@ export default function MarcarPage() {
               onReintentar={() => { setEstadoRoster("cargando"); void arrancar(); }}
             />
           </div>
-        )}
-
-        {pantalla === "pin" && personaActual && (
-          <TecladoPin
-            nombre={`${personaActual.nombres} ${personaActual.apellidos}`}
-            onCompletar={onPinCompletado}
-            onCancelar={volverALista}
-            error={errorPin}
-          />
         )}
 
         {pantalla === "elegir_salida" && personaActual && salidaConfig && (
