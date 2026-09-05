@@ -38,5 +38,5 @@ values (
 on conflict (clave) do nothing;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (377, 'apariencia_tema_global')
+values (378, 'apariencia_tema_global')
 on conflict (numero) do nothing;

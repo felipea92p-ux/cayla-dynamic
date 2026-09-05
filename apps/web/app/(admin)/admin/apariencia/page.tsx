@@ -1,7 +1,7 @@
 "use client";
 
 // Tema global (claro/oscuro/automático) para el panel Y el terminal de las 4
-// sedes — ver 0377_apariencia_tema_global.sql y lib/use-tema.ts. Sigue
+// sedes — ver 0378_apariencia_tema_global.sql y lib/use-tema.ts. Sigue
 // existiendo el tema PERSONAL de cada quien (el selector de la barra de
 // navegación); esto es solo lo que se ve cuando nadie eligió uno a mano.
 //
