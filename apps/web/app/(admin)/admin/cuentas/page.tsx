@@ -7,6 +7,7 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AdminNav } from "../nav";
 import { CargandoFila, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { CampoClave } from "@/components/ui/campo-clave";
 import { Tabla } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -586,10 +587,10 @@ function SeccionMiClave({
     <div className="max-w-md rounded-lg border border-sand bg-sand/25 p-5">
       <h2 className="mb-3 font-serif text-lg">Cambiar mi contraseña</h2>
       <div className="flex flex-col gap-3">
-        <input type="password" placeholder="Nueva contraseña" value={nueva} onChange={(e) => setNueva(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
-        <input type="password" placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-3 py-2 outline-none focus:border-taupe" />
+        <CampoClave placeholder="Nueva contraseña" value={nueva} onChange={(e) => setNueva(e.target.value)}
+          className="rounded-lg border border-sand bg-crema pl-3 pr-10 py-2 outline-none focus:border-taupe" />
+        <CampoClave placeholder="Repite la nueva contraseña" value={confirma} onChange={(e) => setConfirma(e.target.value)}
+          className="rounded-lg border border-sand bg-crema pl-3 pr-10 py-2 outline-none focus:border-taupe" />
         {/* Los requisitos antes de escribir, no después de fallar. */}
         <ul className="flex flex-col gap-0.5 text-xs text-taupe">
           {REQUISITOS_CLAVE.map((r) => <li key={r}>· {r}</li>)}
