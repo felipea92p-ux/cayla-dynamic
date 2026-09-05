@@ -303,13 +303,25 @@ select lives_ok(
 -- (0342) en un solo acto. Aquí van sueltos porque esa función exige una sesión
 -- de admin autenticada, y esta prueba corre con la sesión del TERMINAL: pedirle
 -- las dos a la vez la volvería una prueba de permisos y no del candado.
+--
+-- `corregido_at` se fija a mano, un minuto DESPUÉS de la marca de las 09:00: no
+-- se deja el `default now()` de la tabla porque la condición que se está
+-- probando es `ca.corregido_at >= new.timestamp_marca`, y `now()` es la hora
+-- REAL en que corre la prueba. En Lima antes de las 09:00 —CI puede arrancar a
+-- cualquier hora— `now()` cae ANTES que la marca de las 09:00 y la condición
+-- se vuelve falsa: la entrada rebota, la aserción de abajo falla, y el `do`
+-- que más adelante cierra el día de Fabi revienta con un error sin savepoint
+-- que aborta el archivo entero («Bad plan», con el resto de aserciones sin
+-- correr). Fechar el hecho auditado respecto de la MARCA, no del reloj de la
+-- máquina que ejecuta la prueba, es lo que la vuelve determinista.
 update personas set sede_base_id = '00000000-0000-0000-0000-000000028601'
  where id = '00000000-0000-0000-0000-000000028615';
 insert into correcciones_auditoria
-  (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por)
+  (persona_id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_por, corregido_at)
 values ('00000000-0000-0000-0000-000000028615', 'personas.sede_base_id', 'ZZ286A', 'ZZ286B',
         'Cambio de sede base — puede mover la tarifa de movilidad del periodo abierto.',
-        '00000000-0000-0000-0000-000000028617');
+        '00000000-0000-0000-0000-000000028617',
+        (fn_hoy_lima() + time '09:01') at time zone 'America/Lima');
 
 select lives_ok(
   $$ select fn_registrar_marcaje(
