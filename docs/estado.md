@@ -37,6 +37,47 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-04 — El 9% de la Ley 30334 deja de darse por pagado solo (0372) · PEGADA Y VERIFICADA
+
+Desde la 0346 la gratificación y el 9% son dos movimientos separados —lo pidió
+el contador—, pero `fn_provisiones` seguía dando por pagado el 9% con solo
+mirar si la gratificación estaba pagada: heredaba su resta entera porque, antes
+de la 0346, el 9% viajaba DENTRO de ese monto. Quien registraba solo
+«Gratificación» por el camino manual dejaba de ver el 9% como pendiente en
+`/admin/provisiones`, y ninguna pantalla volvía a mencionarlo. Medido en local:
+una persona con S/585.51 de gratificación pendiente y S/52.70 de 9% pendiente
+pasaba a S/0.00 en los dos con solo registrar la gratificación.
+
+**El casi-accidente.** Se escribió primero como 0362, sobre el cuerpo de la
+0338. En las cuatro horas que tardó en entregarse, otras sesiones fusionaron 54
+commits: alguien tomó el número 0362, y `fn_provisiones` se reescribió DOS
+veces — la 0363 le devolvió el `grant execute … to authenticated` que la 0338
+nunca concedió, y la 0365 le agregó el aviso de tramo de salario faltante en
+cinco sitios (hallazgo 23 de la auditoría del 2026-09-03/04). Pegar la versión
+original habría revertido las dos en silencio. Lo cazó volver a correr
+`donde-vive.sh` en el momento de entregar el SQL, no en el de empezar a
+escribirlo — la regla del `CLAUDE.md`, y este es el caso que la justifica. Se
+renumeró a 0372 y se reaplicó el mismo cambio sobre la 0365.
+
+De paso quedó al día `scripts/sql-manual/a_quien_le_aparece_el_9_por_ciento.sql`
+—el script de una sola vez para dimensionar el impacto antes de pegar—: seguía
+citando "la 0362" en su cabecera, y le faltaba el mismo filtro de la función
+(`estado = 'activo' and fn_devenga_algo`), así que podía señalar a alguien que
+ya había cesado o que nunca tuvo derecho al beneficio.
+
+Auditado local: `supabase db reset` con las 372 migraciones y `supabase test
+db` — 213 archivos, 2164 pruebas, todas en verde — más typecheck limpio.
+Entregado en el [PR #186](https://github.com/felipea92p-ux/cayla-dynamic/pull/186).
+**Confirmado en producción el 2026-09-04**: el md5 de partida coincidió exacto
+contra producción antes de pegar (`4b7b7bd996651f5e5a4d1a978cc3edb9`, 44 261
+caracteres — la 0363 y la 0365 ya estaban ahí), y la comprobación final dio
+`tiene_el_cambio`, `conserva_la_0365`, `una_sola_version`, `anotada`,
+`la_pantalla_puede` y `anon_no_puede` en verde, con `la_0346_se_aplico_el`
+devolviendo exactamente **2026-09-03** — la fecha que la constante
+`v_be_aparte_desde` espera.
+
+---
+
 ## 2026-09-04 — `fn_registrar_marcaje` quedó con dos sobrecargas en producción (0367) · PEGADA Y VERIFICADA
 
 Felipe reportó en vivo que el terminal (marcando `retorno_almuerzo` y
