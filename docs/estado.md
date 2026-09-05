@@ -146,6 +146,61 @@ que `CLAUDE.md` pide comprobar con `git log --all` antes de empezar algo
 bueno y solo hace falta subirlo**, en vez de que la sesión de
 `dos-tareas-importantes-f65950` lo reconstruya por su cuenta.
 
+⚠️ **Actualización posterior el mismo 2026-09-05:** el crítico 12 (y el 11) se
+resolvieron por otro camino — ver la entrada de la segunda auditoría, abajo,
+sobre los 8 PR que atacaron los mismos hallazgos sin verse entre sí. PR
+[#196](https://github.com/felipea92p-ux/cayla-dynamic/pull/196) ya está
+fusionado a `main` y cierra los hallazgos 11 y 12 juntos.
+
+---
+
+## 2026-09-05 (noche) — Segunda auditoría (28 agentes): un crítico nuevo, y 8 PRs chocando entre sí · PDF entregado a Felipe
+
+Pedido explícito de Felipe: repetir la auditoría del 2026-09-03/04 con más
+profundidad —código nuevo desde entonces, vistazo general al resto,
+benchmark contra Gusto/Rippling/BambooHR/Workday/Odoo/Oracle— y entregar un
+PDF mejor explicado para la mañana. Detalle completo, con ejemplos y el
+benchmark entero: el PDF (no vive en el repo, igual que el de ayer). Catálogo
+accionable: [`docs/hallazgos-abiertos.md`](hallazgos-abiertos.md#auditoría-del-2026-09-05--código-nuevo-desde-el-2026-09-04-vistazo-general-benchmark-contra-6-erps--28-agentes).
+
+🔴 **Hallazgo nuevo, crítico, confirmado por 3 refutadores independientes: la
+0374 abrió un hueco al cerrar otro.** Reescribió `fn_rol_actual()` para que
+una persona cesada no cuente como si tuviera rol — correcto en sí — pero dos
+funciones `SECURITY DEFINER` (`fn_vacaciones_saldo` en 0357,
+`fn_marca_apartada_resolver` en 0304) arman su guard con un `and not(...)`
+suelto en vez de envolver todo el OR en un solo `is not true` (el patrón
+correcto, ya usado en la 0126). Efecto: una persona cesada con sesión de Auth
+viva puede leer el saldo de vacaciones de un excolega de su misma sede, y
+resolver una marca apartada — si fue admin/líder/encargada, eso **escribe un
+marcaje real** que alimenta jornada y pago de otra persona. **Falta una
+migración nueva** que reescriba ambos guards al patrón de la 0126 — no
+existe todavía, es lo primero que hay que escribir mañana.
+
+⚠️ **Y esto no esperó al PDF: se le avisó a Felipe apenas se detectó, antes
+de terminar el informe.** Mientras esta auditoría corría, 8 sesiones de
+Claude Code abrieron 8 PRs en menos de una hora, todas atacando los mismos
+hallazgos críticos de ayer (7, 10, 11, 12), sin verse entre sí — el mismo
+patrón que ya costó la duplicación de `fn_vacaciones_por_vencer` (0297/0299).
+Dos son duplicados byte a byte (#199/#197, hallazgo 11); dos resuelven la
+misma regla con dos funciones distintas (#196/#194, hallazgo 12). Ninguno
+fusionado a esta fecha. La comparación completa y qué PR conviene fusionar
+en cada caso vive en `docs/hallazgos-abiertos.md`, sección de esta auditoría.
+
+**Lo que ya se cerró desde ayer, verificado leyendo el código vigente (no
+solo el mensaje de commit):** hallazgos 8, 13, 14, 15, 16, 17, 18, 21, 23, 25
+y 33 resueltos por las migraciones 0360-0372; el 22 parcial (regenerar PIN
+resuelto, alta de persona sigue hasheando en el navegador, impacto ya bajo).
+El PIN del terminal (hallazgo 1) sigue como se documentó abajo: fusionado a
+`main`, sin evidencia de despliegue ni de SQL pegado.
+
+**Nuevo en el repo, para que la próxima auditoría no reinvente el HTML→PDF:**
+[`scripts/auditoria-a-pdf.mjs`](../scripts/auditoria-a-pdf.mjs) — misma
+técnica sin dependencias que `reglamento-a-pdf.mjs`, generalizada para un
+documento que no vive en `docs/`.
+
+31 agentes → 28 agentes esta vez (11 código nuevo, 8 vistazo general, 6
+benchmark, 3 verificación adversarial), 0 errores, 4.31M tokens, ~30 minutos.
+
 ---
 
 ## 2026-09-05 — `db-tests` se ponía roja según la hora de Lima a la que corriera CI (293) · CORREGIDO
@@ -158,19 +213,37 @@ timestamp_marca` para dejarla entrar, y `corregido_at` es el `now()` real de
 cuando corre el test — así que la aserción solo pasaba si CI arrancaba
 DESPUÉS de las 09:00 Lima. Confirmado con el push que fusionó el PR #161 (00:07
 Lima, 2026-09-05): `db-tests` se puso roja en `main` sin que ese PR tocara
-nada de marcaje, y arrastró consigo a cualquier rama nueva —incluido el PR
-[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197), abierto ese
-mismo rato, y este mismo PR (198), cuyo `db-tests` salió rojo por la misma
-razón al escribir esta nota — confirmado que **no** es un defecto de la 0370
-en sí, solo de la prueba.
+nada de marcaje, y arrastró consigo a cualquier rama nueva —incluidos los PR
+[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197),
+[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205) y este mismo
+[#198](https://github.com/felipea92p-ux/cayla-dynamic/pull/198), cuyo
+`db-tests` salió rojo por la misma razón — confirmado que **no** es un
+defecto de la 0370 en sí, solo de la prueba.
 
-Arreglado dejando la ENTRADA en `now() - interval '30 minutes'` y la salida
-que la cierra (puerta 3, más abajo en el mismo archivo) en `now() + interval
-'30 minutes'` — `now()` es la misma marca de tiempo en TODA la transacción de
-la prueba (una sola `begin`), así que la comparación deja de depender de a
-qué hora del día corra el workflow. El resto de horas fijas del archivo
-(Beto, Iris, Gina) no comparan contra `corregido_at`, solo contra fecha y
-estado de `jornadas`: no tenían este problema y se dejaron igual.
+**El mismo defecto lo encontraron y lo arreglaron, el mismo día, cuatro
+sesiones distintas** (PR [#195](https://github.com/felipea92p-ux/cayla-dynamic/pull/195),
+[#202](https://github.com/felipea92p-ux/cayla-dynamic/pull/202),
+[#203](https://github.com/felipea92p-ux/cayla-dynamic/pull/203) y
+[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205)) — cada una sin
+ver a las otras. El #203 fijó `corregido_at` a un instante concreto de «hoy»
+(`fn_hoy_lima() + 09:01`); el #205 dejó la ENTRADA en `now() - interval '30
+minutes'`. Las dos por separado son correctas. **Fusionadas juntas —el #203
+primero, el #205 encima, sin conflicto textual porque tocan líneas
+distintas— volvieron a hacer la prueba sensible a la hora real**: pasaba entre
+las 00:00 y las 09:31 Lima y volvía a fallar después de esa hora, porque
+`now() - 30min` termina cruzando las 09:01 fijas. Se cazó a los pocos minutos
+porque el run de `main` en curso (10:22 Lima) iba directo a ese rango. Arreglo
+final: las dos puntas de la comparación quedan FIJAS al mismo «hoy» —entrada a
+las 09:00, `corregido_at` a las 09:01— sin ningún `now()` de por medio. Los
+PR #195 y #202, redundantes, se cerraron sin fusionar.
+
+**La lección, aparte del arreglo:** «GitHub dice CLEAN» solo significa que no
+hay conflicto de texto — dos parches que tocan líneas distintas del mismo
+predicado pueden combinarse en algo roto sin que git proteste. Antes de
+fusionar dos PR que tocan el mismo archivo el mismo día, vale la pena leer el
+resultado combinado, no solo cada diff por separado.
+
+---
 
 ---
 
