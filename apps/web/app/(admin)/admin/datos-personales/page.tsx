@@ -114,7 +114,7 @@ export default function DatosPersonalesPage() {
   // arreglar el próximo campo que falte.
   const [dhEditando, setDhEditando] = useState<string | null>(null);
   // `personas.con_hijos` es OTRO campo que el `hijos_menores` de la ficha, y es
-  // el que de verdad decide si se pagan los S/113 de asignación familiar
+  // el que de verdad decide si se paga la asignación familiar mensual
   // (fn_planilla_calcular). Lo escribe la pantalla de Equipo; la ficha escribe
   // el suyo; y nada los mantiene de acuerdo. Se trae aquí solo para poder
   // avisar cuando difieran.
@@ -487,7 +487,7 @@ export default function DatosPersonalesPage() {
           avisos.push("la fecha de nacimiento está en el futuro — corrígela arriba");
         }
         // Quien cobra asignación familiar tiene que tener a quién declararle.
-        // Son S/113 al mes: si no corresponde se está pagando de más, y si
+        // Es la asignación familiar mensual: si no corresponde se está pagando de más, y si
         // corresponde falta el respaldo que la sustenta ante una fiscalización.
         if (f?.hijos_menores === true && !derechos.some((d) => d.persona_id === p.id)) {
           avisos.push("cobra asignación familiar y no tiene ningún hijo registrado — agrégalo en Familiares, más abajo");
@@ -515,7 +515,7 @@ export default function DatosPersonalesPage() {
             avisos.push("se le paga la asignación familiar y esta ficha dice que NO tiene hijos menores — y es esta ficha la que sale en el padrón del contador; cuadra las dos");
             break;
           case "declara_y_no_cobra":
-            avisos.push("esta ficha dice que tiene hijos menores y NO se le está pagando la asignación familiar (S/113 al mes) — si le corresponde, actívala en Equipo");
+            avisos.push("esta ficha dice que tiene hijos menores y NO se le está pagando la asignación familiar — si le corresponde, actívala en Equipo");
             break;
           case "paga_y_la_ficha_calla":
             avisos.push("se le paga la asignación familiar y esta ficha no lo declara — el padrón saldrá con «SIN DATO» en esa columna");
@@ -558,7 +558,7 @@ export default function DatosPersonalesPage() {
         // : "NO"`— metía en el mismo saco el `false` declarado y el `null` de
         // una ficha que nadie llenó, así que este papel le AFIRMABA al contador
         // que la persona no tiene hijos menores cuando la verdad es que no se
-        // sabe. Son S/113 al mes de asignación familiar, y el documento que lo
+        // sabe. Es la asignación familiar mensual, y el documento que lo
         // niega lo emite CAYLA. Ver `siNoSinDato`.
         "Asignacion familiar": siNoSinDato(f?.hijos_menores),
         Derechohabientes: dh,

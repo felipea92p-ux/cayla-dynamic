@@ -130,9 +130,33 @@ catalogo_planilla() {
                supabase/migrations/*.sql 2>/dev/null | sort)
   [ -z "$ARCHIVOS" ] && return 0
   ULTIMO=$(echo "$ARCHIVOS" | tail -1)
+  NUM_ULTIMO=$(basename "$ULTIMO" | sed -E 's/^([0-9]+)_.*/\1/')
+
+  # El WHEN del md5 vigente se imprime PRIMERO, antes que ningún otro — no en su
+  # lugar cronológico. La 0339 partió la función en núcleo + envoltorio, y desde
+  # entonces el envoltorio no volvió a cambiar textualmente: su cuerpo en la 0339
+  # y en la última migración que lo redefine son el mismo md5. Un CASE de SQL
+  # resuelve por el PRIMER WHEN que coincide, así que si la etiqueta vieja
+  # («se quedó en la 0339») fuera antes, escondería para siempre a la correcta
+  # («al día») detrás de una alarma falsa — pasó el 2026-09-04 y dijo que
+  # producción llevaba diez migraciones de atraso en la función que paga a todos,
+  # cuando en realidad estaba al día. Iterar del final hacia el principio no
+  # alcanza: cualquier duplicado más viejo entre medias tendría el mismo problema.
+  # Imprimir el vigente antes que cualquier otro es la única forma de que un
+  # empate se resuelva siempre a favor de la verdad.
+  awk "$CUERPO_AWK" "$ULTIMO" > "$TMPC"
+  if tr -d '[:space:]' < "$TMPC" | grep -q .; then
+    SANO_ULTIMO=$(md5de < "$TMPC")
+    echo "             when '$SANO_ULTIMO' then '$NUM_ULTIMO — al día con el repositorio'"
+    ROTO_ULTIMO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
+    if [ -n "$ROTO_ULTIMO" ] && [ "$ROTO_ULTIMO" != "$SANO_ULTIMO" ]; then
+      echo "             when '$ROTO_ULTIMO' then '✗ $NUM_ULTIMO CON LOS ACENTOS ROTOS — vuelve a pegarla'"
+    fi
+  fi
 
   echo "$ARCHIVOS" | while read -r f; do
     [ -z "$f" ] && continue
+    [ "$f" = "$ULTIMO" ] && continue
     NUM=$(basename "$f" | sed -E 's/^([0-9]+)_.*/\1/')
     # A un archivo y no a una variable: `$(...)` se come los saltos de línea
     # finales, y varias versiones de esta función terminan con líneas en blanco
@@ -144,11 +168,7 @@ catalogo_planilla() {
     # de una cadena vacía como si fuera una versión sería peor que no tenerlo.
     tr -d '[:space:]' < "$TMPC" | grep -q . || continue
     SANO=$(md5de < "$TMPC")
-    if [ "$f" = "$ULTIMO" ]; then
-      echo "             when '$SANO' then '$NUM — al día con el repositorio'"
-    else
-      echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
-    fi
+    echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
     # La variante con los acentos rotos. Si este sistema no tiene la tabla MAC en
     # su iconv, se omite: el catálogo pierde precisión pero nunca miente, y el
     # barrido del signo «√» de más abajo sigue cazando el caso igual.

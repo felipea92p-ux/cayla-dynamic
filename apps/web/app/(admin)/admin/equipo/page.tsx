@@ -12,6 +12,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
 import { type Area, AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { montoAsignacionFamiliar, type MontoAsignacionFamiliar } from "@/lib/admin/asignacion-familiar-monto";
 import {
   hoyLima, primeroDeMesLima, rangoDelMesLima, puedeVerPlanilla,
   MOTIVOS_CESE, MOTIVO_CESE_LABELS, etiquetaDeCatalogo, type MotivoCese, type Rol,
@@ -61,6 +62,39 @@ function generarPin(): string {
   return pin;
 }
 
+/**
+ * Copiar sin depender de que `navigator.clipboard` exista.
+ *
+ * La API moderna no está fuera de HTTPS (o localhost) y puede rechazar sin
+ * permiso; el respaldo es el `textarea` de toda la vida. Devuelve si se copió
+ * de verdad, porque un botón que dice «Copiado» sin haber copiado es peor que
+ * uno que falla: quien lo lee cierra el panel y pierde el PIN.
+ */
+async function copiarAlPortapapeles(texto: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    }
+  } catch {
+    // sigue al respaldo
+  }
+  try {
+    const campo = document.createElement("textarea");
+    campo.value = texto;
+    campo.setAttribute("readonly", "");
+    campo.style.position = "fixed";
+    campo.style.opacity = "0";
+    document.body.appendChild(campo);
+    campo.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(campo);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 interface Sede {
   id: string;
   codigo: string;
@@ -108,7 +142,10 @@ interface FormPersona {
   rol: Rol;
   funcion: string; // código de área (ver lib/areas)
   email: string;
-  conHijos: boolean; // asignación familiar (S/ 113 fijos por periodo) — se escribe por RPC fn_set_con_hijos
+  // Asignación familiar. El MONTO no se escribe acá ni en ningún sitio de la
+  // pantalla: vive versionado en `parametros_laborales` (0122) y se lee con
+  // `montoAsignacionFamiliar` para pintar la etiqueta. Se escribe por RPC fn_set_con_hijos.
+  conHijos: boolean;
   tipoVinculo: string; // planilla | prueba | rxh | no_trabajador | practicante — se escribe por RPC fn_set_tipo_vinculo
   practicanteModalidad: string; // "" | preprofesional | profesional — solo si tipoVinculo=practicante; se escribe por RPC fn_set_practicante_modalidad
   cargo: string;      // 0182 — cómo se la nombra en pantalla. Vacío = se muestra el rol
@@ -182,6 +219,19 @@ export default function EquipoPage() {
   // hasta el panel. `scroll-mt-4` deja un respiro arriba para que no quede
   // pegado al borde.
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // EL PIN NO VA POR UN TOAST, y esto no es una preferencia de forma.
+  //
+  // Un aviso «ok» se apaga solo a los 4,5 segundos (DURACION_OK_MS, en
+  // components/toast.tsx), y ahí dentro iba el único ejemplar de cuatro dígitos
+  // que el sistema muestra en su vida, con un texto que decía «anótalo ahora, no
+  // se vuelve a mostrar». No alcanza para leerlo, entenderlo y escribirlo, y si
+  // se pierde hay que regenerarlo — lo que invalida el PIN que esa persona ya
+  // tenía. Así que vive en un panel que NO se cierra solo: se cierra cuando
+  // alguien dice que ya lo tiene.
+  //
+  // El temporizador del toast no se toca: gobierna todos los avisos del panel.
+  const [pinNuevo, setPinNuevo] = useState<{ nombre: string; pin: string } | null>(null);
+  const [pinCopiado, setPinCopiado] = useState(false);
   const [ceseId, setCeseId] = useState<string | null>(null);
   const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
   const [guardandoCese, setGuardandoCese] = useState(false);
@@ -302,9 +352,35 @@ export default function EquipoPage() {
     void cargar();
   }, [cargar]);
 
+  // El monto vigente de la asignación familiar, para la etiqueta de la casilla.
+  // `null` mientras no haya dato — y entonces la etiqueta manda a Configuración
+  // en vez de inventar una cifra (hallazgo 24; tercera regla de la casa).
+  const [asigFamiliar, setAsigFamiliar] = useState<MontoAsignacionFamiliar | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void montoAsignacionFamiliar(createAdminSupabaseClient()).then((m) => {
+      if (vigente) setAsigFamiliar(m);
+    });
+    return () => { vigente = false; };
+  }, []);
+
   // Cuál está abierto, no si hay alguno: así también se desplaza al pasar de un
   // panel a otro (de «Editar» de una persona a «Registrar salida» de otra).
-  const panelAbierto = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  // El PIN manda sobre todo lo demás: es lo único de esta pantalla que se pierde
+  // si nadie lo mira. La clave lleva el PIN dentro para que regenerarlo dos veces
+  // seguidas vuelva a desplazar hasta el panel.
+  //
+  // Y la clave se COMPONE, no se cortocircuita: con el ternario, mientras el
+  // panel del PIN estaba abierto el valor quedaba congelado en su clave, así que
+  // abrir «Editar» de alguien del final de la tabla ya no desplazaba — el
+  // formulario se abría arriba, fuera de la vista, y parecía que el botón no
+  // había hecho nada. El PIN sigue mandando en el orden visual (se pinta
+  // primero); lo que cambia es que cualquier otro panel vuelve a mover la
+  // pantalla aunque el PIN siga puesto.
+  const otroPanel = mostrandoAlta ? "alta" : editandoId ?? salEditId ?? histId ?? ceseId ?? null;
+  const panelAbierto = pinNuevo
+    ? `pin:${pinNuevo.nombre}:${pinNuevo.pin}|${otroPanel ?? ""}`
+    : otroPanel;
   useEffect(() => {
     if (panelAbierto) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [panelAbierto]);
@@ -388,9 +464,12 @@ export default function EquipoPage() {
       avisar("error", mensajeDeError(error, "crear"));
       return;
     }
-    // El PIN se muestra UNA sola vez: aunque la asignación familiar falle, el aviso
-    // con el PIN no se pierde — solo se le agrega la advertencia.
-    let texto = `${form.nombres} ${form.apellidos} agregado(a). Su PIN es ${pin} — anótalo ahora, no se vuelve a mostrar.`;
+    // El PIN se muestra UNA sola vez, y por eso NO viaja en este aviso: va al
+    // panel de abajo, que no se apaga solo. Lo que quede acá es lo que sí puede
+    // desaparecer a los pocos segundos sin que se pierda nada — el «agregada» y,
+    // si toca, la advertencia de la asignación familiar.
+    const nombreCompleto = `${form.nombres.trim()} ${form.apellidos.trim()}`;
+    let texto = `${nombreCompleto} agregado(a).`;
     let tipoAviso: "ok" | "error" = "ok";
     if (form.conHijos) {
       const nuevaId = (creada as { id: string } | null)?.id;
@@ -398,8 +477,8 @@ export default function EquipoPage() {
         ? await supabase.rpc("fn_set_con_hijos", { p_persona_id: nuevaId, p_con_hijos: true })
         : { error: { message: "no se recibió el id de la persona" } };
       if (errorHijos) {
-        // Aviso en ROJO para que la falla no pase desapercibida, pero SIEMPRE con
-        // el PIN dentro del mismo mensaje (es la única vez que se muestra).
+        // Aviso en ROJO para que la falla no pase desapercibida. El PIN ya no
+        // depende de este mensaje: está en su panel, se muestre este aviso o no.
         tipoAviso = "error";
         texto += ` OJO: la asignación familiar no se pudo activar (${errorHijos.message}) — márcala editando a la persona.`;
       }
@@ -407,8 +486,25 @@ export default function EquipoPage() {
     setGuardando(false);
     setMostrandoAlta(false);
     setForm(FORM_VACIO);
+    // Antes de `cargar()`: el PIN tiene que estar en pantalla ya, no cuando
+    // termine de releerse el equipo entero.
+    mostrarPin(nombreCompleto, pin);
     await cargar();
     avisar(tipoAviso, texto);
+  }
+
+  function mostrarPin(nombre: string, pin: string) {
+    setPinCopiado(false);
+    setPinNuevo({ nombre, pin });
+  }
+
+  async function copiarPin() {
+    if (!pinNuevo) return;
+    if (await copiarAlPortapapeles(pinNuevo.pin)) {
+      setPinCopiado(true);
+      return;
+    }
+    avisar("error", "No se pudo copiar al portapapeles. Anótalo a mano: el PIN sigue en pantalla hasta que cierres el panel.");
   }
 
   async function guardarEdicion() {
@@ -721,16 +817,19 @@ export default function EquipoPage() {
     avisar("ok", `${p.nombres} ${p.apellidos} está activa otra vez. Revísale el salario y el horario: al cesar se cerraron sus tramos.`);
   }
 
+  // El PIN nace en el servidor (0364): `fn_regenerar_pin` genera los cuatro
+  // dígitos, los hashea con bcrypt en Postgres y devuelve el PIN en claro UNA
+  // sola vez. Antes se hasheaba acá y se escribía `pin_hash` por REST directo,
+  // con la RLS como único freno; hoy un update directo a esa columna lo corta
+  // un trigger, así que este es el único camino.
   async function regenerarPin(p: Persona) {
-    const pin = generarPin();
-    const pinHash = await bcrypt.hash(pin, 10);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.from("personas").update({ pin_hash: pinHash }).eq("id", p.id);
-    if (error) {
-      avisar("error", mensajeDeError(error, "regenerar el PIN"));
+    const { data: pin, error } = await supabase.rpc("fn_regenerar_pin", { p_persona_id: p.id });
+    if (error || !pin) {
+      avisar("error", error ? mensajeDeError(error, "regenerar el PIN") : "No se recibió el PIN nuevo. Vuelve a intentarlo.");
       return;
     }
-    avisar("ok", `Nuevo PIN de ${p.nombres} ${p.apellidos}: ${pin} — anótalo ahora, no se vuelve a mostrar.`);
+    mostrarPin(`${p.nombres} ${p.apellidos}`, pin);
   }
 
   function empezarEdicion(p: Persona) {
@@ -1066,7 +1165,9 @@ export default function EquipoPage() {
             disabled={modo === "edicion" && !funcionesOk}
             className="h-4 w-4 accent-tinta disabled:opacity-50"
           />
-          Asignación familiar (tiene hijos) — S/ 113 fijos por periodo
+          {asigFamiliar
+            ? `Asignación familiar (tiene hijos) — ${formatSoles(asigFamiliar.monto)} al mes, según el monto vigente`
+            : "Asignación familiar (tiene hijos) — según el monto vigente en Configuración"}
         </label>
       )}
       {puedeSalarios && (
@@ -1350,6 +1451,41 @@ export default function EquipoPage() {
     );
   };
 
+  // El PIN recién generado. Mismo molde que los otros cinco paneles de esta
+  // pantalla (tarjeta de papel, arriba de la tabla, se desplaza sola hasta él),
+  // con dos diferencias que son todo el arreglo: no tiene temporizador y el PIN
+  // se puede copiar sin transcribirlo.
+  const panelPin = () => {
+    if (!pinNuevo) return null;
+    // `role="status"` porque este panel reemplazó a un aviso que sí se
+    // anunciaba: sin él, quien navega con lector de pantalla oye desaparecer
+    // «X agregado(a)» y nada le dice que el PIN quedó en un panel más arriba —
+    // en el único panel de la pantalla cuyo motivo entero es que no se pierda
+    // de vista.
+    return (
+      <div role="status" aria-live="polite" className="mb-6 max-w-2xl rounded-2xl border border-rojo/30 bg-papel p-5">
+        <p className="text-sm font-medium">PIN de {pinNuevo.nombre}</p>
+        <p className="mt-3 font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo.pin}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => void copiarPin()}
+            className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
+          >
+            {pinCopiado ? "Copiado" : "Copiar"}
+          </button>
+          <button onClick={() => setPinNuevo(null)} className="rounded-lg border px-4 py-2 text-sm">
+            Ya lo tengo — cerrar
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-taupe">
+          Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
+          única vez que el sistema muestra estos cuatro dígitos: si se pierden hay que generar otros, y el
+          PIN anterior de esta persona deja de servir.
+        </p>
+      </div>
+    );
+  };
+
   const panelHistorial = () => {
     const p = personas.find((x) => x.id === histId);
     if (!p) return null;
@@ -1418,6 +1554,7 @@ export default function EquipoPage() {
         )}
 
         <div ref={panelRef} className="scroll-mt-4">
+          {panelPin()}
           {mostrandoAlta && formulario("alta")}
           {editandoId && formulario("edicion")}
           {ceseId && editorCese()}
@@ -1600,7 +1737,13 @@ export default function EquipoPage() {
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-2 text-xs">
                         <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                        <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
+                        {/* Solo a quien está activa: desde la 0364 el servidor
+                            rechaza regenerar el PIN de una persona inactiva, y
+                            no se ofrece un botón que solo puede terminar en un
+                            error. Si vuelve al equipo, «Reactivar» primero. */}
+                        {p.estado === "activo" && (
+                          <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
+                        )}
                         {p.estado === "activo" ? (
                           // «Registrar salida» y no «Desactivar»: lo que se hace
                           // es anotar un hecho con su fecha y su motivo, no
@@ -1619,8 +1762,9 @@ export default function EquipoPage() {
         )}
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">
-          Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en el aviso verde —
-          anótalo y entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
+          Al agregar una persona o regenerar un PIN, el PIN aparece una sola vez en un panel arriba de
+          esta tabla: no se cierra solo, se copia con un botón y lo cierras tú cuando ya lo tengas
+          anotado. Entrégalo en privado. “Registrar salida” no borra nada: la persona deja de aparecer
           en el terminal pero su historial se conserva, y de la fecha que anotes salen su gratificación,
           su CTS y sus vacaciones truncas. Anotar el fin de contrato es otra cosa y no da de baja a
           nadie: es la fecha prevista de término, y está para avisar antes de que llegue.

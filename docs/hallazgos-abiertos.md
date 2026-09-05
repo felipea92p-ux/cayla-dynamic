@@ -1092,7 +1092,7 @@ No pasaron por el refutador: son de gravedad media o baja y se dejaron para revi
 
 ---
 
-## Refutados — 9
+## Refutados — 10
 
 Parecían defectos y no lo son. Anotados para no volver a investigarlos.
 
@@ -1136,6 +1136,7 @@ Parecían defectos y no lo son. Anotados para no volver a investigarlos.
 - **El terminal lee marcas ANULADAS como si estuvieran vivas: ofrece la acción equivocada y la marca real se pierde en silencio** — El hallazgo describe un bug REAL pero YA CORREGIDO: es una lectura de código anterior al commit b7d624b ("El terminal, el espejo y reabrir-dia tampoco cuentan las marcas anuladas"), que está en HEAD. La premisa central — "estado-dia.ts:16-25 (select sin filtro de anulada_at)" — es falsa contra el código actual. Esas líneas exactas SON el filtro: `/Users/ArchiCaylo/Developer/cayla-dynamic/apps/web/…
 - **/api/reabrir-dia hace dos escrituras sin transacción: si la segunda no corre, un día cerrado de 10 h queda con horas = NULL** — El MECANISMO es cierto (dos escrituras HTTP separadas vía PostgREST, sin transacción, y el trigger `trg_marcajes_recalcular_jornada` recalcula ya en el UPDATE), y el estado intermedio se reproduce tal cual: horas NULL / en_pausa. Pero las dos afirmaciones que convierten eso en daño son FALSAS, y sin ellas no queda ni un número equivocado ni un flujo bloqueado. (1) "Desde el terminal el día ya no e…
 - **/api/reabrir-dia parte la operación en tres transacciones y puede dejar la jornada con horas NULL** — El mecanismo intermedio se reproduce, pero las dos afirmaciones que le dan peso al hallazgo son falsas: (1) el escenario que dispara el estado roto es imposible tal como se describe, y (2) el estado roto no persiste ni llega a planilla — se cura solo por dos caminos independientes. 1) "La Mac mini pierde red justo ahí, que es exactamente el escenario de la cola offline" — FALSO. Los tres pasos (up…
+- **4 funciones de turnos (`fn_set_turno`, `fn_set_descanso`, `fn_quitar_turno`, `fn_set_horario_semanal`) sin revoke de PUBLIC/anon** (hallazgo 20 de la auditoría del 2026-09-04) — Deducido del default de Postgres («EXECUTE a PUBLIC por defecto»), no medido. Medido el 2026-09-04 contra el Postgres local con `has_function_privilege('anon', oid, 'EXECUTE')`: las cuatro dan `false`, y su ACL es `{postgres, authenticated, service_role}` — sin PUBLIC. Las cierra la 0076 por dos vías: el bucle que revocó PUBLIC a todas las funciones que existían ese día, y `alter default privileges revoke execute on functions from public`, que hace nacer cerrada toda función que cree `postgres` desde entonces (las cuatro se recrearon después con `create or replace`, que conserva la ACL). Lo vigila además la prueba 250 sobre las 258 `fn_*`, cuyo encabezado registra que producción se comprobó el 2026-08-26. Para volver a confirmarlo en producción, pegar en el SQL Editor: `select proname, has_function_privilege('anon', oid, 'EXECUTE') as anon, has_function_privilege('authenticated', oid, 'EXECUTE') as autenticado from pg_proc where proname in ('fn_set_turno','fn_set_descanso','fn_quitar_turno','fn_set_horario_semanal');` — las cuatro deben dar `anon = false` y `autenticado = true`. No se escribe migración: un `revoke` de algo ya revocado sería una migración que no promete nada.
 
 ---
 
