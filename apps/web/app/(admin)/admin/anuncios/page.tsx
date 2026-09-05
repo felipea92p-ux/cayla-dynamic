@@ -131,6 +131,7 @@ export default function AnunciosPage() {
     <div className="flex min-h-screen flex-col">
       <AdminNav />
       <main className="flex-1 p-6">
+        <div className="mx-auto w-full max-w-5xl">
         <h1 className="mb-1 font-serif text-2xl">Anuncios</h1>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
           Comunicados de Desarrollo Organizacional al equipo — cierre de planilla,
@@ -234,6 +235,7 @@ export default function AnunciosPage() {
               </details>
             )}
           </div>
+        </div>
         </div>
       </main>
     </div>

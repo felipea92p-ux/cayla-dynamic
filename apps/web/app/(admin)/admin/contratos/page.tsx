@@ -1008,7 +1008,13 @@ export default function ContratosPage() {
     return [...m.entries()];
   })();
 
-  const documentoAMostrar = documentoAbierto ?? borrador?.html ?? previewHtml;
+  // "Ver / imprimir" un contrato del historial abre un modal flotante — antes
+  // se pegaba al final de la página entera y había que bajar hasta ahí para
+  // verlo, con el tablero y la lista todavía visibles arriba. El borrador
+  // recién generado y la vista previa mientras se llena el formulario siguen
+  // en línea, debajo del formulario: ahí sí tiene sentido verlos junto con lo
+  // que se está editando.
+  const documentoInline = borrador?.html ?? previewHtml;
 
   // LA FIRMA SE ESTAMPA AL MOSTRAR, NUNCA AL GUARDAR. Lo que la 0272 congela en
   // `documento_html` es el borrador SIN firmar; meterle la imagen convertiría un
@@ -1019,12 +1025,10 @@ export default function ContratosPage() {
   // devuelve únicamente la firma propia, así que no hay forma —ni la debe haber—
   // de estampar la de otra persona.
   const puedeEstampar = esFirmante && Boolean(firmaUrl);
-  const htmlFinal = documentoAMostrar
-    ? documentoAMostrar.replaceAll(
-        MARCADOR_FIRMA_EMPRESA,
-        puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;",
-      )
-    : null;
+  const estampar = (html: string) =>
+    html.replaceAll(MARCADOR_FIRMA_EMPRESA, puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;");
+  const htmlFinal = documentoInline ? estampar(documentoInline) : null;
+  const htmlFinalModal = documentoAbierto ? estampar(documentoAbierto) : null;
 
   return (
     <main className="p-6">
@@ -1756,24 +1760,42 @@ export default function ContratosPage() {
         )}
       </div>
 
-      {/* Al mirar uno del historial, los botones van ARRIBA del documento: es
-          de ocho páginas, y buscarlos al final obliga a recorrerlo entero. */}
-      {documentoAbierto && (
-        <div className="mx-auto mt-6 flex max-w-3xl items-center gap-3 print:hidden">
-          <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={imprimir}>
-            Imprimir / Guardar como PDF
-          </button>
-          <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>
-            Cerrar
-          </button>
-        </div>
-      )}
-
       {htmlFinal && (
         <div
           className="hoja mx-auto mt-6 max-w-3xl rounded-lg border border-sand p-8 text-sm leading-relaxed print:mt-0 print:max-w-none print:rounded-none print:border-0 print:p-0"
           dangerouslySetInnerHTML={{ __html: htmlFinal }}
         />
+      )}
+
+      {/* "Ver / imprimir" un contrato del historial, en un modal flotante y no
+          pegado al final de la página: uno del historial puede tener ocho
+          páginas, y antes había que bajar hasta el fondo —con el tablero y la
+          lista todavía arriba— para verlo. Los botones van ARRIBA del
+          documento y no abajo, por lo mismo: buscarlos al final de ocho
+          páginas obliga a recorrerlas enteras. */}
+      {htmlFinalModal && (
+        <div
+          className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
+          onClick={() => setDocumentoAbierto(null)}
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:rounded-none print:border-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+              <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={imprimir}>
+                Imprimir / Guardar como PDF
+              </button>
+              <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>
+                Cerrar
+              </button>
+            </div>
+            <div
+              className="hoja overflow-y-auto p-8 text-sm leading-relaxed print:overflow-visible print:p-0"
+              dangerouslySetInnerHTML={{ __html: htmlFinalModal }}
+            />
+          </div>
+        </div>
       )}
     </main>
   );
