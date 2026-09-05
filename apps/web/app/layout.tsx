@@ -77,11 +77,19 @@ export default function RootLayout({
             render de React — un parpadeo real, no cosmético, en cada carga. Si
             no hay nada guardado, no toca el atributo y manda `prefers-color-scheme`
             —la regla ya escrita en globals.css—, así que tampoco hace falta
-            preguntarle nada al sistema operativo desde acá. */}
+            preguntarle nada al sistema operativo desde acá.
+
+            `cayla-tema-global` es la CACHÉ de la configuración de
+            /admin/apariencia (ver lib/use-tema.ts) — no es una preferencia
+            personal, por eso se lee solo cuando no hay una elegida a mano.
+            Sin esta línea, quien no tocó nunca el selector vería el tema
+            global recién después de que `useTema` termine de preguntarle a
+            la base — un parpadeo real en cada carga del terminal, que no
+            tiene selector propio para haber guardado nada en `cayla-tema`. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('cayla-tema');if(t==='claro'||t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}",
+              "try{var t=localStorage.getItem('cayla-tema');if(t!=='claro'&&t!=='oscuro')t=localStorage.getItem('cayla-tema-global');if(t==='claro'||t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}",
           }}
         />
         {/* Safari de iPhone no dispara `:active` en toques salvo que el documento

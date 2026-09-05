@@ -15,7 +15,7 @@ import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
   Building2, FileDown, FileText, FileSignature, CalendarCheck, Coins, Scale, GraduationCap, HandCoins,
-  BookText, UserRound, ScrollText, Keyboard, Megaphone,
+  BookText, UserRound, ScrollText, Keyboard, Megaphone, Palette,
   LogOut, Menu, Search, X, type LucideIcon,
 } from "lucide-react";
 import { ROLES_CON_PANEL, ROLES_DO, ROLES_EXPORTAN_ASISTENCIA, puedeOperarEquipo } from "@cayla-dynamic/shared";
@@ -102,6 +102,11 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // decide de verdad dentro de la pantalla; hoy coincide con `SEDE`, pero se
     // nombra aparte para que estrechar el permiso apague también el renglón.
     { href: "/admin/exportar", label: "Exportar CSV", Icon: FileDown, roles: ROLES_EXPORTAN_ASISTENCIA },
+    // El tema global (claro/oscuro) de panel Y terminal — no un color libre,
+    // ver apps/web/app/(admin)/admin/apariencia/page.tsx. Mismo permiso que
+    // el resto de este grupo: es un catálogo del sistema, no un dato de una
+    // persona.
+    { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO },
   ] },
 ];
 
