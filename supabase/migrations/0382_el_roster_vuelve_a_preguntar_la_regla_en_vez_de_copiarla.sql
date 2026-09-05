@@ -122,6 +122,12 @@ declare
   v_def   text;
   v_md5   text;
   v_len   int;
+  -- `to_regclass` y no `'…'::regclass`: el cast LANZA si la vista no existe, y
+  -- lo hace ANTES de que se pueda comprobar nada. Con el cast, la comprobación
+  -- de «no existe» de más abajo era código muerto —nunca podía dispararse— y
+  -- el desenlace era un error crudo de Postgres en vez de la frase que dice
+  -- qué pegar primero.
+  v_vista oid := to_regclass('public.terminal_roster');
 begin
   -- 1 · La función que va a responder la regla. BLOQUEA.
   select md5(p.prosrc), length(p.prosrc) into v_md5, v_len
@@ -146,16 +152,37 @@ begin
              || 'Corre ./scripts/donde-vive.sh fn_persona_marca_en_sede.';
   end if;
 
-  -- 2 · La vista. Sus columnas tienen que ser las CINCO de la 0375. BLOQUEA.
+  -- 1b · Y que `authenticated` PUEDA EJECUTARLA. BLOQUEA.
+  --
+  --      Sin esto, la migración se aplica limpia y su comprobación final
+  --      imprime todo en verde —`delega`, `terminal_puede_leerla`— mientras el
+  --      terminal muere a la mañana siguiente al pintar la lista, con
+  --      «permission denied for function fn_persona_marca_en_sede». O sea una
+  --      sede entera sin poder marcar, con el SQL diciendo que salió bien: el
+  --      desenlace exacto que el encabezado de la 0370 describe como desastre.
+  --      La 0370 otorga ese execute y nada lo revoca, así que es improbable —
+  --      pero era la única suposición de esta migración que nadie comprobaba, y
+  --      cerrarla cuesta una línea.
+  if not has_function_privilege('authenticated',
+                                'public.fn_persona_marca_en_sede(uuid,uuid)', 'execute') then
+    raise exception using
+      message = 'PARA. authenticated no puede EJECUTAR fn_persona_marca_en_sede.',
+      hint    = 'Esta migración hace que el roster dependa de esa función. Sin el execute, '
+             || 'las cuatro Mac mini reciben «permission denied» al pintar su lista y la '
+             || 'sede se queda sin fichar. Repón el grant de la 0370 antes de seguir: '
+             || 'grant execute on function fn_persona_marca_en_sede(uuid,uuid) to authenticated;';
+  end if;
+
+  -- 2 · La vista. Sus columnas tienen que ser las SEIS de la 0381. BLOQUEA.
   --     Se comprueban propiedades y no un md5 de `pg_get_viewdef`: esa función
   --     reformatea según la versión de Postgres, así que un md5 daría falsas
   --     alarmas entre local y producción sin haber cambiado nada.
   select string_agg(attname, ',' order by attnum) into v_cols
     from pg_attribute
-   where attrelid = 'public.terminal_roster'::regclass
+   where attrelid = v_vista
      and attnum > 0 and not attisdropped;
 
-  if v_cols is null then
+  if v_vista is null then
     raise exception using
       message = 'FALTA LA 0381 (o la 0375/0285). La vista terminal_roster no existe.',
       hint    = 'Esta migración la REESCRIBE; no la crea desde cero a propósito, para no '
@@ -183,7 +210,7 @@ begin
   --     de `personas` y pueda devolver el roster al terminal. Si alguien lo
   --     cambió, esta migración lo dejaría igual y hay que saberlo.
   select array_to_string(reloptions, ',') into v_opts
-    from pg_class where oid = 'public.terminal_roster'::regclass;
+    from pg_class where oid = v_vista;
 
   if coalesce(v_opts, '') not like '%security_invoker=false%' then
     raise exception using
@@ -195,7 +222,7 @@ begin
 
   -- 4 · ¿Ya está aplicada? Se detecta por CÓDIGO, no por un comentario: un
   --     comentario se pierde si el cuerpo se pega sin comentarios.
-  v_def := pg_get_viewdef('public.terminal_roster'::regclass, true);
+  v_def := pg_get_viewdef(v_vista, true);
   if position('fn_persona_marca_en_sede' in v_def) > 0 then
     raise notice 'La 0382 ya estaba aplicada (el roster ya delega la regla de sede). '
                  'Se vuelve a aplicar sin daño.';

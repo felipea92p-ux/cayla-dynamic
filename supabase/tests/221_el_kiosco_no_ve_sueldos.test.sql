@@ -71,10 +71,15 @@ select is_empty(
                             'regimen_pension', 'fecha_ingreso', 'fecha_cese') $$,
   'NADA SENSIBLE · la vista no tiene DNI, ni sueldo, ni correo, ni régimen de pensión');
 
+-- SEIS desde la 0381, que le agregó `foto_url`: la grilla del terminal pinta
+-- la foto junto al nombre para no tocar a la persona equivocada por apuro. El
+-- número se actualiza, pero lo que esta aserción defiende no cambia — sigue
+-- siendo «las que hacen falta para pintar la lista y ni una más», y la
+-- aserción de arriba es la que impide que entre nada sensible.
 select ok(
   (select count(*) from information_schema.columns
-    where table_name = 'terminal_roster') = 5,
-  'CINCO COLUMNAS · las que hacen falta para pintar la lista y ni una más');
+    where table_name = 'terminal_roster') = 6,
+  'SEIS COLUMNAS · las que hacen falta para pintar la lista y ni una más');
 
 -- La sexta era `pin_hash`, y se fue con la 0375: el terminal dejó de pedir PIN,
 -- así que descargarle a cada Mac mini el hash de toda su sede era regalar un
