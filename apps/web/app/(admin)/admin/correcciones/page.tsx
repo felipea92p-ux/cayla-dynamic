@@ -112,7 +112,18 @@ function describirCambio(row: Auditoria): { accion: string; detalle: string } {
     const [tipo, ts] = (row.valor_anterior ?? "").split(" @ ");
     return { accion: "Marcaje eliminado", detalle: `${lblTipo(tipo)} de las ${horaTextoLima(ts)}` };
   }
-  return { accion: row.campo_modificado, detalle: `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}` };
+  if (row.campo_modificado === "marca_apartada") {
+    return { accion: "Marca apartada", detalle: "no se pudo registrar sola; quedó pendiente de revisión manual" };
+  }
+  // Filas antiguas de campos que ya no existen, o cuyo valor es un mensaje
+  // técnico (p. ej. un error de Postgres) en vez de un dato de negocio: se
+  // muestra el nombre del campo, nunca el contenido — este historial es para
+  // Cayla, no para depurar.
+  const esTexto = (v: string | null) => !!v && v.length < 80 && !/[{}();]|=>|public\./.test(v);
+  const detalle = esTexto(row.valor_anterior) || esTexto(row.valor_nuevo)
+    ? `${row.valor_anterior ?? ""} → ${row.valor_nuevo ?? ""}`
+    : "ver detalle con soporte técnico";
+  return { accion: row.campo_modificado, detalle };
 }
 
 // Tipos que un admin puede agregar manualmente (los pares salida/retorno y entrada/salida final)
