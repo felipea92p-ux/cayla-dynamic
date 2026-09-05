@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -8,6 +8,10 @@ import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { SelectorTema } from "@/components/selector-tema";
+import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import {
+  BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
+} from "@/lib/foto-perfil";
 import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
@@ -79,10 +83,14 @@ import {
 interface Yo {
   id: string;
   nombre: string;
+  nombres: string;
+  apellidos: string;
   fechaIngreso: string | null;
   /** Para saber si esta persona tiene panel al que volver. Nada más: lo que se
    *  muestra en esta pantalla es igual para todo el mundo. */
   rol: string | null;
+  /** Ruta en el bucket público «fotos-perfil» (0381), o null si nunca subió una. */
+  fotoUrl: string | null;
 }
 
 interface Jornada {
@@ -290,6 +298,39 @@ export default function MioPage() {
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [errorFoto, setErrorFoto] = useState<string | null>(null);
+
+  /**
+   * Sube y enlaza la foto de perfil (0381). Comprime en el navegador antes de
+   * subir —ver `comprimirFotoPerfil`— para que la grilla del terminal, que
+   * pinta 10-30 de estas a la vez, no cargue fotos de varios MB tal como
+   * salen del celular.
+   */
+  async function subirMiFoto(archivo: File) {
+    if (!yo) return;
+    setSubiendoFoto(true);
+    setErrorFoto(null);
+    try {
+      const comprimida = await comprimirFotoPerfil(archivo);
+      const ruta = rutaNuevaFotoPerfil(yo.id);
+      const archivoAEnviar = new File([comprimida], "foto.jpg", { type: "image/jpeg" });
+      const fallo = await subirArchivoConProgreso(supabase, BUCKET_FOTOS_PERFIL, ruta, archivoAEnviar, () => {});
+      if (fallo) { setErrorFoto(`No se pudo subir tu foto: ${fallo}`); return; }
+
+      const { error } = await supabase.rpc("fn_actualizar_foto_perfil", {
+        p_persona_id: yo.id,
+        p_foto_url: ruta,
+      });
+      if (error) { setErrorFoto(`La foto se subió, pero no se pudo enlazar: ${error.message}`); return; }
+
+      setYo((prev) => (prev ? { ...prev, fotoUrl: ruta } : prev));
+    } catch {
+      setErrorFoto("Esta imagen no se pudo procesar. Prueba con otra foto.");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  }
   // Su saldo de vacaciones y hasta cuándo puede tomarlo. Sin plata: en esta
   // pantalla no hay dinero, y la función tampoco devuelve ninguno — por eso se
   // le puede preguntar a cada persona por lo suyo.
@@ -370,7 +411,7 @@ export default function MioPage() {
 
       const { data: p } = await supabase
         .from("personas")
-        .select("id, nombres, apellidos, fecha_ingreso, rol")
+        .select("id, nombres, apellidos, fecha_ingreso, rol, foto_url")
         .eq("auth_user_id", uid)
         .maybeSingle();
 
@@ -381,8 +422,11 @@ export default function MioPage() {
       setYo({
         id: p.id as string,
         nombre: `${p.nombres as string} ${p.apellidos as string}`,
+        nombres: p.nombres as string,
+        apellidos: p.apellidos as string,
         fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
         rol: (p.rol as string | null) ?? null,
+        fotoUrl: (p.foto_url as string | null) ?? null,
       });
     })();
   }, [supabase, sesion]);
@@ -737,7 +781,11 @@ export default function MioPage() {
     <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Colibri tono="rojo" className="w-8" />
+          {yo ? (
+            <FotoDePerfil supabase={supabase} yo={yo} subiendo={subiendoFoto} error={errorFoto} onSubir={subirMiFoto} />
+          ) : (
+            <Colibri tono="rojo" className="w-8" />
+          )}
           <div>
             <h1 className="font-serif text-2xl leading-tight">{yo?.nombre ?? "Lo mío"}</h1>
             <p className="etiqueta text-taupe">Tus días, tus turnos y tus objetivos</p>
@@ -1332,6 +1380,66 @@ export default function MioPage() {
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
     </main>
+  );
+}
+
+/**
+ * La foto que aparece junto a su nombre en el terminal de marcaje (0381). Se
+ * comprime en el navegador antes de subir — ver `comprimirFotoPerfil`.
+ *
+ * El botón de texto va SIEMPRE visible, no solo al pasar el mouse: esta
+ * pantalla la abre cada quien desde su propio celular, donde no hay hover.
+ */
+function FotoDePerfil({
+  supabase, yo, subiendo, error, onSubir,
+}: {
+  supabase: ReturnType<typeof createAdminSupabaseClient>;
+  yo: Yo;
+  subiendo: boolean;
+  error: string | null;
+  onSubir: (archivo: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const url = urlPublicaFotoPerfil(supabase, yo.fotoUrl);
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={subiendo}
+        className="h-14 w-14 overflow-hidden rounded-full border border-sand disabled:opacity-60"
+      >
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- foto de un bucket externo, no un asset local
+          <img src={url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center bg-sand text-lg text-taupe">
+            {inicialesDe(yo.nombres, yo.apellidos)}
+          </span>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={subiendo}
+        className="text-[11px] text-taupe underline disabled:opacity-60"
+      >
+        {subiendo ? "Subiendo…" : "Cambiar foto"}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const archivo = e.target.files?.[0];
+          e.target.value = "";
+          if (archivo) onSubir(archivo);
+        }}
+      />
+      {error && <p className="max-w-[9rem] text-center text-[11px] text-rojo">{error}</p>}
+    </div>
   );
 }
 

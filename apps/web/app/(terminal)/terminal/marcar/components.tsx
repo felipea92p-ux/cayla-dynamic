@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TipoMarca } from "@cayla-dynamic/shared";
+import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import type { RosterEntry } from "@/lib/terminal/offline-db";
+import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
 const TILE = "rounded-xl border border-sand bg-sand/35 transition-colors hover:bg-sand/70 active:scale-95";
@@ -120,12 +122,39 @@ export function NombreGrid({
         <button
           key={persona.id}
           onClick={() => onSeleccionar(persona)}
-          className={`${TILE} px-4 py-6 font-serif text-xl`}
+          className={`${TILE} flex flex-col items-center gap-2 px-4 py-5 font-serif text-xl`}
         >
-          {persona.nombres} {persona.apellidos}
+          <AvatarPersona persona={persona} />
+          <span>
+            {persona.nombres} {persona.apellidos}
+          </span>
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * La foto que cada quien sube desde «Lo mío» (0381), o sus iniciales mientras
+ * no haya subido ninguna — nunca un hueco vacío ni un ícono de imagen rota.
+ * Ayuda a no tocar a la persona equivocada por apuro, sobre todo con nombres
+ * parecidos, pero NO es una prueba de identidad: el terminal sigue marcando
+ * sin PIN, a propósito (decisión de Felipe, jul-2026).
+ */
+function AvatarPersona({ persona }: { persona: RosterEntry }) {
+  // El cliente es un singleton cacheado por storageKey (client.ts): pedirlo
+  // acá no crea una conexión nueva por cada tile de la grilla.
+  const supabase = useMemo(() => createTerminalSupabaseClient(), []);
+  const url = urlPublicaFotoPerfil(supabase, persona.fotoUrl);
+
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element -- foto de un bucket externo, no un asset local
+    return <img src={url} alt="" className="h-14 w-14 rounded-full object-cover" />;
+  }
+  return (
+    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-sand text-lg text-taupe">
+      {inicialesDe(persona.nombres, persona.apellidos)}
+    </span>
   );
 }
 

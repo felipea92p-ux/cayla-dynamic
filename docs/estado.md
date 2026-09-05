@@ -37,6 +37,53 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Foto junto al nombre en el terminal, subida por cada quien desde «Lo mío» (0381) · PEGADA Y VERIFICADA EN PRODUCCIÓN
+
+Salió de la comparación contra BambooHR/Rippling/UKG del 2026-09-03 («Las Tres
+Referencias de CAYLA»,
+[PR #176](https://github.com/felipea92p-ux/cayla-dynamic/pull/176)): «Selector
+por nombre + foto en el terminal» era el ítem 02 del bloque BambooHR, y de esa
+misma comparación solo se había construido el tablón de anuncios (0351). Quedó
+sin hacer hasta hoy, a pedido de Felipe.
+
+**El mecanismo:** cada quien sube su foto desde `/mio` (comprimida a JPEG en
+el propio navegador, 480px de lado mayor, antes de subir), enlazada a
+`personas.foto_url` por una única función guardián
+(`fn_actualizar_foto_perfil`) que exige ser la propia persona o admin/DO. El
+terminal la recibe en `terminal_roster` (misma vista de la 0285/0375, una
+columna más) y la pinta junto al nombre en la grilla; quien no ha subido
+ninguna sigue viendo sus iniciales, nunca un hueco.
+
+**Por qué el bucket `fotos-perfil` es público, a diferencia de `comprobantes`
+o `expedientes`.** El terminal tiene que pintar todas las fotos de su sede sin
+depender de la red — puede pasar días marcando solo con lo que ya tiene en
+IndexedDB — y una URL firmada vence. El dato que protegería esa firma (un
+rostro) ya es visible a simple vista en la propia tienda, sin login, en la
+misma Mac mini: la misma razón por la que `terminal_roster` expone nombre y
+apellido sin sesión individual. Ya había precedente de esta forma en el
+repositorio: el buzón `fotos-productos` (0225, importado de cayla-retail)
+también es público.
+
+Auditada contra Postgres local dentro de `BEGIN … ROLLBACK` (11 aserciones:
+subir, reemplazar, el borde de que nadie sube a la carpeta de otra persona,
+que admin/DO sí puede hacerlo por quien nunca entra a «Lo mío», enlazar,
+quitar la foto, la defensa en profundidad contra una ruta de otro bucket, y
+que el terminal recibe lo enlazado) — prueba 301. Probada además de punta a
+punta en el navegador contra el Postgres local: Ana sube su foto desde `/mio`
+y aparece junto a su nombre en `/terminal/marcar`; Beto, que no subió
+ninguna, sigue mostrando sus iniciales. `npx pnpm typecheck` y `npx pnpm test`
+(468 pruebas) en verde.
+
+**Pegada y verificada en producción el 2026-09-05.** La consulta de
+comprobación del final de la 0381 devolvió las cinco piezas en `true`: la
+columna `personas.foto_url`, el bucket `fotos-perfil` público, las cuatro
+políticas de `storage.objects`, la columna nueva en `terminal_roster` y que
+esa vista sigue sin exponer nada sensible. Falta el commit/push de este
+código de pantalla (la migración ya vive en el repo desde que se escribió;
+lo pegado a mano fue solo el SQL).
+
+---
+
 ## 2026-09-05 — Crítico 7 («El piso legal de grati/CTS no corrige una ventana ya pagada») · CORRIDO EN PRODUCCIÓN — 0 FILAS, LATENTE
 
 Hallazgo de `Auditoria-CAYLA-2026-09-04.pdf` (no vive en el repo), «sobrevivió
