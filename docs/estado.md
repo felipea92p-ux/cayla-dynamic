@@ -37,6 +37,51 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») queda con su consulta de verificación · SIN CORRER TODAVÍA
+
+Era «sin verificar» porque nadie había mirado producción. El código de
+`/api/alertas-encargadas` y la cola con reserva/reintento (0362) ya estaban
+—ver la entrada de la auditoría 0360-0366 más abajo—, así que lo que faltaba
+no era arreglar nada: era mirar si de verdad está saliendo algún correo.
+
+Consulta lista para pegar:
+[`scripts/sql-manual/las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql).
+No llama a `fn_alertas_despacho_resumen()` —esa exige `fn_es_admin_o_lider()`,
+que el SQL Editor no puede satisfacer sin un usuario autenticado— sino que lee
+`alertas` directo con el mismo criterio. `nunca_se_envio_ningun_email = true`
+es la respuesta corta al hallazgo; `motivos_fallo_recientes` trae el texto
+exacto que devolvió Resend si algo falló — la sospecha más probable, dado que
+`RESEND_FROM` cae a `onboarding@resend.dev` si la variable no está puesta en
+Vercel, es un dominio sin verificar en Resend, que solo entrega a la cuenta
+dueña de la API key.
+
+🔴 **Falta correrla en producción.** Probada solo contra el Postgres local
+(vacío de alertas, corre sin error). El resultado real —y si hace falta pegar
+RESEND_FROM/RESEND_API_KEY en Vercel o verificar un dominio en Resend— lo dice
+esa consulta contra producción, no esta nota.
+
+---
+
+## 2026-09-05 — Crítico 12 puede estar construido dos veces sin saberlo
+
+Al revisar el estado de los 12 críticos se encontró que el hallazgo 12
+(«practicante sin tope de horas en Incidencias») **ya está resuelto y
+commiteado** en la rama `claude/audit-12-critical-issues-7da199`
+(`dc64b47`, 2026-09-04: `admin/incidencias/page.tsx` ahora usa
+`maximoSemanalPracticante()` en vez de comparar siempre contra 48h) — esa
+rama no tiene PR abierto todavía. Y, por separado, hay una sesión en la Mac
+con el worktree `dos-tareas-importantes-f65950` con el mismo arreglo hecho y
+**sin commitear**.
+
+No se tocó ninguna de las dos ramas desde acá — es exactamente el escenario
+que `CLAUDE.md` pide comprobar con `git log --all` antes de empezar algo
+("dos sesiones construyeron la misma función el mismo día", 2026-08-25).
+**Antes de abrir un PR para el 12, comprobar si `dc64b47` ya es el arreglo
+bueno y solo hace falta subirlo**, en vez de que la sesión de
+`dos-tareas-importantes-f65950` lo reconstruya por su cuenta.
+
+---
+
 ## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · FUSIONADA A MAIN — FALTA DESPLEGAR Y PEGAR
 
 Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
