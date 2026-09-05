@@ -42,11 +42,15 @@ select is_empty(
       where table_name = 'terminal_roster' and column_name = 'pin_hash' $$,
   'SIN EL HASH · terminal_roster ya no expone pin_hash');
 
+-- SEIS desde la 0383, que adoptó `foto_url` —una columna que existía en
+-- producción sin migración que la creara—. Lo que esta prueba defiende de
+-- verdad sigue arriba y sigue igual: que `pin_hash` NO esté. El conteo es el
+-- guardián secundario, y sube porque la vista ganó una columna legítima.
 select is(
   (select count(*)::int from information_schema.columns
     where table_name = 'terminal_roster'),
-  5,
-  'CINCO COLUMNAS · id, nombres, apellidos y las dos de la sede');
+  6,
+  'SEIS COLUMNAS · id, nombres, apellidos, la foto y las dos de la sede');
 
 -- ── 5-7 · Lo que el drop+create pudo llevarse ───────────────────────────────
 -- Estas tres son el motivo por el que esta prueba existe. Ninguna falla al

@@ -71,10 +71,19 @@ select is_empty(
                             'regimen_pension', 'fecha_ingreso', 'fecha_cese') $$,
   'NADA SENSIBLE · la vista no tiene DNI, ni sueldo, ni correo, ni régimen de pensión');
 
+-- SEIS desde la 0383, que adoptó `foto_url`. El conteo es el guardián
+-- SECUNDARIO: el que de verdad protege es el `is_empty` de arriba, que nombra
+-- las columnas peligrosas una por una y sigue intacto. Subir este número al
+-- adoptar una columna benigna no afloja esa garantía; lo que la aflojaría es
+-- quitar aquél.
+--
+-- Ojo si vuelve a subir: un conteo no distingue una foto de un sueldo. Antes de
+-- cambiarlo, comprueba que la columna nueva esté en la lista de `NADA SENSIBLE`
+-- si lo es, o que de verdad haga falta para pintar la lista si no lo es.
 select ok(
   (select count(*) from information_schema.columns
-    where table_name = 'terminal_roster') = 5,
-  'CINCO COLUMNAS · las que hacen falta para pintar la lista y ni una más');
+    where table_name = 'terminal_roster') = 6,
+  'SEIS COLUMNAS · las que hacen falta para pintar la lista y ni una más');
 
 -- La sexta era `pin_hash`, y se fue con la 0375: el terminal dejó de pedir PIN,
 -- así que descargarle a cada Mac mini el hash de toda su sede era regalar un

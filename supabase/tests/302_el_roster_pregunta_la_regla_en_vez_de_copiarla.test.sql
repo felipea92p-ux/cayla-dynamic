@@ -3,7 +3,7 @@
 -- falla con "function plan(integer) does not exist" — y falla a propósito.
 -- Lo que sí se pega vive en supabase/migrations/.
 -- ============================================================================
--- 302_el_roster_pregunta_la_regla_en_vez_de_copiarla.test.sql — defiende la 0382
+-- 302_el_roster_pregunta_la_regla_en_vez_de_copiarla.test.sql — defiende la 0382 y la 0383
 -- ============================================================================
 --
 -- QUÉ DEFIENDE, Y POR QUÉ NO LO DEFENDÍA YA LA 293
@@ -44,7 +44,7 @@
 -- que falten. Es la firma «Bad plan» que se lee discreta y no lo es.
 -- ============================================================================
 begin;
-select plan(9);
+select plan(10);
 
 -- ── Fixtures ────────────────────────────────────────────────────────────────
 insert into sedes (id, codigo, nombre, activa) values
@@ -122,8 +122,19 @@ select is(
   (select string_agg(attname, ',' order by attnum) from pg_attribute
     where attrelid = 'public.terminal_roster'::regclass
       and attnum > 0 and not attisdropped),
-  'id,nombres,apellidos,sede_codigo,sede_nombre',
-  'COLUMNAS · siguen siendo las cinco de la 0375');
+  'id,nombres,apellidos,foto_url,sede_codigo,sede_nombre',
+  'COLUMNAS · las cinco de la 0375 más la foto que adoptó la 0383');
+
+-- `personas.foto_url` se encontró EN PRODUCCIÓN el 2026-09-05 sin ninguna
+-- migración que la creara, y la 0383 la adoptó para que un `db reset` o una
+-- restauración de respaldo la reproduzcan. Sin esta aserción, quitar ese
+-- `add column` de la 0383 dejaría la prueba en verde en la base compartida
+-- —que ya la tiene, puesta a mano— y roja solo en CI, que es el sitio donde
+-- más caro es diagnosticarlo.
+select ok(
+  exists (select 1 from information_schema.columns
+           where table_name = 'personas' and column_name = 'foto_url'),
+  'COLUMNA · personas.foto_url quedó documentada en el repositorio (0383)');
 
 -- La 0375 existe para que el hash NO viaje al navegador. Que la 0382 reescriba
 -- la vista es exactamente la ocasión de devolverlo sin querer.
