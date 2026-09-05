@@ -37,6 +37,111 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Un convenio de prácticas ya no puede imprimir "[completar]" en el Anexo I
+
+Sale de la auditoría del 2026-09-03/04 (importante 11). Solo pantalla, sin
+migración: `contrato-texto.ts` reemplaza en silencio por `"[completar]"` la
+razón social, el RUC, el domicilio y el representante del centro de formación
+(cuando la modalidad es preprofesional), más el objetivo formativo general y
+los hitos de evaluación del mes 3 y 6 — y ninguno de esos siete campos estaba
+en el arreglo `bloqueos` de `contratos/page.tsx`, a diferencia de
+`causaObjetivaTexto`, que sí bloquea desde el 2026-08-19.
+
+**Arreglo:** siete líneas en `bloqueos`, mismo patrón que las once ya
+existentes. Las cuatro del centro de formación solo aplican con
+`modalidadEfectiva === "preprofesional"` (el convenio profesional es
+bipartito y no las pide — ver el propio formulario). Objetivo formativo e
+hitos aplican a las dos modalidades.
+
+Verificado: `pnpm typecheck` limpio, `eslint` sobre el archivo sin errores
+nuevos (los 4 que salen son deuda vieja de `react-hooks/set-state-in-effect`,
+en otras líneas del mismo archivo, ajenas a este cambio). **No verificado en
+el navegador**: pedía una sesión de admin y una practicante con convenio en
+curso ya cargadas, y no había credenciales a mano en esta sesión — la
+confianza acá viene de que el código nuevo es textualmente el mismo patrón
+que los otros diez bloqueos del mismo arreglo, con las mismas variables de
+estado que el formulario ya lee más abajo.
+
+---
+
+## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») CERRADO — el correo sí llega, y el backlog de julio queda anotado (0377) · PEGADA Y VERIFICADA
+
+Cierra lo que la rama `claude/12-criticos-estado-c33e88` había dejado como
+"falta correr en producción" (ver la entrada del 2026-09-05 de esa rama, más
+arriba en este archivo).
+
+**Se corrió [`las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql)
+en producción.** Resultado: `nunca_se_envio_ningun_email = false` — pero la
+fórmula solo se activa si hay al menos una fila `canal='email'`, y había
+cero (`filas_canal_email = 0`): el sistema nuevo de vencimientos
+(contrato/vacaciones por vencer, 0356/0357) todavía no tuvo ningún caso real
+que avisar — 20 de los 21 contratos vencen recién en diciembre —, no que esté
+roto.
+
+**Se midió el canal que sí tiene tráfico real: `auto_cierre` (dispatch
+desde la 0354, que ignora `canal` a propósito y manda por correo cualquier
+`pendiente`).** En los últimos 14 días: **12 enviados con éxito**, el más
+reciente el mismo 2026-09-05. **El correo funciona.** El crítico 10, tal como
+lo temía la auditoría —"nadie recibe nada, en silencio"— no se confirma.
+
+**Lo que sí apareció: 75 alertas de `auto_cierre` en `pendiente` desde el
+2026-06-28, con `intentos = 0` — el despacho nunca las tocó.** No es un bug:
+es la deuda que la propia 0354 dejó escrita a propósito en su encabezado —
+"si esta función devolviera TODAS [las pendientes acumuladas], el primer
+despacho mandaría un correo por cada auto-cierre de los últimos meses... Si
+de verdad importa saldarlas, es una decisión aparte". `fn_alerta_despachable`
+(0362) exige `created_at` de los últimos 7 días, así que estas 75 nunca
+vuelven a ser candidatas — quedaron congeladas desde que se prendió el
+despacho el 2026-09-03.
+
+**Arreglo (0377):** anota un `nota_fallo` explicativo en esas 75 filas, sin
+tocar `estado`. **A propósito no se marcan `'fallido'`** —que es lo que
+sugería, sin saberlo, el propio comentario de la 0354—: `fn_alertas_despacho_resumen`
+(0362) cuenta como `fallidas_definitivas` cualquier fila `fallido`/`procesando`
+con `intentos >= 3`, **sin filtro de fecha**. Marcarlas así habría encendido
+en la Bandeja de DO una alarma de "75 fallidas" el mismo día — el mismo falso
+positivo permanente que la 0362 ya nombra en su encabezado como "el peor
+error de esta casa". Dejarlas `pendiente` las mantiene exactamente tan
+invisibles para la Bandeja como hoy (no caen en ninguna de las cuatro
+categorías que devuelve esa función), con el porqué ya escrito en la fila
+para quien las vuelva a encontrar.
+
+✅ **Aplicada y verificada en producción el 2026-09-05**, con las dos
+comprobaciones en verde: `filas_anotadas = 75`, `bandeja_fallidas_no_debe_subir = 0`.
+Probada antes en local dentro de `BEGIN … ROLLBACK` (0 filas, esperable — la
+base local no tiene el historial real).
+
+⚠️ **Quedó aplicada en producción antes de commitear el archivo** — la
+urgencia de cerrar el diagnóstico en vivo llevó a pasar el SQL directo en el
+chat, igual que la 0367 (arriba). Commiteada apenas se detectó, siguiendo la
+misma regla.
+
+---
+
+## 2026-09-05 — Contratos: la fecha de fin ya no admite ser anterior a la de inicio
+
+Sale de la auditoría del 2026-09-03/04 (importante 40). Elegir un fin anterior
+al inicio —fácil, son dos inputs de fecha adyacentes— dejaba "Generar borrador"
+habilitado igual, y el error del servidor no decía cuál de las dos fechas
+estaba mal.
+
+**Arreglo, en dos capas** (la misma idea que ya usa el resto de la pantalla:
+el `min`/`max` del input es una ayuda del navegador, no el candado real):
+`min={fechaInicio}` en el `<input type="date">` de fecha de fin, y una entrada
+en `bloqueos` (`fechaFin < fechaInicio`, comparación de string ISO) para el
+caso en que la fecha de fin ya estaba cargada ANTES de mover la de inicio —el
+`min` del input no la borra sola.
+
+Verificado: `pnpm typecheck` limpio, `eslint` sobre el archivo con los mismos
+4 errores preexistentes de antes del cambio (deuda vieja de
+`react-hooks/set-state-in-effect`, líneas 429/448/460/517 — lejos de esta
+edición) y ninguno nuevo. **No verificado en el navegador**: pedía una sesión
+de admin y una persona cargada, y sembrar esos datos en el Postgres local
+—compartido por todos los worktrees— no pareció justificado para una
+comparación de dos strings de fecha.
+
+---
+
 ## 2026-09-05 — El PIN del terminal se retira (0375, [PR #188](https://github.com/felipea92p-ux/cayla-dynamic/pull/188)) · FUSIONADA A MAIN — FALTA DESPLEGAR Y PEGAR
 
 Sale de la auditoría del 2026-09-03/04 (crítico 1 — el hash de PIN de toda la
@@ -5762,20 +5867,15 @@ al tope.
    Cualquier migración que hubiera copiado del repositorio los habría borrado en
    silencio — lo mismo que la 0180 tuvo que reponer el mismo día.
 
-   ⚠️ **EL INTERRUPTOR DE BENEFICIOS POR PERSONA NO ESTÁ CONECTADO.** Medido en
-   producción, no deducido: `funciones_que_lo_leen: 0`.
-   `fn_devenga_beneficios(p_tipo)` tiene como cuerpo entero
-   `select p_tipo = 'planilla'` — mira el **tipo de vínculo**, no la columna — y
-   sus cuatro consumidores la llaman con el tipo. La pantalla de Equipo dice que
-   el interruptor funciona y **no hace nada**. Quien lo haya apagado para alguien
-   verá a esa persona seguir acumulando CTS, gratificación y vacaciones.
-   Compruébalo con
-   [`quien_uso_el_interruptor.sql`](../scripts/sql-manual/quien_uso_el_interruptor.sql).
-
-   **Conectarlo es decisión de Felipe: es dinero.** Y antes hay un problema de
-   forma: `devenga_beneficios` es **un solo booleano** para los tres beneficios a
-   la vez, y la decisión sobre Carlos Espejo —«grati y CTS sí, vacaciones no»— no
-   cabe ahí. O se parte en tres banderas, o va por otro camino.
+   ~~⚠️ **EL INTERRUPTOR DE BENEFICIOS POR PERSONA NO ESTÁ CONECTADO.**~~ ✅
+   **CERRADO por la [`0196`](../supabase/migrations/0196_tres_puertas_en_vez_de_una_para_los_beneficios.sql)**,
+   el mismo día en que se midió arriba. Partió el booleano único en tres
+   banderas (`fn_persona_devenga_beneficio(persona_id, tipo_beneficio)` con
+   respaldo a `fn_devenga_beneficios(tipo_vinculo)` cuando no hay excepción
+   cargada) — resolviendo también el problema de forma que este párrafo
+   señalaba. Reconfirmado por la auditoría adversarial del 2026-09-04: los
+   cinco consumidores reales (provisiones, planilla, las tres truncas de
+   liquidación) ya leen la excepción por persona.
 
 5. **Seguridad pendiente** (de `revision-2026-07-15/`):
    - Contraseña mínima 6 sin complejidad, sin cambio forzado en primer login —
