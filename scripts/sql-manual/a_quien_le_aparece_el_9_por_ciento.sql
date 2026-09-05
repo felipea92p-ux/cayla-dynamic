@@ -25,6 +25,17 @@
 --   ESTIMACIÓN para dimensionar: la pantalla calcula el 9% sobre lo DEVENGADO
 --   del semestre, no sobre lo que se registró, así que las dos cifras coinciden
 --   cuando la gratificación se pagó completa y difieren cuando fue parcial.
+--
+-- POR QUÉ SOLO A QUIEN SIGUE ACTIVO Y DEVENGA ALGO
+--   `fn_provisiones` solo calcula para `p.estado = 'activo' and
+--   fn_devenga_algo(p.id)` — quien cesó, o a quien la ley no le da derecho a
+--   beneficios (un RxH, por ejemplo), no aparece en /admin/provisiones sin
+--   importar qué diga su historial de movimientos. Sin este mismo filtro acá,
+--   esta consulta podía señalar a alguien que ya cesó o que nunca tuvo
+--   derecho al 9%, y la pantalla real jamás se lo iba a pedir — ruido que le
+--   hace perder tiempo a quien revisa la lista antes de pegar. Que a alguien
+--   así cesado se le siga debiendo el 9%, si corresponde, se resuelve en su
+--   liquidación (`fn_grati_trunca_bruta`), no acá.
 -- ============================================================================
 
 with grati_suelta as (
@@ -49,6 +60,10 @@ with grati_suelta as (
   join personas p           on p.id  = m.persona_id
   join sedes s              on s.id  = p.sede_base_id
   where m.categoria = 'gratificacion'
+    -- Mismo filtro que fn_provisiones: quien cesó o no devenga nada no
+    -- aparece en la pantalla, así que tampoco debe aparecer acá.
+    and p.estado = 'activo'
+    and fn_devenga_algo(p.id)
     -- Solo lo registrado desde que existe la opción separada (0346).
     and (m.created_at at time zone 'America/Lima')::date >= date '2026-09-03'
     -- Y solo si NO hay un movimiento del 9% en el mismo periodo.
@@ -67,14 +82,32 @@ where ventana is not null      -- descarta periodos que no cubren una fecha de p
 order by sede, persona;
 
 -- ── Y el resumen de una línea, para saber si hay que mirar o no ────────────
-select count(*)                        as personas_con_9pct_sin_registrar,
-       coalesce(sum(round(monto * 0.09, 2)), 0) as soles_estimados
-from movimientos_planilla m
-where m.categoria = 'gratificacion'
-  and (m.created_at at time zone 'America/Lima')::date >= date '2026-09-03'
-  and not exists (
-    select 1 from movimientos_planilla b
-    where b.persona_id = m.persona_id
-      and b.periodo_id = m.periodo_id
-      and b.categoria  = 'bonificacion_extraordinaria'
-  );
+-- Reutiliza la MISMA definición de arriba (misma condición, mismo filtro de
+-- ventana) para que este número nunca pueda discrepar de la lista de detalle.
+with grati_suelta as (
+  select
+    m.monto,
+    case
+      when make_date(extract(year from pp.fecha_fin)::int, 7, 15)
+             between pp.fecha_ini and pp.fecha_fin then 'julio (ene-jun)'
+      when make_date(extract(year from pp.fecha_fin)::int, 12, 15)
+             between pp.fecha_ini and pp.fecha_fin then 'diciembre (jul-dic)'
+    end as ventana
+  from movimientos_planilla m
+  join periodos_planilla pp on pp.id = m.periodo_id
+  join personas p           on p.id  = m.persona_id
+  where m.categoria = 'gratificacion'
+    and p.estado = 'activo'
+    and fn_devenga_algo(p.id)
+    and (m.created_at at time zone 'America/Lima')::date >= date '2026-09-03'
+    and not exists (
+      select 1 from movimientos_planilla b
+      where b.persona_id = m.persona_id
+        and b.periodo_id = m.periodo_id
+        and b.categoria  = 'bonificacion_extraordinaria'
+    )
+)
+select count(*)                                  as personas_con_9pct_sin_registrar,
+       coalesce(sum(round(monto * 0.09, 2)), 0)   as soles_estimados
+from grati_suelta
+where ventana is not null;
