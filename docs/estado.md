@@ -37,6 +37,40 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-04 — `que-falta-pegar.sh` acusaba en falso a `fn_planilla_calcular` de estar atrasada · PR #190 FUSIONADO
+
+Al pedir las migraciones 0358 y 0359 para pegar, la consulta de qué falta pegar
+las marcó "FALTA PEGAR" — pero el cuerpo real de `fn_alertas_email_pendientes`
+en producción ya era el de la 0362 (confirmado con `pg_get_functiondef` corrido
+en vivo contra producción), varias versiones más adelante. El registro
+(`migraciones_aplicadas`) tenía un hueco, no el código: se cerró con un
+`insert` puntual para 358 y 359 —y luego para la 353, mismo caso—, sin tocar
+ninguna función ni tabla.
+
+Al volver a correr `que-falta-pegar.sh` completo apareció algo más serio: la
+fila PLANILLA decía que `fn_planilla_calcular` "se quedó en la 0339 — falta
+pegar lo posterior". Era un falso positivo del propio generador, no un atraso
+real: desde que la 0339 partió la función en núcleo + envoltorio, el
+envoltorio no volvió a cambiar de texto, así que su md5 en la 0339 y en la
+0349 (la última que la redefine) es idéntico. El script emitía dos `WHEN` con
+ese mismo md5 —uno mal etiquetado antes que el correcto—, y un `CASE` de SQL
+se queda con el primero que coincide. Producción nunca estuvo atrasada.
+
+**Arreglado en `scripts/que-falta-pegar.sh`:** el `WHEN` del md5 vigente se
+imprime siempre primero, sin importar cuántas migraciones viejas compartan el
+mismo texto.
+
+**De paso, se investigó y documentó el hueco de numeración de la 0352**
+(`scripts/hooks/huecos-conocidos.txt`): dos sesiones construyeron el mismo día
+la misma idea —el aviso de auto-cierre por correo—, una como 0352 y otra como
+0354; al fusionar (commit `7809713`) se descartó la 0352 a propósito porque la
+0354 resuelve lo mismo sin tocar `fn_auto_cierre`. Nunca se aplicó en
+producción.
+
+[PR #190](https://github.com/felipea92p-ux/cayla-dynamic/pull/190), fusionado por Felipe el 2026-09-04.
+
+---
+
 ## 2026-09-04 — `fn_registrar_marcaje` quedó con dos sobrecargas en producción (0367) · PEGADA Y VERIFICADA
 
 Felipe reportó en vivo que el terminal (marcando `retorno_almuerzo` y
