@@ -40,9 +40,7 @@ cd "${RAIZ:-$(dirname "$0")/..}"
 SALIDA="scripts/sql-manual/que_falta_pegar.sql"
 TMP="$(mktemp)"
 TMPC="$(mktemp)"
-TMPSANO="$(mktemp)"
-TMPROTO="$(mktemp)"
-trap 'rm -f "$TMP" "$TMPC" "$TMPSANO" "$TMPROTO"' EXIT
+trap 'rm -f "$TMP" "$TMPC"' EXIT
 
 # Desde la 0150 hacia adelante. Antes de esa no hay nada pendiente de pegar y
 # listar 150 filas de historia solo esconde las que importan.
@@ -134,11 +132,31 @@ catalogo_planilla() {
   ULTIMO=$(echo "$ARCHIVOS" | tail -1)
   NUM_ULTIMO=$(basename "$ULTIMO" | sed -E 's/^([0-9]+)_.*/\1/')
 
-  : > "$TMPSANO"
-  : > "$TMPROTO"
+  # El WHEN del md5 vigente se imprime PRIMERO, antes que ningún otro — no en su
+  # lugar cronológico. La 0339 partió la función en núcleo + envoltorio, y desde
+  # entonces el envoltorio no volvió a cambiar textualmente: su cuerpo en la 0339
+  # y en la última migración que lo redefine son el mismo md5. Un CASE de SQL
+  # resuelve por el PRIMER WHEN que coincide, así que si la etiqueta vieja
+  # («se quedó en la 0339») fuera antes, escondería para siempre a la correcta
+  # («al día») detrás de una alarma falsa — pasó el 2026-09-04 y dijo que
+  # producción llevaba diez migraciones de atraso en la función que paga a todos,
+  # cuando en realidad estaba al día. Iterar del final hacia el principio no
+  # alcanza: cualquier duplicado más viejo entre medias tendría el mismo problema.
+  # Imprimir el vigente antes que cualquier otro es la única forma de que un
+  # empate se resuelva siempre a favor de la verdad.
+  awk "$CUERPO_AWK" "$ULTIMO" > "$TMPC"
+  if tr -d '[:space:]' < "$TMPC" | grep -q .; then
+    SANO_ULTIMO=$(md5de < "$TMPC")
+    echo "             when '$SANO_ULTIMO' then '$NUM_ULTIMO — al día con el repositorio'"
+    ROTO_ULTIMO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
+    if [ -n "$ROTO_ULTIMO" ] && [ "$ROTO_ULTIMO" != "$SANO_ULTIMO" ]; then
+      echo "             when '$ROTO_ULTIMO' then '✗ $NUM_ULTIMO CON LOS ACENTOS ROTOS — vuelve a pegarla'"
+    fi
+  fi
 
   echo "$ARCHIVOS" | while read -r f; do
     [ -z "$f" ] && continue
+    [ "$f" = "$ULTIMO" ] && continue
     NUM=$(basename "$f" | sed -E 's/^([0-9]+)_.*/\1/')
     # A un archivo y no a una variable: `$(...)` se come los saltos de línea
     # finales, y varias versiones de esta función terminan con líneas en blanco
@@ -150,53 +168,15 @@ catalogo_planilla() {
     # de una cadena vacía como si fuera una versión sería peor que no tenerlo.
     tr -d '[:space:]' < "$TMPC" | grep -q . || continue
     SANO=$(md5de < "$TMPC")
-    printf '%s\t%s\n' "$NUM" "$SANO" >> "$TMPSANO"
+    echo "             when '$SANO' then '⚠ se quedó en la $NUM — falta pegar lo posterior'"
     # La variante con los acentos rotos. Si este sistema no tiene la tabla MAC en
     # su iconv, se omite: el catálogo pierde precisión pero nunca miente, y el
     # barrido del signo «√» de más abajo sigue cazando el caso igual.
     ROTO=$(iconv -f MAC -t UTF-8 < "$TMPC" 2>/dev/null | md5de)
     if [ -n "$ROTO" ] && [ "$ROTO" != "$SANO" ]; then
-      printf '%s\t%s\n' "$NUM" "$ROTO" >> "$TMPROTO"
+      echo "             when '$ROTO' then '✗ $NUM CON LOS ACENTOS ROTOS — vuelve a pegarla'"
     fi
   done
-
-  # Un mismo hash puede salir de MÁS DE UNA migración: el envoltorio de
-  # fn_planilla_calcular no siempre cambia aunque el archivo lo vuelva a
-  # declarar (0339 y 0349 quedaron byte a byte idénticos). Un `case` de SQL
-  # para en la PRIMERA rama que coincide, así que dos `when` con el mismo
-  # valor dejaban muerta la segunda: si la última migración compartía hash con
-  # una anterior, el mensaje se congelaba en la más vieja diciendo «falta
-  # pegar lo posterior» cuando en realidad ya estaba al día. Medido el
-  # 2026-09-04: exactamente eso pasó entre la 0339 y la 0349, y el aviso hizo
-  # sonar una alarma sobre un `fn_registrar_marcaje` en producción que en ese
-  # momento sí tenía un problema real, distinto y sin relación — la clase de
-  # ruido que enseña a no mirar el aviso correcto cuando aparece.
-  #
-  # La corrección: agrupar por hash y quedarse con el NUM más alto que lo
-  # produjo antes de escribir el `when`. Así solo hay UNA rama por valor, y
-  # esa rama dice "al día" si el hash es el mismo que el de la ÚLTIMA
-  # migración — sin importar cuál la escribió primero.
-  # `maxnum[h] = $1` (no aritmética) para no perder el cero a la izquierda del
-  # número de migración; `$1+0` solo se usa para DECIDIR cuál es mayor.
-  awk -F'\t' '
-    { h = $2; if (!(h in maxnum) || ($1+0) > (maxnum[h]+0)) maxnum[h] = $1 }
-    END { for (h in maxnum) print maxnum[h] "\t" h }
-  ' "$TMPSANO" | sort -n | while IFS="$(printf '\t')" read -r n h; do
-    if [ "$n" = "$NUM_ULTIMO" ]; then
-      echo "             when '$h' then '$n — al día con el repositorio'"
-    else
-      echo "             when '$h' then '⚠ se quedó en la $n — falta pegar lo posterior'"
-    fi
-  done
-
-  if [ -s "$TMPROTO" ]; then
-    awk -F'\t' '
-      { h = $2; if (!(h in maxnum) || ($1+0) > (maxnum[h]+0)) maxnum[h] = $1 }
-      END { for (h in maxnum) print maxnum[h] "\t" h }
-    ' "$TMPROTO" | sort -n | while IFS="$(printf '\t')" read -r n h; do
-      echo "             when '$h' then '✗ $n CON LOS ACENTOS ROTOS — vuelve a pegarla'"
-    done
-  fi
 }
 
 {
