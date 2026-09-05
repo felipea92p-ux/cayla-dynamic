@@ -10,8 +10,12 @@ Prioridad: 🔴 afecta hoy · 🟡 valioso pronto · 🟢 cuando haya tiempo.
 
 ## 🔴 Críticos
 
-- [ ] **El PIN del terminal es cosmético: el servidor nunca lo verifica.**
-  `apps/web/lib/terminal/pin.ts:3-5` hace `bcrypt.compare` en el NAVEGADOR
+- [x] **El PIN del terminal es cosmético: el servidor nunca lo verifica.**
+  ✅ **OBSOLETO desde la 0375 (2026-09-05): el PIN del terminal se retiró por
+  completo** —mejor que el arreglo que este hallazgo pedía—, y
+  `apps/web/lib/terminal/pin.ts` ya no existe. Se deja el hallazgo original
+  sin editar, como registro de por qué se decidió así.
+  `apps/web/lib/terminal/pin.ts:3-5` hacía `bcrypt.compare` en el NAVEGADOR
   contra el `pin_hash` que `apps/web/lib/terminal/roster.ts:13` descarga junto
   con todo el roster de la sede (y queda cacheado en IndexedDB vía
   `apps/web/lib/terminal/offline-db.ts:33`, store `roster`). El único camino
@@ -41,8 +45,13 @@ Prioridad: 🔴 afecta hoy · 🟡 valioso pronto · 🟢 cuando haya tiempo.
   Arreglo: agregar `and exists (select 1 from personas where id = p_persona_id
   and sede_base_id = v_sede_id)` en la rama `terminal`.
 
-- [ ] **El PIN se apaga solo (fail-open) si falla el refresh de info del
-  terminal.** `apps/web/app/(terminal)/terminal/marcar/page.tsx:100-107`:
+- [x] **El PIN se apaga solo (fail-open) si falla el refresh de info del
+  terminal.** ✅ **OBSOLETO desde la 0375: no hay PIN que apagar.** El campo
+  `requierePin` que este hallazgo describe ya no existe en el código —
+  `apps/web/app/(terminal)/terminal/marcar/page.tsx` solo conserva un
+  comentario histórico donde vivía.
+  `apps/web/app/(terminal)/terminal/marcar/page.tsx:100-107` (código ya
+  retirado, cita histórica):
   ```
   const fresca = ...navigator.onLine ? await refrescarInfoTerminal() : null;
   const cache = leerInfoTerminalCacheada();

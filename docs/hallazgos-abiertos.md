@@ -229,7 +229,7 @@ antes que las migraciones que los protegen.
 
 | # | Qué | La prueba de que sigue |
 |---|---|---|
-| **V1** | 🔴 **La trunca de vacaciones cobra dos veces los mismos días** — quien gozó en este récord las vacaciones que ganó en el ANTERIOR se queda en S/0.00. **Tres personas hoy, S/905.38.** Ver su entrada completa abajo | medido en producción el 2026-08-14: Janis 9.2 días en pantalla → 0 al liquidar · Sandra 8.1 → 0 · Melany 6.3 → 0 |
+| ~~**V1**~~ | ✅ **CERRADO el 2026-08-22** por la [0283](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql), que cambió el criterio de conteo (ya no cuenta lo gozado por fecha desde el aniversario; paga todo lo devengado y no gozado, en cualquier récord). Confirmado por la auditoría del 2026-09-04: sigue cerrada 8 migraciones después | ver su entrada completa abajo, dejada como registro histórico |
 | **C12 · A16** | 🟡 `fn_registrar_marcaje` — **medido el 2026-08-10: NO cambia el pago**, el candado de la 0138 aguanta. Lo que hacía era entrar muda; lo sella la 0207 | reproducido con `BEGIN … ROLLBACK`: horas 8.00 antes y 8.00 después |
 | **A16-b** | 🔴 `fn_auto_cierre` sigue sin el candado — es la otra puerta que corre sin nadie delante | la 0207 no la toca a propósito: su arreglo es saltarse la candidata y alertar, no sellar |
 | ~~**A3**~~ | 🟡 el cron de auto-cierre — **medido el 2026-08-10: NO reescribe lo pagado.** Es cierto que no nombra `periodos_planilla`, pero solo escribe en `marcajes` y en `alertas`, nunca en `jornadas` directo: pasa por el mismo trigger que el candado de la 0138 detiene. Misma forma y mismo desenlace que C12·A16 | `insert into` en su cuerpo vigente: `marcajes` y `alertas`, y nada más. Lo que sí hacía —entrar mudo— lo sella la 0207 |
@@ -434,7 +434,16 @@ guardián vigila solo no necesita estar escrito en dos sitios.
 
 ---
 
-## V1 · La trunca de vacaciones cobra dos veces los mismos días
+## ~~V1 · La trunca de vacaciones cobra dos veces los mismos días~~
+
+> ✅ **CERRADO el 2026-08-22** por la
+> [`0283`](../supabase/migrations/0283_las_vacaciones_no_gozadas_se_pagan_al_cesar.sql),
+> ocho migraciones antes de esta nota. Cambió el criterio: ya no cuenta lo
+> gozado por fecha desde el aniversario del récord en curso, sino que paga
+> todo lo devengado y no gozado sin importar en qué récord se tomó. Reconfirmado
+> por la auditoría adversarial del 2026-09-04 (31 agentes) — sigue cerrada.
+> Queda el resto de esta ficha como registro histórico del defecto y de por qué
+> no era un arreglo de una línea.
 
 `liquidacion` · 💰 dinero · arreglo de **días** (necesita un dato que no existe)
 

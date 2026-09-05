@@ -369,7 +369,13 @@ function Bloque({
                 <Desglose
                   d={detalle} diferencias={diferencias} pagada={f.pagada}
                   nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
-                  onPagar={() => onPagar(f.persona_id, f.persona, f.total, f.pagada)}
+                  // `detalle.total` — no `f.total` — porque es el número que la
+                  // persona acaba de leer en el Desglose de abajo, recién
+                  // calculado. `f.total` es el que trajo la lista al montar la
+                  // pantalla, y para "volver a marcar pagada" es literalmente el
+                  // monto histórico congelado: el diálogo prometía "el cálculo de
+                  // HOY" mostrando un número de otra frescura.
+                  onPagar={() => onPagar(f.persona_id, f.persona, n(detalle.total), f.pagada)}
                   onAnular={() => onAnular(f.persona_id, f.persona)}
                 />
               )}

@@ -185,9 +185,16 @@ export async function GET(req: Request) {
       if (a.destinatarios.length === 0) {
         sinDestinatario++;
         sedesSinDestinatario.add(a.sede_codigo);
-        await sb.rpc("fn_marcar_alerta_resultado", {
+        const { error: errorMarcar1 } = await sb.rpc("fn_marcar_alerta_resultado", {
           p_id: a.alerta_id, p_exito: false, p_nota: `intento ${intento}: sin encargada con correo activo en esa sede`,
         });
+        // Si esto falla, la fila queda 'procesando' aunque el correo ya se
+        // decidió (aquí, que no se envió) — Supabase nunca lanza excepción
+        // por un rechazo de PostgREST, solo lo devuelve en `error`. Sin
+        // comprobarlo, la fila se reintenta pasada una hora aunque no haya
+        // nada nuevo que hacer con ella. Se reporta como excepción real, sin
+        // `throw`: un fallo de una alerta no debe abortar el resto del lote.
+        if (errorMarcar1) Sentry.captureException(new Error(`fn_marcar_alerta_resultado falló para ${a.alerta_id}: ${errorMarcar1.message}`));
         continue;
       }
 
@@ -199,9 +206,15 @@ export async function GET(req: Request) {
         fallidas++;
         detalleFallos.push({ alerta_id: a.alerta_id, tipo: a.tipo, intento, error: r.error ?? "sin detalle" });
       }
-      await sb.rpc("fn_marcar_alerta_resultado", {
+      const { error: errorMarcar2 } = await sb.rpc("fn_marcar_alerta_resultado", {
         p_id: a.alerta_id, p_exito: r.ok, p_nota: r.ok ? null : `intento ${intento}: ${r.error ?? "sin detalle"}`,
       });
+      // Mismo riesgo que arriba, más caro aquí: si el correo SÍ salió (r.ok)
+      // pero esta llamada falla por un motivo transitorio, la fila sigue
+      // 'procesando' — el despacho de la hora siguiente la considera de
+      // nuevo y reenvía el correo ya entregado, duplicándolo sin que nada lo
+      // note (el flujo entero seguía devolviendo 200).
+      if (errorMarcar2) Sentry.captureException(new Error(`fn_marcar_alerta_resultado falló para ${a.alerta_id} (envío ${r.ok ? "exitoso" : "fallido"}): ${errorMarcar2.message}`));
     }
 
     // Un fallo de Resend antes quedaba 'fallido' en la tabla y nadie se

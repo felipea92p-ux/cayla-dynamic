@@ -522,17 +522,29 @@ export default function EquipoPage() {
     }
     setGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase
+    // .select('id').maybeSingle() ADEMÁS de mirar `error`: la única policy de
+    // UPDATE sobre personas exige admin/líder DO (0003_rls.sql), y Postgres NO
+    // lanza error cuando una fila no cumple la policy — simplemente actualiza
+    // 0 filas. Sin esto, una encargada de sede veía "Cambios guardados" aunque
+    // RLS hubiera descartado su escritura en silencio.
+    const { data: filaActualizada, error } = await supabase
       .from("personas")
       .update({
         nombres: form.nombres.trim(),
         apellidos: form.apellidos.trim(),
         email: form.email.trim() || null,
       })
-      .eq("id", editandoId);
+      .eq("id", editandoId)
+      .select("id")
+      .maybeSingle();
     if (error) {
       setGuardando(false);
       avisar("error", mensajeDeError(error, "guardar"));
+      return;
+    }
+    if (!filaActualizada) {
+      setGuardando(false);
+      avisar("error", "No se guardó: no tienes permiso para editar esta ficha.");
       return;
     }
     // Sede base: mismo patrón dirty-check que rol, y por la misma razón — un
