@@ -96,17 +96,33 @@ timestamp_marca` para dejarla entrar, y `corregido_at` es el `now()` real de
 cuando corre el test — así que la aserción solo pasaba si CI arrancaba
 DESPUÉS de las 09:00 Lima. Confirmado con el push que fusionó el PR #161 (00:07
 Lima, 2026-09-05): `db-tests` se puso roja en `main` sin que ese PR tocara
-nada de marcaje, y arrastró consigo a cualquier rama nueva —incluido el PR
-[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197), abierto ese
+nada de marcaje, y arrastró consigo a cualquier rama nueva —incluidos los PR
+[#197](https://github.com/felipea92p-ux/cayla-dynamic/pull/197) y
+[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205), abiertos ese
 mismo rato.
 
-Arreglado dejando la ENTRADA en `now() - interval '30 minutes'` y la salida
-que la cierra (puerta 3, más abajo en el mismo archivo) en `now() + interval
-'30 minutes'` — `now()` es la misma marca de tiempo en TODA la transacción de
-la prueba (una sola `begin`), así que la comparación deja de depender de a
-qué hora del día corra el workflow. El resto de horas fijas del archivo
-(Beto, Iris, Gina) no comparan contra `corregido_at`, solo contra fecha y
-estado de `jornadas`: no tenían este problema y se dejaron igual.
+**El mismo defecto lo encontraron y lo arreglaron, el mismo día, cuatro
+sesiones distintas** (PR [#195](https://github.com/felipea92p-ux/cayla-dynamic/pull/195),
+[#202](https://github.com/felipea92p-ux/cayla-dynamic/pull/202),
+[#203](https://github.com/felipea92p-ux/cayla-dynamic/pull/203) y
+[#205](https://github.com/felipea92p-ux/cayla-dynamic/pull/205)) — cada una sin
+ver a las otras. El #203 fijó `corregido_at` a un instante concreto de «hoy»
+(`fn_hoy_lima() + 09:01`); el #205 dejó la ENTRADA en `now() - interval '30
+minutes'`. Las dos por separado son correctas. **Fusionadas juntas —el #203
+primero, el #205 encima, sin conflicto textual porque tocan líneas
+distintas— volvieron a hacer la prueba sensible a la hora real**: pasaba entre
+las 00:00 y las 09:31 Lima y volvía a fallar después de esa hora, porque
+`now() - 30min` termina cruzando las 09:01 fijas. Se cazó a los pocos minutos
+porque el run de `main` en curso (10:22 Lima) iba directo a ese rango. Arreglo
+final: las dos puntas de la comparación quedan FIJAS al mismo «hoy» —entrada a
+las 09:00, `corregido_at` a las 09:01— sin ningún `now()` de por medio. Los
+PR #195 y #202, redundantes, se cerraron sin fusionar.
+
+**La lección, aparte del arreglo:** «GitHub dice CLEAN» solo significa que no
+hay conflicto de texto — dos parches que tocan líneas distintas del mismo
+predicado pueden combinarse en algo roto sin que git proteste. Antes de
+fusionar dos PR que tocan el mismo archivo el mismo día, vale la pena leer el
+resultado combinado, no solo cada diff por separado.
 
 ---
 
