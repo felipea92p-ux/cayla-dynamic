@@ -82,28 +82,49 @@ antes de asumir que sigue en cero.
 
 ---
 
-## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») queda con su consulta de verificación · SIN CORRER TODAVÍA
+## 2026-09-05 — Crítico 10 («Alertas de Resend sin llegar a nadie») · VERIFICADO EN PRODUCCIÓN — SÍ LLEGAN, A GENTE REAL DE TRES SEDES DISTINTAS
 
 Era «sin verificar» porque nadie había mirado producción. El código de
 `/api/alertas-encargadas` y la cola con reserva/reintento (0362) ya estaban
 —ver la entrada de la auditoría 0360-0366 más abajo—, así que lo que faltaba
 no era arreglar nada: era mirar si de verdad está saliendo algún correo.
 
-Consulta lista para pegar:
-[`scripts/sql-manual/las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql).
-No llama a `fn_alertas_despacho_resumen()` —esa exige `fn_es_admin_o_lider()`,
-que el SQL Editor no puede satisfacer sin un usuario autenticado— sino que lee
-`alertas` directo con el mismo criterio. `nunca_se_envio_ningun_email = true`
-es la respuesta corta al hallazgo; `motivos_fallo_recientes` trae el texto
-exacto que devolvió Resend si algo falló — la sospecha más probable, dado que
-`RESEND_FROM` cae a `onboarding@resend.dev` si la variable no está puesta en
-Vercel, es un dominio sin verificar en Resend, que solo entrega a la cuenta
-dueña de la API key.
+**Corrido en producción el 2026-09-05:**
+[`scripts/sql-manual/las_alertas_de_resend_llegan.sql`](../scripts/sql-manual/las_alertas_de_resend_llegan.sql)
+trajo una sorpresa que casi lleva a una falsa alarma: `filas_canal_email = 0`,
+porque los avisos de `auto_cierre` (el 100 % de las 87 filas de hoy) se
+insertan con `canal = 'push'` desde la 0007 —una columna vieja que la ruta
+ignora a propósito— y la consulta filtraba por `canal = 'email'`. **Corregido
+antes de sacar conclusiones**: mirando `estado = 'enviado'` sin filtrar por
+canal, **8 alertas se enviaron con éxito el mismo día**, y el reintento de la
+0362 sí está funcionando: alertas creadas desde el 2026-08-30 que llevaban
+días en `'pendiente'` salieron todas juntas en un lote.
 
-🔴 **Falta correrla en producción.** Probada solo contra el Postgres local
-(vacío de alertas, corre sin error). El resultado real —y si hace falta pegar
-RESEND_FROM/RESEND_API_KEY en Vercel o verificar un dominio en Resend— lo dice
-esa consulta contra producción, no esta nota.
+**La pregunta que faltaba —¿a la casilla de quién?— la resolvió**
+[`scripts/sql-manual/a_quien_le_llegaron_esos_8_correos.sql`](../scripts/sql-manual/a_quien_le_llegaron_esos_8_correos.sql),
+reconstruyendo los destinatarios reales de esas 8 filas con el criterio VIGENTE
+de `fn_alertas_email_pendientes` (0354 + 0359 + 0362): **los correos van a
+personas reales y distintas de TRES sedes** —
+`25.chiara.flores@gmail.com`, `gutierrezdanitza07@gmail.com`,
+`melanyenrriquez29@gmail.com`, `revillaoyolaj@gmail.com` (TRU, las cuatro con
+`es_encargada_piso`), `sandramelisaar@gmail.com` (AQP), y el correo propio de
+Carlos Espejo y Felipe Alvarez para sus propios auto-cierres en CCO. Eso
+**contradice de raíz** la sospecha del hallazgo: si `RESEND_FROM` siguiera en
+el dominio sandbox (`onboarding@resend.dev`), Resend habría rechazado —no
+aceptado— cualquier envío a un destinatario que no fuera el dueño de la
+cuenta. Que acepte seis direcciones reales distintas en tres sedes es la
+prueba end-to-end que pedía la acción de la auditoría, sin necesitar
+`npx vercel env ls` ni el panel de Resend.
+
+**Lo único que destapó esto, y no es el hallazgo 10 sino uno adyacente:**
+para CCO —que no es tienda, no tiene «encargada de piso»— el único
+destinatario de un auto-cierre es la propia persona (0359, «el aviso también
+avisa al propio integrante»). Es el comportamiento correcto y a propósito, no
+un defecto: se anota acá por si alguna vez alguien lee «destinatarios vacíos
+para CCO» en una consulta vieja y lo confunde con una falla.
+
+✅ **No hace falta tocar `RESEND_FROM` ni ningún código.** El crítico 10 queda
+cerrado: el mecanismo de envío funciona y entrega a personas reales.
 
 ---
 
