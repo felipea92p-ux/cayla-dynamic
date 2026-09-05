@@ -49,8 +49,21 @@ interface Ficha { nombre_dni: string | null; fecha_nacimiento: string | null; es
 interface Salario { rango: string; salario_mensual_soles: number; vigente_desde: string; vigente_hasta: string | null }
 interface DocLite { id: string; correlativo: string | null; tipo_causal: string; nivel: string; estado: string; creado_at: string; firmado_at: string | null }
 interface Jornada { fecha: string; entrada_ts: string | null; salida_final_ts: string | null; horas_trabajadas: number | null; minutos_tarde: number | null; minutos_salida_temprana: number | null; horas_extra_detectadas: number | null; estado: string }
+interface VacacionesSaldo { aplica: boolean; dias_pendientes: number; records_sin_gozar: number; records_vencidos: number; vence_el: string | null; dias_para_vencer: number | null }
+interface ContratoPorVencer { persona_id: string; fecha_fin_contrato: string; dias_restantes: number; ya_vencio: boolean }
 
 type Tab = "ficha" | "desempeno";
+
+// Fuera del componente a propósito: no cierra sobre nada de su estado, y
+// declararla adentro la recreaba en cada render (react-hooks/static-components).
+function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
+      <span className="text-taupe">{label}</span>
+      <span className="text-right">{valor ?? "—"}</span>
+    </div>
+  );
+}
 
 export default function PerfilPersonaPage() {
   const params = useParams();
@@ -78,6 +91,8 @@ export default function PerfilPersonaPage() {
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [subiendoFirma, setSubiendoFirma] = useState(false);
+  const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
+  const [contrato, setContrato] = useState<ContratoPorVencer | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -90,7 +105,7 @@ export default function PerfilPersonaPage() {
         .eq("id", id).maybeSingle();
       if (eP || !p) { if (vivo) { setErr("No se encontró a la persona (o no tienes permiso para verla)."); setCargando(false); } return; }
       if (vivo) setPersona(p as Persona);
-      const [{ data: s }, { data: dp }, { data: sal, error: eSal }, { data: dd }] = await Promise.all([
+      const [{ data: s }, { data: dp }, { data: sal, error: eSal }, { data: dd }, { data: vac }, { data: contratos }] = await Promise.all([
         supabase.from("sedes").select("id, codigo"),
         supabase.from("datos_personales")
           .select("nombre_dni, fecha_nacimiento, estado_civil, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_personal_url")
@@ -99,6 +114,13 @@ export default function PerfilPersonaPage() {
         supabase.from("expediente_disciplinario")
           .select("id, correlativo, tipo_causal, nivel, estado, creado_at, firmado_at")
           .eq("persona_id", id).order("creado_at", { ascending: false }),
+        // Mismo saldo que ve la propia persona en "Lo mío" (fn_vacaciones_saldo);
+        // acá se lee en la ficha para no tener que ir a buscarlo aparte.
+        supabase.rpc("fn_vacaciones_saldo", { p_persona_id: id, p_as_of: null }),
+        // Ventana de 90 días, igual que el aviso del Dashboard — si no aparece
+        // acá, es que no tiene un contrato a plazo fijo por vencer pronto, no
+        // que falte el dato.
+        supabase.rpc("fn_contratos_por_vencer", { p_dias: 90 }),
       ]);
       if (eSal) { if (vivo) { setErr("No se pudo cargar el historial de salario."); setCargando(false); } return; }
       const smap = new Map(((s as Array<{ id: string; codigo: string }>) ?? []).map((x) => [x.id, x.codigo]));
@@ -108,6 +130,9 @@ export default function PerfilPersonaPage() {
         const hist = (sal as Salario[]) ?? [];
         setSalario(hist.find((x) => !x.vigente_hasta) ?? hist[0] ?? null);
         setDocs((dd as DocLite[]) ?? []);
+        const v = vac as VacacionesSaldo | null;
+        setVacas(v && v.aplica ? v : null);
+        setContrato(((contratos as ContratoPorVencer[] | null) ?? []).find((c) => c.persona_id === id) ?? null);
         setCargando(false);
       }
     })();
@@ -306,15 +331,6 @@ export default function PerfilPersonaPage() {
   const nombre = persona ? `${persona.nombres} ${persona.apellidos}` : "";
   const iniciales = persona ? `${persona.nombres[0] ?? ""}${persona.apellidos[0] ?? ""}` : "";
 
-  function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
-    return (
-      <div className="flex justify-between gap-3 border-b border-sand/50 py-1.5 text-sm last:border-0">
-        <span className="text-taupe">{label}</span>
-        <span className="text-right">{valor ?? "—"}</span>
-      </div>
-    );
-  }
-
   const TabBtn = ({ valor, children }: { valor: Tab; children: React.ReactNode }) => (
     <button
       onClick={() => setTab(valor)}
@@ -449,6 +465,49 @@ export default function PerfilPersonaPage() {
                       <p className="text-sm text-taupe">Sin salario asignado.</p>
                     )}
                   </section>
+                  )}
+
+                  {/* Vacaciones y contrato — mismos datos que ya avisan en Lo mío
+                      y en el Dashboard (fn_vacaciones_saldo, fn_contratos_por_vencer),
+                      leídos acá para no tener que ir a buscarlos aparte. */}
+                  {(vacas || contrato) && (
+                    <section className="rounded-2xl border border-sand bg-papel p-5">
+                      <h2 className="mb-2 font-serif text-lg">Vacaciones y contrato</h2>
+                      {vacas ? (
+                        <div>
+                          <Dato label="Días pendientes" valor={<strong>{vacas.dias_pendientes} días</strong>} />
+                          {vacas.vence_el && (
+                            <Dato
+                              label="Récord más antiguo vence"
+                              valor={
+                                <span className={(vacas.dias_para_vencer ?? 999) <= 60 ? "font-medium text-ambar" : undefined}>
+                                  {fechaCorta(vacas.vence_el)}
+                                  {typeof vacas.dias_para_vencer === "number" && ` (${vacas.dias_para_vencer >= 0 ? `faltan ${vacas.dias_para_vencer} días` : "vencido"})`}
+                                </span>
+                              }
+                            />
+                          )}
+                          {vacas.records_vencidos > 0 && (
+                            <Dato label="Récords ya vencidos" valor={<span className="text-rojo">{vacas.records_vencidos}</span>} />
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-taupe">Sin días de vacaciones pendientes.</p>
+                      )}
+                      {contrato && (
+                        <div className={vacas ? "mt-3 border-t border-sand/60 pt-3" : ""}>
+                          <Dato
+                            label={contrato.ya_vencio ? "Contrato vencido el" : "Contrato a plazo fijo vence el"}
+                            valor={
+                              <span className={contrato.ya_vencio ? "font-medium text-rojo" : "font-medium text-ambar"}>
+                                {fechaCorta(contrato.fecha_fin_contrato)}
+                                {!contrato.ya_vencio && ` (${contrato.dias_restantes} días)`}
+                              </span>
+                            }
+                          />
+                        </div>
+                      )}
+                    </section>
                   )}
 
                   {/* Disciplina / legajo */}

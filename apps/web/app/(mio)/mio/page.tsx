@@ -120,6 +120,24 @@ interface Revision {
   respuesta: string | null;
 }
 
+/**
+ * Una corrección que alguien le aplicó a uno de sus marcajes. Vive en
+ * `correcciones_auditoria` desde la 0001; `auditoria_select_propia` ya le deja
+ * leer sus propias filas desde la 0003 — nadie lo mostraba, no porque faltara
+ * permiso, sino porque ninguna pantalla lo pedía.
+ */
+interface Correccion {
+  id: string;
+  campo_modificado: string;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  motivo: string;
+  corregido_at: string;
+  // Puede no haber marcaje asociado (ej. un ajuste de contrato): entonces
+  // PostgREST lo embebe como null, no como error.
+  marcajes: { tipo: string; timestamp_marca: string } | null;
+}
+
 /** Una petición suya de vacaciones. La escribe `fn_solicitar_vacaciones`. */
 interface SolicitudVacacion {
   id: string;
@@ -161,6 +179,53 @@ function hora(iso: string | null): string {
   return new Intl.DateTimeFormat("es-PE", {
     timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true,
   }).format(new Date(iso));
+}
+
+/** Fecha y hora de un timestamp, en Lima: «20 ago, 1:15 p. m.». */
+function fechaYHora(iso: string): string {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
+  }).format(new Date(iso));
+}
+
+/** El día de Lima (YYYY-MM-DD) al que pertenece un timestamp — nunca el UTC
+ *  crudo, que puede caer un día antes o después cerca de medianoche. */
+function fechaLimaDeMarca(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date(iso));
+}
+
+// Qué dice `campo_modificado` en `correcciones_auditoria` — vocabulario real,
+// tomado de los `insert` de las migraciones 0009/0010/0081/0084, no inventado.
+// Un campo nuevo que aparezca mañana no rompe nada: cae al fallback de abajo.
+const ETIQUETA_CAMPO: Record<string, string> = {
+  timestamp_marca: "Hora del marcaje",
+  tipo: "Tipo de marcaje",
+  marcaje_agregado: "Marcaje agregado",
+  marcaje_eliminado: "Marcaje eliminado",
+  marcaje_anulado: "Marcaje anulado",
+  marcaje_reactivado: "Marcaje reactivado",
+  auto_cierre_confirmado: "Cierre automático confirmado",
+};
+function etiquetaCampo(campo: string): string {
+  return ETIQUETA_CAMPO[campo] ?? campo.replaceAll("_", " ");
+}
+// Dos formas reales de valor_anterior/valor_nuevo, tomadas de los mismos
+// insert: un timestamp a secas (`timestamp_marca`), o "tipo @ timestamp"
+// (marcaje_agregado/eliminado/anulado). Las dos traen la hora en su offset
+// crudo (+00), no en hora de Lima — reformatear es lo mismo que hace `hora()`
+// para cualquier otro timestamp de esta pantalla, no un caso aparte.
+function valorLegible(campo: string, valor: string | null): string {
+  if (valor === null) return "—";
+  if (campo === "timestamp_marca") {
+    const d = new Date(valor);
+    return Number.isNaN(d.getTime()) ? valor : fechaYHora(valor);
+  }
+  const conMarca = valor.match(/^(.+) @ (.+)$/);
+  if (conMarca) {
+    const d = new Date(conMarca[2]);
+    if (!Number.isNaN(d.getTime())) return `${conMarca[1]} · ${fechaYHora(conMarca[2])}`;
+  }
+  return valor; // "anulada", "revisada", un tipo de marcaje a secas, etc.
 }
 
 /** Hoy más/menos N días, en fecha de Lima. */
@@ -251,6 +316,7 @@ export default function MioPage() {
   const [periodo, setPeriodo] = useState<{ fecha_ini: string; fecha_fin: string } | null>(null);
   const [feriados, setFeriados] = useState<{ fecha: string; nombre: string }[]>([]);
   const [revisiones, setRevisiones] = useState<Map<string, Revision>>(new Map());
+  const [correcciones, setCorrecciones] = useState<Correccion[]>([]);
   // ¿Existe ya la tabla de la 0257? Mientras la migración no esté pegada,
   // PostgREST responde con error y pedir una revisión fallaría con un mensaje
   // que no significa nada para quien lo lee. Sin la tabla, ese trozo no sale.
@@ -332,6 +398,7 @@ export default function MioPage() {
       { data: js }, { data: perd }, { data: hs }, { data: ts },
       { data: fl }, { data: objs }, { data: aus }, { data: tipos },
       { data: per }, { data: fer }, { data: revs, error: errRevs },
+      { data: corrs },
     ] = await Promise.all([
       supabase.from("jornadas")
         .select("fecha, entrada_ts, salida_final_ts, horas_trabajadas, minutos_tarde, estado")
@@ -384,6 +451,15 @@ export default function MioPage() {
       supabase.from("revisiones_pedidas")
         .select("fecha, comentario, atendida_at, respuesta")
         .eq("persona_id", yo.id),         // ← explícito, como todo lo de acá
+      // Igual que revisiones_pedidas: SIN filtro de fechas y con un límite fijo
+      // en vez de uno por rango. Una corrección de hace dos meses sigue siendo
+      // algo que le pasó a su marcaje; recortarla al mes que mira hoy la
+      // esconde justo del único lugar donde puede enterarse de que existió.
+      supabase.from("correcciones_auditoria")
+        .select("id, campo_modificado, valor_anterior, valor_nuevo, motivo, corregido_at, marcajes(tipo, timestamp_marca)")
+        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
+        .order("corregido_at", { ascending: false })
+        .limit(20),
     ]);
 
     setJornadas((js as Jornada[]) ?? []);
@@ -405,6 +481,7 @@ export default function MioPage() {
     // revisión y todo lo demás sigue igual. Se degrada, no se cae.
     setRevisiones(new Map(((revs as Revision[] | null) ?? []).map((r) => [r.fecha, r])));
     setPuedePedirRevision(!errRevs);
+    setCorrecciones((corrs as unknown as Correccion[] | null) ?? []);
     setCargando(false);
   }, [supabase, yo, desde, hasta]);
 
@@ -768,6 +845,34 @@ export default function MioPage() {
             </div>
           )}
           <p className="text-taupe">Avísale a tu encargada. Un marcaje se arregla; al final del mes ya no.</p>
+        </section>
+      )}
+
+      {/* ── Correcciones a sus marcajes ──────────────────────────────────────
+          Ya se puede leer desde la 0003 (auditoria_select_propia); nadie lo
+          mostraba. Sin esto, alguien corrige un marcaje suyo y ella no tiene
+          cómo enterarse de qué cambió ni por qué — se entera si pregunta. */}
+      {correcciones.length > 0 && (
+        <section className="mb-6 rounded-2xl border border-sand p-5 text-sm">
+          <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
+          <p className="mb-3 text-taupe">
+            Cuando alguien corrige uno de tus marcajes queda anotado acá, con el motivo.
+          </p>
+          <ul className="space-y-3">
+            {correcciones.map((c) => (
+              <li key={c.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                  <span className="font-medium">{etiquetaCampo(c.campo_modificado)}</span>
+                  <span className="text-xs text-taupe">{fechaYHora(c.corregido_at)}</span>
+                </div>
+                <p className="text-taupe">
+                  {valorLegible(c.campo_modificado, c.valor_anterior)} → {valorLegible(c.campo_modificado, c.valor_nuevo)}
+                  {c.marcajes && <> · marcaje del {diaYMes(fechaLimaDeMarca(c.marcajes.timestamp_marca))}</>}
+                </p>
+                <p className="mt-0.5 italic">«{c.motivo}»</p>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

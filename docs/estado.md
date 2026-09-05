@@ -37,6 +37,47 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-03 — El 9% de la Ley 30334 sale aparte al pagar la gratificación real (0346) · PEGADA Y VERIFICADA
+
+Lo pidió el contador de CAYLA: que el 9% no viaje mezclado a mano dentro del
+monto de «Gratificación» al cerrar julio o diciembre.
+
+La provisión mensual (0134), la reserva de Costos y la liquidación por cese
+(`fn_grati_trunca_bruta`) ya lo separaban desde antes. El único hueco era el
+pago real del ciclo normal: `fn_grati_cts_periodo` —la que autocompleta el
+monto al elegir «Gratificación» en Planilla— nunca calculaba el 9%, y el
+desplegable no tenía la opción. Quien quisiera pagarlo tenía que sumarlo a
+mano dentro del mismo monto de «Gratificación», sin que quedara registrado
+como su propio concepto.
+
+Ahora «Bonificación 9% (Ley 30334)» es una opción propia en el desplegable
+de Planilla, calculada como 9% de la MISMA gratificación de ese semestre (la
+tasa versionada de siempre, `parametros_laborales.bonificacion_extraordinaria`),
+y se registra como un movimiento aparte. Tocó tres puertas, no solo el
+cálculo: la lista blanca de `movimientos_categoria_valida` y las dos listas
+hardcodeadas de `fn_agregar_movimiento` (la validación general y el candado
+de una vez por periodo) — sin las tres, la opción nueva reventaba con
+«Categoría inválida.» al primer intento de guardar. Confirmado que
+`fn_remuneracion_computable` (la base de la liquidación por cese) sigue
+excluyendo la categoría nueva sin tocar su cuerpo: su lista blanca es
+`categoria is null or categoria = 'otros'`, así que cualquier categoría
+nueva queda fuera por default. La prueba 215 (aserción 11) es el centinela
+que lo fuerza a decidirse a propósito; quedó actualizada en este mismo commit.
+
+Auditado local (`supabase db reset` + 1938 pruebas en verde, más una prueba
+a mano con BEGIN/ROLLBACK: para una gratificación de S/25.00 el sistema
+propuso S/2.25, exacto) y **confirmado byte por byte contra producción** el
+mismo día: md5 de `fn_grati_cts_periodo` = `029c534ff79b6e60d7a5a760be659053`
+y de `fn_agregar_movimiento` = `d3859d7e928aca004dda8b1c032d4899`, idénticos
+entre esta Mac y producción tras pegar la 0346.
+
+**Solo hacia adelante, y es la decisión de Felipe, no solo el alcance de la
+migración.** No reclasifica movimientos ya pagados: si julio 2026 ya se pagó
+con el 9% sumado a mano dentro de «Gratificación», esa fila sigue tal cual.
+**Decidido con Felipe el 2026-09-03: no se corrige lo ya pagado — lo que le
+importa es que quede separado de acá en adelante.** No hace falta revisar
+julio 2026 ni ninguna migración retroactiva.
+
 ## 2026-09-03 — Un adelanto de beneficio se calculaba dos veces al cesar (0343) · PEGADA Y VERIFICADA
 
 Encontrado reconciliando a mano la liquidación de Paola Cahuana (cese

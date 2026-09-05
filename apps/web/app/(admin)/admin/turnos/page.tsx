@@ -12,6 +12,7 @@ import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { useToast } from "@/components/toast";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
+import { cicloVigente, type DiaTrabajado } from "@/lib/admin/ciclo-sobretiempo";
 
 // ── Fechas (todo en ISO yyyy-mm-dd, semana de lunes a domingo) ──────────────
 function parseISO(iso: string): Date {
@@ -224,6 +225,101 @@ function horarioSemanalDesdeTramo(tr: Horario | null): Record<string, { e: strin
   }
   return out;
 }
+// A partir de acá se avisa. 48 es el tope legal del ciclo (no de la semana
+// calendario); avisar recién al llegar sería llegar tarde para reorganizar el
+// turno — el sentido de esto es avisar ANTES, no contar el exceso ya pagado.
+const UMBRAL_AVISO_SOBRETIEMPO = 40;
+
+// Quién está cerca (o ya pasó) el tope de 48h de SU ciclo de 7 días vigente
+// hoy — el mismo ciclo que calcula fn_planilla_calcular_nucleo, portado a
+// TypeScript en ciclo-sobretiempo.ts para poder avisar antes de que la
+// planilla lo cuente. Solo lee `jornadas`; no decide ni adelanta cuánto se
+// va a pagar, eso lo sigue diciendo la planilla.
+function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
+  const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const [filas, setFilas] = useState<{ personaId: string; nombre: string; ciclo: NonNullable<ReturnType<typeof cicloVigente>> }[] | null>(null);
+  const [error, setError] = useState(false);
+  const [abierto, setAbierto] = useState(true);
+
+  useEffect(() => {
+    if (!sedeSel) return;
+    let vivo = true;
+    void (async () => {
+      setFilas(null);
+      setError(false);
+      const hoy = hoyLima();
+      // 28 días de margen: de sobra para cubrir cualquier racha real sin
+      // descanso (la ley exige uno semanal) y encontrar el inicio verdadero
+      // del ciclo vigente, no solo su cola.
+      const desde = addDays(hoy, -28);
+      const { data: personas, error: eP } = await supabase.from("personas")
+        .select("id, nombres, apellidos")
+        .eq("sede_base_id", sedeSel).eq("estado", "activo").eq("en_planilla", true).eq("sueldo_fijo", false);
+      if (eP) { if (vivo) setError(true); return; }
+      const ids = (personas ?? []).map((p) => p.id);
+      if (ids.length === 0) { if (vivo) setFilas([]); return; }
+      const { data: jornadas, error: eJ } = await supabase.from("jornadas")
+        .select("persona_id, fecha, horas_trabajadas")
+        .in("persona_id", ids).gte("fecha", desde).lte("fecha", hoy);
+      if (eJ) { if (vivo) setError(true); return; }
+      const nombre = new Map((personas ?? []).map((p) => [p.id, `${p.nombres} ${p.apellidos}`]));
+      const diasPorPersona = new Map<string, DiaTrabajado[]>();
+      for (const j of (jornadas as { persona_id: string; fecha: string; horas_trabajadas: number | null }[]) ?? []) {
+        const arr = diasPorPersona.get(j.persona_id) ?? [];
+        arr.push({ fecha: j.fecha, horas: j.horas_trabajadas ?? 0 });
+        diasPorPersona.set(j.persona_id, arr);
+      }
+      const res = ids
+        .map((id) => ({ personaId: id, nombre: nombre.get(id) ?? "?", ciclo: cicloVigente(diasPorPersona.get(id) ?? [], hoy) }))
+        .filter((f): f is { personaId: string; nombre: string; ciclo: NonNullable<ReturnType<typeof cicloVigente>> } =>
+          f.ciclo !== null && f.ciclo.horas >= UMBRAL_AVISO_SOBRETIEMPO)
+        .sort((a, b) => b.ciclo.horas - a.ciclo.horas);
+      if (vivo) setFilas(res);
+    })();
+    return () => { vivo = false; };
+  }, [sedeSel, supabase]);
+
+  if (error) {
+    return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo calcular el sobretiempo del ciclo vigente.</div>;
+  }
+  if (filas === null) return null; // cargando en silencio
+  if (filas.length === 0) {
+    return (
+      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
+        <span>✓</span> Nadie está cerca del tope de 48 h de su ciclo vigente.
+      </div>
+    );
+  }
+  const algunoEnExceso = filas.some((f) => f.ciclo.horas >= 48);
+  return (
+    <div className={`mb-4 max-w-2xl overflow-hidden rounded-2xl border ${algunoEnExceso ? "border-rojo/40 bg-rojo/[0.06]" : "border-ambar/40 bg-ambar/[0.06]"}`}>
+      <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
+        <span className={`font-medium ${algunoEnExceso ? "text-rojo" : "text-ambar"}`}>
+          {filas.length} persona{filas.length === 1 ? "" : "s"} cerca o sobre las 48 h de su ciclo vigente
+        </span>
+        <span className="shrink-0 text-xs text-taupe">{abierto ? "ocultar" : "ver"}</span>
+      </button>
+      {abierto && (
+        <>
+          <ul className={`divide-y border-t ${algunoEnExceso ? "divide-rojo/15 border-rojo/20" : "divide-ambar/15 border-ambar/20"}`}>
+            {filas.map((f) => (
+              <li key={f.personaId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                <span>{f.nombre}</span>
+                <span className={`tabular-nums font-medium ${f.ciclo.horas >= 48 ? "text-rojo" : "text-ambar"}`}>
+                  {f.ciclo.horas.toFixed(1)}/48 h · día {f.ciclo.dia} de 7
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={`border-t px-4 py-2 text-xs text-taupe ${algunoEnExceso ? "border-rojo/20" : "border-ambar/20"}`}>
+            Ciclo de 7 días desde que empezó su racha sin descanso — no es la semana calendario. Reorganiza el turno de quien esté más arriba antes de que siga sumando.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso: string) => void }) {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
   const [divs, setDivs] = useState<Divergencia[] | null>(null);
@@ -768,6 +864,7 @@ export default function TurnosPage() {
           </div>
         )}
 
+        {sedeSel && <AlertaSobretiempo sedeSel={sedeSel} />}
         {sedeSel && <RevisionTurnos sedeSel={sedeSel} onIrADia={irARevisar} />}
 
         {cargando ? <Cargando /> : vista === "semana" ? (
