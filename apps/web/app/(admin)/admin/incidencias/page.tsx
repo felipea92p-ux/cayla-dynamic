@@ -176,7 +176,16 @@ function IncidenciasContenido() {
   const [filas, setFilas] = useState<Fila[]>([]);
   const [codigoPorSedeId, setCodigoPorSedeId] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
+  // DOS estados de error, y la distinción no es cosmética. Antes había uno solo,
+  // y el banner que lo pintaba decía «No se pudieron cargar las incidencias»
+  // pasara lo que pasara — así que un rechazo del servidor al GUARDAR salía con
+  // el texto de un fallo de carga, y encima detrás del modal, que es `fixed
+  // inset-0`. Quien pulsaba «Justificar» con motivo «Descanso médico» no veía
+  // nada: el servidor lo rechaza a propósito, con un mensaje escrito para
+  // enseñar («regístralo en Ausencias con documento»), y ese mensaje no llegaba
+  // a nadie. El error de una acción se muestra DONDE se hizo la acción.
   const [error, setError] = useState<string | null>(null);
+  const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
   // Lo que la gente pidió revisar desde «Lo mío» (0257). Va PRIMERO en esta
   // pantalla y no al final: es la única lista de acá que no la generó el
@@ -629,7 +638,7 @@ function IncidenciasContenido() {
       p_persona_id: f.personaId, p_fecha: f.fecha, p_tipo: f.aceptable,
     });
     setAceptando(null);
-    if (e) { setError(`No se pudo aceptar: ${e.message}`); return; }
+    if (e) { setErrorAccion(`No se pudo aceptar: ${e.message}`); return; }
     setFilas((prev) => prev.filter((x) => !(x.personaId === f.personaId && x.fecha === f.fecha && x.aceptable === f.aceptable)));
   }
 
@@ -663,8 +672,8 @@ function IncidenciasContenido() {
       p_id: id, p_respuesta: (respuestas[id] ?? "").trim() || null,
     });
     setAtendiendo(null);
-    if (e) { setError(e.message); return; }
-    setError(null);
+    if (e) { setErrorAccion(e.message); return; }
+    setErrorAccion(null);
     setRespuestas((r) => ({ ...r, [id]: "" }));
     await cargar();
   }
@@ -672,13 +681,20 @@ function IncidenciasContenido() {
   // ── Justificar una falta ─────────────────────────────────────────────────
   const [justif, setJustif] = useState<{ personaId: string; fecha: string; nombre: string } | null>(null);
   const [motivoSel, setMotivoSel] = useState("permiso_concedido");
+  // El error de ESTE diálogo, dentro de ESTE diálogo. El servidor rechaza
+  // «Descanso médico» acá a propósito (0124): ese motivo PAGA y exige documento,
+  // y degradarlo en silencio a uno que no paga sería quitarle el día a quien
+  // entregó su certificado. El rechazo trae la instrucción de qué hacer en su
+  // lugar, así que tiene que leerse — y el único sitio donde se lee es acá.
+  const [errorJustif, setErrorJustif] = useState<string | null>(null);
 
   const [observ, setObserv] = useState("");
   const [guardandoJustif, setGuardandoJustif] = useState(false);
 
   async function guardarJustificacion() {
     if (!justif) return;
-    if (motivoSel === "otro" && observ.trim().length < 3) { setError("Para 'Otro' la observación es obligatoria."); return; }
+    if (motivoSel === "otro" && observ.trim().length < 3) { setErrorJustif("Para 'Otro' la observación es obligatoria."); return; }
+    setErrorJustif(null);
     setGuardandoJustif(true);
     const supabase = createAdminSupabaseClient();
     const { error: e } = await supabase.rpc("fn_set_justificacion", {
@@ -686,8 +702,8 @@ function IncidenciasContenido() {
       p_observacion: observ.trim() || null,
     });
     setGuardandoJustif(false);
-    if (e) { setError(`No se pudo justificar: ${e.message}`); return; }
-    setJustif(null); setObserv(""); setMotivoSel("permiso_concedido");
+    if (e) { setErrorJustif(e.message); return; }
+    setJustif(null); setObserv(""); setMotivoSel("permiso_concedido"); setErrorJustif(null);
     await cargar();
   }
 
@@ -695,7 +711,7 @@ function IncidenciasContenido() {
     if (!f.personaId) return;
     const supabase = createAdminSupabaseClient();
     const { error: e } = await supabase.rpc("fn_quitar_justificacion", { p_persona_id: f.personaId, p_fecha: f.fecha });
-    if (e) { setError(`No se pudo quitar la justificación: ${e.message}`); return; }
+    if (e) { setErrorAccion(`No se pudo quitar la justificación: ${e.message}`); return; }
     await cargar();
   }
 
@@ -795,6 +811,19 @@ function IncidenciasContenido() {
           </div>
         )}
 
+        {/* Lo que falló al ACTUAR, dicho como lo que es. Antes compartía estado
+            con el de arriba, así que un rechazo al guardar salía anunciado como
+            un fallo de carga y con un botón «Reintentar» que recargaba la
+            pantalla en vez de repetir la acción — dos mentiras seguidas. */}
+        {errorAccion && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <span className="flex-1">{errorAccion}</span>
+            <button onClick={() => setErrorAccion(null)} className="shrink-0 font-medium underline">
+              Entendido
+            </button>
+          </div>
+        )}
+
         {!cargando && !error && vista.length === 0 && !personaFiltro && (
           <div className="rounded-lg border border-sand bg-sand/30 px-4 py-8 text-center text-taupe">
             🎉 Sin incidencias en el periodo. Todo en orden.
@@ -870,7 +899,7 @@ function IncidenciasContenido() {
                             )}
                             {f.esFalta && f.personaId && !f.justificada && (
                               <button
-                                onClick={() => { setJustif({ personaId: f.personaId!, fecha: f.fecha, nombre: f.nombre }); setMotivoSel("permiso_concedido"); setObserv(""); }}
+                                onClick={() => { setJustif({ personaId: f.personaId!, fecha: f.fecha, nombre: f.nombre }); setMotivoSel("permiso_concedido"); setObserv(""); setErrorJustif(null); }}
                                 title="Registrar el motivo de esta falta (permiso, descanso médico, etc.)"
                                 className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40"
                               >
@@ -908,7 +937,7 @@ function IncidenciasContenido() {
 
         {/* Modal: justificar una falta */}
         {justif && (
-          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardandoJustif && setJustif(null)}>
+          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!guardandoJustif) { setJustif(null); setErrorJustif(null); } }}>
             <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="mb-1 font-serif text-lg">Justificar falta</h3>
               <p className="mb-4 text-sm text-taupe">{justif.nombre} · {fechaLarga(justif.fecha)}</p>
@@ -918,14 +947,42 @@ function IncidenciasContenido() {
                   {MOTIVOS.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
                 </select>
               </label>
+              {/* El aviso ANTES del choque, no después. El servidor rechaza este
+                  motivo siempre (0124) y con razón —paga, y exige el documento
+                  que este diálogo no pide—, pero ofrecerlo en la lista y
+                  rechazarlo al pulsar es un callejón: la persona eligió bien lo
+                  que le pasó a su compañera, y la pantalla la deja sin salida.
+                  Acá se dice antes, y se dice a dónde ir. */}
+              {motivoSel === "descanso_medico" && (
+                <p className="mb-4 rounded-lg bg-sand/60 px-3 py-2 text-sm text-tinta">
+                  El descanso médico <strong>se paga</strong>, así que necesita su documento
+                  (profesional o institución, colegiatura y fecha) y se registra en{" "}
+                  <a href="/admin/ausencias" className="font-medium underline">Ausencias</a>.
+                  Si no hay documento, ahí mismo está «Descanso por salud»: no cuenta como falta,
+                  pero no paga.
+                </p>
+              )}
               <label className="mb-4 flex flex-col gap-1 text-sm">
                 Observación {motivoSel === "otro" ? <span className="text-rojo">(obligatoria)</span> : <span className="text-taupe">(opcional)</span>}
                 <textarea value={observ} onChange={(e) => setObserv(e.target.value)} rows={2}
                   className="rounded-lg border border-sand bg-crema px-3 py-2" placeholder="ej. permiso por trámite" />
               </label>
+              {/* Acá, y no en el banner de la página: este diálogo es `fixed
+                  inset-0` y tapa la página entera. Un rechazo pintado detrás no
+                  lo ve nadie — quien pulsaba «Justificar» con «Descanso médico»
+                  se quedaba mirando el mismo formulario, sin saber si había
+                  funcionado. `whitespace-pre-line` porque el mensaje del
+                  servidor explica qué hacer en su lugar y merece leerse entero. */}
+              {errorJustif && (
+                <p className="mb-3 whitespace-pre-line rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                  {errorJustif}
+                </p>
+              )}
               <div className="flex justify-end gap-2">
-                <button onClick={() => setJustif(null)} disabled={guardandoJustif} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
-                <button onClick={() => void guardarJustificacion()} disabled={guardandoJustif} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                <button onClick={() => { setJustif(null); setErrorJustif(null); }} disabled={guardandoJustif} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
+                <button onClick={() => void guardarJustificacion()}
+                  disabled={guardandoJustif || motivoSel === "descanso_medico"}
+                  className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
                   {guardandoJustif ? "Guardando…" : "Justificar"}
                 </button>
               </div>

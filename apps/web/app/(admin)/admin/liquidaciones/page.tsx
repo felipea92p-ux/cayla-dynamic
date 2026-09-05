@@ -151,7 +151,27 @@ export default function LiquidacionesPage() {
     await cargarDetalle(personaId);
   }
 
-  async function pagar(personaId: string) {
+  // Marcar una liquidación como pagada CONGELA una cifra que se le entrega a
+  // una persona que ya se fue, y de la que corre un plazo legal de 48 horas. La
+  // acción equivalente de Planilla («marcar el periodo como pagado») explica sus
+  // consecuencias antes de hacerlo; ésta no preguntaba nada — un clic y ya.
+  //
+  // Se nombra la persona y el importe EN LA PREGUNTA a propósito: el error que
+  // esto previene no es «no quería congelar», es «congelé la de otra persona» o
+  // «congelé antes de mirar el desglose». Un «¿seguro?» a secas no lo evita.
+  async function pagar(personaId: string, nombre: string, total: number, yaPagada: boolean) {
+    const ok = window.confirm(
+      yaPagada
+        ? `Vas a volver a marcar como pagada la liquidación de ${nombre} por ${formatSoles(total)}.\n\n` +
+            "Se guarda una copia NUEVA con el cálculo de hoy; la anterior se conserva entera como " +
+            "histórico y queda registrado quién lo hizo.\n\n¿Continuar?"
+        : `Vas a congelar la liquidación de ${nombre} en ${formatSoles(total)}.\n\n` +
+            "Ese es el número que queda para contabilidad: si después el cálculo cambia, el sistema " +
+            "lo dice pero NO mueve la cifra.\n\n" +
+            "Si te equivocas, se arregla desde acá mismo: «Anular» deja constancia y la saca de la " +
+            "cuenta, sin borrar nada.\n\n¿Continuar?",
+    );
+    if (!ok) return;
     setOcupado(true);
     const { data, error } = await supabase.rpc("fn_liquidacion_pagar", {
       p_persona_id: personaId,
@@ -165,6 +185,43 @@ export default function LiquidacionesPage() {
     const v = (data as { version?: number } | null)?.version;
     avisar("ok",
       `Liquidación congelada${v && v > 1 ? ` (versión ${v})` : ""}. La cifra pagada ya no cambia sola: si un recálculo posterior difiere, se avisa.`);
+  }
+
+  // ── Deshacer ────────────────────────────────────────────────────────────
+  //
+  // `fn_liquidacion_anular` EXISTE desde la migración 0251 —se escribió por un
+  // caso real de producción: una liquidación de S/1,106.82 congelada por error,
+  // cuando del banco solo salieron S/358.73— y ninguna pantalla la llamaba. O
+  // sea que el arreglo estaba construido, probado y desplegado, y desde el panel
+  // seguía sin haber forma de deshacer nada.
+  //
+  // No borra: guarda encima una versión en cero con motivo y firma, y los ocho
+  // lectores de `liquidacion_pagada` toman siempre la última. El motivo es
+  // obligatorio en la base (mínimo 3 caracteres) y acá se pide antes de llamar,
+  // para que el rechazo no llegue como un error crudo de Postgres.
+  async function anular(personaId: string, nombre: string) {
+    const motivo = window.prompt(
+      `Vas a ANULAR la liquidación pagada de ${nombre}.\n\n` +
+        "No se borra nada: encima queda una versión en cero, con tu firma y este motivo. " +
+        "La cifra deja de contar en Planilla, en el cierre del mes y en la hoja de la persona.\n\n" +
+        "¿Qué se marcó por error y cómo se sabe? (mínimo 3 caracteres)\n" +
+        "Ej.: se marcó pagada el 10/08 y del banco solo salió el adelanto.",
+    );
+    if (motivo === null) return;
+    if (motivo.trim().length < 3) {
+      avisar("error", "El motivo es obligatorio: dentro de un año, una fila en cero sin explicación no se puede leer.");
+      return;
+    }
+    setOcupado(true);
+    const { error } = await supabase.rpc("fn_liquidacion_anular", {
+      p_persona_id: personaId, p_motivo: motivo.trim(),
+    });
+    setOcupado(false);
+    if (error) { avisar("error", mensajeDeError(error)); return; }
+    await cargar();
+    setAbierta(personaId); setDetalle(null); setDiferencias([]);
+    await cargarDetalle(personaId);
+    avisar("ok", `Liquidación de ${nombre} anulada con constancia. Vuelve a marcarla cuando el número esté bien.`);
   }
 
   if (cargando) return <Cargando />;
@@ -223,7 +280,7 @@ export default function LiquidacionesPage() {
             vacio="Nadie con liquidación pendiente. El plazo de 48 horas corre desde el cese, así que esto se llena solo el día que alguien cese."
             filas={enPlazo} abierta={abierta} onAbrir={abrir}
             detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-            ocupado={ocupado} onPagar={pagar} miFirma={miFirma} urgente
+            ocupado={ocupado} onPagar={pagar} onAnular={anular} miFirma={miFirma} urgente
           />
 
           {vencidas.length > 0 && (
@@ -231,7 +288,7 @@ export default function LiquidacionesPage() {
               titulo={`Pasadas de plazo · ${vencidas.length}`}
               vacio="" filas={vencidas} abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={pagar} miFirma={miFirma} urgente
+              ocupado={ocupado} onPagar={pagar} onAnular={anular} miFirma={miFirma} urgente
             />
           )}
 
@@ -240,7 +297,7 @@ export default function LiquidacionesPage() {
               titulo={`Pagadas · ${pagadas.length}`}
               vacio="" filas={pagadas} abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={pagar} miFirma={miFirma}
+              ocupado={ocupado} onPagar={pagar} onAnular={anular} miFirma={miFirma}
             />
           )}
         </div>
@@ -253,13 +310,16 @@ export default function LiquidacionesPage() {
 }
 
 function Bloque({
-  titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, nota, setNota, ocupado, onPagar, miFirma, urgente,
+  titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, nota, setNota, ocupado, onPagar, onAnular, miFirma, urgente,
 }: {
   titulo: string; vacio: string; filas: Pendiente[];
   abierta: string | null; onAbrir: (id: string) => void;
   detalle: Detalle | null; diferencias: Diferencia[];
   nota: string; setNota: (v: string) => void;
-  ocupado: boolean; onPagar: (id: string) => void; miFirma: string | null; urgente?: boolean;
+  ocupado: boolean;
+  onPagar: (id: string, nombre: string, total: number, yaPagada: boolean) => void;
+  onAnular: (id: string, nombre: string) => void;
+  miFirma: string | null; urgente?: boolean;
 }) {
   return (
     <div className="mb-4 overflow-hidden rounded-2xl border border-sand bg-papel">
@@ -309,7 +369,8 @@ function Bloque({
                 <Desglose
                   d={detalle} diferencias={diferencias} pagada={f.pagada}
                   nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
-                  onPagar={() => onPagar(f.persona_id)}
+                  onPagar={() => onPagar(f.persona_id, f.persona, f.total, f.pagada)}
+                  onAnular={() => onAnular(f.persona_id, f.persona)}
                 />
               )}
             </li>
@@ -366,10 +427,11 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
 }
 
 function Desglose({
-  d, diferencias, pagada, nota, setNota, ocupado, onPagar, miFirma,
+  d, diferencias, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma,
 }: {
   d: Detalle; diferencias: Diferencia[]; pagada: boolean;
-  nota: string; setNota: (v: string) => void; ocupado: boolean; onPagar: () => void;
+  nota: string; setNota: (v: string) => void; ocupado: boolean;
+  onPagar: () => void; onAnular: () => void;
   miFirma: string | null;
 }) {
   return (
@@ -428,22 +490,31 @@ function Desglose({
           className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">
           Imprimir hoja para firmar
         </button>
-        {!pagada && (
-          <>
-            <input value={nota} onChange={(e) => setNota(e.target.value)}
-              placeholder="nota (ej. transferencia BCP)"
-              className="rounded border px-2 py-1 text-xs" />
-            <button onClick={onPagar} disabled={ocupado}
-              className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
-              {ocupado ? "Guardando…" : "Marcar como pagada"}
-            </button>
-          </>
-        )}
+        {/* La nota y el botón de congelar sirven en los DOS estados. Antes solo
+            se dibujaban con `!pagada`, así que el texto de abajo prometía un
+            botón para «volver a marcarla» que no existía: la única frase de la
+            pantalla que decía cómo deshacer algo apuntaba a un sitio vacío. */}
+        <input value={nota} onChange={(e) => setNota(e.target.value)}
+          placeholder="nota (ej. transferencia BCP)"
+          className="rounded border px-2 py-1 text-xs" />
+        <button onClick={onPagar} disabled={ocupado}
+          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+          {ocupado ? "Guardando…" : pagada ? "Volver a marcarla como pagada" : "Marcar como pagada"}
+        </button>
         {pagada && (
-          <span className="flex items-center gap-2 text-xs text-taupe">
-            {miFirma && <img src={miFirma} alt="Firma" className="h-6 w-auto" />}
-            Ya congelada. Volver a marcarla guarda una versión nueva; la anterior queda como histórico.
-          </span>
+          <>
+            {/* Deshacer. La base sabe hacerlo desde la 0251 y ninguna pantalla se
+                lo pedía. Va en rojo y separado del de congelar porque son cosas
+                distintas: uno recalcula, el otro retira la cifra de la cuenta. */}
+            <button onClick={onAnular} disabled={ocupado}
+              className="rounded-lg border border-rojo px-3 py-1 text-xs font-medium text-rojo hover:bg-rojo/10 disabled:opacity-40">
+              Anular — se marcó por error
+            </button>
+            <span className="flex items-center gap-2 text-xs text-taupe">
+              {miFirma && <img src={miFirma} alt="Firma" className="h-6 w-auto" />}
+              Ya congelada. Volver a marcarla guarda una versión nueva; la anterior queda como histórico.
+            </span>
+          </>
         )}
       </div>
     </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
@@ -117,6 +118,11 @@ function esActivo(pathname: string, href: string): boolean {
 export function AdminNav() {
   const pathname = usePathname();
   const router = useRouter();
+  // Antes que cualquier otra cosa: si esta cuenta entró con una clave que le
+  // dictaron o con una que ya no cumple la política, de acá no se pasa. Va en la
+  // barra porque es lo único que dibujan las 24 pantallas del panel — el layout
+  // del grupo `(admin)` corre en el servidor y no ve la sesión.
+  useClavePorCambiar();
   const persona = usePersonaActual();
   const rol = persona?.rol ?? null;
   const [abierto, setAbierto] = useState(false);
