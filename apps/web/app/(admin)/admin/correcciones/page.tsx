@@ -100,7 +100,25 @@ function textoOrigen(e: Esperado): string {
   return e.trabaja ? base : `descanso (${base})`;
 }
 
-interface Persona { id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string; }
+interface Persona {
+  id: string; nombres: string; apellidos: string; rol: string; sede_base_id: string;
+  // Para saber si a esta persona le CORRESPONDE llevar horario. Sin esto, el
+  // aviso de "no tiene horario vigente" le salta a quien lo tiene así a
+  // propósito — una locadora de servicios o el personal de dirección — y se
+  // convierte en ruido diario por algo correcto. Espeja las exclusiones de
+  // fn_personas_sin_horario_vigente (mig. 0385): la verdad se dice una vez.
+  tipo_vinculo: string; personal_direccion: boolean;
+}
+/** ¿A esta persona le toca tener horario? Un locador de servicios no tiene
+ *  jornada que cumplir, y el personal de dirección está excluido de la jornada
+ *  máxima por el art. 5 del D.S. 007-2002-TR. En los dos casos, no tener
+ *  horario es lo correcto, no un descuido. Se mira `personal_direccion` y NO el
+ *  rol del sistema: darle admin a alguien para otra cosa no puede quitarle su
+ *  jornada. */
+function leTocaHorario(p: Persona | undefined): boolean {
+  if (!p) return true;
+  return p.tipo_vinculo !== "rxh" && p.tipo_vinculo !== "no_trabajador" && !p.personal_direccion;
+}
 interface Marcaje {
   id: string; tipo: TipoMarca; motivo_otro: string | null; timestamp_marca: string;
   origen: string; estado_revision: string;
@@ -341,7 +359,8 @@ export default function CorreccionesPage() {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace("/admin/login"); return; }
       const { data: p } = await supabase
-        .from("personas").select("id, nombres, apellidos, rol, sede_base_id").eq("estado", "activo").order("nombres");
+        .from("personas").select("id, nombres, apellidos, rol, sede_base_id, tipo_vinculo, personal_direccion")
+        .eq("estado", "activo").order("nombres");
       setPersonas((p as Persona[]) ?? []);
       // Días sellados por el sistema. Falla suave a propósito: si la base todavía
       // no tiene la migración 0068, la pantalla sigue funcionando igual (sin lista).
@@ -841,7 +860,8 @@ export default function CorreccionesPage() {
                 Si viene de un turno puntual (pisa el horario base), se resalta. */}
             {esperado && (
               <div className={`mb-4 rounded-lg border px-4 py-2.5 text-sm ${
-                esperado.origen === "sin_horario" ? "border-ambar/40 bg-ambar/5" : ""}`}>
+                esperado.origen === "sin_horario" && leTocaHorario(personaSel)
+                  ? "border-ambar/40 bg-ambar/5" : ""}`}>
                 {esperado.entrada ? (
                   <>
                     Entrada esperada ese día: <strong>{esperado.entrada}</strong>
@@ -852,10 +872,20 @@ export default function CorreccionesPage() {
                       <span className="ml-2 text-xs text-taupe">— este día tiene un turno propio que manda sobre el horario base. Se cambia en Turnos.</span>
                     )}
                   </>
+                ) : esperado.origen === "sin_horario" && !leTocaHorario(personaSel) ? (
+                  // A esta persona no le toca horario, y eso es correcto. Decirlo
+                  // en gris y sin alarma es la diferencia entre informar y acusar:
+                  // el aviso de abajo le saldría TODOS los días por algo que está
+                  // bien, y a la semana nadie lee ninguno de los dos.
+                  <span className="text-taupe">
+                    Ese día no mide tardanza: {personaSel?.personal_direccion
+                      ? "es personal de dirección, excluido de la jornada máxima"
+                      : "su vínculo no lleva jornada"}.
+                  </span>
                 ) : esperado.origen === "sin_horario" ? (
-                  // Este no es un dato de color: es un hueco. Sin horario vigente
-                  // ese día no se mide tardanza NI salida anticipada NI tiempo
-                  // adicional — en silencio, y con horas marcadas de verdad.
+                  // Aquí sí es un hueco. Sin horario vigente ese día no se mide
+                  // tardanza NI salida anticipada NI tiempo adicional — en
+                  // silencio, y con horas marcadas de verdad.
                   <span className="text-taupe">
                     <strong className="text-tinta">Esta persona no tiene horario vigente para esa fecha.</strong>{" "}
                     Sin horario no hay contra qué medir: ese día no cuenta tardanza, ni salida

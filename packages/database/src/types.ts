@@ -4730,6 +4730,18 @@ export type Database = {
           sede: string
         }[]
       }
+      fn_personas_sin_horario_vigente: {
+        Args: { p_dias?: number | null }
+        Returns: {
+          dias: number
+          nombre: string
+          nunca_tuvo_horario: boolean
+          persona_id: string
+          primer_dia: string
+          sede: string
+          ultimo_dia: string
+        }[]
+      }
       fn_dias_suspension: {
         Args: { p_desde: string | null; p_dias: number | null; p_persona_id: string | null }
         Returns: {
