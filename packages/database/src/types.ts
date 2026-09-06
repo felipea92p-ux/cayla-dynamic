@@ -4723,10 +4723,23 @@ export type Database = {
         Returns: {
           fecha: string
           marcas: number
+          motivo: string
           nombre: string
           periodo_pagado: boolean
           persona_id: string
           sede: string
+        }[]
+      }
+      fn_personas_sin_horario_vigente: {
+        Args: { p_dias?: number | null }
+        Returns: {
+          dias: number
+          nombre: string
+          nunca_tuvo_horario: boolean
+          persona_id: string
+          primer_dia: string
+          sede: string
+          ultimo_dia: string
         }[]
       }
       fn_dias_suspension: {
