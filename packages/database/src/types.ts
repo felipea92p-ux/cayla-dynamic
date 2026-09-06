@@ -4723,6 +4723,7 @@ export type Database = {
         Returns: {
           fecha: string
           marcas: number
+          motivo: string
           nombre: string
           periodo_pagado: boolean
           persona_id: string

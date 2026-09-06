@@ -85,9 +85,18 @@ function selloLima(iso: string): string {
 // porque `Esperado.origen` da un código corto ("turno"/"horario"/"legacy"),
 // no la frase para pantalla.
 function textoOrigen(e: Esperado): string {
+  // Ojo con `sin_horario`: NO es un descanso. Un descanso dice "no le tocaba
+  // trabajar"; `sin_horario` dice "no sabemos qué le tocaba, porque esa persona
+  // no tiene horario cargado para esa fecha". `jornada-esperada.ts` las
+  // distingue (devuelve un estado propio, línea 242) y esta pantalla las fundía
+  // en "descanso (sin horario vigente)" — una frase que afirma lo que no sabe.
+  // Se lee como normalidad, y lo que hay detrás es un día con horas marcadas
+  // que nadie está midiendo. Por eso el caso tiene su propio texto abajo, y
+  // aquí no se le pone "descanso" delante.
   const base = e.origen === "turno" ? "turno del día"
     : e.origen === "sin_horario" ? "sin horario vigente"
     : "horario base";
+  if (e.origen === "sin_horario") return base;
   return e.trabaja ? base : `descanso (${base})`;
 }
 
@@ -108,8 +117,19 @@ function familiaDe(tipo: TipoMarca): "entrada" | "salida" | "retorno" {
 }
 const TIPOS_DE_LA_FAMILIA = (tipo: TipoMarca): TipoMarca[] =>
   (Object.keys(TIPO_MARCA_LABELS) as TipoMarca[]).filter((t) => familiaDe(t) === familiaDe(tipo));
-/** Día que el sistema selló solo, por haber quedado con una secuencia imposible (mig. 0068). */
-interface DiaPorRevisar { persona_id: string; nombre: string; sede: string; fecha: string; marcas: number; periodo_pagado: boolean; }
+/** Un día con marcas sin revisar. `motivo` (mig. 0384) dice POR QUÉ está en la
+ *  lista, porque `estado_revision = 'pendiente_revision'` la escriben tres cosas
+ *  distintas y hasta la 0384 esta pantalla las anunciaba todas como si fueran la
+ *  primera — un día con el auto-cierre sin confirmar salía titulado "secuencia
+ *  imposible" aunque su secuencia fuera perfectamente posible. */
+type MotivoRevision = "secuencia_imposible" | "auto_cierre_sin_confirmar" | "sello_sin_levantar";
+interface DiaPorRevisar {
+  persona_id: string; nombre: string; sede: string; fecha: string; marcas: number;
+  periodo_pagado: boolean;
+  // Puede llegar null si la base todavía no tiene la 0384: se trata como el caso
+  // grave, que es el que no se puede dejar de avisar.
+  motivo: MotivoRevision | null;
+}
 
 /** Una marca que la persona hizo y el terminal no pudo enviar. No es un marcaje:
  *  lo será si alguien la repone desde acá, con su hora original. */
@@ -376,7 +396,7 @@ export default function CorreccionesPage() {
     setCargando(true);
     const supabase = createAdminSupabaseClient();
     const { inicio, fin } = rangoDelDiaLima(fecha);
-    const [{ data: incoh }, { data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }] = await Promise.all([
+    const [{ data: incoh }, { data: mk, error: errMk }, { data: jor, error: errJor }, { data: aud, error: errAud }, { data: turno }, { data: horario }, { data: levT }, { data: dr }] = await Promise.all([
       supabase.rpc("fn_dia_incoherente", { p_persona_id: personaId, p_fecha: fecha }),
       supabase.from("marcajes")
         .select("id, tipo, motivo_otro, timestamp_marca, origen, estado_revision, anulada_at, anulada_por, anulada_motivo")
@@ -405,6 +425,12 @@ export default function CorreccionesPage() {
         .order("vigente_desde", { ascending: false }).limit(1).maybeSingle(),
       // ¿La tardanza de ese día fue levantada (perdonada por fuerza mayor)?
       supabase.from("tardanzas_justificadas").select("motivo, observacion").eq("persona_id", personaId).eq("fecha", fecha).maybeSingle(),
+      // La lista de arriba se vuelve a pedir AQUÍ y no en cada acción, porque
+      // todas las acciones de esta pantalla terminan llamando a `cargarDia`.
+      // Antes se pedía una sola vez al montar: confirmabas el auto-cierre, el día
+      // salía de la lista en la base, y la banda seguía anunciándolo — parecía
+      // que la corrección no había hecho nada.
+      supabase.rpc("fn_dias_por_revisar", { p_limite: 50 }),
     ]);
     if (errMk || errJor) {
       setCargando(false);
@@ -417,6 +443,9 @@ export default function CorreccionesPage() {
     setJornada((jor as Jornada) ?? null);
     setEsperado(esperadoDelDia(fecha, (turno as TurnoDia) ?? null, (horario as HorarioTramo) ?? null));
     setLevTardanza((levT as { motivo: string; observacion: string | null } | null) ?? null);
+    // Falla suave: si no llega, se deja la lista que ya había en vez de vaciarla
+    // — una lista vacía por error se lee igual que "no hay nada que revisar".
+    if (dr) setPorRevisar(dr as unknown as DiaPorRevisar[]);
     setAuditoriaError(Boolean(errAud));
     setAuditoria(errAud ? [] : ((aud as Auditoria[]) ?? []));
     setHorasEditadas(Object.fromEntries(((mk as Marcaje[]) ?? []).map((m) => [m.id, horaInput(m.timestamp_marca)])));
@@ -628,36 +657,111 @@ export default function CorreccionesPage() {
         )}
 
         {(() => {
-          // Un día de un periodo ya pagado no tiene acción posible (fn_anular_marcaje
-          // lo rechaza), así que no entra a este aviso: Felipe pidió que dejara de
-          // estorbar la vista. Sigue existiendo en fn_dias_por_revisar por si algún
-          // día hace falta un historial, solo no se pinta acá.
+          // Tres bandas, no una — y esta es la razón (mig. 0384).
+          //
+          // Hasta hoy había una sola, titulada "quedó con una secuencia
+          // imposible", y se pintaba para CUALQUIER día que la base devolviera.
+          // Pero `fn_dias_por_revisar` devuelve todo día con una marca en
+          // 'pendiente_revision', y a esa columna la escriben tres cosas que no
+          // se parecen en nada. La consecuencia real, vista en producción el
+          // 2026-09-06: un día cuya única pendiente era confirmar la hora del
+          // auto-cierre se anunciaba como secuencia imposible, y al abrirlo la
+          // MISMA pantalla decía lo contrario dos centímetros más abajo.
+          //
+          // Y como el auto-cierre corre todas las noches, esa banda se llenaba
+          // sola de días sanos bajo un titular de alarma. El daño no es el
+          // texto: es que el día que una marca llegue de verdad fuera de orden
+          // va a estar enterrada entre ellos y se leerá como más de lo mismo.
+          //
+          // Un día de un periodo ya pagado no tiene acción posible
+          // (fn_anular_marcaje lo rechaza), así que no entra a ninguna banda:
+          // Felipe pidió que dejara de estorbar la vista. Sigue existiendo en
+          // fn_dias_por_revisar por si algún día hace falta un historial.
           const accionables = porRevisar.filter((d) => !d.periodo_pagado);
-          return accionables.length > 0 && (
-            <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
-              <p className="text-sm font-medium text-tinta">
-                {accionables.length === 1
-                  ? "1 día quedó con una secuencia imposible"
-                  : `${accionables.length} días quedaron con una secuencia imposible`}
-              </p>
-              <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
-                Ocurre cuando la terminal pierde señal y una marca llega tarde. No se perdió nada:
-                solo hay que ordenar el día. Toca uno para cargarlo.
-              </p>
-              <ul className="flex flex-col">
-                {accionables.map((d) => (
-                  <li key={`${d.persona_id}-${d.fecha}`}>
-                    <button
-                      onClick={() => { setPersonaId(d.persona_id); setFecha(d.fecha); setCargado(false); }}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-ambar/10"
-                    >
-                      <span className="font-medium text-tinta">{d.nombre}</span>
-                      <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          // `motivo` null = base sin la 0384 todavía. Se trata como el caso
+          // grave: de los tres, es el único que no se puede dejar de avisar.
+          const rotos    = accionables.filter((d) => d.motivo === "secuencia_imposible" || d.motivo == null);
+          const cerrados = accionables.filter((d) => d.motivo === "auto_cierre_sin_confirmar");
+          const sellados = accionables.filter((d) => d.motivo === "sello_sin_levantar");
+
+          // Abre el día de verdad. Antes solo rellenaba los dos campos y había
+          // que pulsar además "Ver el día", mientras el texto prometía cargarlo.
+          const abrir = (d: DiaPorRevisar) => {
+            setPersonaId(d.persona_id);
+            setFecha(d.fecha);
+            setCargado(false);
+            setAutoCargar(true);
+          };
+          const lista = (dias: DiaPorRevisar[], hover: string) => (
+            <ul className="flex flex-col">
+              {dias.map((d) => (
+                <li key={`${d.persona_id}-${d.fecha}`}>
+                  <button
+                    onClick={() => abrir(d)}
+                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${hover}`}
+                  >
+                    <span className="font-medium text-tinta">{d.nombre}</span>
+                    <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          );
+
+          return (
+            <>
+              {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
+              {rotos.length > 0 && (
+                <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
+                  <p className="text-sm font-medium text-tinta">
+                    {rotos.length === 1
+                      ? "1 día quedó con una secuencia imposible"
+                      : `${rotos.length} días quedaron con una secuencia imposible`}
+                  </p>
+                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+                    Por ejemplo, dos salidas seguidas sin retorno entre medio. Ocurre cuando la
+                    terminal pierde señal y una marca llega tarde. No se perdió nada: solo hay que
+                    ordenar el día. Toca uno para abrirlo.
+                  </p>
+                  {lista(rotos, "hover:bg-ambar/10")}
+                </div>
+              )}
+
+              {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
+              {cerrados.length > 0 && (
+                <div className="mb-6 max-w-3xl rounded-xl border border-pizarra/40 bg-pizarra/5 p-4">
+                  <p className="text-sm font-medium text-tinta">
+                    {cerrados.length === 1
+                      ? "1 día espera que confirmes la hora de salida"
+                      : `${cerrados.length} días esperan que confirmes la hora de salida`}
+                  </p>
+                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+                    Nadie marcó la salida y el auto-cierre nocturno puso una hora. La secuencia de
+                    esos días está bien; lo único pendiente es decir si esa hora es la buena.
+                    Mientras siga sin confirmar, el día no mide salida anticipada ni tiempo
+                    adicional. Toca uno para abrirlo.
+                  </p>
+                  {lista(cerrados, "hover:bg-pizarra/10")}
+                </div>
+              )}
+
+              {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
+              {sellados.length > 0 && (
+                <div className="mb-6 max-w-3xl rounded-xl border border-sand bg-sand/20 p-4">
+                  <p className="text-sm font-medium text-tinta">
+                    {sellados.length === 1
+                      ? "1 día quedó marcado y ya cuadra"
+                      : `${sellados.length} días quedaron marcados y ya cuadran`}
+                  </p>
+                  <p className="mb-3 mt-1 text-xs leading-relaxed text-taupe">
+                    No hay nada que corregir: su secuencia es correcta. La marca quedó señalada
+                    cuando el día estuvo roto, y la marca que llegó después a arreglarlo no levantó
+                    esa señal. Sale de la lista en cuanto se corrija cualquier cosa de ese día.
+                  </p>
+                  {lista(sellados, "hover:bg-sand/40")}
+                </div>
+              )}
+            </>
           );
         })()}
 
@@ -736,7 +840,8 @@ export default function CorreccionesPage() {
             {/* De dónde sale la tardanza: la hora esperada de ese día y su origen.
                 Si viene de un turno puntual (pisa el horario base), se resalta. */}
             {esperado && (
-              <div className="mb-4 rounded-lg border px-4 py-2.5 text-sm">
+              <div className={`mb-4 rounded-lg border px-4 py-2.5 text-sm ${
+                esperado.origen === "sin_horario" ? "border-ambar/40 bg-ambar/5" : ""}`}>
                 {esperado.entrada ? (
                   <>
                     Entrada esperada ese día: <strong>{esperado.entrada}</strong>
@@ -747,6 +852,16 @@ export default function CorreccionesPage() {
                       <span className="ml-2 text-xs text-taupe">— este día tiene un turno propio que manda sobre el horario base. Se cambia en Turnos.</span>
                     )}
                   </>
+                ) : esperado.origen === "sin_horario" ? (
+                  // Este no es un dato de color: es un hueco. Sin horario vigente
+                  // ese día no se mide tardanza NI salida anticipada NI tiempo
+                  // adicional — en silencio, y con horas marcadas de verdad.
+                  <span className="text-taupe">
+                    <strong className="text-tinta">Esta persona no tiene horario vigente para esa fecha.</strong>{" "}
+                    Sin horario no hay contra qué medir: ese día no cuenta tardanza, ni salida
+                    anticipada, ni tiempo adicional, aunque tenga horas marcadas. Se carga en
+                    Horarios.
+                  </span>
                 ) : (
                   <span className="text-taupe">Ese día no mide tardanza: {textoOrigen(esperado)}.</span>
                 )}
