@@ -370,3 +370,65 @@ describe("finDelPeriodoDePrueba", () => {
     expect(finDelPeriodoDePrueba("2026-11-20")).toBe("2027-02-20");
   });
 });
+
+// ============================================================================
+// El inventario de huecos del convenio — el canario de la próxima 0333
+// ============================================================================
+// El generador no inventa un dato que falta: escribe «[completar]» y sigue. Lo
+// que faltaba era que nada impidiera IMPRIMIR ese hueco, y eso ya está
+// arreglado: `/admin/contratos` bloquea el botón campo por campo.
+//
+// PERO ESE BLOQUEO ES UNA SEGUNDA LISTA, y así nació el defecto: la 0333 le
+// agregó trece campos al convenio y la lista de la pantalla no se enteró. Nada
+// impide que vuelva a pasar — un campo nuevo en el documento no obliga a nadie
+// a sumarlo a los `bloqueos`.
+//
+// Esta prueba no puede comprobar el bloqueo (vive dentro de un componente de
+// React, sin costura). Lo que sí puede es fijar el INVENTARIO: cuántos huecos
+// distintos llega a imprimir un convenio vacío. El día que alguien agregue un
+// campo al texto, este número sube y la prueba se pone roja — y quien la vea
+// tiene que ir a `bloqueos` a decidir si ese campo también se bloquea.
+//
+// No es un freno: es un aviso en el único sitio donde nadie tiene que acordarse
+// de mirar.
+describe("el convenio no gana huecos sin que nadie lo note", () => {
+  function convenioVacio(modalidad: "preprofesional" | "profesional"): DatosContrato {
+    return datos({
+      tipo: "convenio_practicas",
+      practicanteModalidad: modalidad,
+      planCapacitacionTexto: "Plan mínimo.",
+      centroFormacionNombre: null,
+      centroFormacionRuc: null,
+      centroFormacionDomicilio: null,
+      centroFormacionRepresentante: null,
+      carreraEspecialidad: null,
+      cicloAcademico: null,
+      gradoTituloTexto: null,
+      areaProyecto: "",
+      objetivoFormativoGeneral: "",
+      supervisorAsignado: "",
+      hitoMes3: "",
+      hitoMes6: "",
+    });
+  }
+
+  // Los textos exactos que el documento imprime hoy cuando falta cada dato. Si
+  // este arreglo se queda corto, es que el documento aprendió un hueco nuevo.
+  it("preprofesional: imprime exactamente los huecos conocidos, ni uno más", () => {
+    const html = construirContrato(convenioVacio("preprofesional"));
+    const huecos = [...html.matchAll(/\[completar[^\]]*\]/g)].map((m) => m[0]);
+    expect(new Set(huecos)).toEqual(new Set([
+      "[completar — razón social del centro de formación]",
+      "[completar]",
+    ]));
+    // Y que de verdad los esté imprimiendo: si esto da 0, la prueba se volvió
+    // decorativa porque el montaje dejó de producir un convenio vacío.
+    expect(huecos.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("profesional: no pide centro de formación ni ciclo, pero sí su grado", () => {
+    const html = construirContrato(convenioVacio("profesional"));
+    expect(html).toContain("[completar — grado/título y universidad de egreso]");
+    expect(html).not.toContain("razón social del centro de formación");
+  });
+});
