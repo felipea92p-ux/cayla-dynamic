@@ -817,5 +817,33 @@ Ojo con el resumen: `Bad plan. You planned N tests but ran M` **no** es un error
 conteo, es un archivo que abortó a media ejecución — las pruebas que faltaron nunca
 verificaron nada. Se lee igual de discreto que un descuido y no lo es.
 
+**Y hay un tercer falso rojo que NO es deriva de la base, aunque se le parece:
+una prueba que va y viene sin que nadie toque nada.** Ahí lo que falla no es el
+entorno, es un empate sin desempatar dentro de la propia prueba.
+
+El molde es siempre el mismo: una columna `default now()`, y `now()` dentro de
+una transacción vale LO MISMO para todas las filas. Como toda prueba pgTAP corre
+entera dentro de `begin … rollback`, dos filas creadas ahí empatan al
+microsegundo — y si la consulta las ordena solo por esa columna, cuál gana lo
+decide el orden físico de la tabla, que cambia con lo que dejaron las
+transacciones revertidas de las pruebas anteriores. Por eso la misma prueba pasa
+en la suite completa y falla corriéndola sola, sin reconstruir nada.
+
+Ya pasó dos veces con la misma tabla: la 0312 lo cazó en
+`fn_contrato_firmado_vigente_de` (ago-2026), y el 2026-09-06 la prueba **274**
+volvió a hacerlo en `fn_contratos_tablero` — con `db-tests` verde en `main` al
+mismo tiempo, porque verde ahí es dónde cayó la moneda esa vez, no una prueba de
+que el caso esté bien. Lo arregló la **0386**, con los mismos tres desempates de
+la 0312 (`fecha_inicio desc, fecha_fin desc, id desc`).
+
+Cómo se reconoce en dos minutos, antes de sospechar del entorno: si el valor que
+sale es el de OTRA fila plausible —no un valor absurdo—, mira el `order by` de la
+consulta que lo eligió. Si termina en una columna `now()`, es esto.
+
+**Y la regla que deja atrás: un `distinct on` o un `limit 1` ordenado por una
+columna `now()` necesita desempate explícito, aunque en producción nunca empate.**
+En producción no empata porque cada escritura entra en su propia transacción; en
+una prueba siempre empata. Un orden que depende del orden físico no es un orden.
+
 En una urgencia real ambos se saltan: `git push --no-verify` y `npx vercel --prod`.
 Que se pueda saltar a propósito es parte del diseño; que se salte sin querer, no.
