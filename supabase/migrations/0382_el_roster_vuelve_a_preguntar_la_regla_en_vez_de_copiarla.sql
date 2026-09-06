@@ -17,11 +17,38 @@
 --
 --   · La 0370: existe `fn_persona_marca_en_sede(uuid, uuid)`, es la que
 --     responde la regla, y `authenticated` tiene su `execute`.
---   · La 0375: `terminal_roster` tiene CINCO columnas —sin `pin_hash`— y
---     `security_invoker = false`.
+--   · La 0381: `terminal_roster` tiene SEIS columnas —las cinco de la 0375
+--     más `foto_url`, en cuarta posición— y `security_invoker = false`.
 --   Las dos están aplicadas en producción (confirmado el 2026-09-05:
---   `migraciones_aplicadas` lista 370, 371 y 375, y el roster devuelve
---   `id,nombres,apellidos,sede_codigo,sede_nombre`).
+--   `migraciones_aplicadas` lista 370, 371, 375 y 381, y el roster devuelve
+--   `id,nombres,apellidos,foto_url,sede_codigo,sede_nombre`).
+--
+-- ⚠️ CORREGIDA EL 2026-09-05, ANTES DE PEGARSE NUNCA EN PRODUCCIÓN
+--
+--   Esta migración se escribió asumiendo las CINCO columnas de la 0375, que
+--   era el estado que su rama conocía. Mientras tanto, en otra rama, la 0381
+--   («cada quien sube su foto») le agregó `foto_url` a esta misma vista con un
+--   `drop view` + `create view` — y se pegó en producción primero.
+--
+--   O sea: el mismo accidente que esta migración documenta más abajo
+--   (0370 → 0375), una tercera vez, y esta vez en las dos direcciones. La
+--   0381 se llevó por delante la delegación de sede al reescribir el `where`
+--   desde el cuerpo de la 0375; y este archivo, tal como estaba escrito,
+--   habría fallado en seco en cualquier reconstrucción del esquema desde cero
+--   —CI, `supabase db reset`, restaurar un backup— porque
+--   `create or replace view` no deja quitar ni reordenar columnas y, para
+--   cuando le toca el turno, `foto_url` ya está puesta por la 0381.
+--
+--   Se corrige el cuerpo en vez de agregar una migración de parche encima
+--   porque NUNCA llegó a aplicarse con éxito en producción: el estado real de
+--   hoy (seis columnas, sin delegación) es incompatible con que este archivo
+--   haya corrido allí alguna vez. Sin estado persistente que dependa de su
+--   forma anterior, corregirlo respeta la regla de la casa —a una migración
+--   ya aplicada no se le cambia el cuerpo— en vez de violarla.
+--
+--   Lo único que cambia respecto de la versión original: la lista de columnas
+--   incluye `p.foto_url`. La delegación de sede, el `security_invoker`, los
+--   permisos y las guardias son las mismas.
 --
 -- ── CÓMO SE PERDIÓ, QUE ES LO QUE HAY QUE ENTENDER ──────────────────────────
 --
@@ -95,6 +122,12 @@ declare
   v_def   text;
   v_md5   text;
   v_len   int;
+  -- `to_regclass` y no `'…'::regclass`: el cast LANZA si la vista no existe, y
+  -- lo hace ANTES de que se pueda comprobar nada. Con el cast, la comprobación
+  -- de «no existe» de más abajo era código muerto —nunca podía dispararse— y
+  -- el desenlace era un error crudo de Postgres en vez de la frase que dice
+  -- qué pegar primero.
+  v_vista oid := to_regclass('public.terminal_roster');
 begin
   -- 1 · La función que va a responder la regla. BLOQUEA.
   select md5(p.prosrc), length(p.prosrc) into v_md5, v_len
@@ -119,30 +152,55 @@ begin
              || 'Corre ./scripts/donde-vive.sh fn_persona_marca_en_sede.';
   end if;
 
-  -- 2 · La vista. Sus columnas tienen que ser las CINCO de la 0375. BLOQUEA.
+  -- 1b · Y que `authenticated` PUEDA EJECUTARLA. BLOQUEA.
+  --
+  --      Sin esto, la migración se aplica limpia y su comprobación final
+  --      imprime todo en verde —`delega`, `terminal_puede_leerla`— mientras el
+  --      terminal muere a la mañana siguiente al pintar la lista, con
+  --      «permission denied for function fn_persona_marca_en_sede». O sea una
+  --      sede entera sin poder marcar, con el SQL diciendo que salió bien: el
+  --      desenlace exacto que el encabezado de la 0370 describe como desastre.
+  --      La 0370 otorga ese execute y nada lo revoca, así que es improbable —
+  --      pero era la única suposición de esta migración que nadie comprobaba, y
+  --      cerrarla cuesta una línea.
+  if not has_function_privilege('authenticated',
+                                'public.fn_persona_marca_en_sede(uuid,uuid)', 'execute') then
+    raise exception using
+      message = 'PARA. authenticated no puede EJECUTAR fn_persona_marca_en_sede.',
+      hint    = 'Esta migración hace que el roster dependa de esa función. Sin el execute, '
+             || 'las cuatro Mac mini reciben «permission denied» al pintar su lista y la '
+             || 'sede se queda sin fichar. Repón el grant de la 0370 antes de seguir: '
+             || 'grant execute on function fn_persona_marca_en_sede(uuid,uuid) to authenticated;';
+  end if;
+
+  -- 2 · La vista. Sus columnas tienen que ser las SEIS de la 0381. BLOQUEA.
   --     Se comprueban propiedades y no un md5 de `pg_get_viewdef`: esa función
   --     reformatea según la versión de Postgres, así que un md5 daría falsas
   --     alarmas entre local y producción sin haber cambiado nada.
   select string_agg(attname, ',' order by attnum) into v_cols
     from pg_attribute
-   where attrelid = 'public.terminal_roster'::regclass
+   where attrelid = v_vista
      and attnum > 0 and not attisdropped;
 
-  if v_cols is null then
+  if v_vista is null then
     raise exception using
-      message = 'FALTA LA 0375 (o la 0285). La vista terminal_roster no existe.',
+      message = 'FALTA LA 0381 (o la 0375/0285). La vista terminal_roster no existe.',
       hint    = 'Esta migración la REESCRIBE; no la crea desde cero a propósito, para no '
              || 'plantar en producción una versión que nadie revisó.';
   end if;
 
-  if v_cols <> 'id,nombres,apellidos,sede_codigo,sede_nombre' then
+  if v_cols <> 'id,nombres,apellidos,foto_url,sede_codigo,sede_nombre' then
     raise exception using
-      message = 'PARA. terminal_roster no tiene las cinco columnas de la 0375. Tiene: '
+      message = 'PARA. terminal_roster no tiene las seis columnas de la 0381. Tiene: '
              || v_cols || '.',
       hint    = case
                   when position('pin_hash' in v_cols) > 0
                     then 'Todavía lleva pin_hash: falta pegar la 0375, que lo quita. Pégala '
                       || 'primero — si no, esta migración devolvería el hash al navegador.'
+                  when position('foto_url' in v_cols) = 0
+                    then 'Le falta foto_url: falta pegar la 0381, que la agrega. Pégala primero '
+                      || '— si no, esta migración dejaría al terminal sin las fotos que esa '
+                      || 'pantalla ya espera.'
                   else 'Producción tiene otra vista. Pegar esto la reemplazaría, y es la que '
                     || 'pinta el roster de las cuatro Mac mini.'
                 end;
@@ -152,7 +210,7 @@ begin
   --     de `personas` y pueda devolver el roster al terminal. Si alguien lo
   --     cambió, esta migración lo dejaría igual y hay que saberlo.
   select array_to_string(reloptions, ',') into v_opts
-    from pg_class where oid = 'public.terminal_roster'::regclass;
+    from pg_class where oid = v_vista;
 
   if coalesce(v_opts, '') not like '%security_invoker=false%' then
     raise exception using
@@ -164,7 +222,7 @@ begin
 
   -- 4 · ¿Ya está aplicada? Se detecta por CÓDIGO, no por un comentario: un
   --     comentario se pierde si el cuerpo se pega sin comentarios.
-  v_def := pg_get_viewdef('public.terminal_roster'::regclass, true);
+  v_def := pg_get_viewdef(v_vista, true);
   if position('fn_persona_marca_en_sede' in v_def) > 0 then
     raise notice 'La 0382 ya estaba aplicada (el roster ya delega la regla de sede). '
                  'Se vuelve a aplicar sin daño.';
@@ -175,7 +233,7 @@ $guardia$;
 
 -- ── 1 · El roster deja de llevar su propia copia de la regla ────────────────
 --
--- Las mismas cinco columnas de la 0375, en el mismo orden, con el mismo
+-- Las mismas seis columnas de la 0381, en el mismo orden, con el mismo
 -- `security_invoker`. Lo único que cambia es que la condición de sede ya no
 -- está escrita aquí: se le pregunta a quien la responde para todo lo demás.
 --
@@ -199,6 +257,7 @@ select
   p.id,
   p.nombres,
   p.apellidos,
+  p.foto_url,
   s.codigo as sede_codigo,
   s.nombre  as sede_nombre
 from personas p
@@ -208,12 +267,12 @@ where p.estado = 'activo'
   and fn_persona_marca_en_sede(p.id, fn_sede_actual_terminal());
 
 comment on view terminal_roster is
-  'Lo unico que el kiosco de marcaje necesita ver de una persona: como se llama y de que sede es. '
-  'Existe porque RLS filtra filas y no columnas, asi que mientras el terminal leyera `personas` su '
-  'token alcanzaba el DNI y la remuneracion (0285). Desde la 0375 tampoco lleva `pin_hash`: el '
-  'terminal ya no pide PIN. Desde la 0382 su condicion de sede la responde fn_persona_marca_en_sede, '
-  'la misma que usan el disparador de escritura y fn_persona_en_roster_terminal — para que la regla '
-  'no vuelva a tener dos copias que puedan separarse.';
+  'Lo unico que el kiosco de marcaje necesita ver de una persona: como se llama, su foto (0381) y de '
+  'que sede es. Existe porque RLS filtra filas y no columnas, asi que mientras el terminal leyera '
+  '`personas` su token alcanzaba el DNI y la remuneracion (0285). Desde la 0375 tampoco lleva '
+  '`pin_hash`: el terminal ya no pide PIN. Desde la 0382 su condicion de sede la responde '
+  'fn_persona_marca_en_sede, la misma que usan el disparador de escritura y '
+  'fn_persona_en_roster_terminal — para que la regla no vuelva a tener dos copias que puedan separarse.';
 
 -- Redundantes a propósito: `create or replace view` los conserva, pero si algún
 -- día esto se convierte en `drop` + `create` —lo obliga cualquier cambio de

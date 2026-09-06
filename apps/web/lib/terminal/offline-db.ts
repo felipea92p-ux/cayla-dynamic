@@ -10,6 +10,8 @@ export interface RosterEntry {
   apellidos: string;
   sedeCodigo: string;
   sedeNombre: string;
+  /** Ruta en el bucket público «fotos-perfil» (0381), o ausente si nunca subió una. */
+  fotoUrl?: string | null;
 }
 
 export interface OutboxEntry {

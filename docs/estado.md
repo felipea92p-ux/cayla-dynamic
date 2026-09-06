@@ -37,6 +37,84 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-05 — Foto junto al nombre en el terminal, subida por cada quien desde «Lo mío» (0381) · PEGADA Y VERIFICADA EN PRODUCCIÓN
+
+Salió de la comparación contra BambooHR/Rippling/UKG del 2026-09-03 («Las Tres
+Referencias de CAYLA»,
+[PR #176](https://github.com/felipea92p-ux/cayla-dynamic/pull/176)): «Selector
+por nombre + foto en el terminal» era el ítem 02 del bloque BambooHR, y de esa
+misma comparación solo se había construido el tablón de anuncios (0351). Quedó
+sin hacer hasta hoy, a pedido de Felipe.
+
+**El mecanismo:** cada quien sube su foto desde `/mio` (comprimida a JPEG en
+el propio navegador, 480px de lado mayor, antes de subir), enlazada a
+`personas.foto_url` por una única función guardián
+(`fn_actualizar_foto_perfil`) que exige ser la propia persona o admin/DO. El
+terminal la recibe en `terminal_roster` (misma vista de la 0285/0375, una
+columna más) y la pinta junto al nombre en la grilla; quien no ha subido
+ninguna sigue viendo sus iniciales, nunca un hueco.
+
+**Por qué el bucket `fotos-perfil` es público, a diferencia de `comprobantes`
+o `expedientes`.** El terminal tiene que pintar todas las fotos de su sede sin
+depender de la red — puede pasar días marcando solo con lo que ya tiene en
+IndexedDB — y una URL firmada vence. El dato que protegería esa firma (un
+rostro) ya es visible a simple vista en la propia tienda, sin login, en la
+misma Mac mini: la misma razón por la que `terminal_roster` expone nombre y
+apellido sin sesión individual. Ya había precedente de esta forma en el
+repositorio: el buzón `fotos-productos` (0225, importado de cayla-retail)
+también es público.
+
+Auditada contra Postgres local dentro de `BEGIN … ROLLBACK` (11 aserciones:
+subir, reemplazar, el borde de que nadie sube a la carpeta de otra persona,
+que admin/DO sí puede hacerlo por quien nunca entra a «Lo mío», enlazar,
+quitar la foto, la defensa en profundidad contra una ruta de otro bucket, y
+que el terminal recibe lo enlazado) — prueba 301. Probada además de punta a
+punta en el navegador contra el Postgres local: Ana sube su foto desde `/mio`
+y aparece junto a su nombre en `/terminal/marcar`; Beto, que no subió
+ninguna, sigue mostrando sus iniciales. `npx pnpm typecheck` y `npx pnpm test`
+(468 pruebas) en verde.
+
+**Pegada y verificada en producción el 2026-09-05.** La consulta de
+comprobación del final de la 0381 devolvió las cinco piezas en `true`: la
+columna `personas.foto_url`, el bucket `fotos-perfil` público, las cuatro
+políticas de `storage.objects`, la columna nueva en `terminal_roster` y que
+esa vista sigue sin exponer nada sensible. Falta el commit/push de este
+código de pantalla (la migración ya vive en el repo desde que se escribió;
+lo pegado a mano fue solo el SQL).
+
+⚠️ **Repitió el accidente que la propia 0382 documenta — 0370/0375, tercera
+vez, y esta vez en las dos direcciones.** El `drop view` + `create view` de
+la 0381 partió del cuerpo de la 0375 sin saber que, en paralelo, la 0382 ya
+había fusionado a `main` la delegación de la regla de sede a
+`fn_persona_marca_en_sede`. Al pegarse la 0381 en producción DESPUÉS, se
+llevó esa delegación por delante en silencio — confirmado contra producción
+el 2026-09-05: `delega_en_0382 = false`, con las seis columnas (incluida
+`foto_url`) presentes.
+
+Y al revés también: la 0382, tal como estaba escrita, declaraba las CINCO
+columnas de la 0375 en un `create or replace view` — que no deja quitar ni
+reordenar columnas. En cualquier reconstrucción del esquema desde cero (CI,
+`supabase db reset`, restaurar un backup) habría fallado en seco al llegarle
+el turno, porque `foto_url` ya estaría puesta por la 0381. No era un
+problema de producción: era el pipeline de todo el equipo.
+
+**Resuelto corrigiendo el cuerpo de la 0382 antes de que llegara a pegarse
+nunca** (decisión de Felipe, 2026-09-05): ahora declara las seis columnas y
+conserva la delegación, con el relato completo en su cabecera. Se eligió eso
+en vez de una migración de parche encima porque el estado real de producción
+—seis columnas, sin delegación— es incompatible con que la 0382 haya corrido
+allí alguna vez, así que no hay estado persistente que dependa de su forma
+anterior. Auditado en local aplicando la secuencia 0377→0382 sobre el mismo
+estado que tiene producción: las pruebas 301 (11), 302 (9, con su aserción
+de columnas actualizada), 303 (4, nueva: la foto y el aislamiento de sede
+conviven) y 293 (17, el candado de sede completo) en verde.
+
+🔴 **Falta pegar la 0382 en producción** — es lo que repone la delegación.
+Antes de pegarla, confirmar que sigue dando `delega_en_0382 = false`: si
+otra sesión ya la pegó mientras tanto, su propia guardia lo dice sin daño.
+
+---
+
 ## 2026-09-05 — Reverificada la deuda de planilla del 2026-08-19: 1 refutado, 6 confirmados abiertos · SOLO LECTURA, SIN MIGRACIONES
 
 La tabla "mueve plata en el pago mensual" de [`hallazgos-abiertos.md`](hallazgos-abiertos.md#confirmado-y-pendiente--mueve-plata-en-el-pago-mensual)

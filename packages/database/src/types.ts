@@ -2854,6 +2854,7 @@ export type Database = {
           fecha_estado_cambio: string | null
           fecha_fin_contrato: string | null
           fecha_ingreso: string
+          foto_url: string | null
           funcion: string
           id: string
           motivo_cese: string | null
@@ -2895,6 +2896,7 @@ export type Database = {
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
+          foto_url?: string | null
           funcion?: string
           id?: string
           motivo_cese?: string | null
@@ -2936,6 +2938,7 @@ export type Database = {
           fecha_estado_cambio?: string | null
           fecha_fin_contrato?: string | null
           fecha_ingreso?: string
+          foto_url?: string | null
           funcion?: string
           id?: string
           motivo_cese?: string | null
@@ -3940,6 +3943,7 @@ export type Database = {
       terminal_roster: {
         Row: {
           apellidos: string | null
+          foto_url: string | null
           id: string | null
           nombres: string | null
           sede_codigo: string | null
@@ -4185,6 +4189,10 @@ export type Database = {
           registros: number
           tiene_archivo: boolean
         }[]
+      }
+      fn_actualizar_foto_perfil: {
+        Args: { p_foto_url: string | null; p_persona_id: string | null }
+        Returns: undefined
       }
       fn_acusar_documento: {
         Args: { p_documento_id: string | null; p_nombre_declarado: string | null }
@@ -5203,6 +5211,10 @@ export type Database = {
           nombre: string
         }[]
       }
+      fn_foto_perfil_puede_escribir: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
       fn_generar_alertas_vencimiento: { Args: never; Returns: number }
       fn_grati_cts_agregar_pendientes: {
         Args: { p_periodo_id: string | null }
@@ -5466,6 +5478,10 @@ export type Database = {
       fn_persona_actual_id: { Args: never; Returns: string }
       fn_persona_en_roster_terminal: {
         Args: { p_persona_id: string | null }
+        Returns: boolean
+      }
+      fn_persona_marca_en_sede: {
+        Args: { p_persona_id: string | null; p_sede_id: string | null }
         Returns: boolean
       }
       fn_personas_funciones: { Args: never; Returns: Json }
