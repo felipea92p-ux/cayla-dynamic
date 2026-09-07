@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { CargandoFila, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Tabla } from "@/components/ui/tabla";
@@ -294,8 +293,7 @@ export default function CuentasPage() {
 
   if (rol !== null && !esAdmin) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           <h1 className="mb-1 font-serif text-2xl">Mi cuenta</h1>
           <SeccionMiClave {...{ nueva, setNueva, confirma, setConfirma, guardandoMia, cambiarMiClave }} />
@@ -305,8 +303,7 @@ export default function CuentasPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Cuentas</h1>
         <p className="mb-6 text-sm text-taupe">Cambia tu contraseña y gestiona los accesos del equipo al panel.</p>

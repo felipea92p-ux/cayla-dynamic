@@ -56,6 +56,7 @@ function datos(cambios: Partial<DatosContrato> = {}): DatosContrato {
     direccion: null,
     cargo: "Asesora",
     email: null,
+    genero: null,
     sedeNombre: "Trujillo",
     sedeCodigo: "TRU",
     ciudad: "Trujillo",
@@ -225,6 +226,12 @@ describe("documentoConvenio", () => {
     const texto = construirContrato(datosConvenio());
     expect(texto.match(/LA PRACTICANTE/g)!.length).toBeGreaterThan(3);
     expect(texto).not.toContain("LA COLABORADORA");
+  });
+
+  it("firma como EL PRACTICANTE cuando el género es masculino, nunca LA PRACTICANTE", () => {
+    const texto = construirContrato(datosConvenio({ genero: "masculino" }));
+    expect(texto).toContain("EL PRACTICANTE");
+    expect(texto).not.toContain("LA PRACTICANTE");
   });
 
   it("el Anexo I es el plan específico de aprendizaje, no las funciones del cargo", () => {

@@ -48,6 +48,13 @@ export interface DatosContrato {
   direccion: string | null;
   cargo: string;
   email: string | null;
+  /**
+   * De `datos_personales.genero` (0369). Decide "EL PRACTICANTE" / "LA
+   * PRACTICANTE" en el convenio de prácticas — `null` (dato no cargado)
+   * mantiene el femenino por ser el uso previo del documento, no una
+   * suposición de género.
+   */
+  genero: "femenino" | "masculino" | null;
 
   // El puesto
   sedeNombre: string;
@@ -890,6 +897,8 @@ const ORDINALES_CONVENIO = [
  * `ORDINALES_CONVENIO`.
  */
 function documentoConvenio(d: DatosContrato): string {
+  const etiquetaPracticante = d.genero === "masculino" ? "EL PRACTICANTE" : "LA PRACTICANTE";
+  const identificadoTexto = d.genero === "masculino" ? "identificado" : "identificada";
   const horasMax = maximoSemanalPracticante("practicante", d.practicanteModalidad);
   const esPreprofesional = d.practicanteModalidad !== "profesional";
   const modalidadTexto = d.practicanteModalidad === "profesional" ? "PROFESIONALES" : "PREPROFESIONALES";
@@ -900,7 +909,7 @@ function documentoConvenio(d: DatosContrato): string {
       ? `no excederá de ${
           horasMax === 30 ? "seis (6) horas diarias ni treinta (30) horas semanales" : "ocho (8) horas diarias ni cuarenta y ocho (48) horas semanales"
         }, conforme al artículo 44 de la Ley N.° 28518`
-      : `<strong>[FALTA ASIGNAR LA MODALIDAD DE LA PRACTICANTE EN EQUIPO — preprofesional (30h) o profesional
+      : `<strong>[FALTA ASIGNAR LA MODALIDAD DE ${etiquetaPracticante} EN EQUIPO — preprofesional (30h) o profesional
         (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`;
 
   const datosCentro = esPreprofesional
@@ -921,7 +930,7 @@ function documentoConvenio(d: DatosContrato): string {
   // ── Las cláusulas, en el orden en que se numeran. Ver ORDINALES_CONVENIO. ──
   const clausulas: string[] = [
     `<h3>{{N}}. OBJETO</h3>
-    <p>LA PRACTICANTE realizará su Práctica ${esPreprofesional ? "Preprofesional" : "Profesional"} para
+    <p>${etiquetaPracticante} realizará su Práctica ${esPreprofesional ? "Preprofesional" : "Profesional"} para
     ${
       esPreprofesional
         ? "aplicar los conocimientos, habilidades y aptitudes adquiridos durante su formación, en una situación real de trabajo. LA EMPRESA colabora con EL CENTRO DE FORMACIÓN PROFESIONAL en esta tarea formativa"
@@ -929,14 +938,14 @@ function documentoConvenio(d: DatosContrato): string {
     }.</p>`,
 
     `<h3>{{N}}. ÁREA Y ACTIVIDADES FORMATIVAS</h3>
-    <p>LA PRACTICANTE desarrollará actividades formativas en el área de ${d.areaProyecto || "[completar]"}, en el
+    <p>${etiquetaPracticante} desarrollará actividades formativas en el área de ${d.areaProyecto || "[completar]"}, en el
     puesto de ${d.cargo}, en la sede ${d.sedeNombre}, conforme al Plan Específico de Aprendizaje que se detalla en
     el ANEXO I, el cual forma parte integrante del presente convenio (Ley N.° 28518, artículo 15).</p>`,
 
     `<h3>{{N}}. JORNADA</h3>
-    <p>La jornada de LA PRACTICANTE ${horasTexto}. Los horarios serán determinados por LA EMPRESA de acuerdo a sus
+    <p>La jornada de ${etiquetaPracticante} ${horasTexto}. Los horarios serán determinados por LA EMPRESA de acuerdo a sus
     necesidades operativas, dentro del máximo establecido en este párrafo, y compatibles con las obligaciones
-    académicas de LA PRACTICANTE cuando corresponda.</p>
+    académicas de ${etiquetaPracticante} cuando corresponda.</p>
     <p>Que LA EMPRESA supervise, oriente y evalúe el desarrollo de las prácticas es parte propia de la modalidad
     formativa (Ley N.° 28518, artículo 8) y no constituye, por sí sola, indicio de subordinación laboral.</p>`,
 
@@ -950,7 +959,7 @@ function documentoConvenio(d: DatosContrato): string {
     considere desnaturalizada, con las consecuencias laborales que ello implica.</p>`,
 
     `<h3>{{N}}. SUBVENCIÓN ECONÓMICA</h3>
-    <p>LA EMPRESA otorga a LA PRACTICANTE una subvención económica mensual de S/ ${soles(d.remuneracionMensual)}
+    <p>LA EMPRESA otorga a ${etiquetaPracticante} una subvención económica mensual de S/ ${soles(d.remuneracionMensual)}
     (${numeroALetras(d.remuneracionMensual)} soles), no menor a la Remuneración Mínima Vital vigente${
       esPreprofesional ? ", proporcional a la jornada pactada" : " para una jornada completa"
     } (Ley N.° 28518, artículo 45). La subvención económica <strong>no constituye remuneración</strong>, no está
@@ -963,7 +972,7 @@ function documentoConvenio(d: DatosContrato): string {
     feriados no laborables debidamente subvencionados (Ley N.° 28518, artículos 42.4 y 45).</p>`,
 
     `<h3>{{N}}. SEGURO</h3>
-    <p>LA EMPRESA cubre los riesgos de enfermedad y accidentes de LA PRACTICANTE mediante su afiliación a EsSalud
+    <p>LA EMPRESA cubre los riesgos de enfermedad y accidentes de ${etiquetaPracticante} mediante su afiliación a EsSalud
     (Ley N.° 28518, artículo 42.8) — decisión propia de LA EMPRESA, que no le corresponde por defecto a toda
     modalidad formativa. De optar en su lugar por un seguro privado, la cobertura no será menor a catorce (14)
     subvenciones mensuales en caso de enfermedad y treinta (30) en caso de accidente, conforme al artículo 43 de la
@@ -974,7 +983,7 @@ function documentoConvenio(d: DatosContrato): string {
     <ul>
       ${
         esPreprofesional
-          ? "<li>Brindar orientación y capacitación técnica dentro del área de formación de LA PRACTICANTE.</li>"
+          ? `<li>Brindar orientación y capacitación técnica dentro del área de formación de ${etiquetaPracticante}.</li>`
           : "<li>Proporcionar la dirección técnica y los medios necesarios para la formación en la actividad materia del convenio.</li>"
       }
       <li>Designar un(a) supervisor(a) que oriente y verifique el cumplimiento del Plan Específico de Aprendizaje.</li>
@@ -988,8 +997,8 @@ function documentoConvenio(d: DatosContrato): string {
       <li>Expedir el certificado de prácticas al finalizar el convenio.</li>
     </ul>`,
 
-    `<h3>{{N}}. OBLIGACIONES DE LA PRACTICANTE</h3>
-    <p>LA PRACTICANTE se obliga a:</p>
+    `<h3>{{N}}. OBLIGACIONES DE ${etiquetaPracticante}</h3>
+    <p>${etiquetaPracticante} se obliga a:</p>
     <ul>
       <li>Desarrollar sus prácticas con disciplina y responsabilidad.</li>
       <li>Cumplir el Plan Específico de Aprendizaje.</li>
@@ -1004,24 +1013,24 @@ function documentoConvenio(d: DatosContrato): string {
     `<h3>{{N}}. LO QUE ESTE CONVENIO NO GENERA</h3>
     <p>Por no tratarse de una relación laboral, el presente convenio <strong>no genera</strong> vínculo laboral,
     gratificaciones, Compensación por Tiempo de Servicios (CTS), vacaciones proporcionales, ni aporte a un sistema
-    pensionario (AFP u ONP) — salvo que LA PRACTICANTE decida afiliarse voluntariamente, en cuyo caso el aporte
+    pensionario (AFP u ONP) — salvo que ${etiquetaPracticante} decida afiliarse voluntariamente, en cuyo caso el aporte
     corre por su cuenta (Ley N.° 28518, artículo 47).</p>`,
 
     `<h3>{{N}}. NO SUJECIÓN AL REGLAMENTO INTERNO DE TRABAJO</h3>
     <p>Conforme al numeral 2.6 del Reglamento Interno de Trabajo de LA EMPRESA (versión ${d.ritVersion}, vigente
-    desde el ${d.ritFecha}), LA PRACTICANTE no tiene la condición de trabajadora, no mantiene relación laboral con
+    desde el ${d.ritFecha}), ${etiquetaPracticante} no tiene la condición de trabajadora, no mantiene relación laboral con
     LA EMPRESA y no está comprendida por dicho Reglamento — se rige por el presente convenio y por la Ley N.° 28518.
-    Ello no excluye las obligaciones de seguridad y salud en el trabajo, que sí alcanzan a LA PRACTICANTE desde el
+    Ello no excluye las obligaciones de seguridad y salud en el trabajo, que sí alcanzan a ${etiquetaPracticante} desde el
     primer día conforme al artículo 68 de la Ley N.° 29783, Ley de Seguridad y Salud en el Trabajo.</p>`,
 
     `<h3>{{N}}. CONDUCTA Y CUSTODIA DE ACTIVOS</h3>
-    <p>LA PRACTICANTE se obliga a mantener conducta ética, respetuosa y acorde a la imagen de LA EMPRESA durante el
+    <p>${etiquetaPracticante} se obliga a mantener conducta ética, respetuosa y acorde a la imagen de LA EMPRESA durante el
     desarrollo de sus prácticas. Los bienes que LA EMPRESA le entregue bajo su custodia se detallan en el
     ANEXO IV — Constancia de Recepción y Responsabilidad de Activos, el cual forma parte integrante del presente
     convenio.</p>`,
 
     `<h3>{{N}}. USO DE IMAGEN</h3>
-    <p>LA PRACTICANTE autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías o
+    <p>${etiquetaPracticante} autoriza expresamente a LA EMPRESA el uso de su imagen, voz y representación en fotografías o
     videos tomados durante el desarrollo de sus prácticas o en actividades institucionales en la sede
     ${d.sedeNombre}, con fines corporativos o institucionales, sin compensación adicional, respetando siempre su
     dignidad e integridad personal, en los límites de la Ley N.° 29733, Ley de Protección de Datos Personales.</p>`,
@@ -1029,24 +1038,24 @@ function documentoConvenio(d: DatosContrato): string {
     `<h3>{{N}}. CONFIDENCIALIDAD</h3>
     <p>Toda información relacionada con procesos internos, inventarios, proveedores, estrategias comerciales, datos
     de clientes, precios, márgenes, información financiera y cualquier información sensible de LA EMPRESA tiene
-    carácter estrictamente confidencial. LA PRACTICANTE se obliga a no divulgarla, reproducirla ni utilizarla para
+    carácter estrictamente confidencial. ${etiquetaPracticante} se obliga a no divulgarla, reproducirla ni utilizarla para
     fines distintos a sus prácticas, durante la vigencia del presente convenio y hasta veinticuatro (24) meses
     después de su culminación.</p>`,
 
     `<h3>{{N}}. VIDEOVIGILANCIA</h3>
     <p>LA EMPRESA cuenta con sistemas de videovigilancia en las instalaciones del centro de trabajo, debidamente
     señalizados, que operan de forma permanente con fines de seguridad, control operativo y verificación de
-    incidencias, conforme a la Ley N.° 29733. LA PRACTICANTE declara conocer y aceptar su existencia mediante la
+    incidencias, conforme a la Ley N.° 29733. ${etiquetaPracticante} declara conocer y aceptar su existencia mediante la
     firma del presente convenio.</p>`,
 
     `<h3>{{N}}. PROTECCIÓN DE DATOS PERSONALES</h3>
-    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a LA PRACTICANTE que sus datos personales serán
+    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a ${etiquetaPracticante} que sus datos personales serán
     tratados con las finalidades exclusivas de gestión del presente convenio, cumplimiento de obligaciones legales,
-    comunicaciones internas y emisión de constancias. LA PRACTICANTE otorga su consentimiento expreso mediante la
+    comunicaciones internas y emisión de constancias. ${etiquetaPracticante} otorga su consentimiento expreso mediante la
     firma del presente convenio.</p>`,
 
     `<h3>{{N}}. BENEFICIOS ADICIONALES VOLUNTARIOS</h3>
-    <p>LA EMPRESA podrá, a su sola discreción, extender a LA PRACTICANTE beneficios adicionales no remunerativos
+    <p>LA EMPRESA podrá, a su sola discreción, extender a ${etiquetaPracticante} beneficios adicionales no remunerativos
     —como movilidad diaria supeditada a la asistencia o apoyo a estudios— en los mismos términos previstos en el
     artículo 19 del Decreto Supremo N.° 001-97-TR para su personal regular. Su otorgamiento es voluntario, no
     constituye remuneración, no genera derecho adquirido y no modifica la naturaleza formativa ni la ausencia de
@@ -1055,11 +1064,11 @@ function documentoConvenio(d: DatosContrato): string {
     `<h3>{{N}}. DOMICILIO ELECTRÓNICO Y COMUNICACIONES</h3>
     <p>Las partes acuerdan un domicilio electrónico válido para las comunicaciones relacionadas con el presente
     convenio, conforme a los términos del ANEXO III — Domicilio Electrónico y Comunicaciones, el cual forma parte
-    integrante del presente convenio.${d.email ? ` El domicilio electrónico de LA PRACTICANTE es ${d.email}.` : ""}</p>`,
+    integrante del presente convenio.${d.email ? ` El domicilio electrónico de ${etiquetaPracticante} es ${d.email}.` : ""}</p>`,
 
     `<h3>{{N}}. EXTINCIÓN</h3>
     <p>El convenio se extingue por vencimiento del plazo, mutuo acuerdo, incumplimiento comprobado de las
-    obligaciones aquí pactadas, o decisión unilateral de LA PRACTICANTE, sin perjuicio de las demás causales
+    obligaciones aquí pactadas, o decisión unilateral de ${etiquetaPracticante}, sin perjuicio de las demás causales
     previstas en el Reglamento. Al no existir relación laboral, la extinción del presente convenio no genera
     indemnización por cese ni beneficios sociales — sin perjuicio de la subvención y demás derechos devengados
     hasta la fecha.</p>`,
@@ -1101,14 +1110,14 @@ function documentoConvenio(d: DatosContrato): string {
     identificado(a) con D.N.I. N.° ${d.firmanteDni}, a quien en adelante se denominará LA EMPRESA.</p>
     ${datosCentro}
 
-    <h3>${esPreprofesional ? "III" : "II"}. DATOS DE LA PRACTICANTE</h3>
-    <p>${d.nombreDni}, identificada con D.N.I. N.° ${d.documento}${
+    <h3>${esPreprofesional ? "III" : "II"}. DATOS DE ${etiquetaPracticante}</h3>
+    <p>${d.nombreDni}, ${identificadoTexto} con D.N.I. N.° ${d.documento}${
       d.direccion ? `, con domicilio en ${d.direccion}` : ""
-    }, a quien en adelante se denominará LA PRACTICANTE.</p>
+    }, a quien en adelante se denominará ${etiquetaPracticante}.</p>
     ${datosAcademicos}
 
     <p>Todas las partes declaran expresamente que el presente convenio <strong>no genera relación laboral</strong>
-    entre LA PRACTICANTE y LA EMPRESA (Ley N.° 28518, artículo 47), y se celebra sin vicios de voluntad.</p>
+    entre ${etiquetaPracticante} y LA EMPRESA (Ley N.° 28518, artículo 47), y se celebra sin vicios de voluntad.</p>
 
     ${cuerpoClausulas}
 
@@ -1117,12 +1126,12 @@ function documentoConvenio(d: DatosContrato): string {
 
     ${
       esPreprofesional
-        ? bloqueFirmas(d, "LA PRACTICANTE", {
+        ? bloqueFirmas(d, etiquetaPracticante, {
             etiqueta: "EL CENTRO DE FORMACIÓN PROFESIONAL",
             nombre: d.centroFormacionNombre ?? "[completar]",
             ruc: d.centroFormacionRuc ?? "[completar]",
           })
-        : bloqueFirmas(d, "LA PRACTICANTE")
+        : bloqueFirmas(d, etiquetaPracticante)
     }
     <p class="pie-hoja">${EMPRESA.nombre} · RUC N.° ${EMPRESA.ruc}</p>
 
@@ -1136,19 +1145,19 @@ function documentoConvenio(d: DatosContrato): string {
       <p><strong>Hito de evaluación — mes 3:</strong> ${d.hitoMes3 || "[completar]"}</p>
       <p><strong>Hito de evaluación — mes 6:</strong> ${d.hitoMes6 || "[completar]"}</p>
       <p><strong>Fecha de inicio / término:</strong> ${formatearFecha(d.fechaInicio)} – ${formatearFecha(d.fechaFin)}</p>
-      ${pieAnexo(d, "LA PRACTICANTE")}
+      ${pieAnexo(d, etiquetaPracticante)}
     </section>
 
     <section class="anexo">
       ${encabezadoAnexo(d, "ANEXO III — DOMICILIO ELECTRÓNICO Y COMUNICACIONES", "Cláusula del presente convenio sobre domicilio electrónico y comunicaciones")}
-      <p>LA EMPRESA: info@cayla.pe · LA PRACTICANTE: ${d.email ?? "[completar]"}</p>
+      <p>LA EMPRESA: info@cayla.pe · ${etiquetaPracticante}: ${d.email ?? "[completar]"}</p>
       <p>Las direcciones consignadas constituyen los domicilios electrónicos válidos para todos los efectos del
       presente convenio, incluidas las comunicaciones sobre el Plan Específico de Aprendizaje y demás documentos
       relacionados con la práctica.</p>
-      ${pieAnexo(d, "LA PRACTICANTE")}
+      ${pieAnexo(d, etiquetaPracticante)}
     </section>
 
-    ${anexoIV(d, "LA PRACTICANTE")}
+    ${anexoIV(d, etiquetaPracticante)}
   </article>`;
 }
 

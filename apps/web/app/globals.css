@@ -144,6 +144,55 @@ a.bg-tinta:hover {
   font-weight: 500;
 }
 
+/* ── La barra de desplazamiento ──────────────────────────────────
+   Hasta el 2026-09-07 era la del sistema operativo: en Windows, 15px de gris
+   plano que no aparece en ninguna paleta de esta casa, pegados al borde del
+   sidebar nuevo y a las 16 pantallas con tabla ancha. En una app donde "la
+   línea fina es el único elemento decorativo", eso era el elemento más grueso
+   de la pantalla.
+
+   Ahora es taupe translúcido sobre pista transparente, así que hereda el tema
+   sin una sola regla de modo oscuro: en claro, taupe es #805c4c y se lee sobre
+   crema; en oscuro es #ab9080 y se lee sobre el crema oscuro. Mismo mecanismo
+   que el resto de la pantalla — se redefine el token, no el componente.
+
+   POR QUÉ DOS VÍAS Y NO UNA. Las dos formas de estilar esto no conviven: desde
+   Chrome 121, si `scrollbar-color` o `scrollbar-width` valen algo distinto de
+   `auto`, el navegador DESCARTA las reglas `::-webkit-scrollbar` (resolución
+   del CSS WG). Escribir las dos a secas deja la mitad del trabajo muerto y sin
+   avisar. El `@supports not selector(...)` reparte: quien entiende el selector
+   de webkit (Chrome, Safari, Edge — o sea las Mac mini, la Mac y el navegador
+   de Felipe) se salta el bloque estándar y usa el detallado; quien no lo
+   entiende (Firefox) se queda con el estándar, que da lo mismo con menos
+   control. Comprobado en el navegador antes de escribirlo, no deducido. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-taupe) 35%, transparent) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* El borde transparente con `background-clip` es lo que deja el pulgar en 6px
+   visibles conservando 12px de zona agarrable: fino a la vista, cómodo al
+   ratón. Sin él habría que elegir entre las dos cosas. */
+::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-taupe) 30%, transparent);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-pildora);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-taupe) 55%, transparent);
+}
+
 /* Aleteo del colibrí para estados de carga: un flotar suave, no un giro. */
 @keyframes aletea {
   0%, 100% { transform: translateY(0); }

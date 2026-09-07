@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -175,6 +174,7 @@ interface DatoPersonal {
   persona_id: string;
   nombre_dni: string | null;
   direccion: string | null;
+  genero: string | null;
 }
 interface Salario {
   persona_id: string;
@@ -250,6 +250,67 @@ const TIPO_CONTRATO: Record<string, string> = {
  */
 /** Los estados que se resuelven generando un contrato; el resto, abriendo el suyo. */
 const NECESITA_CONTRATO = new Set(["sin_contrato", "vencido", "por_vencer", "desnaturalizado"]);
+
+
+/**
+ * El nombre CORTO de cada estado, para la insignia de la tabla.
+ *
+ * `ESTADO_TABLERO` guarda frases que explican («marcó después del vencimiento —
+ * riesgo art. 77»); eso sirve para una lista con espacio, pero dentro de una
+ * insignia de una columna estrecha se desborda y tapa lo de al lado — pasó al
+ * probarlo. La frase completa sigue viviendo en el visor, que es donde hay
+ * sitio para leerla.
+ */
+const ETIQUETA_CORTA: Record<string, string> = {
+  desnaturalizado: "Riesgo art. 77",
+  vencido: "Vencido",
+  sin_contrato: "Sin registrar",
+  sin_firmar: "Sin firmar",
+  sin_vencimiento: "Sin vencimiento",
+  por_vencer: "Vence pronto",
+  tramite_pendiente: "Falta trámite",
+  ok: "Vigente",
+};
+
+/**
+ * Las clases de cada tono. Escritas enteras porque Tailwind no arma nombres.
+ *
+ * Ya solo las usa la insignia del VISOR: la tabla perdió su columna de estado
+ * el 2026-09-07 (decisión de Felipe) y ahora lo dice en el `title` de la fila.
+ * `pizarra` es el token de «en proceso» que se agregó el 2026-09-06.
+ */
+const CLASE_TONO: Record<string, string> = {
+  rojo: "bg-rojo/15 text-rojo-profundo",
+  ambar: "bg-ambar/15 text-ambar",
+  pizarra: "bg-pizarra/15 text-pizarra",
+  verde: "bg-verde/15 text-verde",
+};
+
+/**
+ * «06 mar 2026». La fecha corta de la línea de tiempo.
+ *
+ * `formatearFecha` da «6 de marzo de 2026», que en la columna estrecha de los
+ * hitos ocupa tres renglones y rompe la lectura vertical de las fechas — se vio
+ * al probarlo. Acá lo que importa es alinear seis fechas para leerlas de un
+ * vistazo, no la prosa.
+ */
+const MES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "set", "oct", "nov", "dic"];
+function fechaCorta(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d} ${MES_CORTO[Number(m) - 1]} ${y}`;
+}
+
+/** «en 9 días» · «hace 6 días» · «—». Lo que se lee en la columna Vence. */
+function venceTexto(f: FilaTablero): { texto: string; alerta: boolean } {
+  if (f.fecha_fin_contrato === null) return { texto: "—", alerta: false };
+  if (f.dias_restantes === null) return { texto: formatearFecha(f.fecha_fin_contrato), alerta: false };
+  if (f.dias_restantes < 0) {
+    const d = Math.abs(f.dias_restantes);
+    return { texto: d === 1 ? "hace 1 día" : `hace ${d} días`, alerta: true };
+  }
+  if (f.dias_restantes === 0) return { texto: "hoy", alerta: true };
+  return { texto: f.dias_restantes === 1 ? "en 1 día" : `en ${f.dias_restantes} días`, alerta: false };
+}
 
 /**
  * Qué decir de quien NO tiene contrato en este sistema.
@@ -438,6 +499,21 @@ export default function ContratosPage() {
   // archivo?», se pregunta «¿qué pasa con Danitza?». Con ~30 personas activas y
   // varios contratos por cabeza, eso se respondía recorriendo la pantalla.
   const [busca, setBusca] = useState("");
+  // Los dos filtros de la tabla. `filtroEstado` arranca en «pendientes» y no en
+  // «todos» a propósito: una tabla donde casi todas las filas dicen «al día»
+  // enseña a ignorarla, que es el mismo criterio con el que el tablero viejo
+  // escondía a quien no tenía nada pendiente. La diferencia es que ahora los
+  // demás se pueden ver con un clic, en vez de no existir.
+  const [filtroSede, setFiltroSede] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<"pendientes" | "todos" | string>("pendientes");
+  // EL CONTRATO QUE SE ESTÁ MIRANDO EN EL VISOR — se guarda su ID, no la fila.
+  //
+  // Marcar «copia entregada» desde el visor llama a `cargar()`, que trae la
+  // lista de nuevo; con una copia de la fila guardada aquí, el visor seguiría
+  // mostrando «falta» sobre un trámite que se acaba de anotar. Derivarlo del id
+  // lo deja siempre fresco sin un efecto que lo sincronice — y sin un
+  // `setState` dentro de un efecto, que es lo que el linter caza.
+  const [detalleId, setDetalleId] = useState<string | null>(null);
 
   const { avisar } = useToast();
 
@@ -537,7 +613,7 @@ export default function ContratosPage() {
         .eq("estado", "activo")
         .order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo, ciudad"),
-      supabase.from("datos_personales").select("persona_id, nombre_dni, direccion"),
+      supabase.from("datos_personales").select("persona_id, nombre_dni, direccion, genero"),
       supabase.from("asignaciones_salario").select("persona_id, salario_mensual_soles").is("vigente_hasta", null),
       // Movilidad, bono y RMV: la fila vigente HOY. Sin fila aplicable, cae a
       // null y el contrato lo dice en vez de inventar un monto — misma
@@ -818,6 +894,7 @@ export default function ContratosPage() {
           nombreDni: datoPersonal.nombre_dni,
           documento: persona.documento,
           direccion: datoPersonal.direccion,
+          genero: datoPersonal.genero === "masculino" ? "masculino" : datoPersonal.genero === "femenino" ? "femenino" : null,
           cargo: cargoEditado || persona.cargo || "",
           email: persona.email,
           sedeNombre: sedeNom,
@@ -1363,6 +1440,51 @@ export default function ContratosPage() {
   // filtro acaba de esconder señalaría a quien no es.
   const graves = pendientesVisibles.filter((f) => ESTADO_TABLERO[f.estado]?.grave).length;
 
+  // ── LOS CUATRO CONTADORES ─────────────────────────────────────────────────
+  // Se cuentan sobre el tablero ENTERO, no sobre lo filtrado: son el estado del
+  // mes, no de la búsqueda. Cada uno es también un botón que filtra la tabla —
+  // ver un número sin poder abrir lo que hay detrás obliga a adivinar el filtro.
+  //
+  // «Riesgo art. 77» va primero y es el único en rojo, porque es el único que
+  // cuesta plata: quien siguió marcando después de su vencimiento queda con
+  // vínculo indefinido POR LEY (art. 77 del TUO del D. Leg. 728), sin que nadie
+  // lo decida. Los otros tres son trámites; este es una contingencia.
+  const cuenta = (e: string) => tablero.filter((f) => f.estado === e).length;
+  const contadores: { clave: string; etiqueta: string; n: number; grave: boolean }[] = [
+    { clave: "desnaturalizado", etiqueta: "Riesgo art. 77", n: cuenta("desnaturalizado"), grave: true },
+    { clave: "sin_firmar", etiqueta: "Sin escaneado", n: cuenta("sin_firmar"), grave: false },
+    { clave: "tramite_pendiente", etiqueta: "Falta copia o MTPE", n: cuenta("tramite_pendiente"), grave: false },
+    { clave: "por_vencer", etiqueta: "Vencen en 30 días", n: cuenta("por_vencer"), grave: false },
+  ];
+
+  // Las sedes que de verdad aparecen, para el desplegable. Se leen del tablero
+  // y no de una lista escrita a mano: la regla de la casa es que una lista de
+  // algo que vive en una tabla no se escribe: se pregunta.
+  const sedesEnTablero = [...new Set(tablero.map((f) => f.sede).filter((x): x is string => Boolean(x)))].sort();
+
+  // ── LAS FILAS DE LA TABLA ─────────────────────────────────────────────────
+  // Parten del TABLERO, no del archivo de contratos: quien no tiene ninguno
+  // generado es invisible en el archivo, y «¿a quién le falta?» es justo la
+  // pregunta que se abre esta pantalla a responder.
+  // Siempre la fila viva: si se anula o desaparece de la lista, el visor se
+  // cierra solo en vez de quedarse enseñando algo que ya no existe.
+  const detalle = detalleId ? (contratos.find((c) => c.id === detalleId) ?? null) : null;
+
+  const filas = tablero
+    .filter((f) => (coincide(f.persona) || coincide(f.sede)))
+    .filter((f) => filtroSede === "" || f.sede === filtroSede)
+    .filter((f) =>
+      filtroEstado === "todos" ? true : filtroEstado === "pendientes" ? f.estado !== "ok" : f.estado === filtroEstado,
+    )
+    // Lo urgente arriba: primero lo grave, después por cuántos días quedan.
+    .sort((a, b) => {
+      const g = Number(ESTADO_TABLERO[b.estado]?.grave ?? false) - Number(ESTADO_TABLERO[a.estado]?.grave ?? false);
+      if (g !== 0) return g;
+      const da = a.dias_restantes ?? 99999;
+      const db = b.dias_restantes ?? 99999;
+      return da - db;
+    });
+
   // El archivo, agrupado por persona y en el orden en que ya vienen (el más
   // reciente primero). `Map` y no un objeto: conserva el orden de inserción,
   // que es el que decide la consulta.
@@ -1415,9 +1537,6 @@ export default function ContratosPage() {
 
   return (
     <main className="p-6">
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
 
       <div className="mx-auto max-w-6xl space-y-6 print:hidden">
         <header>
@@ -1440,8 +1559,8 @@ export default function ContratosPage() {
             archivo—. Ese es el motivo de que el generador vaya en medio del DOM
             y no al final: puesto después de las dos listas, en una pantalla
             angosta quedaría a un scroll largo de distancia. */}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_30rem]">
-          <div className="min-w-0 space-y-6 xl:col-start-1 xl:row-start-1">
+        <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             {/* UN SOLO BUSCADOR PARA LAS DOS LISTAS. Filtra por nombre y por
                 sede, sin tildes: nadie escribe «Gutiérrez» con la tilde puesta
                 cuando lo que quiere es encontrarla. */}
@@ -1471,104 +1590,176 @@ export default function ContratosPage() {
                 )}
               </div>
             )}
-            {/* EL TABLERO VA PRIMERO, Y PARTE DE LAS PERSONAS.
-                El historial de abajo arranca de los contratos generados, así que
-                quien no tiene ninguno es invisible ahí — y con veinte venciendo el
-                mismo día, «¿a quién le falta?» es la pregunta que hay que poder
-                hacer al abrir la pantalla, no la que hay que deducir.
-                Cada fila lleva su acción: ver un pendiente sin poder resolverlo
-                desde ahí obliga a buscar a esa persona a mano en el desplegable. */}
-            {pendientes.length > 0 && (
-              <section className="rounded-lg border border-sand bg-papel p-4">
-                <h2 className="mb-3 font-serif text-lg">
-                  Necesitan atención{" "}
-                  <span className={graves > 0 ? "text-rojo" : "text-taupe"}>
-                    · {filtro ? `${pendientesVisibles.length} de ${pendientes.length}` : pendientes.length}
-                  </span>
-                </h2>
-                {pendientesVisibles.length === 0 && (
-                  <p className="text-sm text-taupe">Nada de esta lista coincide con «{busca.trim()}».</p>
+            {/* LOS CUATRO CONTADORES, Y CADA UNO ES UN FILTRO.
+                Un número que no se puede abrir obliga a adivinar qué filtro lo
+                reproduce. Pulsar uno deja la tabla con exactamente esas filas.
+                Solo el primero lleva rojo: es el único que cuesta plata. */}
+            {tablero.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {contadores.map((c) => {
+                  const activo = filtroEstado === c.clave;
+                  return (
+                    <button
+                      key={c.clave}
+                      onClick={() => setFiltroEstado(activo ? "pendientes" : c.clave)}
+                      aria-pressed={activo}
+                      className={`rounded-2xl border p-3 text-left transition-colors ${
+                        c.grave && c.n > 0 ? "border-rojo" : activo ? "border-taupe" : "border-sand"
+                      } ${activo ? "bg-hueso" : "bg-papel hover:bg-hueso"}`}
+                    >
+                      <span
+                        className={`block text-xs ${c.grave && c.n > 0 ? "text-rojo" : "text-taupe"}`}
+                      >
+                        {c.etiqueta}
+                      </span>
+                      <span
+                        className={`block font-serif text-2xl ${c.grave && c.n > 0 ? "text-rojo" : "text-tinta"}`}
+                      >
+                        {c.n}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* LOS DOS DESPLEGABLES. La sede se lee del propio tablero, nunca de
+                una lista escrita a mano: eso es lo que se volvió falso el día
+                que abrió Central. */}
+            {tablero.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={filtroSede}
+                  onChange={(e) => setFiltroSede(e.target.value)}
+                  aria-label="Filtrar por sede"
+                  className="rounded-lg border border-sand bg-hueso p-2 text-sm"
+                >
+                  <option value="">Todas las sedes</option>
+                  {sedesEnTablero.map((sd) => (
+                    <option key={sd} value={sd}>
+                      {sd}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value)}
+                  aria-label="Filtrar por estado"
+                  className="rounded-lg border border-sand bg-hueso p-2 text-sm"
+                >
+                  <option value="pendientes">Necesitan atención</option>
+                  <option value="todos">Todos los estados</option>
+                  {Object.keys(ESTADO_TABLERO).map((e) => (
+                    <option key={e} value={e}>
+                      {ESTADO_TABLERO[e].texto}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* LA TABLA. Parte de las PERSONAS, no del archivo de contratos:
+                quien no tiene ninguno generado no aparece en el archivo, y
+                «¿a quién le falta?» es la pregunta que abre esta pantalla. */}
+            {tablero.length > 0 && (
+              <details className="overflow-hidden rounded-2xl border border-sand bg-papel">
+                {/* PLEGADA POR DEFECTO. Con treinta personas, la lista abierta
+                    empujaba el generador fuera de la pantalla: lo primero que
+                    se ve son los cuatro contadores, y quien quiera los nombres
+                    los abre. Decisión de Felipe (2026-09-07). */}
+                <summary className="cursor-pointer list-none px-3 py-2.5 font-serif text-lg marker:content-['']">
+                  Colaboradores <span className="text-sm text-taupe">· {filas.length}</span>
+                </summary>
+                <table className="w-full table-fixed border-t border-sand text-sm">
+                  <thead>
+                    <tr className="bg-sand text-left text-xs text-taupe">
+                      <th className="w-[44%] px-3 py-2 font-medium">Colaboradora</th>
+                      <th className="w-[14%] px-2 py-2 font-medium">Sede</th>
+                      <th className="w-[26%] px-2 py-2 font-medium">Tipo</th>
+                      <th className="w-[16%] px-3 py-2 font-medium">Vence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filas.map((f, i) => {
+                      const personaFila = personas.find((p) => p.id === f.persona_id);
+                      const esPracticanteFila = personaFila?.tipo_vinculo === "practicante";
+                      const e =
+                        f.estado === "sin_contrato"
+                          ? estadoSinContrato(f)
+                          : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
+                      // Para una practicante, `fecha_fin_contrato`/`estado` los
+                      // mueve el tope legal de 12 meses (0336), no lo que dice su
+                      // convenio: decirlo con las palabras de un contrato vencido
+                      // confundiría.
+                      const texto =
+                        esPracticanteFila && f.estado === "vencido"
+                          ? "Pasó 12 meses"
+                          : esPracticanteFila && f.estado === "por_vencer"
+                            ? "Cerca del tope"
+                            : esPracticanteFila && f.estado === "sin_vencimiento"
+                              ? "Sin fecha fin"
+                              : // Un indefinido nunca debe comunicación al MTPE (0347).
+                                f.tipo === "indefinido" && f.estado === "tramite_pendiente"
+                                ? "Falta la copia"
+                                : (ETIQUETA_CORTA[f.estado] ?? e.texto);
+                      const v = venceTexto(f);
+                      const tipoFila = esPracticanteFila
+                        ? "convenio_practicas"
+                        : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
+                      // La fila entera abre el detalle; quien no tiene contrato
+                      // todavía no tiene detalle que abrir, así que se le prepara
+                      // el formulario, que es lo único que se puede hacer con ella.
+                      const abrir = () => {
+                        const c = f.contrato_id ? contratos.find((x) => x.id === f.contrato_id) : undefined;
+                        if (c) setDetalleId(c.id);
+                        else {
+                          setPersonaId(f.persona_id);
+                          setTipo(tipoFila);
+                        }
+                      };
+                      return (
+                        <tr
+                          key={f.persona_id}
+                          onClick={abrir}
+                          title={texto}
+                          className={`cursor-pointer border-t border-sand hover:bg-sand/40 ${i % 2 === 1 ? "bg-hueso" : ""}`}
+                        >
+                          <td className="truncate px-3 py-2.5">{f.persona}</td>
+                          <td className="px-2 py-2.5 text-taupe">{f.sede}</td>
+                          <td className="truncate px-2 py-2.5 text-taupe">
+                            {f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—"}
+                          </td>
+                          <td className={`px-3 py-2.5 ${v.alerta ? "text-rojo" : "text-taupe"}`}>{v.texto}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {filas.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-taupe">
+                    Nada coincide con ese filtro.{" "}
+                    <button
+                      className="underline underline-offset-2 hover:text-tinta"
+                      onClick={() => {
+                        setBusca("");
+                        setFiltroSede("");
+                        setFiltroEstado("todos");
+                      }}
+                    >
+                      Ver todo
+                    </button>
+                  </p>
                 )}
-                <ul className="divide-y divide-sand/60">
-                  {pendientesVisibles.map((f) => {
-                    const personaFila = personas.find((p) => p.id === f.persona_id);
-                    const esPracticanteFila = personaFila?.tipo_vinculo === "practicante";
-                    const e =
-                      f.estado === "sin_contrato"
-                        ? estadoSinContrato(f)
-                        : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
-                    // Para una practicante, `fecha_fin_contrato`/`estado` los mueve
-                    // el tope legal de 12 meses (0336), no necesariamente lo que
-                    // dice su convenio — decirlo con las mismas palabras que un
-                    // contrato vencido ("contrato vencido") confundiría, así que
-                    // se nombra el tope explícitamente en vez de reusar el texto
-                    // genérico tal cual.
-                    const eFinal =
-                      esPracticanteFila && f.estado === "vencido"
-                        ? { ...e, texto: "superó el tope de 12 meses del convenio (art. 30, Ley 28518)" }
-                        : esPracticanteFila && f.estado === "por_vencer"
-                          ? { ...e, texto: "se acerca al tope de 12 meses del convenio" }
-                          : esPracticanteFila && f.estado === "sin_vencimiento"
-                            ? { ...e, texto: "sin fecha de fin en su convenio" }
-                            : // Un indefinido nunca debe comunicación al MTPE (0347) — el
-                              // texto genérico de "trámite pendiente" menciona esa
-                              // comunicación, y ahí mentiría.
-                              f.tipo === "indefinido" && f.estado === "tramite_pendiente"
-                              ? { ...e, texto: "falta entregar copia a la colaboradora" }
-                              : e;
-                    const tipoFila = esPracticanteFila
-                      ? "convenio_practicas"
-                      : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
-                    return (
-                      <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
-                        <span className="min-w-0 flex-1 truncate">{f.persona}</span>
-                        <span className="text-xs text-taupe">{f.sede}</span>
-                        <span className={`text-sm ${eFinal.grave ? "text-rojo" : "text-taupe"}`}>
-                          {eFinal.texto}
-                          {f.estado === "desnaturalizado" && ` · ${f.dias_marcados_despues} días marcados`}
-                          {f.estado === "por_vencer" && f.dias_restantes !== null && ` · ${f.dias_restantes} días`}
-                          {/* El de papel también vence, y esa es la fecha que
-                              manda mientras no haya uno nuevo firmado. */}
-                          {f.estado === "sin_contrato" &&
-                            f.fecha_fin_contrato !== null &&
-                            ` · vence ${f.fecha_fin_contrato}`}
-                        </span>
-                        {/* La acción dice lo que hace. Quien ya tiene contrato y
-                            lo que le falta es firmarlo o hacer un trámite no
-                            necesita generar otro: necesita ABRIR el suyo. Decir
-                            «generar» ahí invita a duplicarlo. */}
-                        {NECESITA_CONTRATO.has(f.estado) ? (
-                          <button
-                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
-                            onClick={() => {
-                              setPersonaId(f.persona_id);
-                              setTipo(tipoFila);
-                            }}
-                          >
-                            {tipoFila === "convenio_practicas" ? "generar convenio" : tipoFila === "nuevo" ? "generar" : "renovar"}
-                          </button>
-                        ) : (
-                          <button
-                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
-                            onClick={() => f.contrato_id && abrirGenerado(f.contrato_id)}
-                          >
-                            abrir
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
+              </details>
             )}
           </div>
 
-          {/* EL GENERADOR SE QUEDA FIJO Y SCROLLEA POR DENTRO.
-              Un convenio de prácticas pide más campos de los que caben en una
-              pantalla, así que al llegar al botón «Generar borrador» ya no se veía
-              arriba a quién se le estaba generando. Con `xl:sticky` el panel entero
-              acompaña, y su propio scroll evita que empuje la página. */}
-          <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4 xl:sticky xl:top-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+          {/* EL GENERADOR VA DEBAJO DE LA LISTA, no en una columna al lado.
+              Estuvo a la derecha y en pantalla ancha funcionaba, pero con la
+              tabla plegada arriba el orden natural es: mirar a quién le falta,
+              y recién entonces generarle el suyo. Decisión de Felipe
+              (2026-09-07), volviendo al orden de siempre. */}
+          <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4">
             <div className="grid grid-cols-2 gap-3">
               <label className="text-sm">
                 Persona
@@ -2101,7 +2292,7 @@ export default function ContratosPage() {
               </>
             )}
           </section>
-          <section className="min-w-0 space-y-3 xl:col-start-1 xl:row-start-2">
+          <section className="min-w-0 space-y-3">
             <h2 className="font-serif text-lg">
               Archivo
               {porPersona.length > 0 && (
@@ -2349,6 +2540,205 @@ export default function ContratosPage() {
           El scrim es `bg-black/40` y no `bg-tinta/NN` —ver CLAUDE.md: `tinta`
           se aclara en modo oscuro, así que aclararía el fondo en vez de
           oscurecerlo—, y el z-index es el mismo `z-40` del modal compartido. */}
+      {/* EL VISOR DE UN CONTRATO. Los datos que lo definen y, debajo, su
+          historia — que no hay que inventar: cada evento YA se guarda. El
+          escaneo, la copia, el MTPE, la anulación con su motivo, y desde la
+          0388 también quién corrigió el borrador antes de firmarlo.
+
+          Se cierra antes de imprimir para no dejar dos modales apilados: el
+          documento se abre en el suyo, que ya existe. */}
+      {detalle && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4 print:hidden"
+          onClick={() => setDetalleId(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Contrato de ${detalle.persona}`}
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-y-auto rounded-flotante border border-sand bg-papel p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const c = detalle;
+              const vive = !c.anulado_at;
+              const insignia = c.anulado_at
+                ? { texto: "Anulado", tono: "pizarra" }
+                : !c.storage_path
+                  ? { texto: "Pendiente de firma", tono: "pizarra" }
+                  : c.fecha_fin && c.fecha_fin < hoyLima()
+                    ? { texto: "Vencido", tono: "rojo" }
+                    : !c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)
+                      ? { texto: "Trámite pendiente", tono: "ambar" }
+                      : { texto: "Vigente", tono: "verde" };
+              // La historia, de lo más reciente a lo más antiguo. Solo eventos
+              // que de verdad ocurrieron: una línea de tiempo con huecos
+              // rellenados a ojo deja de servir para sustentar nada.
+              const hitos: { fecha: string; texto: string; alerta?: boolean }[] = [];
+              hitos.push({
+                fecha: c.generado_at.slice(0, 10),
+                texto: `Contrato generado${c.generado_por ? ` · ${c.generado_por}` : ""}`,
+              });
+              if (c.editado_at) {
+                hitos.push({
+                  fecha: c.editado_at.slice(0, 10),
+                  texto: `Borrador corregido antes de firmarse${c.editado_por ? ` · ${c.editado_por}` : ""}`,
+                });
+              }
+              if (c.fecha_firma) hitos.push({ fecha: c.fecha_firma, texto: "Escaneado subido, contrato activado" });
+              if (c.copia_entregada_at) hitos.push({ fecha: c.copia_entregada_at, texto: "Copia entregada a la colaboradora" });
+              if (c.comunicado_mtpe_at) hitos.push({ fecha: c.comunicado_mtpe_at, texto: "Comunicado a la Autoridad de Trabajo" });
+              if (c.fecha_fin && c.fecha_fin < hoyLima() && !c.anulado_at) {
+                hitos.push({ fecha: c.fecha_fin, texto: "Vencimiento detectado · sistema", alerta: true });
+              }
+              if (c.anulado_at) {
+                hitos.push({ fecha: c.anulado_at.slice(0, 10), texto: `Anulado: ${c.anulado_motivo}`, alerta: true });
+              }
+              hitos.sort((x, y) => (x.fecha < y.fecha ? 1 : x.fecha > y.fecha ? -1 : 0));
+
+              return (
+                <>
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="font-serif text-xl">{c.persona}</h2>
+                      <p className="text-sm text-taupe">
+                        {TIPO_CONTRATO[c.tipo] ?? c.tipo}
+                        {c.sede && ` · ${c.sede}`} ·{" "}
+                        {c.fecha_fin
+                          ? `${formatearFecha(c.fecha_inicio)} – ${formatearFecha(c.fecha_fin)}`
+                          : `desde ${formatearFecha(c.fecha_inicio)}, sin fecha de término`}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs ${CLASE_TONO[insignia.tono]}`}>
+                      {insignia.texto}
+                    </span>
+                  </div>
+
+                  <div className="mb-4 grid gap-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+                    <div className="rounded-2xl bg-hueso p-4 text-center">
+                      <p className="font-serif text-base">
+                        {c.storage_path ? "Escaneado firmado" : "Sin escaneado"}
+                      </p>
+                      <p className="mb-3 text-xs text-taupe">
+                        {c.fecha_firma ? formatearFecha(c.fecha_firma) : "todavía sin firmar"}
+                      </p>
+                      {c.storage_path && (
+                        <button
+                          className="mb-1.5 w-full rounded-lg border border-sand bg-papel px-3 py-1.5 text-xs"
+                          onClick={() => verDocumento(c.storage_path!)}
+                        >
+                          Ver escaneo
+                        </button>
+                      )}
+                      <button
+                        className="w-full rounded-lg border border-sand bg-papel px-3 py-1.5 text-xs"
+                        onClick={() => {
+                          setDetalleId(null);
+                          void abrirGenerado(c.id);
+                        }}
+                      >
+                        Ver / imprimir
+                      </button>
+                    </div>
+
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 self-start text-sm">
+                      <dt className="text-taupe">Cargo</dt>
+                      <dd className="text-right">{c.cargo}</dd>
+                      <dt className="text-taupe">Remuneración</dt>
+                      <dd className="text-right">S/ {Number(c.remuneracion_mensual).toFixed(2)}</dd>
+                      <dt className="text-taupe">Copia entregada</dt>
+                      <dd className={`text-right ${c.copia_entregada_at ? "text-verde" : "text-taupe"}`}>
+                        {c.copia_entregada_at ? formatearFecha(c.copia_entregada_at) : "falta"}
+                      </dd>
+                      {/* Un indefinido no se registra ante la Autoridad de
+                          Trabajo (0347): ese trámite no le corresponde y
+                          pedírselo sería un falso pendiente para siempre. */}
+                      <dt className="text-taupe">MTPE</dt>
+                      <dd className={`text-right ${c.tipo === "indefinido" ? "text-taupe" : c.comunicado_mtpe_at ? "text-verde" : "text-taupe"}`}>
+                        {c.tipo === "indefinido"
+                          ? "no corresponde"
+                          : c.comunicado_mtpe_at
+                            ? formatearFecha(c.comunicado_mtpe_at)
+                            : "falta"}
+                      </dd>
+                      <dt className="text-taupe">Generado por</dt>
+                      <dd className="text-right">{c.generado_por ?? "—"}</dd>
+                    </dl>
+                  </div>
+
+                  <div className="mb-4 border-t border-sand pt-3">
+                    <p className="mb-2 font-serif text-base">Su historia</p>
+                    <ul className="space-y-1">
+                      {hitos.map((h, i) => (
+                        <li key={`${h.fecha}-${i}`} className="flex gap-3 text-sm">
+                          <span className="w-[5.5rem] shrink-0 tabular-nums text-xs text-taupe">{fechaCorta(h.fecha)}</span>
+                          <span className={h.alerta ? "text-rojo" : ""}>{h.texto}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 border-t border-sand pt-3">
+                    {vive && !c.storage_path && (
+                      <button
+                        className="rounded-lg bg-tinta px-4 py-1.5 text-sm text-crema"
+                        onClick={() => {
+                          setDetalleId(null);
+                          void empezarEdicion(c);
+                        }}
+                      >
+                        Editar
+                      </button>
+                    )}
+                    {vive && !c.storage_path && (
+                      <button
+                        className="rounded-lg border border-sand px-4 py-1.5 text-sm"
+                        onClick={() => {
+                          setDetalleId(null);
+                          abrirSubida(c.id);
+                        }}
+                      >
+                        Subir firmado
+                      </button>
+                    )}
+                    {vive && c.fecha_firma && !c.copia_entregada_at && (
+                      <button
+                        className="rounded-lg border border-sand px-4 py-1.5 text-sm"
+                        onClick={() => void marcarTramite(c.id, "copia")}
+                      >
+                        Marcar copia entregada
+                      </button>
+                    )}
+                    {vive && c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
+                      <button
+                        className="rounded-lg border border-sand px-4 py-1.5 text-sm"
+                        onClick={() => void marcarTramite(c.id, "mtpe")}
+                      >
+                        Marcar comunicado al MTPE
+                      </button>
+                    )}
+                    <button className="ml-auto text-sm underline underline-offset-2" onClick={() => setDetalleId(null)}>
+                      Cerrar
+                    </button>
+                    {vive && (
+                      <button
+                        className="ml-4 text-sm text-taupe underline underline-offset-2 hover:text-rojo"
+                        onClick={() => {
+                          setDetalleId(null);
+                          setAnulando(c.id);
+                        }}
+                      >
+                        Anular
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {htmlFinalModal && (
         <div
           className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"

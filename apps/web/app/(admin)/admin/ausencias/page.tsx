@@ -20,7 +20,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
@@ -431,8 +430,7 @@ export default function AusenciasPage() {
 
   if (rol !== null && !puedeGestionar) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">No tienes permiso para gestionar ausencias.</p>
         </main>
@@ -441,8 +439,7 @@ export default function AusenciasPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Ausencias</h1>
         <p className="mb-4 max-w-3xl text-xs text-taupe">
