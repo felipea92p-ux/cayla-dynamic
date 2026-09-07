@@ -253,7 +253,8 @@ with repo(numero, nombre, nunca) as (values
     (381, 'cada_quien_sube_su_foto_y_aparece_en_el_terminal', false),
     (382, 'el_roster_vuelve_a_preguntar_la_regla_en_vez_de_copiarla', false),
     (384, 'la_lista_de_dias_por_revisar_dice_por_que', false),
-    (385, 'quien_trabaja_sin_horario_vigente', false)
+    (385, 'quien_trabaja_sin_horario_vigente', false),
+    (396, 'el_colaborador_propone_do_aprueba', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
