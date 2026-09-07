@@ -361,7 +361,7 @@ export default function BandejaPage() {
                   Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}
                 </h2>
                 <p className="mb-3 text-sm text-taupe">
-                  Lo escribieron desde «Lo mío». Corrige el día en Correcciones si hace falta y cierra acá
+                  Lo escribieron desde «Mi info». Corrige el día en Correcciones si hace falta y cierra acá
                   diciendo en qué quedó — esa respuesta la va a leer la persona.
                 </p>
                 <ul className="space-y-3">
@@ -397,7 +397,7 @@ export default function BandejaPage() {
                   {solicitudesVacaciones.length} solicitud{solicitudesVacaciones.length === 1 ? "" : "es"} de vacaciones por resolver
                 </h2>
                 <p className="mb-3 text-sm text-taupe">
-                  Lo pidieron desde «Lo mío». Aprobar crea la ausencia real de una vez; rechazar exige decir por qué —esa respuesta la va a leer la persona.
+                  Lo pidieron desde «Mi info». Aprobar crea la ausencia real de una vez; rechazar exige decir por qué —esa respuesta la va a leer la persona.
                 </p>
                 <ul className="space-y-3">
                   {solicitudesVacaciones.map((s) => (

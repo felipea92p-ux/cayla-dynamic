@@ -29,10 +29,11 @@ export type Item = { href: string; label: string; Icon: LucideIcon; roles?: read
 
 const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   { items: [
-    // «Lo mío» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
+    // «Mi info» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
     // quien lo está mirando. Para una integrante es su pantalla —sus días, sus
-    // horas, sus tardanzas— y para DO es la suya, que también la tiene.
-    { href: "/mio", label: "Lo mío", Icon: UserRound },
+    // horas, sus tardanzas— y para DO es la suya, que también la tiene. Se
+    // llamó «Lo mío» hasta 2026-09-07; el nombre cambió, la ruta /mio no.
+    { href: "/mio", label: "Mi info", Icon: UserRound },
     // Con `roles` desde hoy. Antes iba sin filtro, así que una integrante con
     // cuenta —las hay: se les invita para que acusen la política salarial (Ley
     // 30709)— aterrizaba aquí y veía un tablero de encargada que su propia RLS

@@ -18,6 +18,10 @@ import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
+import { diaYMes, comoReloj, comoMinutos, hora, fechaYHora } from "@/lib/formato-mi-info";
+import { HorasDeLaSemana } from "@/components/horas-de-la-semana";
+import { MiBoletaResumen } from "@/components/mi-boleta-resumen";
+import { MiTendencia } from "@/components/mi-tendencia";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -158,44 +162,7 @@ interface SolicitudVacacion {
   respuesta: string | null;
 }
 
-const MESES = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre",
-];
 const LETRA_DIA = ["D", "L", "M", "M", "J", "V", "S"];
-
-/** «2026-07-29» → «29 de julio». */
-function diaYMes(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${Number(d)} de ${MESES[Number(m) - 1]}`;
-}
-
-/** 7.53 → «7h 32m». La gente cuenta en horas y minutos, no en decimales. */
-function comoReloj(horas: number): string {
-  const total = Math.round(horas * 60);
-  return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
-}
-
-function comoMinutos(min: number): string {
-  if (min < 60) return `${min} min`;
-  return `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, "0")}m`;
-}
-
-/** La hora de un marcaje, en Lima. Nunca `toLocaleTimeString` a secas: el huso
- *  del navegador no es el que decide a qué día pertenece una marca. */
-function hora(iso: string | null): string {
-  if (!iso) return "—";
-  return new Intl.DateTimeFormat("es-PE", {
-    timeZone: TZ_LIMA, hour: "2-digit", minute: "2-digit", hour12: true,
-  }).format(new Date(iso));
-}
-
-/** Fecha y hora de un timestamp, en Lima: «20 ago, 1:15 p. m.». */
-function fechaYHora(iso: string): string {
-  return new Intl.DateTimeFormat("es-PE", {
-    timeZone: TZ_LIMA, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
-  }).format(new Date(iso));
-}
 
 /** El día de Lima (YYYY-MM-DD) al que pertenece un timestamp — nunca el UTC
  *  crudo, que puede caer un día antes o después cerca de medianoche. */
@@ -664,6 +631,16 @@ export default function MioPage() {
     [revisiones],
   );
 
+  // Las que pediste y todavía nadie contestó. Antes solo se veían reabriendo
+  // cada día en «Tu mes»; sin esta lista, pedir una revisión y olvidarse de
+  // cuáles quedaron pendientes era el mismo callejón que la 0257 quiso evitar.
+  const pendientesRevision = useMemo(
+    () => [...revisiones.values()]
+      .filter((r) => !r.atendida_at)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    [revisiones],
+  );
+
   const resumen = useMemo(() => {
     const hoy = hoyLima();
     // Un día de más de 24 h es un AGREGADO del histórico de 2025 —un mes entero
@@ -755,7 +732,7 @@ export default function MioPage() {
         <div className="flex flex-col items-center gap-4">
           <Colibri tono="rojo" className="w-12" />
           <div className="text-center">
-            <h1 className="font-serif text-3xl leading-none">Lo mío</h1>
+            <h1 className="font-serif text-3xl leading-none">Mi info</h1>
             <p className="etiqueta mt-2 text-taupe">Tus días y tus horas · CAYLA</p>
           </div>
         </div>
@@ -787,7 +764,7 @@ export default function MioPage() {
             <Colibri tono="rojo" className="w-8" />
           )}
           <div>
-            <h1 className="font-serif text-2xl leading-tight">{yo?.nombre ?? "Lo mío"}</h1>
+            <h1 className="font-serif text-2xl leading-tight">{yo?.nombre ?? "Mi info"}</h1>
             <p className="etiqueta text-taupe">Tus días, tus turnos y tus objetivos</p>
           </div>
         </div>
@@ -851,6 +828,7 @@ export default function MioPage() {
                 ? `Tienes ${estadoDelPeriodo.pendientes} día${estadoDelPeriodo.pendientes === 1 ? "" : "s"} por revisar dentro de este periodo. Míralos abajo antes de que cierre.`
                 : "Todos tus días de este periodo están completos."}
           </p>
+          {yo && <MiBoletaResumen personaId={yo.id} />}
           <Link
             href="/mio/boleta"
             className="mt-2 inline-block text-sm font-medium text-tinta underline hover:text-rojo-profundo"
@@ -864,9 +842,26 @@ export default function MioPage() {
           Arriba y con un verbo, no como una etiqueta pequeña dentro de la tabla.
           Estos son los días que le pueden costar plata a ella, y es la única que
           sabe qué pasó de verdad ese día. */}
-      {(resumen.porRevisar.length > 0 || resumen.faltas.length > 0 || respondidas.length > 0) && (
+      {(resumen.porRevisar.length > 0 || resumen.faltas.length > 0 || respondidas.length > 0
+        || pendientesRevision.length > 0) && (
         <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 text-sm">
           <h2 className="mb-2 font-serif text-lg">Revisa esto</h2>
+          {pendientesRevision.length > 0 && (
+            <div className="mb-1">
+              <strong>
+                {pendientesRevision.length === 1
+                  ? "Pediste que se revise un día y todavía no te responden."
+                  : `Pediste que se revisen ${pendientesRevision.length} días y todavía no te responden.`}
+              </strong>
+              <ul className="mt-0.5 space-y-0.5">
+                {pendientesRevision.map((r) => (
+                  <li key={r.fecha}>
+                    <span className="text-taupe">{diaYMes(r.fecha)}:</span> «{r.comentario}»
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {resumen.porRevisar.length > 0 && (
             <p className="mb-1">
               <strong>{resumen.porRevisar.length} día{resumen.porRevisar.length === 1 ? "" : "s"} con el marcaje incompleto</strong>{" "}
@@ -899,6 +894,38 @@ export default function MioPage() {
         </section>
       )}
 
+      {/* ── Cuándo te toca ───────────────────────────────────────────────────
+          De hoy en adelante. Es la pregunta que más veces abre esta pantalla, y
+          hasta hoy se respondía por WhatsApp. Va antes de «Correcciones»: es lo
+          que se consulta a diario, mientras que una corrección es un registro
+          histórico que se mira con menos frecuencia. */}
+      <section className="mb-6 rounded-2xl border border-sand p-5">
+        <h2 className="mb-3 font-serif text-lg">Cuándo te toca</h2>
+        {proximos.length === 0 ? (
+          <p className="text-sm text-taupe">
+            No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada.
+          </p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {proximos.map(({ fecha, esperado }) => (
+              <li key={fecha}
+                className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
+                <div className="text-xs capitalize text-taupe">{cuando(fecha)}</div>
+                <div className="font-medium">{esperado.entrada}{esperado.salida ? `–${esperado.salida}` : ""}</div>
+                {esperado.origen === "turno" && <div className="text-[10px] text-taupe">turno del día</div>}
+              </li>
+            ))}
+          </ul>
+        )}
+        {feriados.length > 0 && (
+          <p className="mt-3 text-xs text-taupe">
+            Próximo feriado: <strong>{diaYMes(feriados[0].fecha)}</strong>, {feriados[0].nombre}.
+          </p>
+        )}
+      </section>
+
+      {yo && <HorasDeLaSemana personaId={yo.id} />}
+
       {/* ── Correcciones a sus marcajes ──────────────────────────────────────
           Ya se puede leer desde la 0003 (auditoria_select_propia); nadie lo
           mostraba. Sin esto, alguien corrige un marcaje suyo y ella no tiene
@@ -926,34 +953,6 @@ export default function MioPage() {
           </ul>
         </section>
       )}
-
-      {/* ── Cuándo te toca ───────────────────────────────────────────────────
-          De hoy en adelante. Es la pregunta que más veces abre esta pantalla, y
-          hasta hoy se respondía por WhatsApp. */}
-      <section className="mb-6 rounded-2xl border border-sand p-5">
-        <h2 className="mb-3 font-serif text-lg">Cuándo te toca</h2>
-        {proximos.length === 0 ? (
-          <p className="text-sm text-taupe">
-            No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada.
-          </p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {proximos.map(({ fecha, esperado }) => (
-              <li key={fecha}
-                className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
-                <div className="text-xs capitalize text-taupe">{cuando(fecha)}</div>
-                <div className="font-medium">{esperado.entrada}{esperado.salida ? `–${esperado.salida}` : ""}</div>
-                {esperado.origen === "turno" && <div className="text-[10px] text-taupe">turno del día</div>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {feriados.length > 0 && (
-          <p className="mt-3 text-xs text-taupe">
-            Próximo feriado: <strong>{diaYMes(feriados[0].fecha)}</strong>, {feriados[0].nombre}.
-          </p>
-        )}
-      </section>
 
       {/* ── El filtro ────────────────────────────────────────────────────────
           Abre en los últimos 30 días. El botón del periodo de pago está porque es
@@ -1139,6 +1138,8 @@ export default function MioPage() {
             </>
           )}
       </section>
+
+      {yo && <MiTendencia personaId={yo.id} />}
 
       {/* ── Sus objetivos ────────────────────────────────────────────────────
           De solo lectura: marcarlos cumplidos es de su encargada, y esa es la

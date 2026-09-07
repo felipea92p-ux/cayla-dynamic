@@ -772,7 +772,7 @@ function IncidenciasContenido() {
           <section className="mb-6 rounded-2xl border border-tinta/25 bg-papel p-5">
             <h2 className="mb-1 font-serif text-lg">Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</h2>
             <p className="mb-4 text-sm text-taupe">
-              Lo escribieron desde «Lo mío». Corrige el día en Correcciones si hace falta y cierra acá diciendo
+              Lo escribieron desde «Mi info». Corrige el día en Correcciones si hace falta y cierra acá diciendo
               en qué quedó — esa respuesta la va a leer la persona.
             </p>
             <ul className="space-y-3">

@@ -175,7 +175,7 @@ function NuevaClaveContenido() {
             onClick={() => router.replace(destino)}
             className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo"
           >
-            {destino === "/mio" ? "Ir a lo mío" : "Ir al panel"}
+            {destino === "/mio" ? "Ir a mi info" : "Ir al panel"}
           </button>
         </div>
       )}
