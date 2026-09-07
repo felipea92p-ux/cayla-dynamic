@@ -22,6 +22,7 @@ import {
   tipoQueCorresponde,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
+import { Search } from "lucide-react";
 
 // Generador de contratos: se elige a la persona, el sistema jala lo que ya
 // sabe de ella (DNI, sueldo vigente, horario, sede) y arma el contrato
@@ -61,6 +62,13 @@ const MAX_BYTES = 50 * 1024 * 1024;
 // dentro de una frase: ahí un salto de línea no significa nada y solo estorba.
 function unaLinea(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
+}
+
+// Buscar «Gutierrez» tiene que encontrar a «Gutiérrez»: quien escribe con prisa
+// no pone la tilde, y media plantilla lleva una en el apellido. Mismo
+// normalizador que /admin/horas y que el buscador global.
+function sinTildes(t: string): string {
+  return t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
 function sumarDias(iso: string, n: number): string {
@@ -306,6 +314,12 @@ export default function ContratosPage() {
 
   const [anulando, setAnulando] = useState<string | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
+
+  // Filtra LAS DOS listas de la izquierda a la vez —lo pendiente y el archivo—,
+  // que es como se busca de verdad: no se pregunta «¿está en pendientes o en el
+  // archivo?», se pregunta «¿qué pasa con Danitza?». Con ~30 personas activas y
+  // varios contratos por cabeza, eso se respondía recorriendo la pantalla.
+  const [busca, setBusca] = useState("");
 
   const { avisar } = useToast();
 
@@ -1004,10 +1018,22 @@ export default function ContratosPage() {
   // día» enseña a ignorarlo — mismo criterio que el tablero de Documentación,
   // que oculta a quien no tiene nada pendiente.
   const pendientes = tablero.filter((f) => f.estado !== "ok");
+
+  // El buscador. Con el campo vacío pasa todo, así que la pantalla sin filtrar
+  // es exactamente la de antes.
+  const filtro = sinTildes(busca.trim());
+  const coincide = (texto: string | null | undefined) =>
+    filtro === "" || sinTildes(texto ?? "").includes(filtro);
+  const pendientesVisibles = pendientes.filter((f) => coincide(f.persona) || coincide(f.sede));
+
   // Cuántos son de los que no pueden esperar. Decide si el contador va en rojo:
   // el rojo de esta paleta es el acento sagrado, y gastarlo en «vence en tres
   // meses» lo vuelve invisible el día que diga «desnaturalizado».
-  const graves = pendientes.filter((f) => ESTADO_TABLERO[f.estado]?.grave).length;
+  //
+  // Se cuenta sobre LO VISIBLE, no sobre el total: el número que está al lado
+  // es el de las filas que se ven, y pintarlo de rojo por una urgencia que el
+  // filtro acaba de esconder señalaría a quien no es.
+  const graves = pendientesVisibles.filter((f) => ESTADO_TABLERO[f.estado]?.grave).length;
 
   // El archivo, agrupado por persona y en el orden en que ya vienen (el más
   // reciente primero). `Map` y no un objeto: conserva el orden de inserción,
@@ -1027,6 +1053,8 @@ export default function ContratosPage() {
     }
     return [...m.entries()];
   })();
+
+  const porPersonaVisible = porPersona.filter(([nombre]) => coincide(nombre));
 
   const documentoAMostrar = documentoAbierto ?? borrador?.html ?? previewHtml;
 
@@ -1052,7 +1080,7 @@ export default function ContratosPage() {
         <AdminNav />
       </div>
 
-      <div className="mx-auto max-w-3xl space-y-6 print:hidden">
+      <div className="mx-auto max-w-6xl space-y-6 print:hidden">
         <header>
           <h1 className="font-serif text-2xl">Contratos</h1>
           <p className="text-sm text-taupe">
@@ -1060,720 +1088,810 @@ export default function ContratosPage() {
           </p>
         </header>
 
-        {/* EL TABLERO VA PRIMERO, Y PARTE DE LAS PERSONAS.
-            El historial de abajo arranca de los contratos generados, así que
-            quien no tiene ninguno es invisible ahí — y con veinte venciendo el
-            mismo día, «¿a quién le falta?» es la pregunta que hay que poder
-            hacer al abrir la pantalla, no la que hay que deducir.
-            Cada fila lleva su acción: ver un pendiente sin poder resolverlo
-            desde ahí obliga a buscar a esa persona a mano en el desplegable. */}
-        {pendientes.length > 0 && (
-          <section className="rounded-lg border border-sand bg-papel p-4">
-            <h2 className="mb-3 font-serif text-lg">
-              Necesitan atención{" "}
-              <span className={graves > 0 ? "text-rojo" : "text-taupe"}>· {pendientes.length}</span>
-            </h2>
-            <ul className="divide-y divide-sand/60">
-              {pendientes.map((f) => {
-                const personaFila = personas.find((p) => p.id === f.persona_id);
-                const esPracticanteFila = personaFila?.tipo_vinculo === "practicante";
-                const e =
-                  f.estado === "sin_contrato"
-                    ? estadoSinContrato(f)
-                    : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
-                // Para una practicante, `fecha_fin_contrato`/`estado` los mueve
-                // el tope legal de 12 meses (0336), no necesariamente lo que
-                // dice su convenio — decirlo con las mismas palabras que un
-                // contrato vencido ("contrato vencido") confundiría, así que
-                // se nombra el tope explícitamente en vez de reusar el texto
-                // genérico tal cual.
-                const eFinal =
-                  esPracticanteFila && f.estado === "vencido"
-                    ? { ...e, texto: "superó el tope de 12 meses del convenio (art. 30, Ley 28518)" }
-                    : esPracticanteFila && f.estado === "por_vencer"
-                      ? { ...e, texto: "se acerca al tope de 12 meses del convenio" }
-                      : esPracticanteFila && f.estado === "sin_vencimiento"
-                        ? { ...e, texto: "sin fecha de fin en su convenio" }
-                        : // Un indefinido nunca debe comunicación al MTPE (0347) — el
-                          // texto genérico de "trámite pendiente" menciona esa
-                          // comunicación, y ahí mentiría.
-                          f.tipo === "indefinido" && f.estado === "tramite_pendiente"
-                          ? { ...e, texto: "falta entregar copia a la colaboradora" }
-                          : e;
-                const tipoFila = esPracticanteFila
-                  ? "convenio_practicas"
-                  : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
-                return (
-                  <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
-                    <span className="min-w-0 flex-1 truncate">{f.persona}</span>
-                    <span className="text-xs text-taupe">{f.sede}</span>
-                    <span className={`text-sm ${eFinal.grave ? "text-rojo" : "text-taupe"}`}>
-                      {eFinal.texto}
-                      {f.estado === "desnaturalizado" && ` · ${f.dias_marcados_despues} días marcados`}
-                      {f.estado === "por_vencer" && f.dias_restantes !== null && ` · ${f.dias_restantes} días`}
-                      {/* El de papel también vence, y esa es la fecha que
-                          manda mientras no haya uno nuevo firmado. */}
-                      {f.estado === "sin_contrato" &&
-                        f.fecha_fin_contrato !== null &&
-                        ` · vence ${f.fecha_fin_contrato}`}
-                    </span>
-                    {/* La acción dice lo que hace. Quien ya tiene contrato y
-                        lo que le falta es firmarlo o hacer un trámite no
-                        necesita generar otro: necesita ABRIR el suyo. Decir
-                        «generar» ahí invita a duplicarlo. */}
-                    {NECESITA_CONTRATO.has(f.estado) ? (
-                      <button
-                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
-                        onClick={() => {
-                          setPersonaId(f.persona_id);
-                          setTipo(tipoFila);
-                        }}
-                      >
-                        {tipoFila === "convenio_practicas" ? "generar convenio" : tipoFila === "nuevo" ? "generar" : "renovar"}
-                      </button>
-                    ) : (
-                      <button
-                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
-                        onClick={() => f.contrato_id && abrirGenerado(f.contrato_id)}
-                      >
-                        abrir
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
-
-        <section className="space-y-3 rounded-lg border border-sand p-4">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm">
-              Persona
-              <select
-                className="mt-1 w-full rounded border border-sand p-2"
-                value={personaId}
-                onChange={(e) => setPersonaId(e.target.value)}
-              >
-                <option value="">— elegir —</option>
-                {personas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.apellidos}, {p.nombres}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              Tipo
-              {persona?.tipo_vinculo === "practicante" ? (
-                // Una practicante solo tiene un documento posible — no
-                // "nuevo ingreso" ni "renovación", que son conceptos de un
-                // contrato de trabajo (0333). Se fija sola y no se elige.
-                <input
-                  className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                  value="Convenio de prácticas"
-                  disabled
+        {/* DOS COLUMNAS: A LA IZQUIERDA A QUIÉN, A LA DERECHA QUÉ SE LE GENERA.
+            En una sola columna el generador quedaba emparedado entre dos listas
+            que juntas pasan largo de la pantalla: al pulsar «renovar» en un
+            pendiente había que bajar a buscarlo a ciegas, y al mirar el archivo
+            ya no se veía a quién se había elegido.
+            Se parte en `xl` (1280 px) y no en `lg`: medido a 1024, la columna
+            izquierda se queda en 521 px y los nombres empiezan a cortarse
+            —«Danitza Gu…», «Felipe Alvar…»—, que es justo el dato por el que se
+            abre esta pantalla. Por debajo de eso sigue habiendo una sola columna,
+            y ahí el orden vuelve a ser el de siempre —pendientes, generador,
+            archivo—. Ese es el motivo de que el generador vaya en medio del DOM
+            y no al final: puesto después de las dos listas, en una pantalla
+            angosta quedaría a un scroll largo de distancia. */}
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_30rem]">
+          <div className="min-w-0 space-y-6 xl:col-start-1 xl:row-start-1">
+            {/* UN SOLO BUSCADOR PARA LAS DOS LISTAS. Filtra por nombre y por
+                sede, sin tildes: nadie escribe «Gutiérrez» con la tilde puesta
+                cuando lo que quiere es encontrarla. */}
+            {(tablero.length > 0 || contratos.length > 0) && (
+              <div className="relative">
+                <Search
+                  size={15}
+                  strokeWidth={1.8}
+                  aria-hidden
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-taupe"
                 />
-              ) : (
-                <select
-                  className="mt-1 w-full rounded border border-sand p-2"
-                  value={tipo}
-                  onChange={(e) =>
-                    setTipo(
-                      e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
-                    )
-                  }
-                >
-                  <option value="renovacion">Renovación</option>
-                  <option value="nuevo">Nuevo ingreso</option>
-                  <option value="indefinido">Indefinido</option>
-                  {/* Elegible a mano desde la 0348 para alguien que no está
-                      marcado tipo_vinculo="practicante" en su ficha — no
-                      cambia esa ficha, solo genera el documento (ver el
-                      aviso que sale más abajo cuando se elige así). */}
-                  <option value="convenio_practicas">Convenio de prácticas</option>
-                  <option value="adendum">Adendum</option>
-                </select>
-              )}
-            </label>
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar por nombre o sede…"
+                  aria-label="Buscar por nombre o sede"
+                  className="w-full rounded-lg border border-sand bg-hueso py-2 pl-9 pr-9 text-sm placeholder:text-taupe/60"
+                />
+                {busca && (
+                  <button
+                    onClick={() => setBusca("")}
+                    aria-label="Limpiar búsqueda"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-1 leading-none text-taupe hover:text-tinta"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            )}
+            {/* EL TABLERO VA PRIMERO, Y PARTE DE LAS PERSONAS.
+                El historial de abajo arranca de los contratos generados, así que
+                quien no tiene ninguno es invisible ahí — y con veinte venciendo el
+                mismo día, «¿a quién le falta?» es la pregunta que hay que poder
+                hacer al abrir la pantalla, no la que hay que deducir.
+                Cada fila lleva su acción: ver un pendiente sin poder resolverlo
+                desde ahí obliga a buscar a esa persona a mano en el desplegable. */}
+            {pendientes.length > 0 && (
+              <section className="rounded-lg border border-sand bg-papel p-4">
+                <h2 className="mb-3 font-serif text-lg">
+                  Necesitan atención{" "}
+                  <span className={graves > 0 ? "text-rojo" : "text-taupe"}>
+                    · {filtro ? `${pendientesVisibles.length} de ${pendientes.length}` : pendientes.length}
+                  </span>
+                </h2>
+                {pendientesVisibles.length === 0 && (
+                  <p className="text-sm text-taupe">Nada de esta lista coincide con «{busca.trim()}».</p>
+                )}
+                <ul className="divide-y divide-sand/60">
+                  {pendientesVisibles.map((f) => {
+                    const personaFila = personas.find((p) => p.id === f.persona_id);
+                    const esPracticanteFila = personaFila?.tipo_vinculo === "practicante";
+                    const e =
+                      f.estado === "sin_contrato"
+                        ? estadoSinContrato(f)
+                        : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
+                    // Para una practicante, `fecha_fin_contrato`/`estado` los mueve
+                    // el tope legal de 12 meses (0336), no necesariamente lo que
+                    // dice su convenio — decirlo con las mismas palabras que un
+                    // contrato vencido ("contrato vencido") confundiría, así que
+                    // se nombra el tope explícitamente en vez de reusar el texto
+                    // genérico tal cual.
+                    const eFinal =
+                      esPracticanteFila && f.estado === "vencido"
+                        ? { ...e, texto: "superó el tope de 12 meses del convenio (art. 30, Ley 28518)" }
+                        : esPracticanteFila && f.estado === "por_vencer"
+                          ? { ...e, texto: "se acerca al tope de 12 meses del convenio" }
+                          : esPracticanteFila && f.estado === "sin_vencimiento"
+                            ? { ...e, texto: "sin fecha de fin en su convenio" }
+                            : // Un indefinido nunca debe comunicación al MTPE (0347) — el
+                              // texto genérico de "trámite pendiente" menciona esa
+                              // comunicación, y ahí mentiría.
+                              f.tipo === "indefinido" && f.estado === "tramite_pendiente"
+                              ? { ...e, texto: "falta entregar copia a la colaboradora" }
+                              : e;
+                    const tipoFila = esPracticanteFila
+                      ? "convenio_practicas"
+                      : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
+                    return (
+                      <li key={f.persona_id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+                        <span className="min-w-0 flex-1 truncate">{f.persona}</span>
+                        <span className="text-xs text-taupe">{f.sede}</span>
+                        <span className={`text-sm ${eFinal.grave ? "text-rojo" : "text-taupe"}`}>
+                          {eFinal.texto}
+                          {f.estado === "desnaturalizado" && ` · ${f.dias_marcados_despues} días marcados`}
+                          {f.estado === "por_vencer" && f.dias_restantes !== null && ` · ${f.dias_restantes} días`}
+                          {/* El de papel también vence, y esa es la fecha que
+                              manda mientras no haya uno nuevo firmado. */}
+                          {f.estado === "sin_contrato" &&
+                            f.fecha_fin_contrato !== null &&
+                            ` · vence ${f.fecha_fin_contrato}`}
+                        </span>
+                        {/* La acción dice lo que hace. Quien ya tiene contrato y
+                            lo que le falta es firmarlo o hacer un trámite no
+                            necesita generar otro: necesita ABRIR el suyo. Decir
+                            «generar» ahí invita a duplicarlo. */}
+                        {NECESITA_CONTRATO.has(f.estado) ? (
+                          <button
+                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                            onClick={() => {
+                              setPersonaId(f.persona_id);
+                              setTipo(tipoFila);
+                            }}
+                          >
+                            {tipoFila === "convenio_practicas" ? "generar convenio" : tipoFila === "nuevo" ? "generar" : "renovar"}
+                          </button>
+                        ) : (
+                          <button
+                            className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                            onClick={() => f.contrato_id && abrirGenerado(f.contrato_id)}
+                          >
+                            abrir
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
           </div>
 
-          {persona && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm">
-                  Fecha de inicio
+          {/* EL GENERADOR SE QUEDA FIJO Y SCROLLEA POR DENTRO.
+              Un convenio de prácticas pide más campos de los que caben en una
+              pantalla, así que al llegar al botón «Generar borrador» ya no se veía
+              arriba a quién se le estaba generando. Con `xl:sticky` el panel entero
+              acompaña, y su propio scroll evita que empuje la página. */}
+          <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4 xl:sticky xl:top-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-sm">
+                Persona
+                <select
+                  className="mt-1 w-full rounded border border-sand p-2"
+                  value={personaId}
+                  onChange={(e) => setPersonaId(e.target.value)}
+                >
+                  <option value="">— elegir —</option>
+                  {personas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.apellidos}, {p.nombres}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                Tipo
+                {persona?.tipo_vinculo === "practicante" ? (
+                  // Una practicante solo tiene un documento posible — no
+                  // "nuevo ingreso" ni "renovación", que son conceptos de un
+                  // contrato de trabajo (0333). Se fija sola y no se elige.
                   <input
-                    type="date"
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    value={fechaInicio}
-                    onChange={(e) => setFechaInicio(e.target.value)}
+                    className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                    value="Convenio de prácticas"
+                    disabled
                   />
-                </label>
-                <label className="text-sm">
-                  Fecha de fin
-                  {esIndefinido ? (
-                    <input
-                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                      value="Sin fecha de fin — contrato indefinido"
-                      disabled
-                    />
-                  ) : (
+                ) : (
+                  <select
+                    className="mt-1 w-full rounded border border-sand p-2"
+                    value={tipo}
+                    onChange={(e) =>
+                      setTipo(
+                        e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
+                      )
+                    }
+                  >
+                    <option value="renovacion">Renovación</option>
+                    <option value="nuevo">Nuevo ingreso</option>
+                    <option value="indefinido">Indefinido</option>
+                    {/* Elegible a mano desde la 0348 para alguien que no está
+                        marcado tipo_vinculo="practicante" en su ficha — no
+                        cambia esa ficha, solo genera el documento (ver el
+                        aviso que sale más abajo cuando se elige así). */}
+                    <option value="convenio_practicas">Convenio de prácticas</option>
+                    <option value="adendum">Adendum</option>
+                  </select>
+                )}
+              </label>
+            </div>
+
+            {persona && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm">
+                    Fecha de inicio
                     <input
                       type="date"
                       className="mt-1 w-full rounded border border-sand p-2"
-                      value={fechaFin}
-                      min={fechaInicio || undefined}
-                      onChange={(e) => setFechaFin(e.target.value)}
+                      value={fechaInicio}
+                      onChange={(e) => setFechaInicio(e.target.value)}
                     />
-                  )}
-                </label>
-              </div>
-
-              <label className="block text-sm">
-                Cargo
-                <input
-                  className="mt-1 w-full rounded border border-sand p-2"
-                  value={cargoEditado}
-                  onChange={(e) => setCargoEditado(e.target.value)}
-                />
-              </label>
-              <label className="block text-sm">
-                Ciudad donde se firma
-                <input
-                  className="mt-1 w-full rounded border border-sand p-2"
-                  placeholder={ciudadDeLaSede ?? "Arequipa, Lima o Trujillo"}
-                  value={ciudadEditada}
-                  onChange={(e) => setCiudadEditada(e.target.value)}
-                />
-                <span className="mt-1 block text-xs text-taupe">
-                  {ciudadDeLaSede
-                    ? `Si lo dejas vacío se usa ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom}.`
-                    : "Central no tiene una ciudad propia: su gente puede estar en cualquiera, así que hay que elegirla."}
-                </span>
-              </label>
-              {/* Un adendum no repite el contrato ni sus anexos, así que los
-                  campos que solo alimentan al contrato no se piden. Un
-                  convenio (0333) no tiene causa objetiva ni funciones — tiene
-                  un plan de capacitación específico (Ley 28518, art. 15). */}
-              {esAdendum ? (
-                <label className="block text-sm">
-                  Qué se modifica del contrato vigente — una modificación por línea
-                  <AreaTexto
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    rows={4}
-                    placeholder="Ej.: Se modifica la Cláusula Sexta, fijando la remuneración mensual base en S/ …"
-                    value={adendumEditado}
-                    onChange={(e) => setAdendumEditado(e.target.value)}
-                  />
-                </label>
-              ) : esConvenio ? (
-                <>
-                  {persona.tipo_vinculo === "practicante" ? (
-                    <label className="block text-sm">
-                      Modalidad
+                  </label>
+                  <label className="text-sm">
+                    Fecha de fin
+                    {esIndefinido ? (
                       <input
                         className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                        value="Sin fecha de fin — contrato indefinido"
                         disabled
-                        value={
-                          persona.practicante_modalidad === "preprofesional"
-                            ? "Preprofesional — 30h/semana (art. 44)"
-                            : persona.practicante_modalidad === "profesional"
-                              ? "Profesional — 48h/semana (art. 44)"
-                              : "Sin asignar — ve a Equipo y elígela primero"
-                        }
                       />
-                    </label>
-                  ) : (
-                    <>
+                    ) : (
+                      <input
+                        type="date"
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        value={fechaFin}
+                        min={fechaInicio || undefined}
+                        onChange={(e) => setFechaFin(e.target.value)}
+                      />
+                    )}
+                  </label>
+                </div>
+
+                <label className="block text-sm">
+                  Cargo
+                  <input
+                    className="mt-1 w-full rounded border border-sand p-2"
+                    value={cargoEditado}
+                    onChange={(e) => setCargoEditado(e.target.value)}
+                  />
+                </label>
+                <label className="block text-sm">
+                  Ciudad donde se firma
+                  <input
+                    className="mt-1 w-full rounded border border-sand p-2"
+                    placeholder={ciudadDeLaSede ?? "Arequipa, Lima o Trujillo"}
+                    value={ciudadEditada}
+                    onChange={(e) => setCiudadEditada(e.target.value)}
+                  />
+                  <span className="mt-1 block text-xs text-taupe">
+                    {ciudadDeLaSede
+                      ? `Si lo dejas vacío se usa ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom}.`
+                      : "Central no tiene una ciudad propia: su gente puede estar en cualquiera, así que hay que elegirla."}
+                  </span>
+                </label>
+                {/* Un adendum no repite el contrato ni sus anexos, así que los
+                    campos que solo alimentan al contrato no se piden. Un
+                    convenio (0333) no tiene causa objetiva ni funciones — tiene
+                    un plan de capacitación específico (Ley 28518, art. 15). */}
+                {esAdendum ? (
+                  <label className="block text-sm">
+                    Qué se modifica del contrato vigente — una modificación por línea
+                    <AreaTexto
+                      className="mt-1 w-full rounded border border-sand p-2"
+                      rows={4}
+                      placeholder="Ej.: Se modifica la Cláusula Sexta, fijando la remuneración mensual base en S/ …"
+                      value={adendumEditado}
+                      onChange={(e) => setAdendumEditado(e.target.value)}
+                    />
+                  </label>
+                ) : esConvenio ? (
+                  <>
+                    {persona.tipo_vinculo === "practicante" ? (
                       <label className="block text-sm">
                         Modalidad
-                        <select
-                          className="mt-1 w-full rounded border border-sand p-2"
-                          value={modalidadManualEditada}
-                          onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
-                        >
-                          <option value="">— elegir —</option>
-                          <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
-                          <option value="profesional">Profesional — 48h/semana (art. 44)</option>
-                        </select>
+                        <input
+                          className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
+                          disabled
+                          value={
+                            persona.practicante_modalidad === "preprofesional"
+                              ? "Preprofesional — 30h/semana (art. 44)"
+                              : persona.practicante_modalidad === "profesional"
+                                ? "Profesional — 48h/semana (art. 44)"
+                                : "Sin asignar — ve a Equipo y elígela primero"
+                          }
+                        />
                       </label>
-                      <p className="text-xs text-taupe">
-                        {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
-                        convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
-                      </p>
-                    </>
-                  )}
-                  {/* El preprofesional es TRIPARTITO (CAYLA + centro de
-                      formación + practicante, art. 12 y ss. Ley 28518) — el
-                      profesional es bipartito y solo referencia su título
-                      (0348). */}
-                  {modalidadEfectiva === "preprofesional" ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <label className="text-sm">
-                          Centro de formación — razón social
-                          <input
+                    ) : (
+                      <>
+                        <label className="block text-sm">
+                          Modalidad
+                          <select
                             className="mt-1 w-full rounded border border-sand p-2"
-                            placeholder="Ej.: Universidad Nacional de Trujillo"
-                            value={centroFormacionNombreEditado}
-                            onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
-                          />
+                            value={modalidadManualEditada}
+                            onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
+                          >
+                            <option value="">— elegir —</option>
+                            <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
+                            <option value="profesional">Profesional — 48h/semana (art. 44)</option>
+                          </select>
                         </label>
-                        <label className="text-sm">
-                          Centro de formación — RUC
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={centroFormacionRucEditado}
-                            onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
-                          />
-                        </label>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <label className="text-sm">
-                          Centro de formación — domicilio
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={centroFormacionDomicilioEditado}
-                            onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
-                          />
-                        </label>
-                        <label className="text-sm">
-                          Centro de formación — representante
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={centroFormacionRepresentanteEditado}
-                            onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
-                          />
-                        </label>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <label className="text-sm">
-                          Carrera / especialidad
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={carreraEspecialidadEditada}
-                            onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
-                          />
-                        </label>
-                        <label className="text-sm">
-                          Ciclo académico
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={cicloAcademicoEditado}
-                            onChange={(e) => setCicloAcademicoEditado(e.target.value)}
-                          />
-                        </label>
-                      </div>
-                    </>
-                  ) : (
-                    <label className="block text-sm">
-                      Grado / título (referencial — no aplica al centro de formación, que no firma en el profesional)
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={2}
-                        placeholder="Ej.: Bachiller en Ingeniería de Sistemas — UNT, egresado el 15/12/2025"
-                        value={gradoTituloTextoEditado}
-                        onChange={(e) => setGradoTituloTextoEditado(e.target.value)}
-                      />
-                    </label>
-                  )}
-                  <label className="block text-sm">
-                    Anexo I — área / proyecto de destino
-                    <AreaTexto
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      rows={2}
-                      placeholder="Ej.: Proyecto ERP CAYLA — módulo de inventario"
-                      value={areaProyectoEditado}
-                      onChange={(e) => setAreaProyectoEditado(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Anexo I — objetivo formativo general
-                    {/* Un Enter acá llega al papel como salto de línea, no
-                        colapsado a un espacio dentro del párrafo del Anexo I
-                        (ver parrafoDesdeTexto en contrato-texto). */}
-                    <AreaTexto
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      rows={2}
-                      placeholder="Qué debe saber hacer al finalizar"
-                      value={objetivoFormativoGeneralEditado}
-                      onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Anexo I — actividades principales (una por línea; se numeran solas)
-                    <AreaTexto
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      rows={3}
-                      placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
-                      value={planCapacitacionEditado}
-                      onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Anexo I — supervisor(a) asignado(a)
-                    <input
-                      className="mt-1 w-full rounded border border-sand p-2 sm:w-1/2"
-                      value={supervisorAsignadoEditado}
-                      onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
-                    />
-                  </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="text-sm">
-                      Anexo I — hito de evaluación, mes 3
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={2}
-                        value={hitoMes3Editado}
-                        onChange={(e) => setHitoMes3Editado(e.target.value)}
-                      />
-                    </label>
-                    <label className="text-sm">
-                      Anexo I — hito de evaluación, mes 6
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={2}
-                        value={hitoMes6Editado}
-                        onChange={(e) => setHitoMes6Editado(e.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <label className="block text-sm">
-                    Anexo IV — ajuste de activos para esta persona (uno por línea)
-                    <AreaTexto
-                      className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
-                      rows={2}
-                      value={activosLibre}
-                      disabled={sinActivosAdicionales}
-                      onChange={(e) => setActivosLibre(e.target.value)}
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={sinActivosAdicionales}
-                      onChange={(e) => {
-                        setSinActivosAdicionales(e.target.checked);
-                        if (e.target.checked) setActivosLibre("");
-                      }}
-                    />
-                    Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
-                    de la sede
-                  </label>
-                </>
-              ) : (
-                <>
-                  {/* Un indefinido no tiene causa objetiva — no es modalidad
-                      temporal, no la necesita (0347). */}
-                  {!esIndefinido && (
-                    <label className="block text-sm">
-                      Causa objetiva (revisar antes de imprimir)
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={4}
-                        value={causaEditada}
-                        onChange={(e) => setCausaEditada(e.target.value)}
-                      />
-                    </label>
-                  )}
-                  <label className="block text-sm">
-                    Funciones del cargo (Anexo I) — una por línea; se numeran solas
-                    <AreaTexto
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      rows={3}
-                      value={funcionesEditadas}
-                      onChange={(e) => setFuncionesEditadas(e.target.value)}
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    Anexo IV — ajuste de activos para esta persona (uno por línea)
-                    <AreaTexto
-                      className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
-                      rows={2}
-                      value={activosLibre}
-                      disabled={sinActivosAdicionales}
-                      onChange={(e) => setActivosLibre(e.target.value)}
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={sinActivosAdicionales}
-                      onChange={(e) => {
-                        setSinActivosAdicionales(e.target.checked);
-                        if (e.target.checked) setActivosLibre("");
-                      }}
-                    />
-                    Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
-                    de la sede
-                  </label>
-                </>
-              )}
-
-              <dl className="grid grid-cols-2 gap-2 text-xs text-taupe">
-                <div>
-                  <dt className="font-semibold">DNI</dt>
-                  <dd>{persona.documento ?? "falta"}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">Nombre legal</dt>
-                  <dd>{datoPersonal?.nombre_dni ?? "falta en Ficha personal"}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">Sueldo base vigente</dt>
-                  <dd>{salarioVigente !== null ? `S/ ${salarioVigente.toFixed(2)}` : "sin asignación vigente"}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">Jornada del {esConvenio ? "convenio" : "contrato"}</dt>
-                  <dd>
-                    {esConvenio
-                      ? (() => {
-                          const max = maximoSemanalPracticante("practicante", modalidadEfectiva);
-                          return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta elegir la modalidad";
-                        })()
-                      : "48 horas semanales (el máximo legal — ver cláusula QUINTA)"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">Movilidad</dt>
-                  <dd>
-                    {esConvenio
-                      ? "no aplica — no está en planilla (0322)"
-                      : persona.cobra_movilidad
-                        ? movilidadTarifa !== null
-                          ? `S/ ${movilidadTarifa}/día`
-                          : "sin tarifa vigente para su sede"
-                        : "no cobra"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">RIT vigente</dt>
-                  <dd>{ritVersion ? `v${ritVersion} · ${ritFecha}` : "no publicado en el sistema"}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold">Firma de la empresa</dt>
-                  <dd className={puedeEstampar ? "" : "text-rojo"}>
-                    {!firmante.nombre
-                      ? "sin firmante configurado — cárgalo en Documentación"
-                      : puedeEstampar
-                        ? `se estampa la de ${firmante.nombre}`
-                        : esFirmante
-                          ? "no tienes firma escaneada cargada — saldrá la raya en blanco"
-                          : `la firma es de ${firmante.nombre}; solo esa persona puede estamparla, saldrá la raya en blanco`}
-                  </dd>
-                </div>
-              </dl>
-
-              {bloqueos.length > 0 && (
-                <ul className="list-disc space-y-1 rounded-lg bg-rojo/10 px-4 py-3 pl-8 text-sm text-rojo">
-                  {bloqueos.map((b) => (
-                    <li key={b}>{b}</li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Avisos: no impiden generar, pero tienen que verse ANTES de
-                  firmar. En arena y no en rojo — el rojo es el acento sagrado y
-                  ya lo gastan los bloqueos de arriba. */}
-              {avisos.length > 0 && (
-                <ul className="list-disc space-y-1 rounded-lg border border-taupe/40 bg-sand/40 px-4 py-3 pl-8 text-sm text-taupe">
-                  {avisos.map((a) => (
-                    <li key={a}>{a}</li>
-                  ))}
-                </ul>
-              )}
-
-              <button
-                className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
-                disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
-                onClick={generarBorrador}
-              >
-                {generando ? "Generando…" : "Generar borrador"}
-              </button>
-              {borrador && (
-                <button className="ml-2 rounded border border-sand px-4 py-2 text-sm" onClick={imprimir}>
-                  Imprimir / Guardar como PDF
-                </button>
-              )}
-            </>
-          )}
-        </section>
-        <section className="space-y-3">
-          <h2 className="font-serif text-lg">Archivo</h2>
-
-          {contratos.length === 0 && (
-            <p className="text-sm text-taupe">Todavía no se generó ningún contrato.</p>
-          )}
-
-          {/* AGRUPADO POR PERSONA, Y LOS ANULADOS PLEGADOS.
-              La tabla plana repetía el nombre completo en cada fila —cuatro
-              veces para la misma persona— y daba a tres pruebas anuladas el
-              mismo peso visual que al contrato de verdad. Lo que importa de
-              cada persona es UNO: el vigente. Lo demás es historia, y la
-              historia se guarda, no se exhibe. */}
-          {porPersona.map(([nombre, filas]) => {
-            const vivos = filas.filter((c) => !c.anulado_at);
-            const anulados = filas.filter((c) => c.anulado_at);
-            return (
-              <article key={nombre} className="rounded-lg border border-sand bg-papel p-4">
-                <h3 className="mb-2 font-medium">{nombre}</h3>
-
-                {vivos.map((c) => (
-                  <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
-                    <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
-                      <span>
-                        {formatearFecha(c.fecha_inicio)} –{" "}
-                        {c.fecha_fin ? formatearFecha(c.fecha_fin) : "indeterminado"}
-                      </span>
-                      <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
-                      <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
-                        {c.storage_path ? `firmado el ${formatearFecha(c.fecha_firma!)}` : "pendiente de firma"}
-                      </span>
-                    </div>
-
-                    {/* Los dos plazos, solo mientras falten: confirmar en cada
-                        fila lo que ya se hizo llena la pantalla de recibos.
-                        Un indefinido no se registra ante la Autoridad de
-                        Trabajo (0347) — ese trámite no le corresponde. */}
-                    {c.fecha_firma &&
-                      (!c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)) && (
                         <p className="text-xs text-taupe">
-                          Falta{" "}
-                          {!c.copia_entregada_at &&
-                            `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
-                          {!c.copia_entregada_at && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && " y "}
-                          {c.tipo !== "indefinido" && !c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
+                          {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
+                          convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
                         </p>
-                      )}
-
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                      <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
-                        Ver / imprimir
-                      </button>
-                      {!c.storage_path && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirSubida(c.id)}>
-                          Subir contrato firmado
-                        </button>
-                      )}
-                      {c.storage_path && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => verDocumento(c.storage_path!)}>
-                          Ver escaneo
-                        </button>
-                      )}
-                      {c.fecha_firma && !c.copia_entregada_at && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "copia")}>
-                          Marcar copia entregada
-                        </button>
-                      )}
-                      {c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
-                          Marcar comunicado al MTPE
-                        </button>
-                      )}
-                      {/* Anular va al final y en taupe: es destructivo, no
-                          urgente. En rojo junto a acciones inofensivas se
-                          pulsa por error, y el rojo de esta paleta está
-                          reservado para lo que de verdad avisa. */}
-                      <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
-                        Anular
-                      </button>
+                      </>
+                    )}
+                    {/* El preprofesional es TRIPARTITO (CAYLA + centro de
+                        formación + practicante, art. 12 y ss. Ley 28518) — el
+                        profesional es bipartito y solo referencia su título
+                        (0348). */}
+                    {modalidadEfectiva === "preprofesional" ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-sm">
+                            Centro de formación — razón social
+                            <input
+                              className="mt-1 w-full rounded border border-sand p-2"
+                              placeholder="Ej.: Universidad Nacional de Trujillo"
+                              value={centroFormacionNombreEditado}
+                              onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
+                            />
+                          </label>
+                          <label className="text-sm">
+                            Centro de formación — RUC
+                            <input
+                              className="mt-1 w-full rounded border border-sand p-2"
+                              value={centroFormacionRucEditado}
+                              onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-sm">
+                            Centro de formación — domicilio
+                            <input
+                              className="mt-1 w-full rounded border border-sand p-2"
+                              value={centroFormacionDomicilioEditado}
+                              onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
+                            />
+                          </label>
+                          <label className="text-sm">
+                            Centro de formación — representante
+                            <input
+                              className="mt-1 w-full rounded border border-sand p-2"
+                              value={centroFormacionRepresentanteEditado}
+                              onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-sm">
+                            Carrera / especialidad
+                            <input
+                              className="mt-1 w-full rounded border border-sand p-2"
+                              value={carreraEspecialidadEditada}
+                              onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
+                            />
+                          </label>
+                          <label className="text-sm">
+                            Ciclo académico
+                            <input
+                              className="mt-1 w-full rounded border border-sand p-2"
+                              value={cicloAcademicoEditado}
+                              onChange={(e) => setCicloAcademicoEditado(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <label className="block text-sm">
+                        Grado / título (referencial — no aplica al centro de formación, que no firma en el profesional)
+                        <AreaTexto
+                          className="mt-1 w-full rounded border border-sand p-2"
+                          rows={2}
+                          placeholder="Ej.: Bachiller en Ingeniería de Sistemas — UNT, egresado el 15/12/2025"
+                          value={gradoTituloTextoEditado}
+                          onChange={(e) => setGradoTituloTextoEditado(e.target.value)}
+                        />
+                      </label>
+                    )}
+                    <label className="block text-sm">
+                      Anexo I — área / proyecto de destino
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
+                        placeholder="Ej.: Proyecto ERP CAYLA — módulo de inventario"
+                        value={areaProyectoEditado}
+                        onChange={(e) => setAreaProyectoEditado(e.target.value)}
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      Anexo I — objetivo formativo general
+                      {/* Un Enter acá llega al papel como salto de línea, no
+                          colapsado a un espacio dentro del párrafo del Anexo I
+                          (ver parrafoDesdeTexto en contrato-texto). */}
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={2}
+                        placeholder="Qué debe saber hacer al finalizar"
+                        value={objetivoFormativoGeneralEditado}
+                        onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      Anexo I — actividades principales (una por línea; se numeran solas)
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={3}
+                        placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
+                        value={planCapacitacionEditado}
+                        onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      Anexo I — supervisor(a) asignado(a)
+                      <input
+                        className="mt-1 w-full rounded border border-sand p-2 sm:w-1/2"
+                        value={supervisorAsignadoEditado}
+                        onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
+                      />
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="text-sm">
+                        Anexo I — hito de evaluación, mes 3
+                        <AreaTexto
+                          className="mt-1 w-full rounded border border-sand p-2"
+                          rows={2}
+                          value={hitoMes3Editado}
+                          onChange={(e) => setHitoMes3Editado(e.target.value)}
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Anexo I — hito de evaluación, mes 6
+                        <AreaTexto
+                          className="mt-1 w-full rounded border border-sand p-2"
+                          rows={2}
+                          value={hitoMes6Editado}
+                          onChange={(e) => setHitoMes6Editado(e.target.value)}
+                        />
+                      </label>
                     </div>
-                    <p className="text-xs text-taupe">
-                      Generado el {formatearFecha(c.generado_at.slice(0, 10))}
-                      {c.generado_por && ` por ${c.generado_por}`}
-                    </p>
-                  </div>
-                ))}
-
-                {anulados.length > 0 && (
-                  <details className="mt-2 border-t border-sand/60 pt-2 text-xs text-taupe">
-                    <summary className="cursor-pointer">
-                      {anulados.length === 1 ? "1 anulado" : `${anulados.length} anulados`}
-                    </summary>
-                    <ul className="mt-1 space-y-1">
-                      {anulados.map((c) => (
-                        <li key={c.id} className="flex flex-wrap items-baseline gap-x-3">
-                          <span>{formatearFecha(c.generado_at.slice(0, 10))}</span>
-                          <span className="min-w-0 flex-1 truncate">{c.anulado_motivo}</span>
-                          <button className="underline underline-offset-2 hover:text-tinta" onClick={() => abrirGenerado(c.id)}>
-                            Ver
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
+                    <label className="block text-sm">
+                      Anexo IV — ajuste de activos para esta persona (uno por línea)
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
+                        rows={2}
+                        value={activosLibre}
+                        disabled={sinActivosAdicionales}
+                        onChange={(e) => setActivosLibre(e.target.value)}
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={sinActivosAdicionales}
+                        onChange={(e) => {
+                          setSinActivosAdicionales(e.target.checked);
+                          if (e.target.checked) setActivosLibre("");
+                        }}
+                      />
+                      Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
+                      de la sede
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    {/* Un indefinido no tiene causa objetiva — no es modalidad
+                        temporal, no la necesita (0347). */}
+                    {!esIndefinido && (
+                      <label className="block text-sm">
+                        Causa objetiva (revisar antes de imprimir)
+                        <AreaTexto
+                          className="mt-1 w-full rounded border border-sand p-2"
+                          rows={4}
+                          value={causaEditada}
+                          onChange={(e) => setCausaEditada(e.target.value)}
+                        />
+                      </label>
+                    )}
+                    <label className="block text-sm">
+                      Funciones del cargo (Anexo I) — una por línea; se numeran solas
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2"
+                        rows={3}
+                        value={funcionesEditadas}
+                        onChange={(e) => setFuncionesEditadas(e.target.value)}
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      Anexo IV — ajuste de activos para esta persona (uno por línea)
+                      <AreaTexto
+                        className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
+                        rows={2}
+                        value={activosLibre}
+                        disabled={sinActivosAdicionales}
+                        onChange={(e) => setActivosLibre(e.target.value)}
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={sinActivosAdicionales}
+                        onChange={(e) => {
+                          setSinActivosAdicionales(e.target.checked);
+                          if (e.target.checked) setActivosLibre("");
+                        }}
+                      />
+                      Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
+                      de la sede
+                    </label>
+                  </>
                 )}
-              </article>
-            );
-          })}
-        </section>
 
-        {subiendoPara && (
-          <section className="space-y-2 rounded-lg border border-sand p-4">
-            <p className="font-serif text-lg">Subir contrato firmado</p>
-            <p className="text-sm text-taupe">
-              El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-sm">
-                Archivo escaneado
-                {/* El estilo `file:` es el de la casa —lo usan Documentación,
-                    Educación, Normas, Feriados y Disciplina—. Sin él, el input
-                    sale con el control crudo del navegador: no parece pulsable
-                    y no se parece a nada más del panel. */}
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                  className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-crema"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Fecha de firma
-                <input
-                  type="date"
-                  className="rounded-lg border border-sand px-3 py-2 text-sm"
-                  value={fechaFirma}
-                  max={hoyLima()}
-                  onChange={(e) => setFechaFirma(e.target.value)}
-                />
-              </label>
-            </div>
-            {progreso !== null && <p className="text-xs">{progreso}%</p>}
-            <div className="space-x-2">
-              <button
-                className="rounded bg-tinta px-3 py-1.5 text-sm text-crema disabled:opacity-50"
-                disabled={guardandoFirma}
-                onClick={guardarFirma}
-              >
-                Guardar
-              </button>
-              <button className="text-sm" onClick={() => setSubiendoPara(null)}>
-                Cancelar
-              </button>
-            </div>
+                <dl className="grid grid-cols-2 gap-2 text-xs text-taupe">
+                  <div>
+                    <dt className="font-semibold">DNI</dt>
+                    <dd>{persona.documento ?? "falta"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Nombre legal</dt>
+                    <dd>{datoPersonal?.nombre_dni ?? "falta en Ficha personal"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Sueldo base vigente</dt>
+                    <dd>{salarioVigente !== null ? `S/ ${salarioVigente.toFixed(2)}` : "sin asignación vigente"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Jornada del {esConvenio ? "convenio" : "contrato"}</dt>
+                    <dd>
+                      {esConvenio
+                        ? (() => {
+                            const max = maximoSemanalPracticante("practicante", modalidadEfectiva);
+                            return max !== null ? `hasta ${max} horas semanales (art. 44)` : "falta elegir la modalidad";
+                          })()
+                        : "48 horas semanales (el máximo legal — ver cláusula QUINTA)"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Movilidad</dt>
+                    <dd>
+                      {esConvenio
+                        ? "no aplica — no está en planilla (0322)"
+                        : persona.cobra_movilidad
+                          ? movilidadTarifa !== null
+                            ? `S/ ${movilidadTarifa}/día`
+                            : "sin tarifa vigente para su sede"
+                          : "no cobra"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">RIT vigente</dt>
+                    <dd>{ritVersion ? `v${ritVersion} · ${ritFecha}` : "no publicado en el sistema"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Firma de la empresa</dt>
+                    <dd className={puedeEstampar ? "" : "text-rojo"}>
+                      {!firmante.nombre
+                        ? "sin firmante configurado — cárgalo en Documentación"
+                        : puedeEstampar
+                          ? `se estampa la de ${firmante.nombre}`
+                          : esFirmante
+                            ? "no tienes firma escaneada cargada — saldrá la raya en blanco"
+                            : `la firma es de ${firmante.nombre}; solo esa persona puede estamparla, saldrá la raya en blanco`}
+                    </dd>
+                  </div>
+                </dl>
+
+                {bloqueos.length > 0 && (
+                  <ul className="list-disc space-y-1 rounded-lg bg-rojo/10 px-4 py-3 pl-8 text-sm text-rojo">
+                    {bloqueos.map((b) => (
+                      <li key={b}>{b}</li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* Avisos: no impiden generar, pero tienen que verse ANTES de
+                    firmar. En arena y no en rojo — el rojo es el acento sagrado y
+                    ya lo gastan los bloqueos de arriba. */}
+                {avisos.length > 0 && (
+                  <ul className="list-disc space-y-1 rounded-lg border border-taupe/40 bg-sand/40 px-4 py-3 pl-8 text-sm text-taupe">
+                    {avisos.map((a) => (
+                      <li key={a}>{a}</li>
+                    ))}
+                  </ul>
+                )}
+
+                <button
+                  className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
+                  disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
+                  onClick={generarBorrador}
+                >
+                  {generando ? "Generando…" : "Generar borrador"}
+                </button>
+                {borrador && (
+                  <button className="ml-2 rounded border border-sand px-4 py-2 text-sm" onClick={imprimir}>
+                    Imprimir / Guardar como PDF
+                  </button>
+                )}
+              </>
+            )}
           </section>
+          <section className="min-w-0 space-y-3 xl:col-start-1 xl:row-start-2">
+            <h2 className="font-serif text-lg">
+              Archivo
+              {porPersona.length > 0 && (
+                <span className="text-taupe">
+                  {" "}
+                  · {filtro ? `${porPersonaVisible.length} de ${porPersona.length}` : porPersona.length}
+                </span>
+              )}
+            </h2>
+
+            {contratos.length === 0 && (
+              <p className="text-sm text-taupe">Todavía no se generó ningún contrato.</p>
+            )}
+            {contratos.length > 0 && porPersonaVisible.length === 0 && (
+              <p className="text-sm text-taupe">Nada del archivo coincide con «{busca.trim()}».</p>
+            )}
+
+            {/* AGRUPADO POR PERSONA, Y LOS ANULADOS PLEGADOS.
+                La tabla plana repetía el nombre completo en cada fila —cuatro
+                veces para la misma persona— y daba a tres pruebas anuladas el
+                mismo peso visual que al contrato de verdad. Lo que importa de
+                cada persona es UNO: el vigente. Lo demás es historia, y la
+                historia se guarda, no se exhibe. */}
+            {porPersonaVisible.map(([nombre, filas]) => {
+              const vivos = filas.filter((c) => !c.anulado_at);
+              const anulados = filas.filter((c) => c.anulado_at);
+              return (
+                <article key={nombre} className="rounded-lg border border-sand bg-papel p-4">
+                  <h3 className="mb-2 font-medium">{nombre}</h3>
+
+                  {vivos.map((c) => (
+                    <div key={c.id} className="space-y-1 border-t border-sand/60 pt-2 first:border-0 first:pt-0">
+                      <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
+                        <span>
+                          {formatearFecha(c.fecha_inicio)} –{" "}
+                          {c.fecha_fin ? formatearFecha(c.fecha_fin) : "indeterminado"}
+                        </span>
+                        <span className="text-xs text-taupe">{TIPO_CONTRATO[c.tipo] ?? c.tipo}</span>
+                        <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
+                          {c.storage_path ? `firmado el ${formatearFecha(c.fecha_firma!)}` : "pendiente de firma"}
+                        </span>
+                      </div>
+
+                      {/* Los dos plazos, solo mientras falten: confirmar en cada
+                          fila lo que ya se hizo llena la pantalla de recibos.
+                          Un indefinido no se registra ante la Autoridad de
+                          Trabajo (0347) — ese trámite no le corresponde. */}
+                      {c.fecha_firma &&
+                        (!c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)) && (
+                          <p className="text-xs text-taupe">
+                            Falta{" "}
+                            {!c.copia_entregada_at &&
+                              `entregar copia a ${c.tipo === "convenio_practicas" ? "la practicante" : "la colaboradora"}`}
+                            {!c.copia_entregada_at && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && " y "}
+                            {c.tipo !== "indefinido" && !c.comunicado_mtpe_at && "comunicar a la Autoridad de Trabajo"}
+                          </p>
+                        )}
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
+                          Ver / imprimir
+                        </button>
+                        {!c.storage_path && (
+                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirSubida(c.id)}>
+                            Subir contrato firmado
+                          </button>
+                        )}
+                        {c.storage_path && (
+                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => verDocumento(c.storage_path!)}>
+                            Ver escaneo
+                          </button>
+                        )}
+                        {c.fecha_firma && !c.copia_entregada_at && (
+                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "copia")}>
+                            Marcar copia entregada
+                          </button>
+                        )}
+                        {c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
+                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
+                            Marcar comunicado al MTPE
+                          </button>
+                        )}
+                        {/* Anular va al final y en taupe: es destructivo, no
+                            urgente. En rojo junto a acciones inofensivas se
+                            pulsa por error, y el rojo de esta paleta está
+                            reservado para lo que de verdad avisa. */}
+                        <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
+                          Anular
+                        </button>
+                      </div>
+                      <p className="text-xs text-taupe">
+                        Generado el {formatearFecha(c.generado_at.slice(0, 10))}
+                        {c.generado_por && ` por ${c.generado_por}`}
+                      </p>
+                    </div>
+                  ))}
+
+                  {anulados.length > 0 && (
+                    <details className="mt-2 border-t border-sand/60 pt-2 text-xs text-taupe">
+                      <summary className="cursor-pointer">
+                        {anulados.length === 1 ? "1 anulado" : `${anulados.length} anulados`}
+                      </summary>
+                      <ul className="mt-1 space-y-1">
+                        {anulados.map((c) => (
+                          <li key={c.id} className="flex flex-wrap items-baseline gap-x-3">
+                            <span>{formatearFecha(c.generado_at.slice(0, 10))}</span>
+                            <span className="min-w-0 flex-1 truncate">{c.anulado_motivo}</span>
+                            <button className="underline underline-offset-2 hover:text-tinta" onClick={() => abrirGenerado(c.id)}>
+                              Ver
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </article>
+              );
+            })}
+          </section>
+        </div>
+
+        {/* LOS DOS PANELES DE ACCIÓN SON MODALES desde que la pantalla se
+            partió en dos columnas. Como sección al pie de una de ellas, quien
+            pulsaba «Subir contrato firmado» en una fila cualquiera del archivo
+            no veía aparecer nada: el panel se abría fuera de la pantalla.
+            El velo va en bg-black/40 y NO en bg-tinta — tinta se ACLARA en modo
+            oscuro, o sea que aclararía el fondo en vez de apagarlo, justo lo
+            contrario de lo que un velo tiene que hacer. */}
+        {subiendoPara && (
+          <div
+            className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => !guardandoFirma && setSubiendoPara(null)}
+          >
+            <section
+              className="w-full max-w-lg space-y-2 rounded-xl border border-sand bg-crema p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="font-serif text-lg">Subir contrato firmado</p>
+              <p className="text-sm text-taupe">
+                El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-sm">
+                  Archivo escaneado
+                  {/* El estilo `file:` es el de la casa —lo usan Documentación,
+                      Educación, Normas, Feriados y Disciplina—. Sin él, el input
+                      sale con el control crudo del navegador: no parece pulsable
+                      y no se parece a nada más del panel. */}
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                    className="rounded-lg border border-sand bg-hueso px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-crema"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Fecha de firma
+                  <input
+                    type="date"
+                    className="rounded-lg border border-sand bg-hueso px-3 py-2 text-sm"
+                    value={fechaFirma}
+                    max={hoyLima()}
+                    onChange={(e) => setFechaFirma(e.target.value)}
+                  />
+                </label>
+              </div>
+              {progreso !== null && <p className="text-xs">{progreso}%</p>}
+              <div className="space-x-2 pt-1">
+                <button
+                  className="rounded bg-tinta px-3 py-1.5 text-sm text-crema disabled:opacity-50"
+                  disabled={guardandoFirma}
+                  onClick={guardarFirma}
+                >
+                  Guardar
+                </button>
+                <button className="text-sm" onClick={() => setSubiendoPara(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </section>
+          </div>
         )}
 
         {anulando && (
-          <section className="space-y-2 rounded-lg border border-rojo p-4">
-            <p className="font-serif text-lg">Anular contrato</p>
-            <AreaTexto
-              className="w-full rounded border border-sand p-2 text-sm"
-              placeholder="Motivo (mínimo 3 caracteres)"
-              value={motivoAnular}
-              onChange={(e) => setMotivoAnular(e.target.value)}
-            />
-            <div className="space-x-2">
-              <button className="rounded bg-rojo px-3 py-1.5 text-sm text-crema" onClick={anular}>
-                Confirmar anulación
-              </button>
-              <button className="text-sm" onClick={() => setAnulando(null)}>
-                Cancelar
-              </button>
-            </div>
-          </section>
+          <div
+            className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setAnulando(null)}
+          >
+            <section
+              className="w-full max-w-md space-y-2 rounded-xl border border-rojo bg-crema p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="font-serif text-lg">Anular contrato</p>
+              <AreaTexto
+                className="w-full rounded border border-sand bg-hueso p-2 text-sm"
+                placeholder="Motivo (mínimo 3 caracteres)"
+                value={motivoAnular}
+                onChange={(e) => setMotivoAnular(e.target.value)}
+              />
+              <div className="space-x-2 pt-1">
+                <button className="rounded bg-rojo px-3 py-1.5 text-sm text-crema" onClick={anular}>
+                  Confirmar anulación
+                </button>
+                <button className="text-sm" onClick={() => setAnulando(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </section>
+          </div>
         )}
       </div>
 
