@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { Baby, Gift, HandCoins, Receipt } from "lucide-react";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -635,9 +636,10 @@ function TablaPlanilla(props: {
                           onClick={() => onYaPagado(f)}
                           disabled={ocupado}
                           title="Registrar que ya se le pagó fuera de la planilla"
-                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
+                          className="inline-flex items-center gap-1 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
                         >
-                          💸 Ya le pagué aparte
+                          <HandCoins size={13} strokeWidth={1.8} aria-hidden />
+                          Ya le pagué aparte
                         </button>
                       </>
                     )}
@@ -654,9 +656,10 @@ function TablaPlanilla(props: {
                           onClick={() => onRegistrarDesembolso(f)}
                           disabled={ocupado}
                           title="Registrar un adelanto de gratificación, CTS o vacaciones fuera del ciclo normal"
-                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
+                          className="inline-flex items-center gap-1 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
                         >
-                          🎁 Adelanto de beneficio
+                          <Gift size={13} strokeWidth={1.8} aria-hidden />
+                          Adelanto de beneficio
                         </button>
                       </>
                     )}
@@ -722,9 +725,10 @@ function TablaPlanilla(props: {
                         <Link
                           href={`/admin/planilla/boleta?periodo=${periodoId}&persona=${f.persona_id}`}
                           target="_blank"
-                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta"
+                          className="inline-flex items-center gap-1 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta"
                         >
-                          🧾 Ver boleta
+                          <Receipt size={13} strokeWidth={1.8} aria-hidden />
+                          Ver boleta
                         </Link>
                       </>
                     )}
@@ -789,7 +793,14 @@ function TablaPlanilla(props: {
                     )}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap" title={f.con_hijos ? "Asignación familiar (con hijos)" : undefined}>
-                    {f.asignacion_familiar > 0 ? <>👶 {formatSoles(f.asignacion_familiar)}</> : <span className="text-taupe/50">—</span>}
+                    {f.asignacion_familiar > 0 ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Baby size={13} strokeWidth={1.8} aria-hidden />
+                        {formatSoles(f.asignacion_familiar)}
+                      </span>
+                    ) : (
+                      <span className="text-taupe/50">—</span>
+                    )}
                   </td>
                   {/* La celda de Objetivos salió el 2026-08-06 (mig 0171). Los
                       objetivos se cargan en /admin/objetivos, que es donde
