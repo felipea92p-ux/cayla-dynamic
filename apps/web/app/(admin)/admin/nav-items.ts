@@ -63,7 +63,7 @@ export const GRUPOS: Grupo[] = [
     // «Lo mío» va sin `roles` y va PRIMERO: es lo único de este menú que habla de
     // quien lo está mirando. Para una integrante es su pantalla —sus días, sus
     // horas, sus tardanzas— y para DO es la suya, que también la tiene.
-    { href: "/mio", label: "Lo mío", Icon: UserRound },
+    { href: "/mio", label: "Mi perfil", Icon: UserRound },
     // Con `roles` desde el 2026-09-04. Antes iba sin filtro, así que una
     // integrante con cuenta —las hay: se les invita para que acusen la política
     // salarial (Ley 30709)— aterrizaba aquí y veía un tablero de encargada que su

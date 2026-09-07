@@ -259,6 +259,7 @@ with repo(numero, nombre, nunca) as (values
     (388, 'un_borrador_se_corrige_no_se_duplica', false),
     (390, 'el_motor_de_faltas_desempata_como_el_de_tardanzas', false),
     (391, 'las_cuatro_que_quedaban_del_mismo_empate', false),
+    (392, 'los_guardianes_de_retail_dejan_de_colarse_por_el_or_suelto', false),
     (393, 'cualquiera_guarda_su_propia_firma', false),
     (394, 'la_firma_generada_tiene_que_ser_tu_nombre', false)
 ),
