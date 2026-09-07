@@ -175,6 +175,7 @@ interface DatoPersonal {
   persona_id: string;
   nombre_dni: string | null;
   direccion: string | null;
+  genero: string | null;
 }
 interface Salario {
   persona_id: string;
@@ -626,7 +627,7 @@ export default function ContratosPage() {
         .eq("estado", "activo")
         .order("apellidos"),
       supabase.from("sedes").select("id, nombre, codigo, ciudad"),
-      supabase.from("datos_personales").select("persona_id, nombre_dni, direccion"),
+      supabase.from("datos_personales").select("persona_id, nombre_dni, direccion, genero"),
       supabase.from("asignaciones_salario").select("persona_id, salario_mensual_soles").is("vigente_hasta", null),
       // Movilidad, bono y RMV: la fila vigente HOY. Sin fila aplicable, cae a
       // null y el contrato lo dice en vez de inventar un monto — misma
@@ -907,6 +908,7 @@ export default function ContratosPage() {
           nombreDni: datoPersonal.nombre_dni,
           documento: persona.documento,
           direccion: datoPersonal.direccion,
+          genero: datoPersonal.genero === "masculino" ? "masculino" : datoPersonal.genero === "femenino" ? "femenino" : null,
           cargo: cargoEditado || persona.cargo || "",
           email: persona.email,
           sedeNombre: sedeNom,
