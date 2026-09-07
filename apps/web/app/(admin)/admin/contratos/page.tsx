@@ -846,8 +846,17 @@ export default function ContratosPage() {
   // Los anulados no cuentan: anular es exactamente cómo dice este sistema «este
   // ya no vale» (acá nada se borra, se marca). Y el que se está editando
   // tampoco se cuenta contra sí mismo.
+  // El que se acaba de generar tampoco cuenta contra sí mismo: `borrador.id`
+  // es su id desde que `generarBorrador` lo guarda, y el formulario sigue
+  // mostrando la misma persona/tipo/fechas para poder imprimirlo — sin este
+  // descarte, el candado de arriba se disparaba contra el documento que
+  // acababa de crear, como si fuera un segundo borrador. `borrador` se pone en
+  // null en cuanto se toca cualquier campo (ver el efecto de arriba), así que
+  // esto deja de aplicar apenas se intenta generar uno de verdad.
   const vivosDeLaPersona = persona
-    ? contratos.filter((c) => c.persona_id === persona.id && !c.anulado_at && c.id !== editando?.id)
+    ? contratos.filter(
+        (c) => c.persona_id === persona.id && !c.anulado_at && c.id !== editando?.id && c.id !== borrador?.id,
+      )
     : [];
   const borradoresVivos = vivosDeLaPersona.filter((c) => !c.storage_path);
   const borradorMismoTipo = borradoresVivos.find((c) => c.tipo === tipoEfectivo) ?? null;
