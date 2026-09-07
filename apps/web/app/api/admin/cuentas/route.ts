@@ -128,8 +128,16 @@ export async function POST(req: Request) {
   if (!token) return NextResponse.json({ error: "sin sesión" }, { status: 401 });
   const { data: userData, error: ue } = await admin.auth.getUser(token);
   if (ue || !userData.user) return NextResponse.json({ error: "sesión inválida" }, { status: 401 });
-  const { data: yo } = await admin.from("personas").select("rol").eq("auth_user_id", userData.user.id).maybeSingle();
-  if (!yo || !puedeGestionarCatalogos(yo.rol)) {
+  // `admin` es la llave de servicio: se salta RLS por completo, así que esta
+  // ruta NUNCA pasa por fn_rol_actual() (que la 0374 hizo devolver null para
+  // quien está cesado). Sin pedir `estado` acá, una persona a la que se le
+  // registró la salida sigue pudiendo listar el padrón de cuentas, resetear
+  // la clave de cualquiera (la ruta se la devuelve) y cambiarse su propio
+  // correo de login — recuperando todo lo que la 0374 le quitó. Es la misma
+  // condición que la 0374 ya puso del lado de la base; acá hace falta
+  // repetirla porque la llave de servicio no la ve.
+  const { data: yo } = await admin.from("personas").select("rol, estado").eq("auth_user_id", userData.user.id).maybeSingle();
+  if (!yo || yo.estado !== "activo" || !puedeGestionarCatalogos(yo.rol)) {
     return NextResponse.json({ error: "solo un administrador puede gestionar cuentas" }, { status: 403 });
   }
 
