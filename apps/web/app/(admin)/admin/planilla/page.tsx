@@ -4,7 +4,6 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -2122,8 +2121,7 @@ export default function PlanillaPage() {
   // ── Gating ─────────────────────────────────────────────────────────────────
   if (rol === null) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
             <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
@@ -2138,8 +2136,7 @@ export default function PlanillaPage() {
   }
   if (!puedeVer) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver la planilla.
@@ -2152,8 +2149,7 @@ export default function PlanillaPage() {
   const ocupado = cargando || guardandoObj !== null || guardandoMov || guardandoPeriodo;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         {/* Cabecera: selector de periodo */}
         <div className="mb-4 flex flex-wrap items-center gap-3">

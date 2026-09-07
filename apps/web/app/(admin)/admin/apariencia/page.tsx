@@ -16,7 +16,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { puedeGestionarCatalogos } from "@cayla-dynamic/shared";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -87,8 +86,7 @@ export default function AparienciaPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <CabeceraPagina
           titulo="Apariencia"

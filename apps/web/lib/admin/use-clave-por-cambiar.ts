@@ -17,9 +17,12 @@ import { clavePorCambiar } from "./mi-clave";
 // servidor y viaja con la sesión. `user_metadata` no habría servido: la puede
 // escribir la propia persona desde el navegador con `updateUser({ data })`.
 //
-// Se monta dentro de `AdminNav`, que es lo único que dibujan todas las
-// pantallas del panel — el `layout.tsx` del grupo `(admin)` es un componente de
-// servidor sin sesión, así que no puede hacer esto.
+// Se monta dentro de `MarcoAdmin` (apps/web/app/(admin)/admin/nav.tsx), que
+// desde el 2026-09-07 monta el layout del grupo `(admin)` una sola vez. Ese
+// layout es un componente de servidor y no ve la sesión, así que no puede hacer
+// esto por su cuenta: lo hace el marco, que sí es de cliente. Y solo corre en
+// las rutas CON marco — en el login y en «olvidé mi clave» no hay sesión que
+// mirar todavía (ver RUTAS_SIN_MARCO en admin/nav-items.ts).
 //
 // NO se pone en el terminal, y es a propósito: el terminal marca sin clave
 // (decisión de Felipe, jul-2026) y no tiene ninguna sesión de persona que

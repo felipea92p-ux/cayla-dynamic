@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { MESES, lecturaObjetivos, nivelColorObjetivos, type MesHistorial, type ObjetivoItem } from "@/lib/objetivos";
@@ -308,8 +307,7 @@ function ObjetivosContenido() {
   const registroManual = resumen.find((r) => r.persona_id === personaId && !r.con_checklist);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Objetivos del mes</h1>
         <p className="mb-5 text-sm text-taupe">

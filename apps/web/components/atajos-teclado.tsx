@@ -21,7 +21,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import type { Item } from "@/app/(admin)/admin/nav";
+import type { Item } from "@/app/(admin)/admin/nav-items";
 
 const ATAJOS: { tecla: string; href: string }[] = [
   { tecla: "d", href: "/admin/dashboard" },

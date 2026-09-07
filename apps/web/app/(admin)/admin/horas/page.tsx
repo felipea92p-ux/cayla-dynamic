@@ -46,7 +46,6 @@ import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { traerTodo } from "@/lib/admin/traer-todo";
@@ -916,8 +915,7 @@ function DesempenoContenido() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
           <div>

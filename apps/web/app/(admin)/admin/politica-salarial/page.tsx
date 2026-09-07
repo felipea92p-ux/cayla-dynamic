@@ -5,7 +5,6 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ROLES_DO, TZ_LIMA } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import {
@@ -327,7 +326,6 @@ export default function PoliticaSalarialPage() {
   if (cargando) {
     return (
       <>
-        <AdminNav />
         <Cargando />
       </>
     );
@@ -338,9 +336,6 @@ export default function PoliticaSalarialPage() {
 
   return (
     <>
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
       <main className="mx-auto max-w-4xl px-4 py-8 print:max-w-none print:p-0">
         {/* En papel esta cabecera sobra: el documento trae la suya con el título,
             el RUC y la fecha, que es la que vale como ejemplar entregado. */}

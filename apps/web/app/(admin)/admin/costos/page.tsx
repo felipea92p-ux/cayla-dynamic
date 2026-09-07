@@ -28,7 +28,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -230,8 +229,7 @@ export default function CostosPage() {
 
   if (rol === null) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
             <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
@@ -246,8 +244,7 @@ export default function CostosPage() {
   }
   if (!puedeVer) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver los costos de planilla.
@@ -260,8 +257,7 @@ export default function CostosPage() {
   const t = data?.totales;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-serif text-2xl">Costos del equipo</h1>
