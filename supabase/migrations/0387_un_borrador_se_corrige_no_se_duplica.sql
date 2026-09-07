@@ -35,8 +35,9 @@
 --
 --   · CANDADO 2 — «nada de periodos pisados».
 --     Dos papeles que cubren los mismos días son el problema, esté uno firmado
---     o no. Al GENERAR se mide contra todos los no anulados; AL EDITAR y AL
---     FIRMAR, solo contra los FIRMADOS (ver por qué más abajo).
+--     o no. Al GENERAR se mide contra todos los no anulados; AL EDITAR, solo
+--     contra los FIRMADOS (ver por qué más abajo). AL FIRMAR no se mide nunca:
+--     registrar un papel que existe no se bloquea jamás (también más abajo).
 --
 --   · EL ADENDUM QUEDA FUERA DEL CANDADO 2, por los dos lados.
 --     No define un vínculo: MODIFICA el que ya existe. Se monta sobre su
@@ -52,12 +53,15 @@
 --   CREA nada; el desorden que ya existe se resuelve corrigiendo o anulando, y
 --   para eso hay que poder entrar.
 --
---   Lo que sí se cierra es la salida mala de ese desorden: la firma. Un
---   borrador solo se convierte en un hecho cuando se registra su escaneo, y
---   ahí el candado 2 vuelve a exigir que no pise nada YA FIRMADO. Dos
---   borradores pisados pueden convivir; dos contratos firmados pisados, no.
---   Esa comprobación no existía —`fn_contrato_registrar` nunca miró el periodo
---   al adjuntar la firma— y es la que de verdad protege el archivo.
+-- POR QUÉ AL FIRMAR NO SE MIDE NADA
+--
+--   Porque un papel firmado existe, y el sistema tiene que poder registrarlo
+--   siempre. Es la promesa de la 0287/0312, y la prueba 246 la vigila con
+--   nombre y apellido: «El borrador viejo se puede archivar igual: el papel
+--   existe». La primera versión de esta migración sí puso un candado ahí y esa
+--   prueba lo tumbó — bien tumbado: negarse a registrar un escaneo no evita el
+--   desorden, lo saca del panel y lo deja solo en el archivador. El desorden se
+--   ataja donde se CREA, no donde se documenta.
 --
 -- POR QUÉ SE GUARDA `datos_formulario` Y NO BASTA `documento_html`
 --
@@ -202,27 +206,17 @@ begin
     if p_fecha_firma is null then raise exception 'Falta la fecha en que se firmó.'; end if;
     if p_fecha_firma > fn_hoy_lima() then raise exception 'La fecha de firma no puede ser futura.'; end if;
 
-    -- ⇩⇩⇩ CAMBIO 0387 ⇩⇩⇩ CANDADO 2 EN LA FIRMA, que es donde de verdad importa.
-    -- Dos borradores pisados pueden convivir mientras nadie decida cuál vale;
-    -- dos contratos FIRMADOS pisados, no — eso son dos papeles que dicen a la
-    -- vez cosas distintas sobre los mismos días de una persona. Esta
-    -- comprobación no existía: la función nunca miró el periodo al adjuntar el
-    -- escaneo, así que los dos convenios idénticos de setiembre de 2026 podían
-    -- haber terminado los dos firmados sin que nada protestara.
-    -- El adendum queda fuera por los dos lados: se monta sobre su contrato por
-    -- definición.
-    if r.tipo <> 'adendum' and exists (
-      select 1 from contratos_generados c
-       where c.persona_id      = r.persona_id
-         and c.id             <> r.id
-         and c.anulado_at      is null
-         and c.storage_path    is not null
-         and c.tipo           <> 'adendum'
-         and daterange(c.fecha_inicio, coalesce(c.fecha_fin, 'infinity'::date), '[]')
-          && daterange(r.fecha_inicio, coalesce(r.fecha_fin, 'infinity'::date), '[]')
-    ) then
-      raise exception 'Ese periodo ya está cubierto por otro contrato firmado de esa persona. Anúlalo primero, o corrige las fechas del borrador.';
-    end if;
+    -- POR QUÉ AQUÍ NO HAY NINGÚN CANDADO DE PERIODO, Y ES DELIBERADO.
+    -- La primera versión de esta migración sí ponía uno: adjuntar un escaneo
+    -- se rechazaba si ese periodo ya lo cubría otro contrato firmado. Lo tumbó
+    -- la prueba 246 —«El borrador viejo se puede archivar igual: el papel
+    -- existe»— y tenía razón. Esa promesa es de la 0287/0312 y es más
+    -- importante que la simetría: si dos papeles se firmaron, los dos
+    -- existen, y un sistema que se niega a registrar uno no evita el
+    -- desorden — lo esconde, que es peor, porque entonces el archivador y el
+    -- panel dicen cosas distintas. El desorden se controla donde se CREA
+    -- (los dos candados de más abajo) y se resuelve anulando con motivo;
+    -- registrar la realidad nunca se bloquea.
 
     -- El archivo tiene que ser EL DE ESTE CONTRATO. `p_storage_path` es texto
     -- libre, y `fn_contrato_puede_ver` resuelve el permiso por el uuid que va
@@ -554,3 +548,32 @@ $$;
 
 grant execute on function fn_contratos_listar(uuid) to authenticated;
 revoke execute on function fn_contratos_listar(uuid) from public, anon;
+
+insert into migraciones_aplicadas (numero, nombre)
+values (387, 'un_borrador_se_corrige_no_se_duplica')
+on conflict (numero) do nothing;
+
+notify pgrst, 'reload schema';
+
+-- ── Comprobación para pegar después en el SQL Editor ────────────────────────
+-- Las tres cosas que tienen que ser ciertas al terminar. La primera es la que
+-- no se ve al pegar y mata la pantalla: dos fn_contrato_registrar conviviendo.
+--
+--   select
+--     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--       where n.nspname = 'public' and p.proname = 'fn_contrato_registrar') = 1
+--       as una_sola_registrar,
+--     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--       where n.nspname = 'public' and p.proname = 'fn_contratos_listar')   = 1
+--       as una_sola_listar,
+--     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--       where n.nspname = 'public' and p.proname = 'fn_contrato_editar')    = 1
+--       as existe_editar;
+--
+-- Y esta dice si en producción quedan duplicados de los de antes — los que esta
+-- migración NO toca a propósito, para que los mire Desarrollo Organizacional:
+--
+--   select p.nombres || ' ' || p.apellidos as persona, c.tipo, count(*)
+--     from contratos_generados c join personas p on p.id = c.persona_id
+--    where c.anulado_at is null and c.storage_path is null
+--    group by 1, 2 having count(*) > 1;
