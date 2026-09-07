@@ -765,12 +765,21 @@ export default function ContratosPage() {
   // son el problema, esté uno firmado o no. El adendum queda fuera por los dos
   // lados — no define un vínculo, MODIFICA el que ya existe, así que se monta
   // sobre su contrato por definición y solaparse es lo que le toca.
+  //
+  // AL CORREGIR, LA PANTALLA AFLOJA IGUAL QUE EL SERVIDOR, y esto no es un
+  // detalle: con dos borradores pisados —el caso que motiva todo esto— cada uno
+  // pisa al otro, así que exigir aquí lo mismo que al generar dejaría los dos
+  // sin poder arreglarse. La trampa se cerraría justo sobre los datos que esto
+  // viene a rescatar, y se descubrió mirándolo en el navegador con los dos
+  // convenios delante. `fn_contrato_editar` mide contra los FIRMADOS y nada
+  // más; aquí, lo mismo.
+  const candidatosASolape = vivosDeLaPersona.filter(
+    (c) => c.tipo !== "adendum" && (!editando || c.storage_path !== null),
+  );
   const solapado =
     persona && !esAdendum && fechaInicio && (fechaFin || esIndefinido)
-      ? (vivosDeLaPersona.find(
-          (c) =>
-            c.tipo !== "adendum" &&
-            seSolapan(c.fecha_inicio, c.fecha_fin, fechaInicio, esIndefinido ? null : fechaFin),
+      ? (candidatosASolape.find((c) =>
+          seSolapan(c.fecha_inicio, c.fecha_fin, fechaInicio, esIndefinido ? null : fechaFin),
         ) ?? null)
       : null;
 
@@ -853,7 +862,11 @@ export default function ContratosPage() {
   //
   // Quien manda de verdad no es esto: es `fn_contrato_registrar`, que rechaza
   // lo mismo aunque la llamada no venga de esta pantalla.
-  if (persona && borradorMismoTipo) {
+  // El candado del borrador duplicado es SOLO al generar: corregir no crea nada,
+  // y el otro borrador —que sigue anunciado en la tarjeta de arriba, con su
+  // «Anular» al lado— es un problema aparte, no una razón para no poder tocar
+  // este.
+  if (persona && !editando && borradorMismoTipo) {
     bloqueos.push(
       `${persona.nombres} ya tiene un ${(TIPO_CONTRATO[borradorMismoTipo.tipo] ?? borradorMismoTipo.tipo).toLowerCase()} sin firmar (${describir(borradorMismoTipo)}). Edítalo o anúlalo — no se generan dos.`,
     );
