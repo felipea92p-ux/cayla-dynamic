@@ -27,7 +27,13 @@
 --   CAMBIO 0387.
 --
 --   md5 de partida, PEDIDO A PRODUCCIÓN en el SQL Editor (2026-09-07):
---     MD5_PENDIENTE
+--     tal_cual        = 9acf1127ae9c40fcd855c501f830d67b
+--     sin_comentarios = 7963f2b88fa3ff819ec5ab9ed29dea15
+--     caracteres      = 4570 · position('0165' in prosrc) = 526
+--   Coincide byte por byte con el cuerpo de la 0165 en este repositorio:
+--   producción tiene la 0165 puesta, con sus comentarios. No es el caso
+--   habitual —la mitad de las funciones de producción se pegaron sin
+--   comentarios y su md5 nunca coincide—, así que se sigue sin más.
 --
 -- POR QUÉ ACÁ EL EMPATE PESA MÁS QUE EN LA 0386
 --
