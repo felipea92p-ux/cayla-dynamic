@@ -864,7 +864,7 @@ const ORDINALES_CONVENIO = [
   "PRIMERA", "SEGUNDA", "TERCERA", "CUARTA", "QUINTA", "SEXTA", "SÉPTIMA",
   "OCTAVA", "NOVENA", "DÉCIMA", "DÉCIMA PRIMERA", "DÉCIMA SEGUNDA",
   "DÉCIMA TERCERA", "DÉCIMA CUARTA", "DÉCIMA QUINTA", "DÉCIMA SEXTA",
-  "DÉCIMA SÉTIMA", "DÉCIMA OCTAVA",
+  "DÉCIMA SÉTIMA", "DÉCIMA OCTAVA", "DÉCIMA NOVENA",
 ];
 
 /**
@@ -1052,6 +1052,11 @@ function documentoConvenio(d: DatosContrato): string {
     constituye remuneración, no genera derecho adquirido y no modifica la naturaleza formativa ni la ausencia de
     vínculo laboral del presente convenio.</p>`,
 
+    `<h3>{{N}}. DOMICILIO ELECTRÓNICO Y COMUNICACIONES</h3>
+    <p>Las partes acuerdan un domicilio electrónico válido para las comunicaciones relacionadas con el presente
+    convenio, conforme a los términos del ANEXO III — Domicilio Electrónico y Comunicaciones, el cual forma parte
+    integrante del presente convenio.${d.email ? ` El domicilio electrónico de LA PRACTICANTE es ${d.email}.` : ""}</p>`,
+
     `<h3>{{N}}. EXTINCIÓN</h3>
     <p>El convenio se extingue por vencimiento del plazo, mutuo acuerdo, incumplimiento comprobado de las
     obligaciones aquí pactadas, o decisión unilateral de LA PRACTICANTE, sin perjuicio de las demás causales
@@ -1131,6 +1136,15 @@ function documentoConvenio(d: DatosContrato): string {
       <p><strong>Hito de evaluación — mes 3:</strong> ${d.hitoMes3 || "[completar]"}</p>
       <p><strong>Hito de evaluación — mes 6:</strong> ${d.hitoMes6 || "[completar]"}</p>
       <p><strong>Fecha de inicio / término:</strong> ${formatearFecha(d.fechaInicio)} – ${formatearFecha(d.fechaFin)}</p>
+      ${pieAnexo(d, "LA PRACTICANTE")}
+    </section>
+
+    <section class="anexo">
+      ${encabezadoAnexo(d, "ANEXO III — DOMICILIO ELECTRÓNICO Y COMUNICACIONES", "Cláusula del presente convenio sobre domicilio electrónico y comunicaciones")}
+      <p>LA EMPRESA: info@cayla.pe · LA PRACTICANTE: ${d.email ?? "[completar]"}</p>
+      <p>Las direcciones consignadas constituyen los domicilios electrónicos válidos para todos los efectos del
+      presente convenio, incluidas las comunicaciones sobre el Plan Específico de Aprendizaje y demás documentos
+      relacionados con la práctica.</p>
       ${pieAnexo(d, "LA PRACTICANTE")}
     </section>
 

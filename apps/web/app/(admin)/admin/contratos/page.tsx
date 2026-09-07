@@ -901,12 +901,12 @@ export default function ContratosPage() {
   if (persona && !datoPersonal?.nombre_dni) {
     bloqueos.push('Carga el nombre completo (como en el DNI) en Datos personales — sin él no se puede generar el contrato.');
   }
-  // El Anexo III (Domicilio Electrónico, contrato-texto.ts:1298) fija el
-  // correo de LA COLABORADORA como domicilio válido para notificaciones —
-  // incluida la entrega del RIT. Sin este candado se imprimía como
-  // "[completar]" sin que nadie lo notara antes de firmar. Solo aplica al
-  // contrato general: el convenio y el adendum no traen este anexo.
-  if (persona && !esAdendum && !esConvenio && !persona.email) {
+  // El Anexo III (Domicilio Electrónico) fija el correo de LA COLABORADORA o
+  // LA PRACTICANTE como domicilio válido para notificaciones — incluida la
+  // entrega del RIT en el contrato general. Sin este candado se imprimía
+  // como "[completar]" sin que nadie lo notara antes de firmar. El adendum
+  // no lo necesita: modifica un contrato que ya lo tiene, no repite anexos.
+  if (persona && !esAdendum && !persona.email) {
     bloqueos.push("Carga el correo electrónico en Equipo — el Anexo III (Domicilio Electrónico) lo necesita para notificaciones válidas.");
   }
   if (persona && salarioVigente === null) {
@@ -2002,6 +2002,10 @@ export default function ContratosPage() {
                   <div>
                     <dt className="font-semibold">Nombre legal</dt>
                     <dd>{datoPersonal?.nombre_dni ?? "falta en Ficha personal"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Correo (Anexo III)</dt>
+                    <dd className={persona.email ? "" : "text-rojo"}>{persona.email ?? "falta — cárgalo en Equipo"}</dd>
                   </div>
                   <div>
                     <dt className="font-semibold">Sueldo base vigente</dt>
