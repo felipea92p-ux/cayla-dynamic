@@ -32,11 +32,11 @@ que varios de estos hallazgos señalaron que no se había aplicado a pizarra,
 rojo ni al verde oscuro. Typecheck atrapó un JSX comment mal ubicado que
 rompía la sintaxis en dos archivos antes de llegar a comitear.
 
-🟡 **Pendiente de tu decisión, no se tocó:** `personas/[id]/page.tsx:645` usa
-`bg-white` fijo en la vista previa de firma. `docs/plan-apariencia-2026-09-06.md`
-ya lo marca como "decisión abierta, no resolverla sin preguntar" — falta
-decidir si se documenta como tercera excepción (junto a `.hoja` y política
-salarial) o se cambia a `bg-papel`.
+✅ **`personas/[id]/page.tsx:645` — resuelto, era una falsa alarma.** El plan
+de apariencia lo marcaba como "decisión abierta, no resolverla sin preguntar",
+pero esa nota ya estaba vieja: `CLAUDE.md` (commit `06afd11`, 2026-09-05, un
+día antes del plan) ya documenta el `bg-white` fijo de esa tarjeta como parte
+de la excepción de política salarial. Corregida la nota obsoleta del plan.
 
 **Sin tocar hoy, a propósito:** los 3 hallazgos de esfuerzo "día" y el de
 "semana" (el envoltorio de tabla copiado 15 veces, el botón primario copiado
