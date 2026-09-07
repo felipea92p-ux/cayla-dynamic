@@ -8,6 +8,7 @@ import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { SelectorTema } from "@/components/selector-tema";
+import { GeneradorFirma } from "@/components/generador-firma";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
@@ -1312,6 +1313,21 @@ export default function MioPage() {
           </p>
         </section>
       )}
+
+      {/* ── Mi firma ─────────────────────────────────────────────────────────
+          Se genera escribiendo el nombre, no escaneando un papel — pensada para
+          que cada colaboradora tenga una firma propia que estampar en SU PROPIO
+          contrato, algo que `firmas_escaneadas` no permitía hasta la 0393 (esa
+          tabla nació solo para quien firma documentos en nombre de la empresa).
+          Vive acá, en «Mi perfil», porque el módulo de «mis datos» todavía no
+          existe — cuando exista, este bloque se muda ahí. */}
+      <section className="mb-6 rounded-2xl border border-sand p-5">
+        <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
+        <p className="mb-3 text-sm text-taupe">
+          Escribe tu nombre y elige un estilo: esa firma es la que se va a estampar en tu contrato.
+        </p>
+        <GeneradorFirma nombreSugerido={yo?.nombre ?? ""} />
+      </section>
 
       {/* ── El desglose ──────────────────────────────────────────────────────
           Solo los días con marcaje. Un día de descanso o un feriado no tienen por
