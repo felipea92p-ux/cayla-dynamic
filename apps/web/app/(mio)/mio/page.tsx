@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
@@ -904,10 +904,13 @@ export default function MioPage() {
           en admin: es un documento que se imprime, y el print de esta
           pantalla imprimiría las quince secciones de arriba con él. */}
       {periodo && estadoDelPeriodo && (
-        <section className={`mb-6 rounded-2xl border p-4 text-sm ${
-          estadoDelPeriodo.pendientes > 0 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}`}>
+        <Seccion
+          titulo="Tu periodo de pago"
+          defaultAbierta
+          claseExtra={estadoDelPeriodo.pendientes > 0 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}
+        >
           <p>
-            Tu periodo de pago va del <strong>{diaYMes(periodo.fecha_ini)}</strong> al{" "}
+            Va del <strong>{diaYMes(periodo.fecha_ini)}</strong> al{" "}
             <strong>{diaYMes(periodo.fecha_fin)}</strong>
             {estadoDelPeriodo.cierra > 0
               ? <> · cierra en {estadoDelPeriodo.cierra} día{estadoDelPeriodo.cierra === 1 ? "" : "s"}</>
@@ -926,7 +929,7 @@ export default function MioPage() {
           >
             🧾 Ver mi boleta de este periodo
           </Link>
-        </section>
+        </Seccion>
       )}
 
       {/* ── Lo que necesita su atención ──────────────────────────────────────
@@ -934,8 +937,7 @@ export default function MioPage() {
           Estos son los días que le pueden costar plata a ella, y es la única que
           sabe qué pasó de verdad ese día. */}
       {(resumen.porRevisar.length > 0 || resumen.faltas.length > 0 || respondidas.length > 0) && (
-        <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4 text-sm">
-          <h2 className="mb-2 font-serif text-lg">Revisa esto</h2>
+        <Seccion titulo="Revisa esto" defaultAbierta claseExtra="border-ambar/40 bg-ambar/[0.07]">
           {resumen.porRevisar.length > 0 && (
             <p className="mb-1">
               <strong>{resumen.porRevisar.length} día{resumen.porRevisar.length === 1 ? "" : "s"} con el marcaje incompleto</strong>{" "}
@@ -965,7 +967,7 @@ export default function MioPage() {
             </div>
           )}
           <p className="text-taupe">Avísale a tu encargada. Un marcaje se arregla; al final del mes ya no.</p>
-        </section>
+        </Seccion>
       )}
 
       {/* ── Correcciones a sus marcajes ──────────────────────────────────────
@@ -973,8 +975,7 @@ export default function MioPage() {
           mostraba. Sin esto, alguien corrige un marcaje suyo y ella no tiene
           cómo enterarse de qué cambió ni por qué — se entera si pregunta. */}
       {correcciones.length > 0 && (
-        <section className="mb-6 rounded-2xl border border-sand p-5 text-sm">
-          <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
+        <Seccion titulo="Correcciones a tus marcajes" defaultAbierta>
           <p className="mb-3 text-taupe">
             Cuando alguien corrige uno de tus marcajes queda anotado acá, con el motivo.
           </p>
@@ -993,14 +994,13 @@ export default function MioPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </Seccion>
       )}
 
       {/* ── Cuándo te toca ───────────────────────────────────────────────────
           De hoy en adelante. Es la pregunta que más veces abre esta pantalla, y
           hasta hoy se respondía por WhatsApp. */}
-      <section className="mb-6 rounded-2xl border border-sand p-5">
-        <h2 className="mb-3 font-serif text-lg">Cuándo te toca</h2>
+      <Seccion titulo="Cuándo te toca">
         {proximos.length === 0 ? (
           <p className="text-sm text-taupe">
             No hay turnos ni horario cargados para los próximos días. Si eso no es lo que esperabas, avísale a tu encargada.
@@ -1022,7 +1022,7 @@ export default function MioPage() {
             Próximo feriado: <strong>{diaYMes(feriados[0].fecha)}</strong>, {feriados[0].nombre}.
           </p>
         )}
-      </section>
+      </Seccion>
 
       {/* ── El filtro ────────────────────────────────────────────────────────
           Abre en los últimos 30 días. El botón del periodo de pago está porque es
@@ -1063,8 +1063,7 @@ export default function MioPage() {
           Un cuadrito por día, con los MISMOS colores que ve su encargada. Que las
           dos vean el mismo día del mismo color es lo que les deja hablar de él
           sin traducirse la una a la otra. */}
-      <section className="mb-6 rounded-2xl border border-sand p-5">
-        <h2 className="mb-3 font-serif text-lg">Tu mes</h2>
+      <Seccion titulo="Tu mes">
         {cargando ? <p className="text-sm text-taupe">Cargando…</p>
           : dias.length === 0 ? <p className="text-sm text-taupe">No hay días en este rango.</p>
           : (
@@ -1207,19 +1206,22 @@ export default function MioPage() {
               </p>
             </>
           )}
-      </section>
+      </Seccion>
 
       {/* ── Sus objetivos ────────────────────────────────────────────────────
           De solo lectura: marcarlos cumplidos es de su encargada, y esa es la
           razón por la que valen. Sin lenguaje de premio — desde la 0171 los
           objetivos NO pagan, así que nada de «plus» ni de verde de recompensa. */}
-      <section className="mb-6 rounded-2xl border border-sand p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-serif text-lg">Tus objetivos de {mesLabel}</h2>
-          {objetivos.length > 0 && (
-            <span className="text-sm text-taupe">{objCumplidos} de {objetivos.length}</span>
-          )}
-        </div>
+      <Seccion
+        titulo={
+          <>
+            Tus objetivos de {mesLabel}
+            {objetivos.length > 0 && (
+              <span className="ml-2 align-middle font-sans text-sm font-normal text-taupe">{objCumplidos} de {objetivos.length}</span>
+            )}
+          </>
+        }
+      >
         {objetivos.length === 0 ? (
           <p className="text-sm text-taupe">
             Todavía no tienes objetivos cargados para {mesLabel}. Los acuerda contigo tu encargada.
@@ -1248,7 +1250,7 @@ export default function MioPage() {
             </p>
           </>
         )}
-      </section>
+      </Seccion>
 
       {/* ── Sus vacaciones, y hasta cuándo puede tomarlas ───────────────────
           Un récord que se cierra tiene un año para gozarse. Pasado ese año la
@@ -1256,9 +1258,11 @@ export default function MioPage() {
           se quedó sin su descanso — que es lo que de verdad importa acá. Nadie
           pide vacaciones que no sabe que tiene. */}
       {vacas && vacas.records_sin_gozar > 0 && vacas.vence_el && (
-        <section className={`mb-6 rounded-2xl border p-5 text-sm ${
-          (vacas.dias_para_vencer ?? 999) <= 60 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}`}>
-          <h2 className="mb-2 font-serif text-lg">Tus vacaciones</h2>
+        <Seccion
+          titulo="Tus vacaciones"
+          defaultAbierta={(vacas.dias_para_vencer ?? 999) <= 60}
+          claseExtra={(vacas.dias_para_vencer ?? 999) <= 60 ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand"}
+        >
           <p>
             Te quedan <strong>{vacas.dias_pendientes} días</strong> sin tomar, y el récord más
             antiguo <strong>vence el {diaYMes(vacas.vence_el)}</strong>
@@ -1270,7 +1274,7 @@ export default function MioPage() {
             Después de esa fecha esos días ya no se pueden tomar como descanso. Pídelas abajo
             antes de que llegue esa fecha.
           </p>
-        </section>
+        </Seccion>
       )}
 
       {/* ── Pedir vacaciones ─────────────────────────────────────────────────
@@ -1279,8 +1283,7 @@ export default function MioPage() {
           elegido: eso lo decide `fn_solicitar_vacaciones` con el mismo cálculo
           que ya se le mostró arriba, y su respuesta es la que se ve abajo. */}
       {vacas && (
-        <section className="mb-6 rounded-2xl border border-sand p-5 text-sm">
-          <h2 className="mb-3 font-serif text-lg">Pedir vacaciones</h2>
+        <Seccion titulo="Pedir vacaciones">
           <p className="mb-3 text-taupe">
             Tienes <strong>{vacas.dias_pendientes} días</strong> pendientes. Elige el rango y avisa —tu
             encargada no la aprueba, la aprueba Desarrollo Organizacional.
@@ -1337,7 +1340,7 @@ export default function MioPage() {
               ))}
             </ul>
           )}
-        </section>
+        </Seccion>
       )}
 
       {/* ── Sus ausencias ────────────────────────────────────────────────────
@@ -1345,11 +1348,10 @@ export default function MioPage() {
           que hoy se responde preguntando. Y el aviso del documento que falta la
           protege a ella: sin documento, ese permiso no cuenta igual. */}
       {ausencias.length > 0 && (
-        <section className="mb-6 rounded-2xl border border-sand p-5">
-          {/* Incluye las vacaciones: la vista `vacaciones` no es otra tabla,
-              es un SELECT sobre `ausencias` con tipo='vacaciones'. Consultarla
-              aparte traería las mismas filas dos veces. */}
-          <h2 className="mb-3 font-serif text-lg">Tus permisos, descansos y vacaciones</h2>
+        // Incluye las vacaciones: la vista `vacaciones` no es otra tabla, es un
+        // SELECT sobre `ausencias` con tipo='vacaciones'. Consultarla aparte
+        // traería las mismas filas dos veces.
+        <Seccion titulo="Tus permisos, descansos y vacaciones">
           <ul className="space-y-2 text-sm">
             {ausenciasAgrupadas.map((a) => {
               const faltaDoc = exigeDoc(a.tipo) && !a.doc_profesional;
@@ -1379,14 +1381,13 @@ export default function MioPage() {
             Si presentaste algo que no aparece acá, todavía se puede registrar — avísale a tu encargada.
             {hayCumpleanos && " Y recuerda que tienes permiso por tu cumpleaños: se pide, no se descuenta solo."}
           </p>
-        </section>
+        </Seccion>
       )}
 
       {/* ── El desglose ──────────────────────────────────────────────────────
           Solo los días con marcaje. Un día de descanso o un feriado no tienen por
           qué ocupar una fila vacía en una pantalla que se mira en el teléfono. */}
-      <section className="rounded-2xl border border-sand p-5">
-        <h2 className="mb-4 font-serif text-lg">Día por día</h2>
+      <Seccion titulo="Día por día">
         {jornadas.length === 0 ? (
           <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
         ) : (
@@ -1442,7 +1443,7 @@ export default function MioPage() {
             </table>
           </div>
         )}
-      </section>
+      </Seccion>
 
       <p className="mt-6 text-xs text-taupe">
         Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo que
@@ -1455,8 +1456,7 @@ export default function MioPage() {
           deja a cada persona leer su propia fila completa — corregir un dato
           sigue yendo por Desarrollo Organizacional, esta sección es solo para
           que pueda comprobar qué tiene guardado el sistema. */}
-      <section className="mt-8 rounded-2xl border border-sand p-5 text-sm">
-        <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
+      <Seccion titulo="Tus datos">
         <p className="mb-4 text-taupe">
           Lo que el sistema tiene guardado de ti. Si algo está mal o falta, avisa a Desarrollo
           Organizacional para que lo corrijan — desde acá no se edita.
@@ -1545,7 +1545,7 @@ export default function MioPage() {
             )}
           </div>
         </div>
-      </section>
+      </Seccion>
     </main>
   );
 }
@@ -1607,6 +1607,35 @@ function FotoDePerfil({
       />
       {error && <p className="max-w-[9rem] text-center text-[11px] text-rojo">{error}</p>}
     </div>
+  );
+}
+
+/**
+ * Sección colapsable. Empieza abierta o cerrada según lo que pide el
+ * contenido: abiertas por defecto las que necesitan una acción (periodo de
+ * pago, revisa esto, correcciones), cerradas las de solo consulta (objetivos,
+ * tus datos, día por día…) — así el título sigue siendo escaneable de un
+ * vistazo sin que el detalle de todas a la vez abrume en una pantalla de
+ * teléfono. No se persiste entre visitas: cada carga vuelve al estado por
+ * defecto, que es el que de verdad importa.
+ */
+function Seccion({
+  titulo, defaultAbierta = false, claseExtra, children,
+}: { titulo: ReactNode; defaultAbierta?: boolean; claseExtra?: string; children: ReactNode }) {
+  const [abierta, setAbierta] = useState(defaultAbierta);
+  return (
+    <section className={`mb-6 rounded-2xl border p-5 text-sm ${claseExtra ?? "border-sand"}`}>
+      <button
+        type="button"
+        onClick={() => setAbierta((v) => !v)}
+        aria-expanded={abierta}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="font-serif text-lg">{titulo}</span>
+        <span aria-hidden className="shrink-0 text-taupe">{abierta ? "▾" : "▸"}</span>
+      </button>
+      {abierta && <div className="mt-3">{children}</div>}
+    </section>
   );
 }
 
