@@ -40,6 +40,8 @@ export function SidebarAdmin({
   modo,
   expandido,
   onAlternar,
+  cerrados,
+  onAlternarGrupo,
 }: {
   grupos: Grupo[];
   pathname: string;
@@ -47,6 +49,8 @@ export function SidebarAdmin({
   modo: Exclude<Modo, "cajon">;
   expandido: boolean;
   onAlternar: () => void;
+  cerrados: ReadonlySet<string>;
+  onAlternarGrupo: (etiqueta: string) => void;
 }) {
   return (
     <div
@@ -70,7 +74,14 @@ export function SidebarAdmin({
         aria-label="Navegación principal"
         className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
       >
-        <PanelNavegacion grupos={grupos} pathname={pathname} contadores={contadores} modo={modo} />
+        <PanelNavegacion
+          grupos={grupos}
+          pathname={pathname}
+          contadores={contadores}
+          modo={modo}
+          cerrados={cerrados}
+          onAlternarGrupo={onAlternarGrupo}
+        />
       </nav>
 
       <div className="shrink-0 border-t border-sand p-2">

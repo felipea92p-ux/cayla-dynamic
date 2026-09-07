@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 const CLAVE = "cayla-nav-colapsado";
+const CLAVE_GRUPOS = "cayla-nav-grupos-cerrados";
 
 // 80rem = 1280px = el `xl` de Tailwind. Escrito en rem, no en px, para que
 // siga al tamaño de fuente del navegador igual que lo hace la utilidad `xl:`
@@ -86,4 +87,57 @@ export function useNavColapsado(): {
   }, [modo]);
 
   return { modo, expandido, alternar };
+}
+
+/**
+ * Qué grupos del menú están contraídos, por su etiqueta.
+ *
+ * Se guarda cuáles están CERRADOS y no cuáles están abiertos, a propósito: un
+ * grupo nuevo que alguien agregue mañana a `nav-items.ts` nace abierto sin que
+ * haya que tocar nada, que es lo que se espera de algo recién puesto. Al revés,
+ * nacería escondido y parecería que no se agregó.
+ *
+ * La lista se guarda entera en localStorage porque un plegado que se olvida en
+ * cada recarga no es un plegado: obliga a rehacerlo cada vez y la gente deja de
+ * usarlo.
+ */
+export function useGruposCerrados(): {
+  cerrados: ReadonlySet<string>;
+  alternarGrupo: (etiqueta: string) => void;
+} {
+  const [cerrados, setCerrados] = useState<ReadonlySet<string>>(() => new Set());
+
+  useEffect(() => {
+    try {
+      const bruto = localStorage.getItem(CLAVE_GRUPOS);
+      if (!bruto) return;
+      const lista: unknown = JSON.parse(bruto);
+      // Se comprueba la forma en vez de confiar: esto es texto que cualquiera
+      // puede editar desde las herramientas del navegador, y un valor raro
+      // rompería el render del menú entero.
+      if (Array.isArray(lista) && lista.every((x) => typeof x === "string")) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCerrados(new Set(lista));
+      }
+    } catch {
+      // Sin localStorage, o con un JSON roto: todos los grupos abiertos, que es
+      // el estado por defecto y no molesta a nadie.
+    }
+  }, []);
+
+  const alternarGrupo = useCallback((etiqueta: string) => {
+    setCerrados((antes) => {
+      const siguiente = new Set(antes);
+      if (siguiente.has(etiqueta)) siguiente.delete(etiqueta);
+      else siguiente.add(etiqueta);
+      try {
+        localStorage.setItem(CLAVE_GRUPOS, JSON.stringify([...siguiente]));
+      } catch {
+        // El grupo se pliega igual en esta pestaña; solo no se acuerda mañana.
+      }
+      return siguiente;
+    });
+  }, []);
+
+  return { cerrados, alternarGrupo };
 }
