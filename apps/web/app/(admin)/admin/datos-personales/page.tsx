@@ -48,7 +48,6 @@ interface Form {
   nombre_dni: string; fecha_nacimiento: string; estado_civil: string; genero: string; direccion: string; celular: string;
   entidad_bancaria: string; numero_cuenta: string; grado_instruccion: string;
   hijos_menores: "" | "si" | "no";
-  foto_dni_url: string; foto_personal_url: string; foto_profesional_url: string;
   emergencia_nombre: string; emergencia_vinculo: string; emergencia_telefono: string;
   discapacidad: "" | "si" | "no"; discapacidad_conadis: string;
   cuspp: string;   // CAMBIO 0198
@@ -57,7 +56,6 @@ interface Form {
 const VACIO: Form = {
   nombre_dni: "", fecha_nacimiento: "", estado_civil: "", genero: "", direccion: "", celular: "",
   entidad_bancaria: "", numero_cuenta: "", grado_instruccion: "", hijos_menores: "",
-  foto_dni_url: "", foto_personal_url: "", foto_profesional_url: "",
   emergencia_nombre: "", emergencia_vinculo: "", emergencia_telefono: "",
   discapacidad: "", discapacidad_conadis: "", cuspp: "",
 };
@@ -239,7 +237,6 @@ export default function DatosPersonalesPage() {
       direccion: f.direccion ?? "", celular: f.celular ?? "", entidad_bancaria: f.entidad_bancaria ?? "",
       numero_cuenta: f.numero_cuenta ?? "", grado_instruccion: f.grado_instruccion ?? "",
       hijos_menores: f.hijos_menores === true ? "si" : f.hijos_menores === false ? "no" : "",
-      foto_dni_url: f.foto_dni_url ?? "", foto_personal_url: f.foto_personal_url ?? "", foto_profesional_url: f.foto_profesional_url ?? "",
       emergencia_nombre: f.emergencia_nombre ?? "", emergencia_vinculo: f.emergencia_vinculo ?? "",
       emergencia_telefono: f.emergencia_telefono ?? "",
       discapacidad: f.discapacidad === true ? "si" : f.discapacidad === false ? "no" : "",
@@ -304,8 +301,17 @@ export default function DatosPersonalesPage() {
     }
     setGuardando(true);
 
-    // Los quince campos de la ficha SIEMPRE se mandan completos: la función de
-    // la base es un upsert que reemplaza, no un update parcial. Si se omite uno,
+    // Las fotos/documentos ya no se editan desde esta pantalla — se cargan por
+    // otra vía — pero `fn_set_datos_personales` es un upsert que REEMPLAZA los
+    // tres campos en cada llamada (`foto_x_url = excluded.foto_x_url`, sin
+    // COALESCE contra lo que ya había: ver la migración 0369). Si se mandara
+    // "" o null acá, cada "Guardar ficha" borraría lo que esa otra vía haya
+    // cargado. Se manda de vuelta el valor que ya está en la fila, tal cual se
+    // cargó, para que guardar el resto de la ficha no lo toque.
+    const fichaActual = fichas.get(sel);
+
+    // Los campos de la ficha SIEMPRE se mandan completos: la función de la
+    // base es un upsert que reemplaza, no un update parcial. Si se omite uno,
     // se guarda en null.
     const { error } = await supabase.rpc("fn_set_datos_personales", {
       p_persona_id: sel,
@@ -319,9 +325,9 @@ export default function DatosPersonalesPage() {
       p_numero_cuenta: form.numero_cuenta.trim() || null,
       p_grado_instruccion: form.grado_instruccion.trim() || null,
       p_hijos_menores: form.hijos_menores === "" ? null : form.hijos_menores === "si",
-      p_foto_dni_url: form.foto_dni_url.trim() || null,
-      p_foto_personal_url: form.foto_personal_url.trim() || null,
-      p_foto_profesional_url: form.foto_profesional_url.trim() || null,
+      p_foto_dni_url: fichaActual?.foto_dni_url ?? null,
+      p_foto_personal_url: fichaActual?.foto_personal_url ?? null,
+      p_foto_profesional_url: fichaActual?.foto_profesional_url ?? null,
       p_emergencia_nombre: form.emergencia_nombre.trim() || null,
       p_emergencia_vinculo: form.emergencia_vinculo.trim() || null,
       p_emergencia_telefono: form.emergencia_telefono.trim() || null,
@@ -650,15 +656,6 @@ export default function DatosPersonalesPage() {
       </label>
     );
   }
-  function campoFoto(label: string, key: keyof Form) {
-    return (
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-taupe">{label} {form[key] && <a href={form[key] as string} target="_blank" rel="noreferrer" className="text-tinta underline">ver</a>}</span>
-        <input value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-          className="rounded-lg border px-3 py-2" placeholder="Enlace de Drive" />
-      </label>
-    );
-  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -679,7 +676,7 @@ export default function DatosPersonalesPage() {
           )}
         </div>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
-          Ficha personal de cada integrante: DNI, pensión, contacto, familia y documentos.
+          Ficha personal de cada integrante: DNI, pensión, contacto y familia.
           Datos sensibles — visibles solo para Desarrollo Organizacional, la encargada de tu sede y cada persona sobre sí misma.
         </p>
 
@@ -1100,15 +1097,6 @@ export default function DatosPersonalesPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       {campoSiNo("¿Persona con discapacidad?", "discapacidad")}
                       {form.discapacidad === "si" && campo("N.° de certificado CONADIS", "discapacidad_conadis")}
-                    </div>
-                  </section>
-
-                  <section>
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Documentos</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {campoFoto("Foto DNI", "foto_dni_url")}
-                      {campoFoto("Foto personal", "foto_personal_url")}
-                      {campoFoto("Foto profesional", "foto_profesional_url")}
                     </div>
                   </section>
                 </div>
