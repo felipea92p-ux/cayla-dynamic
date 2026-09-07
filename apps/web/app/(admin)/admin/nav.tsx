@@ -11,6 +11,7 @@ import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
 import { AtajosTeclado } from "@/components/atajos-teclado";
 import { SelectorTema } from "@/components/selector-tema";
+import { Insignia } from "@/components/ui/insignia";
 import {
   LayoutDashboard, Inbox, TriangleAlert, PencilLine, CalendarClock, Clock, Gauge,
   Users, IdCard, TreePalm, Gavel, ReceiptText, PiggyBank, Target, LayoutGrid, KeyRound,
@@ -45,11 +46,6 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     // cuarto número compitiendo con los tres que ya explica, y el criterio de
     // esta casa es que un aviso que aparece en todos lados deja de ser aviso.
     { href: "/admin/bandeja", label: "Bandeja", Icon: Inbox, roles: SEDE },
-    // El tema global (claro/oscuro) de panel Y terminal — no un color libre,
-    // ver apps/web/app/(admin)/admin/apariencia/page.tsx. Mismo permiso que
-    // el resto de este grupo: es un catálogo del sistema, no un dato de una
-    // persona.
-    { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO },
   ] },
   { label: "Asistencia", items: [
     { href: "/admin/incidencias", label: "Incidencias", Icon: TriangleAlert, roles: SEDE },
@@ -64,10 +60,19 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   { label: "Personas", items: [
     { href: "/admin/equipo", label: "Equipo", Icon: Users, roles: SEDE },
     { href: "/admin/datos-personales", label: "Datos personales", Icon: IdCard, roles: SEDE },
+    // Decide el 21 % del salario de referencia del mes (plus de objetivos,
+    // supabase/migrations/0024_planilla.sql): sigue siendo un acto de gestión
+    // de equipo, no de tesorería, así que se queda acá y no en «Pago».
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
     { href: "/admin/documentacion", label: "Documentación", Icon: FileSignature, roles: DO },
     { href: "/admin/contratos", label: "Contratos", Icon: ScrollText, roles: DO },
+  ] },
+  // El único grupo con rótulo que una integrante ve en toda su vida en el
+  // panel: tres documentos que le toca leer y acusar, no personas que ella
+  // administre. Antes vivían dentro de «Personas» sin `roles`, y el único
+  // rótulo que esa persona llegaba a leer le decía algo que no era cierto.
+  { label: "Para todo el equipo", items: [
     // Sin `roles` a propósito: la Ley 30709 obliga a INFORMAR la política salarial
     // a todo el equipo, y un menú que solo ve la gerencia no informa a nadie.
     { href: "/admin/politica-salarial", label: "Política salarial", Icon: Scale },
@@ -76,28 +81,42 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
     { href: "/admin/normas", label: "Normas", Icon: BookText },
     // Sin `roles`, mismo criterio que Normas: el comunicado es PARA las cuatro
     // sedes, así que el menú que lleva a leerlo no puede verlo solo DO. Sin
-    // contador propio, por la misma regla de arriba (línea 106): un anuncio no
-    // tiene fecha límite que cueste plata pasarla.
+    // contador propio, por la misma regla de arriba: un anuncio no tiene fecha
+    // límite que cueste plata pasarla.
     { href: "/admin/anuncios", label: "Anuncios", Icon: Megaphone },
   ] },
-  { label: "Nómina", items: [
+  // «Pago», no «Nómina»: es la palabra que ya usa el resto de la casa
+  // (periodos_planilla, fn_planilla_calcular, docs/planilla-anexo-tecnico.md)
+  // y no compite con el nombre de ningún renglón de adentro.
+  { label: "Pago", items: [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
     { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
     { href: "/admin/costos", label: "Costos", Icon: Coins, roles: DO },
     { href: "/admin/liquidaciones", label: "Liquidaciones", Icon: HandCoins, roles: DO },
     { href: "/admin/educacion", label: "Educación", Icon: GraduationCap, roles: DO },
     { href: "/admin/ausencias", label: "Ausencias", Icon: TreePalm, roles: SEDE },
-    { href: "/admin/feriados", label: "Feriados", Icon: CalendarCheck, roles: DO },
   ] },
-  { label: "Gestión", items: [
-    { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
+  // Catálogos y controles del sistema, todo DO: desaparece entero para la
+  // encargada, que no crea sedes ni cuentas de otra gente.
+  { label: "Configuración", items: [
     { href: "/admin/sedes", label: "Sedes", Icon: Building2, roles: DO },
-    { href: "/admin/reporte-sede", label: "Hoja de sede", Icon: FileText, roles: SEDE },
+    { href: "/admin/areas", label: "Áreas", Icon: LayoutGrid, roles: DO },
+    { href: "/admin/feriados", label: "Feriados", Icon: CalendarCheck, roles: DO },
     // Con `roles` desde hoy, por lo mismo que «Exportar CSV» de abajo: iba sin
     // filtro, y la pantalla ya se degrada sola con `puedeGestionarCatalogos`, o
     // sea que el renglón solo llevaba a una puerta cerrada — también desde el
     // buscador (Cmd+K) y desde los atajos, que consumen esta misma lista.
     { href: "/admin/cuentas", label: "Cuentas", Icon: KeyRound, roles: DO },
+    // El tema global (claro/oscuro) de panel Y terminal — no un color libre,
+    // ver apps/web/app/(admin)/admin/apariencia/page.tsx. Mismo permiso que
+    // el resto de este grupo: es un catálogo del sistema, no un dato de una
+    // persona.
+    { href: "/admin/apariencia", label: "Apariencia", Icon: Palette, roles: DO },
+  ] },
+  // Lo que le queda a «Gestión» después de sacarle los catálogos: un informe de
+  // uso diario y una descarga, las dos cosas que sí ve la encargada de sede.
+  { label: "Informes", items: [
+    { href: "/admin/reporte-sede", label: "Hoja de sede", Icon: FileText, roles: SEDE },
     // Con `roles` desde hoy (hallazgo 26). Iba sin filtro, así que una integrante
     // con cuenta —las hay, para acusar la política salarial— veía «Exportar CSV»
     // y entraba. No era una fuga: la RLS de `jornadas`, `marcajes` y
@@ -110,13 +129,15 @@ const GRUPOS: Array<{ label?: string; items: Item[] }> = [
   ] },
 ];
 
-// El perfil de una persona (/admin/personas/[id]) se entra desde Equipo, así que
-// mientras estás en él, resaltamos "Equipo" para no dejar la ubicación huérfana.
+// Una regla, no una lista de excepciones: cualquier ruta hija (boleta, memo
+// disciplinario, constancias de normas o de política salarial…) resalta el
+// renglón del que cuelga, igual que la ruta exacta.
 function esActivo(pathname: string, href: string): boolean {
-  if (pathname === href) return true;
+  if (pathname === href || pathname.startsWith(`${href}/`)) return true;
+  // El perfil de una persona (/admin/personas/[id]) se entra desde Equipo: es
+  // una redirección conceptual, no una ruta hija de /admin/equipo, así que no
+  // la cubre la regla de arriba y necesita su propio caso.
   if (href === "/admin/equipo" && pathname.startsWith("/admin/personas")) return true;
-  // Vacaciones se absorbió en Ausencias (0101); el enlace viejo sigue llevando allí.
-  if (href === "/admin/ausencias" && pathname === "/admin/vacaciones") return true;
   return false;
 }
 
@@ -157,6 +178,18 @@ export function AdminNav() {
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
   useEffect(() => { setAbierto(false); }, [pathname]);
+
+  // Escape cierra el menú del teléfono, igual que ya cierra el buscador y los
+  // atajos: los tres desplegables de esta barra tienen que responder al mismo
+  // gesto. Tocar fuera lo cierra la capa de fondo que se dibuja más abajo.
+  useEffect(() => {
+    if (!abierto) return;
+    function alPresionar(e: KeyboardEvent) {
+      if (e.key === "Escape") setAbierto(false);
+    }
+    window.addEventListener("keydown", alPresionar);
+    return () => window.removeEventListener("keydown", alPresionar);
+  }, [abierto]);
 
   // ⌘K / Ctrl+K abre el buscador desde cualquier pantalla del panel, escribiendo
   // o no. No se guarda "cerrado antes" en ningún lado: cada apertura arranca
@@ -238,44 +271,42 @@ export function AdminNav() {
               montaba sobre las filas del medio. Con `items-start` cada bloque
               usa solo su propia altura: el nav crece hacia abajo cuantas filas
               necesite y las acciones se quedan arriba, sin pisarse. */}
-          <nav className="hidden min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 text-sm xl:flex">
-            {grupos.map((g, gi) => (
-              <div key={gi} className="flex shrink-0 items-center gap-x-0.5">
-                {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px shrink-0 bg-sand" />}
-                {g.items.map((it) => (
-                  <Link key={it.href} href={it.href}
-                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 transition active:scale-[0.97] ${
-                      esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
-                    <it.Icon size={15} strokeWidth={1.8} aria-hidden />
-                    {it.label}
-                    {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}
-                      >
-                        {educacionPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}
-                      >
-                        {vacacionesPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
-                      <span
-                        className="ml-0.5 rounded-full bg-rojo px-1.5 text-[10px] font-medium leading-4 text-crema"
-                        title={`${revisionesPendientes} persona(s) pidieron que se revise un día suyo`}
-                      >
-                        {revisionesPendientes}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            ))}
+          <nav aria-label="Menú principal" className="hidden min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 text-sm xl:flex">
+            {grupos.map((g, gi) => {
+              const idRotulo = `nav-grupo-${gi}`;
+              return (
+                <div key={gi} role={g.label ? "group" : undefined} aria-labelledby={g.label ? idRotulo : undefined}
+                  className="flex shrink-0 flex-wrap items-center gap-x-0.5">
+                  {gi > 0 && <span aria-hidden className="mx-1.5 h-3.5 w-px shrink-0 bg-sand" />}
+                  {g.label && (
+                    <span id={idRotulo} className="etiqueta shrink-0 pr-1 text-taupe">{g.label}</span>
+                  )}
+                  {g.items.map((it) => (
+                    <Link key={it.href} href={it.href}
+                      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 transition active:scale-[0.97] ${
+                        esActivo(pathname, it.href) ? "bg-sand/60 font-medium text-tinta" : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
+                      <it.Icon size={15} strokeWidth={1.8} aria-hidden />
+                      {it.label}
+                      {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
+                        <span title={`${educacionPorAtender} asignación(es) sin comprobante o por vencer`}>
+                          <Insignia variante="contador" tamano="sm" className="ml-0.5">{educacionPorAtender}</Insignia>
+                        </span>
+                      )}
+                      {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
+                        <span title={`${vacacionesPorAtender} récord(s) de vacaciones que vencen dentro de 60 días`}>
+                          <Insignia variante="contador" tamano="sm" className="ml-0.5">{vacacionesPorAtender}</Insignia>
+                        </span>
+                      )}
+                      {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
+                        <span title={`${revisionesPendientes} persona(s) pidieron que se revise un día suyo`}>
+                          <Insignia variante="contador" tamano="sm" className="ml-0.5">{revisionesPendientes}</Insignia>
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              );
+            })}
           </nav>
         </div>
 
@@ -308,53 +339,62 @@ export function AdminNav() {
         </div>
       </div>
 
-      {/* Menú desplegable móvil — vertical, con títulos de grupo e íconos. */}
+      {/* Menú desplegable móvil — vertical, con títulos de grupo e íconos.
+          La capa de fondo cierra al tocar fuera (mismo patrón que
+          buscador-global.tsx); el <nav> queda `relative` con fondo propio
+          para dibujarse POR ENCIMA de esa capa en vez de por debajo, que es
+          donde cae por defecto un elemento sin posicionar frente a uno fijo.
+          `max-h-[70vh] overflow-y-auto` evita que una encargada (18
+          renglones) o un admin (27) tengan que desplazarse por todo el menú
+          para volver a alcanzar el botón X, que vive arriba, fuera de este
+          bloque. */}
       {abierto && (
-        <nav className="border-t border-sand px-4 pb-4 pt-1 sm:px-6 xl:hidden">
-          {grupos.map((g, gi) => (
-            <div key={gi}>
-              {g.label && (
-                <p className="px-3 pb-1 pt-3 text-[11px] uppercase tracking-wider text-taupe">{g.label}</p>
-              )}
-              <div className="grid gap-0.5">
-                {g.items.map((it) => (
-                  <Link key={it.href} href={it.href}
-                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition active:scale-[0.97] ${
-                      esActivo(pathname, it.href)
-                        ? "bg-sand/60 font-medium text-tinta"
-                        : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
-                    <it.Icon size={17} strokeWidth={1.8} aria-hidden />
-                    {it.label}
-                    {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
-                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
-                        {educacionPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
-                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
-                        {vacacionesPorAtender}
-                      </span>
-                    )}
-                    {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
-                      <span className="ml-auto rounded-full bg-rojo px-2 text-xs font-medium leading-5 text-crema">
-                        {revisionesPendientes}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-          {persona && (
-            <p className="mt-3 px-3 text-xs text-taupe" title="Sesión activa">
-              Sesión: {persona.nombreCompleto}
-            </p>
-          )}
-          <button onClick={cerrarSesion}
-            className="mt-2 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe transition hover:border-rojo/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo">
-            <LogOut size={17} strokeWidth={1.8} aria-hidden /> Cerrar sesión
-          </button>
-        </nav>
+        <>
+          <div onClick={() => setAbierto(false)} aria-hidden className="fixed inset-0 z-40 bg-black/40 xl:hidden" />
+          <nav aria-label="Menú principal, móvil"
+            className="relative z-50 max-h-[70vh] overflow-y-auto border-t border-sand bg-crema px-4 pb-4 pt-1 sm:px-6 xl:hidden">
+            {grupos.map((g, gi) => {
+              const idRotulo = `nav-grupo-movil-${gi}`;
+              return (
+                <div key={gi} role={g.label ? "group" : undefined} aria-labelledby={g.label ? idRotulo : undefined}>
+                  {g.label && (
+                    <p id={idRotulo} className="etiqueta px-3 pb-1 pt-3 text-taupe">{g.label}</p>
+                  )}
+                  <div className="grid gap-0.5">
+                    {g.items.map((it) => (
+                      <Link key={it.href} href={it.href}
+                        className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition active:scale-[0.97] ${
+                          esActivo(pathname, it.href)
+                            ? "bg-sand/60 font-medium text-tinta"
+                            : "text-taupe hover:bg-sand/40 hover:text-rojo active:bg-sand/60 active:text-rojo-profundo"}`}>
+                        <it.Icon size={17} strokeWidth={1.8} aria-hidden />
+                        {it.label}
+                        {it.href === "/admin/educacion" && educacionPorAtender > 0 && (
+                          <Insignia variante="contador" tamano="sm" className="ml-auto">{educacionPorAtender}</Insignia>
+                        )}
+                        {it.href === "/admin/ausencias" && vacacionesPorAtender > 0 && (
+                          <Insignia variante="contador" tamano="sm" className="ml-auto">{vacacionesPorAtender}</Insignia>
+                        )}
+                        {it.href === "/admin/incidencias" && revisionesPendientes > 0 && (
+                          <Insignia variante="contador" tamano="sm" className="ml-auto">{revisionesPendientes}</Insignia>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {persona && (
+              <p className="mt-3 px-3 text-xs text-taupe" title="Sesión activa">
+                Sesión: {persona.nombreCompleto}
+              </p>
+            )}
+            <button onClick={cerrarSesion}
+              className="mt-2 flex w-full items-center gap-2.5 rounded-lg border border-sand px-3 py-2.5 text-left text-sm text-taupe transition hover:border-rojo/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo">
+              <LogOut size={17} strokeWidth={1.8} aria-hidden /> Cerrar sesión
+            </button>
+          </nav>
+        </>
       )}
       {/* Va aquí y no en el layout porque el layout envuelve también el login y
           «nueva clave», donde todavía no hay sesión a la que preguntarle nada.

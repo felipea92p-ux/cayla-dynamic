@@ -322,16 +322,24 @@ distintas, no una:
   correcta: nadie necesita ver un contrato en modo oscuro mientras lo revisa
   en pantalla, pero el papel que sale de la impresora sí tiene que ser
   siempre el mismo, para siempre.
-- Política salarial (y la vista previa "así se verá en el memo" de una firma)
-  usan `bg-white`/`slate-*` fijos A PROPÓSITO, en pantalla y en papel, sin
-  pasar por `.hoja` ni por los tokens. Ahí sí es deliberado que ni siquiera la
-  pantalla cambie: es un documento legal que se muestra tal cual a quien lo
-  firma, y esa pantalla no tiene por qué mirarse distinto según quién la abra.
+- La vista previa "Así se verá sobre la línea del memo" de la firma, en
+  `admin/personas/[id]/page.tsx`, usa `bg-white` fijo A PROPÓSITO, sin pasar
+  por `.hoja` ni por los tokens: es un rectángulo que simula el papel del memo
+  impreso, y ese papel no cambia con el tema de quien lo mira.
 
-La lección de las dos: nunca asumir cuál aplica sin mirar si el contenedor
-lleva `.hoja` o un color fijo — la resolvió al construir el memo, que hasta
-entonces caía en la segunda categoría sin que hubiera una razón para eso, solo
-porque nunca se había actualizado.
+**Política salarial ya NO es esta excepción.** Hasta el 2026-09-05 usaba
+`bg-white`/`slate-*` fijos igual que la firma, pero el commit `ea6286f`
+("La política salarial deja de ignorar el modo oscuro") la migró entera a
+los tokens — hoy sigue el tema como cualquier otra pantalla del panel. Si una
+sesión futura la encuentra con un color fijo, no es la excepción histórica
+reapareciendo: es una regresión real. (Pendiente sin resolver aquí: la lista
+de verificación del Día 2 en `docs/plan-apariencia-2026-09-06.md` todavía
+repite la suposición vieja de que política salarial se queda fija.)
+
+La lección de las dos que quedan: nunca asumir cuál aplica sin mirar si el
+contenedor lleva `.hoja` o un color fijo — la resolvió al construir el memo,
+que hasta entonces caía en la segunda categoría sin que hubiera una razón
+para eso, solo porque nunca se había actualizado.
 
 ```bash
 npx pnpm install

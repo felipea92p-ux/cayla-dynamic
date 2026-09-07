@@ -24,12 +24,16 @@ import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
-import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { Modal } from "@/components/ui/modal";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { hoyLima, puedeOperarEquipo, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { reducirImagen, pesoLegible } from "@/lib/reducir-imagen";
 import { useToast } from "@/components/toast";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 
 // ── AQUÍ VIVÍAN TRES NOMBRES DE FUNCIÓN SIN TIPAR ───────────────────────────
 //
@@ -57,6 +61,8 @@ function haceMeses(n: number): string {
   return new Date(Date.UTC(y, m - 1 - n, d)).toISOString().slice(0, 10);
 }
 
+type FiltroEstado = "todas" | "pendientes" | "vigentes" | "anuladas";
+
 interface Persona { id: string; nombres: string; apellidos: string }
 interface Tipo {
   codigo: string; nombre: string; paga: boolean;
@@ -71,6 +77,13 @@ interface Ausencia {
   registrada_por_nombre: string | null; registrada_at: string;
   anulada: boolean; anulada_motivo: string | null;
 }
+/** La única fila de esta pantalla que pide una acción: se paga, y nadie la
+ *  aprobó todavía. Sirve para contar, filtrar y para subirla al principio de
+ *  la tabla — antes se perdía a ojo entre un año de registros ya resueltos. */
+function esPendiente(a: Ausencia): boolean {
+  return a.requiere_aprobacion && !a.aprobada && !a.anulada;
+}
+
 interface Alerta {
   persona_id: string; nombre: string; tipo_nombre: string;
   veces: number; ventana_dias: number; umbral: number;
@@ -116,8 +129,13 @@ export default function AusenciasPage() {
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [porVencer, setPorVencer] = useState<VacacionPorVencer[]>([]);
   const [cargando, setCargando] = useState(true);
+  // Que la carga falla NO es lo mismo que un rango vacío — antes las dos
+  // cosas mostraban el mismo texto tranquilizador ("no hay ausencias").
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [errorSubsidio, setErrorSubsidio] = useState<string | null>(null);
   const { avisar } = useToast();
   const [guardando, setGuardando] = useState(false);
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todas");
 
   // Formulario
   const [personaId, setPersonaId] = useState("");
@@ -151,11 +169,37 @@ export default function AusenciasPage() {
   // La regla vive en la base, no repetida acá.
   const [certificados, setCertificados] = useState<Record<string, string>>({});
   const [adjuntando, setAdjuntando] = useState<string | null>(null);
+  // Un input[type=file] oculto por fila, disparado por un <Boton>. Un solo
+  // ref no alcanza: varias filas pueden mostrar "Adjuntar documento" a la
+  // vez y cada una necesita apuntar a SU input, no al de la última montada.
+  const refsAdjuntar = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [desde, setDesde] = useState(haceMeses(6));
   const [hasta, setHasta] = useState(haceMeses(-6));
 
+  // Modal de anular (reemplaza window.prompt) y de aprobar (reemplaza
+  // window.confirm) — misma llamada al servidor, solo cambia cómo se pregunta.
+  const [anulando, setAnulando] = useState<Ausencia | null>(null);
+  const [motivoAnular, setMotivoAnular] = useState("");
+  const [aprobando, setAprobando] = useState<Ausencia | null>(null);
+
   const tipoSel = tipos.find((t) => t.codigo === tipoCod) ?? null;
+
+  const pendientesCount = useMemo(() => lista.filter(esPendiente).length, [lista]);
+
+  // Filtra por estado y, encima, sube las pendientes de aprobar al principio
+  // sea cual sea el filtro elegido — es la única fila de la tabla que pide
+  // una acción, y con doce meses de historial por defecto se perdía entre
+  // cientos de filas ya resueltas.
+  const listaOrdenada = useMemo(() => {
+    const filtrada = lista.filter((a) => {
+      if (filtroEstado === "pendientes") return esPendiente(a);
+      if (filtroEstado === "vigentes") return !a.anulada && !esPendiente(a);
+      if (filtroEstado === "anuladas") return a.anulada;
+      return true;
+    });
+    return [...filtrada].sort((x, y) => Number(esPendiente(y)) - Number(esPendiente(x)));
+  }, [lista, filtroEstado]);
 
   // LA FECHA DE EMISIÓN NACE PUESTA, y no es comodidad.
   //
@@ -177,7 +221,7 @@ export default function AusenciasPage() {
     setCargando(true);
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) { router.replace("/admin/login"); return; }
-    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub }, { data: pv }] = await Promise.all([
+    const [{ data: p, error: eP }, { data: t }, { data: a, error: eA }, { data: al }, { data: sub, error: eSub }, { data: pv }] = await Promise.all([
       supabase.from("personas").select("id, nombres, apellidos").eq("estado", "activo").order("nombres"),
       supabase.rpc("fn_tipos_ausencia"),
       supabase.rpc("fn_ausencias", { p_desde: desde, p_hasta: hasta }),
@@ -186,16 +230,19 @@ export default function AusenciasPage() {
       supabase.rpc("fn_vacaciones_por_vencer", { p_dias: 60, p_as_of: null }),
     ]);
     // Si la carga falla no se pisa la lista con datos parciales: mostrar media
-    // lista de ausencias es peor que no mostrar ninguna.
+    // lista de ausencias es peor que no mostrar ninguna. Y se distingue del
+    // "no hay ausencias" — un fallo de carga no dice que el rango esté vacío.
     if (eP || eA) {
-      avisar("error", `No se pudieron cargar las ausencias: ${(eP ?? eA)!.message}`);
+      const msg = mensajeDeError((eP ?? eA) ?? undefined, "cargar las ausencias");
+      setErrorCarga(msg);
+      avisar("error", msg);
       setCargando(false);
       return;
     }
+    setErrorCarga(null);
     setPersonas((p as Persona[]) ?? []);
     const tt = (t as unknown as Tipo[]) ?? [];
     setTipos(tt);
-    setTipoCod((prev) => prev || tt[0]?.codigo || "");
     const ausencias = (a as unknown as Ausencia[]) ?? [];
     setLista(ausencias);
 
@@ -228,6 +275,9 @@ export default function AusenciasPage() {
       setCertificados({});
     }
     setAlertas((al as unknown as Alerta[]) ?? []);
+    // Este SÍ se mira: antes fallaba en silencio y el aviso de EsSalud
+    // desaparecía sin que nadie lo notara — es plata que la empresa recupera.
+    setErrorSubsidio(eSub ? mensajeDeError(eSub, "cargar el aviso de EsSalud") : null);
     setSubsidio((sub as unknown as Subsidio[]) ?? []);
     setPorVencer((pv as unknown as VacacionPorVencer[]) ?? []);
     setCargando(false);
@@ -253,7 +303,7 @@ export default function AusenciasPage() {
     const { data, error } = await supabase.storage.from("certificados").createSignedUrl(ruta, 60);
     if (error || !data?.signedUrl) {
       pestana?.close();
-      avisar("error", `No se pudo abrir el certificado (${error?.message ?? "sin respuesta"}).`);
+      avisar("error", error ? mensajeDeError(error, "abrir el certificado") : "No se pudo abrir el certificado: no hubo respuesta del servidor.");
       return;
     }
     if (pestana) pestana.location.href = data.signedUrl;
@@ -294,7 +344,7 @@ export default function AusenciasPage() {
       p_ausencia_id: a.id, p_storage_path: ruta,
     });
     setAdjuntando(null);
-    if (error) { avisar("error", `El archivo subió, pero no se pudo enlazar (${error.message}).`); return; }
+    if (error) { avisar("error", `El archivo subió, pero no se pudo enlazar (${mensajeDeError(error)}).`); return; }
     await cargar();
     avisar("ok", `Certificado adjuntado a la ausencia de ${a.nombre}.`);
   }
@@ -384,7 +434,7 @@ export default function AusenciasPage() {
       });
       if (eAdj) {
         setGuardando(false);
-        avisar("error", `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${eAdj.message}).`);
+        avisar("error", `La ausencia quedó registrada y el archivo subió, pero no se pudo enlazar (${mensajeDeError(eAdj)}).`);
         await cargar();
         return;
       }
@@ -401,30 +451,40 @@ export default function AusenciasPage() {
     );
   }
 
-  async function anular(a: Ausencia) {
-    const m = window.prompt(
-      `Vas a anular «${a.tipo_nombre}» de ${a.nombre} (${fmt(a.fecha_inicio)} → ${fmt(a.fecha_fin)}).\n\n` +
-        "No se borra: queda en el historial con el motivo. ¿Por qué se anula?",
-    );
-    if (m === null) return;
-    if (m.trim().length < 4) { avisar("error", "El motivo es obligatorio (mínimo 4 caracteres)."); return; }
+  // Abre el modal de anular — la llamada real vive en confirmarAnular. Mismo
+  // fn_anular_ausencia de siempre: lo único que cambia es cómo se pregunta
+  // (ver Modal más abajo), no qué función se ejecuta al confirmar.
+  function pedirAnular(a: Ausencia) {
+    setAnulando(a);
+    setMotivoAnular("");
+  }
+
+  async function confirmarAnular() {
+    if (!anulando) return;
+    const m = motivoAnular.trim();
+    if (m.length < 4) { avisar("error", "El motivo es obligatorio (mínimo 4 caracteres)."); return; }
     setGuardando(true);
-    const { error } = await supabase.rpc("fn_anular_ausencia", { p_id: a.id, p_motivo: m.trim() });
+    const { error } = await supabase.rpc("fn_anular_ausencia", { p_id: anulando.id, p_motivo: m });
     setGuardando(false);
-    if (error) { avisar("error", error.message); return; }
+    if (error) { avisar("error", mensajeDeError(error, "anular la ausencia")); return; }
+    setAnulando(null);
     await cargar();
     avisar("ok", "Ausencia anulada. Esos días vuelven a contarse como antes.");
   }
 
-  async function aprobar(a: Ausencia) {
-    if (!window.confirm(
-      `Aprobar «${a.tipo_nombre}» de ${a.nombre}, ${a.dias} día${a.dias === 1 ? "" : "s"}.\n\n` +
-      "Es un tipo que SE PAGA: al aprobarlo, esos días entran en su planilla.",
-    )) return;
+  function pedirAprobar(a: Ausencia) {
+    setAprobando(a);
+  }
+
+  // Mismo fn_aprobar_ausencia de siempre — la confirmación pasa de
+  // window.confirm a un Modal con dos botones (Sí/Cancelar).
+  async function confirmarAprobar() {
+    if (!aprobando) return;
     setGuardando(true);
-    const { error } = await supabase.rpc("fn_aprobar_ausencia", { p_id: a.id });
+    const { error } = await supabase.rpc("fn_aprobar_ausencia", { p_id: aprobando.id });
     setGuardando(false);
-    if (error) { avisar("error", error.message); return; }
+    if (error) { avisar("error", mensajeDeError(error, "aprobar la ausencia")); return; }
+    setAprobando(null);
     await cargar();
     avisar("ok", "Aprobada.");
   }
@@ -517,7 +577,14 @@ export default function AusenciasPage() {
 
             Salta a los 15 y no a los 20 a propósito: un aviso en el día 21 llega
             cuando el gasto ya ocurrió. */}
-        {subsidio.some((s) => s.hay_que_avisar) && (
+        {errorSubsidio && (
+          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+            {errorSubsidio} — esto no quiere decir que nadie tenga descanso médico pendiente de reembolso,
+            solo que el aviso no se pudo calcular.{" "}
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
+        {!errorSubsidio && subsidio.some((s) => s.hay_que_avisar) && (
           <div className="mb-4 max-w-3xl rounded-lg bg-tinta/5 px-4 py-3 text-sm">
             <p className="font-medium">EsSalud puede reembolsar parte de esto:</p>
             <ul className="mt-1 space-y-0.5 text-xs">
@@ -548,35 +615,37 @@ export default function AusenciasPage() {
 
         {/* Registrar */}
         <div className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
-            Persona
-            <select value={personaId} onChange={(e) => setPersonaId(e.target.value)} className="rounded-lg border bg-crema px-3 py-2">
-              <option value="">Elegir…</option>
-              {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Tipo
-            <select value={tipoCod} onChange={(e) => setTipoCod(e.target.value)} className="rounded-lg border bg-crema px-3 py-2">
-              {tipos.map((t) => (
-                <option key={t.codigo} value={t.codigo}>
-                  {t.nombre}{t.paga ? " · se paga" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Desde
-            <input type="date" value={inicio} onChange={(e) => { setInicio(e.target.value); if (fin < e.target.value) setFin(e.target.value); }} className="rounded-lg border px-3 py-2" />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Hasta
-            <input type="date" value={fin} onChange={(e) => setFin(e.target.value)} className="rounded-lg border px-3 py-2" />
-          </label>
-          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-            Motivo <span className="text-taupe">(lo que se conversó; queda en su historial)</span>
-            <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="ej. fallecimiento de familiar directo" className="rounded-lg border px-3 py-2" />
-          </label>
+          <CampoSelect etiqueta="Persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
+            <option value="">Elegir…</option>
+            {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
+          </CampoSelect>
+          {/* Tipo NACE VACÍO a propósito. Antes se rellenaba solo con el primer
+              tipo del catálogo ("Vacaciones") y la comprobación de más abajo
+              nunca podía avisar — el motivo real de este "Elegir…" está en
+              `registrar()`, donde se exige `tipoCod`. */}
+          <CampoSelect etiqueta="Tipo" value={tipoCod} onChange={(e) => setTipoCod(e.target.value)}>
+            <option value="">Elegir…</option>
+            {tipos.map((t) => (
+              <option key={t.codigo} value={t.codigo}>
+                {t.nombre}{t.paga ? " · se paga" : ""}
+              </option>
+            ))}
+          </CampoSelect>
+          <Campo
+            etiqueta="Desde"
+            type="date"
+            value={inicio}
+            onChange={(e) => { setInicio(e.target.value); if (fin < e.target.value) setFin(e.target.value); }}
+          />
+          <Campo etiqueta="Hasta" type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
+          <div className="sm:col-span-2">
+            <Campo
+              etiqueta="Motivo (lo que se conversó; queda en su historial)"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="ej. fallecimiento de familiar directo"
+            />
+          </div>
 
           {tipoSel?.requiere_documento && (
             <>
@@ -596,29 +665,63 @@ export default function AusenciasPage() {
                 ese reclamo se sustenta con el CITT. Si no tienes ningún documento, regístralo como{" "}
                 <strong className="font-medium">Descanso por salud</strong> — no paga, pero tampoco cuenta como falta.
               </p>
+              {/* Los tres quedan como <input> a mano (no <Campo>, que no es
+                  forwardRef): `registrar()` lee `refDocProf/Coleg/Fecha.current`
+                  como respaldo cuando Safari pone el valor sin disparar el
+                  evento (ver el comentario grande sobre los refs, más arriba).
+                  Pasarle un ref a Campo no llegaría al <input> real y ese
+                  respaldo dejaría de funcionar en silencio. Comparten la misma
+                  cadena base que Campo para no desentonar. */}
               <label className="flex flex-col gap-1 text-sm">
                 Profesional o institución
-                <input ref={refDocProf} value={docProf} onChange={(e) => setDocProf(e.target.value)} onBlur={(e) => setDocProf(e.currentTarget.value)} placeholder="ej. Dra. Rojas / Clínica San Pablo" className="rounded-lg border px-3 py-2" />
+                <input
+                  ref={refDocProf}
+                  value={docProf}
+                  onChange={(e) => setDocProf(e.target.value)}
+                  onBlur={(e) => setDocProf(e.currentTarget.value)}
+                  placeholder="ej. Dra. Rojas / Clínica San Pablo"
+                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta placeholder:text-taupe/60"
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 N.º de colegiatura (CMP) o de CITT
-                <input ref={refDocColeg} value={docColeg} onChange={(e) => setDocColeg(e.target.value)} onBlur={(e) => setDocColeg(e.currentTarget.value)} placeholder="ej. CMP 12345" className="rounded-lg border px-3 py-2" />
+                <input
+                  ref={refDocColeg}
+                  value={docColeg}
+                  onChange={(e) => setDocColeg(e.target.value)}
+                  onBlur={(e) => setDocColeg(e.currentTarget.value)}
+                  placeholder="ej. CMP 12345"
+                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta placeholder:text-taupe/60"
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 Fecha de emisión
-                <input ref={refDocFecha} type="date" value={fechaDoc} onChange={(e) => setDocFecha(e.target.value)} onBlur={(e) => setDocFecha(e.currentTarget.value)} className="rounded-lg border px-3 py-2" />
+                <input
+                  ref={refDocFecha}
+                  type="date"
+                  value={fechaDoc}
+                  onChange={(e) => setDocFecha(e.target.value)}
+                  onBlur={(e) => setDocFecha(e.currentTarget.value)}
+                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-base sm:text-sm text-tinta"
+                />
               </label>
               {/* El certificado, OPCIONAL. Va en un almacén propio que solo abren
                   admin y líder de DO: un certificado dice el diagnóstico de una
                   persona, y la encargada de sede necesita saber que no vino y que
-                  está justificado, no de qué está enferma (0197). */}
+                  está justificado, no de qué está enferma (0197).
+
+                  Se queda como <input> a mano (no <Campo>): un selector de
+                  archivo lleva el botón "Elegir archivo" del navegador dentro
+                  del campo (file:*), algo que Campo no contempla — pero
+                  comparte su misma cadena base (borde, radio, fondo) para no
+                  desentonar al lado del resto del formulario. */}
               <label className="flex flex-col gap-1 text-sm sm:col-span-2">
                 Certificado o CITT <span className="text-taupe">(opcional — solo lo ven Administración y DO)</span>
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
                   onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                  className="rounded-lg border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
+                  className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
                 />
                 {progreso !== null && (
                   <span className="text-xs text-taupe">Subiendo… {progreso}%</span>
@@ -628,8 +731,8 @@ export default function AusenciasPage() {
           )}
 
           <div className="flex items-end gap-3 sm:col-span-2">
-            <Boton variante="primario" onClick={registrar} disabled={guardando}>
-              {guardando ? "Guardando…" : "Registrar ausencia"}
+            <Boton variante="primario" cargando={guardando} onClick={registrar}>
+              Registrar ausencia
             </Boton>
             {tipoSel && (
               <span className="text-xs text-taupe">
@@ -641,23 +744,45 @@ export default function AusenciasPage() {
           </div>
         </div>
 
-        {/* Rango a mostrar */}
+        {/* Rango y estado a mostrar. El filtro de estado existe porque la
+            única fila que pide una acción en esta pantalla —pendiente de
+            aprobar— no tenía ni contador ni forma de aislarla: con el rango
+            por defecto (doce meses) quedaba enterrada entre cientos de filas
+            ya resueltas. Aun en "Todas", esas filas se ordenan arriba. */}
         <div className="mb-3 flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs text-taupe">
-            Desde
-            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border px-3 py-1.5 text-sm text-tinta" />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-taupe">
-            Hasta
-            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="rounded-lg border px-3 py-1.5 text-sm text-tinta" />
-          </label>
+          <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+          <CampoSelect
+            etiqueta="Estado"
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value as FiltroEstado)}
+          >
+            <option value="todas">Todas</option>
+            <option value="pendientes">Pendientes de aprobar</option>
+            <option value="vigentes">Vigentes</option>
+            <option value="anuladas">Anuladas</option>
+          </CampoSelect>
+          {pendientesCount > 0 && (
+            <span className="flex items-center gap-1.5 pb-2 text-xs text-taupe">
+              <Insignia variante="contador" tamano="sm">{pendientesCount}</Insignia>
+              {pendientesCount === 1 ? "pendiente de aprobar" : "pendientes de aprobar"}
+            </span>
+          )}
         </div>
 
         {cargando ? (
           <Cargando texto="Cargando las ausencias…" />
-        ) : lista.length === 0 ? (
+        ) : errorCarga ? (
+          <div className="max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+            <p>No se pudo cargar — esto no quiere decir que no haya ausencias.</p>
+            <p className="mt-1 text-xs opacity-80">{errorCarga}</p>
+            <Boton variante="secundario" tamano="sm" className="mt-2" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        ) : listaOrdenada.length === 0 ? (
           <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
-            No hay ausencias registradas en ese rango de fechas.
+            {lista.length === 0
+              ? "No hay ausencias registradas en ese rango de fechas."
+              : "No hay ausencias con ese estado en el rango elegido."}
           </div>
         ) : (
           <Tabla>
@@ -670,15 +795,18 @@ export default function AusenciasPage() {
               <Th>Acciones</Th>
             </TablaEncabezado>
             <tbody>
-                {lista.map((a) => (
-                  <tr key={a.id} className={`border-t bg-papel ${a.anulada ? "text-taupe/60" : ""}`}>
+                {listaOrdenada.map((a) => (
+                  <Fila key={a.id} className={a.anulada ? "text-taupe/60" : ""}>
                     <td className="px-4 py-2">
                       <span className={a.anulada ? "line-through" : ""}>{a.nombre}</span>
                       <div className="text-xs text-taupe">{a.sede}</div>
                     </td>
                     <td className="px-4 py-2">
                       {a.tipo_nombre}
-                      {a.paga && <Insignia className="ml-1.5">se paga</Insignia>}
+                      {/* punto=false: "se paga" es una etiqueta descriptiva, no
+                          un estado del semáforo — el mismo caso que el propio
+                          comentario de Insignia pone de ejemplo. */}
+                      {a.paga && <Insignia className="ml-1.5" punto={false}>se paga</Insignia>}
                       {a.motivo && <div className="text-xs text-taupe">{a.motivo}</div>}
                       {a.doc_colegiatura && (
                         <div className="text-xs text-taupe">
@@ -710,10 +838,10 @@ export default function AusenciasPage() {
                             </Boton>
                           )}
                         </>
-                      ) : a.requiere_aprobacion && !a.aprobada ? (
+                      ) : esPendiente(a) ? (
                         <Insignia variante="advertencia">pendiente de aprobar</Insignia>
                       ) : (
-                        <Insignia>vigente</Insignia>
+                        <Insignia variante="positivo">vigente</Insignia>
                       )}
                     </td>
                     <td className="px-4 py-2">
@@ -728,33 +856,47 @@ export default function AusenciasPage() {
                             // acá: solo el descanso médico y la maternidad
                             // exigen esos datos, que es exactamente lo que
                             // `fn_ausencia_adjuntar_certificado` acepta.
-                            <label className="cursor-pointer rounded border px-2 py-1 hover:bg-sand/50">
-                              {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
+                            //
+                            // El disparador es un <Boton> (antes era un <label>
+                            // a mano con "rounded border px-2 py-1" — no
+                            // coincidía ni en radio ni en borde con el resto de
+                            // acciones de la fila); el input sigue oculto
+                            // detrás, uno por fila para que dos ausencias con
+                            // este botón a la vez no compartan el mismo input.
+                            <>
+                              <Boton
+                                variante="secundario"
+                                tamano="sm"
+                                disabled={adjuntando !== null}
+                                onClick={() => refsAdjuntar.current[a.id]?.click()}
+                              >
+                                {adjuntando === a.id ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar documento"}
+                              </Boton>
                               <input
+                                ref={(el) => { refsAdjuntar.current[a.id] = el; }}
                                 type="file"
                                 accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.webp"
                                 className="hidden"
-                                disabled={adjuntando !== null}
                                 onChange={(e) => {
                                   const f = e.target.files?.[0];
                                   e.target.value = "";   // para poder reintentar con el mismo archivo
                                   if (f) void adjuntarCertificado(a, f);
                                 }}
                               />
-                            </label>
+                            </>
                           ) : null}
-                          {esDO && a.requiere_aprobacion && !a.aprobada && (
-                            <Boton variante="secundario" tamano="sm" onClick={() => void aprobar(a)} disabled={guardando}>
+                          {esDO && esPendiente(a) && (
+                            <Boton variante="secundario" tamano="sm" onClick={() => pedirAprobar(a)} disabled={guardando}>
                               Aprobar
                             </Boton>
                           )}
-                          <Boton variante="peligro" tamano="sm" onClick={() => void anular(a)} disabled={guardando}>
+                          <Boton variante="peligro" tamano="sm" onClick={() => pedirAnular(a)} disabled={guardando}>
                             Anular
                           </Boton>
                         </div>
                       )}
                     </td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
           </Tabla>
@@ -765,6 +907,69 @@ export default function AusenciasPage() {
           anular nada dentro de un periodo de planilla ya pagado — para eso hay que reabrirlo primero, igual
           que con todo lo demás que toca plata.
         </p>
+
+        {/* Modal: anular (reemplaza window.prompt). Mismo fn_anular_ausencia
+            de siempre — ver confirmarAnular. */}
+        <Modal
+          abierto={anulando !== null}
+          onCerrar={() => setAnulando(null)}
+          titulo="Anular ausencia"
+          bloqueado={guardando}
+        >
+          {anulando && (
+            <>
+              <p className="mb-3 text-sm text-taupe">
+                Vas a anular «{anulando.tipo_nombre}» de {anulando.nombre} ({fmt(anulando.fecha_inicio)} →{" "}
+                {fmt(anulando.fecha_fin)}). No se borra: queda en el historial con el motivo.
+              </p>
+              <AreaTexto
+                etiqueta="¿Por qué se anula? (obligatorio)"
+                value={motivoAnular}
+                onChange={(e) => setMotivoAnular(e.target.value)}
+                rows={2}
+                autoFocus
+                placeholder="ej. se registró el tipo equivocado"
+              />
+              <div className="mt-4 flex justify-end gap-2">
+                <Boton variante="secundario" onClick={() => setAnulando(null)} disabled={guardando}>
+                  Cancelar
+                </Boton>
+                <Boton variante="peligro" cargando={guardando} onClick={() => void confirmarAnular()}>
+                  Anular
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        {/* Modal: aprobar (reemplaza window.confirm). Mismo fn_aprobar_ausencia
+            de siempre — ver confirmarAprobar. */}
+        <Modal
+          abierto={aprobando !== null}
+          onCerrar={() => setAprobando(null)}
+          titulo="Aprobar ausencia"
+          ancho="sm"
+          bloqueado={guardando}
+        >
+          {aprobando && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                Aprobar «{aprobando.tipo_nombre}» de {aprobando.nombre}, {aprobando.dias}{" "}
+                día{aprobando.dias === 1 ? "" : "s"}. Es un tipo que{" "}
+                <strong className="font-medium text-tinta">SE PAGA</strong>: al aprobarlo, esos días entran
+                en su planilla.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Boton variante="secundario" onClick={() => setAprobando(null)} disabled={guardando}>
+                  Cancelar
+                </Boton>
+                <Boton variante="primario" cargando={guardando} onClick={() => void confirmarAprobar()}>
+                  Sí, aprobar
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

@@ -8,6 +8,8 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -224,6 +226,13 @@ export default function ContratosPage() {
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [datosPersonales, setDatosPersonales] = useState<DatoPersonal[]>([]);
   const [salarios, setSalarios] = useState<Salario[]>([]);
+  // Si estas dos consultas fallan, un dato ausente y una consulta caída se
+  // ven exactamente igual acá abajo (el array llega vacío en los dos casos),
+  // y el bloqueo de "Carga el nombre / el sueldo" manda a revisar una ficha
+  // que en realidad está completa. Se distingue para no mandar a nadie a
+  // buscar un dato que no tiene nada de malo.
+  const [errorDatosPersonales, setErrorDatosPersonales] = useState(false);
+  const [errorSalarios, setErrorSalarios] = useState(false);
   const [movilidadTarifas, setMovilidadTarifas] = useState<Parametro[]>([]);
   const [bonoOnomastico, setBonoOnomastico] = useState<number | null>(null);
   // Piso de la subvención de un convenio de prácticas (Ley 28518, art. 45).
@@ -385,7 +394,9 @@ export default function ContratosPage() {
     );
     setSedes((ss.data as Sede[]) ?? []);
     setDatosPersonales((dp.data as DatoPersonal[]) ?? []);
+    setErrorDatosPersonales(Boolean(dp.error));
     setSalarios((sal.data as Salario[]) ?? []);
+    setErrorSalarios(Boolean(sal.error));
 
     // El firmante: su persona_id y cargo vienen de `configuracion`; su nombre y
     // su DNI, de la ficha de esa persona — no de un literal en este archivo.
@@ -659,7 +670,11 @@ export default function ContratosPage() {
     bloqueos.push("Carga el DNI en Datos personales — sin DNI no se puede generar el contrato.");
   }
   if (persona && !datoPersonal?.nombre_dni) {
-    bloqueos.push('Carga el nombre completo (como en el DNI) en Datos personales — sin él no se puede generar el contrato.');
+    bloqueos.push(
+      errorDatosPersonales
+        ? "No se pudo leer la ficha de Datos personales — reintenta."
+        : 'Carga el nombre completo (como en el DNI) en Datos personales — sin él no se puede generar el contrato.',
+    );
   }
   // El Anexo III (Domicilio Electrónico, contrato-texto.ts:1298) fija el
   // correo de LA COLABORADORA como domicilio válido para notificaciones —
@@ -670,7 +685,11 @@ export default function ContratosPage() {
     bloqueos.push("Carga el correo electrónico en Equipo — el Anexo III (Domicilio Electrónico) lo necesita para notificaciones válidas.");
   }
   if (persona && salarioVigente === null) {
-    bloqueos.push("No tiene un sueldo vigente asignado en Equipo — sin sueldo no se puede generar el contrato.");
+    bloqueos.push(
+      errorSalarios
+        ? "No se pudo leer el sueldo vigente — reintenta."
+        : "No tiene un sueldo vigente asignado en Equipo — sin sueldo no se puede generar el contrato.",
+    );
   }
   if (persona && !fechaInicio) {
     bloqueos.push("Elige la fecha de inicio.");
@@ -1115,29 +1134,31 @@ export default function ContratosPage() {
                           manda mientras no haya uno nuevo firmado. */}
                       {f.estado === "sin_contrato" &&
                         f.fecha_fin_contrato !== null &&
-                        ` · vence ${f.fecha_fin_contrato}`}
+                        ` · vence ${formatearFecha(f.fecha_fin_contrato)}`}
                     </span>
                     {/* La acción dice lo que hace. Quien ya tiene contrato y
                         lo que le falta es firmarlo o hacer un trámite no
                         necesita generar otro: necesita ABRIR el suyo. Decir
                         «generar» ahí invita a duplicarlo. */}
                     {NECESITA_CONTRATO.has(f.estado) ? (
-                      <button
-                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                      <Boton
+                        variante="enlace"
+                        className="text-xs text-taupe"
                         onClick={() => {
                           setPersonaId(f.persona_id);
                           setTipo(tipoFila);
                         }}
                       >
                         {tipoFila === "convenio_practicas" ? "generar convenio" : tipoFila === "nuevo" ? "generar" : "renovar"}
-                      </button>
+                      </Boton>
                     ) : (
-                      <button
-                        className="text-xs text-taupe underline underline-offset-2 hover:text-tinta"
+                      <Boton
+                        variante="enlace"
+                        className="text-xs text-taupe"
                         onClick={() => f.contrato_id && abrirGenerado(f.contrato_id)}
                       >
                         abrir
-                      </button>
+                      </Boton>
                     )}
                   </li>
                 );
@@ -1147,101 +1168,79 @@ export default function ContratosPage() {
         )}
 
         <section className="space-y-3 rounded-lg border border-sand p-4">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm">
-              Persona
-              <select
-                className="mt-1 w-full rounded border border-sand p-2"
-                value={personaId}
-                onChange={(e) => setPersonaId(e.target.value)}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CampoSelect etiqueta="Persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
+              <option value="">— elegir —</option>
+              {personas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.apellidos}, {p.nombres}
+                </option>
+              ))}
+            </CampoSelect>
+            {persona?.tipo_vinculo === "practicante" ? (
+              // Una practicante solo tiene un documento posible — no
+              // "nuevo ingreso" ni "renovación", que son conceptos de un
+              // contrato de trabajo (0333). Se fija sola y no se elige.
+              <Campo
+                etiqueta="Tipo"
+                value="Convenio de prácticas"
+                disabled
+                className="bg-crema text-taupe"
+              />
+            ) : (
+              <CampoSelect
+                etiqueta="Tipo"
+                value={tipo}
+                onChange={(e) =>
+                  setTipo(
+                    e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
+                  )
+                }
               >
-                <option value="">— elegir —</option>
-                {personas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.apellidos}, {p.nombres}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              Tipo
-              {persona?.tipo_vinculo === "practicante" ? (
-                // Una practicante solo tiene un documento posible — no
-                // "nuevo ingreso" ni "renovación", que son conceptos de un
-                // contrato de trabajo (0333). Se fija sola y no se elige.
-                <input
-                  className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                  value="Convenio de prácticas"
-                  disabled
-                />
-              ) : (
-                <select
-                  className="mt-1 w-full rounded border border-sand p-2"
-                  value={tipo}
-                  onChange={(e) =>
-                    setTipo(
-                      e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
-                    )
-                  }
-                >
-                  <option value="renovacion">Renovación</option>
-                  <option value="nuevo">Nuevo ingreso</option>
-                  <option value="indefinido">Indefinido</option>
-                  {/* Elegible a mano desde la 0348 para alguien que no está
-                      marcado tipo_vinculo="practicante" en su ficha — no
-                      cambia esa ficha, solo genera el documento (ver el
-                      aviso que sale más abajo cuando se elige así). */}
-                  <option value="convenio_practicas">Convenio de prácticas</option>
-                  <option value="adendum">Adendum</option>
-                </select>
-              )}
-            </label>
+                <option value="renovacion">Renovación</option>
+                <option value="nuevo">Nuevo ingreso</option>
+                <option value="indefinido">Indefinido</option>
+                {/* Elegible a mano desde la 0348 para alguien que no está
+                    marcado tipo_vinculo="practicante" en su ficha — no
+                    cambia esa ficha, solo genera el documento (ver el
+                    aviso que sale más abajo cuando se elige así). */}
+                <option value="convenio_practicas">Convenio de prácticas</option>
+                <option value="adendum">Adendum</option>
+              </CampoSelect>
+            )}
           </div>
 
           {persona && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm">
-                  Fecha de inicio
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    value={fechaInicio}
-                    onChange={(e) => setFechaInicio(e.target.value)}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Campo
+                  etiqueta="Fecha de inicio"
+                  type="date"
+                  value={fechaInicio}
+                  onChange={(e) => setFechaInicio(e.target.value)}
+                />
+                {esIndefinido ? (
+                  <Campo
+                    etiqueta="Fecha de fin"
+                    value="Sin fecha de fin — contrato indefinido"
+                    disabled
+                    className="bg-crema text-taupe"
                   />
-                </label>
-                <label className="text-sm">
-                  Fecha de fin
-                  {esIndefinido ? (
-                    <input
-                      className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                      value="Sin fecha de fin — contrato indefinido"
-                      disabled
-                    />
-                  ) : (
-                    <input
-                      type="date"
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      value={fechaFin}
-                      min={fechaInicio || undefined}
-                      onChange={(e) => setFechaFin(e.target.value)}
-                    />
-                  )}
-                </label>
+                ) : (
+                  <Campo
+                    etiqueta="Fecha de fin"
+                    type="date"
+                    value={fechaFin}
+                    min={fechaInicio || undefined}
+                    onChange={(e) => setFechaFin(e.target.value)}
+                  />
+                )}
               </div>
 
-              <label className="block text-sm">
-                Cargo
-                <input
-                  className="mt-1 w-full rounded border border-sand p-2"
-                  value={cargoEditado}
-                  onChange={(e) => setCargoEditado(e.target.value)}
-                />
-              </label>
-              <label className="block text-sm">
-                Ciudad donde se firma
-                <input
-                  className="mt-1 w-full rounded border border-sand p-2"
+              <Campo etiqueta="Cargo" value={cargoEditado} onChange={(e) => setCargoEditado(e.target.value)} />
+              <div>
+                <Campo
+                  etiqueta="Ciudad donde se firma"
                   placeholder={ciudadDeLaSede ?? "Arequipa, Lima o Trujillo"}
                   value={ciudadEditada}
                   onChange={(e) => setCiudadEditada(e.target.value)}
@@ -1251,7 +1250,7 @@ export default function ContratosPage() {
                     ? `Si lo dejas vacío se usa ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom}.`
                     : "Central no tiene una ciudad propia: su gente puede estar en cualquiera, así que hay que elegirla."}
                 </span>
-              </label>
+              </div>
               {/* Un adendum no repite el contrato ni sus anexos, así que los
                   campos que solo alimentan al contrato no se piden. Un
                   convenio (0333) no tiene causa objetiva ni funciones — tiene
@@ -1270,34 +1269,29 @@ export default function ContratosPage() {
               ) : esConvenio ? (
                 <>
                   {persona.tipo_vinculo === "practicante" ? (
-                    <label className="block text-sm">
-                      Modalidad
-                      <input
-                        className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                        disabled
-                        value={
-                          persona.practicante_modalidad === "preprofesional"
-                            ? "Preprofesional — 30h/semana (art. 44)"
-                            : persona.practicante_modalidad === "profesional"
-                              ? "Profesional — 48h/semana (art. 44)"
-                              : "Sin asignar — ve a Equipo y elígela primero"
-                        }
-                      />
-                    </label>
+                    <Campo
+                      etiqueta="Modalidad"
+                      disabled
+                      className="bg-crema text-taupe"
+                      value={
+                        persona.practicante_modalidad === "preprofesional"
+                          ? "Preprofesional — 30h/semana (art. 44)"
+                          : persona.practicante_modalidad === "profesional"
+                            ? "Profesional — 48h/semana (art. 44)"
+                            : "Sin asignar — ve a Equipo y elígela primero"
+                      }
+                    />
                   ) : (
                     <>
-                      <label className="block text-sm">
-                        Modalidad
-                        <select
-                          className="mt-1 w-full rounded border border-sand p-2"
-                          value={modalidadManualEditada}
-                          onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
-                        >
-                          <option value="">— elegir —</option>
-                          <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
-                          <option value="profesional">Profesional — 48h/semana (art. 44)</option>
-                        </select>
-                      </label>
+                      <CampoSelect
+                        etiqueta="Modalidad"
+                        value={modalidadManualEditada}
+                        onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
+                      >
+                        <option value="">— elegir —</option>
+                        <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
+                        <option value="profesional">Profesional — 48h/semana (art. 44)</option>
+                      </CampoSelect>
                       <p className="text-xs text-taupe">
                         {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
                         convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
@@ -1310,60 +1304,42 @@ export default function ContratosPage() {
                       (0348). */}
                   {modalidadEfectiva === "preprofesional" ? (
                     <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <label className="text-sm">
-                          Centro de formación — razón social
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            placeholder="Ej.: Universidad Nacional de Trujillo"
-                            value={centroFormacionNombreEditado}
-                            onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
-                          />
-                        </label>
-                        <label className="text-sm">
-                          Centro de formación — RUC
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={centroFormacionRucEditado}
-                            onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
-                          />
-                        </label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Campo
+                          etiqueta="Centro de formación — razón social"
+                          placeholder="Ej.: Universidad Nacional de Trujillo"
+                          value={centroFormacionNombreEditado}
+                          onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
+                        />
+                        <Campo
+                          etiqueta="Centro de formación — RUC"
+                          value={centroFormacionRucEditado}
+                          onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
+                        />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <label className="text-sm">
-                          Centro de formación — domicilio
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={centroFormacionDomicilioEditado}
-                            onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
-                          />
-                        </label>
-                        <label className="text-sm">
-                          Centro de formación — representante
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={centroFormacionRepresentanteEditado}
-                            onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
-                          />
-                        </label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Campo
+                          etiqueta="Centro de formación — domicilio"
+                          value={centroFormacionDomicilioEditado}
+                          onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
+                        />
+                        <Campo
+                          etiqueta="Centro de formación — representante"
+                          value={centroFormacionRepresentanteEditado}
+                          onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
+                        />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <label className="text-sm">
-                          Carrera / especialidad
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={carreraEspecialidadEditada}
-                            onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
-                          />
-                        </label>
-                        <label className="text-sm">
-                          Ciclo académico
-                          <input
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={cicloAcademicoEditado}
-                            onChange={(e) => setCicloAcademicoEditado(e.target.value)}
-                          />
-                        </label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Campo
+                          etiqueta="Carrera / especialidad"
+                          value={carreraEspecialidadEditada}
+                          onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
+                        />
+                        <Campo
+                          etiqueta="Ciclo académico"
+                          value={cicloAcademicoEditado}
+                          onChange={(e) => setCicloAcademicoEditado(e.target.value)}
+                        />
                       </div>
                     </>
                   ) : (
@@ -1411,14 +1387,12 @@ export default function ContratosPage() {
                       onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
                     />
                   </label>
-                  <label className="block text-sm">
-                    Anexo I — supervisor(a) asignado(a)
-                    <input
-                      className="mt-1 w-full rounded border border-sand p-2 sm:w-1/2"
-                      value={supervisorAsignadoEditado}
-                      onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
-                    />
-                  </label>
+                  <Campo
+                    etiqueta="Anexo I — supervisor(a) asignado(a)"
+                    className="sm:w-1/2"
+                    value={supervisorAsignadoEditado}
+                    onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
+                  />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm">
                       Anexo I — hito de evaluación, mes 3
@@ -1457,6 +1431,7 @@ export default function ContratosPage() {
                         setSinActivosAdicionales(e.target.checked);
                         if (e.target.checked) setActivosLibre("");
                       }}
+                      className="size-4 accent-tinta"
                     />
                     Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
                     de la sede
@@ -1504,6 +1479,7 @@ export default function ContratosPage() {
                         setSinActivosAdicionales(e.target.checked);
                         if (e.target.checked) setActivosLibre("");
                       }}
+                      className="size-4 accent-tinta"
                     />
                     Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
                     de la sede
@@ -1584,17 +1560,18 @@ export default function ContratosPage() {
                 </ul>
               )}
 
-              <button
-                className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
-                disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
+              <Boton
+                variante="primario"
+                disabled={!datosParaGenerar || bloqueos.length > 0}
+                cargando={generando}
                 onClick={generarBorrador}
               >
-                {generando ? "Generando…" : "Generar borrador"}
-              </button>
+                Generar borrador
+              </Boton>
               {borrador && (
-                <button className="ml-2 rounded border border-sand px-4 py-2 text-sm" onClick={imprimir}>
+                <Boton variante="secundario" className="ml-2" onClick={imprimir}>
                   Imprimir / Guardar como PDF
-                </button>
+                </Boton>
               )}
             </>
           )}
@@ -1648,36 +1625,36 @@ export default function ContratosPage() {
                       )}
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                      <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
+                      <Boton variante="enlace" onClick={() => abrirGenerado(c.id)}>
                         Ver / imprimir
-                      </button>
+                      </Boton>
                       {!c.storage_path && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirSubida(c.id)}>
+                        <Boton variante="enlace" onClick={() => abrirSubida(c.id)}>
                           Subir contrato firmado
-                        </button>
+                        </Boton>
                       )}
                       {c.storage_path && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => verDocumento(c.storage_path!)}>
+                        <Boton variante="enlace" onClick={() => verDocumento(c.storage_path!)}>
                           Ver escaneo
-                        </button>
+                        </Boton>
                       )}
                       {c.fecha_firma && !c.copia_entregada_at && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "copia")}>
+                        <Boton variante="enlace" onClick={() => marcarTramite(c.id, "copia")}>
                           Marcar copia entregada
-                        </button>
+                        </Boton>
                       )}
                       {c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
+                        <Boton variante="enlace" onClick={() => marcarTramite(c.id, "mtpe")}>
                           Marcar comunicado al MTPE
-                        </button>
+                        </Boton>
                       )}
                       {/* Anular va al final y en taupe: es destructivo, no
                           urgente. En rojo junto a acciones inofensivas se
                           pulsa por error, y el rojo de esta paleta está
                           reservado para lo que de verdad avisa. */}
-                      <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
+                      <Boton variante="enlace" className="ml-auto text-taupe hover:text-rojo" onClick={() => setAnulando(c.id)}>
                         Anular
-                      </button>
+                      </Boton>
                     </div>
                     <p className="text-xs text-taupe">
                       Generado el {formatearFecha(c.generado_at.slice(0, 10))}
@@ -1696,9 +1673,9 @@ export default function ContratosPage() {
                         <li key={c.id} className="flex flex-wrap items-baseline gap-x-3">
                           <span>{formatearFecha(c.generado_at.slice(0, 10))}</span>
                           <span className="min-w-0 flex-1 truncate">{c.anulado_motivo}</span>
-                          <button className="underline underline-offset-2 hover:text-tinta" onClick={() => abrirGenerado(c.id)}>
+                          <Boton variante="enlace" onClick={() => abrirGenerado(c.id)}>
                             Ver
-                          </button>
+                          </Boton>
                         </li>
                       ))}
                     </ul>
@@ -1729,29 +1706,22 @@ export default function ContratosPage() {
                   className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-crema"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Fecha de firma
-                <input
-                  type="date"
-                  className="rounded-lg border border-sand px-3 py-2 text-sm"
-                  value={fechaFirma}
-                  max={hoyLima()}
-                  onChange={(e) => setFechaFirma(e.target.value)}
-                />
-              </label>
+              <Campo
+                etiqueta="Fecha de firma"
+                type="date"
+                value={fechaFirma}
+                max={hoyLima()}
+                onChange={(e) => setFechaFirma(e.target.value)}
+              />
             </div>
             {progreso !== null && <p className="text-xs">{progreso}%</p>}
             <div className="space-x-2">
-              <button
-                className="rounded bg-tinta px-3 py-1.5 text-sm text-crema disabled:opacity-50"
-                disabled={guardandoFirma}
-                onClick={guardarFirma}
-              >
+              <Boton variante="primario" tamano="sm" cargando={guardandoFirma} onClick={guardarFirma}>
                 Guardar
-              </button>
-              <button className="text-sm" onClick={() => setSubiendoPara(null)}>
+              </Boton>
+              <Boton variante="sutil" tamano="sm" onClick={() => setSubiendoPara(null)}>
                 Cancelar
-              </button>
+              </Boton>
             </div>
           </section>
         )}
@@ -1769,9 +1739,9 @@ export default function ContratosPage() {
               <button className="rounded bg-rojo px-3 py-1.5 text-sm text-crema" onClick={anular}>
                 Confirmar anulación
               </button>
-              <button className="text-sm" onClick={() => setAnulando(null)}>
+              <Boton variante="sutil" tamano="sm" onClick={() => setAnulando(null)}>
                 Cancelar
-              </button>
+              </Boton>
             </div>
           </section>
         )}
@@ -1781,12 +1751,12 @@ export default function ContratosPage() {
           de ocho páginas, y buscarlos al final obliga a recorrerlo entero. */}
       {documentoAbierto && (
         <div className="mx-auto mt-6 flex max-w-3xl items-center gap-3 print:hidden">
-          <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={imprimir}>
+          <Boton variante="primario" onClick={imprimir}>
             Imprimir / Guardar como PDF
-          </button>
-          <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>
+          </Boton>
+          <Boton variante="enlace" onClick={() => setDocumentoAbierto(null)}>
             Cerrar
-          </button>
+          </Boton>
         </div>
       )}
 

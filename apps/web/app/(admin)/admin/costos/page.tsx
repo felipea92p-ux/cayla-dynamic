@@ -25,12 +25,15 @@
 // S/205.44 sobre S/839.04 — un 24 %.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Tabla } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -168,20 +171,31 @@ export default function CostosPage() {
   // inventado: así la lista nunca ofrece un año vacío ni esconde uno con datos.
   // Se usa `fn_periodos` —la misma fuente que la pantalla de Planilla— para que
   // las dos no puedan discrepar sobre qué periodos hay.
-  useEffect(() => {
+  const vivoRef = useRef(true);
+  useEffect(() => () => { vivoRef.current = false; }, []);
+
+  // Si esta consulta falla, NO es lo mismo que "todavía no hay periodos
+  // pagados": es un error real, y se guarda en el mismo `error` que usa
+  // `cargar()` para que la pantalla pinte la banda roja con "Reintentar" en
+  // vez de la frase tranquilizadora de la lista vacía.
+  const cargarAnios = useCallback(async () => {
     if (!puedeVer) return;
-    let vivo = true;
-    void supabase.rpc("fn_periodos").then(({ data, error }) => {
-      if (!vivo || error || !data) return;
-      const lista = data as unknown as Array<{ fecha_fin: string; estado: string }>;
-      const ys = Array.from(
-        new Set(lista.filter((p) => p.estado === "pagado").map((p) => Number(p.fecha_fin.slice(0, 4)))),
-      ).sort((a, b) => b - a);
-      setAnios(ys);
-      setAnio((prev) => prev ?? ys[0] ?? null);
-    });
-    return () => { vivo = false; };
+    setError(null);
+    const { data, error } = await supabase.rpc("fn_periodos");
+    if (!vivoRef.current) return;
+    if (error || !data) {
+      setError(error?.message ?? "No se pudo cargar la lista de periodos.");
+      return;
+    }
+    const lista = data as unknown as Array<{ fecha_fin: string; estado: string }>;
+    const ys = Array.from(
+      new Set(lista.filter((p) => p.estado === "pagado").map((p) => Number(p.fecha_fin.slice(0, 4)))),
+    ).sort((a, b) => b - a);
+    setAnios(ys);
+    setAnio((prev) => prev ?? ys[0] ?? null);
   }, [supabase, puedeVer]);
+
+  useEffect(() => { void cargarAnios(); }, [cargarAnios]);
 
   const cargar = useCallback(async () => {
     if (!puedeVer || anio === null) return;
@@ -197,6 +211,13 @@ export default function CostosPage() {
   }, [supabase, puedeVer, anio]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  // Un solo botón "Reintentar" sirve a dos consultas distintas. Si todavía no
+  // hay años (la lista de periodos nunca llegó a cargar), reintenta esa; si
+  // ya hay años pero el año elegido falló, reintenta el costo de ese año.
+  function reintentar() {
+    if (anios.length === 0) { void cargarAnios(); } else { void cargar(); }
+  }
 
   // El código de una sede puede ser "003": en una tabla que va a leer una
   // persona, eso no dice nada. Se traduce al nombre usando por_sede, que ya
@@ -265,18 +286,15 @@ export default function CostosPage() {
       <main className="flex-1 p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-serif text-2xl">Costos del equipo</h1>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              Año
-              <select
-                value={anio ?? ""}
-                onChange={(e) => setAnio(Number(e.target.value))}
-                disabled={anios.length === 0}
-                className="rounded-lg border bg-crema px-3 py-1.5"
-              >
-                {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
-              </select>
-            </label>
+          <div className="flex items-end gap-3">
+            <CampoSelect
+              etiqueta="Año"
+              value={anio ?? ""}
+              onChange={(e) => setAnio(Number(e.target.value))}
+              disabled={anios.length === 0}
+            >
+              {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
+            </CampoSelect>
             <Boton variante="primario" onClick={descargarCsvCostos} disabled={!data || data.por_persona.length === 0}>
               Descargar CSV
             </Boton>
@@ -293,7 +311,7 @@ export default function CostosPage() {
         {error && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los costos: {error}{" "}
-            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+            <Boton variante="enlace" onClick={reintentar}>Reintentar</Boton>
           </div>
         )}
 
@@ -350,7 +368,7 @@ export default function CostosPage() {
 
         {data && data.por_periodo.length > 0 && (
           <>
-            <Tabla titulo="Por periodo">
+            <SeccionTabla titulo="Por periodo">
               <thead>
                 <tr className="border-b">
                   <th className={TH}>Periodo</th>
@@ -368,14 +386,12 @@ export default function CostosPage() {
                     <td className="px-3 py-2">
                       {fechaCorta(p.fecha_ini)} → {fechaCorta(p.fecha_fin)}
                       {p.reconstruida && (
-                        <span className="ml-2 rounded bg-ambar/20 px-1.5 py-0.5 text-xs text-ambar">
-                          reconstruido
-                        </span>
+                        <Insignia variante="advertencia" className="ml-2">reconstruido</Insignia>
                       )}
                       {p.version > 1 && (
-                        <span className="ml-2 rounded bg-sand/60 px-1.5 py-0.5 text-xs text-taupe">
+                        <Insignia atenuada punto={false} className="ml-2">
                           repagado ({p.version}.ª copia)
-                        </span>
+                        </Insignia>
                       )}
                     </td>
                     <td className="px-3 py-2 capitalize">{MESES[p.mes - 1]}</td>
@@ -383,13 +399,13 @@ export default function CostosPage() {
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
-                    <td className={NUM}>{p.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(p.salio_del_banco)}</td>
+                    <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
                   </tr>
                 ))}
               </tbody>
-            </Tabla>
+            </SeccionTabla>
 
-            <Tabla titulo="Operar tiendas · producir · administrar">
+            <SeccionTabla titulo="Operar tiendas · producir · administrar">
               <thead>
                 <tr className="border-b">
                   <th className={TH}>Qué es</th>
@@ -408,15 +424,15 @@ export default function CostosPage() {
                     <td className={NUM}>{t.sedes}</td>
                     <td className={NUM}>{t.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(t.costo)}</td>
-                    <td className={NUM}>{t.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(t.salio_del_banco)}</td>
+                    <td className={NUM}>{t.salio_del_banco === undefined ? "—" : formatSoles(t.salio_del_banco)}</td>
                     <td className={NUM}>{t.costo_por_persona === null ? "—" : formatSoles(t.costo_por_persona)}</td>
                     <td className={NUM}>{t.costo_por_hora === null ? "—" : formatSoles(t.costo_por_hora)}</td>
                   </tr>
                 ))}
               </tbody>
-            </Tabla>
+            </SeccionTabla>
 
-            <Tabla titulo="Por sede">
+            <SeccionTabla titulo="Por sede">
               <thead>
                 <tr className="border-b">
                   <th className={TH}>Sede</th>
@@ -435,13 +451,13 @@ export default function CostosPage() {
                     <td className="px-3 py-2 text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                     <td className={NUM}>{s.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(s.costo)}</td>
-                    <td className={NUM}>{s.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(s.salio_del_banco)}</td>
+                    <td className={NUM}>{s.salio_del_banco === undefined ? "—" : formatSoles(s.salio_del_banco)}</td>
                     <td className={NUM}>{s.costo_por_persona === null ? "—" : formatSoles(s.costo_por_persona)}</td>
                     <td className={NUM}>{s.costo_por_hora === null ? "—" : formatSoles(s.costo_por_hora)}</td>
                   </tr>
                 ))}
               </tbody>
-            </Tabla>
+            </SeccionTabla>
 
             <p className="-mt-4 mb-6 max-w-3xl text-xs text-taupe">
               Compara por <strong className="font-medium">persona</strong> y por{" "}
@@ -450,7 +466,7 @@ export default function CostosPage() {
               transfirió y las provisiones por separado) está en el CSV.
             </p>
 
-            <Tabla titulo="Por área">
+            <SeccionTabla titulo="Por área">
               <thead>
                 <tr className="border-b">
                   <th className={TH}>Área</th>
@@ -467,22 +483,20 @@ export default function CostosPage() {
                     <td className="px-3 py-2">
                       {a.nombre}
                       {a.operativa && (
-                        <span className="ml-2 rounded bg-sand/60 px-1.5 py-0.5 text-xs text-taupe">
-                          operativa
-                        </span>
+                        <Insignia atenuada punto={false} className="ml-2">operativa</Insignia>
                       )}
                     </td>
                     <td className={NUM}>{a.personas}</td>
                     <td className={NUM}>{formatSoles(a.neto)}</td>
                     <td className={NUM}>{formatSoles(a.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(a.costo)}</td>
-                    <td className={NUM}>{a.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(a.salio_del_banco)}</td>
+                    <td className={NUM}>{a.salio_del_banco === undefined ? "—" : formatSoles(a.salio_del_banco)}</td>
                   </tr>
                 ))}
               </tbody>
-            </Tabla>
+            </SeccionTabla>
 
-            <Tabla titulo="Por persona">
+            <SeccionTabla titulo="Por persona">
               <thead>
                 <tr className="border-b">
                   <th className={TH}>Nombre</th>
@@ -505,11 +519,11 @@ export default function CostosPage() {
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
-                    <td className={NUM}>{p.salio_del_banco === undefined ? <span className="text-taupe/50">—</span> : formatSoles(p.salio_del_banco)}</td>
+                    <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
                   </tr>
                 ))}
               </tbody>
-            </Tabla>
+            </SeccionTabla>
           </>
         )}
 
@@ -523,13 +537,16 @@ export default function CostosPage() {
   );
 }
 
-function Tabla({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+// No se llama "Tabla" para no chocar con el primitivo compartido
+// (@/components/ui/tabla): esto solo le agrega el título de sección, y por
+// dentro usa ese mismo <Tabla> — así el envoltorio de esta pantalla queda con
+// la misma superficie elevada (bg-papel, rounded-superficie) que el resto del
+// panel, en vez del bg-crema aislado que tenía antes.
+function SeccionTabla({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <section className="mb-6">
       <h2 className="mb-2 font-serif text-lg">{titulo}</h2>
-      <div className="max-w-5xl overflow-x-auto rounded-lg border bg-crema">
-        <table className="w-full text-sm">{children}</table>
-      </div>
+      <Tabla className="max-w-5xl">{children}</Tabla>
     </section>
   );
 }

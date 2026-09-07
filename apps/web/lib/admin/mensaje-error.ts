@@ -1,7 +1,11 @@
 // Traduce el error de la base a algo que una persona pueda leer y accionar.
 //
-// EL PROBLEMA. Hoy 43 lugares del panel hacen `texto: error.message` y pintan
-// en pantalla lo que devuelva Postgres. A veces está bien y a veces sale esto:
+// EL PROBLEMA. Todavía quedan 35 lugares del panel —repartidos en nueve
+// pantallas que hoy no importan este traductor: mio/page.tsx (5),
+// mio/boleta/page.tsx, incidencias (5), planilla/page.tsx (4), ausencias (4),
+// exportar (3), horas (2), costos, provisiones y planilla/boleta— que hacen
+// `texto: error.message` y pintan en pantalla lo que devuelva Postgres. A
+// veces está bien y a veces sale esto:
 //
 //   new row for relation "personas" violates check constraint
 //   "personas_cese_coherente"
