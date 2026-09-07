@@ -37,6 +37,72 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-07 — El mega menú pasa a sidebar lateral colapsable, y los grupos de 5 a 7 · SIN MIGRACIONES, SIN DESPLEGAR
+
+Ejecuta la decisión que [`plan-apariencia-2026-09-06.md`](plan-apariencia-2026-09-06.md)
+dejó aplazada por escrito («la decisión de navegación de libertad total —sidebar
+colapsable— si el ajuste evolutivo del Día 2 no alcanza»), saltándose el paso
+evolutivo. **El Día 2 paso 1 de ese plan —bajar el corte a `lg` y mostrar las
+etiquetas de grupo en la barra horizontal— queda sin efecto: ya no hay barra
+horizontal que ajustar.** El resto de ese plan sigue en pie.
+
+**Por qué ahora y no otro parche.** Es el tercer intento sobre el mismo
+problema. El 5 de septiembre se probó scroll horizontal (`688e8e5`) y se
+revirtió el mismo día (`21591a7`) con el criterio «nunca esconde ítems con
+scroll». Con treinta renglones la barra envolvía en tres o cuatro filas y se
+comía ~145px de alto en las 24 pantallas; por debajo de 1280px —un portátil con
+la ventana sin maximizar— desaparecía entera en la hamburguesa. Ahora el
+encabezado son 64px fijos.
+
+**Los tres anchos:** ≥1280px sidebar de 256px con títulos de grupo · 768–1279px
+rail de 64px solo con iconos · <768px cajón sobre velo. El botón de plegar gana
+sobre el ancho y se recuerda en localStorage, como el tema.
+
+**La reagrupación, que es la parte que hay que discutir si algo se discute:**
+
+- **«Ausencias» sale de Nómina y entra a Asistencia.** Era el único renglón de
+  rol SEDE dentro de un grupo entero de rol DO: para una encargada, «Nómina»
+  tenía exactamente un ítem.
+- **«Publicaciones» es un grupo nuevo** con política salarial, normas y
+  anuncios — las tres únicas entradas sin filtro de rol, y no por casualidad
+  (Ley 30709 y entrega del RIT). Estaban en tres grupos distintos, así que una
+  integrante veía cuatro renglones sueltos sin lógica visible.
+- **«Apariencia» baja a Configuración**, con Áreas, Sedes y Cuentas: mismo
+  permiso y misma frecuencia.
+- **«Feriados» se queda en Nómina** aunque sea discutible: registra el
+  compensatorio que quita la sobretasa del feriado trabajado, o sea que existe
+  por el pago. Si al usarlo se siente de Asistencia, es un cambio de una línea.
+
+Ninguna URL, ningún permiso y ningún nombre de pantalla cambian.
+
+**Lo que ya no depende de que alguien lo recuerde.** `tests/nav-items.test.ts`
+(21 aserciones) vigila que esas tres pantallas de obligación legal sigan sin
+`roles`, que no haya rutas repetidas y que los contadores sean tres. Es la
+primera prueba del repo sobre la navegación: hasta hoy solo la miraba el
+typecheck, y el typecheck no sabe que «Normas» la tiene que ver todo el equipo.
+
+**Deuda que este cambio NO pagó, y que salió al explorar:**
+
+1. 🔴 **Una integrante no puede llegar a cambiar su propia clave.** `Cuentas`
+   está restringida a DO en el menú, pero la pantalla sí muestra «Mi cuenta» a
+   cualquiera. El renglón que lleva ahí no existe para quien lo necesita.
+2. **Seis sub-rutas dejan el menú sin nada resaltado** — `/planilla/boleta`,
+   `/disciplina/memo/[id]`, `/normas/[id]/imprimir`, `/normas/[id]/constancias`,
+   `/politica-salarial/constancias` y `/mio/boleta`. `esActivo` cubre tres
+   casos. No empeoró con este cambio: ya estaba así.
+3. **`/mio` no lleva marco** — tiene su propio encabezado a mano y queda fuera
+   del sidebar, siendo el destino del primer renglón del menú.
+4. **El bloque `@media print` de `globals.css` redefine nueve tokens, no once**
+   — le faltan `hueso` y `pizarra`, y usa los valores de `verde` y `ámbar`
+   previos al retuneo del 6 de septiembre.
+
+**Dos cosas del entorno, para quien trabaje en Windows** (esta sesión fue la
+primera): `npx pnpm install` **falla en silencio y sale con código 0** (npx no
+encuentra el binario), así que hay que llamar a `pnpm` directo. Y
+`.claude/launch.json` arranca el servidor con `/bin/zsh`, que en Windows no
+existe — se puede levantar con `pnpm --filter @cayla-dynamic/web dev`, pero el
+panel del navegador necesitaría una entrada propia en ese archivo.
+
 ## 2026-09-05 — Foto junto al nombre en el terminal, subida por cada quien desde «Lo mío» (0381) · PEGADA Y VERIFICADA EN PRODUCCIÓN
 
 Salió de la comparación contra BambooHR/Rippling/UKG del 2026-09-03 («Las Tres
