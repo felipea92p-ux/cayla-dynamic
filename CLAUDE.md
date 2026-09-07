@@ -865,12 +865,36 @@ TARDANZAS. Las dos mitades del sistema disciplinario respondiendo distinto es lo
 que la 0237 ya había venido a cerrar una vez — conviene mirar la función hermana
 antes de decidir nada.
 
-Queda la misma forma, sin arreglar y anotada a propósito, en cuatro funciones que
-hoy no deciden ningún estado que alimente el pago ni una sanción:
-`fn_contratos_listar`, `fn_documentos_estado_politica`, `fn_documentos_listar` y
-`fn_educacion_espejo_comprobante`. Se encuentran todas de un tirón preguntándole
-al catálogo por un `order by` que termine en una columna de fecha dentro de una
-consulta con `distinct on` o `limit 1`.
+Las cuatro que quedaban —`fn_contratos_listar`, `fn_documentos_estado_politica`,
+`fn_documentos_listar` y `fn_educacion_espejo_comprobante`— se cerraron juntas en
+la **0389**, todas del tipo inerte. **La familia está completa: hoy no queda
+ninguna.** Se comprueba de un tirón preguntándole al catálogo por un `order by`
+que termine en una columna de fecha dentro de una consulta con `distinct on` o
+`limit 1`:
+
+```sql
+select p.proname, m[1]
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
+  lateral regexp_matches(p.prosrc, 'order by[^;]{0,120}', 'gi') m
+ where n.nspname = 'public'
+   and (p.prosrc ~* 'distinct on' or p.prosrc ~* 'limit[[:space:]]+1')
+   and m[1] ~* '_at[[:space:]]+desc[[:space:]]*(limit|\)|$)';
+```
+
+Y el desempate nunca se inventa: se le pregunta primero a la función hermana —la
+que responde esa misma pregunta en la otra pantalla o en la otra mitad del
+sistema— y se copia el suyo. Las cuatro de la 0389 recibieron el de su hermana
+(`fn_contratos_tablero`, `fn_documentos_tablero`), no uno nuevo. Que dos
+funciones de la MISMA pantalla puedan contestar distinto a «cuál es el vigente»
+es el defecto de fondo; los empates solo son cómo se manifiesta.
+
+Un aviso sobre cómo se prueban estas: **el orden de inserción no siempre alcanza
+para hacer fallar el control.** El caso de `educacion_comprobantes` acertaba sin
+la migración porque el plan salía `Index Scan Backward` y devolvía el empate en
+el orden que casualmente convenía. Lo que sí prueba de verdad es forzar el otro
+plan —`set local enable_indexscan = off`, que dura solo la transacción—, porque
+lo que está en juego es exactamente eso: que la respuesta no dependa de CÓMO
+Postgres decida leer la tabla.
 
 Y el criterio que se agrega es un **ancla**, no una regla: `id desc` es un uuid,
 no significa nada. Va siempre DESPUÉS del último criterio real, así que solo
