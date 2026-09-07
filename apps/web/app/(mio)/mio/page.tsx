@@ -12,7 +12,11 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
 } from "@/lib/foto-perfil";
-import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import {
+  ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, REGIMEN_PENSION_LABELS,
+  ROLES_CON_PANEL, TZ_LIMA, VINCULO_DERECHOHABIENTE_LABELS, etiquetaDeCatalogo, hoyLima,
+  leCorrespondeCuspp, siNoSinDato,
+} from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
@@ -85,12 +89,38 @@ interface Yo {
   nombre: string;
   nombres: string;
   apellidos: string;
+  documento: string | null;
+  email: string | null;
   fechaIngreso: string | null;
+  cargo: string | null;
+  funcion: string | null;
+  regimenPension: string | null;
+  enPlanilla: boolean | null;
+  sedeNombre: string | null;
   /** Para saber si esta persona tiene panel al que volver. Nada más: lo que se
    *  muestra en esta pantalla es igual para todo el mundo. */
   rol: string | null;
   /** Ruta en el bucket público «fotos-perfil» (0381), o null si nunca subió una. */
   fotoUrl: string | null;
+}
+
+/**
+ * Su ficha de `datos_personales` (0061/0390). Igual que en admin/datos-personales,
+ * pero de solo lectura: corregir un dato sigue yendo por Desarrollo
+ * Organizacional, esta pantalla es solo para poder comprobar qué hay guardado.
+ */
+interface Ficha {
+  nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
+  genero: string | null; direccion: string | null; celular: string | null;
+  entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null;
+  hijos_menores: boolean | null;
+  emergencia_nombre: string | null; emergencia_vinculo: string | null; emergencia_telefono: string | null;
+  discapacidad: boolean | null; discapacidad_conadis: string | null; cuspp: string | null;
+}
+
+interface Familiar {
+  id: string; nombres: string; apellidos: string; vinculo: string;
+  vigente_hasta: string | null;
 }
 
 interface Jornada {
@@ -411,7 +441,7 @@ export default function MioPage() {
 
       const { data: p } = await supabase
         .from("personas")
-        .select("id, nombres, apellidos, fecha_ingreso, rol, foto_url")
+        .select("id, nombres, apellidos, documento, email, fecha_ingreso, cargo, funcion, regimen_pension, en_planilla, sede_base_id, rol, foto_url")
         .eq("auth_user_id", uid)
         .maybeSingle();
 
@@ -419,17 +449,56 @@ export default function MioPage() {
         setAviso("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
         return;
       }
+      const { data: sede } = await supabase
+        .from("sedes")
+        .select("nombre")
+        .eq("id", p.sede_base_id as string)
+        .maybeSingle();
       setYo({
         id: p.id as string,
         nombre: `${p.nombres as string} ${p.apellidos as string}`,
         nombres: p.nombres as string,
         apellidos: p.apellidos as string,
+        documento: (p.documento as string | null) ?? null,
+        email: (p.email as string | null) ?? null,
         fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
+        cargo: (p.cargo as string | null) ?? null,
+        funcion: (p.funcion as string | null) ?? null,
+        regimenPension: (p.regimen_pension as string | null) ?? null,
+        enPlanilla: (p.en_planilla as boolean | null) ?? null,
+        sedeNombre: (sede?.nombre as string | null) ?? null,
         rol: (p.rol as string | null) ?? null,
         fotoUrl: (p.foto_url as string | null) ?? null,
       });
     })();
   }, [supabase, sesion]);
+
+  // ── Sus datos personales ────────────────────────────────────────────────────
+  // Aparte del bloque grande de `cargar()`, por la misma razón que `vacas`:
+  // depende solo de quién es, no del rango de fechas de la cuadrícula.
+  const [ficha, setFicha] = useState<Ficha | null>(null);
+  const [familiares, setFamiliares] = useState<Familiar[]>([]);
+  useEffect(() => {
+    if (!yo?.id) return;
+    let vivo = true;
+    void Promise.all([
+      supabase
+        .from("datos_personales")
+        .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp")
+        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
+        .maybeSingle(),
+      supabase
+        .from("derechohabientes")
+        .select("id, nombres, apellidos, vinculo, vigente_hasta")
+        .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
+        .order("apellidos"),
+    ]).then(([{ data: f }, { data: fam }]) => {
+      if (!vivo) return;
+      setFicha((f as Ficha | null) ?? null);
+      setFamiliares((fam as Familiar[]) ?? []);
+    });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
 
   // ── Lo suyo ───────────────────────────────────────────────────────────────
   const cargar = useCallback(async () => {
@@ -1379,6 +1448,104 @@ export default function MioPage() {
         Si algo no cuadra, no lo dejes pasar: avisa a tu encargada y se corrige con el motivo anotado. Lo que
         ves sale de tus marcajes, y un marcaje mal registrado se arregla, no se discute al final del mes.
       </p>
+
+      {/* ── Tus datos ────────────────────────────────────────────────────────
+          Espeja la ficha de admin/datos-personales, pero DE SOLO LECTURA: la
+          RLS (personas_select_propia, dp_select_propia, dh_select_propia) ya le
+          deja a cada persona leer su propia fila completa — corregir un dato
+          sigue yendo por Desarrollo Organizacional, esta sección es solo para
+          que pueda comprobar qué tiene guardado el sistema. */}
+      <section className="mt-8 rounded-2xl border border-sand p-5 text-sm">
+        <h2 className="mb-1 font-serif text-lg">Tus datos</h2>
+        <p className="mb-4 text-taupe">
+          Lo que el sistema tiene guardado de ti. Si algo está mal o falta, avisa a Desarrollo
+          Organizacional para que lo corrijan — desde acá no se edita.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
+            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <Dato etiqueta="Nombre completo" valor={yo?.nombre} />
+              <Dato etiqueta="DNI" valor={yo?.documento} />
+              {ficha?.nombre_dni && ficha.nombre_dni !== yo?.nombre && (
+                <Dato etiqueta="Nombre según DNI" valor={ficha.nombre_dni} />
+              )}
+              <Dato etiqueta="Fecha de nacimiento" valor={ficha?.fecha_nacimiento ? diaYMes(ficha.fecha_nacimiento) : null} />
+              <Dato etiqueta="Género" valor={etiquetaDeCatalogo(ficha?.genero, GENERO_LABELS)} />
+              <Dato etiqueta="Estado civil" valor={etiquetaDeCatalogo(ficha?.estado_civil, ESTADO_CIVIL_LABELS)} />
+              <Dato etiqueta="Grado de instrucción" valor={etiquetaDeCatalogo(ficha?.grado_instruccion, GRADO_INSTRUCCION_LABELS)} />
+              <Dato etiqueta="¿Hijos menores a cargo?" valor={ficha ? siNoSinDato(ficha.hijos_menores) : null} />
+            </dl>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Laboral</p>
+            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <Dato etiqueta="Sede" valor={yo?.sedeNombre} />
+              <Dato etiqueta="Fecha de ingreso" valor={yo?.fechaIngreso ? diaYMes(yo.fechaIngreso) : null} />
+              <Dato etiqueta="Cargo" valor={yo?.cargo} />
+              <Dato etiqueta="Función" valor={yo?.funcion} />
+              <Dato etiqueta="Régimen de pensión" valor={etiquetaDeCatalogo(yo?.regimenPension, REGIMEN_PENSION_LABELS)} />
+              {(leCorrespondeCuspp(yo?.enPlanilla, yo?.regimenPension) || !!ficha?.cuspp?.trim()) && (
+                <Dato etiqueta="CUSPP" valor={ficha?.cuspp} />
+              )}
+            </dl>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
+            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <Dato etiqueta="Correo" valor={yo?.email} />
+              <Dato etiqueta="Celular" valor={ficha?.celular} />
+              <Dato etiqueta="Dirección" valor={ficha?.direccion} />
+            </dl>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Datos bancarios</p>
+            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <Dato etiqueta="Entidad bancaria" valor={ficha?.entidad_bancaria} />
+              <Dato etiqueta="Número de cuenta" valor={ficha?.numero_cuenta} />
+            </dl>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto de emergencia</p>
+            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <Dato etiqueta="Nombre" valor={ficha?.emergencia_nombre} />
+              <Dato etiqueta="Vínculo" valor={ficha?.emergencia_vinculo} />
+              <Dato etiqueta="Teléfono" valor={ficha?.emergencia_telefono} />
+            </dl>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Discapacidad</p>
+            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+              <Dato etiqueta="¿Tiene una condición de discapacidad?" valor={ficha ? siNoSinDato(ficha.discapacidad) : null} />
+              {ficha?.discapacidad === true && <Dato etiqueta="Código CONADIS" valor={ficha.discapacidad_conadis} />}
+            </dl>
+          </div>
+
+          <div>
+            <p className="mb-1 text-[11px] uppercase tracking-wider text-taupe">Familiares registrados</p>
+            <p className="mb-2 text-taupe">Quienes te cubren EsSalud o el seguro de vida ley.</p>
+            {familiares.length === 0 ? (
+              <p className="text-taupe">No tienes ningún familiar registrado.</p>
+            ) : (
+              <ul className="space-y-1">
+                {familiares.map((f) => (
+                  <li key={f.id} className={`flex flex-wrap items-baseline gap-x-2 ${f.vigente_hasta ? "text-taupe" : ""}`}>
+                    <span className={f.vigente_hasta ? "" : "font-medium"}>{f.nombres} {f.apellidos}</span>
+                    <span className="text-taupe">· {etiquetaDeCatalogo(f.vinculo, VINCULO_DERECHOHABIENTE_LABELS)}</span>
+                    {f.vigente_hasta && <span className="text-xs">cerrado el {diaYMes(f.vigente_hasta)}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
@@ -1449,6 +1616,17 @@ function Tarjeta({ titulo, valor, pie }: { titulo: string; valor: string; pie?: 
       <div className="etiqueta text-taupe">{titulo}</div>
       <div className="mt-1 font-serif text-2xl leading-none">{valor}</div>
       {pie && <div className="mt-1 text-[11px] text-taupe">{pie}</div>}
+    </div>
+  );
+}
+
+/** Un dato de la sección «Tus datos». Sin valor, dice explícitamente que no está
+ *  registrado — una celda vacía se lee como «no se preguntó», no como «no hay». */
+function Dato({ etiqueta, valor }: { etiqueta: string; valor: string | null | undefined }) {
+  return (
+    <div>
+      <dt className="text-xs text-taupe">{etiqueta}</dt>
+      <dd>{valor?.trim() ? valor : <span className="text-taupe">sin registrar</span>}</dd>
     </div>
   );
 }
