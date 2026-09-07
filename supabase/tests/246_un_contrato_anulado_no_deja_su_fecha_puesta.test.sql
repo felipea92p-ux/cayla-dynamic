@@ -37,14 +37,25 @@ insert into personas (id, nombres, apellidos, sede_base_id, pin_hash, fecha_ingr
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000c07b009', true);
 
 -- Atajo: generar un contrato con su `generado_at` puesto a mano.
-create or replace function _lab_contrato(p_persona uuid, p_fin date, p_marca text, p_cuando timestamptz)
+--
+-- Lleva tipo y fecha de inicio desde la 0387. Antes los dos estaban fijos
+-- ('renovacion', 2026-01-01), y con eso cada persona de esta prueba acababa
+-- con dos documentos VIVOS del mismo tipo cubriendo los mismos días — que es
+-- justo lo que la 0387 dejó de permitir crear, porque en producción produjo
+-- dos convenios idénticos para la misma persona. Los escenarios de abajo no
+-- cambian ni una aserción: lo que cambia son las fechas y los tipos de los
+-- decorados, que nunca fueron el asunto de esta prueba y ahora además son
+-- realistas (un contrato y su renovación empiezan cuando termina el anterior).
+create or replace function _lab_contrato(
+  p_persona uuid, p_fin date, p_marca text, p_cuando timestamptz,
+  p_tipo text default 'renovacion', p_inicio date default '2026-01-01')
 returns uuid language plpgsql as $$
 declare v uuid;
 begin
   v := fn_contrato_registrar(
-    p_persona_id := p_persona, p_tipo := 'renovacion', p_cargo := 'Asesora',
+    p_persona_id := p_persona, p_tipo := p_tipo, p_cargo := 'Asesora',
     p_sede_id := '00000000-0000-0000-0000-00000c07b000',
-    p_remuneracion_mensual := 1130, p_fecha_inicio := '2026-01-01',
+    p_remuneracion_mensual := 1130, p_fecha_inicio := p_inicio,
     p_fecha_fin := p_fin, p_documento_html := p_marca);
   update contratos_generados set generado_at = p_cuando where id = v;
   return v;
@@ -70,8 +81,8 @@ select is(
 
 
 -- ── ANA · firma el nuevo, después el viejo: la fecha no retrocede ──────────
-select _lab_contrato('00000000-0000-0000-0000-00000c07b001', '2026-06-30', '<p>viejo</p>',  '2026-01-01 09:00+00');
-select _lab_contrato('00000000-0000-0000-0000-00000c07b001', '2026-12-31', '<p>nuevo</p>',  '2026-01-02 09:00+00');
+select _lab_contrato('00000000-0000-0000-0000-00000c07b001', '2026-06-30', '<p>viejo</p>',  '2026-01-01 09:00+00', 'nuevo',      '2026-01-01');
+select _lab_contrato('00000000-0000-0000-0000-00000c07b001', '2026-12-31', '<p>nuevo</p>',  '2026-01-02 09:00+00', 'renovacion', '2026-07-01');
 
 select _lab_firmar((select id from contratos_generados where documento_html = '<p>nuevo</p>'), '2026-01-05');
 select is(
@@ -105,9 +116,9 @@ select is(
 -- borrador. Con el criterio viejo —«el más reciente sin anular»— ese borrador
 -- ganaba, y anular el contrato firmado NO devolvía la fecha: la persona se
 -- quedaba con el vencimiento de un documento declarado nulo.
-select _lab_contrato('00000000-0000-0000-0000-00000c07b002', '2026-12-31', '<p>beto firmado</p>', '2026-01-01 09:00+00');
+select _lab_contrato('00000000-0000-0000-0000-00000c07b002', '2026-12-31', '<p>beto firmado</p>', '2026-01-01 09:00+00', 'nuevo', '2026-01-01');
 select _lab_firmar((select id from contratos_generados where documento_html = '<p>beto firmado</p>'), '2026-01-05');
-select _lab_contrato('00000000-0000-0000-0000-00000c07b002', '2027-12-31', '<p>beto borrador</p>', '2026-06-01 09:00+00');
+select _lab_contrato('00000000-0000-0000-0000-00000c07b002', '2027-12-31', '<p>beto borrador</p>', '2026-06-01 09:00+00', 'renovacion', '2027-01-01');
 
 select is(
   (fn_contrato_firmado_vigente_de('00000000-0000-0000-0000-00000c07b002')).documento_html,
@@ -131,8 +142,8 @@ select ok(
 -- ── CARLA · firmar con un borrador pendiente sí fija la fecha ──────────────
 -- Con el criterio viejo, el borrador más nuevo impedía que el contrato
 -- realmente firmado fijara nada — ni siendo el único firmado que existe.
-select _lab_contrato('00000000-0000-0000-0000-00000c07b003', '2026-12-31', '<p>carla firma</p>',    '2026-01-01 09:00+00');
-select _lab_contrato('00000000-0000-0000-0000-00000c07b003', '2027-12-31', '<p>carla borrador</p>', '2026-06-01 09:00+00');
+select _lab_contrato('00000000-0000-0000-0000-00000c07b003', '2026-12-31', '<p>carla firma</p>',    '2026-01-01 09:00+00', 'nuevo',      '2026-01-01');
+select _lab_contrato('00000000-0000-0000-0000-00000c07b003', '2027-12-31', '<p>carla borrador</p>', '2026-06-01 09:00+00', 'renovacion', '2027-01-01');
 select _lab_firmar((select id from contratos_generados where documento_html = '<p>carla firma</p>'), '2026-01-05');
 select is(
   (select fecha_fin_contrato from personas where id = '00000000-0000-0000-0000-00000c07b003'),
