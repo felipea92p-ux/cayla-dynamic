@@ -587,9 +587,24 @@ export default function ContratosPage() {
   // sistema, no una lista escrita a mano (regla de la casa) — si mañana
   // alguien crea un cargo nuevo, aparece solo. Siguen siendo campos libres:
   // el `<datalist>` sugiere, nunca restringe a lo que ya existe.
+  //
+  // El cargo actual de `personas` (2026-09-07) se quedaba corto a propósito
+  // de la pregunta: la mayoría de colaboradoras no tiene `cargo` propio —sin
+  // él se les muestra el rol (0182)— así que solo aparecían los tres o cuatro
+  // puestos de jefatura que sí lo tienen escrito. `contratos` (el tablero,
+  // `fn_contratos_tablero`) ya trae el cargo con el que se generó CADA
+  // contrato de la historia, de cualquier persona, activa o no: esa es la
+  // lista completa de puestos que la empresa ha usado de verdad.
   const cargosExistentes = useMemo(
-    () => Array.from(new Set(personas.map((p) => p.cargo?.trim()).filter((c): c is string => !!c))).sort(),
-    [personas],
+    () =>
+      Array.from(
+        new Set(
+          [...personas.map((p) => p.cargo), ...contratos.map((c) => c.cargo)]
+            .map((c) => c?.trim())
+            .filter((c): c is string => !!c),
+        ),
+      ).sort(),
+    [personas, contratos],
   );
   const ciudadesExistentes = useMemo(
     () => Array.from(new Set(sedes.map((s) => s.ciudad?.trim()).filter((c): c is string => !!c))).sort(),
