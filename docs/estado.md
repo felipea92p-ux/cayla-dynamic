@@ -4,6 +4,46 @@
 copias con fecha. Lo ya cerrado vive en [`historico.md`](historico.md). Cómo se
 trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
+---
+
+## 2026-09-07 — 25 hallazgos de diseño de la auditoría del 2026-09-06/07, cerrados
+
+Rama `claude/stoic-chandrasekhar-5a16c4`, 4 commits. De los 27 hallazgos de
+categoría "diseño" con severidad alta o media que dejó la Radiografía Dynamic
+(ver la auditoría en el worktree `kaila-dynamic-retail-audit-7d5733`), 25
+quedaron resueltos aquí; los otros 2 eran el mismo bug del mapa de calor de
+Turnos citado dos veces por lectores distintos.
+
+**Lo tocado:** `globals.css` (paleta de impresión desfasada, radio duplicado,
+regla de hover que le ganaba a Boton y alcanzaba al terminal, pizarra/verde
+oscuro medidos mal), `Campo`/`CampoSelect` (etiqueta en mayúsculas → caja
+normal tras comparar a ojo, zoom de iOS, flecha del select con color cocido),
+`Modal` (ancho fijo, título que no se dibujaba), `Insignia` (variante alerta
+bajo 4.5:1, variante `contador` nueva), el mapa de calor de Turnos (colores
+que ignoraban el tema — commit aparte, el primero de la rama), y ocho
+hallazgos sueltos en contratos, equipo, login, correcciones, horarios y el
+terminal de marcaje (borde invisible de las casillas de nombre, grilla
+dimensionada para teléfono, aviso de marcas apartadas ilegible).
+
+Cada número de contraste se midió tal como el componente lo pinta de verdad
+(pill compuesto a su opacidad real, en los dos temas), no contra el color
+plano — siguiendo el mismo método que ya usa `globals.css` para verde/ámbar,
+que varios de estos hallazgos señalaron que no se había aplicado a pizarra,
+rojo ni al verde oscuro. Typecheck atrapó un JSX comment mal ubicado que
+rompía la sintaxis en dos archivos antes de llegar a comitear.
+
+🟡 **Pendiente de tu decisión, no se tocó:** `personas/[id]/page.tsx:645` usa
+`bg-white` fijo en la vista previa de firma. `docs/plan-apariencia-2026-09-06.md`
+ya lo marca como "decisión abierta, no resolverla sin preguntar" — falta
+decidir si se documenta como tercera excepción (junto a `.hoja` y política
+salarial) o se cambia a `bg-papel`.
+
+**Sin tocar hoy, a propósito:** los 3 hallazgos de esfuerzo "día" y el de
+"semana" (el envoltorio de tabla copiado 15 veces, el botón primario copiado
+82 veces en 38 archivos, los 36 diálogos del navegador de Planilla) — se
+solapan con el "Día 2" ya escrito en `plan-apariencia-2026-09-06.md`, y
+migrarlos aquí habría sido reinventar esa secuencia a medio camino.
+
 ## Qué va acá y qué no
 
 Este archivo guarda **solo lo que ninguna herramienta puede responder sola**:
