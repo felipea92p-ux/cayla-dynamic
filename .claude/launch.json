@@ -2,10 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "panel",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["pnpm", "--filter", "@cayla-dynamic/web", "dev", "--port", "3111"],
-      "port": 3111
+      "name": "web-dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-lc", "for d in \"$HOME\"/.nvm/versions/node/*/bin(N); do PATH=\"$d:$PATH\"; done; exec pnpm --filter @cayla-dynamic/web dev"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
