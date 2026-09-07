@@ -591,15 +591,22 @@ export default function ContratosPage() {
   // El cargo actual de `personas` (2026-09-07) se quedaba corto a propósito
   // de la pregunta: la mayoría de colaboradoras no tiene `cargo` propio —sin
   // él se les muestra el rol (0182)— así que solo aparecían los tres o cuatro
-  // puestos de jefatura que sí lo tienen escrito. `contratos` (el tablero,
-  // `fn_contratos_tablero`) ya trae el cargo con el que se generó CADA
-  // contrato de la historia, de cualquier persona, activa o no: esa es la
-  // lista completa de puestos que la empresa ha usado de verdad.
+  // puestos de jefatura que sí lo tienen escrito. `contratos` (`fn_contratos_listar`)
+  // ya trae el cargo con el que se generó CADA contrato de la historia, de
+  // cualquier persona, activa o no: esa es la lista completa de puestos que
+  // la empresa ha usado de verdad.
+  //
+  // Excluye los anulados a propósito (2026-09-07): un borrador de PRUEBA —con
+  // "asdf" o cualquier relleno en Cargo— se descarta anulándolo, nunca
+  // borrándolo (regla de la casa), así que sin este filtro cada prueba deja
+  // basura permanente en esta lista. Un contrato anulado sigue siendo el
+  // registro de lo que se pactó (no se toca su texto), solo deja de contar
+  // como "un cargo que la empresa usa".
   const cargosExistentes = useMemo(
     () =>
       Array.from(
         new Set(
-          [...personas.map((p) => p.cargo), ...contratos.map((c) => c.cargo)]
+          [...personas.map((p) => p.cargo), ...contratos.filter((c) => !c.anulado_at).map((c) => c.cargo)]
             .map((c) => c?.trim())
             .filter((c): c is string => !!c),
         ),
