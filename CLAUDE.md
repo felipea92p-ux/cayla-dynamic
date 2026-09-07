@@ -841,12 +841,36 @@ monto no es no remunerativo (RTF 05449-4-2007). Dos personas con el MISMO
 expediente contestaban al revés una de la otra según el orden en que se
 guardaron sus papeles.
 
-Queda la misma forma, sin arreglar y anotada a propósito, en cinco funciones que
-hoy no deciden ningún estado que alimente el pago: `fn_contratos_listar`,
-`fn_documentos_estado_politica`, `fn_documentos_listar`,
-`fn_educacion_espejo_comprobante` y `fn_expediente_generar_falta`. Se encuentran
-todas de un tirón preguntándole al catálogo por un `order by` que termine en una
-columna `now()` dentro de una consulta con `distinct on` o `limit 1`.
+Y una cuarta, la **0388**, que enseña que esta familia tiene DOS especies y
+conviene no confundirlas. `fn_expediente_generar_falta` ordenaba por
+`entregado_at desc limit 1`, y ahí el empate **no necesita una transacción**:
+`entregado_at` no es `now()`, es un parámetro, y la pantalla manda el MEDIODÍA
+DE LIMA cuando se marca una entrega con fecha pasada (`instanteEntrega`). Dos
+documentos entregados el mismo día pasado empatan al microsegundo **en
+producción**. De esa fila salen el escalón anterior, el corte de non bis in idem
+y el antecedente citado — así que dos personas con el mismo expediente recibían
+peldaños distintos de la escalera disciplinaria según el orden en que se
+guardaron sus papeles.
+
+**La distinción que hay que hacer siempre, y decide cuánto cuidado hace falta:**
+si el empate solo ocurre dentro de una transacción, el desempate es inerte en
+producción y se puede agregar sin más. Si la columna admite un valor elegido por
+quien usa la pantalla —una fecha pasada, un mediodía fijo—, el empate es real y
+el desempate **cambia comportamiento**: hay que medir a quién afecta antes de
+pegarlo, no después.
+
+Y ahí el criterio tampoco se inventa. La 0388 no eligió uno: copió el que
+`fn_tardanza_escalon_al` (0311) ya usaba para la misma pregunta en el motor de
+TARDANZAS. Las dos mitades del sistema disciplinario respondiendo distinto es lo
+que la 0237 ya había venido a cerrar una vez — conviene mirar la función hermana
+antes de decidir nada.
+
+Queda la misma forma, sin arreglar y anotada a propósito, en cuatro funciones que
+hoy no deciden ningún estado que alimente el pago ni una sanción:
+`fn_contratos_listar`, `fn_documentos_estado_politica`, `fn_documentos_listar` y
+`fn_educacion_espejo_comprobante`. Se encuentran todas de un tirón preguntándole
+al catálogo por un `order by` que termine en una columna de fecha dentro de una
+consulta con `distinct on` o `limit 1`.
 
 Y el criterio que se agrega es un **ancla**, no una regla: `id desc` es un uuid,
 no significa nada. Va siempre DESPUÉS del último criterio real, así que solo
