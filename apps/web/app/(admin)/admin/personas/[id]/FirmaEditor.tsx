@@ -147,8 +147,26 @@ export function FirmaEditor({ supabase, nombreOficial, avisar }: Props) {
   useEffect(() => {
     let vivo = true;
     void (async () => {
-      const { data } = await supabase.rpc("fn_mi_firma_config").maybeSingle();
+      const { data, error } = await supabase.rpc("fn_mi_firma_config").maybeSingle();
       if (!vivo) return;
+      if (error) {
+        // `fn_mi_firma_config` es de la migración 0395. Si producción todavía
+        // no la tiene pegada (el frontend se despliega solo al fusionar a
+        // `main`; el SQL lo pega Felipe a mano y puede tardar), esta llamada
+        // falla — y leer ese error como "no hay firma" borraría de la
+        // pantalla una firma que sigue intacta en la base. `fn_mi_firma()` es
+        // la función vieja, previa a los tres métodos: solo devuelve la
+        // imagen, pero sigue viva y sirve de red mientras tanto.
+        const { data: imagenVieja } = await supabase.rpc("fn_mi_firma");
+        if (!vivo) return;
+        if (typeof imagenVieja === "string" && imagenVieja.startsWith("data:image")) {
+          setFirma({ imagen: imagenVieja, tipo: "imagen", estilo: null });
+        } else {
+          setEditando(true);
+        }
+        setCargando(false);
+        return;
+      }
       const fila = data as { imagen: string; tipo: string; estilo: string | null } | null;
       if (fila?.imagen) {
         const cargada = { imagen: fila.imagen, tipo: fila.tipo as Metodo, estilo: fila.estilo as Estilo | null };
@@ -213,11 +231,18 @@ export function FirmaEditor({ supabase, nombreOficial, avisar }: Props) {
   async function guardar(dataUrl: string, tipo: Metodo, estiloUsado?: Estilo) {
     setGuardando(true);
     try {
-      const { error } = await supabase.rpc("fn_set_mi_firma", {
+      let { error } = await supabase.rpc("fn_set_mi_firma", {
         p_dataurl: dataUrl,
         p_tipo: tipo,
         p_estilo: tipo === "tipografica" ? estiloUsado : null,
       });
+      if (error && tipo === "imagen") {
+        // Mismo caso que al cargar: si producción todavía no tiene la 0395,
+        // la función de 3 argumentos no existe. "Subir imagen" no necesita
+        // las columnas nuevas para nada, así que cae a la firma de siempre
+        // en vez de quedar bloqueada hasta que alguien pegue el SQL.
+        ({ error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl }));
+      }
       if (error) throw error;
       setFirma({ imagen: dataUrl, tipo, estilo: tipo === "tipografica" ? (estiloUsado ?? null) : null });
       setEditando(false);
