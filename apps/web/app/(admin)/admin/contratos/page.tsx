@@ -1088,11 +1088,13 @@ export default function ContratosPage() {
           </p>
         </header>
 
-        {/* DOS COLUMNAS: A LA IZQUIERDA A QUIÉN, A LA DERECHA QUÉ SE LE GENERA.
-            En una sola columna el generador quedaba emparedado entre dos listas
-            que juntas pasan largo de la pantalla: al pulsar «renovar» en un
-            pendiente había que bajar a buscarlo a ciegas, y al mirar el archivo
-            ya no se veía a quién se había elegido.
+        {/* DOS COLUMNAS: A LA IZQUIERDA A QUIÉN LE FALTA, A LA DERECHA SU PAPEL.
+            Izquierda: el buscador y los pendientes — la pregunta con la que se
+            abre esta pantalla. Derecha: el generador y, debajo, el archivo de lo
+            ya generado; los dos hablan del mismo contrato, así que van juntos.
+            En una sola columna el generador quedaba emparedado entre las dos
+            listas, que juntas pasan largo de la pantalla: al pulsar «renovar» en
+            un pendiente había que bajar a buscarlo a ciegas.
             Se parte en `xl` (1280 px) y no en `lg`: medido a 1024, la columna
             izquierda se queda en 521 px y los nombres empiezan a cortarse
             —«Danitza Gu…», «Felipe Alvar…»—, que es justo el dato por el que se
@@ -1102,7 +1104,7 @@ export default function ContratosPage() {
             y no al final: puesto después de las dos listas, en una pantalla
             angosta quedaría a un scroll largo de distancia. */}
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_30rem]">
-          <div className="min-w-0 space-y-6 xl:col-start-1 xl:row-start-1">
+          <div className="min-w-0 space-y-6 xl:col-start-1 xl:row-start-1 xl:row-span-2">
             {/* UN SOLO BUSCADOR PARA LAS DOS LISTAS. Filtra por nombre y por
                 sede, sin tildes: nadie escribe «Gutiérrez» con la tilde puesta
                 cuando lo que quiere es encontrarla. */}
@@ -1224,12 +1226,16 @@ export default function ContratosPage() {
             )}
           </div>
 
-          {/* EL GENERADOR SE QUEDA FIJO Y SCROLLEA POR DENTRO.
-              Un convenio de prácticas pide más campos de los que caben en una
-              pantalla, así que al llegar al botón «Generar borrador» ya no se veía
-              arriba a quién se le estaba generando. Con `xl:sticky` el panel entero
-              acompaña, y su propio scroll evita que empuje la página. */}
-          <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4 xl:sticky xl:top-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+          {/* EL GENERADOR, ARRIBA DE LA COLUMNA DERECHA, Y EL ARCHIVO DEBAJO.
+              Los dos hablan del MISMO contrato —uno lo crea, el otro guarda los
+              que ya salieron—, así que se leen seguidos: se elige a la persona
+              arriba y justo debajo está lo que esa persona ya tiene firmado.
+              El panel ya no va fijo (`sticky`). Lo estuvo mientras era lo único
+              de esta columna; con el archivo debajo, un panel clavado arriba se
+              solaparía con el archivo al hacer scroll, o se llevaría el scroll de
+              media pantalla para él solo. La columna entera acompaña a la página,
+              como la de la izquierda. */}
+          <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4 xl:col-start-2 xl:row-start-1">
             <div className="grid grid-cols-2 gap-3">
               <label className="text-sm">
                 Persona
@@ -1682,7 +1688,7 @@ export default function ContratosPage() {
               </>
             )}
           </section>
-          <section className="min-w-0 space-y-3 xl:col-start-1 xl:row-start-2">
+          <section className="min-w-0 space-y-3 xl:col-start-2 xl:row-start-2">
             <h2 className="font-serif text-lg">
               Archivo
               {porPersona.length > 0 && (
