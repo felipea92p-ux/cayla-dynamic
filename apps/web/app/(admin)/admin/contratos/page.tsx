@@ -82,7 +82,7 @@ function finDePlazo(inicioIso: string, meses: number): string {
 //
 // ESTA REGLA VIVE DOS VECES, y a propósito: acá para AVISAR antes de que
 // alguien llene ocho campos, y dentro de `fn_contrato_registrar` /
-// `fn_contrato_editar` (migración 0387), que son las que de verdad mandan —
+// `fn_contrato_editar` (migración 0388), que son las que de verdad mandan —
 // esta pantalla no es la única puerta a esa función. Si cambia una, cambia la
 // otra: el mismo trato que `jornada-esperada.ts` tiene con
 // `fn_recalcular_jornada`.
@@ -101,7 +101,7 @@ function seSolapan(aIni: string, aFin: string | null, bIni: string, bFin: string
  * nadie corrige una fecha a ese precio: volvería a generar otro documento,
  * que es justo el duplicado que esta migración viene a impedir.
  *
- * Nace con la 0387, así que un borrador anterior la tiene en null — la
+ * Nace con la 0388, así que un borrador anterior la tiene en null — la
  * pantalla lo dice al abrirlo en vez de fingir que los textos son los suyos.
  */
 // `type` y no `interface` a propósito: solo un alias de tipo recibe la firma
@@ -197,7 +197,7 @@ interface ContratoFila {
   comunicado_mtpe_at: string | null;
   anulado_at: string | null;
   anulado_motivo: string | null;
-  // Un borrador se puede corregir en su sitio (0387). Que se corrigió, y quién,
+  // Un borrador se puede corregir en su sitio (0388). Que se corrigió, y quién,
   // no se deduce: se anota, como todo lo que toca un documento que se firma.
   editado_at: string | null;
   editado_por: string | null;
@@ -278,7 +278,7 @@ const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
  *
  * Vive acá, y devuelve el objeto entero, porque hay DOS caminos que necesitan
  * la misma respuesta: elegir a alguien en el desplegable, y abrir para editar
- * un borrador anterior a la 0387 —que no guardó lo que se tecleó— y por tanto
+ * un borrador anterior a la 0388 —que no guardó lo que se tecleó— y por tanto
  * tiene que empezar de cero. Escritos por separado, el día que se agregue un
  * campo nuevo uno de los dos se queda sin reponerlo, y el formulario arrastra
  * al documento siguiente lo que quedó del anterior.
@@ -411,7 +411,7 @@ export default function ContratosPage() {
   const [anulando, setAnulando] = useState<string | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
 
-  // EL BORRADOR QUE SE ESTÁ CORRIGIENDO EN SU SITIO (0387).
+  // EL BORRADOR QUE SE ESTÁ CORRIGIENDO EN SU SITIO (0388).
   //
   // No nulo = el formulario dejó de generar documentos nuevos y está editando
   // este. Se guarda la fila entera y no solo el id porque de ella salen las
@@ -419,7 +419,7 @@ export default function ContratosPage() {
   // poder decir en pantalla cuál es sin volver a buscarlo en la lista.
   const [editando, setEditando] = useState<ContratoFila | null>(null);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
-  // Un borrador anterior a la 0387 no guardó lo que se tecleó. Se puede editar
+  // Un borrador anterior a la 0388 no guardó lo que se tecleó. Se puede editar
   // igual —fechas, cargo, tipo— pero los textos largos vuelven a arrancar en su
   // relleno, y eso hay que DECIRLO: reimprimir creyendo que se conservaron
   // sería peor que no poder editarlo.
@@ -854,7 +854,7 @@ export default function ContratosPage() {
   // un campo sin tocar no debe poder imprimirse como si fuera una respuesta.
   // Decisión de Felipe (2026-08-19).
   const bloqueos: string[] = [];
-  // ── Los dos candados contra el duplicado (0387) ───────────────────────────
+  // ── Los dos candados contra el duplicado (0388) ───────────────────────────
   // Van primero: si uno de estos dos habla, ninguno de los de abajo importa —
   // el documento entero sobra. Se dicen igual acá aunque la tarjeta de arriba
   // ya los explique con botones, porque esta lista es la que apaga el botón y
@@ -1084,7 +1084,7 @@ export default function ContratosPage() {
       p_horas_semanales: null,
       p_documento_html: html,
       // La foto de lo tecleado, para poder reabrir este borrador y corregirlo
-      // (0387) en vez de generar otro al lado.
+      // (0388) en vez de generar otro al lado.
       p_datos_formulario: camposActuales(),
     });
     setGenerando(false);

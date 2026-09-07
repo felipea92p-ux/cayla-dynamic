@@ -1,7 +1,7 @@
 -- ============================================================================
--- 307_un_borrador_se_corrige_no_se_duplica.test.sql
+-- 308_un_borrador_se_corrige_no_se_duplica.test.sql
 -- ============================================================================
--- Lo que promete la 0387, con el accidente que la motiva delante: el 4 de
+-- Lo que promete la 0388, con el accidente que la motiva delante: el 4 de
 -- setiembre de 2026 la misma persona quedó en producción con DOS convenios de
 -- prácticas idénticos —mismo tipo, mismo periodo, los dos sin firmar—, porque
 -- la pantalla no sabía corregir y el gesto natural para arreglar una fecha era
@@ -12,7 +12,7 @@
 -- contrato por definición), editar solo mide contra lo YA FIRMADO (medirlo
 -- contra los otros borradores encerraría justo a quien tiene dos pisados), y
 -- FIRMAR no mide nada (un papel que existe se archiva siempre — la promesa de
--- la 0287/0312 que la prueba 246 vigila y que la primera versión de la 0387
+-- la 0287/0312 que la prueba 246 vigila y que la primera versión de la 0388
 -- rompió).
 -- ============================================================================
 begin;
@@ -62,7 +62,7 @@ $$;
 
 -- ── LA SOBRECARGA · lo primero, porque su fallo no se ve al pegar ─────────
 -- `p_datos_formulario` es un parámetro nuevo y los doce anteriores tienen
--- valor por defecto: sin el `drop function` explícito de la 0387, un
+-- valor por defecto: sin el `drop function` explícito de la 0388, un
 -- `create or replace` habría dejado DOS funciones con este nombre, la llamada
 -- por nombre de la pantalla encajaría en las dos, y el generador de contratos
 -- moriría con «function is not unique» — al abrir la pantalla, no al pegar la
@@ -144,7 +144,7 @@ select lives_ok(
        '2027-01-01', '2027-12-31', '<p>beto renovacion</p>') $$,
   'La renovación que empieza al día siguiente del vencimiento entra: no se pisan');
 
--- LA PROMESA DE LA 0287/0312, que la primera versión de la 0387 rompió: un
+-- LA PROMESA DE LA 0287/0312, que la primera versión de la 0388 rompió: un
 -- papel firmado se archiva SIEMPRE, aunque su periodo pise a otro ya firmado.
 insert into contratos_generados
   (persona_id, tipo, cargo, sede_id, remuneracion_mensual, fecha_inicio, fecha_fin,
@@ -243,7 +243,7 @@ select throws_ok(
 
 
 -- ── DORA · la indulgencia deliberada al editar ────────────────────────────
--- Dos borradores pisados como los de Geison, metidos a mano porque la 0387 ya
+-- Dos borradores pisados como los de Geison, metidos a mano porque la 0388 ya
 -- no deja crearlos. Los dos tienen que poder abrirse para corregirse: si el
 -- candado de periodos mirara a los otros borradores, cada uno pisaría al otro y
 -- ninguno se podría arreglar — una trampa cerrada sobre los datos que esta

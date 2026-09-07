@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0387 · Un borrador se corrige, no se duplica
+-- 0388 · Un borrador se corrige, no se duplica
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -148,18 +148,18 @@ alter table contratos_generados add constraint contrato_datos_formulario_objeto
 
 comment on column contratos_generados.datos_formulario is
   'Foto de lo que se tecleó en /admin/contratos al generar este documento '
-  '(0387), para poder reabrirlo y corregirlo sin reescribir los veintiún '
+  '(0388), para poder reabrirlo y corregirlo sin reescribir los veintiún '
   'campos. NO es la verdad legal — esa es documento_html, que es el papel que '
-  'se imprime y se firma. NULL en todo lo generado antes de la 0387.';
+  'se imprime y se firma. NULL en todo lo generado antes de la 0388.';
 
 comment on column contratos_generados.editado_at is
-  'Cuándo se corrigió este borrador por última vez (0387). Solo un borrador se '
+  'Cuándo se corrigió este borrador por última vez (0388). Solo un borrador se '
   'edita: con escaneo firmado adentro, el papel manda y se corrige con adendum '
   'o anulación.';
 
 -- ── 2 · fn_contrato_registrar: los candados, y la foto del formulario ───────
 -- Cuerpo vigente: 0347_el_generador_de_contratos_hace_indefinidos.sql.
--- Los cambios van marcados CAMBIO 0387; el resto es idéntico.
+-- Los cambios van marcados CAMBIO 0388; el resto es idéntico.
 --
 -- El drop de la firma vieja NO es opcional — ver la advertencia de la cabecera.
 drop function if exists fn_contrato_registrar(
@@ -176,7 +176,7 @@ create or replace function fn_contrato_registrar(
   p_fecha_fin             date    default null,
   p_horas_semanales       numeric default null,
   p_documento_html        text    default null,
-  p_datos_formulario      jsonb   default null,   -- CAMBIO 0387
+  p_datos_formulario      jsonb   default null,   -- CAMBIO 0388
   p_id                    uuid    default null,   -- no nulo = adjuntar firma a un borrador existente
   p_storage_path          text    default null,
   p_fecha_firma           date    default null
@@ -306,7 +306,7 @@ begin
     raise exception 'Falta el texto del contrato.';
   end if;
 
-  -- ⇩⇩⇩ CAMBIO 0387 ⇩⇩⇩ CANDADO 1 · un solo borrador sin firmar por tipo.
+  -- ⇩⇩⇩ CAMBIO 0388 ⇩⇩⇩ CANDADO 1 · un solo borrador sin firmar por tipo.
   -- Un documento sin firmar es un borrador, y un borrador se corrige — para eso
   -- existe `fn_contrato_editar`. Si ya hay uno de este tipo esperando firma, el
   -- segundo sobra siempre, tenga las fechas que tenga.
@@ -320,7 +320,7 @@ begin
     raise exception 'Esa persona ya tiene un documento de ese tipo sin firmar. Edítalo o anúlalo: no se generan dos.';
   end if;
 
-  -- ⇩⇩⇩ CAMBIO 0387 ⇩⇩⇩ CANDADO 2 · nada de periodos pisados.
+  -- ⇩⇩⇩ CAMBIO 0388 ⇩⇩⇩ CANDADO 2 · nada de periodos pisados.
   -- Acá se mide contra TODOS los no anulados —firmados o no—: al generar aún no
   -- hay nada que rescatar, así que no hace falta la indulgencia que sí necesita
   -- editar. El adendum queda fuera por los dos lados.
@@ -512,8 +512,8 @@ returns table (
   comunicado_mtpe_at    date,
   anulado_at            timestamptz,
   anulado_motivo        text,
-  editado_at            timestamptz,   -- CAMBIO 0387
-  editado_por           text,          -- CAMBIO 0387
+  editado_at            timestamptz,   -- CAMBIO 0388
+  editado_por           text,          -- CAMBIO 0388
   vigente               boolean
 )
 language sql
@@ -550,7 +550,7 @@ grant execute on function fn_contratos_listar(uuid) to authenticated;
 revoke execute on function fn_contratos_listar(uuid) from public, anon;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (387, 'un_borrador_se_corrige_no_se_duplica')
+values (388, 'un_borrador_se_corrige_no_se_duplica')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
