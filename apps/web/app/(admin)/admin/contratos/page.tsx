@@ -1453,6 +1453,7 @@ export default function ContratosPage() {
   const contadores: { clave: string; etiqueta: string; n: number; grave: boolean }[] = [
     { clave: "desnaturalizado", etiqueta: "Riesgo art. 77", n: cuenta("desnaturalizado"), grave: true },
     { clave: "sin_firmar", etiqueta: "Sin escaneado", n: cuenta("sin_firmar"), grave: false },
+    { clave: "vencido", etiqueta: "Vencidos", n: cuenta("vencido"), grave: true },
     { clave: "por_vencer", etiqueta: "Vencen en 30 días", n: cuenta("por_vencer"), grave: false },
   ];
 
