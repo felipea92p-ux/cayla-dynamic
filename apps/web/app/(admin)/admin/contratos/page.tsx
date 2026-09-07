@@ -442,6 +442,13 @@ export default function ContratosPage() {
   // primero en Equipo). Sin esto, `persona.practicante_modalidad` sale
   // siempre null para esa persona y no hay de dónde sacar 30h/48h.
   const [modalidadManualEditada, setModalidadManualEditada] = useState<"preprofesional" | "profesional" | "">("");
+  // Identifica a la persona como practicante DESDE QUE SE GENERA el convenio,
+  // no desde que se firma — a diferencia de un contrato de trabajo, que sí
+  // necesita el papel firmado para ser real, la decisión de traer a alguien
+  // como practicante ya se tomó antes de sentarse a redactarle el convenio.
+  // Solo aplica mientras la ficha (Equipo) todavía no dice tipo_vinculo=
+  // practicante — si ya lo dice, no hay nada que aplicar.
+  const [aplicarModalidadFicha, setAplicarModalidadFicha] = useState(true);
   // Anexo I — Plan Específico de Aprendizaje (0348, ambas modalidades).
   const [areaProyectoEditado, setAreaProyectoEditado] = useState("");
   const [objetivoFormativoGeneralEditado, setObjetivoFormativoGeneralEditado] = useState("");
@@ -1192,10 +1199,37 @@ export default function ContratosPage() {
       avisar("error", mensajeDeError(error, "generar el contrato"));
       return;
     }
+
+    // Identificar a la persona como practicante nace AQUÍ, al generar el
+    // convenio — no al firmarlo. Solo aplica cuando la modalidad se eligió a
+    // mano (la ficha todavía no dice tipo_vinculo=practicante): si ya lo dice,
+    // `modalidadManualEditada` ni se muestra y esto no tiene nada que hacer.
+    // Usa las mismas funciones guardián de Equipo (0324), así que el cambio
+    // queda auditado en correcciones_auditoria igual que uno hecho a mano.
+    let avisoModalidad = "";
+    if (datosParaGenerar.tipo === "convenio_practicas" && aplicarModalidadFicha && modalidadManualEditada) {
+      const { error: errorVinculo } = await supabase.rpc("fn_set_tipo_vinculo", {
+        p_persona_id: persona.id,
+        p_tipo: "practicante",
+      });
+      const { error: errorModalidad } = errorVinculo
+        ? { error: errorVinculo }
+        : await supabase.rpc("fn_set_practicante_modalidad", {
+            p_persona_id: persona.id,
+            p_modalidad: modalidadManualEditada,
+          });
+      avisoModalidad = errorVinculo || errorModalidad
+        ? ` Ojo: no se pudo aplicar la modalidad a su ficha (${mensajeDeError(errorVinculo ?? errorModalidad, "actualizar Equipo")}) — hazlo a mano en Equipo.`
+        : ` Se marcó a ${persona.nombres} ${persona.apellidos} como practicante ${modalidadManualEditada} en su ficha, así que Incidencias ya avisa contra su tope de horas.`;
+    }
+
     setDocumentoAbierto(null);
     setBorrador({ id: id as string, html });
     await cargar();
-    avisar("ok", "Borrador generado. Revísalo, imprímelo y fírmalo; después sube el escaneo desde el historial.");
+    avisar(
+      "ok",
+      `Borrador generado. Revísalo, imprímelo y fírmalo; después sube el escaneo desde el historial.${avisoModalidad}`,
+    );
   }
 
   /**
@@ -1982,9 +2016,24 @@ export default function ContratosPage() {
                           </select>
                         </label>
                         <p className="text-xs text-taupe">
-                          {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
-                          convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
+                          {persona.nombres} no está marcada como practicante en su ficha (Equipo) todavía.
                         </p>
+                        {modalidadManualEditada && (
+                          <label className="flex items-start gap-2 rounded-lg border border-sand bg-hueso p-2 text-xs">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={aplicarModalidadFicha}
+                              onChange={(e) => setAplicarModalidadFicha(e.target.checked)}
+                            />
+                            <span>
+                              Al generar, marcar a {persona.nombres} como practicante {modalidadManualEditada} en su
+                              ficha (Equipo) — activa el aviso de{" "}
+                              {maximoSemanalPracticante("practicante", modalidadManualEditada)}h/semana en Incidencias
+                              (art. 44, Ley 28518).
+                            </span>
+                          </label>
+                        )}
                       </>
                     )}
                     {/* El preprofesional es TRIPARTITO (CAYLA + centro de
