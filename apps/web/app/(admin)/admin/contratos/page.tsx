@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -1551,9 +1550,6 @@ export default function ContratosPage() {
 
   return (
     <main className="p-6">
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
 
       <div className="mx-auto max-w-6xl space-y-6 print:hidden">
         <header>

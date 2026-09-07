@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, type Area } from "@/lib/areas";
-import { AdminNav } from "../nav";
 import { Marca } from "@/components/marca";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -267,10 +266,7 @@ function ReporteSedeContenido() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 sm:p-8 print:p-0">
         {/* Controles — no salen en el PDF */}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
