@@ -136,6 +136,16 @@
     outline: 2px solid var(--color-rojo);
     outline-offset: 2px;
   }
+
+  /* Tailwind v4 cambió el cursor por defecto de <button> a `default` (antes
+     era `pointer` en todo navegador). Sin esto, cualquier botón sin :hover
+     que lo repusiera a mano no daba ninguna señal de que fuera interactivo
+     ni con teclado ni con mouse — agregado el 2026-09-07 al medir el mismo
+     problema en el terminal (components.tsx: las casillas de nombre), pero
+     alcanza a las 24 pantallas del panel de una sola vez. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* La "vitalidad" del botón primario (prende en el acento sagrado al pasar el

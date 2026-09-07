@@ -1102,9 +1102,13 @@ export default function CorreccionesPage() {
           </div>
         )}
 
-        {/* Modal: motivo de la corrección */}
+        {/* Modal: motivo de la corrección. z-40, no z-10: es el piso que ya usa
+            Modal (el compartido) y el resto de los diálogos del panel. En z-10
+            este modal —el que decide si un marcaje se edita o se anula—
+            quedaba en el mismo piso que el encabezado pegajoso de Tabla
+            (components/ui/tabla.tsx:19). */}
         {accion && (
-          <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4" onClick={() => !procesando && setAccion(null)}>
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => !procesando && setAccion(null)}>
             <div className="w-full max-w-md rounded-xl bg-crema p-6 border border-sand" onClick={(e) => e.stopPropagation()}>
               <h3 className="mb-2 font-serif text-lg">
                 {accion.modo === "editar" && "Confirmar la corrección"}

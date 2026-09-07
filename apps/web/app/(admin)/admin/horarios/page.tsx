@@ -305,8 +305,10 @@ export default function HorariosPage() {
           );
         })}
 
+        {/* z-40, no z-10: mismo piso que Modal y el resto de los diálogos del
+            panel — z-10 coincidía con el encabezado pegajoso de Tabla. */}
         {editando && (
-          <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardando && setEditando(null)}>
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardando && setEditando(null)}>
             <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
               <h3 className="mb-1 font-serif text-lg">Horario de {editando.nombres} {editando.apellidos}</h3>
               <p className="mb-4 text-sm text-taupe">El nuevo horario aplica desde la fecha que elijas en adelante.</p>

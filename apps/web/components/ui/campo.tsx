@@ -91,3 +91,27 @@ export function CampoSelect({
     </label>
   );
 }
+
+// Sin este primitivo, las 17 casillas del panel se escriben sueltas y en tres
+// formas distintas: 14 sin ninguna clase (salen en el azul del sistema
+// operativo, ninguno de los once colores de la marca), "size-4" en horas, y
+// "h-4 w-4 accent-tinta" en equipo — el único de los tres que sí usa el
+// color de la marca. CampoCasilla generaliza ese último patrón. La etiqueta
+// va EN FILA (no en columna, como Campo/CampoSelect): una casilla y su texto
+// son una sola unidad de lectura, y ponerlos uno encima del otro es la
+// disposición equivocada.
+export function CampoCasilla({
+  etiqueta,
+  error,
+  id,
+  className,
+  ...props
+}: BaseProps & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="flex items-center gap-2">
+      <input type="checkbox" id={id} className={cx("size-4 accent-tinta disabled:opacity-50", className)} {...props} />
+      {etiqueta && <span className="text-sm text-tinta">{etiqueta}</span>}
+      {error && <span className="text-xs text-rojo">{error}</span>}
+    </label>
+  );
+}

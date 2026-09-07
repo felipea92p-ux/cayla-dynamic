@@ -8,7 +8,14 @@ import type { RosterEntry } from "@/lib/terminal/offline-db";
 import { inicialesDe, urlPublicaFotoPerfil } from "@/lib/foto-perfil";
 
 // Estilos compartidos de la superficie clara del terminal (crema, líneas finas Sand).
-const TILE = "rounded-xl border border-sand bg-sand/35 transition-colors hover:bg-sand/70 active:scale-95";
+// El borde de TILE pasó de border-sand a border-taupe (sólido, sin diluir):
+// medido, sand sobre crema daba 1,16:1 en claro y 1,29:1 en oscuro —muy por
+// debajo del 3:1 que WCAG 1.4.11 exige para el límite de un control—, y ni
+// siquiera taupe diluido (probado 30-60% de opacidad) llega a 3:1. Taupe
+// sólido sí: 5,21:1 en claro, 5,82:1 en oscuro. El hover ahora también mueve
+// el borde a rojo, no solo el relleno un 35% más oscuro —una diferencia que
+// a un metro de distancia no se nota.
+const TILE = "rounded-xl border border-taupe bg-sand/35 transition-colors hover:border-rojo hover:bg-sand/70 active:scale-95";
 const BTN_PRIMARIO = "rounded-xl bg-rojo px-5 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo active:scale-95";
 const BTN_SECUNDARIO = "rounded-xl border border-sand px-5 py-3 text-tinta transition-colors hover:bg-sand/50";
 
@@ -117,7 +124,13 @@ export function NombreGrid({
   }
 
   return (
-    <div className="grid w-full max-w-2xl grid-cols-2 gap-3 sm:grid-cols-3">
+    // max-w-2xl (672px) y tope en sm:grid-cols-3 dimensionaban esto para un
+    // teléfono, no para el monitor de una Mac mini de sede: en 1920px la
+    // grilla usaba un tercio de la pantalla y una fila de 13+ personas
+    // empujaba a la número 13 fuera de la vista, sin scroll propio que lo
+    // avisara — la página entera se desplazaba, con las barras ocultas de
+    // macOS. Central y el taller de Lima son las sedes con más gente.
+    <div className="grid w-full max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {roster.map((persona) => (
         <button
           key={persona.id}
