@@ -27,6 +27,8 @@ export function CajonAdmin({
   nombre,
   onCerrarSesion,
   volverElFocoA,
+  cerrados,
+  onAlternarGrupo,
 }: {
   abierto: boolean;
   onCerrar: () => void;
@@ -35,6 +37,8 @@ export function CajonAdmin({
   contadores: Contadores;
   nombre?: string;
   onCerrarSesion: () => void;
+  cerrados: ReadonlySet<string>;
+  onAlternarGrupo: (etiqueta: string) => void;
   /** La hamburguesa que lo abrió, para devolverle el foco al cerrar. */
   volverElFocoA: React.RefObject<HTMLButtonElement | null>;
 }) {
@@ -114,6 +118,8 @@ export function CajonAdmin({
             pathname={pathname}
             contadores={contadores}
             modo="cajon"
+            cerrados={cerrados}
+            onAlternarGrupo={onAlternarGrupo}
             onNavegar={onCerrar}
           />
         </nav>

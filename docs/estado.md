@@ -58,6 +58,16 @@ encabezado son 64px fijos.
 rail de 64px solo con iconos · <768px cajón sobre velo. El botón de plegar gana
 sobre el ancho y se recuerda en localStorage, como el tema.
 
+**Y cada grupo se contrae desde su título**, con su chevron, también recordado.
+Hacía falta: desplegado y con los siete grupos abiertos el menú mide 1303px
+contra los ~790 que se ven en un portátil, o sea que Configuración quedaba
+debajo del pliegue. Contrayendo cuatro grupos baja a 801px y cabe entero.
+**En rail NO se contraen, a propósito:** ahí no hay títulos, así que no habría
+dónde volver a pulsar y quien hubiera contraído «Nómina» se quedaría sin
+Planilla hasta ensanchar la ventana. Y si la pantalla en la que estás vive en un
+grupo contraído, su título se pinta en tinta en vez de taupe — sin eso, cerrar
+el grupo en el que estás borra la única señal de dónde estás.
+
 **La reagrupación, que es la parte que hay que discutir si algo se discute:**
 
 - **«Ausencias» sale de Nómina y entra a Asistencia.** Era el único renglón de

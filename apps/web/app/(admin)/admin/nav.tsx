@@ -28,7 +28,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
-import { useNavColapsado } from "@/lib/use-nav-colapsado";
+import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { BuscadorGlobal } from "@/components/buscador-global";
@@ -64,6 +64,7 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   const rol = persona?.rol ?? null;
 
   const { modo, expandido, alternar } = useNavColapsado();
+  const { cerrados, alternarGrupo } = useGruposCerrados();
   const [cajonAbierto, setCajonAbierto] = useState(false);
   const hamburguesa = useRef<HTMLButtonElement>(null);
 
@@ -219,6 +220,8 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
         modo={modo}
         expandido={expandido}
         onAlternar={alternar}
+        cerrados={cerrados}
+        onAlternarGrupo={alternarGrupo}
       />
 
       <CajonAdmin
@@ -230,6 +233,8 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
         nombre={persona?.nombreCompleto}
         onCerrarSesion={cerrarSesion}
         volverElFocoA={hamburguesa}
+        cerrados={cerrados}
+        onAlternarGrupo={alternarGrupo}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
