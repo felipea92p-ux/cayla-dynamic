@@ -46,6 +46,21 @@ interface ItemEducacion {
   semaforo: "sin_comprobante" | "vencida" | "por_vencer" | "vigente";
 }
 
+/** Alguien que trabajó días que su horario no cubre (mig. 0385). La función ya
+ *  excluye a quien no le toca llevar horario (RxH y personal de dirección), así
+ *  que todo lo que llega aquí es un hueco de verdad. */
+interface ItemSinHorario {
+  persona_id: string; nombre: string; sede: string;
+  dias: number; primer_dia: string; ultimo_dia: string;
+  nunca_tuvo_horario: boolean;
+}
+function detalleSinHorario(h: ItemSinHorario): string {
+  const dias = `${h.dias} día${h.dias === 1 ? "" : "s"}`;
+  return h.nunca_tuvo_horario
+    ? `${dias} · nunca se le cargó un horario`
+    : `${dias} sin cubrir · ${h.primer_dia} a ${h.ultimo_dia}`;
+}
+
 interface ItemVacacion {
   persona_id: string;
   persona: string;
@@ -136,6 +151,7 @@ export default function BandejaPage() {
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
   const [educacion, setEducacion] = useState<ItemEducacion[]>([]);
   const [vacaciones, setVacaciones] = useState<ItemVacacion[]>([]);
+  const [sinHorario, setSinHorario] = useState<ItemSinHorario[]>([]);
   const [revisiones, setRevisiones] = useState<ItemRevision[]>([]);
   const [solicitudesVacaciones, setSolicitudesVacaciones] = useState<ItemSolicitudVacacion[]>([]);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
@@ -175,6 +191,13 @@ export default function BandejaPage() {
         }),
       );
       tareas.push(
+        // Falla suave a propósito: si la base todavía no tiene la 0385, la
+        // bandeja sigue funcionando igual, solo sin esta sección.
+        supabase.rpc("fn_personas_sin_horario_vigente", { p_dias: 60 }).then(({ data }) => {
+          setSinHorario((data as unknown as ItemSinHorario[]) ?? []);
+        }),
+      );
+      tareas.push(
         supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }).then(({ data, error }) => {
           if (error) { avisar("error", mensajeDeError(error, "cargar revisiones pedidas")); return; }
           setRevisiones((data as unknown as ItemRevision[]) ?? []);
@@ -183,6 +206,7 @@ export default function BandejaPage() {
     } else {
       setVacaciones([]);
       setRevisiones([]);
+      setSinHorario([]);
     }
 
     if (puedeResolverVacaciones) {
@@ -251,7 +275,7 @@ export default function BandejaPage() {
     ? resumenAlertas.atascadas + resumenAlertas.fallidas_definitivas + resumenAlertas.caducadas
     : 0;
 
-  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length + alertasConProblema;
+  const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length + alertasConProblema + sinHorario.length;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -401,6 +425,35 @@ export default function BandejaPage() {
                     </li>
                   ))}
                 </ul>
+              </section>
+            )}
+
+            {sinHorario.length > 0 && (
+              <section>
+                <h2 className="mb-1 font-serif text-lg">
+                  {sinHorario.length} persona{sinHorario.length === 1 ? "" : "s"} trabajó sin horario vigente
+                </h2>
+                <p className="mb-3 max-w-2xl text-xs leading-relaxed text-taupe">
+                  Marcaron días que ningún horario suyo cubre. Esos días no miden tardanza, ni
+                  salida anticipada, ni tiempo adicional — y si a alguien le cae un descanso médico
+                  o una licencia dentro del hueco, se le paga en cero, sin que nada falle. Suele
+                  ocurrir cuando se cambia el horario de una tienda y el tramo nuevo empieza unos
+                  días después de que terminó el anterior. Quien no lleva horario por su vínculo no
+                  aparece acá.
+                </p>
+                <ul className="space-y-2">
+                  {sinHorario.map((h) => (
+                    <li key={h.persona_id} className="rounded-xl border border-sand p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span><strong>{h.nombre}</strong> <span className="text-taupe">· {h.sede}</span></span>
+                        <span className={h.nunca_tuvo_horario ? "text-rojo" : "text-ambar"}>{detalleSinHorario(h)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/admin/horarios" className="mt-2 inline-block text-sm text-taupe hover:text-rojo">
+                  Ir a Horarios →
+                </Link>
               </section>
             )}
 
