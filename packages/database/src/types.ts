@@ -1948,18 +1948,24 @@ export type Database = {
       firmas_escaneadas: {
         Row: {
           actualizado_at: string
+          estilo: string | null
           imagen: string
           persona_id: string
+          tipo: string
         }
         Insert: {
           actualizado_at?: string
+          estilo?: string | null
           imagen: string
           persona_id: string
+          tipo?: string
         }
         Update: {
           actualizado_at?: string
+          estilo?: string | null
           imagen?: string
           persona_id?: string
+          tipo?: string
         }
         Relationships: [
           {
@@ -4508,6 +4514,19 @@ export type Database = {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
       }
+      fn_contrato_editar: {
+        Args: {
+          p_cargo?: string | null
+          p_datos_formulario?: Json | null
+          p_documento_html?: string | null
+          p_fecha_fin?: string | null
+          p_fecha_inicio?: string | null
+          p_id?: string | null
+          p_remuneracion_mensual?: number | null
+          p_tipo?: string | null
+        }
+        Returns: string
+      }
       fn_contrato_firmado_vigente_de: {
         Args: { p_persona_id: string | null }
         Returns: {
@@ -4552,19 +4571,6 @@ export type Database = {
           p_motivo: string | null
           p_persona_id: string | null
           p_puede_borrar?: boolean | null
-        }
-        Returns: string
-      }
-      fn_contrato_editar: {
-        Args: {
-          p_cargo?: string | null
-          p_datos_formulario?: Json | null
-          p_documento_html?: string | null
-          p_fecha_fin?: string | null
-          p_fecha_inicio?: string | null
-          p_id?: string | null
-          p_remuneracion_mensual?: number | null
-          p_tipo?: string | null
         }
         Returns: string
       }
@@ -4770,18 +4776,6 @@ export type Database = {
           periodo_pagado: boolean
           persona_id: string
           sede: string
-        }[]
-      }
-      fn_personas_sin_horario_vigente: {
-        Args: { p_dias?: number | null }
-        Returns: {
-          dias: number
-          nombre: string
-          nunca_tuvo_horario: boolean
-          persona_id: string
-          primer_dia: string
-          sede: string
-          ultimo_dia: string
         }[]
       }
       fn_dias_suspension: {
@@ -5448,6 +5442,14 @@ export type Database = {
         }[]
       }
       fn_mi_firma: { Args: never; Returns: string }
+      fn_mi_firma_config: {
+        Args: never
+        Returns: {
+          estilo: string
+          imagen: string
+          tipo: string
+        }[]
+      }
       fn_objetivo_agregar: {
         Args: {
           p_anio: number | null
@@ -5540,6 +5542,18 @@ export type Database = {
         Returns: boolean
       }
       fn_personas_funciones: { Args: never; Returns: Json }
+      fn_personas_sin_horario_vigente: {
+        Args: { p_dias?: number | null }
+        Returns: {
+          dias: number
+          nombre: string
+          nunca_tuvo_horario: boolean
+          persona_id: string
+          primer_dia: string
+          sede: string
+          ultimo_dia: string
+        }[]
+      }
       fn_planilla_calcular: {
         Args: { p_fin: string | null; p_ini: string | null; p_periodo_id?: string | null }
         Returns: Json
@@ -5948,7 +5962,10 @@ export type Database = {
         Args: { p_dia_semana: number | null; p_meta: number | null; p_sede_id: string | null }
         Returns: undefined
       }
-      fn_set_mi_firma: { Args: { p_dataurl: string | null }; Returns: undefined }
+      fn_set_mi_firma: {
+        Args: { p_dataurl: string | null; p_estilo?: string | null; p_tipo?: string | null }
+        Returns: undefined
+      }
       fn_set_objetivos: {
         Args: {
           p_anio: number | null
@@ -6191,6 +6208,7 @@ export type Database = {
         Args: { p_persona_objetivo: string | null }
         Returns: string
       }
+      tmp_side_effect2: { Args: never; Returns: number[] }
     }
     Enums: {
       estado_jornada:

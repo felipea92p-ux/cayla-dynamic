@@ -12,6 +12,7 @@ import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
 import { MESES, lecturaObjetivos, type ObjetivoItem } from "@/lib/objetivos";
 import { useToast } from "@/components/toast";
+import { FirmaEditor } from "./FirmaEditor";
 
 const META_DIA = 7.5; // horas objetivo por día (45h/semana)
 
@@ -132,8 +133,6 @@ export default function PerfilPersonaPage() {
   const [intento, setIntento] = useState(0);
   const reintentar = () => setIntento((n) => n + 1);
   const [incluirSueldo, setIncluirSueldo] = useState(true); // controla si el sueldo entra al PDF
-  const [miFirma, setMiFirma] = useState<string | null>(null);
-  const [subiendoFirma, setSubiendoFirma] = useState(false);
   const [vacas, setVacas] = useState<VacacionesSaldo | null>(null);
   const [contrato, setContrato] = useState<ContratoPorVencer | null>(null);
 
@@ -290,104 +289,6 @@ export default function PerfilPersonaPage() {
 
   // "Mi firma": solo en TU propio perfil, si puedes firmar (admin/líder).
   const esMiPerfil = !!yo && yo.id === id;
-  useEffect(() => {
-    if (!esMiPerfil) return;
-    void (async () => {
-      const { data } = await supabase.rpc("fn_mi_firma");
-      if (typeof data === "string" && data.startsWith("data:image")) setMiFirma(data);
-    })();
-  }, [esMiPerfil, supabase, id]);
-
-  async function subirFirma(file: File) {
-    setSubiendoFirma(true);
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
-        reader.onload = () => {
-          const img = new Image();
-          img.onerror = () => reject(new Error("La imagen no es válida."));
-          img.onload = () => {
-            const s0 = Math.min(1, 1000 / img.width);
-            const cw = Math.round(img.width * s0), ch = Math.round(img.height * s0);
-            const src = document.createElement("canvas");
-            src.width = cw; src.height = ch;
-            const sctx = src.getContext("2d");
-            if (!sctx) return reject(new Error("Sin canvas."));
-            sctx.drawImage(img, 0, 0, cw, ch);
-            // Recorta el rectángulo de la firma (píxeles con tinta) quitando el blanco
-            // del escaneo — así la firma llena el marco y no sale diminuta.
-            const d = sctx.getImageData(0, 0, cw, ch).data;
-            const rowInk = new Array(ch).fill(0), colInk = new Array(cw).fill(0);
-            for (let y = 0; y < ch; y++) {
-              for (let x = 0; x < cw; x++) {
-                const i = (y * cw + x) * 4;
-                const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-                if (d[i + 3] > 40 && lum < 210) { rowInk[y]++; colInk[x]++; }
-              }
-            }
-            // Recorte por DENSIDAD: descarta filas/columnas casi vacías (puntitos sueltos,
-            // borde del papel, sombras) que antes inflaban el recorte y dejaban espacio muerto.
-            let rowMax = 1, colMax = 1;
-            for (let y = 0; y < ch; y++) if (rowInk[y] > rowMax) rowMax = rowInk[y];
-            for (let x = 0; x < cw; x++) if (colInk[x] > colMax) colMax = colInk[x];
-            const rThr = rowMax * 0.05, cThr = colMax * 0.05;
-            let minX = 0, minY = 0, maxX = cw - 1, maxY = ch - 1;
-            while (minY < maxY && rowInk[minY] < rThr) minY++;
-            while (maxY > minY && rowInk[maxY] < rThr) maxY--;
-            while (minX < maxX && colInk[minX] < cThr) minX++;
-            while (maxX > minX && colInk[maxX] < cThr) maxX--;
-            const pad = Math.round(Math.min(cw, ch) * 0.02);
-            minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
-            maxX = Math.min(cw - 1, maxX + pad); maxY = Math.min(ch - 1, maxY + pad);
-            const bw = maxX - minX + 1, bh = maxY - minY + 1;
-            const s1 = Math.min(1, 520 / bw);
-            const ow = Math.max(1, Math.round(bw * s1)), oh = Math.max(1, Math.round(bh * s1));
-            const out = document.createElement("canvas");
-            out.width = ow; out.height = oh;
-            const octx = out.getContext("2d");
-            if (!octx) return reject(new Error("Sin canvas."));
-            octx.drawImage(src, minX, minY, bw, bh, 0, 0, ow, oh);
-            // EL FONDO DEL PAPEL SE VUELVE TRANSPARENTE, NO BLANCO.
-            //
-            // El recorte de arriba deja la firma ajustada, pero el blanco del
-            // escaneo seguía siendo opaco. Sobre la raya de un contrato eso se
-            // ve como una pegatina blanca encima de la línea — que es
-            // exactamente lo que reportó Felipe al imprimir el primero.
-            //
-            // El borde no se corta en seco: entre 160 y 240 de luminosidad se
-            // desvanece proporcionalmente, para que el antialiasing del trazo
-            // no quede como un dentado duro.
-            const salida = octx.getImageData(0, 0, ow, oh);
-            const px = salida.data;
-            for (let i = 0; i < px.length; i += 4) {
-              const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-              if (lum >= 240) px[i + 3] = 0;
-              else if (lum > 160) px[i + 3] = Math.round(px[i + 3] * ((240 - lum) / 80));
-            }
-            octx.putImageData(salida, 0, 0);
-            resolve(out.toDataURL("image/png"));
-          };
-          img.src = reader.result as string;
-        };
-        reader.readAsDataURL(file);
-      });
-      const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl });
-      if (error) throw error;
-      setMiFirma(dataUrl);
-      avisar("ok", "Firma guardada. Aparecerá en los memos leves que firmes.");
-    } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo guardar la firma.");
-    } finally {
-      setSubiendoFirma(false);
-    }
-  }
-  async function quitarFirma() {
-    setSubiendoFirma(true);
-    const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
-    if (!error) { setMiFirma(null); avisar("ok", "Firma quitada."); }
-    setSubiendoFirma(false);
-  }
 
   if (rol !== null && !puede) {
     return (
@@ -637,25 +538,8 @@ export default function PerfilPersonaPage() {
                   {esMiPerfil && puedeSalario && (
                     <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
                       <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
-                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Sube una foto o escaneo de tu firma, mejor sobre fondo blanco. Despido/imputación van con firma a mano o digital certificada.</p>
-                      <div className="flex flex-wrap items-center gap-4">
-                        {miFirma ? (
-                          <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
-                            <div className="flex h-20 items-end justify-center">
-                              <img src={miFirma} alt="Tu firma" className="block h-20 w-auto max-w-full" />
-                            </div>
-                            <div className="border-t border-tinta/40 pt-1 text-[11px] text-taupe">Así se verá sobre la línea del memo</div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-taupe">Aún no has subido tu firma.</span>
-                        )}
-                        <label className="cursor-pointer rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
-                          {subiendoFirma ? "Guardando…" : miFirma ? "Cambiar firma" : "Subir firma"}
-                          <input type="file" accept="image/png,image/jpeg" className="hidden" disabled={subiendoFirma}
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirFirma(f); e.target.value = ""; }} />
-                        </label>
-                        {miFirma && <button onClick={() => void quitarFirma()} disabled={subiendoFirma} className="text-xs text-rojo hover:underline">Quitar</button>}
-                      </div>
+                      <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Despido/imputación van con firma a mano o digital certificada.</p>
+                      <FirmaEditor supabase={supabase} nombreOficial={ficha?.nombre_dni || nombre} avisar={avisar} />
                     </section>
                   )}
                 </div>

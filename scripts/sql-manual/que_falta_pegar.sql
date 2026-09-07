@@ -259,7 +259,8 @@ with repo(numero, nombre, nunca) as (values
     (388, 'un_borrador_se_corrige_no_se_duplica', false),
     (390, 'el_motor_de_faltas_desempata_como_el_de_tardanzas', false),
     (391, 'las_cuatro_que_quedaban_del_mismo_empate', false),
-    (392, 'los_guardianes_de_retail_dejan_de_colarse_por_el_or_suelto', false)
+    (392, 'los_guardianes_de_retail_dejan_de_colarse_por_el_or_suelto', false),
+    (395, 'firma_con_tres_metodos', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
