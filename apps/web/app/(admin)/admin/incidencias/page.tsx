@@ -94,6 +94,13 @@ interface RevisionPedida {
   fecha: string; comentario: string; pedida_at: string;
 }
 
+// Fila de fn_contratos_tablero (0336) que interesa acá: una practicante cuyo
+// convenio ya superó, o está por superar, el tope legal de 12 meses.
+interface PracticanteSobreTope {
+  persona_id: string; persona: string; sede: string;
+  estado: string; dias_restantes: number | null;
+}
+
 const MOTIVO_LABEL = (m: string | null | undefined) => MOTIVOS.find((x) => x.valor === m)?.label ?? m ?? "";
 
 // Qué dice el botón de visto bueno en cada incidencia. El texto no es decoración:
@@ -198,6 +205,7 @@ function IncidenciasContenido() {
   const [revisiones, setRevisiones] = useState<RevisionPedida[]>([]);
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [atendiendo, setAtendiendo] = useState<string | null>(null);
+  const [practicantesSobreTope, setPracticantesSobreTope] = useState<PracticanteSobreTope[]>([]);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -224,6 +232,7 @@ function IncidenciasContenido() {
       { data: levTardData },
       { data: horasSemanaData },
       { data: diasRachaData },
+      { data: contratosData },
     ] = await Promise.all([
       // Las dos consultas a jornadas van por lotes: PostgREST cortaba en 1000
       // filas sin avisar, así que incidencias reales dejaban de listarse — y la
@@ -317,6 +326,11 @@ function IncidenciasContenido() {
           .order("persona_id")
           .range(ini, fin),
       ),
+      // Tope de 12 meses del convenio de una practicante (Ley 28518 art. 30,
+      // 0336). No es un dato nuevo: `fn_contratos_tablero` ya lo calcula para
+      // el tablero de Contratos — acá solo se filtra a las filas que importan
+      // en ESTA pantalla. Falla suave: si no llega, no se muestra el aviso.
+      supabase.rpc("fn_contratos_tablero"),
     ]);
 
     if (errData || errTardias || errSedes || errEnc || errMetas || errHorarios || errTurnos) {
@@ -629,6 +643,19 @@ function IncidenciasContenido() {
       });
     }
 
+    // Practicantes sobre (o cerca de) el tope de 12 meses de su convenio.
+    // `fn_contratos_tablero` ya distingue esto con `tipo = 'convenio_practicas'`
+    // y un `estado` que, para una practicante, viene calculado contra el tope
+    // legal — no contra la fecha que tenga escrita el convenio (0336). No es
+    // un conteo de incidencias: es un aviso aparte, porque el riesgo de
+    // desnaturalización existe aunque la practicante venga marcando todos
+    // los días con normalidad.
+    setPracticantesSobreTope(
+      ((contratosData as { persona_id: string; persona: string; sede: string; tipo: string; estado: string; dias_restantes: number | null }[] | null) ?? [])
+        .filter((c) => c.tipo === "convenio_practicas" && (c.estado === "vencido" || c.estado === "por_vencer"))
+        .map((c) => ({ persona_id: c.persona_id, persona: c.persona, sede: c.sede, estado: c.estado, dias_restantes: c.dias_restantes })),
+    );
+
     setFilas(out);
     setCargando(false);
   }, [router, desde, hasta]);
@@ -840,6 +867,45 @@ function IncidenciasContenido() {
                       {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
                     </button>
                   </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Tope de 12 meses del convenio (0336) — aviso, no conteo. Una
+            practicante puede venir marcando con normalidad todos los días y
+            aun así estar en riesgo de que su convenio se considere
+            desnaturalizado (Ley 28518, art. 30); eso no se ve en ninguna
+            falta ni tardanza, así que necesita su propio aviso acá, donde DO
+            ya está mirando la asistencia de esa persona. La acción vive en
+            Contratos, no acá: renovar o cerrar un convenio no es cosa de
+            Incidencias. */}
+        {practicantesSobreTope.length > 0 && (
+          <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/5 p-5">
+            <h2 className="mb-1 font-serif text-lg">
+              {practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses
+            </h2>
+            <p className="mb-3 text-sm text-taupe">
+              Ley 28518, art. 30: pasado el tope, la relación arriesga considerarse desnaturalizada —
+              aunque siga viniendo con normalidad. Se revisa en Contratos, no acá.
+            </p>
+            <ul className="space-y-1.5 text-sm">
+              {practicantesSobreTope.map((p) => (
+                <li key={p.persona_id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <span>
+                    <strong>{p.persona}</strong> <span className="text-taupe">· {p.sede}</span>
+                    {" — "}
+                    {p.estado === "vencido"
+                      ? "superó el tope de 12 meses"
+                      : `se acerca al tope de 12 meses${p.dias_restantes !== null ? ` · ${p.dias_restantes} días` : ""}`}
+                  </span>
+                  {/* admin/contratos no lee ningún parámetro de la URL para
+                      preseleccionar a alguien — un enlace con "?persona=" ahí
+                      prometería un salto que no existe. */}
+                  <Link href="/admin/contratos" className="shrink-0 text-taupe underline underline-offset-2 hover:text-tinta">
+                    Ver en Contratos →
+                  </Link>
                 </li>
               ))}
             </ul>
