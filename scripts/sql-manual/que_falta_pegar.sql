@@ -276,6 +276,26 @@ diff as (
          a.aplicada_at
   from repo r
   left join migraciones_aplicadas a on a.numero = r.numero
+),
+-- ⚠️ LA PREGUNTA AL REVÉS, que es la que de verdad duele.
+--
+-- Todo lo de arriba responde «¿qué le falta a producción?». Esta responde
+-- «¿qué tiene producción que NO está guardado en ninguna parte?» — una
+-- migración aplicada cuyo único ejemplar puede ser un archivo sin commitear en
+-- una Mac. Si ese disco falla, el SQL desaparece y `db reset` deja de poder
+-- reconstruir el esquema.
+--
+-- Pasó tres veces (0177, 0243, 0381) y ninguna la cazó una herramienta: la
+-- lista de arriba salía del DISCO, así que el archivo sin commitear entraba en
+-- ella y se marcaba «✓ aplicada». Ahora la lista viene de git, así que lo que
+-- no esté commiteado en ningún lado aparece acá.
+--
+-- Cero filas es lo normal. Una fila es cosa de hoy, no de mañana.
+huerfanas as (
+  select a.numero, a.nombre, a.aplicada_at
+  from migraciones_aplicadas a
+  where a.numero >= (select min(numero) from repo)
+    and not exists (select 1 from repo r where r.numero = a.numero)
 )
 select * from (
   -- Una fila por migración.
@@ -290,6 +310,17 @@ select * from (
 
   union all
 
+  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna, es lo
+  -- único que importa de toda esta consulta.
+  select a.numero::text,
+         a.nombre,
+         '⚠️  PEGADA Y NO ESTÁ EN GIT — commitéala HOY',
+         to_char(a.aplicada_at, 'DD/MM/YYYY'),
+         999997
+  from huerfanas a
+
+  union all
+
   -- El resumen, al final y separado.
   select '——', '', '', '', 999998
   union all
@@ -297,8 +328,15 @@ select * from (
          (select count(*) filter (where falta) from diff)::text || ' faltan · ' ||
          (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
          (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
-         (select count(*) from diff)::text || ' en el repo',
-         case when (select count(*) filter (where falta) from diff) = 0
+         (select count(*) from diff)::text || ' en git' ||
+         case when (select count(*) from huerfanas) > 0
+              then ' · ⚠️ ' || (select count(*) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+              else '' end,
+         -- Una huérfana manda sobre todo lo demás: que falte pegar algo es
+         -- atraso normal; que algo esté pegado y sin guardar es lo que costó
+         -- tres sustos y no avisa solo.
+         case when (select count(*) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+              when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999
 

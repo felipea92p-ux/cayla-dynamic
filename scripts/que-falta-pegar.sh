@@ -46,14 +46,48 @@ trap 'rm -f "$TMP" "$TMPC"' EXIT
 # listar 150 filas de historia solo esconde las que importan.
 DESDE=150
 
-# La lista de migraciones, ordenada. `sort -n` sobre el número y no sobre el nombre del archivo, que
-# ordenaría 0100 antes que 099.
+# ── DE DÓNDE SALE LA LISTA, Y POR QUÉ YA NO DEL DISCO ────────────────────────
+#
+# Hasta el 2026-09-07 esta función hacía `ls supabase/migrations/*.sql`, o sea
+# leía EL DIRECTORIO DE TRABAJO. Y ahí estaba el agujero que el 🔴#0 del
+# `estado.md` llamaba «la mitad cara»:
+#
+#   si una migración se aplicó en producción desde un archivo que nunca se
+#   commiteó, y ese archivo sigue en el disco de esa Mac, `ls` lo ve, entra a la
+#   lista `repo`, y la consulta la marca «✓ aplicada». El hueco queda invisible
+#   JUSTO en la máquina donde hay que verlo.
+#
+# Pasó tres veces: la 0177 (2026-08-07), la 0243 (2026-08-14) y la 0381
+# (2026-09-05, un día entera sin que nada avisara). Ninguna la cazó una
+# herramienta: las tres las encontró alguien mirando a mano.
+#
+# Ahora la lista sale de lo que está COMMITEADO, que es lo único que sobrevive
+# a que ese disco falle:
+#
+#   · `origin/main` — lo que de verdad está en GitHub;
+#   · `HEAD`        — lo commiteado en esta rama, que todavía no llegó a main.
+#
+# La UNIÓN de los dos, y no solo `origin/main`, porque si no una rama de trabajo
+# vería todas las migraciones de main como «huérfanas». Lo que NO entra es el
+# directorio de trabajo: un archivo sin commitear no es un ejemplar, es un
+# borrador — y de eso ya avisa `migracion-sin-guardar.sh` en cada push.
+#
+# `sort -n` va sobre el número y no sobre el nombre, que ordenaría 0100 antes
+# que 099. Y se deduplica POR NÚMERO: dos ramas pueden traer el mismo número con
+# nombres distintos, y dos filas con el mismo `numero` duplicarían el join.
 listar() {
-  ls supabase/migrations/*.sql 2>/dev/null \
+  # Best-effort: si no hay red se compara contra la última foto de origin/main
+  # que se trajo. Peor que estar al día, mucho mejor que mirar el disco.
+  git fetch --quiet origin main 2>/dev/null || true
+  {
+    git ls-tree -r --name-only origin/main -- supabase/migrations 2>/dev/null
+    git ls-tree -r --name-only HEAD        -- supabase/migrations 2>/dev/null
+  } \
     | sed -E 's|.*/||' \
-    | grep -E '^[0-9]+_' \
+    | grep -E '^[0-9]+_.*\.sql$' \
     | awk -F_ -v d="$DESDE" '{ n = $1 + 0; if (n >= d) print }' \
-    | sort -t_ -k1,1n
+    | sort -t_ -k1,1n \
+    | awk -F_ '{ n = $1 + 0; if (n != visto) { print; visto = n } }'
 }
 
 if [ -z "$(listar)" ]; then
@@ -220,6 +254,26 @@ diff as (
          a.aplicada_at
   from repo r
   left join migraciones_aplicadas a on a.numero = r.numero
+),
+-- ⚠️ LA PREGUNTA AL REVÉS, que es la que de verdad duele.
+--
+-- Todo lo de arriba responde «¿qué le falta a producción?». Esta responde
+-- «¿qué tiene producción que NO está guardado en ninguna parte?» — una
+-- migración aplicada cuyo único ejemplar puede ser un archivo sin commitear en
+-- una Mac. Si ese disco falla, el SQL desaparece y `db reset` deja de poder
+-- reconstruir el esquema.
+--
+-- Pasó tres veces (0177, 0243, 0381) y ninguna la cazó una herramienta: la
+-- lista de arriba salía del DISCO, así que el archivo sin commitear entraba en
+-- ella y se marcaba «✓ aplicada». Ahora la lista viene de git, así que lo que
+-- no esté commiteado en ningún lado aparece acá.
+--
+-- Cero filas es lo normal. Una fila es cosa de hoy, no de mañana.
+huerfanas as (
+  select a.numero, a.nombre, a.aplicada_at
+  from migraciones_aplicadas a
+  where a.numero >= (select min(numero) from repo)
+    and not exists (select 1 from repo r where r.numero = a.numero)
 )
 select * from (
   -- Una fila por migración.
@@ -234,6 +288,17 @@ select * from (
 
   union all
 
+  -- Las huérfanas, una fila cada una y ANTES del resumen. Si hay alguna, es lo
+  -- único que importa de toda esta consulta.
+  select a.numero::text,
+         a.nombre,
+         '⚠️  PEGADA Y NO ESTÁ EN GIT — commitéala HOY',
+         to_char(a.aplicada_at, 'DD/MM/YYYY'),
+         999997
+  from huerfanas a
+
+  union all
+
   -- El resumen, al final y separado.
   select '——', '', '', '', 999998
   union all
@@ -241,8 +306,15 @@ select * from (
          (select count(*) filter (where falta) from diff)::text || ' faltan · ' ||
          (select count(*) filter (where not falta and not nunca_ira) from diff)::text || ' aplicadas · ' ||
          (select count(*) filter (where nunca_ira) from diff)::text || ' que no se pegan · ' ||
-         (select count(*) from diff)::text || ' en el repo',
-         case when (select count(*) filter (where falta) from diff) = 0
+         (select count(*) from diff)::text || ' en git' ||
+         case when (select count(*) from huerfanas) > 0
+              then ' · ⚠️ ' || (select count(*) from huerfanas)::text || ' PEGADAS Y NO GUARDADAS'
+              else '' end,
+         -- Una huérfana manda sobre todo lo demás: que falte pegar algo es
+         -- atraso normal; que algo esté pegado y sin guardar es lo que costó
+         -- tres sustos y no avisa solo.
+         case when (select count(*) from huerfanas) > 0 then '⚠️  MIRA ARRIBA'
+              when (select count(*) filter (where falta) from diff) = 0
               then '✓   al día' else '❌  hay pendientes' end,
          '', 999999
 
