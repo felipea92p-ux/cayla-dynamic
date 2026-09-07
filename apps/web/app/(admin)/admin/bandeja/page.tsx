@@ -29,7 +29,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -278,8 +277,7 @@ export default function BandejaPage() {
   const total = educacion.length + vacaciones.length + revisiones.length + solicitudesVacaciones.length + alertasConProblema + sinHorario.length;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Bandeja</h1>
         <p className="mb-6 max-w-2xl text-sm text-taupe">

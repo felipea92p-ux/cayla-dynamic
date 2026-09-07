@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { NIVEL_DISCIPLINARIO_CORTO, TZ_LIMA, esRolEncargada, hoyLima } from "@cayla-dynamic/shared";
 
@@ -336,8 +335,7 @@ export default function DashboardPage() {
   const linkCorregir = (personaId: string) => `/admin/correcciones?persona=${personaId}&fecha=${hoy}`;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 sm:p-8">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
