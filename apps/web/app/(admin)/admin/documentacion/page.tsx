@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -1379,7 +1378,6 @@ export default function DocumentacionPage() {
 
   return (
     <>
-      <div className="print:hidden"><AdminNav /></div>
 
       <main className="mx-auto max-w-3xl p-6 print:max-w-none print:p-0">
         {/* Controles — no se imprimen */}

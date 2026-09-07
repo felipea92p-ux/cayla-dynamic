@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../../../nav";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
@@ -402,10 +401,7 @@ export default function MemoPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="print:hidden">
-        <AdminNav />
-      </div>
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6 print:p-0">
         <div className="mb-4 flex max-w-[760px] items-center justify-between print:hidden">
           <button onClick={() => router.push("/admin/disciplina")} className="text-sm text-taupe hover:text-tinta">← Volver a Disciplina</button>

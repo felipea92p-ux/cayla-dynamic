@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -255,8 +254,7 @@ export default function LiquidacionesPage() {
 
   if (!puede) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           <p className="text-sm text-taupe">Esta pantalla es de Desarrollo Organizacional.</p>
         </main>
@@ -271,8 +269,7 @@ export default function LiquidacionesPage() {
   const avisoUrgente = avisos.filter((a) => a.ya_devenga);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="print:hidden"><AdminNav /></div>
+    <div className="flex flex-1 flex-col">
 
       <main className="flex-1 p-6 print:p-0">
         <div className="print:hidden">

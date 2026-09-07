@@ -8,7 +8,6 @@ import { hoyLima, puedeExportarAsistencia, rangoDelDiaLima, TIPO_MARCA_LABELS, t
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
-import { AdminNav } from "../nav";
 
 interface JornadaFila {
   fecha: string;
@@ -362,8 +361,7 @@ export default function ExportarPage() {
   // se decide nada, para no parpadear un «no puedes» a quien sí puede.
   if (rol !== null && !puedeExportar) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">No tienes permiso para exportar datos.</p>
         </main>
@@ -372,8 +370,7 @@ export default function ExportarPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center gap-6 p-6">
         <h1 className="font-serif text-2xl">Exportar (CSV)</h1>
         <div className="flex flex-wrap items-end gap-3">

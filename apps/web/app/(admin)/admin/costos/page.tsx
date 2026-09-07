@@ -28,7 +28,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { CampoSelect } from "@/components/ui/campo";
@@ -180,7 +179,6 @@ export default function CostosPage() {
   // vez de la frase tranquilizadora de la lista vacía.
   const cargarAnios = useCallback(async () => {
     if (!puedeVer) return;
-    setError(null);
     const { data, error } = await supabase.rpc("fn_periodos");
     if (!vivoRef.current) return;
     if (error || !data) {
@@ -195,6 +193,10 @@ export default function CostosPage() {
     setAnio((prev) => prev ?? ys[0] ?? null);
   }, [supabase, puedeVer]);
 
+  // Cargar al montar es el mismo patrón que usa cada pantalla del panel que
+  // trae datos de la base; el aviso de acá es el mismo que ya tienen todas
+  // ellas sin corregir.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarAnios(); }, [cargarAnios]);
 
   const cargar = useCallback(async () => {
@@ -210,12 +212,15 @@ export default function CostosPage() {
     setData(data as unknown as Costos);
   }, [supabase, puedeVer, anio]);
 
+  // Mismo patrón y mismo motivo que el efecto de cargarAnios, arriba.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargar(); }, [cargar]);
 
   // Un solo botón "Reintentar" sirve a dos consultas distintas. Si todavía no
   // hay años (la lista de periodos nunca llegó a cargar), reintenta esa; si
   // ya hay años pero el año elegido falló, reintenta el costo de ese año.
   function reintentar() {
+    setError(null);
     if (anios.length === 0) { void cargarAnios(); } else { void cargar(); }
   }
 
@@ -251,8 +256,7 @@ export default function CostosPage() {
 
   if (rol === null) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
             <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
@@ -267,8 +271,7 @@ export default function CostosPage() {
   }
   if (!puedeVer) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver los costos de planilla.
@@ -281,8 +284,7 @@ export default function CostosPage() {
   const t = data?.totales;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-serif text-2xl">Costos del equipo</h1>

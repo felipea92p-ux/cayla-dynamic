@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { Cargando, EsqueletoSecciones, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
@@ -772,8 +771,7 @@ function IncidenciasContenido() {
   const porSede = [...new Set(vista.map((f) => f.sede))].sort();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <div className="mb-1 flex items-end justify-between">
           <h1 className="font-serif text-2xl">Incidencias</h1>

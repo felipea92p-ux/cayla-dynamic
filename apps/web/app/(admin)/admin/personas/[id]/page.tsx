@@ -7,7 +7,6 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, TZ_LIMA, etiquetaDeCatalogo, hoyLima, puedeOperarEquipo, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { AdminNav } from "../../nav";
 import { Cargando } from "@/components/cargando";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { GraficoHoras, type DiaGrafico } from "@/components/grafico-horas";
@@ -415,7 +414,7 @@ export default function PerfilPersonaPage() {
 
   if (rol !== null && !puede) {
     return (
-      <div className="flex min-h-screen flex-col"><AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6"><p className="max-w-md text-center text-taupe">No tienes permiso para ver perfiles.</p></main>
       </div>
     );
@@ -425,8 +424,7 @@ export default function PerfilPersonaPage() {
   const iniciales = persona ? `${persona.nombres[0] ?? ""}${persona.apellidos[0] ?? ""}` : "";
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <style>{`
           .solo-print{display:none}

@@ -17,7 +17,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { useToast } from "@/components/toast";
@@ -128,8 +127,7 @@ export default function AnunciosPage() {
   const anulados = anuncios.filter((a) => a.anulado_at);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Anuncios</h1>
         <p className="mb-5 max-w-2xl text-sm text-taupe">

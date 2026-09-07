@@ -6,7 +6,6 @@ import { ROLES_DO, TIPOS_MARCA, TIPO_MARCA_LABELS, TZ_LIMA, anioLima, fechaLima,
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { esperadoDelDia, type Esperado, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
-import { AdminNav } from "../nav";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
@@ -624,8 +623,7 @@ export default function CorreccionesPage() {
 
   if (rol !== null && !puedeCorregir) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">
             No tienes permiso para corregir marcajes. Si necesitas un cambio, pídeselo a Felipe o Carlos.
@@ -636,8 +634,7 @@ export default function CorreccionesPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Corregir marcajes</h1>
         <p className="mb-5 max-w-2xl text-sm text-taupe">

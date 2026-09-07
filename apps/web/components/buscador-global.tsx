@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Search, UserRound, X } from "lucide-react";
-import type { Item } from "@/app/(admin)/admin/nav";
+import type { Item } from "@/app/(admin)/admin/nav-items";
 import { Insignia } from "@/components/ui/insignia";
 
 // Sin tildes ni mayúsculas, igual que el filtro de Equipo: buscar "nunez"

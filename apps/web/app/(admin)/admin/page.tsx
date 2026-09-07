@@ -12,7 +12,6 @@ export default function AdminIndexPage() {
 
   useEffect(() => {
     let cancelado = false;
-    setError(false);
     const supabase = createAdminSupabaseClient();
     supabase.auth
       .getSession()
@@ -36,7 +35,7 @@ export default function AdminIndexPage() {
         <p className="max-w-sm rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           No se pudo comprobar tu sesión. Revisa la conexión e intenta de nuevo.
         </p>
-        <Boton variante="enlace" onClick={() => setIntento((n) => n + 1)}>
+        <Boton variante="enlace" onClick={() => { setError(false); setIntento((n) => n + 1); }}>
           Reintentar
         </Boton>
       </div>

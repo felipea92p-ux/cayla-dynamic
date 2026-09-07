@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
@@ -1005,8 +1004,7 @@ export default function DisciplinaPage() {
 
   if (rol !== null && !puede) {
     return (
-      <div className="flex min-h-screen flex-col">
-        <AdminNav />
+      <div className="flex flex-1 flex-col">
         <main className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-md text-center text-taupe">No tienes permiso para el módulo disciplinario.</p>
         </main>
@@ -1027,8 +1025,7 @@ function fechasDe(h: Hecho[]): string {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
         <h1 className="mb-1 font-serif text-2xl">Disciplina</h1>
         <p className="mb-5 max-w-2xl text-sm text-taupe">
