@@ -17,11 +17,15 @@ export function Modal({
   abierto,
   onCerrar,
   titulo,
+  ancho = "md",
   children,
 }: {
   abierto: boolean;
   onCerrar: () => void;
   titulo?: string;
+  /** "lg" es para contenido que necesita una tabla adentro (ver planilla/page.tsx,
+   *  revisión antes de pagar) — el resto sigue con "md" por defecto. */
+  ancho?: "md" | "lg";
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -49,7 +53,9 @@ export function Modal({
         aria-modal="true"
         aria-label={titulo}
         tabIndex={-1}
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-flotante border border-taupe/35 bg-papel p-6 outline-none"
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-flotante border border-taupe/35 bg-papel p-6 outline-none ${
+          ancho === "lg" ? "max-w-2xl" : "max-w-md"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

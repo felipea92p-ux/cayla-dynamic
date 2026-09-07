@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { AdminNav } from "../nav";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
@@ -1037,6 +1038,154 @@ function TablaPlanilla(props: {
   );
 }
 
+// Pantalla de revisión antes de marcar un grupo como pagado — reemplaza el
+// `window.confirm()` que vivía acá: un diálogo nativo del navegador no puede
+// mostrar un desglose ni respetar la paleta o el modo oscuro, justo en la
+// acción más cara de equivocar de toda la pantalla (después de pagar, solo se
+// corrige recalculando el periodo entero con `fn_repagar_periodo` — nunca con
+// un clic de "deshacer"). Mismos tres números que ya suma el pie de
+// `TablaPlanilla` (`totales`/`saleDelBanco`, calculados aparte acá porque esta
+// pantalla vive fuera de esa tabla), reencuadrados en tres tarjetas: qué
+// recibe cada persona, qué se descuenta/aporta aparte, y qué sale del banco.
+function ModalRevisionPago({
+  abierto,
+  onCerrar,
+  onConfirmar,
+  grupo,
+  filas,
+  fechaIni,
+  fechaFin,
+  guardando,
+}: {
+  abierto: boolean;
+  onCerrar: () => void;
+  onConfirmar: () => void;
+  grupo: TipoVinculo;
+  filas: Fila[];
+  fechaIni: string;
+  fechaFin: string;
+  guardando: boolean;
+}) {
+  const etiqueta = TIPO_VINCULO_LABEL[grupo];
+
+  const resumen = useMemo(() => {
+    const acc = filas.reduce(
+      (a, f) => ({
+        total: a.total + f.total,
+        pension: a.pension + (f.descuento_afp ?? 0),
+        essalud: a.essalud + (f.aporte_essalud ?? 0),
+        retencion4ta: a.retencion4ta + (f.retencion_4ta ?? 0),
+      }),
+      { total: 0, pension: 0, essalud: 0, retencion4ta: 0 },
+    );
+    return {
+      ...acc,
+      saleDelBanco: acc.total + acc.pension + acc.essalud + acc.retencion4ta,
+      // Banderas que ya existen en cada fila (0116/0245/0105) y que hoy no se
+      // juntan en ningún sitio antes de pagar — el mismo tipo de anomalía que
+      // Deel y Gusto sacan a la vista en su pantalla de revisión, acá con
+      // datos que Cayla ya calcula, no uno nuevo.
+      essaludPiso: filas.filter((f) => f.essalud_es_piso).map((f) => f.nombre),
+      retencionSinConfigurar: filas.filter((f) => f.retencion_4ta_sin_configurar).map((f) => f.nombre),
+      bajoDesempeno: filas.filter((f) => f.bajo_desempeno).map((f) => f.nombre),
+    };
+  }, [filas]);
+
+  const advertencias = [
+    resumen.essaludPiso.length > 0
+      ? `EsSalud calculado desde el piso legal (ganaron menos que la RMV): ${resumen.essaludPiso.join(", ")}.`
+      : null,
+    resumen.retencionSinConfigurar.length > 0
+      ? `Retención de 4ta sin modo configurado: ${resumen.retencionSinConfigurar.join(", ")}.`
+      : null,
+    resumen.bajoDesempeno.length > 0
+      ? `Marcadas con bajo desempeño este mes: ${resumen.bajoDesempeno.join(", ")}.`
+      : null,
+  ].filter((t): t is string => t !== null);
+
+  return (
+    <Modal abierto={abierto} onCerrar={onCerrar} titulo={`Revisar «${etiqueta}» antes de pagar`} ancho="lg">
+      <p className="text-xs font-semibold uppercase tracking-wide text-taupe">Revisar antes de pagar</p>
+      <h3 className="mt-1 font-serif text-xl">«{etiqueta}»</h3>
+      <p className="mt-1 text-sm text-taupe">
+        {fechaCorta(fechaIni)} → {fechaCorta(fechaFin)} · {filas.length} persona{filas.length === 1 ? "" : "s"}
+      </p>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-control bg-hueso p-3">
+          <p className="text-xs text-taupe">Se transfiere a cada persona</p>
+          <p className="mt-1 text-lg font-bold tabular-nums">{formatSoles(resumen.total)}</p>
+        </div>
+        <div className="rounded-control bg-hueso p-3">
+          <p className="text-xs text-taupe">Aparte: pensión, EsSalud y 4ta</p>
+          <p className="mt-1 text-lg font-bold tabular-nums">
+            {formatSoles(resumen.pension + resumen.essalud + resumen.retencion4ta)}
+          </p>
+        </div>
+        <div className="rounded-control border-l-2 border-taupe bg-hueso p-3">
+          <p className="text-xs text-taupe">Sale del banco en total</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{formatSoles(resumen.saleDelBanco)}</p>
+        </div>
+      </div>
+
+      {advertencias.length > 0 && (
+        <div className="mt-4 space-y-1.5 rounded-control bg-ambar/15 p-3 text-sm text-ambar">
+          {advertencias.map((texto) => (
+            <p key={texto}>⚠ {texto}</p>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 max-h-64 overflow-y-auto rounded-control border border-sand">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-sand/90 text-left text-taupe">
+            <tr>
+              <th className="px-3 py-2 font-normal">Nombre</th>
+              <th className="px-3 py-2 font-normal">Sede</th>
+              <th className="px-3 py-2 text-right font-normal">Días</th>
+              <th className="px-3 py-2 text-right font-normal">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f, i) => (
+              <tr key={f.persona_id} className={i % 2 === 1 ? "bg-hueso" : undefined}>
+                <td className="px-3 py-1.5">{f.nombre}</td>
+                <td className="px-3 py-1.5 text-taupe">{f.sede}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{f.dias_trabajados}</td>
+                <td className="px-3 py-1.5 text-right font-medium tabular-nums">{formatSoles(f.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="mt-4 text-xs text-taupe">
+        Guarda una copia intacta del desglose de cada persona: es el número que queda para
+        contabilidad y ya no cambia solo. Si después hay que corregir algo, se reabre con
+        «Revertir pago» (queda el motivo) y se vuelve a marcar como pagado — se guarda una copia
+        nueva y la anterior se conserva.
+      </p>
+
+      <div className="mt-5 flex justify-end gap-3">
+        <button
+          onClick={onCerrar}
+          disabled={guardando}
+          className="rounded-lg border px-4 py-1.5 text-sm hover:bg-sand/50 disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={onConfirmar}
+          disabled={guardando}
+          className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+        >
+          {guardando ? "Guardando…" : `Confirmar y marcar «${etiqueta}» como pagado`}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 export default function PlanillaPage() {
   const router = useRouter();
   const rol = useRolActual();
@@ -1085,6 +1234,9 @@ export default function PlanillaPage() {
   // se pagó todo el mismo día—. Antes era un binario planilla/honorarios; con
   // el pago por grupo, "prueba" y "practicante" también necesitan la suya.
   const [tablaTab, setTablaTab] = useState<TipoVinculo>("planilla");
+  // Grupo que se está por marcar como pagado, mientras se revisa antes de
+  // confirmar (null = la pantalla de revisión está cerrada).
+  const [revisionGrupo, setRevisionGrupo] = useState<TipoVinculo | null>(null);
 
   // Objetivos: valor en edición por persona (solo las filas tocadas)
   const [objEdit, setObjEdit] = useState<Record<string, string>>({});
@@ -1400,40 +1552,47 @@ export default function PlanillaPage() {
   // periodo entero sigue existiendo como AGREGADO en la base —pasa a pagado
   // solo cuando los 5 grupos con gente ya lo están— pero el botón vive por
   // pestaña.
+  // CAMBIO — Antes de abrir la revisión, el mismo freno de siempre (0284): si
+  // hay días pendientes de confirmar, ni se abre la pantalla de revisión, se
+  // avisa de una vez qué falta. Este aviso SÍ sigue siendo `window.alert`: es
+  // un bloqueo duro sin nada que decidir, no el momento de revisar y aceptar
+  // que la pantalla de revisión reemplaza más abajo.
+  function abrirRevisionPago(grupo: TipoVinculo) {
+    const etiqueta = TIPO_VINCULO_LABEL[grupo];
+    const pendientes = diasPendientesPorGrupo.get(grupo);
+    if (pendientes) {
+      window.alert(
+        `Todavía no se puede pagar «${etiqueta}».\n\n` +
+          `Hay ${pendientes.dias} día(s) cuya hora de salida la puso el sistema porque nadie marcó, ` +
+          `y aún están sin confirmar: ${pendientes.nombres.join(", ")}.\n\n` +
+          `Esa hora no la marcó ninguna persona, y si cruza las 48 h de la semana se paga recargo sobre ella. ` +
+          `Entra a Correcciones, confirma o corrige esas salidas, y vuelve aquí.`,
+      );
+      return;
+    }
+    setRevisionGrupo(grupo);
+  }
+
   async function marcarPagado(grupo: TipoVinculo, pagar: boolean) {
     if (!periodoActual) return;
     const etiqueta = TIPO_VINCULO_LABEL[grupo];
     if (pagar) {
-      // CAMBIO 0284 — Se avisa ANTES de intentarlo. La base lo frena igual
-      // (fn_planilla_congelar), pero llegar hasta el error con el diálogo ya
-      // aceptado se lee como que el sistema falló, y no es eso: es que faltan
-      // horas por confirmar. Decirlo acá convierte un error en una instrucción.
-      const pendientes = diasPendientesPorGrupo.get(grupo);
-      if (pendientes) {
-        window.alert(
-          `Todavía no se puede pagar «${etiqueta}».\n\n` +
-            `Hay ${pendientes.dias} día(s) cuya hora de salida la puso el sistema porque nadie marcó, ` +
-            `y aún están sin confirmar: ${pendientes.nombres.join(", ")}.\n\n` +
-            `Esa hora no la marcó ninguna persona, y si cruza las 48 h de la semana se paga recargo sobre ella. ` +
-            `Entra a Correcciones, confirma o corrige esas salidas, y vuelve aquí.`,
-        );
-        return;
-      }
-      if (
-        !window.confirm(
-          `Marcar «${etiqueta}» como PAGADO guarda una copia intacta del desglose de cada persona de ese grupo: ` +
-            "es el número que queda para contabilidad y ya no cambia solo.\n\n" +
-            "Si después hay que corregir algo, se reabre con Revertir pago (queda el motivo) y se vuelve " +
-            "a marcar como pagado: se guarda una copia nueva y la anterior se conserva.\n\n¿Continuar?",
-        )
-      )
-        return;
+      // El aviso de pendientes y la confirmación ya pasaron en la pantalla de
+      // revisión (`abrirRevisionPago` + `ModalRevisionPago`) — de ahí en
+      // adelante, aceptar ahí es lo que llama a esta función. Ya no hay un
+      // `window.confirm` acá: el momento de decidir vivía en un diálogo
+      // genérico del navegador que no respetaba ni la paleta ni el modo
+      // oscuro, justo en la acción más cara de equivocar de toda la pantalla.
       setGuardandoPeriodo(true);
       const { error } = await supabase.rpc("fn_periodo_pagado", {
         p_periodo_id: periodoActual.id, p_pagado: true, p_grupo: grupo,
       });
       setGuardandoPeriodo(false);
+      // Si falla, la revisión se queda abierta a propósito — el error sale como
+      // toast encima, y quien la lea no pierde el contexto que ya revisó para
+      // decidir si reintenta o cancela.
       if (error) { avisar("error", mensajeDeError(error, "actualizar el periodo")); return; }
+      setRevisionGrupo(null);
       avisar("ok", `«${etiqueta}» marcado como PAGADO 🔒.`);
       await Promise.all([cargarPeriodos(), cargarProyeccion()]);
       return;
@@ -1996,6 +2155,19 @@ export default function PlanillaPage() {
     }
     return m;
   }, [filasVisibles]);
+  // Mismo agrupado que `filasPorGrupo`, pero sobre TODAS las filas del periodo
+  // (`proy.filas`) y no sobre `filasVisibles` — igual que `diasPendientesPorGrupo`
+  // más abajo, y por la misma razón: si hay un filtro de sede/estado puesto, la
+  // pantalla de revisión antes de pagar tiene que mostrar a todo el grupo que
+  // `fn_periodo_pagado` va a congelar, no solo lo que el filtro deja ver.
+  const filasPorGrupoCompleto = useMemo(() => {
+    const m = new Map<TipoVinculo, Fila[]>(TIPOS_VINCULO.map((g) => [g, [] as Fila[]]));
+    for (const f of proy?.filas ?? []) {
+      const g = TIPOS_VINCULO.includes(f.tipo_vinculo as TipoVinculo) ? (f.tipo_vinculo as TipoVinculo) : "planilla";
+      m.get(g)!.push(f);
+    }
+    return m;
+  }, [proy]);
   const simFilasPorGrupo = useMemo(() => {
     const m = new Map<TipoVinculo, Fila[]>(TIPOS_VINCULO.map((g) => [g, [] as Fila[]]));
     for (const f of simFilasVisibles) {
@@ -2760,7 +2932,7 @@ export default function PlanillaPage() {
                   </>
                 ) : (
                   <button
-                    onClick={() => void marcarPagado(tablaTabEfectiva, true)}
+                    onClick={() => abrirRevisionPago(tablaTabEfectiva)}
                     disabled={guardandoPeriodo || cargando || filasTabActiva.length === 0}
                     title={filasTabActiva.length === 0 ? "No hay nadie de este grupo en el periodo." : undefined}
                     className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
@@ -2953,6 +3125,21 @@ export default function PlanillaPage() {
           </>
         )}
       </main>
+
+      {proy && (
+        <ModalRevisionPago
+          abierto={revisionGrupo !== null}
+          onCerrar={() => !guardandoPeriodo && setRevisionGrupo(null)}
+          grupo={revisionGrupo ?? tablaTabEfectiva}
+          filas={filasPorGrupoCompleto.get(revisionGrupo ?? tablaTabEfectiva) ?? []}
+          fechaIni={proy.fecha_ini}
+          fechaFin={proy.fecha_fin}
+          guardando={guardandoPeriodo}
+          onConfirmar={() => {
+            if (revisionGrupo) void marcarPagado(revisionGrupo, true);
+          }}
+        />
+      )}
     </div>
   );
 }
