@@ -251,25 +251,6 @@ const TIPO_CONTRATO: Record<string, string> = {
 /** Los estados que se resuelven generando un contrato; el resto, abriendo el suyo. */
 const NECESITA_CONTRATO = new Set(["sin_contrato", "vencido", "por_vencer", "desnaturalizado"]);
 
-/**
- * El color de cada estado en la tabla.
- *
- * `pizarra` es el token que se agregó el 2026-09-06 justo para esto: lo que
- * está EN PROCESO —un borrador, algo pendiente de firma— no es ni positivo ni
- * advertencia ni alerta, y antes se apilaba en sand sin distinguirse. El rojo
- * queda para los dos que de verdad cuestan plata; gastarlo en «vence en tres
- * meses» lo vuelve invisible el día que diga «desnaturalizado».
- */
-const TONO_ESTADO: Record<string, "rojo" | "ambar" | "pizarra" | "verde"> = {
-  desnaturalizado: "rojo",
-  vencido: "rojo",
-  sin_contrato: "pizarra",
-  sin_firmar: "pizarra",
-  sin_vencimiento: "pizarra",
-  por_vencer: "ambar",
-  tramite_pendiente: "ambar",
-  ok: "verde",
-};
 
 /**
  * El nombre CORTO de cada estado, para la insignia de la tabla.
@@ -291,7 +272,13 @@ const ETIQUETA_CORTA: Record<string, string> = {
   ok: "Vigente",
 };
 
-/** Las clases de cada tono. Escritas enteras porque Tailwind no arma nombres. */
+/**
+ * Las clases de cada tono. Escritas enteras porque Tailwind no arma nombres.
+ *
+ * Ya solo las usa la insignia del VISOR: la tabla perdió su columna de estado
+ * el 2026-09-07 (decisión de Felipe) y ahora lo dice en el `title` de la fila.
+ * `pizarra` es el token de «en proceso» que se agregó el 2026-09-06.
+ */
 const CLASE_TONO: Record<string, string> = {
   rojo: "bg-rojo/15 text-rojo-profundo",
   ambar: "bg-ambar/15 text-ambar",
@@ -1572,8 +1559,8 @@ export default function ContratosPage() {
             archivo—. Ese es el motivo de que el generador vaya en medio del DOM
             y no al final: puesto después de las dos listas, en una pantalla
             angosta quedaría a un scroll largo de distancia. */}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_26rem] xl:items-start 2xl:grid-cols-[minmax(0,1fr)_30rem]">
-          <div className="min-w-0 space-y-6 xl:col-start-1 xl:row-start-1">
+        <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             {/* UN SOLO BUSCADOR PARA LAS DOS LISTAS. Filtra por nombre y por
                 sede, sin tildes: nadie escribe «Gutiérrez» con la tilde puesta
                 cuando lo que quiere es encontrarla. */}
@@ -1675,15 +1662,21 @@ export default function ContratosPage() {
                 quien no tiene ninguno generado no aparece en el archivo, y
                 «¿a quién le falta?» es la pregunta que abre esta pantalla. */}
             {tablero.length > 0 && (
-              <section className="overflow-hidden rounded-2xl border border-sand bg-papel">
-                <table className="w-full table-fixed text-sm">
+              <details className="overflow-hidden rounded-2xl border border-sand bg-papel">
+                {/* PLEGADA POR DEFECTO. Con treinta personas, la lista abierta
+                    empujaba el generador fuera de la pantalla: lo primero que
+                    se ve son los cuatro contadores, y quien quiera los nombres
+                    los abre. Decisión de Felipe (2026-09-07). */}
+                <summary className="cursor-pointer list-none px-3 py-2.5 font-serif text-lg marker:content-['']">
+                  Colaboradores <span className="text-sm text-taupe">· {filas.length}</span>
+                </summary>
+                <table className="w-full table-fixed border-t border-sand text-sm">
                   <thead>
                     <tr className="bg-sand text-left text-xs text-taupe">
-                      <th className="w-[34%] px-3 py-2 font-medium">Colaboradora</th>
-                      <th className="w-[12%] px-2 py-2 font-medium">Sede</th>
-                      <th className="w-[22%] px-2 py-2 font-medium">Tipo</th>
-                      <th className="w-[14%] px-2 py-2 font-medium">Vence</th>
-                      <th className="w-[18%] px-3 py-2 font-medium">Estado</th>
+                      <th className="w-[44%] px-3 py-2 font-medium">Colaboradora</th>
+                      <th className="w-[14%] px-2 py-2 font-medium">Sede</th>
+                      <th className="w-[26%] px-2 py-2 font-medium">Tipo</th>
+                      <th className="w-[16%] px-3 py-2 font-medium">Vence</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1710,7 +1703,6 @@ export default function ContratosPage() {
                                 ? "Falta la copia"
                                 : (ETIQUETA_CORTA[f.estado] ?? e.texto);
                       const v = venceTexto(f);
-                      const tono = TONO_ESTADO[f.estado] ?? "pizarra";
                       const tipoFila = esPracticanteFila
                         ? "convenio_practicas"
                         : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
@@ -1729,6 +1721,7 @@ export default function ContratosPage() {
                         <tr
                           key={f.persona_id}
                           onClick={abrir}
+                          title={texto}
                           className={`cursor-pointer border-t border-sand hover:bg-sand/40 ${i % 2 === 1 ? "bg-hueso" : ""}`}
                         >
                           <td className="truncate px-3 py-2.5">{f.persona}</td>
@@ -1736,15 +1729,7 @@ export default function ContratosPage() {
                           <td className="truncate px-2 py-2.5 text-taupe">
                             {f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—"}
                           </td>
-                          <td className={`px-2 py-2.5 ${v.alerta ? "text-rojo" : "text-taupe"}`}>{v.texto}</td>
-                          <td className="px-3 py-2.5">
-                            <span
-                              className={`block max-w-full truncate rounded-full px-2.5 py-0.5 text-center text-xs ${CLASE_TONO[tono]}`}
-                              title={e.texto}
-                            >
-                              {texto}
-                            </span>
-                          </td>
+                          <td className={`px-3 py-2.5 ${v.alerta ? "text-rojo" : "text-taupe"}`}>{v.texto}</td>
                         </tr>
                       );
                     })}
@@ -1765,16 +1750,16 @@ export default function ContratosPage() {
                     </button>
                   </p>
                 )}
-              </section>
+              </details>
             )}
           </div>
 
-          {/* EL GENERADOR SE QUEDA FIJO Y SCROLLEA POR DENTRO.
-              Un convenio de prácticas pide más campos de los que caben en una
-              pantalla, así que al llegar al botón «Generar borrador» ya no se veía
-              arriba a quién se le estaba generando. Con `xl:sticky` el panel entero
-              acompaña, y su propio scroll evita que empuje la página. */}
-          <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4 xl:sticky xl:top-6 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+          {/* EL GENERADOR VA DEBAJO DE LA LISTA, no en una columna al lado.
+              Estuvo a la derecha y en pantalla ancha funcionaba, pero con la
+              tabla plegada arriba el orden natural es: mirar a quién le falta,
+              y recién entonces generarle el suyo. Decisión de Felipe
+              (2026-09-07), volviendo al orden de siempre. */}
+          <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4">
             <div className="grid grid-cols-2 gap-3">
               <label className="text-sm">
                 Persona
@@ -2303,7 +2288,7 @@ export default function ContratosPage() {
               </>
             )}
           </section>
-          <section className="min-w-0 space-y-3 xl:col-start-1 xl:row-start-2">
+          <section className="min-w-0 space-y-3">
             <h2 className="font-serif text-lg">
               Archivo
               {porPersona.length > 0 && (
