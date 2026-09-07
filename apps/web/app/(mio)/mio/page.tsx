@@ -13,10 +13,11 @@ import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
 } from "@/lib/foto-perfil";
 import {
-  ESTADO_CIVIL_LABELS, GENERO_LABELS, GRADO_INSTRUCCION_LABELS, REGIMEN_PENSION_LABELS,
-  ROLES_CON_PANEL, TZ_LIMA, VINCULO_DERECHOHABIENTE_LABELS, etiquetaDeCatalogo, hoyLima,
-  leCorrespondeCuspp, siNoSinDato,
+  ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS,
+  GRADOS_INSTRUCCION, REGIMEN_PENSION_LABELS, ROLES_CON_PANEL, TZ_LIMA,
+  VINCULO_DERECHOHABIENTE_LABELS, etiquetaDeCatalogo, hoyLima, leCorrespondeCuspp, siNoSinDato,
 } from "@cayla-dynamic/shared";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
@@ -105,15 +106,27 @@ interface Yo {
 }
 
 /**
- * Su ficha de `datos_personales` (0061/0390). Igual que en admin/datos-personales,
- * pero de solo lectura: corregir un dato sigue yendo por Desarrollo
- * Organizacional, esta pantalla es solo para poder comprobar qué hay guardado.
+ * Su ficha de `datos_personales` (0061/0390/0391). Igual que en
+ * admin/datos-personales: se lee y se corrige con la misma
+ * `fn_set_datos_personales`, que ya acepta `p_persona_id =
+ * fn_persona_actual_id()` desde la 0061 — cada quien puede editar su propia
+ * ficha, nunca la de otra persona. El DNI y el régimen de pensión NO están
+ * acá: viven en `personas` y se cambian con `fn_set_documento` /
+ * `fn_cambiar_regimen_pension`, las dos exclusivas de Desarrollo
+ * Organizacional — esta pantalla ni siquiera las intenta.
+ *
+ * `foto_dni_url`/`foto_personal_url`/`foto_profesional_url` se piden y se
+ * reenvían tal cual en cada guardado aunque esta pantalla nunca los edite ni
+ * los muestre: `fn_set_datos_personales` es un UPSERT que reemplaza la fila
+ * entera, así que omitirlos borraría los documentos que Desarrollo
+ * Organizacional ya haya cargado desde admin/datos-personales.
  */
 interface Ficha {
   nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
   genero: string | null; direccion: string | null; celular: string | null;
   entidad_bancaria: string | null; numero_cuenta: string | null; grado_instruccion: string | null;
   hijos_menores: boolean | null;
+  foto_dni_url: string | null; foto_personal_url: string | null; foto_profesional_url: string | null;
   emergencia_nombre: string | null; emergencia_vinculo: string | null; emergencia_telefono: string | null;
   discapacidad: boolean | null; discapacidad_conadis: string | null; cuspp: string | null;
 }
@@ -122,6 +135,23 @@ interface Familiar {
   id: string; nombres: string; apellidos: string; vinculo: string;
   vigente_hasta: string | null;
 }
+
+/** El formulario de «Tus datos». Los mismos campos de `Ficha`, como texto de
+ *  input — igual patrón que `Form` en admin/datos-personales. */
+interface FormDatos {
+  nombre_dni: string; fecha_nacimiento: string; estado_civil: string; genero: string;
+  direccion: string; celular: string; entidad_bancaria: string; numero_cuenta: string;
+  grado_instruccion: string; hijos_menores: "" | "si" | "no";
+  emergencia_nombre: string; emergencia_vinculo: string; emergencia_telefono: string;
+  discapacidad: "" | "si" | "no"; discapacidad_conadis: string; cuspp: string;
+}
+const FORM_DATOS_VACIO: FormDatos = {
+  nombre_dni: "", fecha_nacimiento: "", estado_civil: "", genero: "",
+  direccion: "", celular: "", entidad_bancaria: "", numero_cuenta: "",
+  grado_instruccion: "", hijos_menores: "",
+  emergencia_nombre: "", emergencia_vinculo: "", emergencia_telefono: "",
+  discapacidad: "", discapacidad_conadis: "", cuspp: "",
+};
 
 interface Jornada {
   fecha: string;
@@ -484,7 +514,7 @@ export default function MioPage() {
     void Promise.all([
       supabase
         .from("datos_personales")
-        .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp")
+        .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, foto_dni_url, foto_personal_url, foto_profesional_url, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis, cuspp")
         .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
         .maybeSingle(),
       supabase
@@ -499,6 +529,159 @@ export default function MioPage() {
     });
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
+
+  // ── Editar sus datos ─────────────────────────────────────────────────────
+  // Ningún campo sensible acá: ni DNI, ni régimen de pensión, ni el correo
+  // (es su usuario de acceso) — esos siguen viendo a Desarrollo Organizacional.
+  // Lo demás ya lo puede escribir ella misma desde la 0061; esto es la
+  // pantalla que faltaba para que pudiera hacerlo sin pedírselo a nadie.
+  const [editandoDatos, setEditandoDatos] = useState(false);
+  const [formDatos, setFormDatos] = useState<FormDatos>(FORM_DATOS_VACIO);
+  const [guardandoDatos, setGuardandoDatos] = useState(false);
+  const [avisoDatos, setAvisoDatos] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+
+  function editarDatos() {
+    setFormDatos({
+      nombre_dni: ficha?.nombre_dni ?? "",
+      fecha_nacimiento: ficha?.fecha_nacimiento ?? "",
+      estado_civil: ficha?.estado_civil ?? "",
+      genero: ficha?.genero ?? "",
+      direccion: ficha?.direccion ?? "",
+      celular: ficha?.celular ?? "",
+      entidad_bancaria: ficha?.entidad_bancaria ?? "",
+      numero_cuenta: ficha?.numero_cuenta ?? "",
+      grado_instruccion: ficha?.grado_instruccion ?? "",
+      hijos_menores: ficha?.hijos_menores === true ? "si" : ficha?.hijos_menores === false ? "no" : "",
+      emergencia_nombre: ficha?.emergencia_nombre ?? "",
+      emergencia_vinculo: ficha?.emergencia_vinculo ?? "",
+      emergencia_telefono: ficha?.emergencia_telefono ?? "",
+      discapacidad: ficha?.discapacidad === true ? "si" : ficha?.discapacidad === false ? "no" : "",
+      discapacidad_conadis: ficha?.discapacidad_conadis ?? "",
+      cuspp: ficha?.cuspp ?? "",
+    });
+    setAvisoDatos(null);
+    setEditandoDatos(true);
+  }
+
+  /**
+   * Guarda con `fn_set_datos_personales` — el mismo upsert que usa
+   * admin/datos-personales, ya autorizado desde la 0061 para
+   * `p_persona_id = fn_persona_actual_id()`.
+   *
+   * Los tres `foto_*_url` SIEMPRE viajan, aunque esta pantalla no los edite:
+   * es un upsert que reemplaza la fila entera, así que omitirlos borraría los
+   * documentos que Desarrollo Organizacional ya haya cargado.
+   */
+  async function guardarDatos(e: FormEvent) {
+    e.preventDefault();
+    if (!yo) return;
+    setGuardandoDatos(true);
+    setAvisoDatos(null);
+    const { error } = await supabase.rpc("fn_set_datos_personales", {
+      p_persona_id: yo.id,
+      p_nombre_dni: formDatos.nombre_dni.trim() || null,
+      p_fecha_nacimiento: formDatos.fecha_nacimiento || null,
+      p_estado_civil: formDatos.estado_civil.trim() || null,
+      p_genero: formDatos.genero.trim() || null,
+      p_direccion: formDatos.direccion.trim() || null,
+      p_celular: formDatos.celular.trim() || null,
+      p_entidad_bancaria: formDatos.entidad_bancaria.trim() || null,
+      p_numero_cuenta: formDatos.numero_cuenta.trim() || null,
+      p_grado_instruccion: formDatos.grado_instruccion.trim() || null,
+      p_hijos_menores: formDatos.hijos_menores === "" ? null : formDatos.hijos_menores === "si",
+      p_foto_dni_url: ficha?.foto_dni_url ?? null,
+      p_foto_personal_url: ficha?.foto_personal_url ?? null,
+      p_foto_profesional_url: ficha?.foto_profesional_url ?? null,
+      p_emergencia_nombre: formDatos.emergencia_nombre.trim() || null,
+      p_emergencia_vinculo: formDatos.emergencia_vinculo.trim() || null,
+      p_emergencia_telefono: formDatos.emergencia_telefono.trim() || null,
+      p_discapacidad: formDatos.discapacidad === "" ? null : formDatos.discapacidad === "si",
+      p_discapacidad_conadis: formDatos.discapacidad_conadis.trim() || null,
+      p_cuspp: formDatos.cuspp.trim() || null,
+    });
+    if (error) {
+      setGuardandoDatos(false);
+      setAvisoDatos({ tipo: "error", texto: mensajeDeError(error) });
+      return;
+    }
+    setFicha({
+      nombre_dni: formDatos.nombre_dni.trim() || null,
+      fecha_nacimiento: formDatos.fecha_nacimiento || null,
+      estado_civil: formDatos.estado_civil.trim() || null,
+      genero: formDatos.genero.trim() || null,
+      direccion: formDatos.direccion.trim() || null,
+      celular: formDatos.celular.trim() || null,
+      entidad_bancaria: formDatos.entidad_bancaria.trim() || null,
+      numero_cuenta: formDatos.numero_cuenta.trim() || null,
+      grado_instruccion: formDatos.grado_instruccion.trim() || null,
+      hijos_menores: formDatos.hijos_menores === "" ? null : formDatos.hijos_menores === "si",
+      foto_dni_url: ficha?.foto_dni_url ?? null,
+      foto_personal_url: ficha?.foto_personal_url ?? null,
+      foto_profesional_url: ficha?.foto_profesional_url ?? null,
+      emergencia_nombre: formDatos.emergencia_nombre.trim() || null,
+      emergencia_vinculo: formDatos.emergencia_vinculo.trim() || null,
+      emergencia_telefono: formDatos.emergencia_telefono.trim() || null,
+      discapacidad: formDatos.discapacidad === "" ? null : formDatos.discapacidad === "si",
+      discapacidad_conadis: formDatos.discapacidad_conadis.trim() || null,
+      cuspp: formDatos.cuspp.trim() || null,
+    });
+    setGuardandoDatos(false);
+    setEditandoDatos(false);
+    setAvisoDatos({ tipo: "ok", texto: "Tus datos se guardaron." });
+  }
+
+  function campoDatos(label: string, key: keyof FormDatos, tipo: "text" | "date" = "text") {
+    return (
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-taupe">{label}</span>
+        <input
+          type={tipo}
+          value={formDatos[key]}
+          onChange={(e) => setFormDatos((f) => ({ ...f, [key]: e.target.value }))}
+          className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm text-tinta"
+        />
+      </label>
+    );
+  }
+  /** Lista cerrada que no descarta un valor antiguo fuera del catálogo — mismo
+   *  criterio que `campoLista` en admin/datos-personales. */
+  function campoDatosLista(label: string, key: keyof FormDatos, opciones: readonly string[], etiquetas: Record<string, string>) {
+    const actual = formDatos[key] as string;
+    const esAntiguo = actual !== "" && !opciones.includes(actual);
+    return (
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-taupe">
+          {label}
+          {esAntiguo && <span className="ml-1 text-[11px] text-ambar">· valor antiguo, elige uno de la lista</span>}
+        </span>
+        <select
+          value={actual}
+          onChange={(e) => setFormDatos((f) => ({ ...f, [key]: e.target.value }))}
+          className={`rounded-lg border bg-crema px-3 py-2 text-sm text-tinta ${esAntiguo ? "border-ambar" : "border-sand"}`}
+        >
+          <option value="">—</option>
+          {esAntiguo && <option value={actual}>{actual} (como estaba)</option>}
+          {opciones.map((o) => <option key={o} value={o}>{etiquetas[o] ?? o}</option>)}
+        </select>
+      </label>
+    );
+  }
+  function campoDatosSiNo(label: string, key: "hijos_menores" | "discapacidad") {
+    return (
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-taupe">{label}</span>
+        <select
+          value={formDatos[key]}
+          onChange={(e) => setFormDatos((f) => ({ ...f, [key]: e.target.value as "" | "si" | "no" }))}
+          className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm text-tinta"
+        >
+          <option value="">—</option>
+          <option value="si">Sí</option>
+          <option value="no">No</option>
+        </select>
+      </label>
+    );
+  }
 
   // ── Lo suyo ───────────────────────────────────────────────────────────────
   const cargar = useCallback(async () => {
@@ -1451,100 +1634,190 @@ export default function MioPage() {
       </p>
 
       {/* ── Tus datos ────────────────────────────────────────────────────────
-          Espeja la ficha de admin/datos-personales, pero DE SOLO LECTURA: la
-          RLS (personas_select_propia, dp_select_propia, dh_select_propia) ya le
-          deja a cada persona leer su propia fila completa — corregir un dato
-          sigue yendo por Desarrollo Organizacional, esta sección es solo para
-          que pueda comprobar qué tiene guardado el sistema. */}
+          Espeja la ficha de admin/datos-personales. Ya no es de solo lectura
+          (0391): `fn_set_datos_personales` acepta desde la 0061 que
+          `p_persona_id = fn_persona_actual_id()`, así que cada quien puede
+          corregir su propia ficha. Lo que sigue yendo por Desarrollo
+          Organizacional es lo que no está acá: el DNI y el régimen de
+          pensión (cambian con sus propias funciones, gateadas del lado del
+          servidor) y el correo (es su usuario de acceso). */}
       <Seccion titulo="Tus datos">
-        <p className="mb-4 text-taupe">
-          Lo que el sistema tiene guardado de ti. Si algo está mal o falta, avisa a Desarrollo
-          Organizacional para que lo corrijan — desde acá no se edita.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
-            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-              <Dato etiqueta="Nombre completo" valor={yo?.nombre} />
-              <Dato etiqueta="DNI" valor={yo?.documento} />
-              {ficha?.nombre_dni && ficha.nombre_dni !== yo?.nombre && (
-                <Dato etiqueta="Nombre según DNI" valor={ficha.nombre_dni} />
-              )}
-              <Dato etiqueta="Fecha de nacimiento" valor={ficha?.fecha_nacimiento ? diaYMes(ficha.fecha_nacimiento) : null} />
-              <Dato etiqueta="Género" valor={etiquetaDeCatalogo(ficha?.genero, GENERO_LABELS)} />
-              <Dato etiqueta="Estado civil" valor={etiquetaDeCatalogo(ficha?.estado_civil, ESTADO_CIVIL_LABELS)} />
-              <Dato etiqueta="Grado de instrucción" valor={etiquetaDeCatalogo(ficha?.grado_instruccion, GRADO_INSTRUCCION_LABELS)} />
-              <Dato etiqueta="¿Hijos menores a cargo?" valor={ficha ? siNoSinDato(ficha.hijos_menores) : null} />
-            </dl>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Laboral</p>
-            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-              <Dato etiqueta="Sede" valor={yo?.sedeNombre} />
-              <Dato etiqueta="Fecha de ingreso" valor={yo?.fechaIngreso ? diaYMes(yo.fechaIngreso) : null} />
-              <Dato etiqueta="Cargo" valor={yo?.cargo} />
-              <Dato etiqueta="Función" valor={yo?.funcion} />
-              <Dato etiqueta="Régimen de pensión" valor={etiquetaDeCatalogo(yo?.regimenPension, REGIMEN_PENSION_LABELS)} />
-              {(leCorrespondeCuspp(yo?.enPlanilla, yo?.regimenPension) || !!ficha?.cuspp?.trim()) && (
-                <Dato etiqueta="CUSPP" valor={ficha?.cuspp} />
-              )}
-            </dl>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
-            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-              <Dato etiqueta="Correo" valor={yo?.email} />
-              <Dato etiqueta="Celular" valor={ficha?.celular} />
-              <Dato etiqueta="Dirección" valor={ficha?.direccion} />
-            </dl>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Datos bancarios</p>
-            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-              <Dato etiqueta="Entidad bancaria" valor={ficha?.entidad_bancaria} />
-              <Dato etiqueta="Número de cuenta" valor={ficha?.numero_cuenta} />
-            </dl>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto de emergencia</p>
-            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-              <Dato etiqueta="Nombre" valor={ficha?.emergencia_nombre} />
-              <Dato etiqueta="Vínculo" valor={ficha?.emergencia_vinculo} />
-              <Dato etiqueta="Teléfono" valor={ficha?.emergencia_telefono} />
-            </dl>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Discapacidad</p>
-            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-              <Dato etiqueta="¿Tiene una condición de discapacidad?" valor={ficha ? siNoSinDato(ficha.discapacidad) : null} />
-              {ficha?.discapacidad === true && <Dato etiqueta="Código CONADIS" valor={ficha.discapacidad_conadis} />}
-            </dl>
-          </div>
-
-          <div>
-            <p className="mb-1 text-[11px] uppercase tracking-wider text-taupe">Familiares registrados</p>
-            <p className="mb-2 text-taupe">Quienes te cubren EsSalud o el seguro de vida ley.</p>
-            {familiares.length === 0 ? (
-              <p className="text-taupe">No tienes ningún familiar registrado.</p>
-            ) : (
-              <ul className="space-y-1">
-                {familiares.map((f) => (
-                  <li key={f.id} className={`flex flex-wrap items-baseline gap-x-2 ${f.vigente_hasta ? "text-taupe" : ""}`}>
-                    <span className={f.vigente_hasta ? "" : "font-medium"}>{f.nombres} {f.apellidos}</span>
-                    <span className="text-taupe">· {etiquetaDeCatalogo(f.vinculo, VINCULO_DERECHOHABIENTE_LABELS)}</span>
-                    {f.vigente_hasta && <span className="text-xs">cerrado el {diaYMes(f.vigente_hasta)}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <p className="text-taupe">
+            {editandoDatos
+              ? "Corrige lo que haga falta y guarda. El DNI, el régimen de pensión y el correo no se cambian desde acá."
+              : "Lo que el sistema tiene guardado de ti. Si algo está mal o falta, corrígelo con «Editar»."}
+          </p>
+          {yo && !editandoDatos && (
+            <button
+              type="button"
+              onClick={editarDatos}
+              className="shrink-0 rounded-lg border border-sand px-3 py-1.5 text-xs hover:bg-sand/40"
+            >
+              Editar
+            </button>
+          )}
         </div>
+
+        {editandoDatos ? (
+          <form onSubmit={(e) => void guardarDatos(e)} className="space-y-4">
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {campoDatos("Nombre según DNI", "nombre_dni")}
+                {campoDatos("Fecha de nacimiento", "fecha_nacimiento", "date")}
+                {campoDatosLista("Género", "genero", GENEROS, GENERO_LABELS)}
+                {campoDatosLista("Estado civil", "estado_civil", ESTADOS_CIVILES, ESTADO_CIVIL_LABELS)}
+                {campoDatosLista("Grado de instrucción", "grado_instruccion", GRADOS_INSTRUCCION, GRADO_INSTRUCCION_LABELS)}
+                {campoDatosSiNo("¿Hijos menores a cargo?", "hijos_menores")}
+              </div>
+            </div>
+
+            {(leCorrespondeCuspp(yo?.enPlanilla, yo?.regimenPension) || formDatos.cuspp.trim() !== "") && (
+              <div>
+                <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Pensión</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {campoDatos("CUSPP · código de tu cuenta en la AFP", "cuspp")}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {campoDatos("Celular", "celular")}
+                {campoDatos("Dirección", "direccion")}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Datos bancarios</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {campoDatos("Entidad bancaria", "entidad_bancaria")}
+                {campoDatos("Número de cuenta", "numero_cuenta")}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto de emergencia</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {campoDatos("Nombre", "emergencia_nombre")}
+                {campoDatos("Vínculo", "emergencia_vinculo")}
+                {campoDatos("Teléfono", "emergencia_telefono")}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Discapacidad</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {campoDatosSiNo("¿Tienes una condición de discapacidad?", "discapacidad")}
+                {formDatos.discapacidad === "si" && campoDatos("Código CONADIS", "discapacidad_conadis")}
+              </div>
+            </div>
+
+            {avisoDatos && (
+              <p className={avisoDatos.tipo === "ok" ? "text-verde" : "text-rojo"}>{avisoDatos.texto}</p>
+            )}
+
+            <div className="flex items-center gap-3">
+              <button type="submit" disabled={guardandoDatos}
+                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                {guardandoDatos ? "Guardando…" : "Guardar"}
+              </button>
+              <button type="button" onClick={() => { setEditandoDatos(false); setAvisoDatos(null); }}
+                disabled={guardandoDatos} className="text-sm text-taupe underline disabled:opacity-50">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-4">
+            {avisoDatos && (
+              <p className={avisoDatos.tipo === "ok" ? "text-verde" : "text-rojo"}>{avisoDatos.texto}</p>
+            )}
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
+              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                <Dato etiqueta="Nombre completo" valor={yo?.nombre} />
+                <Dato etiqueta="DNI" valor={yo?.documento} />
+                {ficha?.nombre_dni && ficha.nombre_dni !== yo?.nombre && (
+                  <Dato etiqueta="Nombre según DNI" valor={ficha.nombre_dni} />
+                )}
+                <Dato etiqueta="Fecha de nacimiento" valor={ficha?.fecha_nacimiento ? diaYMes(ficha.fecha_nacimiento) : null} />
+                <Dato etiqueta="Género" valor={etiquetaDeCatalogo(ficha?.genero, GENERO_LABELS)} />
+                <Dato etiqueta="Estado civil" valor={etiquetaDeCatalogo(ficha?.estado_civil, ESTADO_CIVIL_LABELS)} />
+                <Dato etiqueta="Grado de instrucción" valor={etiquetaDeCatalogo(ficha?.grado_instruccion, GRADO_INSTRUCCION_LABELS)} />
+                <Dato etiqueta="¿Hijos menores a cargo?" valor={ficha ? siNoSinDato(ficha.hijos_menores) : null} />
+              </dl>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Laboral</p>
+              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                <Dato etiqueta="Sede" valor={yo?.sedeNombre} />
+                <Dato etiqueta="Fecha de ingreso" valor={yo?.fechaIngreso ? diaYMes(yo.fechaIngreso) : null} />
+                <Dato etiqueta="Cargo" valor={yo?.cargo} />
+                <Dato etiqueta="Función" valor={yo?.funcion} />
+                <Dato etiqueta="Régimen de pensión" valor={etiquetaDeCatalogo(yo?.regimenPension, REGIMEN_PENSION_LABELS)} />
+                {(leCorrespondeCuspp(yo?.enPlanilla, yo?.regimenPension) || !!ficha?.cuspp?.trim()) && (
+                  <Dato etiqueta="CUSPP" valor={ficha?.cuspp} />
+                )}
+              </dl>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
+              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                <Dato etiqueta="Correo" valor={yo?.email} />
+                <Dato etiqueta="Celular" valor={ficha?.celular} />
+                <Dato etiqueta="Dirección" valor={ficha?.direccion} />
+              </dl>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Datos bancarios</p>
+              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                <Dato etiqueta="Entidad bancaria" valor={ficha?.entidad_bancaria} />
+                <Dato etiqueta="Número de cuenta" valor={ficha?.numero_cuenta} />
+              </dl>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto de emergencia</p>
+              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                <Dato etiqueta="Nombre" valor={ficha?.emergencia_nombre} />
+                <Dato etiqueta="Vínculo" valor={ficha?.emergencia_vinculo} />
+                <Dato etiqueta="Teléfono" valor={ficha?.emergencia_telefono} />
+              </dl>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Discapacidad</p>
+              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                <Dato etiqueta="¿Tiene una condición de discapacidad?" valor={ficha ? siNoSinDato(ficha.discapacidad) : null} />
+                {ficha?.discapacidad === true && <Dato etiqueta="Código CONADIS" valor={ficha.discapacidad_conadis} />}
+              </dl>
+            </div>
+
+            <div>
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-taupe">Familiares registrados</p>
+              <p className="mb-2 text-taupe">Quienes te cubren EsSalud o el seguro de vida ley.</p>
+              {familiares.length === 0 ? (
+                <p className="text-taupe">No tienes ningún familiar registrado.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {familiares.map((f) => (
+                    <li key={f.id} className={`flex flex-wrap items-baseline gap-x-2 ${f.vigente_hasta ? "text-taupe" : ""}`}>
+                      <span className={f.vigente_hasta ? "" : "font-medium"}>{f.nombres} {f.apellidos}</span>
+                      <span className="text-taupe">· {etiquetaDeCatalogo(f.vinculo, VINCULO_DERECHOHABIENTE_LABELS)}</span>
+                      {f.vigente_hasta && <span className="text-xs">cerrado el {diaYMes(f.vigente_hasta)}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
       </Seccion>
     </main>
   );
