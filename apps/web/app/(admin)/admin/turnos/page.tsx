@@ -87,17 +87,28 @@ const inicioFranja = (i: number) => HORA_INICIO_SEMANA + i * 0.5;
 function pctEnRango(horaDec: number): number {
   return Math.min(100, Math.max(0, ((horaDec - HORA_INICIO) / (HORA_FIN - HORA_INICIO)) * 100));
 }
-// Rojo (#b8412d) → Verde (#5f7a52) según qué tan cerca está de la meta; a partir
-// de la meta queda verde sólido (el excedente ya no necesita más degradado).
-// Sin meta no hay contra qué medir: taupe neutro, no rojo (el rojo sin
-// significado solo mete ruido de alarma).
-const ROJO_RGB: [number, number, number] = [184, 65, 45];
-const VERDE_RGB: [number, number, number] = [95, 122, 82];
+// Rojo → Verde según qué tan cerca está de la meta; a partir de la meta queda
+// verde sólido (el excedente ya no necesita más degradado). Sin meta no hay
+// contra qué medir: taupe neutro, no rojo (el rojo sin significado solo mete
+// ruido de alarma).
+//
+// `color-mix()` en vez de interpolar RGB a mano: antes esto devolvía un
+// `rgb(...)` fijo que JS calculaba una sola vez y que NUNCA cambiaba con el
+// tema, mientras que el texto de encima sí seguía `var(--color-crema)` —así
+// que en oscuro el texto se volvía casi negro sobre un fondo que seguía
+// siendo el rojo/verde de tema claro: 3.17:1 en el extremo rojo y 3.63:1 en
+// el verde, los dos por debajo del 4.5:1 que exige WCAG AA para texto de
+// 10-11px (medido 2026-09-07). Con `var(--color-rojo)`/`var(--color-verde)`
+// el navegador resuelve el color con los valores del tema activo en cada
+// pintado: en oscuro esos tokens son más claros a propósito, y el texto
+// crema-oscuro (casi negro) vuelve a leerse — 4.70:1 a 6.26:1 medido contra
+// el degradado completo. De paso, el verde fijo de antes (#5f7a52) ya no
+// coincidía con NINGÚN token vigente (#48603f claro / #85a476 oscuro): era
+// una copia que se quedó atrás cuando el token se retonó.
 function colorCobertura(n: number, meta: number): string {
-  if (meta <= 0) return "rgb(164, 120, 101)"; // taupe
-  const ratio = Math.min(n / meta, 1);
-  const [r, g, b] = ROJO_RGB.map((c0, i) => Math.round(c0 + (VERDE_RGB[i] - c0) * ratio));
-  return `rgb(${r}, ${g}, ${b})`;
+  if (meta <= 0) return "var(--color-taupe)";
+  const ratioPct = Math.round(Math.min(n / meta, 1) * 100);
+  return `color-mix(in oklab, var(--color-verde) ${ratioPct}%, var(--color-rojo))`;
 }
 // La meta cambia a media tarde: hasta 14:15 es la meta de la MAÑANA, después la
 // de la TARDE (fijo por ahora, ambas sedes — decisión de Felipe).
@@ -1037,10 +1048,10 @@ export default function TurnosPage() {
                               const bg = nOp > 0
                                 ? colorCobertura(nOp, metaOp)
                                 : nEnc > 0
-                                ? "rgba(164, 120, 101, 0.12)" // solo encargada esa hora
+                                ? "color-mix(in srgb, var(--color-taupe) 12%, transparent)" // solo encargada esa hora
                                 : metaOp > 0
-                                ? "rgba(184, 65, 45, 0.10)" // meta puesta pero nadie: falta suave
-                                : "rgba(232, 224, 208, 0.35)"; // sin meta: sand tenue
+                                ? "color-mix(in srgb, var(--color-rojo) 10%, transparent)" // meta puesta pero nadie: falta suave
+                                : "color-mix(in srgb, var(--color-sand) 35%, transparent)"; // sin meta: sand tenue
                               const claro = nOp > 0;
                               return (
                                 <button key={iso} onClick={() => setPanel({ fecha: iso, franjaIdx: fi })}
