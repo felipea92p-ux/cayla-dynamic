@@ -96,12 +96,25 @@ typecheck, y el typecheck no sabe que «Normas» la tiene que ver todo el equipo
    — le faltan `hueso` y `pizarra`, y usa los valores de `verde` y `ámbar`
    previos al retuneo del 6 de septiembre.
 
-**Dos cosas del entorno, para quien trabaje en Windows** (esta sesión fue la
-primera): `npx pnpm install` **falla en silencio y sale con código 0** (npx no
-encuentra el binario), así que hay que llamar a `pnpm` directo. Y
-`.claude/launch.json` arranca el servidor con `/bin/zsh`, que en Windows no
-existe — se puede levantar con `pnpm --filter @cayla-dynamic/web dev`, pero el
-panel del navegador necesitaría una entrada propia en ese archivo.
+**Tres cosas del entorno, para quien trabaje en Windows** (esta sesión fue la
+primera):
+
+1. **Los archivos del árbol están en CRLF en disco y en LF en git.** Editar
+   cualquiera y guardarlo tal cual reescribe el archivo ENTERO: `globals.css`
+   pasó de un cambio de 49 líneas a uno de 444/395, y los 36 archivos del
+   sidebar llegaron a dar 28.000 líneas de diff antes de normalizarlos. No
+   rompe nada y por eso es peligroso — se ve como un cambio enorme y se revisa
+   como tal. **Convertir a LF antes de commitear** y comprobar con
+   `git diff --numstat` que el número cuadra con lo que se tocó de verdad.
+2. `npx pnpm install` **falla en silencio y sale con código 0** (npx no
+   encuentra el binario), así que hay que llamar a `pnpm` directo.
+3. `.claude/launch.json` arranca el servidor con `/bin/zsh`, que en Windows no
+   existe — se puede levantar con `pnpm --filter @cayla-dynamic/web dev`, pero
+   el panel del navegador necesitaría una entrada propia en ese archivo.
+
+Y una cuarta que no es de Windows: **el hook de pre-push llama a `python3`**
+(`fecha-que-bloquea.sh` y `lint-de-lo-nuevo.sh`, los dos con `|| exit 1`), así
+que sin Python instalado no se puede empujar desde esa máquina.
 
 ## 2026-09-05 — Foto junto al nombre en el terminal, subida por cada quien desde «Lo mío» (0381) · PEGADA Y VERIFICADA EN PRODUCCIÓN
 
