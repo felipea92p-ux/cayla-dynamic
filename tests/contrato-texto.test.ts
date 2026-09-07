@@ -138,6 +138,21 @@ describe("construirContrato", () => {
     );
   });
 
+  // El Anexo III fija el correo de LA COLABORADORA como domicilio válido
+  // para notificaciones — incluida la entrega del RIT. Sin esta prueba, un
+  // cambio accidental en `d.email` podía imprimir "[completar]" en un
+  // contrato real sin que ninguna prueba lo cazara (docs/hallazgos-abiertos.md).
+  it("el Anexo III lleva el correo de la colaboradora, y dice [completar] si falta", () => {
+    const conCorreo = construirContrato(datos({ email: "colaboradora@ejemplo.com" }));
+    expect(conCorreo).toContain("DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(conCorreo).toContain("El domicilio electrónico de LA COLABORADORA es colaboradora@ejemplo.com.");
+    expect(conCorreo).toContain("LA EMPRESA: info@cayla.pe · LA COLABORADORA: colaboradora@ejemplo.com</p>");
+
+    const sinCorreo = construirContrato(datos({ email: null }));
+    expect(sinCorreo).not.toContain("El domicilio electrónico de LA COLABORADORA es");
+    expect(sinCorreo).toContain("LA EMPRESA: info@cayla.pe · LA COLABORADORA: [completar]</p>");
+  });
+
   it("el adendum no repite el contrato ni sus anexos", () => {
     const html = construirContrato(datos({ tipo: "adendum", adendumTexto: "Se modifica la Cláusula Sexta." }));
     expect(html).toContain("ADENDUM AL CONTRATO DE TRABAJO");
@@ -275,9 +290,25 @@ describe("documentoConvenio", () => {
     const preprofesional = construirContrato(datosConvenio({ practicanteModalidad: "preprofesional" }));
     const profesional = construirContrato(datosConvenio({ practicanteModalidad: "profesional" }));
     expect(preprofesional).toContain("NOVENA. OBLIGACIONES DEL CENTRO DE FORMACIÓN PROFESIONAL");
-    expect(preprofesional).toContain("DÉCIMA OCTAVA. EXTINCIÓN");
+    expect(preprofesional).toContain("DÉCIMA NOVENA. EXTINCIÓN");
     expect(profesional).not.toContain("OBLIGACIONES DEL CENTRO DE FORMACIÓN");
-    expect(profesional).toContain("DÉCIMA SÉTIMA. EXTINCIÓN");
+    expect(profesional).toContain("DÉCIMA OCTAVA. EXTINCIÓN");
+  });
+
+  // El convenio no es un contrato de trabajo, pero sí necesita un domicilio
+  // electrónico válido para notificarle a LA PRACTICANTE — el mismo correo
+  // que ya vive en su ficha (Equipo), no uno nuevo que haya que inventar.
+  it("autoriza el domicilio electrónico con el correo de la practicante, y avisa si falta", () => {
+    const conCorreo = construirContrato(datosConvenio({ email: "practicante@ejemplo.com" }));
+    expect(conCorreo).toContain("DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(conCorreo).toContain("El domicilio electrónico de LA PRACTICANTE es practicante@ejemplo.com.");
+    expect(conCorreo).toContain("ANEXO III — DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(conCorreo).toContain("LA EMPRESA: info@cayla.pe · LA PRACTICANTE: practicante@ejemplo.com</p>");
+
+    const sinCorreo = construirContrato(datosConvenio({ email: null }));
+    expect(sinCorreo).toContain("DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(sinCorreo).not.toContain("El domicilio electrónico de LA PRACTICANTE es");
+    expect(sinCorreo).toContain("LA EMPRESA: info@cayla.pe · LA PRACTICANTE: [completar]</p>");
   });
 });
 
