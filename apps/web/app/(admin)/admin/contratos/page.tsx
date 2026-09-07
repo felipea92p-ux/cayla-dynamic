@@ -1471,6 +1471,13 @@ export default function ContratosPage() {
   // algo que vive en una tabla no se escribe: se pregunta.
   const sedesEnTablero = [...new Set(tablero.map((f) => f.sede).filter((x): x is string => Boolean(x)))].sort();
 
+  // El desplegable de «Persona» del generador sigue el mismo filtro de sede
+  // que la tabla de arriba — si no, elegir una sede ahí no significaba nada
+  // para la lista de personas, que seguía mostrando a las ~30 sin distinción.
+  const personasFiltradas = personas.filter(
+    (p) => filtroSede === "" || (p.sede_base_id ? sedeCodigo.get(p.sede_base_id) === filtroSede : false),
+  );
+
   // ── LAS FILAS DE LA TABLA ─────────────────────────────────────────────────
   // Parten del TABLERO, no del archivo de contratos: quien no tiene ninguno
   // generado es invisible en el archivo, y «¿a quién le falta?» es justo la
@@ -1639,7 +1646,22 @@ export default function ContratosPage() {
               <div className="grid grid-cols-2 gap-2">
                 <select
                   value={filtroSede}
-                  onChange={(e) => setFiltroSede(e.target.value)}
+                  onChange={(e) => {
+                    const nuevaSede = e.target.value;
+                    setFiltroSede(nuevaSede);
+                    // Si la persona ya elegida en el generador queda fuera del
+                    // nuevo filtro, se limpia: si no, el desplegable de Persona
+                    // se queda mostrando en blanco un valor que ya no está entre
+                    // sus opciones.
+                    if (
+                      editando === null &&
+                      nuevaSede !== "" &&
+                      persona &&
+                      (!persona.sede_base_id || sedeCodigo.get(persona.sede_base_id) !== nuevaSede)
+                    ) {
+                      setPersonaId("");
+                    }
+                  }}
                   aria-label="Filtrar por sede"
                   className="rounded-lg border border-sand bg-hueso p-2 text-sm"
                 >
@@ -1781,7 +1803,7 @@ export default function ContratosPage() {
                   onChange={(e) => setPersonaId(e.target.value)}
                 >
                   <option value="">— elegir —</option>
-                  {personas.map((p) => (
+                  {personasFiltradas.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.apellidos}, {p.nombres}
                     </option>
