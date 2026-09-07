@@ -83,6 +83,62 @@ function finDePlazo(inicioIso: string, meses: number): string {
   return new Date(Date.UTC(y, m - 1 + meses, d - 1)).toISOString().slice(0, 10);
 }
 
+// ── ¿Se pisan dos periodos? ─────────────────────────────────────────────────
+// Un documento sin fecha de fin —el indefinido— no termina nunca, así que se
+// compara contra un tope imposible. Las fechas ISO se ordenan igual como texto
+// que como fecha, así que basta comparar cadenas.
+//
+// ESTA REGLA VIVE DOS VECES, y a propósito: acá para AVISAR antes de que
+// alguien llene ocho campos, y dentro de `fn_contrato_registrar` /
+// `fn_contrato_editar` (migración 0388), que son las que de verdad mandan —
+// esta pantalla no es la única puerta a esa función. Si cambia una, cambia la
+// otra: el mismo trato que `jornada-esperada.ts` tiene con
+// `fn_recalcular_jornada`.
+const SIN_FIN = "9999-12-31";
+function seSolapan(aIni: string, aFin: string | null, bIni: string, bFin: string | null): boolean {
+  return aIni <= (bFin ?? SIN_FIN) && bIni <= (aFin ?? SIN_FIN);
+}
+
+/**
+ * Lo que se tecleó en el formulario, tal cual, para poder volver a abrirlo.
+ *
+ * `documento_html` guarda el RESULTADO —el papel que se imprime—, no las
+ * respuestas que lo produjeron: la causa objetiva, las funciones, los cuatro
+ * datos del centro de formación, los hitos del Anexo I. Sin esta foto,
+ * «editar» obligaría a reescribir veintiún campos para corregir una fecha, y
+ * nadie corrige una fecha a ese precio: volvería a generar otro documento,
+ * que es justo el duplicado que esta migración viene a impedir.
+ *
+ * Nace con la 0388, así que un borrador anterior la tiene en null — la
+ * pantalla lo dice al abrirlo en vez de fingir que los textos son los suyos.
+ */
+// `type` y no `interface` a propósito: solo un alias de tipo recibe la firma
+// de índice implícita que `Json` exige, y sin ella esto no se puede mandar
+// como parámetro jsonb a la función.
+type DatosFormulario = {
+  cargo: string;
+  ciudad: string;
+  causa: string;
+  funciones: string;
+  activosLibre: string;
+  sinActivosAdicionales: boolean;
+  adendum: string;
+  modalidadManual: string;
+  planCapacitacion: string;
+  centroFormacionNombre: string;
+  centroFormacionRuc: string;
+  centroFormacionDomicilio: string;
+  centroFormacionRepresentante: string;
+  carreraEspecialidad: string;
+  cicloAcademico: string;
+  gradoTituloTexto: string;
+  areaProyecto: string;
+  objetivoFormativoGeneral: string;
+  supervisorAsignado: string;
+  hitoMes3: string;
+  hitoMes6: string;
+};
+
 interface Persona {
   id: string;
   nombres: string;
@@ -149,6 +205,10 @@ interface ContratoFila {
   comunicado_mtpe_at: string | null;
   anulado_at: string | null;
   anulado_motivo: string | null;
+  // Un borrador se puede corregir en su sitio (0388). Que se corrigió, y quién,
+  // no se deduce: se anota, como todo lo que toca un documento que se firma.
+  editado_at: string | null;
+  editado_por: string | null;
   vigente: boolean;
 }
 
@@ -220,6 +280,50 @@ const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
   tramite_pendiente: { texto: "falta copia o comunicación al MTPE", grave: false },
   ok: { texto: "al día", grave: false },
 };
+
+/**
+ * El punto de partida de los campos editables para una persona.
+ *
+ * Vive acá, y devuelve el objeto entero, porque hay DOS caminos que necesitan
+ * la misma respuesta: elegir a alguien en el desplegable, y abrir para editar
+ * un borrador anterior a la 0388 —que no guardó lo que se tecleó— y por tanto
+ * tiene que empezar de cero. Escritos por separado, el día que se agregue un
+ * campo nuevo uno de los dos se queda sin reponerlo, y el formulario arrastra
+ * al documento siguiente lo que quedó del anterior.
+ */
+function camposIniciales(p: Persona, sedeNombre: string): DatosFormulario {
+  return {
+    cargo: p.cargo ?? "",
+    ciudad: "",
+    causa:
+      `La causa objetiva determinante de la contratación es la siguiente: LA EMPRESA opera la sede ` +
+      `${sedeNombre}, que ha experimentado un crecimiento sostenido de su actividad y de atención al ` +
+      `público. El volumen actual de operaciones no puede ser absorbido en su totalidad por el personal ` +
+      `permanente ya registrado en planillas de LA EMPRESA. En consecuencia, la contratación bajo ` +
+      `modalidad temporal resulta necesaria y proporcional a la naturaleza de esta etapa de expansión y ` +
+      `consolidación operativa, en los términos del artículo 57 del TUO del Decreto Legislativo N.° 728. ` +
+      `[REVISAR antes de imprimir — en especial si la sede es Central, que no es tienda y puede necesitar ` +
+      `otra causa objetiva.]`,
+    funciones: FUNCIONES_PLACEHOLDER,
+    activosLibre: "",
+    sinActivosAdicionales: false,
+    adendum: "",
+    modalidadManual: "",
+    planCapacitacion: "",
+    centroFormacionNombre: "",
+    centroFormacionRuc: "",
+    centroFormacionDomicilio: "",
+    centroFormacionRepresentante: "",
+    carreraEspecialidad: "",
+    cicloAcademico: "",
+    gradoTituloTexto: "",
+    areaProyecto: "",
+    objetivoFormativoGeneral: "",
+    supervisorAsignado: "",
+    hitoMes3: "",
+    hitoMes6: "",
+  };
+}
 
 export default function ContratosPage() {
   const router = useRouter();
@@ -315,6 +419,20 @@ export default function ContratosPage() {
   const [anulando, setAnulando] = useState<string | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
 
+  // EL BORRADOR QUE SE ESTÁ CORRIGIENDO EN SU SITIO (0388).
+  //
+  // No nulo = el formulario dejó de generar documentos nuevos y está editando
+  // este. Se guarda la fila entera y no solo el id porque de ella salen las
+  // fechas y el tipo con los que se repuebla el formulario, y porque hay que
+  // poder decir en pantalla cuál es sin volver a buscarlo en la lista.
+  const [editando, setEditando] = useState<ContratoFila | null>(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  // Un borrador anterior a la 0388 no guardó lo que se tecleó. Se puede editar
+  // igual —fechas, cargo, tipo— pero los textos largos vuelven a arrancar en su
+  // relleno, y eso hay que DECIRLO: reimprimir creyendo que se conservaron
+  // sería peor que no poder editarlo.
+  const [edicionSinFoto, setEdicionSinFoto] = useState(false);
+
   // Filtra LAS DOS listas de la izquierda a la vez —lo pendiente y el archivo—,
   // que es como se busca de verdad: no se pregunta «¿está en pendientes o en el
   // archivo?», se pregunta «¿qué pasa con Danitza?». Con ~30 personas activas y
@@ -322,6 +440,65 @@ export default function ContratosPage() {
   const [busca, setBusca] = useState("");
 
   const { avisar } = useToast();
+
+  /** Vuelca al formulario los veintiún campos editables, de una sola vez. */
+  function aplicarCampos(d: DatosFormulario) {
+    setCargoEditado(d.cargo);
+    setCiudadEditada(d.ciudad);
+    setCausaEditada(d.causa);
+    setFuncionesEditadas(d.funciones);
+    setActivosLibre(d.activosLibre);
+    setSinActivosAdicionales(d.sinActivosAdicionales);
+    setAdendumEditado(d.adendum);
+    setModalidadManualEditada(
+      d.modalidadManual === "preprofesional" || d.modalidadManual === "profesional" ? d.modalidadManual : "",
+    );
+    setPlanCapacitacionEditado(d.planCapacitacion);
+    setCentroFormacionNombreEditado(d.centroFormacionNombre);
+    setCentroFormacionRucEditado(d.centroFormacionRuc);
+    setCentroFormacionDomicilioEditado(d.centroFormacionDomicilio);
+    setCentroFormacionRepresentanteEditado(d.centroFormacionRepresentante);
+    setCarreraEspecialidadEditada(d.carreraEspecialidad);
+    setCicloAcademicoEditado(d.cicloAcademico);
+    setGradoTituloTextoEditado(d.gradoTituloTexto);
+    setAreaProyectoEditado(d.areaProyecto);
+    setObjetivoFormativoGeneralEditado(d.objetivoFormativoGeneral);
+    setSupervisorAsignadoEditado(d.supervisorAsignado);
+    setHitoMes3Editado(d.hitoMes3);
+    setHitoMes6Editado(d.hitoMes6);
+  }
+
+  /**
+   * La foto de lo que hay ahora en el formulario, para guardarla junto al
+   * documento. Es la que permite volver a abrirlo tal cual meses después —ver
+   * `DatosFormulario`— y la que hace que corregir una fecha cueste un clic en
+   * vez de reescribir el convenio entero.
+   */
+  function camposActuales(): DatosFormulario {
+    return {
+      cargo: cargoEditado,
+      ciudad: ciudadEditada,
+      causa: causaEditada,
+      funciones: funcionesEditadas,
+      activosLibre,
+      sinActivosAdicionales,
+      adendum: adendumEditado,
+      modalidadManual: modalidadManualEditada,
+      planCapacitacion: planCapacitacionEditado,
+      centroFormacionNombre: centroFormacionNombreEditado,
+      centroFormacionRuc: centroFormacionRucEditado,
+      centroFormacionDomicilio: centroFormacionDomicilioEditado,
+      centroFormacionRepresentante: centroFormacionRepresentanteEditado,
+      carreraEspecialidad: carreraEspecialidadEditada,
+      cicloAcademico: cicloAcademicoEditado,
+      gradoTituloTexto: gradoTituloTextoEditado,
+      areaProyecto: areaProyectoEditado,
+      objetivoFormativoGeneral: objetivoFormativoGeneralEditado,
+      supervisorAsignado: supervisorAsignadoEditado,
+      hitoMes3: hitoMes3Editado,
+      hitoMes6: hitoMes6Editado,
+    };
+  }
 
   const sedeCodigo = useMemo(() => new Map(sedes.map((s) => [s.id, s.codigo])), [sedes]);
   const sedeNombreMap = useMemo(() => new Map(sedes.map((s) => [s.id, s.nombre])), [sedes]);
@@ -459,6 +636,12 @@ export default function ContratosPage() {
   useEffect(() => {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
+    // Al abrir un borrador para corregirlo, el tipo es EL SUYO —el del papel que
+    // ya se imprimió— y no el que le tocaría hoy a esa persona. Los dos efectos
+    // de repoblado se apartan mientras dure la edición: `editando` se fija en el
+    // mismo lote de `setState` que `personaId`, así que cuando este efecto corre
+    // ya lo ve puesto.
+    if (editando) return;
     setTipo(tipoQueCorresponde(p.fecha_ingreso, hoyLima()));
     // `personas` fuera de las dependencias por la misma razón que el efecto de
     // abajo: `cargar()` la devuelve con otra referencia y repondría el tipo
@@ -474,38 +657,11 @@ export default function ContratosPage() {
     setBorrador(null);
     setDocumentoAbierto(null);
     if (!p) return;
+    // Ver el efecto de arriba: editar repuebla el formulario con lo que se
+    // tecleó aquel día, y este efecto lo borraría entero un instante después.
+    if (editando) return;
 
-    setCargoEditado(p.cargo ?? "");
-    const sedeNom = p.sede_base_id ? (sedeNombreMap.get(p.sede_base_id) ?? "") : "";
-    setCausaEditada(
-      `La causa objetiva determinante de la contratación es la siguiente: LA EMPRESA opera la sede ` +
-        `${sedeNom}, que ha experimentado un crecimiento sostenido de su actividad y de atención al ` +
-        `público. El volumen actual de operaciones no puede ser absorbido en su totalidad por el personal ` +
-        `permanente ya registrado en planillas de LA EMPRESA. En consecuencia, la contratación bajo ` +
-        `modalidad temporal resulta necesaria y proporcional a la naturaleza de esta etapa de expansión y ` +
-        `consolidación operativa, en los términos del artículo 57 del TUO del Decreto Legislativo N.° 728. ` +
-        `[REVISAR antes de imprimir — en especial si la sede es Central, que no es tienda y puede necesitar ` +
-        `otra causa objetiva.]`,
-    );
-    setFuncionesEditadas(FUNCIONES_PLACEHOLDER);
-    setActivosLibre("");
-    setSinActivosAdicionales(false);
-    setAdendumEditado("");
-    setCiudadEditada("");
-    setPlanCapacitacionEditado("");
-    setCentroFormacionNombreEditado("");
-    setCentroFormacionRucEditado("");
-    setCentroFormacionDomicilioEditado("");
-    setCentroFormacionRepresentanteEditado("");
-    setCarreraEspecialidadEditada("");
-    setCicloAcademicoEditado("");
-    setGradoTituloTextoEditado("");
-    setAreaProyectoEditado("");
-    setObjetivoFormativoGeneralEditado("");
-    setSupervisorAsignadoEditado("");
-    setHitoMes3Editado("");
-    setHitoMes6Editado("");
-    setModalidadManualEditada("");
+    aplicarCampos(camposIniciales(p, p.sede_base_id ? (sedeNombreMap.get(p.sede_base_id) ?? "") : ""))
 
     const inicio = tipo === "renovacion" && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : hoyLima();
     setFechaInicio(inicio);
@@ -601,6 +757,54 @@ export default function ContratosPage() {
   // existe, y el contrato salía prometiendo S/ 0.00 de movilidad.
   const movilidadTarifa = persona ? tarifaDeSede(persona.sede_fisica_id ?? persona.sede_base_id) : null;
 
+  // ── LO QUE YA TIENE, Y QUE HACE QUE ESTE DOCUMENTO SOBRE ──────────────────
+  //
+  // El accidente que esto cierra está en el archivo: el 4 de setiembre de 2026
+  // la misma persona quedó con DOS convenios idénticos —mismo tipo, mismas
+  // fechas, los dos sin firmar—, porque nada en esta pantalla distinguía
+  // «generar el suyo» de «generar uno más». Un documento sin firmar no es un
+  // documento: es un borrador, y un borrador se corrige, no se duplica. Que
+  // haya dos con el mismo periodo no es desorden de archivo — es dos papeles
+  // que dicen a la vez qué se le debe a una persona.
+  //
+  // Los anulados no cuentan: anular es exactamente cómo dice este sistema «este
+  // ya no vale» (acá nada se borra, se marca). Y el que se está editando
+  // tampoco se cuenta contra sí mismo.
+  const vivosDeLaPersona = persona
+    ? contratos.filter((c) => c.persona_id === persona.id && !c.anulado_at && c.id !== editando?.id)
+    : [];
+  const borradoresVivos = vivosDeLaPersona.filter((c) => !c.storage_path);
+  const borradorMismoTipo = borradoresVivos.find((c) => c.tipo === tipoEfectivo) ?? null;
+  // El solape mira TAMBIÉN los firmados: dos papeles que cubren los mismos días
+  // son el problema, esté uno firmado o no. El adendum queda fuera por los dos
+  // lados — no define un vínculo, MODIFICA el que ya existe, así que se monta
+  // sobre su contrato por definición y solaparse es lo que le toca.
+  //
+  // AL CORREGIR, LA PANTALLA AFLOJA IGUAL QUE EL SERVIDOR, y esto no es un
+  // detalle: con dos borradores pisados —el caso que motiva todo esto— cada uno
+  // pisa al otro, así que exigir aquí lo mismo que al generar dejaría los dos
+  // sin poder arreglarse. La trampa se cerraría justo sobre los datos que esto
+  // viene a rescatar, y se descubrió mirándolo en el navegador con los dos
+  // convenios delante. `fn_contrato_editar` mide contra los FIRMADOS y nada
+  // más; aquí, lo mismo.
+  const candidatosASolape = vivosDeLaPersona.filter(
+    (c) => c.tipo !== "adendum" && (!editando || c.storage_path !== null),
+  );
+  const solapado =
+    persona && !esAdendum && fechaInicio && (fechaFin || esIndefinido)
+      ? (candidatosASolape.find((c) =>
+          seSolapan(c.fecha_inicio, c.fecha_fin, fechaInicio, esIndefinido ? null : fechaFin),
+        ) ?? null)
+      : null;
+
+  /** «Convenio de prácticas del 3/09/2026 al 3/12/2026», para nombrar uno en una frase. */
+  function describir(c: ContratoFila): string {
+    const t = TIPO_CONTRATO[c.tipo] ?? c.tipo;
+    return c.fecha_fin
+      ? `${t} del ${formatearFecha(c.fecha_inicio)} al ${formatearFecha(c.fecha_fin)}`
+      : `${t} desde el ${formatearFecha(c.fecha_inicio)}`;
+  }
+
   // Un indefinido no exige fechaFin — es justamente lo que no tiene (0347).
   const datosParaGenerar: DatosContrato | null =
     persona &&
@@ -664,6 +868,28 @@ export default function ContratosPage() {
   // un campo sin tocar no debe poder imprimirse como si fuera una respuesta.
   // Decisión de Felipe (2026-08-19).
   const bloqueos: string[] = [];
+  // ── Los dos candados contra el duplicado (0388) ───────────────────────────
+  // Van primero: si uno de estos dos habla, ninguno de los de abajo importa —
+  // el documento entero sobra. Se dicen igual acá aunque la tarjeta de arriba
+  // ya los explique con botones, porque esta lista es la que apaga el botón y
+  // la que se lee cuando se llegó al final del formulario sin mirar arriba.
+  //
+  // Quien manda de verdad no es esto: es `fn_contrato_registrar`, que rechaza
+  // lo mismo aunque la llamada no venga de esta pantalla.
+  // El candado del borrador duplicado es SOLO al generar: corregir no crea nada,
+  // y el otro borrador —que sigue anunciado en la tarjeta de arriba, con su
+  // «Anular» al lado— es un problema aparte, no una razón para no poder tocar
+  // este.
+  if (persona && !editando && borradorMismoTipo) {
+    bloqueos.push(
+      `${persona.nombres} ya tiene un ${(TIPO_CONTRATO[borradorMismoTipo.tipo] ?? borradorMismoTipo.tipo).toLowerCase()} sin firmar (${describir(borradorMismoTipo)}). Edítalo o anúlalo — no se generan dos.`,
+    );
+  }
+  if (persona && solapado) {
+    bloqueos.push(
+      `Estas fechas se pisan con un documento que sigue vigente: ${describir(solapado)}${solapado.storage_path ? ", ya firmado" : ", sin firmar"}. Cambia las fechas, o anúlalo si ya no vale.`,
+    );
+  }
   // Estos cuatro son los que dejan `datosParaGenerar` en null: sin ellos el
   // botón se apaga sin ninguna de las líneas rojas de abajo, y quien llena el
   // formulario de la derecha no tiene forma de saber que el problema está en
@@ -871,6 +1097,9 @@ export default function ContratosPage() {
       // un número calculado del horario que guardar acá.
       p_horas_semanales: null,
       p_documento_html: html,
+      // La foto de lo tecleado, para poder reabrir este borrador y corregirlo
+      // (0388) en vez de generar otro al lado.
+      p_datos_formulario: camposActuales(),
     });
     setGenerando(false);
     if (error || !id) {
@@ -881,6 +1110,89 @@ export default function ContratosPage() {
     setBorrador({ id: id as string, html });
     await cargar();
     avisar("ok", "Borrador generado. Revísalo, imprímelo y fírmalo; después sube el escaneo desde el historial.");
+  }
+
+  /**
+   * Abre un borrador para corregirlo EN SU SITIO, sin generar otro.
+   *
+   * Solo un borrador. Un contrato con escaneo firmado NO se edita nunca: lo que
+   * vale es el papel que las dos partes firmaron, y cambiarle el texto por
+   * detrás dejaría al sistema diciendo una cosa y al archivador otra. Para
+   * corregir algo firmado están las dos puertas de siempre — el adendum, que
+   * modifica sin negar, y la anulación con motivo. `fn_contrato_editar` lo
+   * rechaza igual aunque alguien llegue por otro camino.
+   */
+  async function empezarEdicion(c: ContratoFila) {
+    const { data, error } = await supabase
+      .from("contratos_generados")
+      .select("datos_formulario")
+      .eq("id", c.id)
+      .maybeSingle();
+    if (error || !data) {
+      avisar("error", mensajeDeError(error, "abrir el borrador"));
+      return;
+    }
+    const foto = (data as { datos_formulario: DatosFormulario | null }).datos_formulario;
+    const p = personas.find((x) => x.id === c.persona_id);
+    if (!p) {
+      avisar("error", "Esa persona ya no está activa: su borrador no se puede editar.");
+      return;
+    }
+
+    setDocumentoAbierto(null);
+    setBorrador(null);
+    // `editando` se fija ANTES que `personaId`/`tipo` en el mismo lote, así que
+    // los dos efectos de repoblado ya lo ven puesto y se apartan.
+    setEditando(c);
+    setEdicionSinFoto(foto === null);
+    setPersonaId(c.persona_id);
+    setTipo(c.tipo as "nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido");
+    setFechaInicio(c.fecha_inicio);
+    setFechaFin(c.fecha_fin ?? "");
+    aplicarCampos(foto ?? camposIniciales(p, p.sede_base_id ? (sedeNombreMap.get(p.sede_base_id) ?? "") : ""));
+    avisar("ok", "Borrador abierto para editar. Al guardar se reemplaza su texto — no se crea otro.");
+  }
+
+  /** Sale del modo edición y deja el formulario limpio, sin persona elegida. */
+  function cancelarEdicion() {
+    setEditando(null);
+    setEdicionSinFoto(false);
+    setPersonaId("");
+    setBorrador(null);
+    setDocumentoAbierto(null);
+  }
+
+  async function guardarEdicion() {
+    if (!editando || !datosParaGenerar || !persona) {
+      avisar("error", "Faltan datos para guardar: revisa DNI, nombre legal, sueldo vigente y las fechas.");
+      return;
+    }
+    if (bloqueos.length > 0) {
+      avisar("error", bloqueos[0]);
+      return;
+    }
+    setGuardandoEdicion(true);
+    const html = construirContrato(datosParaGenerar);
+    const { error } = await supabase.rpc("fn_contrato_editar", {
+      p_id: editando.id,
+      p_tipo: datosParaGenerar.tipo,
+      p_cargo: datosParaGenerar.cargo,
+      p_remuneracion_mensual: datosParaGenerar.remuneracionMensual,
+      p_fecha_inicio: fechaInicio,
+      p_fecha_fin: esIndefinido ? null : fechaFin,
+      p_documento_html: html,
+      p_datos_formulario: camposActuales(),
+    });
+    setGuardandoEdicion(false);
+    if (error) {
+      avisar("error", mensajeDeError(error, "guardar el borrador"));
+      return;
+    }
+    setEditando(null);
+    setEdicionSinFoto(false);
+    setPersonaId("");
+    await cargar();
+    avisar("ok", "Borrador corregido. Vuelve a imprimirlo antes de firmarlo — el anterior ya no vale.");
   }
 
   function imprimir() {
@@ -945,6 +1257,10 @@ export default function ContratosPage() {
       avisar("error", mensajeDeError(error, "anular el contrato"));
       return;
     }
+    // Si lo que se acaba de anular es justo lo que se estaba editando, el
+    // formulario deja de tener sujeto: se sale de la edición en vez de guardar
+    // cambios sobre un documento que ya no vale.
+    if (editando?.id === anulando) cancelarEdicion();
     setAnulando(null);
     setMotivoAnular("");
     await cargar();
@@ -1257,8 +1573,11 @@ export default function ContratosPage() {
               <label className="text-sm">
                 Persona
                 <select
-                  className="mt-1 w-full rounded border border-sand p-2"
+                  className="mt-1 w-full rounded border border-sand p-2 disabled:bg-crema disabled:text-taupe"
                   value={personaId}
+                  // Un borrador es de quien es. Cambiarle la persona no sería
+                  // corregirlo, sería otro documento — y para eso está generar.
+                  disabled={editando !== null}
                   onChange={(e) => setPersonaId(e.target.value)}
                 >
                   <option value="">— elegir —</option>
@@ -1303,6 +1622,64 @@ export default function ContratosPage() {
                 )}
               </label>
             </div>
+
+            {/* EDITANDO: lo que se ve tiene que decir que esto NO va a crear
+                nada. Sin esta banda el formulario es idéntico al de generar, y
+                el botón sería la única pista — demasiado tarde. */}
+            {editando && (
+              <div className="rounded-lg border border-pizarra/50 bg-pizarra/10 px-3 py-2 text-sm">
+                <p className="font-medium">Editando un borrador, no generando otro.</p>
+                <p className="mt-1 text-xs text-taupe">
+                  {describir(editando)} · generado el {formatearFecha(editando.generado_at.slice(0, 10))}. Al
+                  guardar se reemplaza su texto; el archivo conserva el mismo documento.
+                </p>
+                {edicionSinFoto && (
+                  <p className="mt-2 text-xs">
+                    Se generó antes de que se guardara lo tecleado, así que los textos largos vuelven a
+                    arrancar en su relleno. <strong>Revísalos antes de guardar.</strong>
+                  </p>
+                )}
+                <button className="mt-2 text-xs underline underline-offset-2" onClick={cancelarEdicion}>
+                  Cancelar edición
+                </button>
+              </div>
+            )}
+
+            {/* LO QUE YA TIENE SIN FIRMAR, CON LAS DOS SALIDAS AL LADO.
+                Decirlo solo en la lista de bloqueos obliga a bajar hasta el
+                final y después a buscar el documento en el archivo. Acá se
+                corrige o se anula desde donde se descubrió. */}
+            {persona && borradoresVivos.length > 0 && (
+              <div className="rounded-lg border border-taupe/40 bg-sand/40 px-3 py-2 text-sm">
+                <p className="font-medium">
+                  {persona.nombres} ya tiene{" "}
+                  {borradoresVivos.length === 1 ? "un documento" : `${borradoresVivos.length} documentos`} sin
+                  firmar.
+                </p>
+                <ul className="mt-1 space-y-1">
+                  {borradoresVivos.map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-baseline gap-x-3 text-xs">
+                      <span className="min-w-0 flex-1">{describir(c)}</span>
+                      <button
+                        className="underline underline-offset-2 hover:text-tinta"
+                        onClick={() => empezarEdicion(c)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="underline underline-offset-2 hover:text-rojo"
+                        onClick={() => setAnulando(c.id)}
+                      >
+                        Anular
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-taupe">
+                  Un documento sin firmar se corrige; no se genera otro al lado.
+                </p>
+              </div>
+            )}
 
             {persona && (
               <>
@@ -1690,13 +2067,28 @@ export default function ContratosPage() {
                   </ul>
                 )}
 
-                <button
-                  className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
-                  disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
-                  onClick={generarBorrador}
-                >
-                  {generando ? "Generando…" : "Generar borrador"}
-                </button>
+                {editando ? (
+                  <button
+                    className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
+                    disabled={!datosParaGenerar || bloqueos.length > 0 || guardandoEdicion}
+                    onClick={guardarEdicion}
+                  >
+                    {guardandoEdicion ? "Guardando…" : "Guardar cambios"}
+                  </button>
+                ) : (
+                  <button
+                    className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
+                    disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
+                    onClick={generarBorrador}
+                  >
+                    {generando ? "Generando…" : "Generar borrador"}
+                  </button>
+                )}
+                {editando && (
+                  <button className="ml-2 text-sm underline underline-offset-2" onClick={cancelarEdicion}>
+                    Cancelar
+                  </button>
+                )}
                 {borrador && (
                   <button className="ml-2 rounded border border-sand px-4 py-2 text-sm" onClick={imprimir}>
                     Imprimir / Guardar como PDF
@@ -1768,6 +2160,15 @@ export default function ContratosPage() {
                         <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
                           Ver / imprimir
                         </button>
+                        {/* Editar solo mientras sea un borrador. Con el escaneo
+                            firmado adentro manda el papel: se corrige con un
+                            adendum o se anula, nunca reescribiendo por detrás lo
+                            que dos partes ya firmaron. */}
+                        {!c.storage_path && (
+                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => empezarEdicion(c)}>
+                            Editar
+                          </button>
+                        )}
                         {!c.storage_path && (
                           <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirSubida(c.id)}>
                             Subir contrato firmado
@@ -1799,6 +2200,10 @@ export default function ContratosPage() {
                       <p className="text-xs text-taupe">
                         Generado el {formatearFecha(c.generado_at.slice(0, 10))}
                         {c.generado_por && ` por ${c.generado_por}`}
+                        {/* Que un documento cambió después de generarse se dice,
+                            no se deduce del archivo de auditoría. */}
+                        {c.editado_at &&
+                          ` · editado el ${formatearFecha(c.editado_at.slice(0, 10))}${c.editado_por ? ` por ${c.editado_por}` : ""}`}
                       </p>
                     </div>
                   ))}

@@ -754,7 +754,10 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
+          datos_formulario: Json | null
           documento_html: string
+          editado_at: string | null
+          editado_por: string | null
           fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
@@ -776,7 +779,10 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
+          datos_formulario?: Json | null
           documento_html: string
+          editado_at?: string | null
+          editado_por?: string | null
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
@@ -798,7 +804,10 @@ export type Database = {
           cargo?: string
           comunicado_mtpe_at?: string | null
           copia_entregada_at?: string | null
+          datos_formulario?: Json | null
           documento_html?: string
+          editado_at?: string | null
+          editado_por?: string | null
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
@@ -824,6 +833,20 @@ export type Database = {
           {
             foreignKeyName: "contratos_generados_anulado_por_fkey"
             columns: ["anulado_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_editado_por_fkey"
+            columns: ["editado_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratos_generados_editado_por_fkey"
+            columns: ["editado_por"]
             isOneToOne: false
             referencedRelation: "terminal_roster"
             referencedColumns: ["id"]
@@ -4494,7 +4517,10 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at: string | null
           copia_entregada_at: string | null
+          datos_formulario: Json | null
           documento_html: string
+          editado_at: string | null
+          editado_por: string | null
           fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
@@ -4529,9 +4555,23 @@ export type Database = {
         }
         Returns: string
       }
+      fn_contrato_editar: {
+        Args: {
+          p_cargo?: string | null
+          p_datos_formulario?: Json | null
+          p_documento_html?: string | null
+          p_fecha_fin?: string | null
+          p_fecha_inicio?: string | null
+          p_id?: string | null
+          p_remuneracion_mensual?: number | null
+          p_tipo?: string | null
+        }
+        Returns: string
+      }
       fn_contrato_registrar: {
         Args: {
           p_cargo?: string | null
+          p_datos_formulario?: Json | null
           p_documento_html?: string | null
           p_fecha_fin?: string | null
           p_fecha_firma?: string | null
@@ -4566,6 +4606,8 @@ export type Database = {
           cargo: string
           comunicado_mtpe_at: string
           copia_entregada_at: string
+          editado_at: string
+          editado_por: string
           fecha_fin: string
           fecha_firma: string
           fecha_inicio: string
