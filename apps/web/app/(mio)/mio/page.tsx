@@ -1326,7 +1326,7 @@ export default function MioPage() {
         <p className="mb-3 text-sm text-taupe">
           Escribe tu nombre y elige un estilo: esa firma es la que se va a estampar en tu contrato.
         </p>
-        <GeneradorFirma nombreSugerido={yo?.nombre ?? ""} />
+        <GeneradorFirma nombres={yo?.nombres ?? ""} apellidos={yo?.apellidos ?? ""} />
       </section>
 
       {/* ── El desglose ──────────────────────────────────────────────────────

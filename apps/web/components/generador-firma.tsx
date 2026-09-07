@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Caveat, Dancing_Script, Great_Vibes } from "next/font/google";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
-import { generarImagenFirma } from "@/lib/firma-generador";
+import { generarImagenFirma, sugerirFormatoFirma, validarFirmaCoincideConNombre } from "@/lib/firma-generador";
 import { Boton } from "./ui/boton";
 import { Campo } from "./ui/campo";
 import { useToast } from "./toast";
@@ -30,30 +30,66 @@ type EstiloId = (typeof ESTILOS)[number]["id"];
  * admin/líder). Esa firma queda lista para estamparse en el contrato de quien
  * la generó.
  *
+ * COMO CUANDO UN BRÓKER (p.ej. Interactive Brokers) exige que la firma de un
+ * contrato coincida con los datos ya registrados de esa persona: acá tampoco
+ * vale cualquier texto. Se sugiere un formato a partir del nombre real
+ * (`sugerirFormatoFirma`) y se valida lo que se escriba contra ese mismo
+ * nombre (`validarFirmaCoincideConNombre`) — así "jsdlaksj" nunca llega a
+ * generarse como firma de nadie. La base vuelve a exigir esto mismo al
+ * guardar (0394): esto de acá es la respuesta rápida en pantalla, no la única
+ * puerta.
+ *
  * Montado hoy en «Mi perfil» (apps/web/app/(mio)/mio/page.tsx) porque el
  * módulo de "mis datos" todavía no existe. Cuando exista, este bloque se muda
  * ahí — el componente no asume nada de dónde vive, así que mudarlo es mover
  * el `<GeneradorFirma />` de sitio, nada más.
  */
-export function GeneradorFirma({ nombreSugerido = "" }: { nombreSugerido?: string }) {
+export function GeneradorFirma({ nombres, apellidos }: { nombres: string; apellidos: string }) {
   const { avisar } = useToast();
-  const [nombre, setNombre] = useState(nombreSugerido);
+  const sugerencia = useMemo(() => sugerirFormatoFirma(nombres, apellidos), [nombres, apellidos]);
+  const [nombre, setNombre] = useState(sugerencia);
+  const [tocado, setTocado] = useState(false);
+  // La sugerencia llega después (yo se carga aparte, ver mio/page.tsx): si ya
+  // se prellenó con una vacía, hay que reemplazarla cuando llegue la de
+  // verdad — pero solo mientras nadie haya tocado el campo, para no borrarle
+  // a alguien lo que ya escribió. Ajustado EN EL RENDER (no en un efecto): es
+  // el patrón que React documenta para "adjusting state when a prop changes"
+  // — guardar el valor anterior y comparar, en vez de un useEffect con
+  // setState adentro, que dispara un render extra de más.
+  const [sugerenciaAnterior, setSugerenciaAnterior] = useState(sugerencia);
+  if (sugerencia !== sugerenciaAnterior) {
+    setSugerenciaAnterior(sugerencia);
+    if (!tocado) setNombre(sugerencia);
+  }
+
   const [estiloId, setEstiloId] = useState<EstiloId>("elegante");
   const [guardando, iniciarGuardado] = useTransition();
 
   const estilo = useMemo(() => ESTILOS.find((e) => e.id === estiloId) ?? ESTILOS[0], [estiloId]);
 
+  const datosListos = nombres.trim() !== "" && apellidos.trim() !== "";
+  const validacion = useMemo(
+    () => (datosListos ? validarFirmaCoincideConNombre(nombre, nombres, apellidos) : { valida: false }),
+    [nombre, nombres, apellidos, datosListos],
+  );
+  const mostrarError = datosListos && nombre.trim() !== "" && !validacion.valida;
+
   function confirmar() {
     const texto = nombre.trim();
-    if (!texto) {
-      avisar("error", "Escribe tu nombre tal como quieres que salga en tu firma.");
+    if (!datosListos) {
+      avisar("error", "Todavía no se cargaron tus datos. Espera un momento y vuelve a intentar.");
+      return;
+    }
+    const resultado = validarFirmaCoincideConNombre(texto, nombres, apellidos);
+    if (!resultado.valida) {
+      avisar("error", resultado.motivo ?? "Esa firma no corresponde a tu nombre registrado.");
       return;
     }
     iniciarGuardado(async () => {
       try {
         const dataUrl = await generarImagenFirma(texto, estilo.familia);
         const supabase = createAdminSupabaseClient();
-        const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl });
+        const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl, p_texto_firma: texto });
         if (error) throw error;
         avisar("ok", "Firma guardada.");
       } catch (e) {
@@ -64,12 +100,23 @@ export function GeneradorFirma({ nombreSugerido = "" }: { nombreSugerido?: strin
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-sand bg-papel p-4">
-      <Campo
-        etiqueta="Tu nombre, tal como firmas"
-        value={nombre}
-        onChange={(e) => setNombre(e.target.value)}
-        placeholder="Nombres y apellidos"
-      />
+      <div>
+        <Campo
+          etiqueta="Tu nombre, tal como firmas"
+          value={nombre}
+          onChange={(e) => {
+            setTocado(true);
+            setNombre(e.target.value);
+          }}
+          placeholder="Nombres y apellidos"
+          error={mostrarError ? validacion.motivo : undefined}
+        />
+        {datosListos && !mostrarError && (
+          <p className="mt-1.5 text-xs text-taupe">
+            Escribe así tu firma: <span className="font-medium text-tinta">{sugerencia}</span>
+          </p>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {ESTILOS.map((e) => (
@@ -98,7 +145,13 @@ export function GeneradorFirma({ nombreSugerido = "" }: { nombreSugerido?: strin
         )}
       </div>
 
-      <Boton variante="primario" cargando={guardando} onClick={confirmar} className="self-start">
+      <Boton
+        variante="primario"
+        cargando={guardando}
+        disabled={!datosListos || !validacion.valida}
+        onClick={confirmar}
+        className="self-start"
+      >
         Guardar firma
       </Boton>
     </div>

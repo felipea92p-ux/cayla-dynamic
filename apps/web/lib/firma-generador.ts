@@ -56,3 +56,90 @@ export async function generarImagenFirma(nombre: string, fontFamily: string): Pr
   ctx.fillText(texto, ANCHO_PX / 2, ALTO_PX / 2);
   return canvas.toDataURL("image/png");
 }
+
+// ── Que la firma corresponda al nombre registrado ───────────────────────────
+// Como cuando un bróker (p.ej. Interactive Brokers) exige que la firma de un
+// contrato coincida con los datos ya registrados de esa persona: acá tampoco
+// vale cualquier texto — tiene que reconocerse como EL NOMBRE de quien firma,
+// no una cadena cualquiera ("jsdlaksj").
+//
+// Espejo EXACTO de `fn_firma_texto_coincide` (migración 0394) — la base vuelve
+// a exigir esto mismo al guardar, así que las reglas de acá y las de allá
+// tienen que quedar ALINEADAS a mano (no hay forma de compartir código entre
+// SQL y TypeScript). Si esta función cambia, esa migración también.
+
+const TILDES: Record<string, string> = { á: "a", é: "e", í: "i", ó: "o", ú: "u", ü: "u", ñ: "n" };
+
+function normalizarTexto(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[áéíóúüñ]/g, (c) => TILDES[c] ?? c)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * La firma sugerida: primer nombre completo, los demás nombres como inicial,
+ * y el primer apellido completo — "Felipe M. Diaz" para "Felipe Manuel" /
+ * "Diaz Lopez". Es solo un PUNTO DE PARTIDA: `validarFirmaCoincideConNombre`
+ * acepta variantes más simples (sin el segundo nombre) y más completas (el
+ * nombre entero, o el apellido materno en vez del paterno).
+ */
+export function sugerirFormatoFirma(nombres: string, apellidos: string): string {
+  const [primerNombre, ...restoNombres] = nombres.trim().split(/\s+/).filter(Boolean);
+  const [primerApellido] = apellidos.trim().split(/\s+/).filter(Boolean);
+  if (!primerNombre || !primerApellido) return `${nombres} ${apellidos}`.trim();
+  const iniciales = restoNombres.map((n) => `${n.charAt(0).toUpperCase()}.`).join(" ");
+  return [primerNombre, iniciales, primerApellido].filter(Boolean).join(" ");
+}
+
+export interface ResultadoValidacionFirma {
+  valida: boolean;
+  motivo?: string;
+}
+
+/**
+ * Reglas: 1) cada palabra escrita tiene que reconocerse como un nombre o
+ * apellido real, completo o como su inicial (una letra, con o sin punto);
+ * 2) el PRIMER nombre tiene que ir completo, su inicial no basta; 3) al menos
+ * un apellido tiene que ir completo; 4) sin tildes ni mayúsculas.
+ */
+export function validarFirmaCoincideConNombre(
+  texto: string,
+  nombres: string,
+  apellidos: string,
+): ResultadoValidacionFirma {
+  const tokensTexto = normalizarTexto(texto).split(" ").filter(Boolean);
+  if (tokensTexto.length === 0) {
+    return { valida: false, motivo: "Escribe tu nombre tal como firmas." };
+  }
+
+  const tokensNombres = normalizarTexto(nombres).split(" ").filter(Boolean);
+  const tokensApellidos = normalizarTexto(apellidos).split(" ").filter(Boolean);
+  const tokensReales = [...tokensNombres, ...tokensApellidos];
+
+  let tieneApellido = false;
+  for (const tokCrudo of tokensTexto) {
+    const tok = tokCrudo.replace(/\.$/, "");
+    if (!tok) continue;
+    if (tok.length === 1) {
+      if (!tokensReales.some((r) => r.startsWith(tok))) {
+        return { valida: false, motivo: "Esa firma no corresponde a tu nombre registrado." };
+      }
+    } else {
+      if (!tokensReales.includes(tok)) {
+        return { valida: false, motivo: "Esa firma no corresponde a tu nombre registrado." };
+      }
+      if (tokensApellidos.includes(tok)) tieneApellido = true;
+    }
+  }
+
+  if (!tokensTexto.includes(tokensNombres[0] ?? "")) {
+    return { valida: false, motivo: "Tu primer nombre tiene que ir completo, no solo la inicial." };
+  }
+  if (!tieneApellido) {
+    return { valida: false, motivo: "Tiene que llevar al menos un apellido completo." };
+  }
+
+  return { valida: true };
+}

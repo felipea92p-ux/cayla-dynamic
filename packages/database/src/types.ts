@@ -5259,6 +5259,10 @@ export type Database = {
       }
       fn_firma_de_memo: { Args: { p_doc_id: string | null }; Returns: string }
       fn_firma_persona: { Args: { p_persona_id: string | null }; Returns: string }
+      fn_firma_texto_coincide: {
+        Args: { p_apellidos: string | null; p_nombres: string | null; p_texto: string | null }
+        Returns: boolean
+      }
       fn_firmantes_disponibles: {
         Args: never
         Returns: {
@@ -5948,7 +5952,10 @@ export type Database = {
         Args: { p_dia_semana: number | null; p_meta: number | null; p_sede_id: string | null }
         Returns: undefined
       }
-      fn_set_mi_firma: { Args: { p_dataurl: string | null }; Returns: undefined }
+      fn_set_mi_firma: {
+        Args: { p_dataurl: string | null; p_texto_firma?: string | null }
+        Returns: undefined
+      }
       fn_set_objetivos: {
         Args: {
           p_anio: number | null
