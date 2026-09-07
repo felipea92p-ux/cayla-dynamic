@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0388 · El motor de faltas desempata como el de tardanzas
+-- 0390 · El motor de faltas desempata como el de tardanzas
 -- ============================================================================
 -- QUÉ PROMETE
 --
@@ -20,10 +20,15 @@
 --   0091, 0092, 0213, 0237) y con `git grep` sobre todas las ramas—, y que la
 --   0311 es la vigente de `fn_tardanza_escalon_al`, de donde sale el criterio.
 --   El cuerpo de abajo es el de la 0237 íntegro, con esa línea cambiada y
---   marcada CAMBIO 0388.
+--   marcada CAMBIO 0390.
 --
 --   md5 de partida, PEDIDO A PRODUCCIÓN en el SQL Editor (2026-09-07):
---     MD5_PENDIENTE
+--     tal_cual        = 3c4d410d4d41c62add605fc13f3029e7
+--     sin_comentarios = 0f94b3934c3d68655c049c2f391904ce
+--     caracteres      = 4524
+--   Coincide byte por byte con el cuerpo de la 0237 en este repositorio. Se
+--   miró con cuidado porque la 0237 existe precisamente por una migración que
+--   nunca llegó a producción (la 0213): aquí sí llegó.
 --
 -- ⚠ ESTA MIGRACIÓN SÍ CAMBIA COMPORTAMIENTO REAL. NO ES COMO LA 0386 NI LA 0387
 --
@@ -57,7 +62,7 @@
 --     · `periodo_hasta`  → el corte de non bis in idem (`v_cutoff`)
 --     · `id`             → el antecedente que el borrador cita (`doc_previo_id`)
 --
---   Medido con la prueba 308 contra el Postgres local, ANTES de esta migración:
+--   Medido con la prueba 309 contra el Postgres local, ANTES de esta migración:
 --   dos personas con el MISMO expediente —una amonestación y una suspensión,
 --   las dos entregadas el mismo día— reciben escalones DISTINTOS según el orden
 --   en que se guardaron sus papeles. Una sale con 'suspension' y la otra con
@@ -140,7 +145,7 @@ begin
   select id, nivel, periodo_hasta, entregado_at into v_prev
   from expediente_disciplinario
   where persona_id = p_persona_id and tipo_causal = 'falta' and estado = 'entregado'
-  -- ⇩⇩⇩ CAMBIO 0388 ⇩⇩⇩ `entregado_at` NO desempata solo: la pantalla marca una
+  -- ⇩⇩⇩ CAMBIO 0390 ⇩⇩⇩ `entregado_at` NO desempata solo: la pantalla marca una
   -- entrega con fecha pasada al MEDIODÍA DE LIMA (`instanteEntrega`), así que
   -- dos documentos entregados el mismo día pasado quedan idénticos al
   -- microsegundo — en producción, en transacciones distintas. Y de esta fila
@@ -227,8 +232,8 @@ grant execute on function public.fn_expediente_generar_falta(uuid) to authentica
 revoke execute on function public.fn_expediente_generar_falta(uuid) from public, anon;
 
 comment on function public.fn_expediente_generar_falta(uuid) is
-  'Genera el borrador de falta que corresponde (0060/0092/0237/0388). El '
-  'documento anterior que manda se elige con desempate explicito (0388), el '
+  'Genera el borrador de falta que corresponde (0060/0092/0237/0390). El '
+  'documento anterior que manda se elige con desempate explicito (0390), el '
   'mismo que fn_tardanza_escalon_al usa en el motor de tardanzas: a igualdad de '
   'entregado_at manda el que cubre hasta mas tarde. Hace falta porque una '
   'entrega con fecha pasada se guarda al mediodia de Lima, asi que dos '
@@ -236,15 +241,15 @@ comment on function public.fn_expediente_generar_falta(uuid) is
   'el escalon anterior, el corte de non bis in idem y el antecedente citado.';
 
 insert into migraciones_aplicadas (numero, nombre)
-values (388, 'el_motor_de_faltas_desempata_como_el_de_tardanzas')
+values (390, 'el_motor_de_faltas_desempata_como_el_de_tardanzas')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
 
 do $mig$
 begin
-  raise notice '0388 · fn_expediente_generar_falta desempata el documento anterior igual que fn_tardanza_escalon_al (0311).';
-  raise notice '0388 · ojo: esta SI puede cambiar el escalon de alguien. Corre antes la consulta comentada al final de este archivo.';
+  raise notice '0390 · fn_expediente_generar_falta desempata el documento anterior igual que fn_tardanza_escalon_al (0311).';
+  raise notice '0390 · ojo: esta SI puede cambiar el escalon de alguien. Corre antes la consulta comentada al final de este archivo.';
 end $mig$;
 
 -- ── LA MEDICIÓN, ANTES DE PEGAR ─────────────────────────────────────────────

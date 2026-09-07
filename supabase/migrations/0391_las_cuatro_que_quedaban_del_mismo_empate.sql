@@ -1,9 +1,9 @@
 -- ============================================================================
--- 0389 · Las cuatro que quedaban del mismo empate
+-- 0391 · Las cuatro que quedaban del mismo empate
 -- ============================================================================
 -- QUÉ PROMETE
 --
---   Cerrar la familia que abrieron la 0386, la 0387 y la 0388: una consulta que
+--   Cerrar la familia que abrieron la 0386, la 0387 y la 0390: una consulta que
 --   pregunta «¿cuál es el último?» ordenando por una columna de fecha que puede
 --   valer lo mismo en dos filas. Sin desempate, quién gana lo decide el orden
 --   físico de la tabla — un orden que cambia solo.
@@ -35,17 +35,28 @@
 --   Las cuatro versiones vigentes, comprobadas con `./scripts/donde-vive.sh` y
 --   con `git grep` sobre todas las ramas, en el mensaje en que se entrega este
 --   SQL:
---     fn_contratos_listar              → 0287
+--     fn_contratos_listar              → 0388 de `main` (NO la 0287 — ver abajo)
 --     fn_documentos_estado_politica    → 0211
 --     fn_documentos_listar             → 0157
 --     fn_educacion_espejo_comprobante  → 0290
 --
 --   md5 de partida, PEDIDOS A PRODUCCIÓN en el SQL Editor (2026-09-07):
---     MD5_PENDIENTE
+--
+--     fn_documentos_estado_politica    e3fad98165012762f9524b4e0242d892  (1133)
+--     fn_documentos_listar             2ba0faf642406775e4a34609a785a604   (972)
+--     fn_educacion_espejo_comprobante  0f6ef09bcb6f98847f6753d4e7d792ed   (386)
+--       → las tres coinciden byte por byte con la 0211, la 0157 y la 0290.
+--
+--     fn_contratos_listar              103b311f8d1581d7ee4ba384c5cdfce2  (1002)
+--       → NO coincide con la 0287, que era la última que `donde-vive.sh` veía
+--         desde esta rama (892 caracteres, 3c748303a1449cb39ee3e791ca78f296).
+--         Coincide EXACTA con el cuerpo de la 0388 de `main`
+--         (`un_borrador_se_corrige_no_se_duplica`), fusionada y pegada mientras
+--         se escribía esta migración. Es de ahí que se copia — ver el bloque 1.
 --
 -- POR QUÉ LAS CUATRO EN UNA SOLA MIGRACIÓN
 --
---   Porque no son cuatro cambios: es uno. La 0388 las dejó anotadas juntas y
+--   Porque no son cuatro cambios: es uno. La 0390 las dejó anotadas juntas y
 --   juntas se cierran — mismo defecto, misma corrección, mismo párrafo de
 --   explicación. Partirlas en cuatro archivos sería cuatro pegadas a mano, o
 --   sea cuatro oportunidades de pegar la equivocada, a cambio de nada. Es el
@@ -53,12 +64,12 @@
 --
 -- POR QUÉ NINGUNA CAMBIA NADA EN PRODUCCIÓN, Y CÓMO SE COMPROBÓ
 --
---   Es la pregunta que enseñó la 0388, y hay que hacérsela a cada una: ¿la
+--   Es la pregunta que enseñó la 0390, y hay que hacérsela a cada una: ¿la
 --   columna que ordena la escribe el sistema con la hora exacta, o la elige una
 --   persona en una pantalla? Si la escribe el sistema, el empate solo ocurre
 --   dentro de una transacción y en producción no llega a pasar. Si la elige una
 --   persona, el empate es real y el desempate cambia comportamiento — que es lo
---   que pasaba con `entregado_at` y el mediodía de Lima en la 0388.
+--   que pasaba con `entregado_at` y el mediodía de Lima en la 0390.
 --
 --   Preguntado al catálogo:
 --
@@ -68,7 +79,7 @@
 --
 --   Las tres las pone el sistema, y ninguna función las escribe con un
 --   parámetro (se comprobó buscando en el `prosrc` de TODAS las funciones del
---   esquema, que es como se cazó `entregado_at = p_fecha` en la 0388). Y quien
+--   esquema, que es como se cazó `entregado_at = p_fecha` en la 0390). Y quien
 --   inserta lo hace de a una fila por llamada: `fn_contrato_registrar`,
 --   `fn_documento_registrar`, `fn_educacion_registrar` y
 --   `fn_educacion_adjuntar_comprobante`.
@@ -101,11 +112,11 @@
 --
 --   No es una corrección de un defecto que se esté viendo hoy. Ninguna de las
 --   cuatro está dando una respuesta mala en producción ahora mismo, y por eso
---   se puede pegar sin medir nada antes — a diferencia de la 0388, que sí.
+--   se puede pegar sin medir nada antes — a diferencia de la 0390, que sí.
 --   Es cerrar la puerta antes de que alguien la cruce.
 --
 --   Y esta migración NO toca `fn_expediente_generar_falta`: esa la arregla la
---   0388, que va antes y sí cambia comportamiento.
+--   0390, que va antes y sí cambia comportamiento.
 --
 -- CÓMO SE REVIERTE
 --   Correr de nuevo cada cuerpo tal como quedó en su migración de origen: la
@@ -114,10 +125,26 @@
 -- ============================================================================
 
 -- ── 1 · fn_contratos_listar ─────────────────────────────────────────────────
--- Cuerpo vigente: 0287. Un cambio, marcado CAMBIO 0389.
+-- Cuerpo vigente: 0388_un_borrador_se_corrige_no_se_duplica.sql, NO la 0287.
+--
+-- Esto casi sale mal, y el md5 de producción es lo único que lo cazó. Esta
+-- migración se escribió copiando el cuerpo de la 0287 —que era la última que
+-- `donde-vive.sh` veía DESDE ESTA RAMA— mientras otra sesión fusionaba a `main`
+-- la 0388, que reescribe esta misma función para que devuelva `editado_at` y
+-- `editado_por`. Producción ya la tiene pegada: 1002 caracteres,
+-- md5 103b311f8d1581d7ee4ba384c5cdfce2, medido y reproducido byte por byte
+-- desde el cuerpo de esa 0388.
+--
+-- Pegar la versión anterior habría revertido en silencio «un borrador se
+-- corrige, no se duplica» — la migración que existe porque una persona real
+-- terminó con dos convenios de prácticas idénticos el 4 de setiembre. Un
+-- cambio de una línea que borra el trabajo de otra rama es exactamente el
+-- accidente que este repositorio ya vivió con la 0261 y la 0276.
+--
+-- Un cambio, marcado CAMBIO 0391.
 drop function if exists fn_contratos_listar(uuid);
 
-create or replace function fn_contratos_listar(p_persona_id uuid default null)
+create function fn_contratos_listar(p_persona_id uuid default null)
 returns table (
   id                    uuid,
   persona_id            uuid,
@@ -137,6 +164,8 @@ returns table (
   comunicado_mtpe_at    date,
   anulado_at            timestamptz,
   anulado_motivo        text,
+  editado_at            timestamptz,   -- CAMBIO 0388
+  editado_por           text,          -- CAMBIO 0388
   vigente               boolean
 )
 language sql
@@ -153,10 +182,12 @@ as $$
     c.storage_path, c.fecha_firma,
     c.copia_entregada_at, c.comunicado_mtpe_at,
     c.anulado_at, c.anulado_motivo,
+    c.editado_at,
+    edi.nombres || ' ' || edi.apellidos,
     (c.anulado_at is null and c.id = (
        select c2.id from contratos_generados c2
         where c2.persona_id = c.persona_id and c2.anulado_at is null
-        -- ⇩⇩⇩ CAMBIO 0389 ⇩⇩⇩ Los MISMOS tres desempates que la 0386 le puso a
+        -- ⇩⇩⇩ CAMBIO 0391 ⇩⇩⇩ Los MISMOS tres desempates que la 0386 le puso a
         -- `fn_contratos_tablero`, y por eso mismo: las dos responden «cuál
         -- contrato manda» para la misma pantalla, y no pueden contestar
         -- distinto. `generado_at` es `now()`, igual para toda fila nacida en
@@ -166,6 +197,7 @@ as $$
   from contratos_generados c
   join personas p on p.id = c.persona_id
   left join personas gen on gen.id = c.generado_por
+  left join personas edi on edi.id = c.editado_por
   left join sedes s on s.id = c.sede_id
   where (fn_es_admin_o_lider() is true or c.persona_id = fn_persona_actual_id())
     and (p_persona_id is null or c.persona_id = p_persona_id)
@@ -174,9 +206,8 @@ $$;
 
 grant execute on function fn_contratos_listar(uuid) to authenticated;
 
-
 -- ── 2 · fn_documentos_estado_politica ──────────────────────────────────────
--- Cuerpo vigente: 0211. Un cambio, marcado CAMBIO 0389.
+-- Cuerpo vigente: 0211. Un cambio, marcado CAMBIO 0391.
 create or replace function fn_documentos_estado_politica()
 returns table (
   id            uuid,
@@ -201,7 +232,7 @@ as $$
     -- reemplazo se guardaba y la pantalla seguía enseñando el anterior.
     -- Con la anulación automática de fn_documento_registrar esto no debería
     -- llegar a hacer falta; está por lo que ya haya en producción de antes.
-    -- ⇩⇩⇩ CAMBIO 0389 ⇩⇩⇩ `id desc` cierra lo que la 0211 dejó abierto: su
+    -- ⇩⇩⇩ CAMBIO 0391 ⇩⇩⇩ `id desc` cierra lo que la 0211 dejó abierto: su
     -- desempate por `created_at` resuelve el caso normal (dos políticas con la
     -- misma fecha del papel), pero `created_at` es `now()` y empata entre filas
     -- de una misma transacción. Es el mismo ancla que la 0387 le puso a
@@ -232,7 +263,7 @@ grant execute on function fn_documentos_estado_politica() to authenticated;
 
 
 -- ── 3 · fn_documentos_listar ───────────────────────────────────────────────
--- Cuerpo vigente: 0157. Un cambio, marcado CAMBIO 0389.
+-- Cuerpo vigente: 0157. Un cambio, marcado CAMBIO 0391.
 create or replace function fn_documentos_listar(p_persona_id uuid default null)
 returns table (
   id              uuid,
@@ -269,7 +300,7 @@ as $$
        select d2.id from documentos_firmados d2
         where d2.tipo = d.tipo and d2.anulado_at is null
           and d2.persona_id is not distinct from d.persona_id
-        -- ⇩⇩⇩ CAMBIO 0389 ⇩⇩⇩ Mismo ancla que la 0387 en `fn_documentos_tablero`
+        -- ⇩⇩⇩ CAMBIO 0391 ⇩⇩⇩ Mismo ancla que la 0387 en `fn_documentos_tablero`
         -- y que arriba en `fn_documentos_estado_politica`: las tres deciden
         -- «cuál documento vale» sobre la misma tabla, y ya no pueden discrepar.
         order by d2.fecha_firma desc, d2.created_at desc, d2.id desc limit 1))
@@ -285,7 +316,7 @@ grant execute on function fn_documentos_listar(uuid) to authenticated;
 
 
 -- ── 4 · fn_educacion_espejo_comprobante ────────────────────────────────────
--- Cuerpo vigente: 0290. Un cambio, marcado CAMBIO 0389. Es la función de un
+-- Cuerpo vigente: 0290. Un cambio, marcado CAMBIO 0391. Es la función de un
 -- trigger: no se re-declara el trigger, que sigue apuntando a este nombre.
 create or replace function fn_educacion_espejo_comprobante()
 returns trigger
@@ -301,7 +332,7 @@ begin
        select c.storage_path
          from educacion_comprobantes c
         where c.asignacion_id = v_asignacion
-        -- ⇩⇩⇩ CAMBIO 0389 ⇩⇩⇩ `mes_cubierto` lo elige quien sube el papel y NO es
+        -- ⇩⇩⇩ CAMBIO 0391 ⇩⇩⇩ `mes_cubierto` lo elige quien sube el papel y NO es
         -- único por asignación (el índice único es sobre `storage_path`), así
         -- que dos comprobantes del mismo mes empatan en el primer criterio;
         -- `created_at` los separa salvo dentro de una misma transacción. El
@@ -315,13 +346,13 @@ end;
 $$;
 
 insert into migraciones_aplicadas (numero, nombre)
-values (389, 'las_cuatro_que_quedaban_del_mismo_empate')
+values (391, 'las_cuatro_que_quedaban_del_mismo_empate')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';
 
 do $mig$
 begin
-  raise notice '0389 · cuatro funciones ganan su desempate: fn_contratos_listar, fn_documentos_estado_politica, fn_documentos_listar, fn_educacion_espejo_comprobante.';
-  raise notice '0389 · ninguna cambia una fila: las tres columnas que ordenan son now() y nadie las escribe a mano.';
+  raise notice '0391 · cuatro funciones ganan su desempate: fn_contratos_listar, fn_documentos_estado_politica, fn_documentos_listar, fn_educacion_espejo_comprobante.';
+  raise notice '0391 · ninguna cambia una fila: las tres columnas que ordenan son now() y nadie las escribe a mano.';
 end $mig$;

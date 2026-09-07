@@ -4,7 +4,7 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 308_el_motor_de_faltas_desempata_como_el_de_tardanzas.test.sql — 0388
+-- 309_el_motor_de_faltas_desempata_como_el_de_tardanzas.test.sql — 0390
 -- ============================================================================
 -- `fn_expediente_generar_falta` busca «el documento anterior» así:
 --

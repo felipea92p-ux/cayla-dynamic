@@ -4,9 +4,9 @@
 -- Se corre así, en esta Mac:   npx supabase test db
 -- Lo que sí se pega vive en supabase/migrations/ y scripts/sql-manual/.
 -- ============================================================================
--- 309_las_cuatro_consultas_que_quedaban_desempatan.test.sql — 0389
+-- 310_las_cuatro_consultas_que_quedaban_desempatan.test.sql — 0391
 -- ============================================================================
--- Las cuatro últimas de la familia que abrieron la 0386, la 0387 y la 0388:
+-- Las cuatro últimas de la familia que abrieron la 0386, la 0387 y la 0390:
 -- una consulta que pregunta «¿cuál es el último?» ordenando por una columna que
 -- puede valer lo mismo en dos filas. Sin desempate gana la que devuelva el orden
 -- físico de la tabla, que cambia solo.
