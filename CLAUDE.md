@@ -829,12 +829,31 @@ decide el orden físico de la tabla, que cambia con lo que dejaron las
 transacciones revertidas de las pruebas anteriores. Por eso la misma prueba pasa
 en la suite completa y falla corriéndola sola, sin reconstruir nada.
 
-Ya pasó dos veces con la misma tabla: la 0312 lo cazó en
-`fn_contrato_firmado_vigente_de` (ago-2026), y el 2026-09-06 la prueba **274**
-volvió a hacerlo en `fn_contratos_tablero` — con `db-tests` verde en `main` al
-mismo tiempo, porque verde ahí es dónde cayó la moneda esa vez, no una prueba de
-que el caso esté bien. Lo arregló la **0386**, con los mismos tres desempates de
-la 0312 (`fecha_inicio desc, fecha_fin desc, id desc`).
+Ya pasó tres veces: la 0312 lo cazó en `fn_contrato_firmado_vigente_de`
+(ago-2026); el 2026-09-06 la prueba **274** volvió a hacerlo en
+`fn_contratos_tablero` — con `db-tests` verde en `main` al mismo tiempo, porque
+verde ahí es dónde cayó la moneda esa vez, no una prueba de que el caso esté
+bien—, y lo arregló la **0386** con los mismos tres desempates de la 0312; y al
+buscar la misma forma en el resto del esquema apareció en `fn_documentos_tablero`
+(**0387**), donde pesaba más: la fila que gana ahí decide si el tablero dice
+«firmó el pacto de movilidad» o «se negó a firmarlo», y sin pacto firmado ese
+monto no es no remunerativo (RTF 05449-4-2007). Dos personas con el MISMO
+expediente contestaban al revés una de la otra según el orden en que se
+guardaron sus papeles.
+
+Queda la misma forma, sin arreglar y anotada a propósito, en cinco funciones que
+hoy no deciden ningún estado que alimente el pago: `fn_contratos_listar`,
+`fn_documentos_estado_politica`, `fn_documentos_listar`,
+`fn_educacion_espejo_comprobante` y `fn_expediente_generar_falta`. Se encuentran
+todas de un tirón preguntándole al catálogo por un `order by` que termine en una
+columna `now()` dentro de una consulta con `distinct on` o `limit 1`.
+
+Y el criterio que se agrega es un **ancla**, no una regla: `id desc` es un uuid,
+no significa nada. Va siempre DESPUÉS del último criterio real, así que solo
+puede disparar en un empate que producción no sabe producir — por eso es seguro.
+Inventar ahí un criterio de negocio («entre una firma y una negativa del mismo
+día manda la negativa») sería meter política laboral en un `order by`, y esa
+decisión no es de una migración.
 
 Cómo se reconoce en dos minutos, antes de sospechar del entorno: si el valor que
 sale es el de OTRA fila plausible —no un valor absurdo—, mira el `order by` de la
