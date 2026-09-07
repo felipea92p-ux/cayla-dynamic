@@ -104,7 +104,10 @@ function seSolapan(aIni: string, aFin: string | null, bIni: string, bFin: string
  * Nace con la 0387, así que un borrador anterior la tiene en null — la
  * pantalla lo dice al abrirlo en vez de fingir que los textos son los suyos.
  */
-interface DatosFormulario {
+// `type` y no `interface` a propósito: solo un alias de tipo recibe la firma
+// de índice implícita que `Json` exige, y sin ella esto no se puede mandar
+// como parámetro jsonb a la función.
+type DatosFormulario = {
   cargo: string;
   ciudad: string;
   causa: string;
@@ -126,7 +129,7 @@ interface DatosFormulario {
   supervisorAsignado: string;
   hitoMes3: string;
   hitoMes6: string;
-}
+};
 
 interface Persona {
   id: string;
