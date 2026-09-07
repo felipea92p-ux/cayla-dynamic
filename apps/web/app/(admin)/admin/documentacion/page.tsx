@@ -1831,7 +1831,15 @@ export default function DocumentacionPage() {
                   className="w-full rounded-lg border px-3 py-2"
                 >
                   <option value="">Elige a quién…</option>
-                  {personas.map((p) => (
+                  {/* Solo en_planilla: "ruta" y "bono" son papeles que declaran una
+                      asignación por asistencia y una política de movilidad — que
+                      un locador los firme es, en palabras del propio comentario
+                      de esta pantalla, un indicio de subordinación en un vínculo
+                      que por definición no la tiene, y esa es la prueba que se
+                      usa para desnaturalizar un contrato civil. El tablero de
+                      arriba ya excluye a quien no está en planilla; este
+                      desplegable se había quedado sin ese mismo filtro. */}
+                  {personas.filter((p) => p.en_planilla).map((p) => (
                     <option key={p.id} value={p.id}>{p.apellidos}, {p.nombres}</option>
                   ))}
                 </select>
