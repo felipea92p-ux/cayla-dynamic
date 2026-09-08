@@ -26,6 +26,7 @@ import {
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { traerBandeja } from "@/lib/bandeja-mia";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -373,6 +374,32 @@ function colorDia(d: Dia): string {
   }
 }
 
+/**
+ * ¿Este día es su jornada de HOY, todavía abierta?
+ *
+ * `estadoDelDia` la devuelve como "revisar" —marcó y el día no está cerrado—, y
+ * para un día PASADO eso es exactamente lo que hay que decir: falta la salida,
+ * así que las horas de ese día no son las que trabajó. Pero para HOY, con la
+ * jornada `abierta` o `en_pausa`, no falta nada: está trabajando en este
+ * momento. Llamarlo «marcaje incompleto» acusa de un problema a quien está
+ * cumpliendo su turno, y encima de uno que no puede arreglar hasta salir.
+ *
+ * Se distingue ACÁ, en la pantalla, y NO en `estadoDelDia`: esa función la
+ * comparten el panel y esta pantalla, y el color del día tiene que seguir
+ * significando lo mismo para la integrante y para su encargada.
+ *
+ * El corte por fecha es lo que hace segura la excepción: una jornada que quedó
+ * `abierta` de AYER sí es un marcaje roto —se fue sin marcar la salida— y
+ * sigue avisando como siempre. Queda un borde conocido y a propósito: un turno
+ * que cruza la medianoche (raro, pero existe — ver `lib/terminal/jornada-en-curso.ts`
+ * y la migración 0240) cuelga de la fecha de AYER, así que entre las 00:00 y su
+ * salida vuelve a leerse como incompleto. Cerrarlo pediría reconstruir acá la
+ * ventana de horas del terminal, y esa regla ya vive en un solo sitio.
+ */
+function enJornadaAbierta(d: Dia, hoy: string): boolean {
+  return d.fecha === hoy && (d.jornada?.estado === "abierta" || d.jornada?.estado === "en_pausa");
+}
+
 function explicaDia(d: Dia): string {
   const p: string[] = [diaYMes(d.fecha)];
   if (d.esperado.trabaja) p.push(`te tocaba ${d.esperado.entrada}${d.esperado.salida ? `–${d.esperado.salida}` : ""}`);
@@ -383,7 +410,9 @@ function explicaDia(d: Dia): string {
     p.push(d.perdonada ? "tardanza levantada" : `${comoMinutos(d.jornada!.minutos_tarde!)} tarde`);
   }
   if (d.estado === "falta") p.push("no hay marcaje");
-  if (d.estado === "revisar") p.push("marcaje incompleto");
+  if (d.estado === "revisar") {
+    p.push(enJornadaAbierta(d, hoyLima()) ? "en jornada, todavía sin marcar la salida" : "marcaje incompleto");
+  }
   return p.join(" · ");
 }
 
@@ -434,6 +463,8 @@ export default function MioPage() {
     vence_el: string | null; dias_para_vencer: number | null;
   } | null>(null);
   const [solicitudesVacas, setSolicitudesVacas] = useState<SolicitudVacacion[]>([]);
+  /** Cuántas respuestas recientes le esperan en /mio/bandeja. Ver `cargarNuevasEnBandeja`. */
+  const [nuevasEnBandeja, setNuevasEnBandeja] = useState(0);
   // El rango del formulario de pedir vacaciones. Arranca en mañana y en un
   // solo día — nunca en "": un campo de fecha que arranca vacío y bloquea el
   // envío es justo el error que ya costó caro acá (ver CLAUDE.md, 2026-08-26).
@@ -740,6 +771,26 @@ export default function MioPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas]);
 
+  // Cuántas respuestas nuevas le esperan en la Bandeja.
+  //
+  // Sale de `traerBandeja`, la MISMA función que arma la lista de /mio/bandeja,
+  // aunque esta pantalla ya tenga a mano dos de las tres fuentes. Contar acá
+  // con lo que ya está cargado sería más barato y crearía justo el defecto que
+  // la Bandeja vino a evitar: dos sitios respondiendo «cuántas nuevas» por su
+  // cuenta, listos para separarse el día que alguien cambie una de las dos.
+  //
+  // Falla en silencio a propósito: si no se pudo contar, el botón sale sin
+  // número. Un aviso rojo en la portada por un contador es ruido — la propia
+  // Bandeja sí dice lo que no pudo traer, que es donde importa.
+  const cargarNuevasEnBandeja = useCallback(async () => {
+    if (!yo?.id) { setNuevasEnBandeja(0); return; }
+    const { bandeja } = await traerBandeja(supabase, yo.id);
+    setNuevasEnBandeja(bandeja.nuevas);
+  }, [supabase, yo]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarNuevasEnBandeja(); }, [cargarNuevasEnBandeja]);
+
   /** Pedir un rango de vacaciones. No dice si alcanza el saldo: eso lo decide
    *  el servidor con el mismo cálculo que ya se le muestra arriba. */
   async function pedirVacaciones(e: FormEvent) {
@@ -886,7 +937,10 @@ export default function MioPage() {
       // por qué seguir viéndola en su marcador.
       tardanzas: jornadas.filter((d) => (d.minutos_tarde ?? 0) > 0 && !perdonadas.has(d.fecha)).length,
       medidos: jornadas.filter((d) => d.minutos_tarde !== null).length,
-      porRevisar: dias.filter((d) => d.estado === "revisar"),
+      // Su jornada de hoy todavía abierta NO es un día por revisar: está
+      // trabajando. Sale de la cuenta y se cuenta aparte (ver `enJornadaAbierta`).
+      porRevisar: dias.filter((d) => d.estado === "revisar" && !enJornadaAbierta(d, hoy)),
+      enJornadaAhora: dias.some((d) => enJornadaAbierta(d, hoy)),
       faltas: dias.filter((d) => d.estado === "falta"),
     };
   }, [jornadas, perdonadas, dias]);
@@ -923,12 +977,18 @@ export default function MioPage() {
   // puede afirmar sin decir una cifra.
   const estadoDelPeriodo = useMemo(() => {
     if (!periodo) return null;
-    const cierra = fechasDelRango(hoyLima(), periodo.fecha_fin).length - 1;
+    const hoy = hoyLima();
+    const cierra = fechasDelRango(hoy, periodo.fecha_fin).length - 1;
     const mios = dias.filter((d) => d.fecha >= periodo.fecha_ini && d.fecha <= periodo.fecha_fin);
-    const pendientes = mios.filter((d) => d.estado === "revisar" || d.estado === "falta").length;
+    // Misma exclusión que en `resumen`: su turno de hoy en curso no es un día
+    // pendiente, y sin esto la tarjeta seguía diciendo «tienes 1 día por
+    // revisar» —en alerta— justo debajo del aviso que se acaba de calmar.
+    const pendientes = mios.filter(
+      (d) => (d.estado === "revisar" && !enJornadaAbierta(d, hoy)) || d.estado === "falta",
+    ).length;
     // `cubre` dice si el rango que está mirando abarca el periodo entero: si no,
     // el «todo completo» sería una afirmación sobre días que no se consultaron.
-    const cubre = desde <= periodo.fecha_ini && hasta >= hoyLima();
+    const cubre = desde <= periodo.fecha_ini && hasta >= hoy;
     return { cierra, pendientes, cubre };
   }, [periodo, dias, desde, hasta]);
 
@@ -1076,6 +1136,23 @@ export default function MioPage() {
                 Volver al panel
               </Link>
             )}
+            {/* La Bandeja va ANTES de «Editar datos» a propósito: es donde
+                aterriza el resultado de lo que se pide ahí al lado. El número
+                sale de la misma función que arma la lista (lib/bandeja-mia.ts),
+                nunca de una cuenta propia de esta pantalla, y cuenta las
+                respuestas recientes — no se apaga al leer, caduca sola. */}
+            {yo && (
+              <Link href="/mio/bandeja"
+                title={nuevasEnBandeja > 0
+                  ? `${nuevasEnBandeja} respuesta${nuevasEnBandeja === 1 ? "" : "s"} de estos días`
+                  : "Lo que respondieron a lo que pediste"}
+                className="flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                Bandeja
+                {nuevasEnBandeja > 0 && (
+                  <Insignia variante="contador" tamano="sm">{nuevasEnBandeja}</Insignia>
+                )}
+              </Link>
+            )}
             {yo && (
               <Link href="/mio/editar"
                 className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
@@ -1142,6 +1219,17 @@ export default function MioPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {/* Su jornada de hoy sigue abierta. No es un pendiente —no hay nada roto
+          que arreglar— así que va FUERA del recuadro ámbar «Necesita que hagas
+          algo»: en `pizarra`, el tono informativo/«en proceso», con el mismo
+          criterio que ya usa la banda de Equipo. Lo único que aporta es el
+          recordatorio de marcar al salir, que es lo único que ella puede hacer. */}
+      {resumen.enJornadaAhora && (
+        <div className="mb-6 rounded-2xl border border-pizarra/40 bg-pizarra/[0.07] px-5 py-4 text-sm">
+          Te encuentras en jornada laboral, no te olvides de marcar al salir.
+        </div>
       )}
 
       {/* ══ 3 · TUS CUATRO CIFRAS, Y LO QUE SE HACE CON ELLAS ═══════════════
