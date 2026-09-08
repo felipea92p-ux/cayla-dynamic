@@ -443,6 +443,12 @@ export default function FeriadosPage() {
               )}
             </div>
             <div className="grid max-h-52 gap-1 overflow-y-auto rounded-lg border border-sand bg-crema p-2 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Casilla nativa, no <CampoCasilla>: esa fila necesita su propio
+                  hover ("hover:bg-sand/40") y relleno sobre TODA la etiqueta —
+                  es una fila de una lista de selección, no un campo de
+                  formulario suelto— y CampoCasilla fija esas clases en su
+                  <label> interno sin dejarlas pasar por props. Mismo criterio
+                  que los enlaces nativos de contratos/page.tsx. */}
               {visibles.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-sand/40">
                   <input type="checkbox" checked={elegidas.has(p.id)} onChange={() => alternar(p.id)} className="size-4 accent-tinta" />
@@ -466,6 +472,11 @@ export default function FeriadosPage() {
                     ))}
                   </CampoSelect>
                   <span className="text-taupe">→</span>
+                  {/* Input nativo, no <Campo>: necesita un ref real al <input>
+                      del DOM para el resguardo del bug de Safari de arriba
+                      (refsDescanso), y <Campo> no es un forwardRef — pasarle
+                      `ref` no llegaría al elemento y el resguardo quedaría
+                      leyendo siempre null. */}
                   <input ref={(el) => { refsDescanso.current[i] = el; }} type="date" value={par.descanso}
                     onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
                     onBlur={(e) => cambiarPareja(i, "descanso", e.currentTarget.value)}
@@ -558,16 +569,15 @@ export default function FeriadosPage() {
                 </option>
               ))}
             </CampoSelect>
-            <label className="flex flex-col gap-1 text-sm">
-              Archivo
-              {/* HEIC/HEIF entran porque es lo que sale de la cámara de un
-                  iPhone: sin ellos las fotos salían en gris en el diálogo y no
-                  se podía ni elegirlas (mig. 0170). */}
-              <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif"
-                disabled={!refActa || subiendo}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirActa(f); e.target.value = ""; }}
-                className="text-sm file:mr-3 file:rounded-lg file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
-            </label>
+            {/* HEIC/HEIF entran porque es lo que sale de la cámara de un
+                iPhone: sin ellos las fotos salían en gris en el diálogo y no
+                se podía ni elegirlas (mig. 0170). */}
+            <Campo
+              etiqueta="Archivo"
+              type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif"
+              disabled={!refActa || subiendo}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirActa(f); e.target.value = ""; }}
+              className="text-sm file:mr-3 file:rounded-lg file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
             {/* Con 3 MB una espera muda pasaba desapercibida. Con 50 MB por la
                 conexión de una tienda son minutos, y sin avance visible se lee
                 como que la pantalla se colgó. */}

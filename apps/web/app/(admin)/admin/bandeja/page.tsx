@@ -532,20 +532,27 @@ export default function BandejaPage() {
                         </div>
                       )}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={motivosPerfil[s.id] ?? ""}
-                          onChange={(e) => setMotivosPerfil((x) => ({ ...x, [s.id]: e.target.value }))}
-                          placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
-                          className="min-w-64 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void resolverSolicitudPerfil(s.id, true)} disabled={resolviendoPerfil === s.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {resolviendoPerfil === s.id ? "Guardando…" : "Aprobar"}
-                        </button>
-                        <button onClick={() => void resolverSolicitudPerfil(s.id, false)} disabled={resolviendoPerfil === s.id}
-                          className="rounded-lg border border-rojo px-4 py-1.5 font-medium text-rojo disabled:opacity-50">
+                        <div className="min-w-64 flex-1">
+                          <Campo
+                            value={motivosPerfil[s.id] ?? ""}
+                            onChange={(e) => setMotivosPerfil((x) => ({ ...x, [s.id]: e.target.value }))}
+                            placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void resolverSolicitudPerfil(s.id, true)}
+                          cargando={resolviendoPerfil === s.id}
+                        >
+                          Aprobar
+                        </Boton>
+                        <Boton
+                          variante="peligro"
+                          onClick={() => void resolverSolicitudPerfil(s.id, false)}
+                          disabled={resolviendoPerfil === s.id}
+                        >
                           Rechazar
-                        </button>
+                        </Boton>
                       </div>
                     </li>
                   ))}

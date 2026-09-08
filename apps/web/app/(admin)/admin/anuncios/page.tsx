@@ -19,6 +19,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { puedeGestionarAnuncios } from "@cayla-dynamic/shared";
@@ -140,26 +142,15 @@ export default function AnunciosPage() {
           <div className="mb-6 max-w-2xl rounded-2xl border border-sand bg-papel p-5">
             <h2 className="mb-3 text-sm font-medium">Publicar un anuncio</h2>
             <div className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                Título
-                <input value={titulo} onChange={(e) => setTitulo(e.target.value)}
-                  maxLength={200} placeholder="ej. La planilla cierra el 28"
-                  className="rounded-lg border bg-crema px-3 py-2" />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Cuerpo
-                <textarea value={cuerpo} onChange={(e) => setCuerpo(e.target.value)}
-                  rows={4} placeholder="El detalle del comunicado…"
-                  className="rounded-lg border bg-crema px-3 py-2" />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                A quién
-                <select value={sedeId} onChange={(e) => setSedeId(e.target.value)}
-                  className="max-w-xs rounded-lg border bg-crema px-3 py-2">
-                  <option value="">Todas las sedes</option>
-                  {sedes.map((s) => <option key={s.id} value={s.id}>Solo {s.nombre}</option>)}
-                </select>
-              </label>
+              <Campo etiqueta="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)}
+                maxLength={200} placeholder="ej. La planilla cierra el 28" />
+              <AreaTexto etiqueta="Cuerpo" value={cuerpo} onChange={(e) => setCuerpo(e.target.value)}
+                rows={4} placeholder="El detalle del comunicado…" />
+              <CampoSelect etiqueta="A quién" value={sedeId} onChange={(e) => setSedeId(e.target.value)}
+                className="max-w-xs">
+                <option value="">Todas las sedes</option>
+                {sedes.map((s) => <option key={s.id} value={s.id}>Solo {s.nombre}</option>)}
+              </CampoSelect>
               <div>
                 <Boton variante="primario" onClick={publicar} disabled={publicando}>
                   {publicando ? "Publicando…" : "Publicar"}
