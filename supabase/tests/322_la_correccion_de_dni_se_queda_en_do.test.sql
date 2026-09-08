@@ -76,12 +76,20 @@ select lives_ok($$ select fn_resolver_solicitud_perfil(
   'ENCARGADA · sigue aprobando lo que sí le toca — la 0403 no se revirtió');
 
 -- ── 2 · Y DO sí puede con la identidad ──────────────────────────────────────
+-- `replica` otra vez acá, y no solo en los inserts de arriba: aprobar esto pasa
+-- por fn_set_documento, que hace UPDATE sobre `personas` — y ese update vuelve
+-- a comprobar la FK contra auth.users que el insert había esquivado. Estas
+-- personas de laboratorio no tienen usuario real detrás (misma razón que la
+-- 104), así que la FK es un artefacto del banco de pruebas y no lo que se está
+-- midiendo. Lo que se mide es que el guard nuevo de la 0405 deje pasar a DO.
+set session_replication_role = replica;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000faaa', true);
 select lives_ok($$ select fn_resolver_solicitud_perfil(
     (select id from solicitudes_cambio_perfil
       where persona_id = '00000000-0000-0000-0000-00000000f40a' and campo = 'correccion_identidad'),
     true, null) $$,
   'DO · sí aprueba la corrección de identidad, que es de quien siempre fue');
+set session_replication_role = origin;
 
 select * from finish();
 rollback;

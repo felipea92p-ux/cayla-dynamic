@@ -31,7 +31,9 @@ insert into personas (id, nombres, apellidos, sede_base_id, rol, pin_hash, auth_
 insert into contratos_generados
   (id, persona_id, tipo, cargo, sede_id, remuneracion_mensual, fecha_inicio, documento_html, generado_por)
 values
-  ('00000000-0000-0000-0000-0000000ff40a', '00000000-0000-0000-0000-0000000ff20a', 'nuevo',
+  -- `indefinido` y sin fecha_fin: el constraint contrato_fecha_fin_segun_tipo
+  -- (0347) exige que la fecha de fin exista para todo tipo MENOS ese.
+  ('00000000-0000-0000-0000-0000000ff40a', '00000000-0000-0000-0000-0000000ff20a', 'indefinido',
    'Asesora', '00000000-0000-0000-0000-0000000ff10a', 1130, '2026-01-01', '<p>contrato</p>',
    '00000000-0000-0000-0000-0000000ff20a');
 set session_replication_role = origin;
