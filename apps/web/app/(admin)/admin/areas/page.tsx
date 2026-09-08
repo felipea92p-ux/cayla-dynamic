@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
-import { Campo } from "@/components/ui/campo";
+import { Campo, CampoCasilla } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
@@ -157,15 +157,13 @@ export default function AreasPage() {
               : "(fijo — cambiar el nombre no cambia el código)"}
           </span>
         </div>
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
-          <input
-            type="checkbox"
+        <div className="sm:col-span-2">
+          <CampoCasilla
+            etiqueta="Es operativa de sede (cuenta para la cobertura de tienda)"
             checked={form.operativa}
             onChange={(e) => setForm({ ...form, operativa: e.target.checked })}
-            className="h-4 w-4 rounded border-sand accent-tinta"
           />
-          Es operativa de sede (cuenta para la cobertura de tienda)
-        </label>
+        </div>
         <Campo
           etiqueta="Orden (opcional)"
           type="number"
