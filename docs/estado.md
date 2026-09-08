@@ -77,6 +77,177 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-07 — Radiografía Dynamic: primer lote de críticos de seguridad/plata, PEGADO Y VERIFICADO EN PRODUCCIÓN
+
+Sale de la Radiografía Dynamic (92 agentes lectores, 731 hallazgos confirmados,
+38 críticos — [artifact](https://claude.ai/code/artifact/1bd904f7-cff2-4a01-830b-475badb31ab5)).
+Se decidió atender el resto de los críticos de plata/ley/seguridad por lotes
+chicos, cada uno verificado empíricamente antes de escribir el siguiente, en
+vez de una migración gigante de una sola vez.
+
+✅ **Primer lote (2 "minutos" + 5 de Retail, consolidados en 3 causas raíz)
+PEGADO Y VERIFICADO EN PRODUCCIÓN el 2026-09-07.** [PR #238](https://github.com/felipea92p-ux/cayla-dynamic/pull/238),
+fusionado a `main`:
+
+- `fn_cuentas` (`app/api/admin/cuentas/route.ts`): una admin/líder **cesada**
+  conservaba acceso completo a gestión de cuentas — la ruta usa el cliente
+  `service-role`, que se salta RLS y `fn_rol_actual()`. Ahora valida
+  `rol` + `estado === 'activo'` con el cliente normal antes de autorizar.
+- `admin/documentacion`: el desplegable de "a quién imprimir" ofrecía
+  locadores para documentos (movilidad, bonos) que solo debería recibir
+  personal en planilla — riesgo de desnaturalización del contrato. Filtrado
+  a `en_planilla`.
+- **`supabase/migrations/0392`** — `retail.es_lider()`, `retail.es_supervisor()`
+  y `retail.puede_operar_sede()` sin `coalesce` devolvían `NULL` (no `FALSE`)
+  para una persona cesada; como `if not NULL` nunca se dispara en PL/pgSQL,
+  una excolaboradora con sesión de Auth todavía viva podía seguir abriendo
+  caja y vendiendo en **cualquier** sede. `abrir_caja`/`cerrar_caja`/
+  `registrar_venta` ni siquiera llamaban al guardián. `recalcular_stock()`
+  no tenía candado y su `truncate`+`rebuild` borraba `stock_minimo`/
+  `contenedor_id` en silencio. Prueba `311` (11 aserciones pgTAP) en verde
+  en `db-tests`. Verificado contra producción DESPUÉS de pegar: los siete
+  `md5(prosrc)` coinciden exactos con el Postgres local tras el arreglo, y
+  `migraciones_aplicadas` registra `numero=392` a las 2026-09-07 22:14:24 UTC.
+  **Alcance deliberado, no cerrado:** ~8 sitios más de retail con
+  `if not retail.es_lider()` quedan seguros por el `coalesce` sin tocarse
+  (mejora de consistencia aparte), y `fn_sede_actual_persona()` —que no
+  filtra por estado— queda como riesgo residual anotado, no como algo que
+  esta migración debía resolver.
+
+Quedan por atender el resto de los críticos del catálogo priorizado, en
+lotes sucesivos con el mismo protocolo.
+
+⚠️ **[PR #232](https://github.com/felipea92p-ux/cayla-dynamic/pull/232) (los
+25 hallazgos de diseño, del mapa de calor de Turnos a Modal/Insignia) sigue
+ABIERTO, sin fusionar** — pendiente de revisión.
+
+---
+
+## 2026-09-07 — Un practicante puede cobrar movilidad y educación (0397) · PEGADA Y VERIFICADA
+
+Motivado por un caso real: Geison Alcantára —de prácticas, ingresó el 3 de
+septiembre— estaba mal registrado como planilla normal y su boleta le
+descontaba AFP y le acumulaba gratificación/CTS que no le correspondían.
+Se corrigió su `tipo_vinculo` a `practicante` desde `/admin/equipo` (dato, no
+código), y de ahí salió la pregunta: ¿puede CAYLA ofrecerle también movilidad
+y educación? Legalmente sí (Ley 28518 no lo prohíbe) — pero el sistema no se
+las pagaba, porque las dos seguían condicionadas solo a `en_planilla`, que
+para un practicante es `false` por definición.
+
+**La 0397** amplía la condición a `pe.en_planilla or pe.tipo_vinculo =
+'practicante'` en los 7 sitios exactos de `fn_planilla_calcular_nucleo` donde
+se leía `en_planilla` para estos dos conceptos — el mismo patrón quirúrgico
+que la 0322 usó para EsSalud. AFP, CTS, gratificación, bonificación
+extraordinaria y asignación familiar **no se tocan** y siguen en cero para un
+practicante. Sigue siendo una opción: sin tarifa de movilidad cargada para su
+sede o sin una asignación de educación con comprobante, un practicante sigue
+cobrando S/0 de los dos, igual que hoy.
+
+Auditado contra Postgres local dentro de `BEGIN…ROLLBACK` antes de escribir
+([PR #254](https://github.com/felipea92p-ux/cayla-dynamic/pull/254)): monto
+correcto, `total` cuadra con `chk_foto_cuadra`, el periodo cierra por el grupo
+`practicante` (0323), y las pruebas 115/193 (educación/movilidad existentes)
+sin regresión. `db-tests` en verde (3m57s). **Confirmado en producción el
+2026-09-07**: la consulta de comprobación del final de la migración devolvió
+exactamente lo esperado — las dos funciones núcleo creadas, en la lista negra,
+y NO ejecutables directamente por `authenticated`.
+
+**Pendiente que no se arregla solo:** para que esto mueva un sol de verdad hay
+que cargarle a la persona una tarifa de movilidad vigente para su sede (si no
+la tiene) y/o una asignación de educación con comprobante desde
+`/admin/educacion`. Sin eso, nada cambia para nadie.
+
+---
+
+## 2026-09-07 — El mega menú pasa a sidebar lateral colapsable, y los grupos de 5 a 7 · SIN MIGRACIONES, SIN DESPLEGAR
+
+Ejecuta la decisión que [`plan-apariencia-2026-09-06.md`](plan-apariencia-2026-09-06.md)
+dejó aplazada por escrito («la decisión de navegación de libertad total —sidebar
+colapsable— si el ajuste evolutivo del Día 2 no alcanza»), saltándose el paso
+evolutivo. **El Día 2 paso 1 de ese plan —bajar el corte a `lg` y mostrar las
+etiquetas de grupo en la barra horizontal— queda sin efecto: ya no hay barra
+horizontal que ajustar.** El resto de ese plan sigue en pie.
+
+**Por qué ahora y no otro parche.** Es el tercer intento sobre el mismo
+problema. El 5 de septiembre se probó scroll horizontal (`688e8e5`) y se
+revirtió el mismo día (`21591a7`) con el criterio «nunca esconde ítems con
+scroll». Con treinta renglones la barra envolvía en tres o cuatro filas y se
+comía ~145px de alto en las 24 pantallas; por debajo de 1280px —un portátil con
+la ventana sin maximizar— desaparecía entera en la hamburguesa. Ahora el
+encabezado son 64px fijos.
+
+**Los tres anchos:** ≥1280px sidebar de 256px con títulos de grupo · 768–1279px
+rail de 64px solo con iconos · <768px cajón sobre velo. El botón de plegar gana
+sobre el ancho y se recuerda en localStorage, como el tema.
+
+**Y cada grupo se contrae desde su título**, con su chevron, también recordado.
+Hacía falta: desplegado y con los siete grupos abiertos el menú mide 1303px
+contra los ~790 que se ven en un portátil, o sea que Configuración quedaba
+debajo del pliegue. Contrayendo cuatro grupos baja a 801px y cabe entero.
+**En rail NO se contraen, a propósito:** ahí no hay títulos, así que no habría
+dónde volver a pulsar y quien hubiera contraído «Nómina» se quedaría sin
+Planilla hasta ensanchar la ventana. Y si la pantalla en la que estás vive en un
+grupo contraído, su título se pinta en tinta en vez de taupe — sin eso, cerrar
+el grupo en el que estás borra la única señal de dónde estás.
+
+**La reagrupación, que es la parte que hay que discutir si algo se discute:**
+
+- **«Ausencias» sale de Nómina y entra a Asistencia.** Era el único renglón de
+  rol SEDE dentro de un grupo entero de rol DO: para una encargada, «Nómina»
+  tenía exactamente un ítem.
+- **«Publicaciones» es un grupo nuevo** con política salarial, normas y
+  anuncios — las tres únicas entradas sin filtro de rol, y no por casualidad
+  (Ley 30709 y entrega del RIT). Estaban en tres grupos distintos, así que una
+  integrante veía cuatro renglones sueltos sin lógica visible.
+- **«Apariencia» baja a Configuración**, con Áreas, Sedes y Cuentas: mismo
+  permiso y misma frecuencia.
+- **«Feriados» se queda en Nómina** aunque sea discutible: registra el
+  compensatorio que quita la sobretasa del feriado trabajado, o sea que existe
+  por el pago. Si al usarlo se siente de Asistencia, es un cambio de una línea.
+
+Ninguna URL, ningún permiso y ningún nombre de pantalla cambian.
+
+**Lo que ya no depende de que alguien lo recuerde.** `tests/nav-items.test.ts`
+(21 aserciones) vigila que esas tres pantallas de obligación legal sigan sin
+`roles`, que no haya rutas repetidas y que los contadores sean tres. Es la
+primera prueba del repo sobre la navegación: hasta hoy solo la miraba el
+typecheck, y el typecheck no sabe que «Normas» la tiene que ver todo el equipo.
+
+**Deuda que este cambio NO pagó, y que salió al explorar:**
+
+1. 🔴 **Una integrante no puede llegar a cambiar su propia clave.** `Cuentas`
+   está restringida a DO en el menú, pero la pantalla sí muestra «Mi cuenta» a
+   cualquiera. El renglón que lleva ahí no existe para quien lo necesita.
+2. **Seis sub-rutas dejan el menú sin nada resaltado** — `/planilla/boleta`,
+   `/disciplina/memo/[id]`, `/normas/[id]/imprimir`, `/normas/[id]/constancias`,
+   `/politica-salarial/constancias` y `/mio/boleta`. `esActivo` cubre tres
+   casos. No empeoró con este cambio: ya estaba así.
+3. **`/mio` no lleva marco** — tiene su propio encabezado a mano y queda fuera
+   del sidebar, siendo el destino del primer renglón del menú.
+4. **El bloque `@media print` de `globals.css` redefine nueve tokens, no once**
+   — le faltan `hueso` y `pizarra`, y usa los valores de `verde` y `ámbar`
+   previos al retuneo del 6 de septiembre.
+
+**Tres cosas del entorno, para quien trabaje en Windows** (esta sesión fue la
+primera):
+
+1. **Los archivos del árbol están en CRLF en disco y en LF en git.** Editar
+   cualquiera y guardarlo tal cual reescribe el archivo ENTERO: `globals.css`
+   pasó de un cambio de 49 líneas a uno de 444/395, y los 36 archivos del
+   sidebar llegaron a dar 28.000 líneas de diff antes de normalizarlos. No
+   rompe nada y por eso es peligroso — se ve como un cambio enorme y se revisa
+   como tal. **Convertir a LF antes de commitear** y comprobar con
+   `git diff --numstat` que el número cuadra con lo que se tocó de verdad.
+2. `npx pnpm install` **falla en silencio y sale con código 0** (npx no
+   encuentra el binario), así que hay que llamar a `pnpm` directo.
+3. `.claude/launch.json` arranca el servidor con `/bin/zsh`, que en Windows no
+   existe — se puede levantar con `pnpm --filter @cayla-dynamic/web dev`, pero
+   el panel del navegador necesitaría una entrada propia en ese archivo.
+
+Y una cuarta que no es de Windows: **el hook de pre-push llama a `python3`**
+(`fecha-que-bloquea.sh` y `lint-de-lo-nuevo.sh`, los dos con `|| exit 1`), así
+que sin Python instalado no se puede empujar desde esa máquina.
+
 ## 2026-09-05 — Foto junto al nombre en el terminal, subida por cada quien desde «Lo mío» (0381) · PEGADA Y VERIFICADA EN PRODUCCIÓN
 
 Salió de la comparación contra BambooHR/Rippling/UKG del 2026-09-03 («Las Tres

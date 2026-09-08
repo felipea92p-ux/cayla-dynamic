@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { AdminNav } from "../nav";
 import { Cargando, EsqueletoSecciones } from "@/components/cargando";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
@@ -174,6 +173,11 @@ function IncidenciasContenido() {
   const rol = yo?.rol ?? null;
   const [desde, setDesde] = useState(haceDias(30));
   const [hasta, setHasta] = useState(HOY);
+  // Resumen | Detalle: qué tan literal se muestra la lista de abajo. Arranca en
+  // Resumen a propósito — la primera pregunta al abrir esta pantalla es "¿cómo
+  // estamos?", no "dame cada fila"; el detalle completo (idéntico al de antes
+  // de este toggle) sigue a un clic.
+  const [vistaModo, setVistaModo] = useState<"resumen" | "detalle">("resumen");
   const [filas, setFilas] = useState<Fila[]>([]);
   const [codigoPorSedeId, setCodigoPorSedeId] = useState<Map<string, string>>(new Map());
   const [cargando, setCargando] = useState(true);
@@ -745,14 +749,54 @@ function IncidenciasContenido() {
   const porSede = [...new Set(vista.map((f) => f.sede))].sort();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AdminNav />
+    <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-1 flex items-end justify-between">
-          <h1 className="font-serif text-2xl">Incidencias</h1>
+        <div className="mb-1 flex flex-wrap items-end justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="font-serif text-2xl">Incidencias</h1>
+            <div role="tablist" aria-label="Modo de vista" className="flex rounded-full border border-sand p-0.5">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={vistaModo === "resumen"}
+                onClick={() => setVistaModo("resumen")}
+                className={`etiqueta rounded-full px-3 py-1 transition-colors ${
+                  vistaModo === "resumen" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"
+                }`}
+              >
+                Resumen
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={vistaModo === "detalle"}
+                onClick={() => setVistaModo("detalle")}
+                className={`etiqueta rounded-full px-3 py-1 transition-colors ${
+                  vistaModo === "detalle" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"
+                }`}
+              >
+                Detalle
+              </button>
+            </div>
+          </div>
           <span className="text-xs text-taupe">{cargando ? "Cargando…" : `${vista.length} por revisar`}</span>
         </div>
-        <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        {/* El toggle Resumen/Detalle vive ACÁ, no en la tabla de abajo: lo único
+            que cambia de tamaño es esta explicación. La tabla de incidencias
+            (y sus acciones) es siempre la misma, completa, en los dos modos —
+            resumirla escondería justo lo que exige revisión. */}
+        {vistaModo === "detalle" ? (
+          <p className="mb-5 text-sm text-taupe">Días que necesitan tu revisión: auto-cerrados, sin salida final, sin retorno de pausa, o con salida anticipada (más de 15 min antes de su hora). Toca cualquiera para corregirlo. También avisa cuando alguien acumula {UMBRAL_PATRON_TARDANZAS}+ tardanzas en los últimos {VENTANA_PATRON_DIAS} <strong>días corridos</strong> — Dynamic solo avisa, la decisión (conversar, amonestar) es tuya. Ese conteo <strong>no es el que arma un memo</strong>: el umbral del RIT se cuenta por <strong>mes calendario</strong> y sale en Disciplina, así que acá el número puede ser mayor cuando queda una tardanza del mes pasado dentro de la ventana. Y si una sede no llega a su mínimo de encargadas programadas esta semana (configurable en Turnos), también sale acá. Avisa además cuando alguien pasa de {MAXIMO_LEGAL_SEMANAL} h en <strong>cualquier ventana de siete días seguidos</strong> — no por semana de calendario, porque así doce días corridos de 8 h darían 48 y 48 sin que nada saltara. Ese es el <strong>máximo legal</strong>, no un objetivo. Ese aviso viene en dos tonos: si la ventana termina esta semana todavía se puede mover un turno, y si dice <strong>«ya ocurrió»</strong> es un exceso de hasta {VENTANA_EXCESO_DIAS} días atrás que ya no se evita — se saca con <strong>Revisado</strong>, que deja constancia de quién lo miró. Y cuando alguien lleva {MAXIMO_DIAS_SIN_DESCANSO} días seguidos trabajando, porque el siguiente le toca descansar — el descanso semanal se cuenta en <strong>ciclos de 7 días</strong>, no por semana de calendario (Informe 027-2021-MTPE/14), así que con turnos rotativos se puede cumplir «uno por semana» y encadenar doce días igual. Ese aviso <strong>se va solo en cuanto descansa</strong>: si su último día trabajado ya quedó atrás, el descanso ocurrió y no hay nada que pedir. El de <strong>{MAXIMO_DIAS_SIN_DESCANSO + 1}+ días</strong> no se va solo —esa infracción ya ocurrió— y se saca con <strong>Revisado</strong>, que deja constancia de quién la miró. Ninguno de los dos límites —las {MAXIMO_LEGAL_SEMANAL} h ni el descanso— <strong>se arregla pagando después</strong>: el recargo del sobretiempo se paga aparte y no levanta el tope. Las <strong>faltas</strong> (le tocaba y no marcó) salen en rojo; usa <strong>Justificar</strong> para registrar el motivo (permiso, descanso médico, etc.) y sacarlas del conteo.</p>
+        ) : (
+          <p className="mb-5 text-sm text-taupe">
+            Días que necesitan tu revisión: cierres mal hechos (auto-cierre, sin salida, sin retorno de almuerzo,
+            salida anticipada), patrones de tardanza, exceso de las {MAXIMO_LEGAL_SEMANAL} h legales en 7 días
+            seguidos, {MAXIMO_DIAS_SIN_DESCANSO}+ días sin descanso, sedes por debajo de su mínimo de encargadas, y
+            faltas sin justificar. <strong>Dynamic solo avisa</strong> — conversar, amonestar o justificar es
+            decisión tuya. Toca cualquier fila para corregirla; pasa a <strong>Detalle</strong> para las reglas
+            completas de cada aviso (qué cuenta, qué no, y por qué).
+          </p>
+        )}
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">Desde

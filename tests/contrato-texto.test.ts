@@ -56,6 +56,7 @@ function datos(cambios: Partial<DatosContrato> = {}): DatosContrato {
     direccion: null,
     cargo: "Asesora",
     email: null,
+    genero: null,
     sedeNombre: "Trujillo",
     sedeCodigo: "TRU",
     ciudad: "Trujillo",
@@ -137,6 +138,21 @@ describe("construirContrato", () => {
     );
   });
 
+  // El Anexo III fija el correo de LA COLABORADORA como domicilio válido
+  // para notificaciones — incluida la entrega del RIT. Sin esta prueba, un
+  // cambio accidental en `d.email` podía imprimir "[completar]" en un
+  // contrato real sin que ninguna prueba lo cazara (docs/hallazgos-abiertos.md).
+  it("el Anexo III lleva el correo de la colaboradora, y dice [completar] si falta", () => {
+    const conCorreo = construirContrato(datos({ email: "colaboradora@ejemplo.com" }));
+    expect(conCorreo).toContain("DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(conCorreo).toContain("El domicilio electrónico de LA COLABORADORA es colaboradora@ejemplo.com.");
+    expect(conCorreo).toContain("LA EMPRESA: info@cayla.pe · LA COLABORADORA: colaboradora@ejemplo.com</p>");
+
+    const sinCorreo = construirContrato(datos({ email: null }));
+    expect(sinCorreo).not.toContain("El domicilio electrónico de LA COLABORADORA es");
+    expect(sinCorreo).toContain("LA EMPRESA: info@cayla.pe · LA COLABORADORA: [completar]</p>");
+  });
+
   it("el adendum no repite el contrato ni sus anexos", () => {
     const html = construirContrato(datos({ tipo: "adendum", adendumTexto: "Se modifica la Cláusula Sexta." }));
     expect(html).toContain("ADENDUM AL CONTRATO DE TRABAJO");
@@ -212,6 +228,12 @@ describe("documentoConvenio", () => {
     expect(texto).not.toContain("LA COLABORADORA");
   });
 
+  it("firma como EL PRACTICANTE cuando el género es masculino, nunca LA PRACTICANTE", () => {
+    const texto = construirContrato(datosConvenio({ genero: "masculino" }));
+    expect(texto).toContain("EL PRACTICANTE");
+    expect(texto).not.toContain("LA PRACTICANTE");
+  });
+
   it("el Anexo I es el plan específico de aprendizaje, no las funciones del cargo", () => {
     const texto = construirContrato(datosConvenio({ planCapacitacionTexto: "Apoyo específico en X." }));
     expect(texto).toContain("ANEXO I — PLAN ESPECÍFICO DE APRENDIZAJE");
@@ -268,9 +290,25 @@ describe("documentoConvenio", () => {
     const preprofesional = construirContrato(datosConvenio({ practicanteModalidad: "preprofesional" }));
     const profesional = construirContrato(datosConvenio({ practicanteModalidad: "profesional" }));
     expect(preprofesional).toContain("NOVENA. OBLIGACIONES DEL CENTRO DE FORMACIÓN PROFESIONAL");
-    expect(preprofesional).toContain("DÉCIMA OCTAVA. EXTINCIÓN");
+    expect(preprofesional).toContain("DÉCIMA NOVENA. EXTINCIÓN");
     expect(profesional).not.toContain("OBLIGACIONES DEL CENTRO DE FORMACIÓN");
-    expect(profesional).toContain("DÉCIMA SÉTIMA. EXTINCIÓN");
+    expect(profesional).toContain("DÉCIMA OCTAVA. EXTINCIÓN");
+  });
+
+  // El convenio no es un contrato de trabajo, pero sí necesita un domicilio
+  // electrónico válido para notificarle a LA PRACTICANTE — el mismo correo
+  // que ya vive en su ficha (Equipo), no uno nuevo que haya que inventar.
+  it("autoriza el domicilio electrónico con el correo de la practicante, y avisa si falta", () => {
+    const conCorreo = construirContrato(datosConvenio({ email: "practicante@ejemplo.com" }));
+    expect(conCorreo).toContain("DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(conCorreo).toContain("El domicilio electrónico de LA PRACTICANTE es practicante@ejemplo.com.");
+    expect(conCorreo).toContain("ANEXO III — DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(conCorreo).toContain("LA EMPRESA: info@cayla.pe · LA PRACTICANTE: practicante@ejemplo.com</p>");
+
+    const sinCorreo = construirContrato(datosConvenio({ email: null }));
+    expect(sinCorreo).toContain("DOMICILIO ELECTRÓNICO Y COMUNICACIONES");
+    expect(sinCorreo).not.toContain("El domicilio electrónico de LA PRACTICANTE es");
+    expect(sinCorreo).toContain("LA EMPRESA: info@cayla.pe · LA PRACTICANTE: [completar]</p>");
   });
 });
 
@@ -368,5 +406,67 @@ describe("finDelPeriodoDePrueba", () => {
 
   it("cruza el año sin perderse", () => {
     expect(finDelPeriodoDePrueba("2026-11-20")).toBe("2027-02-20");
+  });
+});
+
+// ============================================================================
+// El inventario de huecos del convenio — el canario de la próxima 0333
+// ============================================================================
+// El generador no inventa un dato que falta: escribe «[completar]» y sigue. Lo
+// que faltaba era que nada impidiera IMPRIMIR ese hueco, y eso ya está
+// arreglado: `/admin/contratos` bloquea el botón campo por campo.
+//
+// PERO ESE BLOQUEO ES UNA SEGUNDA LISTA, y así nació el defecto: la 0333 le
+// agregó trece campos al convenio y la lista de la pantalla no se enteró. Nada
+// impide que vuelva a pasar — un campo nuevo en el documento no obliga a nadie
+// a sumarlo a los `bloqueos`.
+//
+// Esta prueba no puede comprobar el bloqueo (vive dentro de un componente de
+// React, sin costura). Lo que sí puede es fijar el INVENTARIO: cuántos huecos
+// distintos llega a imprimir un convenio vacío. El día que alguien agregue un
+// campo al texto, este número sube y la prueba se pone roja — y quien la vea
+// tiene que ir a `bloqueos` a decidir si ese campo también se bloquea.
+//
+// No es un freno: es un aviso en el único sitio donde nadie tiene que acordarse
+// de mirar.
+describe("el convenio no gana huecos sin que nadie lo note", () => {
+  function convenioVacio(modalidad: "preprofesional" | "profesional"): DatosContrato {
+    return datos({
+      tipo: "convenio_practicas",
+      practicanteModalidad: modalidad,
+      planCapacitacionTexto: "Plan mínimo.",
+      centroFormacionNombre: null,
+      centroFormacionRuc: null,
+      centroFormacionDomicilio: null,
+      centroFormacionRepresentante: null,
+      carreraEspecialidad: null,
+      cicloAcademico: null,
+      gradoTituloTexto: null,
+      areaProyecto: "",
+      objetivoFormativoGeneral: "",
+      supervisorAsignado: "",
+      hitoMes3: "",
+      hitoMes6: "",
+    });
+  }
+
+  // Los textos exactos que el documento imprime hoy cuando falta cada dato. Si
+  // este arreglo se queda corto, es que el documento aprendió un hueco nuevo.
+  it("preprofesional: imprime exactamente los huecos conocidos, ni uno más", () => {
+    const html = construirContrato(convenioVacio("preprofesional"));
+    const huecos = [...html.matchAll(/\[completar[^\]]*\]/g)].map((m) => m[0]);
+    expect(new Set(huecos)).toEqual(new Set([
+      "[completar — razón social del centro de formación]",
+      "[completar]",
+    ]));
+    // Y que de verdad los esté imprimiendo: si esto da 0, la prueba se volvió
+    // decorativa porque el montaje dejó de producir un convenio vacío.
+    expect(huecos.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("profesional: no pide centro de formación ni ciclo, pero sí su grado", () => {
+    const html = construirContrato(convenioVacio("profesional"));
+    expect(html).toContain("[completar — grado/título y universidad de egreso]");
+    expect(html).not.toContain("razón social del centro de formación");
   });
 });
