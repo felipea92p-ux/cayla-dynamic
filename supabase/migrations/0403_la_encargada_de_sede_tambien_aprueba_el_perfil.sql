@@ -84,24 +84,28 @@ security definer
 set search_path = public
 as $fn$
 declare
-  v_s    solicitudes_cambio_perfil%rowtype;
-  v_sede uuid;
+  v_s      solicitudes_cambio_perfil%rowtype;
+  v_existe boolean;
+  v_sede   uuid;
 begin
   -- Se lee la solicitud Y la sede de quien la pidió ANTES de decidir el
-  -- permiso, en una sola consulta — para que a quien no tiene permiso el
-  -- mensaje sea siempre "sin permiso", nunca "no existe" ni "sí existe": eso
-  -- dejaría probar ids de solicitudes ajenas por el mensaje de error.
-  select s.*, pe.sede_base_id into v_s, v_sede
-  from solicitudes_cambio_perfil s
-  join personas pe on pe.id = s.persona_id
-  where s.id = p_id;
+  -- permiso — para que a quien no tiene permiso el mensaje sea siempre "sin
+  -- permiso", nunca "no existe" ni "sí existe": eso dejaría probar ids de
+  -- solicitudes ajenas por el mensaje de error. Van en DOS consultas, no una
+  -- sola con join: Postgres no deja mezclar una variable `%rowtype` con otro
+  -- destino en el mismo `select ... into` (SQLSTATE 42601). `v_existe` guarda
+  -- el `found` de la primera antes de que la segunda lo pise.
+  select * into v_s from solicitudes_cambio_perfil where id = p_id;
+  v_existe := found;
+
+  select sede_base_id into v_sede from personas where id = v_s.persona_id;
 
   if (fn_es_admin_o_lider() is true
       or (fn_rol_actual() = 'supervisor_sede' and v_sede = fn_sede_actual_persona())) is not true then
     raise exception 'Solo un administrador, líder de Desarrollo Organizacional o la encargada de esa sede puede resolver una solicitud de perfil.';
   end if;
 
-  if not found then
+  if not v_existe then
     raise exception 'Esa solicitud ya no existe.';
   end if;
   if v_s.estado <> 'pendiente' then
