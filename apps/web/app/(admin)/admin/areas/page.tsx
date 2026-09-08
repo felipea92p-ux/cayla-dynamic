@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
-import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { type Area, AREA_DEFAULT, parseAreas, slugDeNombre } from "@/lib/areas";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -142,41 +143,37 @@ export default function AreasPage() {
     const codigo = modo === "alta" ? slugDeNombre(form.nombre) : editandoCodigo ?? "";
     return (
       <div className="mb-6 grid max-w-2xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Nombre
-          <input
+        <div className="sm:col-span-2">
+          <Campo
+            etiqueta="Nombre"
             value={form.nombre}
             onChange={(e) => setForm({ ...form, nombre: e.target.value })}
             placeholder="ej. Logística y envíos"
-            className="rounded-lg border px-3 py-2"
           />
-          <span className="text-xs text-taupe">
+          <span className="mt-1 block text-xs text-taupe">
             Código: <span className="font-mono">{codigo || "—"}</span>{" "}
             {modo === "alta"
               ? "(se deriva del nombre; no editable)"
               : "(fijo — cambiar el nombre no cambia el código)"}
           </span>
-        </label>
+        </div>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input
             type="checkbox"
             checked={form.operativa}
             onChange={(e) => setForm({ ...form, operativa: e.target.checked })}
-            className="h-4 w-4 rounded border"
+            className="h-4 w-4 rounded border-sand accent-tinta"
           />
           Es operativa de sede (cuenta para la cobertura de tienda)
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Orden (opcional)
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={form.orden}
-            onChange={(e) => setForm({ ...form, orden: e.target.value })}
-            className="rounded-lg border px-3 py-2"
-          />
-        </label>
+        <Campo
+          etiqueta="Orden (opcional)"
+          type="number"
+          min="0"
+          step="1"
+          value={form.orden}
+          onChange={(e) => setForm({ ...form, orden: e.target.value })}
+        />
         <div className="flex items-end gap-3">
           <Boton variante="primario" onClick={guardarArea} disabled={guardando}>
             {guardando ? "Guardando…" : modo === "alta" ? "Agregar área" : "Guardar cambios"}
@@ -206,7 +203,7 @@ export default function AreasPage() {
         ) : (
           <>
             {cargaError && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
                 No se pudo cargar el catálogo desde el servidor: {cargaError}. Se muestra el respaldo
                 local y la edición queda deshabilitada (para no pisar los datos reales).{" "}
                 <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
@@ -230,15 +227,15 @@ export default function AreasPage() {
                 </TablaEncabezado>
                 <tbody>
                   {areas.map((a) => (
-                    <tr key={a.codigo} className={`border-t ${a.activa ? "" : "text-taupe"}`}>
+                    <Fila key={a.codigo} className={!a.activa ? "text-taupe" : undefined}>
                       <td className="px-4 py-2">
                         {a.nombre}
                         {a.codigo === AREA_DEFAULT && (
-                          <span className="ml-2 text-xs text-taupe/60">(área del sistema)</span>
+                          <span className="ml-2 text-xs text-taupe">(área del sistema)</span>
                         )}
                       </td>
                       <td className="px-4 py-2 font-mono text-xs text-taupe">{a.codigo}</td>
-                      <td className="px-4 py-2">{a.operativa ? "✓" : <span className="text-taupe/50">—</span>}</td>
+                      <td className="px-4 py-2">{a.operativa ? "✓" : <span className="text-taupe">—</span>}</td>
                       <td className="px-4 py-2">{a.orden}</td>
                       <td className="px-4 py-2">
                         <Insignia atenuada={!a.activa}>{a.activa ? "activa" : "inactiva"}</Insignia>
@@ -258,7 +255,7 @@ export default function AreasPage() {
                           </div>
                         )}
                       </td>
-                    </tr>
+                    </Fila>
                   ))}
                 </tbody>
               </Tabla>

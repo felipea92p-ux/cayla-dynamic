@@ -6,6 +6,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { REQUISITOS_CLAVE, ROLES_CON_PANEL, problemasDeClave } from "@cayla-dynamic/shared";
 import { guardarMiClave } from "@/lib/admin/mi-clave";
 import { Colibri } from "@/components/marca";
+import { Campo } from "@/components/ui/campo";
+import { Boton } from "@/components/ui/boton";
 
 type Estado = "cargando" | "listo" | "invalido" | "guardado";
 
@@ -134,20 +136,18 @@ function NuevaClaveContenido() {
 
       {estado === "listo" && (
         <form onSubmit={guardar} className="flex w-full max-w-xs flex-col gap-3">
-          <input
+          <Campo
             type="password"
             placeholder="Nueva contraseña"
             value={nueva}
             onChange={(e) => setNueva(e.target.value)}
-            className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe"
             required
           />
-          <input
+          <Campo
             type="password"
             placeholder="Repite la nueva contraseña"
             value={confirma}
             onChange={(e) => setConfirma(e.target.value)}
-            className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe"
             required
           />
           {/* Los requisitos ANTES de escribir, no después de fallar. Una regla
@@ -158,25 +158,18 @@ function NuevaClaveContenido() {
             {REQUISITOS_CLAVE.map((r) => <li key={r}>· {r}</li>)}
           </ul>
           {error && <p className="text-sm text-rojo">{error}</p>}
-          <button
-            type="submit"
-            disabled={guardando}
-            className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
-          >
+          <Boton type="submit" variante="primario" disabled={guardando} cargando={guardando}>
             {guardando ? "Guardando…" : "Guardar y entrar"}
-          </button>
+          </Boton>
         </form>
       )}
 
       {estado === "guardado" && (
         <div className="flex w-full max-w-xs flex-col gap-4 text-center">
           <p className="text-sm text-verde">Tu contraseña se actualizó correctamente.</p>
-          <button
-            onClick={() => router.replace(destino)}
-            className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo"
-          >
+          <Boton type="button" variante="primario" onClick={() => router.replace(destino)}>
             {destino === "/mio" ? "Ir a lo mío" : "Ir al panel"}
-          </button>
+          </Boton>
         </div>
       )}
     </div>

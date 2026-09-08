@@ -30,9 +30,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
 import { fechaLima, puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas } from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
@@ -104,12 +107,23 @@ interface ItemSolicitudPerfil {
 }
 
 /** «celular: 987654321, direccion: Av. Uno 123» — genérico a propósito: son
- *  11 campos con formas distintas, y esto solo es para que quien aprueba vea
- *  de un vistazo qué cambia, no para imprimir un documento. */
+ *  campos con formas distintas, y esto solo es para que quien aprueba vea
+ *  de un vistazo qué cambia, no para imprimir un documento.
+ *
+ *  Con una excepción, desde la 0401: cuando el valor ES un archivo (la foto del
+ *  DNI), su valor es una ruta del almacén —`solicitud/<uuid>/dni-anverso-….jpg`,
+ *  sesenta caracteres que no dicen nada y empujan el resto de la fila fuera de
+ *  la pantalla—. Ahí se anuncia la cara y ya está: lo que hay que mirar es la
+ *  imagen, y para eso están los botones de adjuntos de abajo. */
 function resumenValorPerfil(v: Record<string, unknown>): string {
   const entradas = Object.entries(v).filter(([, val]) => val !== null && val !== undefined && val !== "");
   if (entradas.length === 0) return "—";
-  return entradas.map(([k, val]) => `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`).join(" · ");
+  return entradas.map(([k, val]) => {
+    if (typeof val === "string" && val.startsWith("solicitud/")) {
+      return `${k.replace(/^foto_dni_|_ruta$/g, "")}: imagen adjunta`;
+    }
+    return `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`;
+  }).join(" · ");
 }
 
 // Lo que devuelve fn_alertas_despacho_resumen (0362): lo que el despacho
@@ -168,9 +182,13 @@ export default function BandejaPage() {
   // que ya usa fn_aprobar_ausencia — es DO, nunca la encargada de la sede.
   const puedeResolverVacaciones = puedeVerPlanilla(rol);
   const puedeSaludAlertas = puedeVerSaludDeAlertas(rol);
-  // Igual regla que vacaciones: DO, nunca la encargada de sede — decidido para
-  // los 11 campos por igual, no solo los sensibles (ver ADR 0001, DECIDÍ #9).
-  const puedeResolverPerfil = puedeVerPlanilla(rol);
+  // CAMBIO 0403 — Antes era DO en exclusiva (ADR 0001, DECIDÍ #9). Se revirtió
+  // al día siguiente de confirmarse, al construir /mio/editar: la encargada de
+  // sede también resuelve, pero solo lo de su propio equipo — el guard vive en
+  // fn_resolver_solicitud_perfil/fn_solicitudes_perfil_pendientes, esto solo
+  // decide si se le muestra la sección. Ver la "Corrección tras implementar
+  // (2026-09-08)" al final del ADR.
+  const puedeResolverPerfil = puedeOperarEquipo(rol);
 
   const [cargando, setCargando] = useState(true);
   const [resumenAlertas, setResumenAlertas] = useState<ResumenAlertas | null>(null);
@@ -321,10 +339,10 @@ export default function BandejaPage() {
   }
 
   /** El bucket es privado: cada documento se abre con una URL firmada, pedida
-   *  al momento de mirar — nunca se firman los 11 de golpe. */
+   *  al momento de mirar — nunca se firman todos de golpe. */
   async function verDocumentoPerfil(ruta: string) {
     const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase.storage.from("solicitudes-perfil").createSignedUrl(ruta, 300);
+    const { data, error } = await supabase.storage.from(BUCKET_SOLICITUDES_PERFIL).createSignedUrl(ruta, 300);
     if (error || !data) { avisar("error", "No se pudo abrir el documento."); return; }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
@@ -434,16 +452,20 @@ export default function BandejaPage() {
                       </div>
                       <p className="mt-1.5">«{r.comentario}»</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={respuestas[r.id] ?? ""}
-                          onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
-                          placeholder="En qué quedó (lo va a leer la persona)"
-                          className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void marcarAtendida(r.id)} disabled={atendiendo === r.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
-                        </button>
+                        <div className="min-w-56 flex-1">
+                          <Campo
+                            value={respuestas[r.id] ?? ""}
+                            onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
+                            placeholder="En qué quedó (lo va a leer la persona)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void marcarAtendida(r.id)}
+                          cargando={atendiendo === r.id}
+                        >
+                          Marcar atendida
+                        </Boton>
                       </div>
                     </li>
                   ))}
@@ -467,20 +489,27 @@ export default function BandejaPage() {
                       </div>
                       {s.comentario && <p className="mt-1.5">«{s.comentario}»</p>}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <input
-                          value={motivosRechazo[s.id] ?? ""}
-                          onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
-                          placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
-                          className="min-w-64 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                        />
-                        <button onClick={() => void resolverSolicitud(s.id, true)} disabled={resolviendo === s.id}
-                          className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                          {resolviendo === s.id ? "Guardando…" : "Aprobar"}
-                        </button>
-                        <button onClick={() => void resolverSolicitud(s.id, false)} disabled={resolviendo === s.id}
-                          className="rounded-lg border border-rojo px-4 py-1.5 font-medium text-rojo disabled:opacity-50">
+                        <div className="min-w-64 flex-1">
+                          <Campo
+                            value={motivosRechazo[s.id] ?? ""}
+                            onChange={(e) => setMotivosRechazo((x) => ({ ...x, [s.id]: e.target.value }))}
+                            placeholder="Motivo si rechazas (obligatorio solo para rechazar)"
+                          />
+                        </div>
+                        <Boton
+                          variante="primario"
+                          onClick={() => void resolverSolicitud(s.id, true)}
+                          cargando={resolviendo === s.id}
+                        >
+                          Aprobar
+                        </Boton>
+                        <Boton
+                          variante="peligro"
+                          onClick={() => void resolverSolicitud(s.id, false)}
+                          disabled={resolviendo === s.id}
+                        >
                           Rechazar
-                        </button>
+                        </Boton>
                       </div>
                     </li>
                   ))}

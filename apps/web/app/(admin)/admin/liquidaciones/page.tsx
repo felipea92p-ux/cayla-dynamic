@@ -9,6 +9,10 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { formatSoles } from "@/lib/rangos";
 import { EMPRESA, hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { Modal } from "@/components/ui/modal";
 
 // Liquidación por cese. La ley da 48 HORAS desde el cese para pagar (art. 4 del
 // D.S. 001-97-TR), así que esta pantalla existe para que ese plazo no dependa de
@@ -117,6 +121,12 @@ function tiempoDeServicio(p: PapelesCese): string {
   return partes.join(" y ");
 }
 
+// Quién firma el certificado y la constancia por CAYLA NO se escribe acá: vive
+// en `configuracion.firmante_empresa` (0147), la misma fuente que ya usa el
+// generador de Contratos — validada por trigger, con nombre y DNI resueltos
+// desde la ficha de esa persona, nunca un literal en este archivo.
+interface FirmanteEmpresa { nombre: string; dni: string | null; cargo: string; personaId: string }
+
 const n = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0) || 0);
 const s = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
@@ -134,9 +144,23 @@ export default function LiquidacionesPage() {
   const [abierta, setAbierta] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [diferencias, setDiferencias] = useState<Diferencia[]>([]);
+  const [diferenciasError, setDiferenciasError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [nota, setNota] = useState("");
   const [miFirma, setMiFirma] = useState<string | null>(null);
+  const [firmanteEmpresa, setFirmanteEmpresa] = useState<FirmanteEmpresa | null>(null);
+  const [esFirmanteEmpresa, setEsFirmanteEmpresa] = useState(false);
+
+  // Confirmaciones que antes eran window.confirm()/window.prompt(): Felipe
+  // aprobó migrar todos los diálogos nativos del panel al Modal compartido
+  // (ver CLAUDE.md). Cada uno lleva solo lo que la fila necesitaba para armar
+  // el mensaje — no el objeto Pendiente entero, que puede quedar desfasado
+  // mientras el modal sigue abierto.
+  const [pagoAccion, setPagoAccion] = useState<
+    { personaId: string; nombre: string; total: number; yaPagada: boolean } | null
+  >(null);
+  const [anularAccion, setAnularAccion] = useState<{ personaId: string; nombre: string } | null>(null);
+  const [motivoAnular, setMotivoAnular] = useState("");
 
   // ── Papeles de salida: certificado de trabajo y constancia de cese ────────
   // Se cargan junto con el desglose de la liquidación, no con un clic aparte:
@@ -144,8 +168,12 @@ export default function LiquidacionesPage() {
   // buscan juntos en Liquidaciones.
   const [papelesCese, setPapelesCese] = useState<PapelesCese | null>(null);
   const [apreciacion, setApreciacion] = useState("");
-  const [docAImprimir, setDocAImprimir] =
-    useState<"liquidacion" | "certificado" | "constancia">("liquidacion");
+  // La vista previa, no la impresión directa. `null` = ningún documento
+  // abierto. El mismo mecanismo que ya usan Contratos, la boleta, Política
+  // salarial y Documentación — antes esta pantalla era la única que llamaba a
+  // `window.print()` a ciegas, sin dejar revisar el papel primero.
+  const [modalAbierto, setModalAbierto] =
+    useState<"liquidacion" | "certificado" | "constancia" | null>(null);
 
   const puede = puedeVerPlanilla(rol);
 
@@ -159,7 +187,11 @@ export default function LiquidacionesPage() {
     ]);
     setPendientes((lista.data as Pendiente[]) ?? []);
     setAvisos((av.data as AvisoVinculo[]) ?? []);
-    setCargaError(lista.error?.message ?? null);
+    // Los dos RPC pueden fallar por separado, y los dos alimentan avisos que
+    // importan: si `av` falla en silencio, el aviso de vínculo «prueba» —el
+    // que habla de beneficios que se están por devengar— desaparece sin que
+    // nada lo diga. Antes solo se miraba `lista.error`.
+    setCargaError(lista.error?.message ?? av.error?.message ?? null);
     setCargando(false);
   }, [router, supabase]);
 
@@ -176,6 +208,40 @@ export default function LiquidacionesPage() {
     })();
   }, [supabase]);
 
+  // Quién certifica y hace constar por CAYLA — para el pie del certificado y
+  // la constancia, no para la liquidación (esa sigue siendo "Por CAYLA" con la
+  // firma de quien la paga, sin cambios). Un documento que sale de la empresa
+  // hacia un banco o un futuro empleador necesita decir QUIÉN certifica, no
+  // solo mostrar una firma sin nombre debajo.
+  useEffect(() => {
+    void (async () => {
+      const [cfg, yo] = await Promise.all([
+        supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+        supabase.rpc("fn_persona_actual_id"),
+      ]);
+      const cfgValor = (cfg.data as { valor: { persona_id?: string; cargo?: string } } | null)?.valor;
+      if (!cfgValor?.persona_id) return;
+      const { data: ficha } = await supabase
+        .from("personas")
+        .select("nombres, apellidos, documento")
+        .eq("id", cfgValor.persona_id)
+        .maybeSingle();
+      if (!ficha) return;
+      setFirmanteEmpresa({
+        nombre: `${ficha.nombres} ${ficha.apellidos}`,
+        dni: ficha.documento,
+        cargo: cfgValor.cargo ?? "Gerencia General",
+        personaId: cfgValor.persona_id,
+      });
+      // La firma escaneada SOLO se estampa si quien tiene la sesión abierta es
+      // la misma persona designada como firmante — igual que Contratos
+      // (`esFirmante`). Sin este candado, cualquier líder que abra el
+      // documento estamparía SU PROPIA firma debajo del nombre de otra
+      // persona: el papel quedaría firmado por alguien que nunca lo firmó.
+      setEsFirmanteEmpresa(Boolean(yo.data) && yo.data === cfgValor.persona_id);
+    })();
+  }, [supabase]);
+
   async function cargarDetalle(personaId: string) {
     const [liq, dif, papeles] = await Promise.all([
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
@@ -185,6 +251,12 @@ export default function LiquidacionesPage() {
     if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
     setDetalle(liq.data as Detalle);
     setDiferencias((dif.data as Diferencia[]) ?? []);
+    // Antes solo se miraba `liq.error`: si `fn_liquidacion_diferencias`
+    // fallaba, `diferencias` quedaba en `[]` y el bloque rojo de abajo
+    // simplemente no se dibujaba — indistinguible de «no hay descuadre».
+    // Quien está por apretar «Marcar como pagada» necesita saber que esto no
+    // se comprobó, no ver un desglose que parece cuadrado por accidente.
+    setDiferenciasError(dif.error ? mensajeDeError(dif.error) : null);
     // Sin bloquear la pantalla si esto falla: los papeles de salida son un
     // extra sobre la liquidación, no una condición para verla. Si falla, los
     // dos botones nuevos simplemente no aparecen (quedan detrás de `papelesCese`).
@@ -193,21 +265,21 @@ export default function LiquidacionesPage() {
 
   async function abrir(personaId: string) {
     if (abierta === personaId) {
-      setAbierta(null); setDetalle(null); setDiferencias([]); setPapelesCese(null);
+      setAbierta(null); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
       return;
     }
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setPapelesCese(null);
-    setNota(""); setApreciacion(""); setDocAImprimir("liquidacion");
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
+    setNota(""); setApreciacion(""); setModalAbierto(null);
     await cargarDetalle(personaId);
   }
 
-  // Un solo botón de impresión no alcanza cuando hay tres papeles candidatos:
-  // cada `Hoja*` solo se muestra al imprimir si es EL elegido, así que hay que
-  // elegirlo antes de llamar a `window.print()` y darle un instante a React
-  // para que el DOM cambie antes de que el navegador arme la vista previa.
+  // Abre la vista previa; no imprime todavía. Antes esto llamaba a
+  // `window.print()` a ciegas — inconsistente con Contratos, la boleta,
+  // Política salarial y Documentación, que sí dejan revisar el papel primero
+  // dentro de un recuadro con sus propios botones "Imprimir / Guardar como
+  // PDF" y "Cerrar".
   function imprimir(doc: "liquidacion" | "certificado" | "constancia") {
-    setDocAImprimir(doc);
-    setTimeout(() => window.print(), 30);
+    setModalAbierto(doc);
   }
 
   // Marcar una liquidación como pagada CONGELA una cifra que se le entrega a
@@ -218,19 +290,16 @@ export default function LiquidacionesPage() {
   // Se nombra la persona y el importe EN LA PREGUNTA a propósito: el error que
   // esto previene no es «no quería congelar», es «congelé la de otra persona» o
   // «congelé antes de mirar el desglose». Un «¿seguro?» a secas no lo evita.
-  async function pagar(personaId: string, nombre: string, total: number, yaPagada: boolean) {
-    const ok = window.confirm(
-      yaPagada
-        ? `Vas a volver a marcar como pagada la liquidación de ${nombre} por ${formatSoles(total)}.\n\n` +
-            "Se guarda una copia NUEVA con el cálculo de hoy; la anterior se conserva entera como " +
-            "histórico y queda registrado quién lo hizo.\n\n¿Continuar?"
-        : `Vas a congelar la liquidación de ${nombre} en ${formatSoles(total)}.\n\n` +
-            "Ese es el número que queda para contabilidad: si después el cálculo cambia, el sistema " +
-            "lo dice pero NO mueve la cifra.\n\n" +
-            "Si te equivocas, se arregla desde acá mismo: «Anular» deja constancia y la saca de la " +
-            "cuenta, sin borrar nada.\n\n¿Continuar?",
-    );
-    if (!ok) return;
+  //
+  // Antes era window.confirm(): ahora abre el Modal compartido con los mismos
+  // dos botones (Sí/Cancelar) — el texto es el mismo, solo cambia el diálogo.
+  function abrirPagar(personaId: string, nombre: string, total: number, yaPagada: boolean) {
+    setPagoAccion({ personaId, nombre, total, yaPagada });
+  }
+
+  async function confirmarPago() {
+    if (!pagoAccion) return;
+    const { personaId } = pagoAccion;
     setOcupado(true);
     const { data, error } = await supabase.rpc("fn_liquidacion_pagar", {
       p_persona_id: personaId,
@@ -238,8 +307,9 @@ export default function LiquidacionesPage() {
     });
     setOcupado(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setPagoAccion(null);
     await cargar();
-    setAbierta(personaId); setDetalle(null); setDiferencias([]);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null);
     await cargarDetalle(personaId);
     const v = (data as { version?: number } | null)?.version;
     avisar("ok",
@@ -258,27 +328,30 @@ export default function LiquidacionesPage() {
   // lectores de `liquidacion_pagada` toman siempre la última. El motivo es
   // obligatorio en la base (mínimo 3 caracteres) y acá se pide antes de llamar,
   // para que el rechazo no llegue como un error crudo de Postgres.
-  async function anular(personaId: string, nombre: string) {
-    const motivo = window.prompt(
-      `Vas a ANULAR la liquidación pagada de ${nombre}.\n\n` +
-        "No se borra nada: encima queda una versión en cero, con tu firma y este motivo. " +
-        "La cifra deja de contar en Planilla, en el cierre del mes y en la hoja de la persona.\n\n" +
-        "¿Qué se marcó por error y cómo se sabe? (mínimo 3 caracteres)\n" +
-        "Ej.: se marcó pagada el 10/08 y del banco solo salió el adelanto.",
-    );
-    if (motivo === null) return;
-    if (motivo.trim().length < 3) {
+  //
+  // Antes era window.prompt(): ahora el motivo se escribe en un <AreaTexto>
+  // dentro del Modal compartido, con el mismo mínimo de 3 caracteres.
+  function abrirAnular(personaId: string, nombre: string) {
+    setAnularAccion({ personaId, nombre });
+    setMotivoAnular("");
+  }
+
+  async function ejecutarAnular() {
+    if (!anularAccion) return;
+    if (motivoAnular.trim().length < 3) {
       avisar("error", "El motivo es obligatorio: dentro de un año, una fila en cero sin explicación no se puede leer.");
       return;
     }
+    const { personaId, nombre } = anularAccion;
     setOcupado(true);
     const { error } = await supabase.rpc("fn_liquidacion_anular", {
-      p_persona_id: personaId, p_motivo: motivo.trim(),
+      p_persona_id: personaId, p_motivo: motivoAnular.trim(),
     });
     setOcupado(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    setAnularAccion(null); setMotivoAnular("");
     await cargar();
-    setAbierta(personaId); setDetalle(null); setDiferencias([]);
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null);
     await cargarDetalle(personaId);
     avisar("ok", `Liquidación de ${nombre} anulada con constancia. Vuelve a marcarla cuando el número esté bien.`);
   }
@@ -336,8 +409,8 @@ export default function LiquidacionesPage() {
             titulo="Dentro del plazo"
             vacio="Nadie con liquidación pendiente. El plazo de 48 horas corre desde el cese, así que esto se llena solo el día que alguien cese."
             filas={enPlazo} abierta={abierta} onAbrir={abrir}
-            detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-            ocupado={ocupado} onPagar={pagar} onAnular={anular} miFirma={miFirma} urgente
+            detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
+            ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} urgente
             papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
             onImprimir={imprimir}
           />
@@ -346,8 +419,8 @@ export default function LiquidacionesPage() {
             <Bloque
               titulo={`Pasadas de plazo · ${vencidas.length}`}
               vacio="" filas={vencidas} abierta={abierta} onAbrir={abrir}
-              detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={pagar} onAnular={anular} miFirma={miFirma} urgente
+              detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
+              ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} urgente
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
@@ -357,34 +430,162 @@ export default function LiquidacionesPage() {
             <Bloque
               titulo={`Pagadas · ${pagadas.length}`}
               vacio="" filas={pagadas} abierta={abierta} onAbrir={abrir}
-              detalle={detalle} diferencias={diferencias} nota={nota} setNota={setNota}
-              ocupado={ocupado} onPagar={pagar} onAnular={anular} miFirma={miFirma}
+              detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
+              ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
               papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
               onImprimir={imprimir}
             />
           )}
         </div>
 
-        {/* ── La hoja que se imprime y se firma ──────────────────────────── */}
-        {detalle && docAImprimir === "liquidacion" && <Hoja d={detalle} miFirma={miFirma} />}
-        {papelesCese && docAImprimir === "certificado" && (
-          <HojaCertificado p={papelesCese} apreciacion={apreciacion} miFirma={miFirma} />
-        )}
-        {papelesCese && docAImprimir === "constancia" && (
-          <HojaConstancia p={papelesCese} detalle={detalle} miFirma={miFirma} />
+        {/* ── La vista previa del documento ────────────────────────────────
+            Mismo recuadro que ya usan Contratos, la boleta, Política salarial
+            y Documentación: se revisa antes de imprimir, no se manda a
+            ciegas. `print:static print:block print:bg-transparent` en el
+            fondo y `print:max-h-none ... print:border-0` en la tarjeta son
+            los que hacen que, al imprimir de verdad, quede la hoja sola y no
+            el recuadro ni el velo oscuro alrededor. */}
+        {modalAbierto && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
+            onClick={() => setModalAbierto(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={
+                modalAbierto === "liquidacion" ? "Liquidación de beneficios sociales"
+                : modalAbierto === "certificado" ? "Certificado de trabajo"
+                : "Constancia de cese"
+              }
+              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+                <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={() => window.print()}>
+                  Imprimir / Guardar como PDF
+                </button>
+                <button className="text-sm underline" onClick={() => setModalAbierto(null)}>
+                  Cerrar
+                </button>
+              </div>
+              <div className="hoja overflow-y-auto p-8 text-sm leading-relaxed print:overflow-visible print:p-0">
+                {modalAbierto === "liquidacion" && detalle && <Hoja d={detalle} miFirma={miFirma} />}
+                {modalAbierto === "certificado" && papelesCese && (
+                  <HojaCertificado
+                    p={papelesCese} apreciacion={apreciacion} firmante={firmanteEmpresa}
+                    firma={esFirmanteEmpresa ? miFirma : null}
+                  />
+                )}
+                {modalAbierto === "constancia" && papelesCese && (
+                  <HojaConstancia
+                    p={papelesCese} detalle={detalle} firmante={firmanteEmpresa}
+                    firma={esFirmanteEmpresa ? miFirma : null}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </main>
+
+      {/* Modal: congelar (o volver a congelar) la liquidación. Reemplaza el
+          window.confirm() que hacía esta misma pregunta en un diálogo nativo
+          del navegador — Felipe aprobó migrar todos los diálogos nativos del
+          panel a este primitivo (ver CLAUDE.md). Mismo texto, mismos dos
+          caminos (Sí/Cancelar), solo cambia el diálogo. */}
+      <Modal
+        abierto={pagoAccion !== null}
+        onCerrar={() => setPagoAccion(null)}
+        bloqueado={ocupado}
+        titulo={pagoAccion?.yaPagada ? "Volver a marcar como pagada" : "Congelar la liquidación"}
+        ancho="sm"
+      >
+        {pagoAccion && (
+          <>
+            <p className="mb-4 text-sm text-taupe">
+              {pagoAccion.yaPagada ? (
+                <>
+                  Vas a volver a marcar como pagada la liquidación de{" "}
+                  <strong className="text-tinta">{pagoAccion.nombre}</strong> por{" "}
+                  {formatSoles(pagoAccion.total)}.
+                  <br /><br />
+                  Se guarda una copia NUEVA con el cálculo de hoy; la anterior se conserva entera
+                  como histórico y queda registrado quién lo hizo.
+                </>
+              ) : (
+                <>
+                  Vas a congelar la liquidación de <strong className="text-tinta">{pagoAccion.nombre}</strong>{" "}
+                  en {formatSoles(pagoAccion.total)}.
+                  <br /><br />
+                  Ese es el número que queda para contabilidad: si después el cálculo cambia, el
+                  sistema lo dice pero NO mueve la cifra.
+                  <br /><br />
+                  Si te equivocas, se arregla desde acá mismo: «Anular» deja constancia y la saca
+                  de la cuenta, sin borrar nada.
+                </>
+              )}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setPagoAccion(null)} disabled={ocupado}>Cancelar</Boton>
+              <Boton variante="primario" onClick={() => void confirmarPago()} cargando={ocupado}>
+                {pagoAccion.yaPagada ? "Volver a marcarla" : "Congelar"}
+              </Boton>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* Modal: anular una liquidación pagada. Reemplaza el window.prompt()
+          que pedía este mismo motivo en un diálogo nativo del navegador —
+          misma validación de mínimo 3 caracteres, ahora en un <AreaTexto>
+          dentro del Modal compartido (mismo patrón que en correcciones). */}
+      <Modal
+        abierto={anularAccion !== null}
+        onCerrar={() => setAnularAccion(null)}
+        bloqueado={ocupado}
+        titulo="Anular la liquidación"
+        ancho="sm"
+      >
+        {anularAccion && (
+          <>
+            <p className="mb-4 text-sm text-taupe">
+              Vas a <strong className="text-rojo">ANULAR</strong> la liquidación pagada de{" "}
+              <strong className="text-tinta">{anularAccion.nombre}</strong>.
+              <br /><br />
+              No se borra nada: encima queda una versión en cero, con tu firma y este motivo. La
+              cifra deja de contar en Planilla, en el cierre del mes y en la hoja de la persona.
+            </p>
+            <label className="mb-4 flex flex-col gap-1 text-sm">
+              ¿Qué se marcó por error y cómo se sabe? (mínimo 3 caracteres, obligatorio)
+              <AreaTexto
+                value={motivoAnular}
+                onChange={(e) => setMotivoAnular(e.target.value)}
+                rows={2}
+                autoFocus
+                placeholder="ej. se marcó pagada el 10/08 y del banco solo salió el adelanto."
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Boton onClick={() => setAnularAccion(null)} disabled={ocupado}>Cancelar</Boton>
+              <Boton variante="peligro" onClick={() => void ejecutarAnular()} cargando={ocupado}>
+                Anular
+              </Boton>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
 
 function Bloque({
-  titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, nota, setNota, ocupado, onPagar, onAnular, miFirma, urgente,
+  titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, diferenciasError, nota, setNota, ocupado, onPagar, onAnular, miFirma, urgente,
   papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
   titulo: string; vacio: string; filas: Pendiente[];
   abierta: string | null; onAbrir: (id: string) => void;
-  detalle: Detalle | null; diferencias: Diferencia[];
+  detalle: Detalle | null; diferencias: Diferencia[]; diferenciasError: string | null;
   nota: string; setNota: (v: string) => void;
   ocupado: boolean;
   onPagar: (id: string, nombre: string, total: number, yaPagada: boolean) => void;
@@ -414,10 +615,9 @@ function Bloque({
                 </span>
                 <div className="flex items-center gap-3">
                   <strong className="tabular-nums">{formatSoles(f.total)}</strong>
-                  <button onClick={() => onAbrir(f.persona_id)}
-                    className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">
+                  <Boton variante="secundario" tamano="sm" onClick={() => onAbrir(f.persona_id)}>
                     {abierta === f.persona_id ? "Cerrar" : "Ver desglose"}
-                  </button>
+                  </Boton>
                 </div>
               </div>
 
@@ -439,7 +639,7 @@ function Bloque({
 
               {abierta === f.persona_id && detalle && (
                 <Desglose
-                  d={detalle} diferencias={diferencias} pagada={f.pagada}
+                  d={detalle} diferencias={diferencias} diferenciasError={diferenciasError} pagada={f.pagada}
                   nota={nota} setNota={setNota} ocupado={ocupado} miFirma={miFirma}
                   // `detalle.total` — no `f.total` — porque es el número que la
                   // persona acaba de leer en el Desglose de abajo, recién
@@ -507,10 +707,10 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
 }
 
 function Desglose({
-  d, diferencias, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma,
+  d, diferencias, diferenciasError, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma,
   papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
-  d: Detalle; diferencias: Diferencia[]; pagada: boolean;
+  d: Detalle; diferencias: Diferencia[]; diferenciasError: string | null; pagada: boolean;
   nota: string; setNota: (v: string) => void; ocupado: boolean;
   onPagar: () => void; onAnular: () => void;
   miFirma: string | null;
@@ -548,7 +748,17 @@ function Desglose({
         </tbody>
       </table>
 
-      {diferencias.length > 0 && (
+      {diferenciasError ? (
+        // Antes, si `fn_liquidacion_diferencias` fallaba, este bloque entero
+        // no se dibujaba: la pantalla quedaba igual que cuando SÍ se comprobó
+        // y no había descuadre. Ese hueco es el error real — se avisa en vez
+        // de dejarlo pasar por «no hay diferencias».
+        <div className="mt-3 rounded border border-rojo/40 bg-rojo/5 p-2">
+          <p className="text-xs font-medium text-rojo">
+            No se pudo comprobar si el cálculo de hoy coincide con lo que se pagó: {diferenciasError}
+          </p>
+        </div>
+      ) : diferencias.length > 0 && (
         <div className="mt-3 rounded border border-rojo/40 bg-rojo/5 p-2">
           <p className="text-xs font-medium text-rojo">
             El cálculo de hoy ya no coincide con lo que se pagó. La cifra pagada NO se cambia:
@@ -569,21 +779,23 @@ function Desglose({
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button onClick={() => onImprimir("liquidacion")}
-          className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40">
+        <Boton variante="secundario" tamano="sm" onClick={() => onImprimir("liquidacion")}>
           Imprimir hoja para firmar
-        </button>
-        {/* La nota y el botón de congelar sirven en los DOS estados. Antes solo
-            se dibujaban con `!pagada`, así que el texto de abajo prometía un
-            botón para «volver a marcarla» que no existía: la única frase de la
-            pantalla que decía cómo deshacer algo apuntaba a un sitio vacío. */}
-        <input value={nota} onChange={(e) => setNota(e.target.value)}
-          placeholder="nota (ej. transferencia BCP)"
-          className="rounded border px-2 py-1 text-xs" />
-        <button onClick={onPagar} disabled={ocupado}
-          className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
-          {ocupado ? "Guardando…" : pagada ? "Volver a marcarla como pagada" : "Marcar como pagada"}
-        </button>
+        </Boton>
+        {/* Sin "text-xs" ni "py-1" a propósito: cx() solo fusiona relleno,
+            radio y color, no tamaño de letra — pelear el "text-base sm:text-sm"
+            propio de Campo desde acá no tiene ganador garantizado. El tamaño
+            de Campo ya es el correcto (evita el zoom de Safari al enfocar). */}
+        <Campo
+          etiqueta="Nota"
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          placeholder="ej. transferencia BCP"
+          className="w-48"
+        />
+        <Boton variante="primario" tamano="sm" onClick={onPagar} disabled={ocupado} cargando={ocupado}>
+          {pagada ? "Volver a marcarla como pagada" : "Marcar como pagada"}
+        </Boton>
       </div>
 
       {/* ── Papeles de salida ─────────────────────────────────────────────
@@ -597,29 +809,34 @@ function Desglose({
       <div className="mt-3 border-t border-sand pt-3">
         <p className="mb-2 text-xs font-medium text-taupe">Papeles de salida</p>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => onImprimir("certificado")} disabled={!papelesCese}
-            className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+          <Boton variante="secundario" tamano="sm" onClick={() => onImprimir("certificado")} disabled={!papelesCese}>
             Certificado de trabajo
-          </button>
-          <button onClick={() => onImprimir("constancia")} disabled={!papelesCese}
-            className="rounded-lg border border-tinta/30 px-3 py-1 text-xs text-tinta hover:bg-sand/40 disabled:opacity-40">
+          </Boton>
+          <Boton variante="secundario" tamano="sm" onClick={() => onImprimir("constancia")} disabled={!papelesCese}>
             Constancia de cese
-          </button>
-          <input value={apreciacion} onChange={(e) => setApreciacion(e.target.value)}
-            placeholder="apreciación de conducta o rendimiento (opcional, va en el certificado)"
-            className="min-w-[22rem] flex-1 rounded border px-2 py-1 text-xs" />
+          </Boton>
+          <Campo
+            etiqueta="Apreciación (opcional)"
+            value={apreciacion}
+            onChange={(e) => setApreciacion(e.target.value)}
+            placeholder="de conducta o rendimiento — va en el certificado"
+            className="min-w-[22rem] flex-1"
+          />
         </div>
       </div>
 
+      {/* La nota y el botón de congelar sirven en los DOS estados. Antes solo
+          se dibujaban con `!pagada`, así que el texto de abajo prometía un
+          botón para «volver a marcarla» que no existía: la única frase de la
+          pantalla que decía cómo deshacer algo apuntaba a un sitio vacío. */}
       {pagada && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sand pt-3">
           {/* Deshacer. La base sabe hacerlo desde la 0251 y ninguna pantalla se
               lo pedía. Va en rojo y separado del de congelar porque son cosas
               distintas: uno recalcula, el otro retira la cifra de la cuenta. */}
-          <button onClick={onAnular} disabled={ocupado}
-            className="rounded-lg border border-rojo px-3 py-1 text-xs font-medium text-rojo hover:bg-rojo/10 disabled:opacity-40">
+          <Boton variante="peligro" tamano="sm" onClick={onAnular} disabled={ocupado}>
             Anular — se marcó por error
-          </button>
+          </Boton>
           <span className="flex items-center gap-2 text-xs text-taupe">
             {miFirma && <img src={miFirma} alt="Firma" className="h-6 w-auto" />}
             Ya congelada. Volver a marcarla guarda una versión nueva; la anterior queda como histórico.
@@ -637,7 +854,7 @@ function Desglose({
 function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
   const hoy = hoyLima();
   return (
-    <div className="hidden print:block">
+    <>
       <h1 className="font-serif text-xl">Liquidación de beneficios sociales</h1>
       <p className="mt-1 text-sm">
         <strong>{s(d.persona)}</strong><br />
@@ -683,7 +900,7 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
           <div className="mt-1">Fecha: {fechaLarga(hoy)}</div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -707,19 +924,40 @@ function Identidad({ p }: { p: PapelesCese }) {
   );
 }
 
+// El bloque de firma de los dos documentos que salen hacia afuera: el nombre y
+// el cargo de quien certifica van SIEMPRE (es lo que hace válido el papel ante
+// un tercero); la imagen de la firma solo si quien tiene la sesión abierta es
+// esa misma persona (`firma`, ya resuelto por el llamador con `esFirmanteEmpresa`).
+function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; firma: string | null }) {
+  return (
+    <div className="text-center text-xs">
+      {firma && <img src={firma} alt="Firma" className="mx-auto h-14 w-auto" />}
+      <div className="w-56 border-t border-black pt-1">{firmante?.nombre ?? "—"}</div>
+      {firmante?.dni && <div>DNI N.° {firmante.dni}</div>}
+      <div>{firmante?.cargo ?? "Gerencia General"}</div>
+      <div>{EMPRESA.nombre}</div>
+    </div>
+  );
+}
+
 function HojaCertificado({
-  p, apreciacion, miFirma,
-}: { p: PapelesCese; apreciacion: string; miFirma: string | null }) {
+  p, apreciacion, firmante, firma,
+}: { p: PapelesCese; apreciacion: string; firmante: FirmanteEmpresa | null; firma: string | null }) {
   const hoy = hoyLima();
   return (
-    <div className="hidden print:block">
+    <>
       <h1 className="text-center font-serif text-xl uppercase">Certificado de trabajo</h1>
 
       <p className="mt-6 text-sm leading-relaxed">
-        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}, CERTIFICA
-        que <Identidad p={p} /> prestó servicios en nuestra empresa desde el{" "}
-        {fechaLarga(p.fecha_ingreso)} hasta el {fechaLarga(p.fecha_cese)}, desempeñando el cargo de{" "}
-        <strong>{p.cargo ?? "—"}</strong>
+        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}:
+      </p>
+
+      <p className="mt-4 text-sm font-medium leading-relaxed">CERTIFICA:</p>
+
+      <p className="mt-2 text-sm leading-relaxed">
+        Que <Identidad p={p} /> prestó servicios en nuestra empresa bajo el régimen laboral de la
+        actividad privada, desde el {fechaLarga(p.fecha_ingreso)} hasta el {fechaLarga(p.fecha_cese)},
+        desempeñando el cargo de <strong>{p.cargo ?? "—"}</strong>
         {p.sede && <> en la sede {p.sede}</>}, con un tiempo de servicios de{" "}
         <strong>{tiempoDeServicio(p)}</strong>.
       </p>
@@ -740,36 +978,38 @@ function HojaCertificado({
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex justify-end text-xs">
-        <div>
-          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
-          <div className="w-56 border-t border-black pt-1">Por {EMPRESA.nombre}</div>
-        </div>
+      <div className="mt-12 flex justify-end">
+        <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
 
       <p className="mt-8 text-[10px] text-taupe">
         Conforme al numeral 59.6 a) del Reglamento Interno de Trabajo y a la Tercera Disposición
         Complementaria, Transitoria, Derogatoria y Final del D.S. N.° 001-96-TR.
       </p>
-    </div>
+    </>
   );
 }
 
 function HojaConstancia({
-  p, detalle, miFirma,
-}: { p: PapelesCese; detalle: Detalle | null; miFirma: string | null }) {
+  p, detalle, firmante, firma,
+}: { p: PapelesCese; detalle: Detalle | null; firmante: FirmanteEmpresa | null; firma: string | null }) {
   const hoy = hoyLima();
   const cts = detalle?.cts_trunca as Record<string, unknown> | undefined;
   const yaDepositado = cts?.ya_depositado !== undefined ? n(cts.ya_depositado) : null;
 
   return (
-    <div className="hidden print:block">
+    <>
       <h1 className="text-center font-serif text-xl uppercase">Constancia de cese</h1>
 
       <p className="mt-6 text-sm leading-relaxed">
-        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}, deja
-        constancia de que el vínculo laboral que mantenía con <Identidad p={p} /> ha concluido con
-        fecha <strong>{fechaLarga(p.fecha_cese)}</strong>, luego de un tiempo de servicios de{" "}
+        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}:
+      </p>
+
+      <p className="mt-4 text-sm font-medium leading-relaxed">HACE CONSTAR:</p>
+
+      <p className="mt-2 text-sm leading-relaxed">
+        Que el vínculo laboral que mantenía con <Identidad p={p} /> ha concluido con fecha{" "}
+        <strong>{fechaLarga(p.fecha_cese)}</strong>, luego de un tiempo de servicios de{" "}
         <strong>{tiempoDeServicio(p)}</strong> (ingreso: {fechaLarga(p.fecha_ingreso)}).
       </p>
 
@@ -781,26 +1021,23 @@ function HojaConstancia({
       )}
 
       <p className="mt-4 text-sm leading-relaxed">
-        Se expide la presente constancia para que la persona interesada pueda tramitar ante la
-        entidad financiera depositaria el retiro de su Compensación por Tiempo de Servicios y sus
-        intereses, conforme al artículo 45 del Decreto Supremo N.° 001-97-TR.
+        Se expide la presente constancia para que la persona interesada acredite su cese ante la
+        entidad financiera depositaria y proceda al retiro de su Compensación por Tiempo de
+        Servicios y sus intereses, conforme al artículo 45 del Decreto Supremo N.° 001-97-TR.
       </p>
 
       <p className="mt-8 text-xs">
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex justify-end text-xs">
-        <div>
-          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
-          <div className="w-56 border-t border-black pt-1">Por {EMPRESA.nombre}</div>
-        </div>
+      <div className="mt-12 flex justify-end">
+        <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
 
       <p className="mt-8 text-[10px] text-taupe">
         Conforme al numeral 59.6 b) del Reglamento Interno de Trabajo y al artículo 45 del
         D.S. N.° 001-97-TR.
       </p>
-    </div>
+    </>
   );
 }

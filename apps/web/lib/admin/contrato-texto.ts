@@ -1254,7 +1254,7 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     estratégica, bajo apercibimiento de falta grave conforme al artículo 25, incisos a) y d), del TUO del Decreto
     Legislativo N.° 728.</p>
 
-    <h3>DÉCIMA SEGUNDA. NO DISPARAGEMENT (PROHIBICIÓN DE DECLARACIONES LESIVAS)</h3>
+    <h3>DÉCIMA SEGUNDA. PROHIBICIÓN DE DECLARACIONES LESIVAS</h3>
     <p>LA COLABORADORA se obliga a abstenerse de emitir o difundir, por cualquier medio, declaraciones falsas o
     realizadas de mala fe con el propósito de dañar la reputación, imagen o intereses de LA EMPRESA. Esta cláusula
     no restringe el derecho de LA COLABORADORA a formular denuncias de buena fe ante las autoridades competentes.</p>
