@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { TIPO_MARCA_LABELS, TZ_LIMA, sugerirSalidaPrincipal, type MarcajeDelDia, type TipoMarca } from "@cayla-dynamic/shared";
+import {
+  TIPO_MARCA_LABELS,
+  TZ_LIMA,
+  sugerirSalidaPrincipal,
+  type EstadisticasSugerencia,
+  type MarcajeDelDia,
+  type TipoMarca,
+} from "@cayla-dynamic/shared";
 import { createTerminalSupabaseClient } from "@cayla-dynamic/database";
 import {
   type RosterEntry,
@@ -17,6 +24,7 @@ import { enviarMarcaje } from "@/lib/terminal/enviar-marcaje";
 import { conTope, topeDeRed } from "@/lib/terminal/tope-de-red";
 import { cargarRoster } from "@/lib/terminal/roster";
 import { cargarMarcajesHoyPorPersona, siguienteAccionPara } from "@/lib/terminal/estado-dia";
+import { cargarEstadisticasSugerenciaPorPersona } from "@/lib/terminal/sugerencias";
 import { veredictoDeSesion } from "@/lib/terminal/sesion";
 import { leerInfoTerminalCacheada, refrescarInfoTerminal, type TerminalInfo } from "@/lib/terminal/terminal-info";
 import { iniciarSincronizacionPeriodica } from "@/lib/terminal/sync";
@@ -51,7 +59,15 @@ type Pantalla =
   | "motivo_reentrada";
 
 type OpcionSalida = { tipo: TipoMarca; motivoRequerido: boolean; label: string };
-type SalidaConfig = { principal: OpcionSalida; secundaria: OpcionSalida | null; otras: OpcionSalida[] };
+type SalidaConfig = {
+  principal: OpcionSalida;
+  secundaria: OpcionSalida | null;
+  otras: OpcionSalida[];
+  // Ni refrigerio ni salida final aplican ahora (ej. entró hace 1h): "otras"
+  // (personal/trámite/médico/otro) pasa a ser lo prominente y principal/secundaria
+  // bajan a enlaces chicos. Nunca se ocultan, solo pierden protagonismo.
+  neutra: boolean;
+};
 
 // Etiquetas amables para las dos acciones principales del menú de salida.
 const LABEL_PRINCIPAL: Partial<Record<TipoMarca, string>> = {
@@ -104,6 +120,11 @@ export default function MarcarPage() {
   const [estadoRoster, setEstadoRoster] = useState<EstadoRoster>("cargando");
   const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
   const marcajesHoyRef = useRef<Map<string, MarcajeDelDia[]>>(new Map());
+  // El ritmo de cada persona (media de refrigerio, hora de salida esperada),
+  // para afinar sugerirSalidaPrincipal — ver lib/terminal/sugerencias.ts. En
+  // un ref y no en state por lo mismo que marcajesHoyRef: continuarConPersona
+  // lo lee al tocar un nombre, y eso tiene que ser instantáneo, sin re-render.
+  const estadisticasSugerenciaRef = useRef<Map<string, EstadisticasSugerencia>>(new Map());
 
   const [pantalla, setPantalla] = useState<Pantalla>("lista");
   const [personaActual, setPersonaActual] = useState<RosterEntry | null>(null);
@@ -125,9 +146,18 @@ export default function MarcarPage() {
 
   const cargarTodo = useCallback(async () => {
     try {
-      const [rosterCargado, marcajes] = await Promise.all([cargarRoster(), cargarMarcajesHoyPorPersona()]);
+      const [rosterCargado, marcajes, estadisticas] = await Promise.all([
+        cargarRoster(),
+        cargarMarcajesHoyPorPersona(),
+        // No depende del roster —RLS ya acota a la sede del terminal—, así que
+        // corre en paralelo y no le suma espera al arranque. Si falla, nunca
+        // lanza (misma receta que las otras dos): sugerirSalidaPrincipal cae
+        // sola a la regla fija de siempre, y nadie se queda sin poder marcar.
+        cargarEstadisticasSugerenciaPorPersona(),
+      ]);
       setRoster(rosterCargado.entradas);
       marcajesHoyRef.current = marcajes;
+      estadisticasSugerenciaRef.current = estadisticas;
       // EL ERROR LO DECLARA LA FUENTE, NO EL `catch`, y esa es la mitad que
       // faltaba: `cargarRoster` no lanza NUNCA por red ni por un 500 —devuelve
       // la copia guardada en las cinco salidas de fallo—, así que una Mac recién
@@ -339,9 +369,17 @@ export default function MarcarPage() {
       label: label ?? TIPO_MARCA_LABELS[tipo],
     });
     const yaAlmorzo = marcajesHoy.some((m) => m.tipo === "salida_almuerzo");
-    const sugerida = sugerirSalidaPrincipal(marcajesHoy, new Date());
+    const sugerida = sugerirSalidaPrincipal(
+      marcajesHoy,
+      new Date(),
+      estadisticasSugerenciaRef.current.get(persona.id),
+    );
     const almuerzo = mk("salida_almuerzo", false, LABEL_PRINCIPAL.salida_almuerzo);
     const final = mk("salida_final", false, LABEL_PRINCIPAL.salida_final);
+    // "neutra" (ni refrigerio ni salida final tienen sentido ahora) no cambia
+    // qué va en cada slot — sigue siendo la misma repartición almuerzo/final
+    // de siempre—, solo activa la bandera que hace que components.tsx los
+    // muestre degradados y promueva "otra salida" arriba.
     const principal = sugerida === "salida_almuerzo" ? almuerzo : final;
     const secundaria = yaAlmorzo ? null : sugerida === "salida_almuerzo" ? final : almuerzo;
     const otras: OpcionSalida[] = [
@@ -351,7 +389,7 @@ export default function MarcarPage() {
       mk("salida_otro", true),
       ...(yaAlmorzo ? [almuerzo] : []),
     ];
-    setSalidaConfig({ principal, secundaria, otras });
+    setSalidaConfig({ principal, secundaria, otras, neutra: sugerida === "neutra" });
     setPantalla("elegir_salida");
   }
 
@@ -659,6 +697,7 @@ export default function MarcarPage() {
             principal={salidaConfig.principal}
             secundaria={salidaConfig.secundaria}
             otras={salidaConfig.otras}
+            neutra={salidaConfig.neutra}
             onElegir={elegirTipoSalida}
             onCancelar={volverALista}
           />

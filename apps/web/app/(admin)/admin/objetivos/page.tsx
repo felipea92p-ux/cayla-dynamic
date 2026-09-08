@@ -15,6 +15,7 @@ import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 
 
 // Mapa explícito (no `bg-${nivel}` interpolado) para que Tailwind encuentre
@@ -366,7 +367,7 @@ function ObjetivosContenido() {
         ) : cargado ? (
           <div className="max-w-3xl">
             {/* Barra de progreso + nivel del plus */}
-            <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
+            <TarjetaInfo className="mb-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm">
                   <span className="font-serif text-xl">{cumplidos}</span>
@@ -386,19 +387,19 @@ function ObjetivosContenido() {
                   )}
                 </span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-sand">
+              <div className="h-2 overflow-hidden rounded-pildora bg-sand">
                 <div
-                  className={`h-full rounded-full transition-all ${CLASE_BG_NIVEL[nivelColorObjetivos(cumplidos, total)]}`}
+                  className={`h-full rounded-pildora transition-all ${CLASE_BG_NIVEL[nivelColorObjetivos(cumplidos, total)]}`}
                   style={{ width: `${pct}%` }}
                 />
               </div>
-            </div>
+            </TarjetaInfo>
 
             {/* Historial: la tendencia, no solo el mes actual. El rango se elige,
                 no queda fijo en 12 meses — fn_objetivos_historial ya aceptaba
                 p_meses desde el principio, esto solo lo expone en pantalla. */}
             {historial.some((m) => m.total > 0) && (
-              <div className="mb-4 rounded-2xl border border-sand bg-papel p-5">
+              <TarjetaInfo className="mb-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-medium text-taupe">
                     Historial ({rangoHistorial === 1 ? "1 mes" : `${rangoHistorial} meses`})
@@ -421,11 +422,11 @@ function ObjetivosContenido() {
                   historial={historial}
                   cargando={historialDesactualizado}
                 />
-              </div>
+              </TarjetaInfo>
             )}
 
             {registroManual && total === 0 && (
-              <div className="mb-4 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+              <div className="mb-4 rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
                 Este mes tiene un registro manual de {registroManual.cumplidos}/{registroManual.total} (puesto
                 desde Planilla). Al agregar el primer objetivo del checklist, el checklist pasa a mandar y ese
                 número se recalcula.
@@ -433,13 +434,13 @@ function ObjetivosContenido() {
             )}
 
             {mesPagado && tienePermisoDeRol && (
-              <div className="mb-4 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+              <div className="mb-4 rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
                 Solo lectura: la planilla de {MESES[mes - 1].toLowerCase()} {anio} ya está PAGADA. Para
                 corregir, un administrador reabre el periodo en Planilla.
               </div>
             )}
             {!tienePermisoDeRol && persona && (
-              <div className="mb-4 rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+              <div className="mb-4 rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
                 Solo lectura. {rol === "supervisor_sede"
                   ? "Como líder de equipo gestionas los objetivos de los integrantes de tu sede; los demás los gestiona un administrador."
                   : "Los objetivos los marca tu líder de equipo o un administrador."}
@@ -447,7 +448,7 @@ function ObjetivosContenido() {
             )}
 
             {/* Lista */}
-            <ul className="mb-4 divide-y divide-sand rounded-2xl border border-sand bg-papel">
+            <ul className="mb-4 divide-y divide-sand rounded-superficie border border-sand bg-papel">
               {items.length === 0 ? (
                 <li className="flex flex-col items-center gap-3 px-4 py-6 text-center text-sm text-taupe">
                   <span>Sin objetivos registrados para {MESES[mes - 1].toLowerCase()} {anio}.</span>
@@ -536,7 +537,7 @@ function ObjetivosContenido() {
 
             {/* Agregar */}
             {puedeGestionar && (
-              <div className="flex flex-col gap-2 rounded-2xl border border-sand bg-papel p-3">
+              <div className="flex flex-col gap-2 rounded-superficie border border-sand bg-papel p-3">
                 <Campo
                   value={nuevoTexto}
                   onChange={(e) => setNuevoTexto(e.target.value)}

@@ -521,7 +521,7 @@ export default function AusenciasPage() {
             liquidación, o sea el día en que la persona ya se fue y el récord ya
             había vencido. Avisar ahí llega tarde por definición. */}
         {porVencer.length > 0 && (
-          <div className="mb-4 max-w-3xl rounded-lg border border-sand bg-papel px-4 py-3 text-sm">
+          <div className="mb-4 max-w-3xl rounded-control border border-sand bg-papel px-4 py-3 text-sm">
             <p className="font-medium text-tinta">Vacaciones que vencen: hay que programarlas.</p>
             {/* Mismo condicional de color que ya usa Bandeja para esta misma
                 lista: rojo si el récord YA venció (obliga a indemnizar), ámbar
@@ -550,7 +550,7 @@ export default function AusenciasPage() {
         )}
 
         {alertas.length > 0 && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <div className="mb-4 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
             <p className="font-medium">Para mirar, no para sancionar:</p>
             <ul className="mt-1 space-y-0.5 text-xs">
               {alertas.map((a) => (
@@ -575,14 +575,14 @@ export default function AusenciasPage() {
             Salta a los 15 y no a los 20 a propósito: un aviso en el día 21 llega
             cuando el gasto ya ocurrió. */}
         {errorSubsidio && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             {errorSubsidio} — esto no quiere decir que nadie tenga descanso médico pendiente de reembolso,
             solo que el aviso no se pudo calcular.{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
         {!errorSubsidio && subsidio.some((s) => s.hay_que_avisar) && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-tinta/5 px-4 py-3 text-sm">
+          <div className="mb-4 max-w-3xl rounded-control bg-tinta/5 px-4 py-3 text-sm">
             <p className="font-medium">EsSalud puede reembolsar parte de esto:</p>
             <ul className="mt-1 space-y-0.5 text-xs">
               {subsidio.filter((s) => s.hay_que_avisar).map((s) => (
@@ -611,7 +611,7 @@ export default function AusenciasPage() {
         )}
 
         {/* Registrar */}
-        <div className="mb-6 grid max-w-4xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+        <div className="mb-6 grid max-w-4xl gap-3 rounded-superficie border border-sand bg-papel p-5 sm:grid-cols-2">
           <CampoSelect etiqueta="Persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
             <option value="">Elegir…</option>
             {personas.map((p) => (<option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>))}
@@ -770,19 +770,19 @@ export default function AusenciasPage() {
         {cargando ? (
           <Cargando texto="Cargando las ausencias…" />
         ) : errorCarga ? (
-          <div className="max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <div className="max-w-2xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             <p>No se pudo cargar — esto no quiere decir que no haya ausencias.</p>
             <p className="mt-1 text-xs opacity-80">{errorCarga}</p>
             <Boton variante="secundario" tamano="sm" className="mt-2" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         ) : listaOrdenada.length === 0 ? (
-          <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <div className="max-w-2xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
             {lista.length === 0
               ? "No hay ausencias registradas en ese rango de fechas."
               : "No hay ausencias con ese estado en el rango elegido."}
           </div>
         ) : (
-          <Tabla>
+          <Tabla className="[font-variant-numeric:tabular-nums]">
             <TablaEncabezado>
               <Th>Persona</Th>
               <Th>Tipo</Th>

@@ -57,7 +57,7 @@ interface Pendiente {
 // a buscar el porqué es la misma distancia que hace que un aviso no se lea.
 function ListaNoCargada({ que, motivo, noSignifica, reintentar }: { que: string; motivo: string; noSignifica: string; reintentar: () => void }) {
   return (
-    <div className="rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+    <div className="rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
       <p>No se pudo cargar {que}: {motivo}</p>
       <p className="mt-1">
         Esto <strong>no</strong> quiere decir que {noSignifica}.{" "}
@@ -315,7 +315,7 @@ export default function CuentasPage() {
         {/* Persistente a propósito: no es un aviso que se va solo. Mientras la
             lista no cargue, todo lo que se ve debajo puede estar incompleto. */}
         {errListado && (
-          <div className="mb-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-3 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             <p>No se pudo cargar la lista de cuentas: {errListado}</p>
             <p className="mt-1">
               Lo que se ve debajo puede estar incompleto o desactualizado — no lo leas como «así están las cuentas hoy».{" "}
@@ -389,7 +389,7 @@ export default function CuentasPage() {
                             </Boton>
                           </div>
                           {cambiando === c.id && (
-                            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-sand/40 p-2">
+                            <div className="flex flex-wrap items-center gap-2 rounded-control bg-sand/40 p-2">
                               <Campo
                                 type="email"
                                 placeholder="correo@gmail.com"
@@ -469,7 +469,7 @@ export default function CuentasPage() {
               </Boton>
             )}
             {invitables.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+              <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
                   {p.nombre} <span className="text-taupe">· {p.sede}</span>
                   {p.email ? (
@@ -515,7 +515,7 @@ export default function CuentasPage() {
               </Boton>
             )}
             {pendientes.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+              <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
                   {p.nombre} <span className="text-taupe">· {p.sede} · {ROL_LABEL[p.rol] ?? p.rol}</span>
                   {p.email ? (
@@ -551,7 +551,7 @@ export default function CuentasPage() {
         ) : (
           <div className="flex flex-wrap gap-2">
             {promovibles.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border border-sand bg-sand/25 px-3 py-2">
+              <div key={p.id} className="flex items-center gap-3 rounded-control border border-sand bg-sand/25 px-3 py-2">
                 <span className="text-sm text-tinta">
                   {p.nombre} <span className="text-taupe">· {p.sede}</span>
                 </span>
@@ -579,7 +579,7 @@ function SeccionMiClave({
   guardandoMia: boolean; cambiarMiClave: () => void;
 }) {
   return (
-    <div className="max-w-md rounded-lg border border-sand bg-sand/25 p-5">
+    <div className="max-w-md rounded-superficie border border-sand bg-sand/25 p-5">
       <h2 className="mb-3 font-serif text-lg">Cambiar mi contraseña</h2>
       <div className="flex flex-col gap-3">
         <Campo type="password" placeholder="Nueva contraseña" value={nueva} onChange={(e) => setNueva(e.target.value)} />

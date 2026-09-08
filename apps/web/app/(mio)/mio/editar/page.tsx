@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
@@ -305,14 +308,33 @@ function MiEditarContenido() {
   }
   if (!yo) return null;
 
+  /** Un id de aria-labelledby estable a partir del label — hace falta porque
+   *  Campo no acepta una etiqueta con JSX adentro (acá el label a veces trae
+   *  una nota en un <span> propio), así que la asociación se hace por
+   *  aria-labelledby en vez de anidar un <label> dentro del que ya trae Campo
+   *  — el mismo patrón que ya usa /admin/datos-personales para el correo. */
+  function slugCampo(label: string): string {
+    return `campo-fijo-${label
+      .toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")}`;
+  }
+
   /** Un campo de solo lectura: DNI, nacimiento, género, pensión, correo,
    *  discapacidad — nunca se activa, pase lo que pase con `editando`. */
   function campoFijo(label: string, valor: string, nota?: string) {
+    if (!nota) {
+      return <Campo etiqueta={label} value={valor} disabled className="disabled:bg-sand/30 disabled:text-taupe" />;
+    }
+    const idLabel = slugCampo(label);
     return (
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-taupe">{label}{nota && <span className="ml-1 text-[11px]">· {nota}</span>}</span>
-        <input value={valor} disabled className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
-      </label>
+      <div className="flex flex-col gap-1">
+        <span id={idLabel} className="text-sm text-taupe">
+          {label}<span className="ml-1 text-[11px]">· {nota}</span>
+        </span>
+        <Campo aria-labelledby={idLabel} value={valor} disabled className="disabled:bg-sand/30 disabled:text-taupe" />
+      </div>
     );
   }
 
@@ -324,16 +346,20 @@ function MiEditarContenido() {
     onChange: (v: string) => void, tipo: "text" | "tel" = "text",
   ) {
     const pendiente = hayPendiente(campo);
+    const idLabel = `campo-editable-${campo}`;
     return (
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-taupe">
+      <div className="flex flex-col gap-1">
+        <span id={idLabel} className="text-sm text-taupe">
           {label}
           {pendiente && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
         </span>
-        <input type={tipo} value={valor} disabled={!editando}
+        <Campo aria-labelledby={idLabel} type={tipo} value={valor} disabled={!editando}
           onChange={(e) => onChange(e.target.value)}
-          className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+          className="disabled:bg-sand/30 disabled:text-taupe" />
         {editando && cambios[campo] && requiereDocumento(campo) && (
+          // <input type="file"> nativo a propósito: acá el disparador vive
+          // dentro de un aviso ambar, no es un campo con su propia etiqueta —
+          // igual que ya documenta /admin/educacion para el mismo caso.
           <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
             Este cambio exige un documento de sustento
             {documentoSugerido(campo) && ` (${documentoSugerido(campo)})`}.
@@ -342,7 +368,7 @@ function MiEditarContenido() {
               className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
           </span>
         )}
-      </label>
+      </div>
     );
   }
 
@@ -358,20 +384,17 @@ function MiEditarContenido() {
         </div>
         {editando ? (
           <div className="flex items-center gap-3">
-            <button onClick={cancelarEdicion} disabled={guardando}
-              className="rounded-lg border border-sand px-3 py-1.5 text-sm text-taupe hover:bg-hueso disabled:opacity-50">
+            <Boton variante="secundario" onClick={cancelarEdicion} disabled={guardando}>
               Cancelar
-            </button>
-            <button onClick={() => void guardarCambios()} disabled={guardando || !hayAlgunCambio}
-              className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50">
+            </Boton>
+            <Boton variante="primario" onClick={() => void guardarCambios()} disabled={guardando || !hayAlgunCambio}>
               {guardando ? "Guardando…" : "Guardar cambios"}
-            </button>
+            </Boton>
           </div>
         ) : (
-          <button onClick={entrarAEditar}
-            className="rounded-lg border border-sand px-3 py-1.5 text-sm text-tinta transition-colors hover:bg-hueso">
+          <Boton variante="secundario" tamano="sm" onClick={entrarAEditar}>
             Editar
-          </button>
+          </Boton>
         )}
       </div>
       <p className="mb-5 text-sm text-taupe">
@@ -395,17 +418,18 @@ function MiEditarContenido() {
             {campoFijo("Género", ficha?.genero ? (GENERO_LABELS[ficha.genero as keyof typeof GENERO_LABELS] ?? ficha.genero) : "—")}
             {editando
               ? (
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-taupe">
+                <div className="flex flex-col gap-1">
+                  <span id="campo-estado-civil-editable" className="text-sm text-taupe">
                     Estado civil
                     {hayPendiente("estado_civil") && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
                   </span>
-                  <select value={form.estado_civil} onChange={(e) => setForm((f) => ({ ...f, estado_civil: e.target.value }))}
-                    className="rounded-lg border bg-crema px-3 py-2">
+                  <CampoSelect aria-labelledby="campo-estado-civil-editable" value={form.estado_civil}
+                    onChange={(e) => setForm((f) => ({ ...f, estado_civil: e.target.value }))}>
                     <option value="">—</option>
                     {ESTADOS_CIVILES.map((ec) => <option key={ec} value={ec}>{ESTADO_CIVIL_LABELS[ec]}</option>)}
-                  </select>
+                  </CampoSelect>
                   {cambios.estado_civil && requiereDocumento("estado_civil") && (
+                    // <input type="file"> nativo — ver el comentario de campoEditable.
                     <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
                       Este cambio exige un documento de sustento ({documentoSugerido("estado_civil")}).
                       <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
@@ -413,23 +437,24 @@ function MiEditarContenido() {
                         className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
                     </span>
                   )}
-                </label>
+                </div>
               )
               : campoFijo("Estado civil", ficha?.estado_civil ? (ESTADO_CIVIL_LABELS[ficha.estado_civil as keyof typeof ESTADO_CIVIL_LABELS] ?? ficha.estado_civil) : "—",
                   hayPendiente("estado_civil") ? "cambio pendiente de aprobación" : undefined)}
             {editando
               ? (
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-taupe">
+                <div className="flex flex-col gap-1">
+                  <span id="campo-grado-instruccion-editable" className="text-sm text-taupe">
                     Grado de instrucción
                     {hayPendiente("grado_instruccion") && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
                   </span>
-                  <select value={form.grado_instruccion} onChange={(e) => setForm((f) => ({ ...f, grado_instruccion: e.target.value }))}
-                    className="rounded-lg border bg-crema px-3 py-2">
+                  <CampoSelect aria-labelledby="campo-grado-instruccion-editable" value={form.grado_instruccion}
+                    onChange={(e) => setForm((f) => ({ ...f, grado_instruccion: e.target.value }))}>
                     <option value="">—</option>
                     {GRADOS_INSTRUCCION.map((g) => <option key={g} value={g}>{GRADO_INSTRUCCION_LABELS[g]}</option>)}
-                  </select>
+                  </CampoSelect>
                   {cambios.grado_instruccion && requiereDocumento("grado_instruccion") && (
+                    // <input type="file"> nativo — ver el comentario de campoEditable.
                     <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
                       Este cambio exige un documento de sustento ({documentoSugerido("grado_instruccion")}).
                       <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
@@ -437,24 +462,25 @@ function MiEditarContenido() {
                         className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
                     </span>
                   )}
-                </label>
+                </div>
               )
               : campoFijo("Grado de instrucción", ficha?.grado_instruccion ? (GRADO_INSTRUCCION_LABELS[ficha.grado_instruccion as keyof typeof GRADO_INSTRUCCION_LABELS] ?? ficha.grado_instruccion) : "—",
                   hayPendiente("grado_instruccion") ? "cambio pendiente de aprobación" : undefined)}
             {editando
               ? (
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-taupe">
+                <div className="flex flex-col gap-1">
+                  <span id="campo-hijos-menores-editable" className="text-sm text-taupe">
                     ¿Hijos menores a cargo?
                     {hayPendiente("hijos_menores") && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
                   </span>
-                  <select value={form.hijos_menores} onChange={(e) => setForm((f) => ({ ...f, hijos_menores: e.target.value as "" | "si" | "no" }))}
-                    className="rounded-lg border bg-crema px-3 py-2">
+                  <CampoSelect aria-labelledby="campo-hijos-menores-editable" value={form.hijos_menores}
+                    onChange={(e) => setForm((f) => ({ ...f, hijos_menores: e.target.value as "" | "si" | "no" }))}>
                     <option value="">—</option>
                     <option value="si">Sí</option>
                     <option value="no">No</option>
-                  </select>
+                  </CampoSelect>
                   {cambios.hijos_menores && requiereDocumento("hijos_menores") && (
+                    // <input type="file"> nativo — ver el comentario de campoEditable.
                     <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
                       Este cambio exige un documento de sustento ({documentoSugerido("hijos_menores")}).
                       <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
@@ -462,7 +488,7 @@ function MiEditarContenido() {
                         className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
                     </span>
                   )}
-                </label>
+                </div>
               )
               : campoFijo("¿Hijos menores a cargo?", siNoSinDato(ficha?.hijos_menores),
                   hayPendiente("hijos_menores") ? "cambio pendiente de aprobación" : undefined)}
@@ -501,24 +527,15 @@ function MiEditarContenido() {
             {hayPendiente("contacto_emergencia") && <span className="ml-1 normal-case text-pizarra">· cambio pendiente de aprobación</span>}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-taupe">Nombre</span>
-              <input value={editando ? form.emergencia_nombre : (ficha?.emergencia_nombre ?? "")} disabled={!editando}
-                onChange={(e) => setForm((f) => ({ ...f, emergencia_nombre: e.target.value }))}
-                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-taupe">Vínculo</span>
-              <input value={editando ? form.emergencia_vinculo : (ficha?.emergencia_vinculo ?? "")} disabled={!editando}
-                onChange={(e) => setForm((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
-                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-taupe">Teléfono</span>
-              <input value={editando ? form.emergencia_telefono : (ficha?.emergencia_telefono ?? "")} disabled={!editando}
-                onChange={(e) => setForm((f) => ({ ...f, emergencia_telefono: e.target.value }))}
-                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
-            </label>
+            <Campo etiqueta="Nombre" value={editando ? form.emergencia_nombre : (ficha?.emergencia_nombre ?? "")} disabled={!editando}
+              onChange={(e) => setForm((f) => ({ ...f, emergencia_nombre: e.target.value }))}
+              className="disabled:bg-sand/30 disabled:text-taupe" />
+            <Campo etiqueta="Vínculo" value={editando ? form.emergencia_vinculo : (ficha?.emergencia_vinculo ?? "")} disabled={!editando}
+              onChange={(e) => setForm((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
+              className="disabled:bg-sand/30 disabled:text-taupe" />
+            <Campo etiqueta="Teléfono" value={editando ? form.emergencia_telefono : (ficha?.emergencia_telefono ?? "")} disabled={!editando}
+              onChange={(e) => setForm((f) => ({ ...f, emergencia_telefono: e.target.value }))}
+              className="disabled:bg-sand/30 disabled:text-taupe" />
           </div>
         </section>
 
@@ -544,8 +561,10 @@ function MiEditarContenido() {
                     </span>
                   </span>
                   <span className="flex items-center gap-2 text-xs">
-                    {d.essalud && <span className="rounded-full bg-sand/60 px-2 py-0.5">EsSalud</span>}
-                    {d.vida_ley && <span className="rounded-full bg-sand/60 px-2 py-0.5">Vida Ley</span>}
+                    {/* punto={false}: son atributos, no un estado — igual que
+                        "sueldo fijo" o "dirección" en /admin/personas/[id]. */}
+                    {d.essalud && <Insignia variante="neutral" punto={false}>EsSalud</Insignia>}
+                    {d.vida_ley && <Insignia variante="neutral" punto={false}>Vida Ley</Insignia>}
                     {d.vigente_hasta && <span className="text-taupe">cerrado el {d.vigente_hasta}</span>}
                   </span>
                 </li>
@@ -559,12 +578,9 @@ function MiEditarContenido() {
           <div className="grid gap-3 sm:grid-cols-2">
             {campoEditable("Entidad bancaria", "cuenta_bancaria", editando ? form.entidad_bancaria : (ficha?.entidad_bancaria ?? ""),
               (v) => setForm((f) => ({ ...f, entidad_bancaria: v })))}
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-taupe">N.° de cuenta</span>
-              <input value={editando ? form.numero_cuenta : (ficha?.numero_cuenta ?? "")} disabled={!editando}
-                onChange={(e) => setForm((f) => ({ ...f, numero_cuenta: e.target.value }))}
-                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
-            </label>
+            <Campo etiqueta="N.° de cuenta" value={editando ? form.numero_cuenta : (ficha?.numero_cuenta ?? "")} disabled={!editando}
+              onChange={(e) => setForm((f) => ({ ...f, numero_cuenta: e.target.value }))}
+              className="disabled:bg-sand/30 disabled:text-taupe" />
           </div>
         </section>
 

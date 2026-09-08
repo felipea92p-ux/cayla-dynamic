@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, X } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, SinDatos } from "@/components/cargando";
@@ -424,7 +425,7 @@ export default function FeriadosPage() {
         </p>
 
         {/* Registrar por lotes */}
-        <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
+        <div className="mb-6 max-w-4xl rounded-superficie border border-sand bg-papel p-5">
           <h2 className="mb-3 text-sm font-medium">Registrar días libres a cambio</h2>
 
           {/* 1 · A quiénes */}
@@ -442,7 +443,7 @@ export default function FeriadosPage() {
                 <span className="text-xs text-taupe">{elegidas.size} elegida{elegidas.size === 1 ? "" : "s"}</span>
               )}
             </div>
-            <div className="grid max-h-52 gap-1 overflow-y-auto rounded-lg border border-sand bg-crema p-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid max-h-52 gap-1 overflow-y-auto rounded-control border border-sand bg-crema p-2 sm:grid-cols-2 lg:grid-cols-3">
               {/* Casilla nativa, no <CampoCasilla>: esa fila necesita su propio
                   hover ("hover:bg-sand/40") y relleno sobre TODA la etiqueta —
                   es una fila de una lista de selección, no un campo de
@@ -480,7 +481,7 @@ export default function FeriadosPage() {
                   <input ref={(el) => { refsDescanso.current[i] = el; }} type="date" value={par.descanso}
                     onChange={(e) => cambiarPareja(i, "descanso", e.target.value)}
                     onBlur={(e) => cambiarPareja(i, "descanso", e.currentTarget.value)}
-                    className="rounded-lg border px-3 py-2 text-sm" />
+                    className="rounded-control border px-3 py-2 text-sm" />
                   <span className="min-w-20 text-xs capitalize text-taupe">
                     {par.descanso ? diaSemana(par.descanso) : ""}
                   </span>
@@ -535,13 +536,14 @@ export default function FeriadosPage() {
 
           {/* Detalle del lote: qué entró y qué no, y por qué. */}
           {resultados.length > 0 && (
-            <div className="mt-4 overflow-hidden rounded-lg border border-sand">
+            <div className="mt-4 overflow-hidden rounded-control border border-sand">
               <p className="border-b bg-sand/50 px-3 py-1.5 text-xs font-medium">Detalle del último envío</p>
               <ul className="divide-y text-xs">
                 {resultados.map((r, i) => (
                   <li key={i} className="px-3 py-1.5">
                     <span className={r.error ? "text-rojo" : "text-taupe"}>
-                      {r.error ? "✕" : "✓"} {r.persona} · {fechaCorta(r.feriado)} → {fechaCorta(r.descanso)}
+                      {r.error ? <X size={14} className="inline-block align-text-bottom" /> : <Check size={14} className="inline-block align-text-bottom" />}{" "}
+                      {r.persona} · {fechaCorta(r.feriado)} → {fechaCorta(r.descanso)}
                     </span>
                     {r.error && <div className="mt-0.5 text-rojo">{r.error}</div>}
                   </li>
@@ -552,7 +554,7 @@ export default function FeriadosPage() {
         </div>
 
         {/* Actas firmadas */}
-        <div className="mb-6 max-w-4xl rounded-2xl border border-sand bg-papel p-5">
+        <div className="mb-6 max-w-4xl rounded-superficie border border-sand bg-papel p-5">
           <h2 className="mb-1 text-sm font-medium">Actas firmadas</h2>
           <p className="mb-3 max-w-2xl text-xs text-taupe">
             El acuerdo se registra arriba; aquí se guarda el <strong>papel firmado</strong> que lo
@@ -577,14 +579,14 @@ export default function FeriadosPage() {
               type="file" accept="application/pdf,image/png,image/jpeg,image/webp,image/heic,image/heif"
               disabled={!refActa || subiendo}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirActa(f); e.target.value = ""; }}
-              className="text-sm file:mr-3 file:rounded-lg file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
+              className="text-sm file:mr-3 file:rounded-control file:border file:border-sand file:bg-crema file:px-3 file:py-1.5 file:text-sm disabled:opacity-50" />
             {/* Con 3 MB una espera muda pasaba desapercibida. Con 50 MB por la
                 conexión de una tienda son minutos, y sin avance visible se lee
                 como que la pantalla se colgó. */}
             {subiendo && (
               <span className="flex items-center gap-2 pb-2 text-sm text-taupe">
                 {progresoActa !== null && (
-                  <span className="h-1.5 w-24 overflow-hidden rounded-full bg-sand">
+                  <span className="h-1.5 w-24 overflow-hidden rounded-pildora bg-sand">
                     <span className="block h-full bg-tinta transition-[width] duration-200"
                       style={{ width: `${progresoActa}%` }}
                       role="progressbar" aria-valuenow={progresoActa} aria-valuemin={0} aria-valuemax={100}
@@ -603,7 +605,7 @@ export default function FeriadosPage() {
           )}
 
           {actas.length > 0 && (
-            <ul className="mt-4 divide-y overflow-hidden rounded-lg border border-sand text-sm">
+            <ul className="mt-4 divide-y overflow-hidden rounded-control border border-sand text-sm">
               {actas.map((a) => (
                 <li key={a.referencia} className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2">
                   <span>
@@ -638,7 +640,7 @@ export default function FeriadosPage() {
         </div>
 
         {/* Quién trabajó feriados en el rango */}
-        <div className="max-w-5xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="max-w-5xl overflow-hidden rounded-superficie border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-medium">Quién trabajó feriados</h2>
@@ -662,7 +664,7 @@ export default function FeriadosPage() {
           ) : laborados.length === 0 ? (
             <p className="px-4 py-6 text-sm text-taupe">Nadie marcó horas en un feriado de este rango.</p>
           ) : (
-            <Tabla className="min-w-[720px]">
+            <Tabla className="min-w-[720px] [font-variant-numeric:tabular-nums]">
               <TablaEncabezado>
                 <Th>Persona</Th>
                 <Th>Feriado</Th>
@@ -705,7 +707,7 @@ export default function FeriadosPage() {
         </div>
 
         {/* Registros existentes — incluye los de feriados futuros, que no salen arriba */}
-        <div className="mt-6 max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="mt-6 max-w-4xl overflow-hidden rounded-superficie border border-sand bg-papel">
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Descansos registrados {registros.length > 0 && <span className="font-normal text-taupe">· {registros.length}</span>}
           </h2>
@@ -735,7 +737,7 @@ export default function FeriadosPage() {
                       sobretasa, o sea que mueve plata, y eso lo decide una
                       persona con el caso delante. */}
                   {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`) && (
-                    <p className="mt-1 rounded-lg border border-rojo/30 bg-rojo/[0.06] px-2 py-1 text-xs text-rojo">
+                    <p className="mt-1 rounded-control border border-rojo/30 bg-rojo/[0.06] px-2 py-1 text-xs text-rojo">
                       Este día no compensa: {motivoPorFila.get(`${r.persona_id}|${r.fecha_feriado}`)}.
                       {r.estado === "OTORGADO" && " Mientras siga en OTORGADO, se le está descontando la sobretasa del feriado."}
                     </p>

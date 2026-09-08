@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Dancing_Script, Caveat, Sacramento } from "next/font/google";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { Boton } from "@/components/ui/boton";
 
 type Metodo = "imagen" | "dibujo" | "tipografica";
 type Estilo = "elegante" | "a_mano" | "clasica";
@@ -366,10 +367,14 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         )}
         <div className="flex flex-col gap-1">
           {!editando && (
-            <button onClick={() => setEditando(true)} className="rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+            <Boton variante="primario" tamano="sm" onClick={() => setEditando(true)}>
               Cambiar firma
-            </button>
+            </Boton>
           )}
+          {/* Nativo a propósito: texto rojo subrayado solo al pasar el mouse, sin
+              fondo — ninguna variante de <Boton> lo reproduce (peligro es un botón
+              sólido, enlace usa hover:text-taupe, no rojo). Mismo criterio que
+              "Anular"/"Ver" en contratos/page.tsx. */}
           {firma && <button onClick={() => void quitarFirma()} disabled={guardando} className="text-xs text-rojo hover:underline">Quitar</button>}
         </div>
       </div>
@@ -381,6 +386,11 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
               «Dibujar» y «Escribir» todavía no están disponibles: el servidor no tiene la actualización más reciente. Puedes seguir usando «Escanear» mientras tanto — vuelve a intentar los otros dos en unos minutos.
             </p>
           )}
+          {/* Pestañas-cápsula nativas a propósito: el mismo patrón (fondo bg-sand,
+              pastilla bg-tinta activa) se repite en apariencia/page.tsx y en el
+              selector de estilo de más abajo, pero no hay un <Segmentado>
+              compartido todavía — no se inventa uno nuevo fuera del alcance de
+              esta migración de presentación. */}
           <div className="mb-4 flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
             {TABS.map((t) => {
               const deshabilitada = sqlDesactualizado && t.id !== "imagen";
@@ -401,7 +411,11 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
           {metodo === "imagen" && (
             <div className="flex flex-col gap-2">
               <p className="text-sm text-taupe">Sube una foto o escaneo de tu firma, mejor sobre fondo blanco.</p>
-              <label className="w-fit cursor-pointer rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+              {/* Nativo a propósito: input de archivo disfrazado de botón — mismo
+                  patrón ya usado en educacion/page.tsx y mio/editar/page.tsx,
+                  porque el catálogo compartido todavía no tiene un componente
+                  de "elegir archivo". */}
+              <label className="w-fit cursor-pointer rounded-control bg-tinta px-3 py-1 text-xs font-medium text-crema">
                 {guardando ? "Guardando…" : "Elegir archivo"}
                 <input type="file" accept="image/png,image/jpeg" className="hidden" disabled={guardando}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirImagen(f); e.target.value = ""; }} />
@@ -424,10 +438,10 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 onPointerLeave={terminarTrazo}
               />
               <div className="flex gap-2">
-                <button onClick={limpiarCanvas} disabled={guardando} className="rounded-xl border border-sand px-3 py-1.5 text-xs font-medium text-taupe">Borrar trazo</button>
-                <button onClick={() => void guardarDibujo()} disabled={guardando || trazoVacio} className="rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
-                  {guardando ? "Guardando…" : "Guardar firma"}
-                </button>
+                <Boton variante="sutil" tamano="sm" onClick={limpiarCanvas} disabled={guardando}>Borrar trazo</Boton>
+                <Boton variante="primario" tamano="sm" cargando={guardando} disabled={trazoVacio} onClick={() => void guardarDibujo()}>
+                  Guardar firma
+                </Boton>
               </div>
             </div>
           )}
@@ -436,6 +450,10 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
             <div className="flex flex-col gap-3">
               <div>
                 <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-taupe">Tu nombre, tal como firmas</label>
+                {/* Nativo a propósito, con bg-sand/40 en vez del bg-hueso de
+                    <Campo disabled>: esto no está "apagado temporalmente", es
+                    un dato que vive en otra pantalla (Ficha personal) y nunca
+                    se edita desde acá — señal distinta, look distinto. */}
                 <input
                   value={nombreOficial}
                   readOnly
@@ -444,6 +462,8 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 />
                 <p className="mt-1 text-xs text-taupe">Viene de tu Ficha personal — no se puede escribir un nombre distinto.</p>
               </div>
+              {/* Pestañas-cápsula nativas, mismo criterio que las de arriba
+                  (Escanear/Dibujar/Escribir): no hay <Segmentado> compartido. */}
               <div className="flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
                 {(Object.keys(FUENTES) as Estilo[]).map((e) => (
                   <button
@@ -462,16 +482,24 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                   <span className="text-sm text-taupe">Falta tu nombre en la Ficha personal.</span>
                 )}
               </div>
-              <button
+              <Boton
+                variante="primario"
+                tamano="sm"
+                className="w-fit"
+                cargando={guardando}
+                disabled={!nombreOficial.trim()}
                 onClick={() => void guardarTipografica()}
-                disabled={guardando || !nombreOficial.trim()}
-                className="w-fit rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40"
               >
-                {guardando ? "Guardando…" : "Guardar firma"}
-              </button>
+                Guardar firma
+              </Boton>
             </div>
           )}
 
+          {/* Nativo a propósito: ya arranca en text-taupe (el color al que
+              <Boton variante="enlace"> recién llega en hover) y solo subraya
+              al pasar el mouse, en vez de estar subrayado siempre — forzarlo
+              a Boton le agregaría un subrayado permanente que no tenía y le
+              quitaría el único cambio visible al pasar el mouse. */}
           {firma && (
             <button onClick={() => setEditando(false)} className="mt-3 text-xs text-taupe hover:underline">Cancelar</button>
           )}

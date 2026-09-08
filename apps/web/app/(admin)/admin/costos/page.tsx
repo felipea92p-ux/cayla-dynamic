@@ -261,7 +261,7 @@ export default function CostosPage() {
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
-            <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
@@ -275,7 +275,7 @@ export default function CostosPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver los costos de planilla.
           </p>
         </main>
@@ -313,7 +313,7 @@ export default function CostosPage() {
         </p>
 
         {error && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los costos: {error}{" "}
             <Boton variante="enlace" onClick={reintentar}>Reintentar</Boton>
           </div>
@@ -324,14 +324,14 @@ export default function CostosPage() {
         )}
 
         {anios.length === 0 && !cargando && !error && (
-          <div className="max-w-3xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <div className="max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
             Todavía no hay ningún periodo marcado como pagado, así que no hay costos que sumar. En cuanto
             cierres el primero, aparecerá aquí.
           </div>
         )}
 
         {data && data.periodos_retroactivos > 0 && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <div className="mb-4 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
             {data.periodos_retroactivos === 1
               ? "Un periodo de este año tiene el desglose reconstruido"
               : `${data.periodos_retroactivos} periodos de este año tienen el desglose reconstruido`}{" "}
@@ -343,26 +343,26 @@ export default function CostosPage() {
 
         {t && (
           <div className="mb-6 grid max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <div className="rounded-lg bg-tinta px-4 py-3 text-crema">
+            <div className="rounded-control bg-tinta px-4 py-3 text-crema">
               <div className="text-xs opacity-70">Costo real del año</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.costo)}</div>
             </div>
-            <div className="rounded-lg bg-sand/40 px-4 py-3">
+            <div className="rounded-control bg-sand/40 px-4 py-3">
               <div className="text-xs text-taupe">Se transfirió</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.neto)}</div>
             </div>
-            <div className="rounded-lg bg-sand/40 px-4 py-3">
+            <div className="rounded-control bg-sand/40 px-4 py-3">
               <div className="text-xs text-taupe">Provisiones devengadas</div>
               <div className="text-xl font-medium tabular-nums">{formatSoles(t.provisiones)}</div>
             </div>
             {t.salio_del_banco !== undefined && (
-              <div className="rounded-lg bg-sand/40 px-4 py-3">
+              <div className="rounded-control bg-sand/40 px-4 py-3">
                 <div className="text-xs text-taupe">Salió del banco</div>
                 <div className="text-xl font-medium tabular-nums">{formatSoles(t.salio_del_banco)}</div>
                 <div className="text-xs text-taupe">+ pensión, EsSalud y 4ta</div>
               </div>
             )}
-            <div className="rounded-lg bg-sand/40 px-4 py-3">
+            <div className="rounded-control bg-sand/40 px-4 py-3">
               <div className="text-xs text-taupe">Periodos cerrados</div>
               <div className="text-xl font-medium tabular-nums">{t.periodos}</div>
               <div className="text-xs text-taupe">{t.personas} personas</div>
@@ -522,7 +522,7 @@ export default function CostosPage() {
         )}
 
         {data && data.por_periodo.length === 0 && anios.length > 0 && !cargando && (
-          <div className="max-w-3xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <div className="max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
             En {anio} no hay ningún periodo marcado como pagado.
           </div>
         )}

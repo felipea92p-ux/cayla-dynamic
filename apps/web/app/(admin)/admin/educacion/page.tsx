@@ -849,6 +849,10 @@ export default function EducacionPage() {
                             // ningún tema (ver comentario de Insignia en
                             // components/ui/insignia.tsx). La variante "alerta" ya
                             // resuelve el contraste con text-rojo-profundo.
+                            // <button> nativo a propósito: es solo un reset de chrome
+                            // para que la píldora de <Insignia> sea clicable — <Boton>
+                            // no tiene una variante sin subrayado ni padding que no
+                            // desentone con una insignia.
                             <button
                               onClick={() => void verPapeles(f)}
                               className="rounded-pildora border-0 bg-transparent p-0"
@@ -902,6 +906,11 @@ export default function EducacionPage() {
                               {papelesDe.faltan.map((mes) => (
                                 <div key={mes} className="flex flex-wrap items-center gap-3">
                                   <span className="w-36 text-ambar">{nombreMes(mes)}</span>
+                                  {/* <label>+<input type=file> nativo a propósito: acá el
+                                      disparador es un enlace de una línea dentro de la fila
+                                      del mes, no un campo con su propia etiqueta — <Campo
+                                      type="file"> (como el del formulario de alta) trae ese
+                                      encabezado y no calza en este layout compacto. */}
                                   <label className="cursor-pointer font-medium underline">
                                     {adjuntando === mes ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar el recibo de este mes"}
                                     <input
