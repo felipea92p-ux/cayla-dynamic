@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Marca } from "@/components/marca";
+import { Boton } from "@/components/ui/boton";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { EMPRESA, TZ_LIMA, type Rol } from "@cayla-dynamic/shared";
 import { AREAS_FALLBACK, areaNombre, parseAreas, type Area } from "@/lib/areas";
@@ -406,9 +407,9 @@ export default function MemoPage() {
         <div className="mb-4 flex max-w-[760px] items-center justify-between print:hidden">
           <button onClick={() => router.push("/admin/disciplina")} className="text-sm text-taupe hover:text-tinta">← Volver a Disciplina</button>
           {doc && !err && (
-            <button onClick={() => window.print()} className="rounded-lg bg-tinta px-5 py-2 text-sm font-medium text-crema">
+            <Boton variante="primario" tamano="lg" onClick={() => window.print()}>
               Imprimir / Guardar PDF
-            </button>
+            </Boton>
           )}
         </div>
 

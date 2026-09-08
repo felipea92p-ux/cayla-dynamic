@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { MARCADOR_FIRMA_EMPRESA, MARCADOR_FIRMA_PERSONA } from "@/lib/admin/contrato-texto";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
@@ -135,9 +136,9 @@ function MiContratoContenido() {
       <main className="p-6">
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {error}{" "}
-          <button onClick={() => void cargar()} className="font-medium underline">
+          <Boton variante="enlace" onClick={() => void cargar()}>
             Reintentar
-          </button>
+          </Boton>
         </p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Mi perfil
@@ -172,16 +173,18 @@ function MiContratoContenido() {
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           {contrato.storage_path && (
+            // Nativo a propósito: Boton variante="enlace" no aplica tamaño (solo
+            // CHROME, sin TAMANOS), así que quedaría en el cuerpo por defecto —
+            // más grande que el "Imprimir" de al lado, con el que hoy alinea en
+            // text-sm. Mismo criterio de "no forzar" que ya se aplica en otras
+            // pantallas para enlaces cuyo tratamiento no calza en el componente.
             <button onClick={() => void verEscaneado()} className="text-sm text-taupe underline hover:text-tinta">
               Ver el escaneado firmado
             </button>
           )}
-          <button
-            onClick={() => window.print()}
-            className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema hover:bg-rojo-profundo"
-          >
+          <Boton variante="primario" onClick={() => window.print()}>
             Imprimir / Guardar como PDF
-          </button>
+          </Boton>
         </div>
       </div>
 
