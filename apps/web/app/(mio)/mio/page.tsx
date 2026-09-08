@@ -8,6 +8,8 @@ import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { SelectorTema } from "@/components/selector-tema";
+import { useToast } from "@/components/toast";
+import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
@@ -88,6 +90,11 @@ import {
 interface Yo {
   id: string;
   nombre: string;
+  /** El nombre tal como aparece en el DNI (`datos_personales.nombre_dni`),
+   *  con reserva a `nombre` si todavía no cargó su ficha. Es el que se usa
+   *  para firmar documentos — nunca `nombre` a secas, que es de uso diario
+   *  y puede no coincidir con el oficial (ver FirmaEditor). */
+  nombreOficial: string;
   nombres: string;
   apellidos: string;
   fechaIngreso: string | null;
@@ -198,7 +205,7 @@ interface SolicitudPerfil {
 }
 
 /** Las seis pestañas del detalle. Ver el comentario de `tab`. */
-type Tab = "dias" | "turnos" | "ausencias" | "contrato" | "objetivos" | "historial";
+type Tab = "dias" | "turnos" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -403,6 +410,7 @@ function explicaDia(d: Dia): string {
 
 export default function MioPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const { avisar } = useToast();
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
@@ -561,9 +569,15 @@ export default function MioPage() {
         setAviso("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
         return;
       }
+      const nombre = `${p.nombres as string} ${p.apellidos as string}`;
+      // Mismo criterio que /mio/contrato: el nombre que firma es el del DNI,
+      // no el de uso diario — con reserva por si todavía no cargó su ficha.
+      const { data: ficha } = await supabase
+        .from("datos_personales").select("nombre_dni").eq("persona_id", p.id as string).maybeSingle();
       setYo({
         id: p.id as string,
-        nombre: `${p.nombres as string} ${p.apellidos as string}`,
+        nombre,
+        nombreOficial: (ficha?.nombre_dni as string | null) || nombre,
         nombres: p.nombres as string,
         apellidos: p.apellidos as string,
         fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
@@ -1303,6 +1317,7 @@ export default function MioPage() {
         <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
         <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
         <TabBtn valor="contrato" activa={tab} onSel={setTab}>Contrato</TabBtn>
+        <TabBtn valor="firma" activa={tab} onSel={setTab}>Firma</TabBtn>
         <TabBtn valor="objetivos" activa={tab} onSel={setTab}>Objetivos</TabBtn>
         <TabBtn valor="historial" activa={tab} onSel={setTab}>Historial</TabBtn>
       </div>
@@ -1977,6 +1992,30 @@ export default function MioPage() {
                 Ver mi contrato →
               </Link>
             </div>
+          )}
+        </section>
+      )}
+
+      {/* ── FIRMA ────────────────────────────────────────────────────────────
+          Mismo componente que usa Felipe en su ficha de Equipo (FirmaEditor:
+          subir imagen, dibujar o escribir con el nombre oficial bloqueado) —
+          desde la 0398 cualquier persona puede generar y guardar la suya, no
+          solo admin/líder. Antes esto solo aparecía dentro de /mio/contrato,
+          y solo si ya había un contrato cargado: quien todavía no tenía uno
+          no encontraba dónde configurarla. Acá se puede configurar con
+          anticipación — en cuanto DO genere el contrato, la firma ya está
+          lista sin que haga falta volver a hacer nada. */}
+      {tab === "firma" && (
+        <section className="rounded-2xl border border-sand p-5">
+          <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
+          <p className="mb-3 text-sm text-taupe">
+            Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
+            empresa (memos, política salarial), es la misma firma la que se usa ahí.
+          </p>
+          {yo ? (
+            <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+          ) : (
+            <p className="text-sm text-taupe">Cargando…</p>
           )}
         </section>
       )}
