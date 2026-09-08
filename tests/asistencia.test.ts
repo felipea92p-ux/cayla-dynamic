@@ -11,8 +11,10 @@
 // ============================================================================
 import { describe, it, expect } from "vitest";
 import {
+  calcularHoraMediaRefrigerio,
   determinarSiguienteAccion,
   sugerirSalidaPrincipal,
+  type EstadisticasSugerencia,
   type MarcajeDelDia,
 } from "@cayla-dynamic/shared";
 
@@ -136,5 +138,79 @@ describe("sugerirSalidaPrincipal — qué salida destacar en la terminal", () =>
     ];
     const doceYMedia = new Date(enLima("2026-07-23", "12:30"));
     expect(sugerirSalidaPrincipal(recienLlegado, doceYMedia)).toBe("salida_final");
+  });
+
+  // Con `estadisticas`: el patrón personal manda por completo dentro de su
+  // ventana, y el horario asignado decide salida final vs. "neutra" cuando
+  // el patrón no aplica. Sin pasar el tercer argumento (los 4 tests de
+  // arriba), el comportamiento tiene que seguir siendo EXACTAMENTE el mismo
+  // — por eso esos tests no cambiaron una línea.
+  describe("con estadísticas personalizadas", () => {
+    const conPatron = (horaMediaRefrigerio: number | null, horaSalidaEsperada: number | null = null): EstadisticasSugerencia => ({
+      horaMediaRefrigerio,
+      horaSalidaEsperada,
+    });
+
+    it("dentro de la ventana de su media histórica (±30min), sugiere refrigerio aunque sea temprano", () => {
+      const entrada7am: MarcajeDelDia[] = [{ tipo: "entrada", timestamp: enLima("2026-07-23", "07:00") }];
+      const nueveYCuarto = new Date(enLima("2026-07-23", "09:15"));
+      // Media histórica: 9:00. Regla fija diría "salida_final" (antes de 11h) —
+      // el patrón personal la reemplaza por completo.
+      expect(sugerirSalidaPrincipal(entrada7am, nueveYCuarto, conPatron(9.0))).toBe("salida_almuerzo");
+    });
+
+    it("fuera de la ventana de su media histórica, NO sugiere refrigerio aunque la regla fija sí lo haría", () => {
+      const entrada9am: MarcajeDelDia[] = [{ tipo: "entrada", timestamp: enLima("2026-07-23", "09:00") }];
+      const mediodia = new Date(enLima("2026-07-23", "12:00"));
+      // Media histórica: 14:00 — 12:00 cae fuera de [13:30, 14:30]. Sin horario
+      // asignado en las estadísticas, cae al respaldo de siempre: salida final.
+      expect(sugerirSalidaPrincipal(entrada9am, mediodia, conPatron(14.0))).toBe("salida_final");
+    });
+
+    it("con horario asignado, cerca de la hora de salida esperada sugiere salida final", () => {
+      const entrada8am: MarcajeDelDia[] = [{ tipo: "entrada", timestamp: enLima("2026-07-23", "08:00") }];
+      const cincoYDiez = new Date(enLima("2026-07-23", "17:10"));
+      // Hora de salida esperada: 17:00 — 17:10 cae dentro de [16:30, ∞).
+      expect(sugerirSalidaPrincipal(entrada8am, cincoYDiez, conPatron(null, 17.0))).toBe("salida_final");
+    });
+
+    it('ni refrigerio ni salida final aplican → zona "neutra" (el caso de las 9am recién entrando)', () => {
+      const entrada8am: MarcajeDelDia[] = [{ tipo: "entrada", timestamp: enLima("2026-07-23", "08:00") }];
+      const nueveYVeintiseis = new Date(enLima("2026-07-23", "09:26"));
+      // Media de refrigerio 13:00, sale a las 17:00: 9:26 no cae en ninguna.
+      expect(sugerirSalidaPrincipal(entrada8am, nueveYVeintiseis, conPatron(13.0, 17.0))).toBe("neutra");
+    });
+
+    it("ya almorzó hoy: el patrón de refrigerio no vuelve a aplicar aunque la hora coincida", () => {
+      const yaAlmorzo: MarcajeDelDia[] = [
+        { tipo: "entrada", timestamp: enLima("2026-07-23", "08:00") },
+        { tipo: "salida_almuerzo", timestamp: enLima("2026-07-23", "13:00") },
+        { tipo: "retorno_almuerzo", timestamp: enLima("2026-07-23", "14:00") },
+      ];
+      const unaYCinco = new Date(enLima("2026-07-23", "13:05"));
+      expect(sugerirSalidaPrincipal(yaAlmorzo, unaYCinco, conPatron(13.0, 17.0))).not.toBe("salida_almuerzo");
+    });
+
+    it("sin horario asignado (RxH, o sin dato), respalda en salida final como siempre — nunca neutra", () => {
+      const entrada8am: MarcajeDelDia[] = [{ tipo: "entrada", timestamp: enLima("2026-07-23", "08:00") }];
+      const nueveYVeintiseis = new Date(enLima("2026-07-23", "09:26"));
+      expect(sugerirSalidaPrincipal(entrada8am, nueveYVeintiseis, conPatron(13.0, null))).toBe("salida_final");
+    });
+  });
+});
+
+describe("calcularHoraMediaRefrigerio — el patrón personal de cada persona", () => {
+  it("con menos de 3 muestras, no hay patrón confiable", () => {
+    expect(calcularHoraMediaRefrigerio([enLima("2026-07-20", "13:00"), enLima("2026-07-21", "13:00")])).toBeNull();
+  });
+
+  it("con 3 o más muestras, calcula la media en hora decimal Lima", () => {
+    const resultado = calcularHoraMediaRefrigerio([
+      enLima("2026-07-20", "13:00"),
+      enLima("2026-07-21", "13:00"),
+      enLima("2026-07-22", "13:30"),
+    ]);
+    expect(resultado?.muestras).toBe(3);
+    expect(resultado?.media).toBeCloseTo(13.1667, 3);
   });
 });
