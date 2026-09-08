@@ -35,10 +35,8 @@
 -- salida de CADA persona todos los días habría sido fricción constante para
 -- resolver una ambigüedad que casi nunca ocurre. La pregunta sale solo cuando
 -- el propio terminal, con los marcajes que ya tiene cargados del día
--- (marcajesHoyRef), puede ver la ambigüedad real: hay una salida_almuerzo sin
--- su retorno. Es la misma condición que ya usa Incidencias para mostrar "Sin
--- marca de retorno del almuerzo" (tiene_salida_no_retornada), preguntada
--- antes en vez de después.
+-- (marcajesHoyRef), puede ver la ambigüedad real: que nunca haya marcado una
+-- salida_almuerzo en todo el día.
 --
 -- QUÉ NO HACE: no agrega ninguna validación que bloquee el marcaje. Un "No, sí
 -- almorcé" no arregla nada por sí solo — sigue haciendo falta que un admin

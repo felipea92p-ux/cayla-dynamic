@@ -848,7 +848,7 @@ export default function NormasPage() {
                         )}
                       </label>
                       <label className="flex items-start gap-2 text-xs sm:pt-5">
-                        <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5"
+                        <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5 size-4 accent-tinta"
                           onChange={(e) => setTipoNuevo((t) => ({ ...t, acuse: e.target.checked }))} />
                         <span>
                           Pedir constancia a cada integrante

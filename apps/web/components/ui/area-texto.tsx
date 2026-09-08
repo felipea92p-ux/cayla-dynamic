@@ -17,6 +17,16 @@
 // No usa la propiedad CSS `field-sizing: content` porque solo llega en Safari
 // 26.2, y las Mac mini de las sedes y el equipo de quien administra no se
 // actualizan a la vez ni bajo control de nadie. Medir por JS funciona en todos.
+//
+// El chrome (borde, radio, fondo, tipografía) es a propósito el mismo que
+// Campo: antes cada uso escribía su propia cadena de clases a mano y ya
+// divergía de un input normal — un formulario con Campo para "Nombre" y
+// AreaTexto para "Objetivo formativo" mostraba dos cajas de campo distintas
+// una al lado de la otra. `etiqueta` y `error` copian el mismo contrato que
+// Campo por la misma razón. Si el día de mañana esa cadena base se vuelve a
+// separar entre los dos archivos, hay que juntarla en una constante
+// compartida — hoy vive repetida a propósito porque este componente solo
+// puede tocar este archivo.
 
 import { useLayoutEffect, useRef } from "react";
 import type { TextareaHTMLAttributes } from "react";
@@ -24,7 +34,20 @@ import { cx } from "./cx";
 
 type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "value"> & {
   value: string;
+  /** Rótulo arriba del campo, igual que en Campo. Si no se pasa (los usos de
+   * hoy en Contratos, que ya envuelven el campo en su propio <label>), el
+   * textarea sale suelto — envolverlo siempre en un <label> propio anidaría
+   * dos <label> uno dentro del otro donde quien llama ya puso el suyo. */
+  etiqueta?: string;
+  /** Mensaje de error, con borde rojo a juego. No valida por sí solo. */
+  error?: string;
 };
+
+// Misma cadena base que Campo usa para <input>: mismo radio, mismo fondo,
+// mismo tamaño de texto. `resize-none overflow-hidden` es lo propio de este
+// componente (el alto lo pone el JS de abajo, no el usuario arrastrando).
+const CHROME_BASE =
+  "resize-none overflow-hidden rounded-control border border-sand bg-hueso px-3 py-2 text-sm text-tinta transition-colors duration-150 placeholder:text-taupe/60";
 
 function ajustarAltura(el: HTMLTextAreaElement) {
   // "auto" primero, para que al BORRAR texto la altura también baje: si no,
@@ -36,7 +59,7 @@ function ajustarAltura(el: HTMLTextAreaElement) {
   el.style.height = `${el.scrollHeight + bordes}px`;
 }
 
-export function AreaTexto({ value, rows = 2, className, ...rest }: Props) {
+export function AreaTexto({ value, rows = 2, etiqueta, error, id, className, ...rest }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useLayoutEffect(() => {
@@ -60,13 +83,26 @@ export function AreaTexto({ value, rows = 2, className, ...rest }: Props) {
     return () => observador.disconnect();
   }, []);
 
-  return (
+  const campo = (
     <textarea
       ref={ref}
+      id={id}
       rows={rows}
       value={value}
-      className={cx("resize-none overflow-hidden", className)}
+      className={cx(CHROME_BASE, error && "border-rojo", className)}
       {...rest}
     />
+  );
+
+  if (!etiqueta && !error) return campo;
+
+  return (
+    <label className="flex flex-col gap-1.5">
+      {etiqueta && (
+        <span className="text-xs font-medium uppercase tracking-[0.06em] text-taupe">{etiqueta}</span>
+      )}
+      {campo}
+      {error && <span className="text-xs text-rojo">{error}</span>}
+    </label>
   );
 }

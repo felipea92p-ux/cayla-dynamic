@@ -5,7 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
-import { Cargando, EsqueletoSecciones } from "@/components/cargando";
+import { Cargando, EsqueletoSecciones, SinDatos } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { Modal } from "@/components/ui/modal";
+import { Fila as FilaTabla, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { traerTodo } from "@/lib/admin/traer-todo";
 import { esperadoDelDia, horarioVigente, type HorarioTramo, type TurnoDia } from "@/lib/admin/jornada-esperada";
 import {
@@ -50,7 +55,6 @@ interface Fila {
   entrada: string | null;
   salida: string | null;
   aceptable?: string; // clave de tipo (p. ej. 'salida_anticipada') si se puede "Aceptar"
-  corregible?: boolean; // incidencia de marcaje: se resuelve registrando las marcas reales
   esFalta?: boolean;
   justificada?: boolean;
   motivoFalta?: string | null;
@@ -198,6 +202,11 @@ function IncidenciasContenido() {
   // a nadie. El error de una acción se muestra DONDE se hizo la acción.
   const [error, setError] = useState<string | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
+  // Aviso parcial: la consulta de tardanzas levantadas falló. Sin ella no se
+  // puede distinguir una tardanza perdonada de una real, así que "patrón de
+  // tardanzas" se apaga entero mientras dure — y se dice, para que no se lea
+  // como "todo en orden" cuando en realidad no se pudo comprobar.
+  const [avisoLevantadas, setAvisoLevantadas] = useState<string | null>(null);
 
   // Lo que la gente pidió revisar desde «Lo mío» (0257). Va PRIMERO en esta
   // pantalla y no al final: es la única lista de acá que no la generó el
@@ -229,7 +238,7 @@ function IncidenciasContenido() {
       { data: aceptadasData },
       { data: faltasData },
       { data: revisionesData },
-      { data: levTardData },
+      { data: levTardData, error: errLevTard },
       { data: horasSemanaData },
       { data: diasRachaData },
       { data: contratosData },
@@ -286,6 +295,11 @@ function IncidenciasContenido() {
       // simplemente no aparece. El resto de Incidencias no se entera.
       supabase.rpc("fn_revisiones_pedidas", { p_solo_pendientes: true }),
       // Tardanzas levantadas (perdonadas): no cuentan para el patrón. Ventana del patrón.
+      // Falla DURA para el aviso que depende de ella (no para el resto de la
+      // pantalla): si esta consulta no llega, no hay forma de saber qué
+      // tardanza ya fue perdonada, y mostrar "patrón" igual reabriría un caso
+      // ya resuelto — el falso positivo que este repositorio nombra como su
+      // peor error. Se apaga solo ESE aviso más abajo; ver `errLevTard`.
       supabase.from("tardanzas_justificadas").select("persona_id, fecha").gte("fecha", desdePatron).lte("fecha", HOY),
       // Horas para el tope de jornada. NO se piden por semana de calendario: el
       // tope de 48 h se mide sobre CUALQUIER ventana de siete días consecutivos
@@ -339,6 +353,12 @@ function IncidenciasContenido() {
       return; // no pisa `filas` con datos parciales/vacíos
     }
     setError(null);
+    setAvisoLevantadas(
+      errLevTard
+        ? `No se pudo comprobar qué tardanzas ya fueron levantadas (${errLevTard.message}). ` +
+          `El aviso de «patrón de tardanzas» se ocultó mientras tanto, para no volver a acusar una tardanza ya perdonada.`
+        : null,
+    );
     // Set de claves aceptadas: `persona|fecha|tipo`. Falla suave (si no llega, no oculta nada).
     const aceptadas = new Set(
       (aceptadasData as { persona_id: string; fecha: string; tipo: string }[] | null ?? [])
@@ -383,7 +403,6 @@ function IncidenciasContenido() {
           entrada: j.entrada_ts,
           salida: j.salida_final_ts,
           aceptable: inc.aceptable,
-          corregible: true, // todas estas se arreglan registrando las marcas que faltan
           severidad: inc.severidad,
         });
       }
@@ -392,6 +411,13 @@ function IncidenciasContenido() {
     // Patrón de tardanzas: 3+ en los últimos 30 días. Viene ordenado por fecha
     // descendente, así que la primera vez que aparece cada persona ya es su
     // tardanza más reciente.
+    //
+    // Todo el bloque se salta si `errLevTard` está presente: sin la lista de
+    // tardanzas LEVANTADAS no hay forma de saber cuáles ya fueron perdonadas,
+    // y contarlas igual reabriría como "patrón" algo que una encargada ya
+    // resolvió — el falso positivo que este repositorio nombra como su peor
+    // error. `avisoLevantadas`, seteado arriba, es lo que se lee en pantalla.
+    if (!errLevTard) {
     // Días con tardanza LEVANTADA: no cuentan para el patrón.
     const levantadas = new Set(
       ((levTardData as { persona_id: string; fecha: string }[] | null) ?? []).map((t) => `${t.persona_id}|${t.fecha}`),
@@ -427,6 +453,7 @@ function IncidenciasContenido() {
         severidad: "alta",
       });
     }
+    } // fin if (!errLevTard)
 
     // ── Exceso de jornada ─────────────────────────────────────────────────
     // Las 48 h son el MÁXIMO LEGAL (Const. art. 25), no un objetivo: pasarse es
@@ -826,12 +853,8 @@ function IncidenciasContenido() {
         )}
 
         <div className="mb-6 flex flex-wrap items-end gap-4">
-          <label className="flex flex-col gap-1 text-sm">Desde
-            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">Hasta
-            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2" />
-          </label>
+          <Campo etiqueta="Desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <Campo etiqueta="Hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </div>
 
         {/* ── Lo que tu equipo pidió revisar ──────────────────────────────────
@@ -856,16 +879,16 @@ function IncidenciasContenido() {
                   </div>
                   <p className="mt-1.5">«{r.comentario}»</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <input
-                      value={respuestas[r.id] ?? ""}
-                      onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
-                      placeholder="En qué quedó (lo va a leer la persona)"
-                      className="min-w-56 flex-1 rounded-lg border border-sand bg-crema px-3 py-1.5"
-                    />
-                    <button onClick={() => void atenderRevision(r.id)} disabled={atendiendo === r.id}
-                      className="rounded-lg bg-tinta px-4 py-1.5 font-medium text-crema disabled:opacity-50">
-                      {atendiendo === r.id ? "Guardando…" : "Marcar atendida"}
-                    </button>
+                    <div className="min-w-56 flex-1">
+                      <Campo
+                        value={respuestas[r.id] ?? ""}
+                        onChange={(e) => setRespuestas((x) => ({ ...x, [r.id]: e.target.value }))}
+                        placeholder="En qué quedó (lo va a leer la persona)"
+                      />
+                    </div>
+                    <Boton variante="primario" onClick={() => void atenderRevision(r.id)} cargando={atendiendo === r.id}>
+                      Marcar atendida
+                    </Boton>
                   </div>
                 </li>
               ))}
@@ -919,16 +942,24 @@ function IncidenciasContenido() {
                 ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong> en este periodo.</>
                 : "La persona seleccionada no tiene incidencias por revisar en este periodo."}
             </span>
-            <button onClick={() => router.push("/admin/incidencias")} className="shrink-0 font-medium text-rojo hover:underline">Ver todas →</button>
+            <Boton variante="enlace" className="shrink-0 text-rojo" onClick={() => router.push("/admin/incidencias")}>Ver todas →</Boton>
           </div>
         )}
 
         {error && (
           <div className="mb-6 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las incidencias: {error}{" "}
-            <button onClick={() => void cargar()} className="font-medium underline">
-              Reintentar
-            </button>
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
+          </div>
+        )}
+
+        {/* Aviso parcial, distinto del error de arriba: el resto de la
+            pantalla sí cargó, pero el aviso de "patrón de tardanzas" se apagó
+            porque no se pudo comprobar cuáles ya fueron perdonadas. */}
+        {avisoLevantadas && (
+          <div className="mb-6 rounded-lg border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
+            {avisoLevantadas}{" "}
+            <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
         )}
 
@@ -939,16 +970,12 @@ function IncidenciasContenido() {
         {errorAccion && (
           <div className="mb-6 flex items-start gap-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             <span className="flex-1">{errorAccion}</span>
-            <button onClick={() => setErrorAccion(null)} className="shrink-0 font-medium underline">
-              Entendido
-            </button>
+            <Boton variante="enlace" className="shrink-0" onClick={() => setErrorAccion(null)}>Entendido</Boton>
           </div>
         )}
 
         {!cargando && !error && vista.length === 0 && !personaFiltro && (
-          <div className="rounded-lg border border-sand bg-sand/30 px-4 py-8 text-center text-taupe">
-            🎉 Sin incidencias en el periodo. Todo en orden.
-          </div>
+          <SinDatos texto="Sin incidencias por revisar en el periodo." />
         )}
 
         {/* Antes esta lista no tenía ningún estado de carga: mientras `cargando`
@@ -965,109 +992,112 @@ function IncidenciasContenido() {
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="font-serif text-lg">{sede} <span className="text-base text-taupe">· {deSede.length}</span></h2>
                 {loteables.length >= 2 && (
-                  <button
+                  <Boton
+                    variante="sutil"
+                    tamano="sm"
                     onClick={() => void aprobarLote(sede, deSede)}
                     disabled={loteando === sede}
                     title="Marca como revisadas todas las rachas y excesos de jornada de esta sede que ya solo necesitan constancia de que se vieron. No toca faltas, salidas anticipadas ni almuerzos sin marcar — esas afirman un hecho del día y se revisan una por una."
-                    className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-50"
                   >
                     {loteando === sede ? "Revisando…" : `Marcar ${loteables.length} como revisadas`}
-                  </button>
+                  </Boton>
                 )}
               </div>
-              <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                <table className="w-full text-sm">
-                  <thead className="bg-sand/70 text-left">
-                    <tr className="etiqueta text-taupe">
-                      <th className="px-4 py-2.5 font-medium">Persona</th>
-                      <th className="px-4 py-2.5 font-medium">Fecha</th>
-                      <th className="px-4 py-2.5 font-medium">Incidencia</th>
-                      <th className="px-4 py-2.5 font-medium">Entrada</th>
-                      <th className="px-4 py-2.5 font-medium">Salida</th>
-                      <th className="px-4 py-2.5 font-medium"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deSede.map((f, i) => (
-                      <tr key={`${f.personaId}-${f.fecha}-${i}`} className="border-t border-sand">
-                        <td className="px-4 py-2.5">{f.nombre}</td>
-                        <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`font-medium ${COLOR_SEVERIDAD[f.severidad]}`}>{f.tipo}</span>
-                        </td>
-                        <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
-                        <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
-                        <td className="px-4 py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            {f.aceptable && f.personaId && (
-                              <button
-                                onClick={() => void aceptar(f)}
-                                disabled={aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}`}
-                                title={ACEPTAR_AYUDA(f.aceptable)}
-                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40 disabled:opacity-50"
-                              >
-                                {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : ACEPTAR_BOTON(f.aceptable)}
-                              </button>
-                            )}
-                            {f.corregible && f.personaId && (
-                              <Link
-                                href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`}
-                                title="Abrir este día en Correcciones para registrar las marcas que faltan"
-                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40"
-                              >
-                                Corregir
-                              </Link>
-                            )}
-                            {f.esFalta && f.personaId && !f.justificada && (
-                              <button
-                                onClick={() => { setJustif({ personaId: f.personaId!, fecha: f.fecha, nombre: f.nombre }); setMotivoSel("permiso_concedido"); setObserv(""); setErrorJustif(null); }}
-                                title="Registrar el motivo de esta falta (permiso, descanso médico, etc.)"
-                                className="rounded-lg border border-sand px-2.5 py-1 text-xs text-taupe hover:bg-sand/40"
-                              >
-                                Justificar
-                              </button>
-                            )}
-                            {f.esFalta && f.personaId && f.justificada && (
-                              <button
-                                onClick={() => void quitarJustificacion(f)}
-                                title="Quitar la justificación (vuelve a contar como falta)"
-                                className="text-xs text-taupe underline hover:text-tinta"
-                              >
-                                quitar justif.
-                              </button>
-                            )}
-                            {f.personaId ? (
-                              <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
-                                Corregir ›
-                              </Link>
-                            ) : (
-                              <Link href={`/admin/turnos?fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
-                                Ver turnos ›
-                              </Link>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Tabla>
+                <TablaEncabezado>
+                  <Th>Persona</Th>
+                  <Th>Fecha</Th>
+                  <Th>Incidencia</Th>
+                  <Th>Entrada</Th>
+                  <Th>Salida</Th>
+                  <Th></Th>
+                </TablaEncabezado>
+                <tbody>
+                  {deSede.map((f, i) => (
+                    <FilaTabla key={`${f.personaId}-${f.fecha}-${i}`}>
+                      <td className="px-4 py-2.5">{f.nombre}</td>
+                      <td className="px-4 py-2.5 capitalize">{fechaLarga(f.fecha)}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`font-medium ${COLOR_SEVERIDAD[f.severidad]}`}>{f.tipo}</span>
+                      </td>
+                      <td className="px-4 py-2.5">{horaLima(f.entrada)}</td>
+                      <td className="px-4 py-2.5">{horaLima(f.salida)}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          {f.aceptable && f.personaId && (
+                            <Boton
+                              variante="sutil"
+                              tamano="sm"
+                              onClick={() => void aceptar(f)}
+                              disabled={aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}`}
+                              title={ACEPTAR_AYUDA(f.aceptable)}
+                            >
+                              {aceptando === `${f.personaId}|${f.fecha}|${f.aceptable}` ? "…" : ACEPTAR_BOTON(f.aceptable)}
+                            </Boton>
+                          )}
+                          {f.esFalta && f.personaId && !f.justificada && (
+                            <Boton
+                              variante="sutil"
+                              tamano="sm"
+                              onClick={() => { setJustif({ personaId: f.personaId!, fecha: f.fecha, nombre: f.nombre }); setMotivoSel("permiso_concedido"); setObserv(""); setErrorJustif(null); }}
+                              title="Registrar el motivo de esta falta (permiso, descanso médico, etc.)"
+                            >
+                              Justificar
+                            </Boton>
+                          )}
+                          {f.esFalta && f.personaId && f.justificada && (
+                            <Boton
+                              variante="enlace"
+                              className="text-xs text-taupe hover:text-tinta"
+                              onClick={() => void quitarJustificacion(f)}
+                              title="Quitar la justificación (vuelve a contar como falta)"
+                            >
+                              quitar justif.
+                            </Boton>
+                          )}
+                          {/* Un solo enlace a "resolver este día": antes había
+                              además un botón "Corregir" corto acá al lado,
+                              con el mismo href — dos controles iguales que
+                              solo se distinguían probando cuál era cuál. */}
+                          {f.personaId ? (
+                            <Link href={`/admin/correcciones?persona=${f.personaId}&fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                              Corregir ›
+                            </Link>
+                          ) : (
+                            <Link href={`/admin/turnos?fecha=${f.fecha}`} className="font-medium text-rojo underline decoration-rojo/30 underline-offset-2 hover:decoration-rojo">
+                              Ver turnos ›
+                            </Link>
+                          )}
+                        </div>
+                      </td>
+                    </FilaTabla>
+                  ))}
+                </tbody>
+              </Tabla>
             </section>
           );
         })}
 
-        {/* Modal: justificar una falta */}
-        {justif && (
-          <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!guardandoJustif) { setJustif(null); setErrorJustif(null); } }}>
-            <div className="w-full max-w-sm rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="mb-1 font-serif text-lg">Justificar falta</h3>
+        {/* Modal: justificar una falta. Antes era una reimplementación a mano
+            (z-20, uno de los pisos distintos que convivían en el panel), sin
+            role="dialog", sin cierre con Escape y sin foco al abrir — ahora
+            usa <Modal>, que fija un solo piso (z-40) para todos los diálogos
+            del sistema y cubre eso. */}
+        <Modal
+          abierto={!!justif}
+          onCerrar={() => { setJustif(null); setErrorJustif(null); }}
+          bloqueado={guardandoJustif}
+          titulo="Justificar falta"
+          ancho="sm"
+        >
+          {justif && (
+            <>
               <p className="mb-4 text-sm text-taupe">{justif.nombre} · {fechaLarga(justif.fecha)}</p>
-              <label className="mb-3 flex flex-col gap-1 text-sm">
-                Motivo
-                <select value={motivoSel} onChange={(e) => setMotivoSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2">
+              <div className="mb-3">
+                <CampoSelect etiqueta="Motivo" value={motivoSel} onChange={(e) => setMotivoSel(e.target.value)}>
                   {MOTIVOS.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
-                </select>
-              </label>
+                </CampoSelect>
+              </div>
               {/* El aviso ANTES del choque, no después. El servidor rechaza este
                   motivo siempre (0124) y con razón —paga, y exige el documento
                   que este diálogo no pide—, pero ofrecerlo en la lista y
@@ -1085,31 +1115,34 @@ function IncidenciasContenido() {
               )}
               <label className="mb-4 flex flex-col gap-1 text-sm">
                 Observación {motivoSel === "otro" ? <span className="text-rojo">(obligatoria)</span> : <span className="text-taupe">(opcional)</span>}
-                <textarea value={observ} onChange={(e) => setObserv(e.target.value)} rows={2}
-                  className="rounded-lg border border-sand bg-crema px-3 py-2" placeholder="ej. permiso por trámite" />
+                <AreaTexto value={observ} onChange={(e) => setObserv(e.target.value)} rows={2} placeholder="ej. permiso por trámite" />
               </label>
-              {/* Acá, y no en el banner de la página: este diálogo es `fixed
-                  inset-0` y tapa la página entera. Un rechazo pintado detrás no
-                  lo ve nadie — quien pulsaba «Justificar» con «Descanso médico»
-                  se quedaba mirando el mismo formulario, sin saber si había
-                  funcionado. `whitespace-pre-line` porque el mensaje del
-                  servidor explica qué hacer en su lugar y merece leerse entero. */}
+              {/* Acá, y no en el banner de la página: este diálogo tapa la
+                  pantalla entera mientras está abierto. Un rechazo pintado
+                  detrás no lo ve nadie — quien pulsaba «Justificar» con
+                  «Descanso médico» se quedaba mirando el mismo formulario, sin
+                  saber si había funcionado. `whitespace-pre-line` porque el
+                  mensaje del servidor explica qué hacer en su lugar y merece
+                  leerse entero. */}
               {errorJustif && (
                 <p className="mb-3 whitespace-pre-line rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
                   {errorJustif}
                 </p>
               )}
               <div className="flex justify-end gap-2">
-                <button onClick={() => { setJustif(null); setErrorJustif(null); }} disabled={guardandoJustif} className="rounded-lg border border-sand px-3 py-2 text-sm">Cancelar</button>
-                <button onClick={() => void guardarJustificacion()}
-                  disabled={guardandoJustif || motivoSel === "descanso_medico"}
-                  className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                  {guardandoJustif ? "Guardando…" : "Justificar"}
-                </button>
+                <Boton onClick={() => { setJustif(null); setErrorJustif(null); }} disabled={guardandoJustif}>Cancelar</Boton>
+                <Boton
+                  variante="primario"
+                  onClick={() => void guardarJustificacion()}
+                  disabled={motivoSel === "descanso_medico"}
+                  cargando={guardandoJustif}
+                >
+                  Justificar
+                </Boton>
               </div>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );
