@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0397 — La colaboradora también firma su propio contrato
+-- 0398 — La colaboradora también firma su propio contrato
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -105,5 +105,5 @@ $$;
 grant execute on function fn_firma_empresa() to authenticated;
 revoke execute on function fn_firma_empresa() from public, anon;
 
-insert into migraciones_aplicadas (numero, nombre) values (397, 'firma_propia_en_el_contrato')
+insert into migraciones_aplicadas (numero, nombre) values (398, 'firma_propia_en_el_contrato')
 on conflict (numero) do nothing;
