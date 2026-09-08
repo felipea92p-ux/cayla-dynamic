@@ -1311,8 +1311,21 @@ export default function MioPage() {
           Mismo patrón de pestañas que la ficha de una persona en el panel
           (admin/personas/[id]): que las dos pantallas con pestañas del sistema
           se vean iguales no es cosmético, es que quien aprendió una ya sabe
-          usar la otra. */}
-      <div id="detalle" className="mb-5 flex gap-1 overflow-x-auto border-b border-sand">
+          usar la otra.
+
+          Con 7 pestañas (antes 6, "Firma" es la que se agregó) ya no entran
+          todas en una pantalla angosta, así que este `overflow-x-auto` pasa de
+          decorativo a necesario — y ahí aparece la barra de scroll horizontal
+          que se veía pesada bajo el texto. Sigue desplazándose igual con el
+          dedo o el trackpad; solo se oculta la barra en sí, no la función.
+          `scrollbar-width:none` cubre Firefox y el Chrome/Edge actuales;
+          `::-webkit-scrollbar` es el remanente para Safari, que todavía no
+          soporta la propiedad estándar (mismo motivo de las dos vías que ya
+          explica el bloque de scrollbars globales en globals.css). */}
+      <div
+        id="detalle"
+        className="mb-5 flex gap-1 overflow-x-auto border-b border-sand [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <TabBtn valor="dias" activa={tab} onSel={setTab}>Mis días</TabBtn>
         <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
         <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
