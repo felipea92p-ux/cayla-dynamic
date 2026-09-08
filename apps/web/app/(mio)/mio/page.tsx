@@ -197,8 +197,21 @@ interface SolicitudPerfil {
   motivo: string | null;
 }
 
-/** Las cinco pestañas del detalle. Ver el comentario de `tab`. */
-type Tab = "dias" | "turnos" | "ausencias" | "objetivos" | "historial";
+/** Las seis pestañas del detalle. Ver el comentario de `tab`. */
+type Tab = "dias" | "turnos" | "ausencias" | "contrato" | "objetivos" | "historial";
+
+/**
+ * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
+ * completo (`documento_html`) NO se pide acá — vive en `/mio/contrato`, su
+ * propia pantalla, con el mismo criterio que la boleta: es un documento que
+ * se imprime, y esta pestaña solo dice que existe.
+ */
+interface MiContrato {
+  tipo: string;
+  fecha_inicio: string;
+  fecha_fin: string | null;
+  fecha_firma: string | null;
+}
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -677,6 +690,35 @@ export default function MioPage() {
         if (!vivo) return;
         const r = data as { aplica?: boolean } | null;
         setVacas(r && r.aplica ? (r as never) : null);
+      });
+    return () => { vivo = false; };
+  }, [supabase, yo?.id]);
+
+  // Su contrato, si tiene uno. `contratos_lectura` (0272) ya deja a cada
+  // persona leer sus propias filas de `contratos_generados` — no hace falta
+  // una función nueva. El desempate copia el de `fn_contrato_firmado_vigente_de`
+  // (0312): mismo criterio que ya usa el resto del sistema para decidir «cuál
+  // es el vigente» entre varios contratos de la misma persona.
+  const [contrato, setContrato] = useState<MiContrato | null>(null);
+  const [contratoCargado, setContratoCargado] = useState(false);
+  useEffect(() => {
+    if (!yo?.id) return;
+    let vivo = true;
+    void supabase
+      .from("contratos_generados")
+      .select("tipo, fecha_inicio, fecha_fin, fecha_firma")
+      .eq("persona_id", yo.id)
+      .is("anulado_at", null)
+      .order("generado_at", { ascending: false })
+      .order("fecha_inicio", { ascending: false })
+      .order("fecha_fin", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!vivo) return;
+        setContrato((data as MiContrato | null) ?? null);
+        setContratoCargado(true);
       });
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
@@ -1260,6 +1302,7 @@ export default function MioPage() {
         <TabBtn valor="dias" activa={tab} onSel={setTab}>Mis días</TabBtn>
         <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
         <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
+        <TabBtn valor="contrato" activa={tab} onSel={setTab}>Contrato</TabBtn>
         <TabBtn valor="objetivos" activa={tab} onSel={setTab}>Objetivos</TabBtn>
         <TabBtn valor="historial" activa={tab} onSel={setTab}>Historial</TabBtn>
       </div>
@@ -1902,6 +1945,40 @@ export default function MioPage() {
             </p>
           </section>
         </>
+      )}
+
+      {/* ── CONTRATO ─────────────────────────────────────────────────────────
+          Solo dice si tiene uno y lleva a verlo. El documento en sí —que se
+          imprime— vive en /mio/contrato, mismo criterio que la boleta. */}
+      {tab === "contrato" && (
+        <section className="rounded-2xl border border-sand p-5 text-sm">
+          <h2 className="mb-1 font-serif text-lg">Tu contrato</h2>
+          {!contratoCargado ? (
+            <p className="text-taupe">Cargando…</p>
+          ) : !contrato ? (
+            <p className="text-taupe">
+              Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa
+              a Desarrollo Organizacional.
+            </p>
+          ) : (
+            <div>
+              <p className="text-taupe">
+                {!contrato.fecha_fin
+                  ? `Desde el ${diaYMes(contrato.fecha_inicio)}, sin fecha de término.`
+                  : `Del ${diaYMes(contrato.fecha_inicio)} al ${diaYMes(contrato.fecha_fin)}.`}{" "}
+                {contrato.fecha_firma
+                  ? `Firmado el ${diaYMes(contrato.fecha_firma)}.`
+                  : "Pendiente de firma."}
+              </p>
+              <Link
+                href="/mio/contrato"
+                className="mt-3 inline-block text-tinta underline underline-offset-2 hover:text-rojo-profundo"
+              >
+                Ver mi contrato →
+              </Link>
+            </div>
+          )}
+        </section>
       )}
 
       {/* ── OBJETIVOS ────────────────────────────────────────────────────────

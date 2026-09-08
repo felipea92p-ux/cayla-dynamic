@@ -4,6 +4,46 @@
 copias con fecha. Lo ya cerrado vive en [`historico.md`](historico.md). Cómo se
 trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
+---
+
+## 2026-09-07 — 25 hallazgos de diseño de la auditoría del 2026-09-06/07, cerrados
+
+Rama `claude/stoic-chandrasekhar-5a16c4`, 4 commits. De los 27 hallazgos de
+categoría "diseño" con severidad alta o media que dejó la Radiografía Dynamic
+(ver la auditoría en el worktree `kaila-dynamic-retail-audit-7d5733`), 25
+quedaron resueltos aquí; los otros 2 eran el mismo bug del mapa de calor de
+Turnos citado dos veces por lectores distintos.
+
+**Lo tocado:** `globals.css` (paleta de impresión desfasada, radio duplicado,
+regla de hover que le ganaba a Boton y alcanzaba al terminal, pizarra/verde
+oscuro medidos mal), `Campo`/`CampoSelect` (etiqueta en mayúsculas → caja
+normal tras comparar a ojo, zoom de iOS, flecha del select con color cocido),
+`Modal` (ancho fijo, título que no se dibujaba), `Insignia` (variante alerta
+bajo 4.5:1, variante `contador` nueva), el mapa de calor de Turnos (colores
+que ignoraban el tema — commit aparte, el primero de la rama), y ocho
+hallazgos sueltos en contratos, equipo, login, correcciones, horarios y el
+terminal de marcaje (borde invisible de las casillas de nombre, grilla
+dimensionada para teléfono, aviso de marcas apartadas ilegible).
+
+Cada número de contraste se midió tal como el componente lo pinta de verdad
+(pill compuesto a su opacidad real, en los dos temas), no contra el color
+plano — siguiendo el mismo método que ya usa `globals.css` para verde/ámbar,
+que varios de estos hallazgos señalaron que no se había aplicado a pizarra,
+rojo ni al verde oscuro. Typecheck atrapó un JSX comment mal ubicado que
+rompía la sintaxis en dos archivos antes de llegar a comitear.
+
+✅ **`personas/[id]/page.tsx:645` — resuelto, era una falsa alarma.** El plan
+de apariencia lo marcaba como "decisión abierta, no resolverla sin preguntar",
+pero esa nota ya estaba vieja: `CLAUDE.md` (commit `06afd11`, 2026-09-05, un
+día antes del plan) ya documenta el `bg-white` fijo de esa tarjeta como parte
+de la excepción de política salarial. Corregida la nota obsoleta del plan.
+
+**Sin tocar hoy, a propósito:** los 3 hallazgos de esfuerzo "día" y el de
+"semana" (el envoltorio de tabla copiado 15 veces, el botón primario copiado
+82 veces en 38 archivos, los 36 diálogos del navegador de Planilla) — se
+solapan con el "Día 2" ya escrito en `plan-apariencia-2026-09-06.md`, y
+migrarlos aquí habría sido reinventar esa secuencia a medio camino.
+
 ## Qué va acá y qué no
 
 Este archivo guarda **solo lo que ninguna herramienta puede responder sola**:
@@ -34,6 +74,88 @@ calculan en el mismo minuto o no se calculan.
 **Regla para quien edite este archivo:** si lo que vas a agregar es un número que
 un comando puede calcular, no va acá — va el comando. Y si es una lista de
 nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
+
+---
+
+## 2026-09-07 — Radiografía Dynamic: primer lote de críticos de seguridad/plata, PEGADO Y VERIFICADO EN PRODUCCIÓN
+
+Sale de la Radiografía Dynamic (92 agentes lectores, 731 hallazgos confirmados,
+38 críticos — [artifact](https://claude.ai/code/artifact/1bd904f7-cff2-4a01-830b-475badb31ab5)).
+Se decidió atender el resto de los críticos de plata/ley/seguridad por lotes
+chicos, cada uno verificado empíricamente antes de escribir el siguiente, en
+vez de una migración gigante de una sola vez.
+
+✅ **Primer lote (2 "minutos" + 5 de Retail, consolidados en 3 causas raíz)
+PEGADO Y VERIFICADO EN PRODUCCIÓN el 2026-09-07.** [PR #238](https://github.com/felipea92p-ux/cayla-dynamic/pull/238),
+fusionado a `main`:
+
+- `fn_cuentas` (`app/api/admin/cuentas/route.ts`): una admin/líder **cesada**
+  conservaba acceso completo a gestión de cuentas — la ruta usa el cliente
+  `service-role`, que se salta RLS y `fn_rol_actual()`. Ahora valida
+  `rol` + `estado === 'activo'` con el cliente normal antes de autorizar.
+- `admin/documentacion`: el desplegable de "a quién imprimir" ofrecía
+  locadores para documentos (movilidad, bonos) que solo debería recibir
+  personal en planilla — riesgo de desnaturalización del contrato. Filtrado
+  a `en_planilla`.
+- **`supabase/migrations/0392`** — `retail.es_lider()`, `retail.es_supervisor()`
+  y `retail.puede_operar_sede()` sin `coalesce` devolvían `NULL` (no `FALSE`)
+  para una persona cesada; como `if not NULL` nunca se dispara en PL/pgSQL,
+  una excolaboradora con sesión de Auth todavía viva podía seguir abriendo
+  caja y vendiendo en **cualquier** sede. `abrir_caja`/`cerrar_caja`/
+  `registrar_venta` ni siquiera llamaban al guardián. `recalcular_stock()`
+  no tenía candado y su `truncate`+`rebuild` borraba `stock_minimo`/
+  `contenedor_id` en silencio. Prueba `311` (11 aserciones pgTAP) en verde
+  en `db-tests`. Verificado contra producción DESPUÉS de pegar: los siete
+  `md5(prosrc)` coinciden exactos con el Postgres local tras el arreglo, y
+  `migraciones_aplicadas` registra `numero=392` a las 2026-09-07 22:14:24 UTC.
+  **Alcance deliberado, no cerrado:** ~8 sitios más de retail con
+  `if not retail.es_lider()` quedan seguros por el `coalesce` sin tocarse
+  (mejora de consistencia aparte), y `fn_sede_actual_persona()` —que no
+  filtra por estado— queda como riesgo residual anotado, no como algo que
+  esta migración debía resolver.
+
+Quedan por atender el resto de los críticos del catálogo priorizado, en
+lotes sucesivos con el mismo protocolo.
+
+⚠️ **[PR #232](https://github.com/felipea92p-ux/cayla-dynamic/pull/232) (los
+25 hallazgos de diseño, del mapa de calor de Turnos a Modal/Insignia) sigue
+ABIERTO, sin fusionar** — pendiente de revisión.
+
+---
+
+## 2026-09-07 — Un practicante puede cobrar movilidad y educación (0397) · PEGADA Y VERIFICADA
+
+Motivado por un caso real: Geison Alcantára —de prácticas, ingresó el 3 de
+septiembre— estaba mal registrado como planilla normal y su boleta le
+descontaba AFP y le acumulaba gratificación/CTS que no le correspondían.
+Se corrigió su `tipo_vinculo` a `practicante` desde `/admin/equipo` (dato, no
+código), y de ahí salió la pregunta: ¿puede CAYLA ofrecerle también movilidad
+y educación? Legalmente sí (Ley 28518 no lo prohíbe) — pero el sistema no se
+las pagaba, porque las dos seguían condicionadas solo a `en_planilla`, que
+para un practicante es `false` por definición.
+
+**La 0397** amplía la condición a `pe.en_planilla or pe.tipo_vinculo =
+'practicante'` en los 7 sitios exactos de `fn_planilla_calcular_nucleo` donde
+se leía `en_planilla` para estos dos conceptos — el mismo patrón quirúrgico
+que la 0322 usó para EsSalud. AFP, CTS, gratificación, bonificación
+extraordinaria y asignación familiar **no se tocan** y siguen en cero para un
+practicante. Sigue siendo una opción: sin tarifa de movilidad cargada para su
+sede o sin una asignación de educación con comprobante, un practicante sigue
+cobrando S/0 de los dos, igual que hoy.
+
+Auditado contra Postgres local dentro de `BEGIN…ROLLBACK` antes de escribir
+([PR #254](https://github.com/felipea92p-ux/cayla-dynamic/pull/254)): monto
+correcto, `total` cuadra con `chk_foto_cuadra`, el periodo cierra por el grupo
+`practicante` (0323), y las pruebas 115/193 (educación/movilidad existentes)
+sin regresión. `db-tests` en verde (3m57s). **Confirmado en producción el
+2026-09-07**: la consulta de comprobación del final de la migración devolvió
+exactamente lo esperado — las dos funciones núcleo creadas, en la lista negra,
+y NO ejecutables directamente por `authenticated`.
+
+**Pendiente que no se arregla solo:** para que esto mueva un sol de verdad hay
+que cargarle a la persona una tarifa de movilidad vigente para su sede (si no
+la tiene) y/o una asignación de educación con comprobante desde
+`/admin/educacion`. Sin eso, nada cambia para nadie.
 
 ---
 
