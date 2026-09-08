@@ -6,23 +6,49 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
-## 2026-09-08 — La 0393 está pegada y no está en `main` · PENDIENTE, DEPENDE DE FUSIONAR UN PR
+## 2026-09-08 — La 0393 no es una huérfana: es un fantasma. Los cuatro huecos, explicados · CERRADO
 
 Medido contra producción el 2026-09-08: `migraciones_aplicadas` llega a la
-**400**, y todo lo que `main` tiene desde la 386 está pegado. La cuenta cuadra
-en esa dirección. En la otra, no:
+**400**, y todo lo que `main` tiene desde la 386 está pegado. **No hay atraso de
+pegado.** En la otra dirección apareció una fila que sobra, y lo que enseñó vale
+más que el hallazgo.
 
 **La 0393 (`cualquiera_guarda_su_propia_firma`) se pegó el 2026-09-07 a las
-15:06 y no está en `main`.** No está en riesgo de perderse —vive en la rama
-`claude/signature-generator-function-bd2127`— así que basta con fusionar ese PR.
-Es una situación mucho menos grave que la de la 0177, la 0243 o la 0381, pero es
-el mismo patrón por tercera vez en tres días.
+15:06 desde una rama que nunca se fusionó.** La primera lectura fue «hay que
+fusionar ese PR». **Es exactamente al revés**, y comprobarlo costó tres consultas:
 
-**Y tres huecos de numeración sin explicar: 383, 389 y 394.** No figuran en
-`scripts/hooks/huecos-conocidos.txt`, así que el hook de numeración va a avisar
-de ellos en cada push hasta que alguien los documente o los reutilice. Un aviso
-que nadie va a atender es el que enseña a ignorar los avisos — es la misma razón
-por la que ese archivo existe.
+- el archivo de esa rama crea `fn_set_mi_firma(p_dataurl text)` — UN argumento;
+- producción tiene `fn_set_mi_firma(p_dataurl, p_tipo, p_estilo)` — TRES, creada
+  por la **0395** y ajustada por la **0398**, las dos en `main` y las dos pegadas.
+
+O sea: el contenido de la 0393 quedó superado por migraciones posteriores que sí
+están guardadas. **No falta nada por rescatar.** Y fusionar aquel PR crearía una
+sobrecarga —los tres argumentos tienen valor por defecto, así que una llamada de
+uno encajaría en las dos firmas— y repetiría el **«function is not unique»** de
+la 0297/0299: el accidente que no falla al pegar la migración, sino al abrir la
+pantalla. Ese PR se cierra sin fusionar.
+
+**LA LECCIÓN, que es lo que hay que recordar de esta entrada.** El detector nuevo
+(PR #250) marcó la fila correctamente, pero su texto decía «commitéala HOY» — la
+instrucción contraria a la correcta. Un detector encuentra la discrepancia; **no
+puede decidir qué significa**, porque hay dos casos que se ven idénticos:
+
+  a) la migración existe y no se guardó → commitearla (0177, 0243, 0381);
+  b) el número se anotó y su contenido quedó superado → NO commitear nada.
+
+Distinguirlos exige mirar si lo que esa migración creaba sigue vigente en
+producción **con la misma firma**. El aviso pasó a decir «revísala», con los dos
+caminos escritos al lado.
+
+**Y el estado ya tenía nombre.** `huecos-conocidos.txt` manda desde su primera
+versión buscar «SOBRA LA FILA» antes de silenciar un hueco, y ese texto **no
+existía en ninguna parte del repo**: el archivo llevaba meses mandando a buscar
+una comprobación que nadie había construido. Ahora el estado se llama así.
+
+**Los cuatro huecos quedan documentados**, con razón verificada uno por uno:
+0383, 0389 y 0394 son renumeraciones limpias que NUNCA llegaron a producción
+(comprobado: no tienen fila en `migraciones_aplicadas`); la 0393 lleva la
+explicación larga de arriba. `numeracion.sh` ya dice «sin novedad».
 
 ## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
 
