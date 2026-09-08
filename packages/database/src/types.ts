@@ -4719,6 +4719,10 @@ export type Database = {
         Args: { p_anio: number | null; p_persona_id: string | null; p_ventana: string | null }
         Returns: number
       }
+      fn_borrar_dni_de: {
+        Args: { p_motivo: string | null; p_persona_id: string | null }
+        Returns: { ruta: string }[]
+      }
       fn_cambiar_regimen_pension: {
         Args: {
           p_desde: string | null

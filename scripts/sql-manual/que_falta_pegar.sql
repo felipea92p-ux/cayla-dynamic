@@ -269,7 +269,9 @@ with repo(numero, nombre, nunca) as (values
     (401, 'cada_quien_sube_su_dni_y_do_lo_aprueba', false),
     (402, 'el_colaborador_confirma_su_firma_en_el_contrato', false),
     (403, 'la_encargada_de_sede_tambien_aprueba_el_perfil', false),
-    (404, 'queda_constancia_de_que_acepto_el_tratamiento', false)
+    (404, 'queda_constancia_de_que_acepto_el_tratamiento', false),
+    (405, 'la_correccion_de_dni_se_queda_en_do', false),
+    (406, 'confirmar_la_firma_dos_veces_no_borra_la_primera', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
