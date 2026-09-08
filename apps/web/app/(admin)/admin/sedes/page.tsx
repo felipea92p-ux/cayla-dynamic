@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
@@ -131,51 +132,47 @@ export default function SedesPage() {
 
   const formulario = (modo: "alta" | "edicion") => (
     <div className="mb-6 grid max-w-2xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
-      <label className="flex flex-col gap-1 text-sm">
-        Código
+      <div>
         {modo === "alta" ? (
           <>
-            <input
+            <Campo
+              etiqueta="Código"
               value={form.codigo}
               onChange={(e) => setForm({ ...form, codigo: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })}
               placeholder="ej. LIMT"
               maxLength={8}
-              className="rounded-lg border px-3 py-2 font-mono uppercase"
+              className="font-mono uppercase"
             />
-            <span className="text-xs text-taupe">Etiqueta corta que verás en tablas (2 a 8 letras/números). No cambia después.</span>
+            <span className="mt-1 block text-xs text-taupe">Etiqueta corta que verás en tablas (2 a 8 letras/números). No cambia después.</span>
           </>
         ) : (
           <>
-            <input value={form.codigo} disabled className="rounded-lg border bg-crema px-3 py-2 font-mono text-taupe" />
-            <span className="text-xs text-taupe">Fijo — cambiar el nombre no cambia el código.</span>
+            <Campo etiqueta="Código" value={form.codigo} disabled className="font-mono text-taupe" />
+            <span className="mt-1 block text-xs text-taupe">Fijo — cambiar el nombre no cambia el código.</span>
           </>
         )}
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Nombre
-        <input
-          value={form.nombre}
-          onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          placeholder="ej. Taller Lima"
-          className="rounded-lg border px-3 py-2"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-        Qué es esta sede
-        <select
+      </div>
+      <Campo
+        etiqueta="Nombre"
+        value={form.nombre}
+        onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+        placeholder="ej. Taller Lima"
+      />
+      <div className="sm:col-span-2">
+        <CampoSelect
+          etiqueta="Qué es esta sede"
           value={form.tipo}
           onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoSede })}
-          className="rounded-lg border bg-crema px-3 py-2"
         >
           {TIPOS.map((t) => (
             <option key={t.valor} value={t.valor}>{t.label} — {t.ayuda}</option>
           ))}
-        </select>
-        <span className="text-xs text-taupe">
+        </CampoSelect>
+        <span className="mt-1 block text-xs text-taupe">
           El reporte de costos separa lo que cuesta administrar de lo que cuesta operar una tienda. Si se
           marcan igual, los dos números se suman como si fueran lo mismo.
         </span>
-      </label>
+      </div>
       <div className="flex items-end gap-3 sm:col-span-2">
         <Boton variante="primario" onClick={guardarSede} disabled={guardando}>
           {guardando ? "Guardando…" : modo === "alta" ? "Agregar sede" : "Guardar cambios"}
@@ -226,7 +223,7 @@ export default function SedesPage() {
                 </TablaEncabezado>
                 <tbody>
                   {sedes.map((s) => (
-                    <tr key={s.codigo} className={`border-t ${s.activa ? "" : "text-taupe"}`}>
+                    <Fila key={s.codigo} className={s.activa ? undefined : "text-taupe"}>
                       <td className="px-4 py-2">{s.nombre}</td>
                       <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
                       <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
@@ -270,7 +267,7 @@ export default function SedesPage() {
                           </div>
                         )}
                       </td>
-                    </tr>
+                    </Fila>
                   ))}
                 </tbody>
               </Tabla>

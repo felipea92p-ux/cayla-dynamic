@@ -39,7 +39,15 @@ import * as Sentry from "@sentry/nextjs";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM = process.env.RESEND_FROM ?? "Dynamic <onboarding@resend.dev>";
+// Sin fallback a propósito (hallazgo 10, auditoría 2026-09-03/04). Con
+// `?? "Dynamic <onboarding@resend.dev>"` — el remitente de PRUEBA de Resend,
+// que solo entrega a la cuenta dueña de la API key — una `RESEND_FROM` que
+// nunca se configuró en Vercel quedaba enmascarada: la ruta igual intentaba
+// el envío y dejaba que el 403 de Resend fuera la única señal, con un texto
+// que no dice que el remitente es el problema. Ahora, si falta, `enviarCorreo`
+// lo rechaza ANTES de llamar a Resend, con un motivo que sí lo dice — y ese
+// texto es justo el que `/admin/bandeja` muestra tras el tercer reintento.
+const RESEND_FROM = process.env.RESEND_FROM;
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +144,7 @@ function componerCorreo(a: AlertaPendiente): { asunto: string; texto: string } {
 
 async function enviarCorreo(destinatarios: string[], asunto: string, texto: string): Promise<{ ok: boolean; error?: string }> {
   if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY no configurada" };
+  if (!RESEND_FROM) return { ok: false, error: "RESEND_FROM no configurada — sin un dominio propio verificado en Resend, el remitente de prueba no entrega a destinatarios reales" };
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

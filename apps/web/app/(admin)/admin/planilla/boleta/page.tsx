@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { BoletaHoja } from "@/components/boleta-hoja";
 import {
   MESES_LARGO,
@@ -149,9 +150,9 @@ function BoletaContenido() {
       <main className="p-6">
         <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
           No se pudo cargar el periodo: {error}{" "}
-          <button onClick={() => void cargar()} className="font-medium underline">
+          <Boton variante="enlace" className="font-medium" onClick={() => void cargar()}>
             Reintentar
-          </button>
+          </Boton>
         </p>
       </main>
     );
@@ -179,12 +180,9 @@ function BoletaContenido() {
         <Link href="/admin/planilla" className="text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Planilla
         </Link>
-        <button
-          onClick={() => window.print()}
-          className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema hover:bg-rojo-profundo"
-        >
+        <Boton variante="primario" onClick={() => window.print()}>
           Imprimir / Guardar como PDF
-        </button>
+        </Boton>
       </div>
 
       {/* ── Boleta ── */}
