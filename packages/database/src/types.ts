@@ -770,6 +770,45 @@ export type Database = {
         }
         Relationships: []
       }
+      consentimientos_datos_personales: {
+        Row: {
+          aceptado_at: string
+          finalidad: string
+          id: string
+          persona_id: string
+          texto: string
+        }
+        Insert: {
+          aceptado_at?: string
+          finalidad: string
+          id?: string
+          persona_id: string
+          texto: string
+        }
+        Update: {
+          aceptado_at?: string
+          finalidad?: string
+          id?: string
+          persona_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consentimientos_datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consentimientos_datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contratos_generados: {
         Row: {
           anulado_at: string | null
@@ -6048,6 +6087,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      fn_registrar_mi_consentimiento: {
+        Args: { p_finalidad: string | null; p_texto: string | null }
+        Returns: undefined
       }
       fn_reglamento_no_acusado: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
