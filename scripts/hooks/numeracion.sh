@@ -96,13 +96,35 @@ done
 # momento de escribirlo está `siguiente-numero.sh`, que sí mira el directorio de
 # trabajo. Y el caso grave (dos archivos con el mismo número acá, que revienta tu
 # propio `db reset`) lo sigue cazando la comprobación 1, commiteados o no.
+#
+# ── POR QUÉ `sed` Y NO `basename` ───────────────────────────────────────────
+#
+# Estas tres líneas decían `| xargs -n1 basename`, que lanza UN PROCESO POR
+# ARCHIVO. Son 621 archivos entre `migrations` y `tests`, y el bucle de abajo
+# los recorre una vez por cada rama remota sin fusionar — hoy 45 de 152. En
+# Linux eso se nota; en Windows, donde crear un proceso cuesta un orden de
+# magnitud más, es la diferencia entre un hook y un castigo.
+#
+# Medido el 2026-09-08 en la máquina de Dany, sobre `origin/main`:
+#
+#     | xargs -n1 basename   39,98 s por rama   →  ~30 min de push
+#     | sed 's|.*/||'         0,14 s por rama   →  ~6 s de push
+#
+# 287 veces, y la salida es IDÉNTICA byte por byte (comprobado con `diff`
+# sobre los 621 nombres, no supuesto). `basename` sobre una lista de rutas sin
+# barra final es exactamente «quitar todo hasta la última barra», que es lo que
+# hace ese `sed` — el mismo idioma que `que-falta-pegar.sh` ya usaba al lado.
+#
+# Importa más de lo que parece: un push de media hora enseña a usar
+# `--no-verify`, y entonces el hook deja de existir el día que de verdad haga
+# falta. Un freno lento se desactiva solo.
 NUEVOS=""
 if git rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
   EN_MAIN=$(git ls-tree -r --name-only origin/main -- supabase/migrations supabase/tests 2>/dev/null \
-            | xargs -n1 basename 2>/dev/null | sort -u || true)
+            | sed 's|.*/||' | sort -u || true)
   AQUI=$(git diff --name-only --diff-filter=A --no-renames origin/main..HEAD \
            -- supabase/migrations supabase/tests 2>/dev/null \
-         | xargs -n1 basename 2>/dev/null | grep -E '^[0-9]+_' | sort -u || true)
+         | sed 's|.*/||' | grep -E '^[0-9]+_' | sort -u || true)
   NUEVOS=$(comm -23 <(echo "$AQUI") <(echo "$EN_MAIN") || true)
 fi
 
@@ -115,7 +137,7 @@ if [ -n "$NUEVOS" ]; then
     echo "$MERGED" | grep -qx "$ref" && continue
 
     AJENOS=$(git ls-tree -r --name-only "$ref" -- supabase/migrations supabase/tests 2>/dev/null \
-             | xargs -n1 basename 2>/dev/null | grep -E '^[0-9]+_' || true)
+             | sed 's|.*/||' | grep -E '^[0-9]+_' || true)
     [ -z "$AJENOS" ] && continue
 
     while read -r mio; do
