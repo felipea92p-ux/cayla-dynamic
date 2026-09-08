@@ -13,16 +13,13 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { useToast } from "@/components/toast";
+import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
 } from "@/lib/foto-perfil";
-import {
-  ROLES_CON_PANEL, TZ_LIMA, hoyLima,
-  ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS,
-  GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION,
-  VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE,
-} from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
@@ -94,6 +91,11 @@ import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 interface Yo {
   id: string;
   nombre: string;
+  /** El nombre tal como aparece en el DNI (`datos_personales.nombre_dni`),
+   *  con reserva a `nombre` si todavía no cargó su ficha. Es el que se usa
+   *  para firmar documentos — nunca `nombre` a secas, que es de uso diario
+   *  y puede no coincidir con el oficial (ver FirmaEditor). */
+  nombreOficial: string;
   nombres: string;
   apellidos: string;
   fechaIngreso: string | null;
@@ -181,30 +183,8 @@ interface SolicitudVacacion {
   respuesta: string | null;
 }
 
-/** Una fila del catálogo de campos de perfil (migración 0399) — qué se puede
- *  pedir cambiar y si exige documento. Se lee de la tabla, nunca a mano
- *  (regla del repo: nada de listas escritas fuera de donde vive la verdad). */
-interface CatalogoCampoPerfil {
-  campo: string;
-  etiqueta: string;
-  requiere_documento: boolean;
-  documento_sugerido: string | null;
-  columnas: string[];
-}
-
-/** Una propuesta suya de cambio de perfil. La escribe `fn_crear_solicitud_perfil`. */
-interface SolicitudPerfil {
-  id: string;
-  campo: string;
-  valor_anterior: Record<string, unknown>;
-  valor_propuesto: Record<string, unknown>;
-  estado: "pendiente" | "aprobado" | "rechazado" | "reemplazada";
-  creada_at: string;
-  motivo: string | null;
-}
-
 /** Las seis pestañas del detalle. Ver el comentario de `tab`. */
-type Tab = "dias" | "turnos" | "ausencias" | "contrato" | "objetivos" | "historial";
+type Tab = "dias" | "turnos" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -409,6 +389,7 @@ function explicaDia(d: Dia): string {
 
 export default function MioPage() {
   const supabase = useMemo(() => createAdminSupabaseClient(), []);
+  const { avisar } = useToast();
   const router = useRouter();
   const [sesion, setSesion] = useState<boolean | null>(null);
   const [yo, setYo] = useState<Yo | null>(null);
@@ -461,14 +442,6 @@ export default function MioPage() {
   const [comentarioSolicitud, setComentarioSolicitud] = useState("");
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const [avisoSolicitud, setAvisoSolicitud] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
-  // ── Solicitudes de cambio de perfil (0399) ────────────────────────────────
-  const [catalogoPerfil, setCatalogoPerfil] = useState<CatalogoCampoPerfil[]>([]);
-  const [misSolicitudesPerfil, setMisSolicitudesPerfil] = useState<SolicitudPerfil[]>([]);
-  const [campoPerfil, setCampoPerfil] = useState("celular");
-  const [formPerfil, setFormPerfil] = useState<Record<string, string>>({});
-  const [archivosPerfil, setArchivosPerfil] = useState<File[]>([]);
-  const [enviandoPerfil, setEnviandoPerfil] = useState(false);
-  const [avisoPerfil, setAvisoPerfil] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [perdonadas, setPerdonadas] = useState<Set<string>>(new Set());
   const [tramos, setTramos] = useState<HorarioTramo[]>([]);
@@ -572,9 +545,15 @@ export default function MioPage() {
         setAviso("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
         return;
       }
+      const nombre = `${p.nombres as string} ${p.apellidos as string}`;
+      // Mismo criterio que /mio/contrato: el nombre que firma es el del DNI,
+      // no el de uso diario — con reserva por si todavía no cargó su ficha.
+      const { data: ficha } = await supabase
+        .from("datos_personales").select("nombre_dni").eq("persona_id", p.id as string).maybeSingle();
       setYo({
         id: p.id as string,
-        nombre: `${p.nombres as string} ${p.apellidos as string}`,
+        nombre,
+        nombreOficial: (ficha?.nombre_dni as string | null) || nombre,
         nombres: p.nombres as string,
         apellidos: p.apellidos as string,
         fechaIngreso: (p.fecha_ingreso as string | null) ?? null,
@@ -786,86 +765,6 @@ export default function MioPage() {
     setEnviandoSolicitud(false);
     if (error) { setAvisoSolicitud({ tipo: "error", texto: error.message }); return; }
     await cargarSolicitudesVacas();
-  }
-
-  // ── Solicitudes de cambio de perfil (0399) ─────────────────────────────────
-  // El catálogo se lee una sola vez: no depende de quién es, solo de qué campos
-  // existen (regla del repo — nunca escribir a mano la lista de 11 campos).
-  useEffect(() => {
-    let vivo = true;
-    supabase.from("catalogo_campos_perfil")
-      .select("campo, etiqueta, requiere_documento, documento_sugerido, columnas")
-      .order("etiqueta")
-      .then(({ data }) => { if (vivo) setCatalogoPerfil((data as CatalogoCampoPerfil[]) ?? []); });
-    return () => { vivo = false; };
-  }, [supabase]);
-
-  const cargarSolicitudesPerfil = useCallback(async () => {
-    if (!yo?.id) { setMisSolicitudesPerfil([]); return; }
-    const { data } = await supabase
-      .from("solicitudes_cambio_perfil")
-      .select("id, campo, valor_anterior, valor_propuesto, estado, creada_at, motivo")
-      .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
-      .order("creada_at", { ascending: false });
-    setMisSolicitudesPerfil((data as SolicitudPerfil[]) ?? []);
-  }, [supabase, yo]);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarSolicitudesPerfil(); }, [cargarSolicitudesPerfil]);
-
-  const campoActualPerfil = catalogoPerfil.find((c) => c.campo === campoPerfil) ?? null;
-
-  /** Hay una pendiente sobre este mismo campo — salvo familiar_nuevo, que
-   *  admite varias en paralelo (la base lo permite; acá solo se informa). */
-  const yaHayPendientePerfil = campoPerfil !== "familiar_nuevo"
-    && misSolicitudesPerfil.some((s) => s.campo === campoPerfil && s.estado === "pendiente");
-
-  /** Construye el jsonb que espera fn_crear_solicitud_perfil a partir de las
-   *  columnas que declara el catálogo para el campo elegido. */
-  function valorPropuestoPerfil(): Record<string, string | boolean> {
-    if (!campoActualPerfil) return {};
-    const v: Record<string, string | boolean> = {};
-    for (const col of campoActualPerfil.columnas) {
-      if (col === "hijos_menores" || col === "discapacidad") {
-        v[col] = formPerfil[col] === "true";
-      } else if (formPerfil[col]) {
-        v[col] = formPerfil[col];
-      }
-    }
-    // correccion_identidad admite un subconjunto — nunca se manda una clave sin
-    // valor. Los demás campos ya vienen completos por el `required` del form.
-    return v;
-  }
-
-  async function proponerCambioPerfil(e: FormEvent) {
-    e.preventDefault();
-    if (!yo?.id || !campoActualPerfil) return;
-    setAvisoPerfil(null);
-    setEnviandoPerfil(true);
-    try {
-      const rutas: string[] = [];
-      for (const archivo of archivosPerfil) {
-        const ext = archivo.name.split(".").pop()?.toLowerCase() || "jpg";
-        const ruta = `solicitud/${yo.id}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
-        const fallo = await subirArchivoConProgreso(supabase, "solicitudes-perfil", ruta, archivo, () => {});
-        if (fallo) { setAvisoPerfil({ tipo: "error", texto: `No se pudo subir «${archivo.name}»: ${fallo}` }); return; }
-        rutas.push(ruta);
-      }
-
-      const { error } = await supabase.rpc("fn_crear_solicitud_perfil", {
-        p_campo: campoPerfil,
-        p_valor_propuesto: valorPropuestoPerfil(),
-        p_rutas_adjuntas: rutas,
-      });
-      if (error) { setAvisoPerfil({ tipo: "error", texto: error.message }); return; }
-
-      setAvisoPerfil({ tipo: "ok", texto: "Pedido. Te avisamos cuando Desarrollo Organizacional responda." });
-      setFormPerfil({});
-      setArchivosPerfil([]);
-      await cargarSolicitudesPerfil();
-    } finally {
-      setEnviandoPerfil(false);
-    }
   }
 
   /** El periodo de pago en curso, para el botón. Del 29 al 28 — leído, no calculado. */
@@ -1177,6 +1076,12 @@ export default function MioPage() {
                 Volver al panel
               </Link>
             )}
+            {yo && (
+              <Link href="/mio/editar"
+                className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                Editar datos
+              </Link>
+            )}
             <Boton variante="sutil" tamano="sm"
               onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}>
               Salir
@@ -1335,6 +1240,7 @@ export default function MioPage() {
         <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
         <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
         <TabBtn valor="contrato" activa={tab} onSel={setTab}>Contrato</TabBtn>
+        <TabBtn valor="firma" activa={tab} onSel={setTab}>Firma</TabBtn>
         <TabBtn valor="objetivos" activa={tab} onSel={setTab}>Objetivos</TabBtn>
         <TabBtn valor="historial" activa={tab} onSel={setTab}>Historial</TabBtn>
       </div>
@@ -1708,235 +1614,6 @@ export default function MioPage() {
             </section>
           )}
 
-          {/* ── Cambiar mis datos (0399) ──────────────────────────────────────
-              El valor real NO cambia acá: se propone, y Desarrollo Organizacional
-              lo aprueba o lo rechaza. El botón queda deshabilitado hasta adjuntar
-              un documento cuando el campo lo exige — el servidor lo vuelve a
-              exigir igual, esto es solo para no dejar enviar algo que va a
-              rebotar. */}
-          {catalogoPerfil.length > 0 && (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm">
-              <h2 className="mb-3 font-serif text-lg">Cambiar mis datos</h2>
-              <p className="mb-3 text-taupe">
-                Elige qué quieres cambiar. Desarrollo Organizacional lo revisa antes de que se aplique.
-              </p>
-              <form onSubmit={(e) => void proponerCambioPerfil(e)} className="flex flex-col gap-3">
-                <label className="flex flex-col gap-1 text-xs text-taupe">Qué quieres cambiar
-                  <select value={campoPerfil}
-                    onChange={(e) => { setCampoPerfil(e.target.value); setFormPerfil({}); setArchivosPerfil([]); }}
-                    className="max-w-xs rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    {catalogoPerfil.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
-                  </select>
-                </label>
-
-                <div className="flex flex-wrap items-end gap-3">
-                  {campoPerfil === "celular" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo celular
-                      <input type="tel" required value={formPerfil.celular ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, celular: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  )}
-                  {campoPerfil === "direccion" && (
-                    <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs text-taupe">Nueva dirección
-                      <input type="text" required value={formPerfil.direccion ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, direccion: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  )}
-                  {campoPerfil === "contacto_emergencia" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nombre
-                      <input type="text" required value={formPerfil.emergencia_nombre ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_nombre: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                      <input type="text" required value={formPerfil.emergencia_vinculo ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
-                        placeholder="madre, esposo…"
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Teléfono
-                      <input type="tel" required value={formPerfil.emergencia_telefono ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_telefono: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  </>)}
-                  {campoPerfil === "estado_civil" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo estado civil
-                      <select required value={formPerfil.estado_civil ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, estado_civil: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        {ESTADOS_CIVILES.map((ec) => <option key={ec} value={ec}>{ESTADO_CIVIL_LABELS[ec]}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {campoPerfil === "hijos_menores" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes hijos menores a cargo?
-                      <select required value={formPerfil.hijos_menores ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, hijos_menores: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        <option value="true">Sí</option>
-                        <option value="false">No</option>
-                      </select>
-                    </label>
-                  )}
-                  {campoPerfil === "grado_instruccion" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo grado de instrucción
-                      <select required value={formPerfil.grado_instruccion ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, grado_instruccion: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        {GRADOS_INSTRUCCION.map((g) => <option key={g} value={g}>{GRADO_INSTRUCCION_LABELS[g]}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {campoPerfil === "discapacidad" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes una discapacidad?
-                      <select required value={formPerfil.discapacidad ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        <option value="true">Sí</option>
-                        <option value="false">No</option>
-                      </select>
-                    </label>
-                    {formPerfil.discapacidad === "true" && (
-                      <label className="flex flex-col gap-1 text-xs text-taupe">Código CONADIS
-                        <input type="text" required value={formPerfil.discapacidad_conadis ?? ""}
-                          onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad_conadis: e.target.value }))}
-                          className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                      </label>
-                    )}
-                  </>)}
-                  {campoPerfil === "cuenta_bancaria" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Banco
-                      <input type="text" required value={formPerfil.entidad_bancaria ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, entidad_bancaria: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Número de cuenta
-                      <input type="text" required value={formPerfil.numero_cuenta ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, numero_cuenta: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  </>)}
-                  {campoPerfil === "cuspp" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo CUSPP
-                      <input type="text" required value={formPerfil.cuspp ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, cuspp: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  )}
-                  {campoPerfil === "correccion_identidad" && (<>
-                    <p className="w-full text-xs text-taupe">
-                      Es una corrección de un dato mal capturado, no una actualización — completa solo lo que está mal.
-                    </p>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">DNI correcto
-                      <input type="text" value={formPerfil.documento ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, documento: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nombre completo correcto
-                      <input type="text" value={formPerfil.nombre_dni ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, nombre_dni: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Fecha de nacimiento correcta
-                      <input type="date" value={formPerfil.fecha_nacimiento ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Género correcto
-                      <select value={formPerfil.genero ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, genero: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="">— sin corregir —</option>
-                        {GENEROS.map((g) => <option key={g} value={g}>{GENERO_LABELS[g]}</option>)}
-                      </select>
-                    </label>
-                  </>)}
-                  {campoPerfil === "familiar_nuevo" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nombres
-                      <input type="text" required value={formPerfil.nombres ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, nombres: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Apellidos
-                      <input type="text" required value={formPerfil.apellidos ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, apellidos: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                      <select required value={formPerfil.vinculo ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, vinculo: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        {VINCULOS_DERECHOHABIENTE.map((v) => <option key={v} value={v}>{VINCULO_DERECHOHABIENTE_LABELS[v]}</option>)}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">
-                      Fecha de nacimiento{formPerfil.vinculo === "hijo" ? "" : " (si aplica)"}
-                      <input type="date" required={formPerfil.vinculo === "hijo"} value={formPerfil.fecha_nacimiento ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  </>)}
-                </div>
-
-                {campoActualPerfil?.requiere_documento && (
-                  <label className="flex flex-col gap-1 text-xs text-taupe">
-                    Documento de sustento{campoActualPerfil.documento_sugerido ? ` (${campoActualPerfil.documento_sugerido})` : ""}
-                    <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
-                      onChange={(e) => setArchivosPerfil(Array.from(e.target.files ?? []))}
-                      className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                  </label>
-                )}
-
-                {yaHayPendientePerfil && (
-                  <p className="text-xs text-ambar">
-                    Ya tienes una solicitud pendiente sobre este campo — enviar otra reemplaza a esa.
-                  </p>
-                )}
-
-                <button type="submit" disabled={
-                  enviandoPerfil || (campoActualPerfil?.requiere_documento && archivosPerfil.length === 0)
-                } className="w-fit rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                  {enviandoPerfil ? "Enviando…" : "Pedir el cambio"}
-                </button>
-              </form>
-              {avisoPerfil && (
-                <p className={`mt-2 text-xs ${avisoPerfil.tipo === "ok" ? "text-verde" : "text-rojo"}`}>
-                  {avisoPerfil.texto}
-                </p>
-              )}
-
-              {misSolicitudesPerfil.length > 0 && (
-                <ul className="mt-4 space-y-2 border-t border-sand pt-3 text-xs">
-                  {misSolicitudesPerfil.map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span>
-                        <strong>{catalogoPerfil.find((c) => c.campo === s.campo)?.etiqueta ?? s.campo}</strong>
-                        {" · "}
-                        <span className={
-                          s.estado === "aprobado" ? "text-verde"
-                          : s.estado === "rechazado" ? "text-rojo"
-                          : s.estado === "reemplazada" ? "text-taupe"
-                          : "text-pizarra"
-                        }>
-                          {s.estado === "pendiente" ? "por resolver" : s.estado === "reemplazada" ? "reemplazada por otra" : s.estado}
-                        </span>
-                        {s.motivo && <span className="text-taupe"> — «{s.motivo}»</span>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
           {/* ── Sus ausencias ────────────────────────────────────────────────
               «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
               que hoy se responde preguntando. Y el aviso del documento que falta la
@@ -2007,6 +1684,30 @@ export default function MioPage() {
                 Ver mi contrato →
               </Link>
             </div>
+          )}
+        </section>
+      )}
+
+      {/* ── FIRMA ────────────────────────────────────────────────────────────
+          Mismo componente que usa Felipe en su ficha de Equipo (FirmaEditor:
+          subir imagen, dibujar o escribir con el nombre oficial bloqueado) —
+          desde la 0398 cualquier persona puede generar y guardar la suya, no
+          solo admin/líder. Antes esto solo aparecía dentro de /mio/contrato,
+          y solo si ya había un contrato cargado: quien todavía no tenía uno
+          no encontraba dónde configurarla. Acá se puede configurar con
+          anticipación — en cuanto DO genere el contrato, la firma ya está
+          lista sin que haga falta volver a hacer nada. */}
+      {tab === "firma" && (
+        <section className="rounded-2xl border border-sand p-5">
+          <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
+          <p className="mb-3 text-sm text-taupe">
+            Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
+            empresa (memos, política salarial), es la misma firma la que se usa ahí.
+          </p>
+          {yo ? (
+            <FirmaEditor supabase={supabase} nombreOficial={yo.nombreOficial} avisar={avisar} />
+          ) : (
+            <p className="text-sm text-taupe">Cargando…</p>
           )}
         </section>
       )}

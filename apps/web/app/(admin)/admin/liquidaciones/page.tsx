@@ -8,7 +8,7 @@ import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { formatSoles } from "@/lib/rangos";
-import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { EMPRESA, hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -88,6 +88,39 @@ type Detalle = Record<string, unknown> & {
   cts_trunca?: Record<string, unknown>;
 };
 
+// Lo que devuelve fn_papeles_cese (0400): identidad y tiempo de servicio para
+// el certificado de trabajo y la constancia de cese. El motivo de cese viaja
+// acá porque le sirve a quien genera el papel en pantalla — pero ningún
+// componente de impresión lo muestra: no es lo que corresponde en ninguno de
+// los dos documentos.
+interface PapelesCese {
+  nombre_completo: string;
+  documento: string | null;
+  genero: "masculino" | "femenino" | null;
+  cargo: string | null;
+  sede: string | null;
+  fecha_ingreso: string;
+  fecha_cese: string;
+  motivo_cese: string | null;
+  tiempo_servicio_anios: number;
+  tiempo_servicio_meses: number;
+  tiempo_servicio_dias: number;
+}
+
+function tiempoDeServicio(p: PapelesCese): string {
+  const partes: string[] = [];
+  if (p.tiempo_servicio_anios > 0) {
+    partes.push(`${p.tiempo_servicio_anios} año${p.tiempo_servicio_anios === 1 ? "" : "s"}`);
+  }
+  if (p.tiempo_servicio_meses > 0) {
+    partes.push(`${p.tiempo_servicio_meses} mes${p.tiempo_servicio_meses === 1 ? "" : "es"}`);
+  }
+  if (p.tiempo_servicio_dias > 0 || partes.length === 0) {
+    partes.push(`${p.tiempo_servicio_dias} día${p.tiempo_servicio_dias === 1 ? "" : "s"}`);
+  }
+  return partes.join(" y ");
+}
+
 const n = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0) || 0);
 const s = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
@@ -120,6 +153,15 @@ export default function LiquidacionesPage() {
   >(null);
   const [anularAccion, setAnularAccion] = useState<{ personaId: string; nombre: string } | null>(null);
   const [motivoAnular, setMotivoAnular] = useState("");
+
+  // ── Papeles de salida: certificado de trabajo y constancia de cese ────────
+  // Se cargan junto con el desglose de la liquidación, no con un clic aparte:
+  // los tres son "los papeles que le corresponden a quien cesó" y hoy ya se
+  // buscan juntos en Liquidaciones.
+  const [papelesCese, setPapelesCese] = useState<PapelesCese | null>(null);
+  const [apreciacion, setApreciacion] = useState("");
+  const [docAImprimir, setDocAImprimir] =
+    useState<"liquidacion" | "certificado" | "constancia">("liquidacion");
 
   const puede = puedeVerPlanilla(rol);
 
@@ -155,9 +197,10 @@ export default function LiquidacionesPage() {
   }, [supabase]);
 
   async function cargarDetalle(personaId: string) {
-    const [liq, dif] = await Promise.all([
+    const [liq, dif, papeles] = await Promise.all([
       supabase.rpc("fn_liquidacion", { p_persona_id: personaId }),
       supabase.rpc("fn_liquidacion_diferencias", { p_persona_id: personaId }),
+      supabase.rpc("fn_papeles_cese", { p_persona_id: personaId }),
     ]);
     if (liq.error) { avisar("error", mensajeDeError(liq.error)); return; }
     setDetalle(liq.data as Detalle);
@@ -168,12 +211,29 @@ export default function LiquidacionesPage() {
     // Quien está por apretar «Marcar como pagada» necesita saber que esto no
     // se comprobó, no ver un desglose que parece cuadrado por accidente.
     setDiferenciasError(dif.error ? mensajeDeError(dif.error) : null);
+    // Sin bloquear la pantalla si esto falla: los papeles de salida son un
+    // extra sobre la liquidación, no una condición para verla. Si falla, los
+    // dos botones nuevos simplemente no aparecen (quedan detrás de `papelesCese`).
+    setPapelesCese(papeles.error ? null : (papeles.data as unknown as PapelesCese));
   }
 
   async function abrir(personaId: string) {
-    if (abierta === personaId) { setAbierta(null); setDetalle(null); setDiferencias([]); setDiferenciasError(null); return; }
-    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setNota("");
+    if (abierta === personaId) {
+      setAbierta(null); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
+      return;
+    }
+    setAbierta(personaId); setDetalle(null); setDiferencias([]); setDiferenciasError(null); setPapelesCese(null);
+    setNota(""); setApreciacion(""); setDocAImprimir("liquidacion");
     await cargarDetalle(personaId);
+  }
+
+  // Un solo botón de impresión no alcanza cuando hay tres papeles candidatos:
+  // cada `Hoja*` solo se muestra al imprimir si es EL elegido, así que hay que
+  // elegirlo antes de llamar a `window.print()` y darle un instante a React
+  // para que el DOM cambie antes de que el navegador arme la vista previa.
+  function imprimir(doc: "liquidacion" | "certificado" | "constancia") {
+    setDocAImprimir(doc);
+    setTimeout(() => window.print(), 30);
   }
 
   // Marcar una liquidación como pagada CONGELA una cifra que se le entrega a
@@ -305,6 +365,8 @@ export default function LiquidacionesPage() {
             filas={enPlazo} abierta={abierta} onAbrir={abrir}
             detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
             ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} urgente
+            papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
+            onImprimir={imprimir}
           />
 
           {vencidas.length > 0 && (
@@ -313,6 +375,8 @@ export default function LiquidacionesPage() {
               vacio="" filas={vencidas} abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
               ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma} urgente
+              papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
+              onImprimir={imprimir}
             />
           )}
 
@@ -322,12 +386,20 @@ export default function LiquidacionesPage() {
               vacio="" filas={pagadas} abierta={abierta} onAbrir={abrir}
               detalle={detalle} diferencias={diferencias} diferenciasError={diferenciasError} nota={nota} setNota={setNota}
               ocupado={ocupado} onPagar={abrirPagar} onAnular={abrirAnular} miFirma={miFirma}
+              papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
+              onImprimir={imprimir}
             />
           )}
         </div>
 
         {/* ── La hoja que se imprime y se firma ──────────────────────────── */}
-        {detalle && <Hoja d={detalle} miFirma={miFirma} />}
+        {detalle && docAImprimir === "liquidacion" && <Hoja d={detalle} miFirma={miFirma} />}
+        {papelesCese && docAImprimir === "certificado" && (
+          <HojaCertificado p={papelesCese} apreciacion={apreciacion} miFirma={miFirma} />
+        )}
+        {papelesCese && docAImprimir === "constancia" && (
+          <HojaConstancia p={papelesCese} detalle={detalle} miFirma={miFirma} />
+        )}
       </main>
 
       {/* Modal: congelar (o volver a congelar) la liquidación. Reemplaza el
@@ -422,6 +494,7 @@ export default function LiquidacionesPage() {
 
 function Bloque({
   titulo, vacio, filas, abierta, onAbrir, detalle, diferencias, diferenciasError, nota, setNota, ocupado, onPagar, onAnular, miFirma, urgente,
+  papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
   titulo: string; vacio: string; filas: Pendiente[];
   abierta: string | null; onAbrir: (id: string) => void;
@@ -431,6 +504,8 @@ function Bloque({
   onPagar: (id: string, nombre: string, total: number, yaPagada: boolean) => void;
   onAnular: (id: string, nombre: string) => void;
   miFirma: string | null; urgente?: boolean;
+  papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
+  onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   return (
     <div className="mb-4 overflow-hidden rounded-2xl border border-sand bg-papel">
@@ -487,6 +562,8 @@ function Bloque({
                   // HOY" mostrando un número de otra frescura.
                   onPagar={() => onPagar(f.persona_id, f.persona, n(detalle.total), f.pagada)}
                   onAnular={() => onAnular(f.persona_id, f.persona)}
+                  papelesCese={papelesCese} apreciacion={apreciacion} setApreciacion={setApreciacion}
+                  onImprimir={onImprimir}
                 />
               )}
             </li>
@@ -544,11 +621,14 @@ function Linea({ etiqueta, jsonb }: { etiqueta: string; jsonb: Record<string, un
 
 function Desglose({
   d, diferencias, diferenciasError, pagada, nota, setNota, ocupado, onPagar, onAnular, miFirma,
+  papelesCese, apreciacion, setApreciacion, onImprimir,
 }: {
   d: Detalle; diferencias: Diferencia[]; diferenciasError: string | null; pagada: boolean;
   nota: string; setNota: (v: string) => void; ocupado: boolean;
   onPagar: () => void; onAnular: () => void;
   miFirma: string | null;
+  papelesCese: PapelesCese | null; apreciacion: string; setApreciacion: (v: string) => void;
+  onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   return (
     <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
@@ -612,13 +692,9 @@ function Desglose({
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Boton variante="secundario" tamano="sm" onClick={() => window.print()}>
+        <Boton variante="secundario" tamano="sm" onClick={() => onImprimir("liquidacion")}>
           Imprimir hoja para firmar
         </Boton>
-        {/* La nota y el botón de congelar sirven en los DOS estados. Antes solo
-            se dibujaban con `!pagada`, así que el texto de abajo prometía un
-            botón para «volver a marcarla» que no existía: la única frase de la
-            pantalla que decía cómo deshacer algo apuntaba a un sitio vacío. */}
         {/* Sin "text-xs" ni "py-1" a propósito: cx() solo fusiona relleno,
             radio y color, no tamaño de letra — pelear el "text-base sm:text-sm"
             propio de Campo desde acá no tiene ganador garantizado. El tamaño
@@ -630,24 +706,56 @@ function Desglose({
           placeholder="ej. transferencia BCP"
           className="w-48"
         />
-        <Boton variante="primario" tamano="sm" onClick={onPagar} disabled={ocupado}>
+        <Boton variante="primario" tamano="sm" onClick={onPagar} disabled={ocupado} cargando={ocupado}>
           {pagada ? "Volver a marcarla como pagada" : "Marcar como pagada"}
         </Boton>
-        {pagada && (
-          <>
-            {/* Deshacer. La base sabe hacerlo desde la 0251 y ninguna pantalla se
-                lo pedía. Va en rojo y separado del de congelar porque son cosas
-                distintas: uno recalcula, el otro retira la cifra de la cuenta. */}
-            <Boton variante="peligro" tamano="sm" onClick={onAnular} disabled={ocupado}>
-              Anular — se marcó por error
-            </Boton>
-            <span className="flex items-center gap-2 text-xs text-taupe">
-              {miFirma && <img src={miFirma} alt="Firma" className="h-6 w-auto" />}
-              Ya congelada. Volver a marcarla guarda una versión nueva; la anterior queda como histórico.
-            </span>
-          </>
-        )}
       </div>
+
+      {/* ── Papeles de salida ─────────────────────────────────────────────
+          Van en su propia fila, separados de "marcar pagada/anular": esos
+          mueven dinero, estos entregan un documento. El Reglamento Interno
+          (num. 59.6) los junta con la liquidación en el mismo plazo legal —
+          por eso viven en esta pantalla y no en otra — pero son una acción de
+          naturaleza distinta y mezclarlos en una sola fila de botones repite
+          el mismo error de sobrecarga visual que ya se corrigió hoy en
+          Contratos. */}
+      <div className="mt-3 border-t border-sand pt-3">
+        <p className="mb-2 text-xs font-medium text-taupe">Papeles de salida</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Boton variante="secundario" tamano="sm" onClick={() => onImprimir("certificado")} disabled={!papelesCese}>
+            Certificado de trabajo
+          </Boton>
+          <Boton variante="secundario" tamano="sm" onClick={() => onImprimir("constancia")} disabled={!papelesCese}>
+            Constancia de cese
+          </Boton>
+          <Campo
+            etiqueta="Apreciación (opcional)"
+            value={apreciacion}
+            onChange={(e) => setApreciacion(e.target.value)}
+            placeholder="de conducta o rendimiento — va en el certificado"
+            className="min-w-[22rem] flex-1"
+          />
+        </div>
+      </div>
+
+      {/* La nota y el botón de congelar sirven en los DOS estados. Antes solo
+          se dibujaban con `!pagada`, así que el texto de abajo prometía un
+          botón para «volver a marcarla» que no existía: la única frase de la
+          pantalla que decía cómo deshacer algo apuntaba a un sitio vacío. */}
+      {pagada && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sand pt-3">
+          {/* Deshacer. La base sabe hacerlo desde la 0251 y ninguna pantalla se
+              lo pedía. Va en rojo y separado del de congelar porque son cosas
+              distintas: uno recalcula, el otro retira la cifra de la cuenta. */}
+          <Boton variante="peligro" tamano="sm" onClick={onAnular} disabled={ocupado}>
+            Anular — se marcó por error
+          </Boton>
+          <span className="flex items-center gap-2 text-xs text-taupe">
+            {miFirma && <img src={miFirma} alt="Firma" className="h-6 w-auto" />}
+            Ya congelada. Volver a marcarla guarda una versión nueva; la anterior queda como histórico.
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -705,6 +813,124 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
           <div className="mt-1">Fecha: {fechaLarga(hoy)}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── El certificado de trabajo y la constancia de cese ───────────────────────
+//
+// Los dos comparten forma —identidad, EMPRESA, firma solo de CAYLA— pero no
+// contenido: el certificado prueba QUÉ HIZO (cargo, tiempo de servicio, y a
+// pedido, una apreciación); la constancia prueba QUE EL VÍNCULO TERMINÓ, que
+// es lo único que un banco necesita para soltar la CTS. Ninguno de los dos
+// menciona el motivo del cese — no es su función, y decirlo por escrito en el
+// papel que la persona lleva a su próximo trabajo sería exactamente lo que
+// estos documentos existen para evitar.
+
+function Identidad({ p }: { p: PapelesCese }) {
+  const identificadoTexto = p.genero === "masculino" ? "identificado" : "identificada";
+  return (
+    <>
+      <strong>{p.nombre_completo}</strong>
+      {p.documento && <>, {identificadoTexto} con DNI N.° {p.documento},</>}
+    </>
+  );
+}
+
+function HojaCertificado({
+  p, apreciacion, miFirma,
+}: { p: PapelesCese; apreciacion: string; miFirma: string | null }) {
+  const hoy = hoyLima();
+  return (
+    <div className="hidden print:block">
+      <h1 className="text-center font-serif text-xl uppercase">Certificado de trabajo</h1>
+
+      <p className="mt-6 text-sm leading-relaxed">
+        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}, CERTIFICA
+        que <Identidad p={p} /> prestó servicios en nuestra empresa desde el{" "}
+        {fechaLarga(p.fecha_ingreso)} hasta el {fechaLarga(p.fecha_cese)}, desempeñando el cargo de{" "}
+        <strong>{p.cargo ?? "—"}</strong>
+        {p.sede && <> en la sede {p.sede}</>}, con un tiempo de servicios de{" "}
+        <strong>{tiempoDeServicio(p)}</strong>.
+      </p>
+
+      {apreciacion.trim() !== "" && (
+        <p className="mt-4 text-sm leading-relaxed">
+          A solicitud de la persona interesada, se deja constancia de lo siguiente respecto de su
+          conducta y rendimiento durante su vínculo laboral: «{apreciacion.trim()}»
+        </p>
+      )}
+
+      <p className="mt-4 text-sm leading-relaxed">
+        Se expide el presente certificado a solicitud de la parte interesada, para los fines que
+        estime convenientes.
+      </p>
+
+      <p className="mt-8 text-xs">
+        Trujillo, {fechaLarga(hoy)}.
+      </p>
+
+      <div className="mt-12 flex justify-end text-xs">
+        <div>
+          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
+          <div className="w-56 border-t border-black pt-1">Por {EMPRESA.nombre}</div>
+        </div>
+      </div>
+
+      <p className="mt-8 text-[10px] text-taupe">
+        Conforme al numeral 59.6 a) del Reglamento Interno de Trabajo y a la Tercera Disposición
+        Complementaria, Transitoria, Derogatoria y Final del D.S. N.° 001-96-TR.
+      </p>
+    </div>
+  );
+}
+
+function HojaConstancia({
+  p, detalle, miFirma,
+}: { p: PapelesCese; detalle: Detalle | null; miFirma: string | null }) {
+  const hoy = hoyLima();
+  const cts = detalle?.cts_trunca as Record<string, unknown> | undefined;
+  const yaDepositado = cts?.ya_depositado !== undefined ? n(cts.ya_depositado) : null;
+
+  return (
+    <div className="hidden print:block">
+      <h1 className="text-center font-serif text-xl uppercase">Constancia de cese</h1>
+
+      <p className="mt-6 text-sm leading-relaxed">
+        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}, deja
+        constancia de que el vínculo laboral que mantenía con <Identidad p={p} /> ha concluido con
+        fecha <strong>{fechaLarga(p.fecha_cese)}</strong>, luego de un tiempo de servicios de{" "}
+        <strong>{tiempoDeServicio(p)}</strong> (ingreso: {fechaLarga(p.fecha_ingreso)}).
+      </p>
+
+      {yaDepositado !== null && yaDepositado > 0 && (
+        <p className="mt-4 text-sm leading-relaxed">
+          A la fecha de esta constancia, la empresa tiene depositado a su favor{" "}
+          {formatSoles(yaDepositado)} por concepto de Compensación por Tiempo de Servicios (CTS).
+        </p>
+      )}
+
+      <p className="mt-4 text-sm leading-relaxed">
+        Se expide la presente constancia para que la persona interesada pueda tramitar ante la
+        entidad financiera depositaria el retiro de su Compensación por Tiempo de Servicios y sus
+        intereses, conforme al artículo 45 del Decreto Supremo N.° 001-97-TR.
+      </p>
+
+      <p className="mt-8 text-xs">
+        Trujillo, {fechaLarga(hoy)}.
+      </p>
+
+      <div className="mt-12 flex justify-end text-xs">
+        <div>
+          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
+          <div className="w-56 border-t border-black pt-1">Por {EMPRESA.nombre}</div>
+        </div>
+      </div>
+
+      <p className="mt-8 text-[10px] text-taupe">
+        Conforme al numeral 59.6 b) del Reglamento Interno de Trabajo y al artículo 45 del
+        D.S. N.° 001-97-TR.
+      </p>
     </div>
   );
 }

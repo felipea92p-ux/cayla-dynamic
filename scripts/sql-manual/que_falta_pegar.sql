@@ -261,9 +261,11 @@ with repo(numero, nombre, nunca) as (values
     (391, 'las_cuatro_que_quedaban_del_mismo_empate', false),
     (392, 'los_guardianes_de_retail_dejan_de_colarse_por_el_or_suelto', false),
     (395, 'firma_con_tres_metodos', false),
+    (396, 'las_faltas_dejan_de_contar_despues_del_fin_de_contrato', false),
     (397, 'la_practicante_cobra_movilidad_y_educacion', false),
     (398, 'firma_propia_en_el_contrato', false),
-    (399, 'el_colaborador_propone_do_aprueba', false)
+    (399, 'el_colaborador_propone_do_aprueba', false),
+    (400, 'los_papeles_de_cese_entran_al_sistema', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
