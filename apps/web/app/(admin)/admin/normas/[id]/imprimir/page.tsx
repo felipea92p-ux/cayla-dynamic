@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { Boton } from "@/components/ui/boton";
 import { Documento } from "@/components/documento";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
@@ -89,10 +90,9 @@ export default function ImprimirDocumentoPage() {
         <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
           {error ?? "No se pudo abrir el documento."}
         </p>
-        <button onClick={() => router.push("/admin/normas")}
-          className="mt-3 rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+        <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/normas")}>
           Volver a Normas
-        </button>
+        </Boton>
       </main>
     );
   }
@@ -101,14 +101,12 @@ export default function ImprimirDocumentoPage() {
     <main className="mx-auto max-w-3xl p-6 print:max-w-none print:p-0">
       {/* La barra desaparece al imprimir: no forma parte del documento. */}
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
-        <button onClick={() => window.print()}
-          className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+        <Boton variante="primario" tamano="sm" onClick={() => window.print()}>
           Imprimir
-        </button>
-        <button onClick={() => router.push("/admin/normas")}
-          className="rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+        </Boton>
+        <Boton variante="secundario" tamano="sm" onClick={() => router.push("/admin/normas")}>
           Volver
-        </button>
+        </Boton>
         <p className="text-xs text-taupe">
           Para guardarlo como PDF, elige «Guardar como PDF» en el destino de impresión.
         </p>

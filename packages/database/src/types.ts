@@ -684,6 +684,7 @@ export type Database = {
           documento_sugerido: string | null
           etiqueta: string
           requiere_documento: boolean
+          solo_do: boolean
         }
         Insert: {
           campo: string
@@ -691,6 +692,7 @@ export type Database = {
           documento_sugerido?: string | null
           etiqueta: string
           requiere_documento?: boolean
+          solo_do?: boolean
         }
         Update: {
           campo?: string
@@ -698,6 +700,7 @@ export type Database = {
           documento_sugerido?: string | null
           etiqueta?: string
           requiere_documento?: boolean
+          solo_do?: boolean
         }
         Relationships: []
       }
@@ -770,6 +773,77 @@ export type Database = {
         }
         Relationships: []
       }
+      confirmaciones_firma_contrato: {
+        Row: {
+          confirmada_at: string
+          contrato_id: string
+          id: string
+          imagen: string
+          persona_id: string
+        }
+        Insert: {
+          confirmada_at?: string
+          contrato_id: string
+          id?: string
+          imagen: string
+          persona_id: string
+        }
+        Update: {
+          confirmada_at?: string
+          contrato_id?: string
+          id?: string
+          imagen?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "confirmaciones_firma_contrato_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos_generados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmaciones_firma_contrato_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consentimientos_datos_personales: {
+        Row: {
+          aceptado_at: string
+          finalidad: string
+          id: string
+          persona_id: string
+          texto: string
+        }
+        Insert: {
+          aceptado_at?: string
+          finalidad: string
+          id?: string
+          persona_id: string
+          texto: string
+        }
+        Update: {
+          aceptado_at?: string
+          finalidad?: string
+          id?: string
+          persona_id?: string
+          texto?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consentimientos_datos_personales_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contratos_generados: {
         Row: {
           anulado_at: string | null
@@ -785,6 +859,8 @@ export type Database = {
           fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
+          firma_persona: string | null
+          firma_persona_confirmada_at: string | null
           generado_at: string
           generado_por: string
           horas_semanales: number | null
@@ -810,6 +886,8 @@ export type Database = {
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
           generado_at?: string
           generado_por: string
           horas_semanales?: number | null
@@ -835,6 +913,8 @@ export type Database = {
           fecha_fin?: string | null
           fecha_firma?: string | null
           fecha_inicio?: string
+          firma_persona?: string | null
+          firma_persona_confirmada_at?: string | null
           generado_at?: string
           generado_por?: string
           horas_semanales?: number | null
@@ -1013,6 +1093,8 @@ export type Database = {
           entidad_bancaria: string | null
           estado_civil: string | null
           fecha_nacimiento: string | null
+          foto_dni_anverso_ruta: string | null
+          foto_dni_reverso_ruta: string | null
           foto_dni_url: string | null
           foto_personal_url: string | null
           foto_profesional_url: string | null
@@ -1037,6 +1119,8 @@ export type Database = {
           entidad_bancaria?: string | null
           estado_civil?: string | null
           fecha_nacimiento?: string | null
+          foto_dni_anverso_ruta?: string | null
+          foto_dni_reverso_ruta?: string | null
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
@@ -1061,6 +1145,8 @@ export type Database = {
           entidad_bancaria?: string | null
           estado_civil?: string | null
           fecha_nacimiento?: string | null
+          foto_dni_anverso_ruta?: string | null
+          foto_dni_reverso_ruta?: string | null
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
@@ -4535,11 +4621,11 @@ export type Database = {
           total_lectores: number
         }[]
       }
-      fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
       fn_aplicar_cambio_perfil: {
-        Args: { p_solicitud_id: string }
+        Args: { p_solicitud_id: string | null }
         Returns: undefined
       }
+      fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
       fn_area_activa: {
         Args: { p_activa: boolean | null; p_codigo: string | null }
         Returns: undefined
@@ -4691,6 +4777,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_confirmar_mi_firma_contrato: {
+        Args: { p_contrato_id: string | null }
+        Returns: undefined
+      }
       fn_contrato_anular: {
         Args: { p_id: string | null; p_motivo: string | null }
         Returns: undefined
@@ -4724,6 +4814,8 @@ export type Database = {
           fecha_fin: string | null
           fecha_firma: string | null
           fecha_inicio: string
+          firma_persona: string | null
+          firma_persona_confirmada_at: string | null
           generado_at: string
           generado_por: string
           horas_semanales: number | null
@@ -4798,6 +4890,7 @@ export type Database = {
           fecha_fin: string
           fecha_firma: string
           fecha_inicio: string
+          firma_persona_confirmada_at: string
           generado_at: string
           generado_por: string
           horas_semanales: number
@@ -4922,9 +5015,9 @@ export type Database = {
       }
       fn_crear_solicitud_perfil: {
         Args: {
-          p_campo: string
-          p_rutas_adjuntas?: string[]
-          p_valor_propuesto: Json
+          p_campo: string | null
+          p_rutas_adjuntas?: string[] | null
+          p_valor_propuesto: Json | null
         }
         Returns: string
       }
@@ -5379,6 +5472,10 @@ export type Database = {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: boolean
       }
+      fn_fecha_limite_asistencia: {
+        Args: { p_persona_id: string | null }
+        Returns: string
+      }
       fn_feriado_devengado: {
         Args: {
           p_desde: string | null
@@ -5713,10 +5810,7 @@ export type Database = {
         }
         Returns: string
       }
-      fn_papeles_cese: {
-        Args: { p_persona_id: string | null }
-        Returns: Json
-      }
+      fn_papeles_cese: { Args: { p_persona_id: string | null }; Returns: Json }
       fn_pedir_revision: {
         Args: { p_comentario: string | null; p_fecha: string | null }
         Returns: undefined
@@ -5990,6 +6084,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      fn_registrar_mi_consentimiento: {
+        Args: { p_finalidad: string | null; p_texto: string | null }
+        Returns: undefined
+      }
       fn_reglamento_no_acusado: {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: string
@@ -6011,11 +6109,11 @@ export type Database = {
         Returns: undefined
       }
       fn_resolver_seguimiento_planilla: {
-        Args: { p_id: string; p_nota?: string }
+        Args: { p_id: string | null; p_nota?: string | null }
         Returns: undefined
       }
       fn_resolver_solicitud_perfil: {
-        Args: { p_aprobar: boolean; p_id: string; p_motivo?: string }
+        Args: { p_aprobar: boolean | null; p_id: string | null; p_motivo?: string | null }
         Returns: undefined
       }
       fn_resolver_solicitud_vacaciones: {
@@ -6285,7 +6383,7 @@ export type Database = {
         }[]
       }
       fn_snapshot_valor_actual: {
-        Args: { p_campo: string; p_persona_id: string }
+        Args: { p_campo: string | null; p_persona_id: string | null }
         Returns: Json
       }
       fn_solicitar_vacaciones: {
@@ -6297,6 +6395,10 @@ export type Database = {
         Returns: string
       }
       fn_solicitud_perfil_puede_escribir: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
+      fn_solicitud_perfil_ruta_congelada: {
         Args: { p_path: string }
         Returns: boolean
       }
@@ -6311,6 +6413,7 @@ export type Database = {
           persona_id: string
           rutas_adjuntas: string[]
           sede: string
+          solo_do: boolean
           valor_anterior: Json
           valor_propuesto: Json
         }[]
@@ -6436,7 +6539,7 @@ export type Database = {
         Returns: Json
       }
       fn_validar_valor_propuesto: {
-        Args: { p_campo: string; p_valor: Json }
+        Args: { p_campo: string | null; p_valor: Json | null }
         Returns: undefined
       }
       fn_ventanas_de_regularidad: {

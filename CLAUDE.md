@@ -103,6 +103,36 @@ marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
 del principio— en vez de proponer explicaciones. Ese día se probaron tres
 hipótesis falsas antes de que el primer `substring` lo resolviera de un vistazo.
 
+**Y hay una tercera causa benigna, además de los comentarios: pegar desde
+Windows mete un `\r` por línea.** Pasó con la 0401 el 2026-09-08, la primera
+que se pegó desde esa máquina. Las tres funciones que reescribía quedaron en
+producción **más largas que el repositorio, cada una por exactamente su número
+de saltos de línea** —+42, +68 y +119—, porque el camino entre el archivo y el
+SQL Editor convirtió cada `\n` en `\r\n`.
+
+La firma es inconfundible y se comprueba en una consulta:
+
+```sql
+select proname, length(prosrc) - length(replace(prosrc, chr(13), '')) as retornos
+  from pg_proc where proname = 'fn_lo_que_sea';
+```
+
+Si eso da el número de líneas del cuerpo, es esto y **no hay nada roto**: un
+`\r` antes de un salto de línea es espacio en blanco para PL/pgSQL, así que la
+función se comporta igual. Se comprobó midiendo: el archivo y el Postgres local
+coincidían byte por byte entre sí, y solo producción difería.
+
+Lo que sí queda roto es hacia adelante: **el md5 de esas tres no va a volver a
+coincidir nunca con el del repositorio.** Se decidió dejarlo (repegar desde el
+mismo Windows probablemente reproduce el `\r`, y no arregla nada que esté mal)
+y anotarlo acá, que es lo que evita que la próxima sesión pare en seco o —peor—
+aprenda a ignorar un aviso de md5.
+
+Distinguir esta causa de la grave importa: si la diferencia **no** cuadra con el
+número de líneas ni con los comentarios, entonces sí es otra versión y hay que
+parar. Ver también `docs/estado.md`, que documenta el CRLF en disco — es el
+mismo origen, por otra vía.
+
 **Y que no coincidan es LO NORMAL, no la excepción.** Medido el 2026-08-18 en el
 SQL Editor: **119 de las 243 funciones de producción —el 49 %— no tienen ni una
 línea de comentario**. Se pegaron sin ellos. Así que su md5 nunca va a ser el del

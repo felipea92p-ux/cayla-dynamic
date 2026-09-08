@@ -32,7 +32,7 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
-import { Tabla } from "@/components/ui/tabla";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
@@ -137,9 +137,11 @@ const ETIQUETA_TIPO: Record<string, string> = {
   central: "Central (administración y DO)",
 };
 
-const NUM = "px-3 py-2 text-right tabular-nums";
-const TH = "px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-taupe";
-const THN = "px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-taupe";
+// Encabezados de tabla: TablaEncabezado + Th (@/components/ui/tabla), como el
+// resto del panel. Solo queda este ayudante para las celdas numéricas, que el
+// primitivo compartido deja a propósito fuera de su superficie (ver el
+// comentario de tabla.tsx).
+const NUM = "px-4 py-2 text-right tabular-nums";
 
 export default function CostosPage() {
   const router = useRouter();
@@ -371,21 +373,19 @@ export default function CostosPage() {
         {data && data.por_periodo.length > 0 && (
           <>
             <SeccionTabla titulo="Por periodo">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Periodo</th>
-                  <th className={TH}>Cerró en</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Se transfirió</th>
-                  <th className={THN}>Provisiones</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Periodo</Th>
+                <Th>Cerró en</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Se transfirió</Th>
+                <Th className="text-right">Provisiones</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_periodo.map((p) => (
-                  <tr key={p.periodo_id} className="border-b last:border-0">
-                    <td className="px-3 py-2">
+                  <Fila key={p.periodo_id}>
+                    <td className="px-4 py-2">
                       {fechaCorta(p.fecha_ini)} → {fechaCorta(p.fecha_fin)}
                       {p.reconstruida && (
                         <Insignia variante="advertencia" className="ml-2">reconstruido</Insignia>
@@ -396,67 +396,63 @@ export default function CostosPage() {
                         </Insignia>
                       )}
                     </td>
-                    <td className="px-3 py-2 capitalize">{MESES[p.mes - 1]}</td>
+                    <td className="px-4 py-2 capitalize">{MESES[p.mes - 1]}</td>
                     <td className={NUM}>{p.personas}</td>
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
                     <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
 
             <SeccionTabla titulo="Operar tiendas · producir · administrar">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Qué es</th>
-                  <th className={THN}>Sedes</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                  <th className={THN}>Por persona</th>
-                  <th className={THN}>Por hora</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Qué es</Th>
+                <Th className="text-right">Sedes</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por hora</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_tipo.map((t) => (
-                  <tr key={t.tipo} className="border-b last:border-0">
-                    <td className="px-3 py-2">{ETIQUETA_TIPO[t.tipo] ?? t.tipo}</td>
+                  <Fila key={t.tipo}>
+                    <td className="px-4 py-2">{ETIQUETA_TIPO[t.tipo] ?? t.tipo}</td>
                     <td className={NUM}>{t.sedes}</td>
                     <td className={NUM}>{t.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(t.costo)}</td>
                     <td className={NUM}>{t.salio_del_banco === undefined ? "—" : formatSoles(t.salio_del_banco)}</td>
                     <td className={NUM}>{t.costo_por_persona === null ? "—" : formatSoles(t.costo_por_persona)}</td>
                     <td className={NUM}>{t.costo_por_hora === null ? "—" : formatSoles(t.costo_por_hora)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
 
             <SeccionTabla titulo="Por sede">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Sede</th>
-                  <th className={TH}>Qué es</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                  <th className={THN}>Por persona</th>
-                  <th className={THN}>Por hora</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Sede</Th>
+                <Th>Qué es</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+                <Th className="text-right">Por persona</Th>
+                <Th className="text-right">Por hora</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_sede.map((s) => (
-                  <tr key={s.sede} className="border-b last:border-0">
-                    <td className="px-3 py-2">{s.nombre}</td>
-                    <td className="px-3 py-2 text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
+                  <Fila key={s.sede}>
+                    <td className="px-4 py-2">{s.nombre}</td>
+                    <td className="px-4 py-2 text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                     <td className={NUM}>{s.personas}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(s.costo)}</td>
                     <td className={NUM}>{s.salio_del_banco === undefined ? "—" : formatSoles(s.salio_del_banco)}</td>
                     <td className={NUM}>{s.costo_por_persona === null ? "—" : formatSoles(s.costo_por_persona)}</td>
                     <td className={NUM}>{s.costo_por_hora === null ? "—" : formatSoles(s.costo_por_hora)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
@@ -469,20 +465,18 @@ export default function CostosPage() {
             </p>
 
             <SeccionTabla titulo="Por área">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Área</th>
-                  <th className={THN}>Personas</th>
-                  <th className={THN}>Se transfirió</th>
-                  <th className={THN}>Provisiones</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Área</Th>
+                <Th className="text-right">Personas</Th>
+                <Th className="text-right">Se transfirió</Th>
+                <Th className="text-right">Provisiones</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_area.map((a) => (
-                  <tr key={a.area ?? "sin-area"} className="border-b last:border-0">
-                    <td className="px-3 py-2">
+                  <Fila key={a.area ?? "sin-area"}>
+                    <td className="px-4 py-2">
                       {a.nombre}
                       {a.operativa && (
                         <Insignia atenuada punto={false} className="ml-2">operativa</Insignia>
@@ -493,36 +487,34 @@ export default function CostosPage() {
                     <td className={NUM}>{formatSoles(a.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(a.costo)}</td>
                     <td className={NUM}>{a.salio_del_banco === undefined ? "—" : formatSoles(a.salio_del_banco)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
 
             <SeccionTabla titulo="Por persona">
-              <thead>
-                <tr className="border-b">
-                  <th className={TH}>Nombre</th>
-                  <th className={TH}>Sede</th>
-                  <th className={THN}>Periodos</th>
-                  <th className={THN}>Horas</th>
-                  <th className={THN}>Se transfirió</th>
-                  <th className={THN}>Provisiones</th>
-                  <th className={THN}>Costo real</th>
-                  <th className={THN}>Salió del banco</th>
-                </tr>
-              </thead>
+              <TablaEncabezado>
+                <Th>Nombre</Th>
+                <Th>Sede</Th>
+                <Th className="text-right">Periodos</Th>
+                <Th className="text-right">Horas</Th>
+                <Th className="text-right">Se transfirió</Th>
+                <Th className="text-right">Provisiones</Th>
+                <Th className="text-right">Costo real</Th>
+                <Th className="text-right">Salió del banco</Th>
+              </TablaEncabezado>
               <tbody>
                 {data.por_persona.map((p) => (
-                  <tr key={p.persona_id} className="border-b last:border-0">
-                    <td className="px-3 py-2">{p.nombre}</td>
-                    <td className="px-3 py-2 text-taupe">{nombreDeSede.get(p.sede) ?? p.sede}</td>
+                  <Fila key={p.persona_id}>
+                    <td className="px-4 py-2">{p.nombre}</td>
+                    <td className="px-4 py-2 text-taupe">{nombreDeSede.get(p.sede) ?? p.sede}</td>
                     <td className={NUM}>{p.periodos}</td>
                     <td className={NUM}>{p.horas.toLocaleString("es-PE", { maximumFractionDigits: 1 })}</td>
                     <td className={NUM}>{formatSoles(p.neto)}</td>
                     <td className={NUM}>{formatSoles(p.provisiones)}</td>
                     <td className={`${NUM} font-medium`}>{formatSoles(p.costo)}</td>
                     <td className={NUM}>{p.salio_del_banco === undefined ? "—" : formatSoles(p.salio_del_banco)}</td>
-                  </tr>
+                  </Fila>
                 ))}
               </tbody>
             </SeccionTabla>
