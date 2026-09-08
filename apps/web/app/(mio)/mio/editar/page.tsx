@@ -1,170 +1,288 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
-  ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS,
+  ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS,
   GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION,
-  VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE,
+  REGIMEN_PENSION_LABELS, siNoSinDato,
+  VINCULO_DERECHOHABIENTE_LABELS,
 } from "@cayla-dynamic/shared";
 
 /**
- * «Editar mis datos» — antes vivía como una sección más dentro de la pestaña
- * «Vacaciones y permisos» de /mio, donde nadie iba a buscar «cambiar mi
- * celular». Se le dio su propia vista, mismo criterio que /mio/contrato y
- * /mio/boleta: la sesión se resuelve acá mismo (por `auth_user_id`, nunca por
- * un id que viaje en la URL), sin depender de que /mio ya la haya cargado.
+ * «Editar mis datos» — la ficha completa, en la misma forma que
+ * /admin/datos-personales (misma persona que la lee, dos superficies
+ * distintas), pero de solo lectura hasta pulsar «Editar». Antes vivía como un
+ * selector de un campo a la vez, escondido dentro de la pestaña «Vacaciones y
+ * permisos» de /mio.
  *
- * EL VALOR REAL NO CAMBIA ACÁ: se propone con `fn_crear_solicitud_perfil`, y
- * Desarrollo Organizacional lo aprueba o lo rechaza (migración 0399). Esta
- * pantalla es el formulario del pedido, no el cambio en sí.
+ * SOLO SIETE CAMPOS SON SUYOS PARA CAMBIAR: celular, dirección, contacto de
+ * emergencia, estado civil, grado de instrucción, hijos menores a cargo y
+ * cuenta bancaria — decisión de producto, no del catálogo (que tiene 11). El
+ * resto (DNI, nombre, nacimiento, género, sistema de pensiones, correo,
+ * discapacidad, familiares) se ve pero no se toca desde acá: para eso sigue
+ * existiendo Desarrollo Organizacional en /admin/datos-personales.
+ *
+ * EL VALOR REAL NO CAMBIA ACÁ: cada campo que cambió se manda como una
+ * propuesta separada con `fn_crear_solicitud_perfil` (0399) — el catálogo
+ * sigue siendo la única fuente de qué exige documento, nunca una lista
+ * escrita a mano acá. Quien aprueba es el admin/DO o, desde la 0403, la
+ * encargada de la propia sede.
  */
 
-/** Una fila del catálogo de campos de perfil (migración 0399) — qué se puede
- *  pedir cambiar y si exige documento. Se lee de la tabla, nunca a mano
- *  (regla del repo: nada de listas escritas fuera de donde vive la verdad). */
-interface CatalogoCampoPerfil {
-  campo: string;
-  etiqueta: string;
-  requiere_documento: boolean;
-  documento_sugerido: string | null;
-  columnas: string[];
+interface Yo {
+  id: string; nombres: string; apellidos: string; documento: string | null;
+  email: string | null; regimenPension: string | null; sede: string | null;
+}
+interface Ficha {
+  nombre_dni: string | null; fecha_nacimiento: string | null; estado_civil: string | null;
+  genero: string | null;
+  direccion: string | null; celular: string | null; entidad_bancaria: string | null; numero_cuenta: string | null;
+  grado_instruccion: string | null; hijos_menores: boolean | null;
+  emergencia_nombre: string | null; emergencia_vinculo: string | null; emergencia_telefono: string | null;
+  discapacidad: boolean | null; discapacidad_conadis: string | null;
+}
+interface Derechohabiente {
+  id: string; nombres: string; apellidos: string; documento: string | null;
+  fecha_nacimiento: string | null; vinculo: string; essalud: boolean; vida_ley: boolean; vigente_hasta: string | null;
 }
 
-/** Una propuesta suya de cambio de perfil. La escribe `fn_crear_solicitud_perfil`. */
+/** Una fila del catálogo de campos de perfil (0399) — qué se puede pedir y si
+ *  exige documento. Se lee de la tabla, nunca a mano. */
+interface CatalogoCampoPerfil {
+  campo: string; etiqueta: string; requiere_documento: boolean; documento_sugerido: string | null; columnas: string[];
+}
 interface SolicitudPerfil {
-  id: string;
-  campo: string;
-  valor_anterior: Record<string, unknown>;
-  valor_propuesto: Record<string, unknown>;
-  estado: "pendiente" | "aprobado" | "rechazado" | "reemplazada";
-  creada_at: string;
-  motivo: string | null;
+  id: string; campo: string; estado: "pendiente" | "aprobado" | "rechazado" | "reemplazada";
+  creada_at: string; motivo: string | null;
+}
+
+/** Los siete campos que esta pantalla deja tocar. Cuáles de ellos exigen
+ *  documento se pregunta al catálogo (abajo), nunca se repite acá. */
+const CAMPOS_EDITABLES = [
+  "celular", "direccion", "contacto_emergencia",
+  "estado_civil", "grado_instruccion", "hijos_menores", "cuenta_bancaria",
+] as const;
+type CampoEditable = (typeof CAMPOS_EDITABLES)[number];
+
+interface FormEdit {
+  celular: string; direccion: string;
+  emergencia_nombre: string; emergencia_vinculo: string; emergencia_telefono: string;
+  estado_civil: string; grado_instruccion: string; hijos_menores: "" | "si" | "no";
+  entidad_bancaria: string; numero_cuenta: string;
+}
+
+function formDeFicha(f: Ficha | null): FormEdit {
+  return {
+    celular: f?.celular ?? "", direccion: f?.direccion ?? "",
+    emergencia_nombre: f?.emergencia_nombre ?? "", emergencia_vinculo: f?.emergencia_vinculo ?? "",
+    emergencia_telefono: f?.emergencia_telefono ?? "",
+    estado_civil: f?.estado_civil ?? "", grado_instruccion: f?.grado_instruccion ?? "",
+    hijos_menores: f?.hijos_menores === true ? "si" : f?.hijos_menores === false ? "no" : "",
+    entidad_bancaria: f?.entidad_bancaria ?? "", numero_cuenta: f?.numero_cuenta ?? "",
+  };
 }
 
 function MiEditarContenido() {
   const router = useRouter();
   const supabase = createAdminSupabaseClient();
 
-  const [yo, setYo] = useState<{ id: string } | null>(null);
+  const [yo, setYo] = useState<Yo | null>(null);
+  const [ficha, setFicha] = useState<Ficha | null>(null);
+  const [derechos, setDerechos] = useState<Derechohabiente[]>([]);
+  const [catalogoPerfil, setCatalogoPerfil] = useState<CatalogoCampoPerfil[]>([]);
+  const [misSolicitudesPerfil, setMisSolicitudesPerfil] = useState<SolicitudPerfil[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [catalogoPerfil, setCatalogoPerfil] = useState<CatalogoCampoPerfil[]>([]);
-  const [misSolicitudesPerfil, setMisSolicitudesPerfil] = useState<SolicitudPerfil[]>([]);
-  const [campoPerfil, setCampoPerfil] = useState("celular");
-  const [formPerfil, setFormPerfil] = useState<Record<string, string>>({});
-  const [archivosPerfil, setArchivosPerfil] = useState<File[]>([]);
-  const [enviandoPerfil, setEnviandoPerfil] = useState(false);
-  const [avisoPerfil, setAvisoPerfil] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [form, setForm] = useState<FormEdit>(formDeFicha(null));
+  const [archivos, setArchivos] = useState<Partial<Record<CampoEditable, File[]>>>({});
+  const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
   const cargarSolicitudesPerfil = useCallback(async (personaId: string) => {
     const { data } = await supabase
       .from("solicitudes_cambio_perfil")
-      .select("id, campo, valor_anterior, valor_propuesto, estado, creada_at, motivo")
+      .select("id, campo, estado, creada_at, motivo")
       .eq("persona_id", personaId)      // ← explícito. La RLS es la red, no el filtro.
       .order("creada_at", { ascending: false });
     setMisSolicitudesPerfil((data as SolicitudPerfil[]) ?? []);
   }, [supabase]);
 
-  useEffect(() => {
-    let vivo = true;
-    void (async () => {
-      setCargando(true);
-      setError(null);
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError(null);
 
-      const { data: sesion } = await supabase.auth.getSession();
-      if (!sesion.session) { router.replace("/mio"); return; }
+    const { data: sesion } = await supabase.auth.getSession();
+    if (!sesion.session) { router.replace("/mio"); return; }
 
-      const { data: sesionAuth } = await supabase.auth.getUser();
-      const uid = sesionAuth.user?.id;
-      if (!uid) {
-        if (vivo) { setCargando(false); setError("No se pudo leer tu sesión. Vuelve a entrar."); }
-        return;
-      }
+    const { data: sesionAuth } = await supabase.auth.getUser();
+    const uid = sesionAuth.user?.id;
+    if (!uid) { setCargando(false); setError("No se pudo leer tu sesión. Vuelve a entrar."); return; }
 
-      const { data: p } = await supabase
-        .from("personas").select("id").eq("auth_user_id", uid).maybeSingle();
-      if (!p) {
-        if (vivo) {
-          setCargando(false);
-          setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
-        }
-        return;
-      }
-      if (!vivo) return;
-      setYo({ id: p.id as string });
-
-      const [{ data: cat }] = await Promise.all([
-        supabase.from("catalogo_campos_perfil")
-          .select("campo, etiqueta, requiere_documento, documento_sugerido, columnas")
-          .order("etiqueta"),
-        cargarSolicitudesPerfil(p.id as string),
-      ]);
-      if (!vivo) return;
-      setCatalogoPerfil((cat as CatalogoCampoPerfil[]) ?? []);
+    const { data: p } = await supabase
+      .from("personas")
+      .select("id, nombres, apellidos, documento, email, regimen_pension, sedes!personas_sede_base_id_fkey(nombre)")
+      .eq("auth_user_id", uid).maybeSingle();
+    if (!p) {
       setCargando(false);
-    })();
-    return () => { vivo = false; };
+      setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
+      return;
+    }
+    const yoActual: Yo = {
+      id: p.id as string, nombres: p.nombres as string, apellidos: p.apellidos as string,
+      documento: (p.documento as string | null) ?? null, email: (p.email as string | null) ?? null,
+      regimenPension: (p.regimen_pension as string | null) ?? null,
+      sede: ((p.sedes as { nombre: string } | null) ?? null)?.nombre ?? null,
+    };
+    setYo(yoActual);
+
+    const [{ data: f }, { data: dh }, { data: cat }] = await Promise.all([
+      supabase.from("datos_personales")
+        .select("nombre_dni, fecha_nacimiento, estado_civil, genero, direccion, celular, entidad_bancaria, numero_cuenta, grado_instruccion, hijos_menores, emergencia_nombre, emergencia_vinculo, emergencia_telefono, discapacidad, discapacidad_conadis")
+        .eq("persona_id", yoActual.id).maybeSingle(),
+      supabase.from("derechohabientes")
+        .select("id, nombres, apellidos, documento, fecha_nacimiento, vinculo, essalud, vida_ley, vigente_hasta")
+        .eq("persona_id", yoActual.id).order("apellidos"),
+      supabase.from("catalogo_campos_perfil")
+        .select("campo, etiqueta, requiere_documento, documento_sugerido, columnas")
+        .order("etiqueta"),
+    ]);
+    const fichaActual = (f as Ficha | null) ?? null;
+    setFicha(fichaActual);
+    setForm(formDeFicha(fichaActual));
+    setDerechos((dh as Derechohabiente[]) ?? []);
+    setCatalogoPerfil((cat as CatalogoCampoPerfil[]) ?? []);
+    await cargarSolicitudesPerfil(yoActual.id);
+    setCargando(false);
   }, [supabase, router, cargarSolicitudesPerfil]);
 
-  const campoActualPerfil = catalogoPerfil.find((c) => c.campo === campoPerfil) ?? null;
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargar(); }, [cargar]);
 
-  /** Hay una pendiente sobre este mismo campo — salvo familiar_nuevo, que
-   *  admite varias en paralelo (la base lo permite; acá solo se informa). */
-  const yaHayPendientePerfil = campoPerfil !== "familiar_nuevo"
-    && misSolicitudesPerfil.some((s) => s.campo === campoPerfil && s.estado === "pendiente");
-
-  /** Construye el jsonb que espera fn_crear_solicitud_perfil a partir de las
-   *  columnas que declara el catálogo para el campo elegido. */
-  function valorPropuestoPerfil(): Record<string, string | boolean> {
-    if (!campoActualPerfil) return {};
-    const v: Record<string, string | boolean> = {};
-    for (const col of campoActualPerfil.columnas) {
-      if (col === "hijos_menores" || col === "discapacidad") {
-        v[col] = formPerfil[col] === "true";
-      } else if (formPerfil[col]) {
-        v[col] = formPerfil[col];
-      }
-    }
-    // correccion_identidad admite un subconjunto — nunca se manda una clave sin
-    // valor. Los demás campos ya vienen completos por el `required` del form.
-    return v;
+  function etiquetaDe(campo: string): string {
+    return catalogoPerfil.find((c) => c.campo === campo)?.etiqueta ?? campo;
+  }
+  function requiereDocumento(campo: string): boolean {
+    return catalogoPerfil.find((c) => c.campo === campo)?.requiere_documento === true;
+  }
+  function documentoSugerido(campo: string): string | null {
+    return catalogoPerfil.find((c) => c.campo === campo)?.documento_sugerido ?? null;
+  }
+  function hayPendiente(campo: string): boolean {
+    return misSolicitudesPerfil.some((s) => s.campo === campo && s.estado === "pendiente");
   }
 
-  async function proponerCambioPerfil(e: FormEvent) {
-    e.preventDefault();
-    if (!yo?.id || !campoActualPerfil) return;
-    setAvisoPerfil(null);
-    setEnviandoPerfil(true);
-    try {
+  // Qué campo cambió de verdad respecto a la ficha — decide qué se manda al
+  // guardar, y cuándo aparece el botón de adjuntar documento junto al campo.
+  const cambios: Record<CampoEditable, boolean> = {
+    celular: form.celular.trim() !== (ficha?.celular ?? ""),
+    direccion: form.direccion.trim() !== (ficha?.direccion ?? ""),
+    contacto_emergencia:
+      form.emergencia_nombre.trim() !== (ficha?.emergencia_nombre ?? "")
+      || form.emergencia_vinculo.trim() !== (ficha?.emergencia_vinculo ?? "")
+      || form.emergencia_telefono.trim() !== (ficha?.emergencia_telefono ?? ""),
+    estado_civil: form.estado_civil !== (ficha?.estado_civil ?? ""),
+    grado_instruccion: form.grado_instruccion !== (ficha?.grado_instruccion ?? ""),
+    hijos_menores: form.hijos_menores !== (ficha?.hijos_menores === true ? "si" : ficha?.hijos_menores === false ? "no" : ""),
+    cuenta_bancaria:
+      form.entidad_bancaria.trim() !== (ficha?.entidad_bancaria ?? "")
+      || form.numero_cuenta.trim() !== (ficha?.numero_cuenta ?? ""),
+  };
+  const hayAlgunCambio = CAMPOS_EDITABLES.some((c) => cambios[c]);
+
+  function valorPropuesto(campo: CampoEditable): Record<string, string | boolean> {
+    switch (campo) {
+      case "celular": return { celular: form.celular.trim() };
+      case "direccion": return { direccion: form.direccion.trim() };
+      case "contacto_emergencia": return {
+        emergencia_nombre: form.emergencia_nombre.trim(),
+        emergencia_vinculo: form.emergencia_vinculo.trim(),
+        emergencia_telefono: form.emergencia_telefono.trim(),
+      };
+      case "estado_civil": return { estado_civil: form.estado_civil };
+      case "grado_instruccion": return { grado_instruccion: form.grado_instruccion };
+      case "hijos_menores": return { hijos_menores: form.hijos_menores === "si" };
+      case "cuenta_bancaria": return {
+        entidad_bancaria: form.entidad_bancaria.trim(), numero_cuenta: form.numero_cuenta.trim(),
+      };
+    }
+  }
+
+  function entrarAEditar() {
+    setForm(formDeFicha(ficha));
+    setArchivos({});
+    setAviso(null);
+    setEditando(true);
+  }
+  function cancelarEdicion() {
+    setForm(formDeFicha(ficha));
+    setArchivos({});
+    setAviso(null);
+    setEditando(false);
+  }
+
+  async function guardarCambios() {
+    if (!yo?.id) return;
+    const porEnviar = CAMPOS_EDITABLES.filter((c) => cambios[c]);
+    if (porEnviar.length === 0) {
+      setAviso({ tipo: "error", texto: "No cambiaste ningún dato." });
+      return;
+    }
+    // Se valida el documento de TODOS antes de mandar el primero: mejor
+    // avisar antes que dejar la mitad de los pedidos enviados por culpa del
+    // segundo campo.
+    for (const c of porEnviar) {
+      if (requiereDocumento(c) && (archivos[c]?.length ?? 0) === 0) {
+        setAviso({ tipo: "error", texto: `Adjunta un documento para «${etiquetaDe(c)}» antes de guardar.` });
+        return;
+      }
+    }
+
+    setGuardando(true);
+    setAviso(null);
+    const enviados: string[] = [];
+    for (const c of porEnviar) {
       const rutas: string[] = [];
-      for (const archivo of archivosPerfil) {
+      for (const archivo of archivos[c] ?? []) {
         const ext = archivo.name.split(".").pop()?.toLowerCase() || "jpg";
         const ruta = `solicitud/${yo.id}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
         const fallo = await subirArchivoConProgreso(supabase, "solicitudes-perfil", ruta, archivo, () => {});
-        if (fallo) { setAvisoPerfil({ tipo: "error", texto: `No se pudo subir «${archivo.name}»: ${fallo}` }); return; }
+        if (fallo) {
+          setGuardando(false);
+          setAviso({ tipo: "error", texto: `No se pudo subir el documento de «${etiquetaDe(c)}»: ${fallo}` });
+          await cargarSolicitudesPerfil(yo.id);
+          return;
+        }
         rutas.push(ruta);
       }
-
       const { error: errRpc } = await supabase.rpc("fn_crear_solicitud_perfil", {
-        p_campo: campoPerfil,
-        p_valor_propuesto: valorPropuestoPerfil(),
-        p_rutas_adjuntas: rutas,
+        p_campo: c, p_valor_propuesto: valorPropuesto(c), p_rutas_adjuntas: rutas,
       });
-      if (errRpc) { setAvisoPerfil({ tipo: "error", texto: errRpc.message }); return; }
-
-      setAvisoPerfil({ tipo: "ok", texto: "Pedido. Te avisamos cuando Desarrollo Organizacional responda." });
-      setFormPerfil({});
-      setArchivosPerfil([]);
-      await cargarSolicitudesPerfil(yo.id);
-    } finally {
-      setEnviandoPerfil(false);
+      if (errRpc) {
+        setGuardando(false);
+        setAviso({ tipo: "error", texto: mensajeDeError(errRpc, `pedir el cambio de «${etiquetaDe(c)}»`) });
+        await cargarSolicitudesPerfil(yo.id);
+        return;
+      }
+      enviados.push(etiquetaDe(c));
     }
+
+    setGuardando(false);
+    setArchivos({});
+    setEditando(false);
+    await cargarSolicitudesPerfil(yo.id);
+    setAviso({
+      tipo: "ok",
+      texto: `Pedido${enviados.length > 1 ? "s" : ""} enviado${enviados.length > 1 ? "s" : ""}: ${enviados.join(", ")}. `
+        + "Te avisamos cuando se resuelvan.",
+    });
   }
 
   if (cargando) {
@@ -185,234 +303,302 @@ function MiEditarContenido() {
       </main>
     );
   }
+  if (!yo) return null;
+
+  /** Un campo de solo lectura: DNI, nacimiento, género, pensión, correo,
+   *  discapacidad — nunca se activa, pase lo que pase con `editando`. */
+  function campoFijo(label: string, valor: string, nota?: string) {
+    return (
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-taupe">{label}{nota && <span className="ml-1 text-[11px]">· {nota}</span>}</span>
+        <input value={valor} disabled className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+      </label>
+    );
+  }
+
+  /** Uno de los siete campos que sí se pueden pedir cambiar. Deshabilitado
+   *  fuera de modo edición; dentro, muestra el botón de documento si el
+   *  catálogo lo exige Y el valor de verdad cambió. */
+  function campoEditable(
+    label: string, campo: CampoEditable, valor: string,
+    onChange: (v: string) => void, tipo: "text" | "tel" = "text",
+  ) {
+    const pendiente = hayPendiente(campo);
+    return (
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-taupe">
+          {label}
+          {pendiente && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
+        </span>
+        <input type={tipo} value={valor} disabled={!editando}
+          onChange={(e) => onChange(e.target.value)}
+          className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+        {editando && cambios[campo] && requiereDocumento(campo) && (
+          <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+            Este cambio exige un documento de sustento
+            {documentoSugerido(campo) && ` (${documentoSugerido(campo)})`}.
+            <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
+              onChange={(e) => setArchivos((a) => ({ ...a, [campo]: Array.from(e.target.files ?? []) }))}
+              className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
+          </span>
+        )}
+      </label>
+    );
+  }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-2xl bg-crema px-5 py-8 text-tinta">
-      <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
-        ← Volver a Mi perfil
-      </Link>
-
-      <h1 className="mt-3 font-serif text-2xl">Editar mis datos</h1>
-      <p className="mt-1 mb-6 text-sm text-taupe">
-        Elige qué quieres cambiar. Desarrollo Organizacional lo revisa antes de que se aplique.
+    <main className="mx-auto min-h-screen w-full max-w-3xl bg-crema px-5 py-8 text-tinta">
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <Link href="/mio" className="text-sm text-taupe hover:text-tinta hover:underline">
+            ← Volver a Mi perfil
+          </Link>
+          <h1 className="mt-1 font-serif text-2xl">{yo.nombres} {yo.apellidos}</h1>
+          {yo.sede && <p className="text-xs text-taupe">{yo.sede}</p>}
+        </div>
+        {editando ? (
+          <div className="flex items-center gap-3">
+            <button onClick={cancelarEdicion} disabled={guardando}
+              className="rounded-lg border border-sand px-3 py-1.5 text-sm text-taupe hover:bg-hueso disabled:opacity-50">
+              Cancelar
+            </button>
+            <button onClick={() => void guardarCambios()} disabled={guardando || !hayAlgunCambio}
+              className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50">
+              {guardando ? "Guardando…" : "Guardar cambios"}
+            </button>
+          </div>
+        ) : (
+          <button onClick={entrarAEditar}
+            className="rounded-lg border border-sand px-3 py-1.5 text-sm text-tinta transition-colors hover:bg-hueso">
+            Editar
+          </button>
+        )}
+      </div>
+      <p className="mb-5 text-sm text-taupe">
+        Los cambios se piden, no se aplican solos: los revisa {yo.sede ? "tu encargada o " : ""}Desarrollo Organizacional
+        antes de que se apliquen.
       </p>
 
-      {catalogoPerfil.length > 0 && (
-        <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
-          <form onSubmit={(e) => void proponerCambioPerfil(e)} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-xs text-taupe">Qué quieres cambiar
-              <select value={campoPerfil}
-                onChange={(e) => { setCampoPerfil(e.target.value); setFormPerfil({}); setArchivosPerfil([]); }}
-                className="max-w-xs rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                {catalogoPerfil.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
-              </select>
-            </label>
+      {aviso && (
+        <p className={`mb-4 rounded-lg px-4 py-3 text-sm ${aviso.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>
+          {aviso.texto}
+        </p>
+      )}
 
-            <div className="flex flex-wrap items-end gap-3">
-              {campoPerfil === "celular" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo celular
-                  <input type="tel" required value={formPerfil.celular ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, celular: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-              )}
-              {campoPerfil === "direccion" && (
-                <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs text-taupe">Nueva dirección
-                  <input type="text" required value={formPerfil.direccion ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, direccion: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-              )}
-              {campoPerfil === "contacto_emergencia" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nombre
-                  <input type="text" required value={formPerfil.emergencia_nombre ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_nombre: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                  <input type="text" required value={formPerfil.emergencia_vinculo ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
-                    placeholder="madre, esposo…"
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Teléfono
-                  <input type="tel" required value={formPerfil.emergencia_telefono ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_telefono: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-              </>)}
-              {campoPerfil === "estado_civil" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo estado civil
-                  <select required value={formPerfil.estado_civil ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, estado_civil: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
+      <div className="space-y-4 rounded-2xl border border-sand bg-papel p-5">
+        <section>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campoFijo("Número de DNI", yo.documento ?? "—", "solo Desarrollo Organizacional")}
+            {campoFijo("Nombre completo (como en el DNI)", ficha?.nombre_dni ?? "—")}
+            {campoFijo("Fecha de nacimiento", ficha?.fecha_nacimiento ?? "—")}
+            {campoFijo("Género", ficha?.genero ? (GENERO_LABELS[ficha.genero as keyof typeof GENERO_LABELS] ?? ficha.genero) : "—")}
+            {editando
+              ? (
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-taupe">
+                    Estado civil
+                    {hayPendiente("estado_civil") && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
+                  </span>
+                  <select value={form.estado_civil} onChange={(e) => setForm((f) => ({ ...f, estado_civil: e.target.value }))}
+                    className="rounded-lg border bg-crema px-3 py-2">
+                    <option value="">—</option>
                     {ESTADOS_CIVILES.map((ec) => <option key={ec} value={ec}>{ESTADO_CIVIL_LABELS[ec]}</option>)}
                   </select>
+                  {cambios.estado_civil && requiereDocumento("estado_civil") && (
+                    <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+                      Este cambio exige un documento de sustento ({documentoSugerido("estado_civil")}).
+                      <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
+                        onChange={(e) => setArchivos((a) => ({ ...a, estado_civil: Array.from(e.target.files ?? []) }))}
+                        className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
+                    </span>
+                  )}
                 </label>
-              )}
-              {campoPerfil === "hijos_menores" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes hijos menores a cargo?
-                  <select required value={formPerfil.hijos_menores ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, hijos_menores: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
-              )}
-              {campoPerfil === "grado_instruccion" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo grado de instrucción
-                  <select required value={formPerfil.grado_instruccion ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, grado_instruccion: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
+              )
+              : campoFijo("Estado civil", ficha?.estado_civil ? (ESTADO_CIVIL_LABELS[ficha.estado_civil as keyof typeof ESTADO_CIVIL_LABELS] ?? ficha.estado_civil) : "—",
+                  hayPendiente("estado_civil") ? "cambio pendiente de aprobación" : undefined)}
+            {editando
+              ? (
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-taupe">
+                    Grado de instrucción
+                    {hayPendiente("grado_instruccion") && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
+                  </span>
+                  <select value={form.grado_instruccion} onChange={(e) => setForm((f) => ({ ...f, grado_instruccion: e.target.value }))}
+                    className="rounded-lg border bg-crema px-3 py-2">
+                    <option value="">—</option>
                     {GRADOS_INSTRUCCION.map((g) => <option key={g} value={g}>{GRADO_INSTRUCCION_LABELS[g]}</option>)}
                   </select>
-                </label>
-              )}
-              {campoPerfil === "discapacidad" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes una discapacidad?
-                  <select required value={formPerfil.discapacidad ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
-                {formPerfil.discapacidad === "true" && (
-                  <label className="flex flex-col gap-1 text-xs text-taupe">Código CONADIS
-                    <input type="text" required value={formPerfil.discapacidad_conadis ?? ""}
-                      onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad_conadis: e.target.value }))}
-                      className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                  </label>
-                )}
-              </>)}
-              {campoPerfil === "cuenta_bancaria" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Banco
-                  <input type="text" required value={formPerfil.entidad_bancaria ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, entidad_bancaria: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Número de cuenta
-                  <input type="text" required value={formPerfil.numero_cuenta ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, numero_cuenta: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-              </>)}
-              {campoPerfil === "cuspp" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo CUSPP
-                  <input type="text" required value={formPerfil.cuspp ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, cuspp: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-              )}
-              {campoPerfil === "correccion_identidad" && (<>
-                <p className="w-full text-xs text-taupe">
-                  Es una corrección de un dato mal capturado, no una actualización — completa solo lo que está mal.
-                </p>
-                <label className="flex flex-col gap-1 text-xs text-taupe">DNI correcto
-                  <input type="text" value={formPerfil.documento ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, documento: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nombre completo correcto
-                  <input type="text" value={formPerfil.nombre_dni ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, nombre_dni: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Fecha de nacimiento correcta
-                  <input type="date" value={formPerfil.fecha_nacimiento ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Género correcto
-                  <select value={formPerfil.genero ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, genero: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="">— sin corregir —</option>
-                    {GENEROS.map((g) => <option key={g} value={g}>{GENERO_LABELS[g]}</option>)}
-                  </select>
-                </label>
-              </>)}
-              {campoPerfil === "familiar_nuevo" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nombres
-                  <input type="text" required value={formPerfil.nombres ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, nombres: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Apellidos
-                  <input type="text" required value={formPerfil.apellidos ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, apellidos: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                  <select required value={formPerfil.vinculo ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, vinculo: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    {VINCULOS_DERECHOHABIENTE.map((v) => <option key={v} value={v}>{VINCULO_DERECHOHABIENTE_LABELS[v]}</option>)}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">
-                  Fecha de nacimiento{formPerfil.vinculo === "hijo" ? "" : " (si aplica)"}
-                  <input type="date" required={formPerfil.vinculo === "hijo"} value={formPerfil.fecha_nacimiento ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-              </>)}
-            </div>
-
-            {campoActualPerfil?.requiere_documento && (
-              <label className="flex flex-col gap-1 text-xs text-taupe">
-                Documento de sustento{campoActualPerfil.documento_sugerido ? ` (${campoActualPerfil.documento_sugerido})` : ""}
-                <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
-                  onChange={(e) => setArchivosPerfil(Array.from(e.target.files ?? []))}
-                  className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-              </label>
-            )}
-
-            {yaHayPendientePerfil && (
-              <p className="text-xs text-ambar">
-                Ya tienes una solicitud pendiente sobre este campo — enviar otra reemplaza a esa.
-              </p>
-            )}
-
-            <button type="submit" disabled={
-              enviandoPerfil || (campoActualPerfil?.requiere_documento && archivosPerfil.length === 0)
-            } className="w-fit rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-              {enviandoPerfil ? "Enviando…" : "Pedir el cambio"}
-            </button>
-          </form>
-          {avisoPerfil && (
-            <p className={`mt-2 text-xs ${avisoPerfil.tipo === "ok" ? "text-verde" : "text-rojo"}`}>
-              {avisoPerfil.texto}
-            </p>
-          )}
-
-          {misSolicitudesPerfil.length > 0 && (
-            <ul className="mt-4 space-y-2 border-t border-sand pt-3 text-xs">
-              {misSolicitudesPerfil.map((s) => (
-                <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span>
-                    <strong>{catalogoPerfil.find((c) => c.campo === s.campo)?.etiqueta ?? s.campo}</strong>
-                    {" · "}
-                    <span className={
-                      s.estado === "aprobado" ? "text-verde"
-                      : s.estado === "rechazado" ? "text-rojo"
-                      : s.estado === "reemplazada" ? "text-taupe"
-                      : "text-pizarra"
-                    }>
-                      {s.estado === "pendiente" ? "por resolver" : s.estado === "reemplazada" ? "reemplazada por otra" : s.estado}
+                  {cambios.grado_instruccion && requiereDocumento("grado_instruccion") && (
+                    <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+                      Este cambio exige un documento de sustento ({documentoSugerido("grado_instruccion")}).
+                      <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
+                        onChange={(e) => setArchivos((a) => ({ ...a, grado_instruccion: Array.from(e.target.files ?? []) }))}
+                        className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
                     </span>
-                    {s.motivo && <span className="text-taupe"> — «{s.motivo}»</span>}
+                  )}
+                </label>
+              )
+              : campoFijo("Grado de instrucción", ficha?.grado_instruccion ? (GRADO_INSTRUCCION_LABELS[ficha.grado_instruccion as keyof typeof GRADO_INSTRUCCION_LABELS] ?? ficha.grado_instruccion) : "—",
+                  hayPendiente("grado_instruccion") ? "cambio pendiente de aprobación" : undefined)}
+            {editando
+              ? (
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-taupe">
+                    ¿Hijos menores a cargo?
+                    {hayPendiente("hijos_menores") && <span className="ml-1 text-[11px] text-pizarra">· cambio pendiente de aprobación</span>}
+                  </span>
+                  <select value={form.hijos_menores} onChange={(e) => setForm((f) => ({ ...f, hijos_menores: e.target.value as "" | "si" | "no" }))}
+                    className="rounded-lg border bg-crema px-3 py-2">
+                    <option value="">—</option>
+                    <option value="si">Sí</option>
+                    <option value="no">No</option>
+                  </select>
+                  {cambios.hijos_menores && requiereDocumento("hijos_menores") && (
+                    <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+                      Este cambio exige un documento de sustento ({documentoSugerido("hijos_menores")}).
+                      <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
+                        onChange={(e) => setArchivos((a) => ({ ...a, hijos_menores: Array.from(e.target.files ?? []) }))}
+                        className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
+                    </span>
+                  )}
+                </label>
+              )
+              : campoFijo("¿Hijos menores a cargo?", siNoSinDato(ficha?.hijos_menores),
+                  hayPendiente("hijos_menores") ? "cambio pendiente de aprobación" : undefined)}
+          </div>
+        </section>
+
+        <section>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Pensión</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campoFijo(
+              "Sistema de pensiones",
+              yo.regimenPension ? (REGIMEN_PENSION_LABELS[yo.regimenPension as keyof typeof REGIMEN_PENSION_LABELS] ?? yo.regimenPension) : "— todavía no se sabe",
+            )}
+            <p className="self-end text-[11px] text-taupe">
+              Se descuenta de tu remuneración asegurable y va a tu fondo de pensión — no se queda en CAYLA.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Contacto</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campoEditable("Celular", "celular", editando ? form.celular : (ficha?.celular ?? ""),
+              (v) => setForm((f) => ({ ...f, celular: v })), "tel")}
+            {campoFijo("Correo", yo.email ?? "—", "es tu usuario para entrar")}
+            <div className="sm:col-span-2">
+              {campoEditable("Dirección", "direccion", editando ? form.direccion : (ficha?.direccion ?? ""),
+                (v) => setForm((f) => ({ ...f, direccion: v })))}
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">
+            Contacto de emergencia
+            {hayPendiente("contacto_emergencia") && <span className="ml-1 normal-case text-pizarra">· cambio pendiente de aprobación</span>}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-taupe">Nombre</span>
+              <input value={editando ? form.emergencia_nombre : (ficha?.emergencia_nombre ?? "")} disabled={!editando}
+                onChange={(e) => setForm((f) => ({ ...f, emergencia_nombre: e.target.value }))}
+                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-taupe">Vínculo</span>
+              <input value={editando ? form.emergencia_vinculo : (ficha?.emergencia_vinculo ?? "")} disabled={!editando}
+                onChange={(e) => setForm((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
+                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-taupe">Teléfono</span>
+              <input value={editando ? form.emergencia_telefono : (ficha?.emergencia_telefono ?? "")} disabled={!editando}
+                onChange={(e) => setForm((f) => ({ ...f, emergencia_telefono: e.target.value }))}
+                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">
+            Familiares {derechos.length > 0 && <span className="normal-case">· {derechos.filter((d) => !d.vigente_hasta).length} vigentes</span>}
+          </p>
+          <p className="mb-2 text-[11px] text-taupe">
+            Esto se ve, pero se agrega o corrige avisando a Desarrollo Organizacional.
+          </p>
+          {derechos.length === 0 ? (
+            <p className="text-sm text-taupe">Sin familiares registrados.</p>
+          ) : (
+            <ul className="divide-y rounded-lg border border-sand">
+              {derechos.map((d) => (
+                <li key={d.id} className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm ${d.vigente_hasta ? "text-taupe" : ""}`}>
+                  <span>
+                    {d.nombres} {d.apellidos}
+                    <span className="ml-2 text-xs text-taupe">
+                      {VINCULO_DERECHOHABIENTE_LABELS[d.vinculo as keyof typeof VINCULO_DERECHOHABIENTE_LABELS] ?? d.vinculo}
+                      {d.documento && ` · DNI ${d.documento}`}
+                      {d.fecha_nacimiento && ` · ${d.fecha_nacimiento}`}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2 text-xs">
+                    {d.essalud && <span className="rounded-full bg-sand/60 px-2 py-0.5">EsSalud</span>}
+                    {d.vida_ley && <span className="rounded-full bg-sand/60 px-2 py-0.5">Vida Ley</span>}
+                    {d.vigente_hasta && <span className="text-taupe">cerrado el {d.vigente_hasta}</span>}
                   </span>
                 </li>
               ))}
             </ul>
           )}
+        </section>
+
+        <section>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Banco</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campoEditable("Entidad bancaria", "cuenta_bancaria", editando ? form.entidad_bancaria : (ficha?.entidad_bancaria ?? ""),
+              (v) => setForm((f) => ({ ...f, entidad_bancaria: v })))}
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-taupe">N.° de cuenta</span>
+              <input value={editando ? form.numero_cuenta : (ficha?.numero_cuenta ?? "")} disabled={!editando}
+                onChange={(e) => setForm((f) => ({ ...f, numero_cuenta: e.target.value }))}
+                className="rounded-lg border px-3 py-2 disabled:bg-sand/30 disabled:text-taupe" />
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Discapacidad</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {campoFijo("¿Persona con discapacidad?", siNoSinDato(ficha?.discapacidad))}
+            {ficha?.discapacidad && campoFijo("N.° de certificado CONADIS", ficha.discapacidad_conadis ?? "—")}
+          </div>
+        </section>
+      </div>
+
+      {misSolicitudesPerfil.length > 0 && (
+        <section className="mt-5 rounded-2xl border border-sand bg-papel p-5 text-sm">
+          <h2 className="mb-3 font-serif text-lg">Tus pedidos de cambio</h2>
+          <ul className="space-y-2 text-xs">
+            {misSolicitudesPerfil.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2 border-t border-sand pt-2 first:border-t-0 first:pt-0">
+                <span>
+                  <strong>{etiquetaDe(s.campo)}</strong>
+                  {" · "}
+                  <span className={
+                    s.estado === "aprobado" ? "text-verde"
+                    : s.estado === "rechazado" ? "text-rojo"
+                    : s.estado === "reemplazada" ? "text-taupe"
+                    : "text-pizarra"
+                  }>
+                    {s.estado === "pendiente" ? "por resolver" : s.estado === "reemplazada" ? "reemplazada por otra" : s.estado}
+                  </span>
+                  {s.motivo && <span className="text-taupe"> — «{s.motivo}»</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
     </main>
