@@ -677,6 +677,30 @@ export type Database = {
           },
         ]
       }
+      catalogo_campos_perfil: {
+        Row: {
+          campo: string
+          columnas: string[]
+          documento_sugerido: string | null
+          etiqueta: string
+          requiere_documento: boolean
+        }
+        Insert: {
+          campo: string
+          columnas: string[]
+          documento_sugerido?: string | null
+          etiqueta: string
+          requiere_documento?: boolean
+        }
+        Update: {
+          campo?: string
+          columnas?: string[]
+          documento_sugerido?: string | null
+          etiqueta?: string
+          requiere_documento?: boolean
+        }
+        Relationships: []
+      }
       categorias_laborales: {
         Row: {
           actualizado_at: string
@@ -3504,6 +3528,159 @@ export type Database = {
         }
         Relationships: []
       }
+      seguimiento_planilla_por_solicitud: {
+        Row: {
+          campo: string
+          creada_at: string
+          descripcion: string
+          estado: string
+          id: string
+          nota: string | null
+          persona_id: string
+          resuelta_at: string | null
+          resuelta_por: string | null
+          solicitud_id: string
+        }
+        Insert: {
+          campo: string
+          creada_at?: string
+          descripcion: string
+          estado?: string
+          id?: string
+          nota?: string | null
+          persona_id: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          solicitud_id: string
+        }
+        Update: {
+          campo?: string
+          creada_at?: string
+          descripcion?: string
+          estado?: string
+          id?: string
+          nota?: string | null
+          persona_id?: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          solicitud_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seguimiento_planilla_por_solicitud_solicitud_id_fkey"
+            columns: ["solicitud_id"]
+            isOneToOne: true
+            referencedRelation: "solicitudes_cambio_perfil"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solicitudes_cambio_perfil: {
+        Row: {
+          campo: string
+          creada_at: string
+          estado: string
+          id: string
+          motivo: string | null
+          persona_id: string
+          resuelta_at: string | null
+          resuelta_por: string | null
+          rutas_adjuntas: string[]
+          valor_anterior: Json
+          valor_propuesto: Json
+        }
+        Insert: {
+          campo: string
+          creada_at?: string
+          estado?: string
+          id?: string
+          motivo?: string | null
+          persona_id: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          rutas_adjuntas?: string[]
+          valor_anterior: Json
+          valor_propuesto: Json
+        }
+        Update: {
+          campo?: string
+          creada_at?: string
+          estado?: string
+          id?: string
+          motivo?: string | null
+          persona_id?: string
+          resuelta_at?: string | null
+          resuelta_por?: string | null
+          rutas_adjuntas?: string[]
+          valor_anterior?: Json
+          valor_propuesto?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_campo_fkey"
+            columns: ["campo"]
+            isOneToOne: false
+            referencedRelation: "catalogo_campos_perfil"
+            referencedColumns: ["campo"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_cambio_perfil_resuelta_por_fkey"
+            columns: ["resuelta_por"]
+            isOneToOne: false
+            referencedRelation: "terminal_roster"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       solicitudes_vacaciones: {
         Row: {
           ausencia_id: string | null
@@ -4359,6 +4536,10 @@ export type Database = {
         }[]
       }
       fn_aprobar_ausencia: { Args: { p_id: string | null }; Returns: undefined }
+      fn_aplicar_cambio_perfil: {
+        Args: { p_solicitud_id: string }
+        Returns: undefined
+      }
       fn_area_activa: {
         Args: { p_activa: boolean | null; p_codigo: string | null }
         Returns: undefined
@@ -4738,6 +4919,14 @@ export type Database = {
           p_sede_base_id: string | null
         }
         Returns: Json
+      }
+      fn_crear_solicitud_perfil: {
+        Args: {
+          p_campo: string
+          p_rutas_adjuntas?: string[]
+          p_valor_propuesto: Json
+        }
+        Returns: string
       }
       fn_cts_trunca: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
@@ -5451,6 +5640,20 @@ export type Database = {
           tipo: string
         }[]
       }
+      fn_mis_solicitudes_perfil: {
+        Args: never
+        Returns: {
+          campo: string
+          creada_at: string
+          estado: string
+          etiqueta: string
+          id: string
+          motivo: string
+          resuelta_at: string
+          valor_anterior: Json
+          valor_propuesto: Json
+        }[]
+      }
       fn_objetivo_agregar: {
         Args: {
           p_anio: number | null
@@ -5803,6 +6006,14 @@ export type Database = {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_resolver_seguimiento_planilla: {
+        Args: { p_id: string; p_nota?: string }
+        Returns: undefined
+      }
+      fn_resolver_solicitud_perfil: {
+        Args: { p_aprobar: boolean; p_id: string; p_motivo?: string }
+        Returns: undefined
+      }
       fn_resolver_solicitud_vacaciones: {
         Args: { p_aprobar: boolean | null; p_id: string | null; p_respuesta?: string | null }
         Returns: undefined
@@ -6069,6 +6280,10 @@ export type Database = {
           persona_id: string
         }[]
       }
+      fn_snapshot_valor_actual: {
+        Args: { p_campo: string; p_persona_id: string }
+        Returns: Json
+      }
       fn_solicitar_vacaciones: {
         Args: {
           p_comentario?: string | null
@@ -6076,6 +6291,25 @@ export type Database = {
           p_fecha_inicio: string | null
         }
         Returns: string
+      }
+      fn_solicitud_perfil_puede_escribir: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      fn_solicitudes_perfil_pendientes: {
+        Args: never
+        Returns: {
+          campo: string
+          creada_at: string
+          etiqueta: string
+          id: string
+          nombre: string
+          persona_id: string
+          rutas_adjuntas: string[]
+          sede: string
+          valor_anterior: Json
+          valor_propuesto: Json
+        }[]
       }
       fn_solicitudes_vacaciones: {
         Args: { p_solo_pendientes?: boolean | null }
@@ -6196,6 +6430,10 @@ export type Database = {
       fn_vacaciones_truncas: {
         Args: { p_fecha_cese: string | null; p_persona_id: string | null }
         Returns: Json
+      }
+      fn_validar_valor_propuesto: {
+        Args: { p_campo: string; p_valor: Json }
+        Returns: undefined
       }
       fn_ventanas_de_regularidad: {
         Args: { p_fecha: string | null }
