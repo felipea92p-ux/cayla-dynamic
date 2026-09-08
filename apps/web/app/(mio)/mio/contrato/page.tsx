@@ -9,6 +9,7 @@ import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { MARCADOR_FIRMA_EMPRESA, MARCADOR_FIRMA_PERSONA } from "@/lib/admin/contrato-texto";
+import { ordenarContratoVigente } from "@/lib/mi-contrato";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 
 // Tu contrato, en autoservicio — mismo criterio que /mio/boleta: siempre el
@@ -96,15 +97,16 @@ function MiContratoContenido() {
     setYo(yoActual);
 
     const [{ data: c, error: eContrato }, { data: mf }, { data: fe }] = await Promise.all([
-      supabase
-        .from("contratos_generados")
-        .select("id, tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html, firma_persona_confirmada_at")
-        .eq("persona_id", yoActual.id)
-        .is("anulado_at", null)
-        .order("generado_at", { ascending: false })
-        .order("fecha_inicio", { ascending: false })
-        .order("fecha_fin", { ascending: false })
-        .order("id", { ascending: false })
+      // El orden vive en lib/mi-contrato.ts: la Bandeja señala el MISMO papel
+      // que abre esta pantalla, y dos `order by` escritos por separado se
+      // separan solos con el tiempo.
+      ordenarContratoVigente(
+        supabase
+          .from("contratos_generados")
+          .select("id, tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html, firma_persona_confirmada_at")
+          .eq("persona_id", yoActual.id)
+          .is("anulado_at", null),
+      )
         .limit(1)
         .maybeSingle(),
       supabase.rpc("fn_mi_firma"),

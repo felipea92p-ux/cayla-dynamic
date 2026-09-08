@@ -28,6 +28,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useClavePorCambiar } from "@/lib/admin/use-clave-por-cambiar";
+import { traerBandeja } from "@/lib/bandeja-mia";
 import { useGruposCerrados, useNavColapsado } from "@/lib/use-nav-colapsado";
 import { Marca } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -85,11 +86,17 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
   //                 periodo cierra con el reclamo sin leer, ya es plata mal
   //                 pagada y hay que reabrir el mes para arreglarlo.
   //
-  // Antes de agregar un cuarto: la pregunta no es «¿es importante?», es «¿tiene
-  // fecha límite y cuesta plata pasarla?». Casi nada la pasa.
+  // Antes de agregar un cuarto DE EQUIPO: la pregunta no es «¿es importante?»,
+  // es «¿tiene fecha límite y cuesta plata pasarla?». Casi nada la pasa.
+  //
+  // El de «Mi perfil» (2026-09-08) no compite con estos tres y por eso entra:
+  // los tres de arriba hablan del EQUIPO —lo que a esta persona le toca
+  // atender— y aquel habla de ELLA: su contrato sin firmar, su constancia de
+  // ley pendiente. Quien pasa el día en el panel no tenía forma de enterarse.
   const [educacionPorAtender, setEducacionPorAtender] = useState(0);
   const [vacacionesPorAtender, setVacacionesPorAtender] = useState(0);
   const [revisionesPendientes, setRevisionesPendientes] = useState(0);
+  const [misAvisos, setMisAvisos] = useState(0);
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [ayudaAbierta, setAyudaAbierta] = useState(false);
 
@@ -168,6 +175,22 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     return () => { vivo = false; };
   }, [veEquipo, pathname]);
 
+  // Lo suyo. Sale de `traerBandeja`, la MISMA función que pinta el número del
+  // botón «Bandeja» de /mio: el menú del panel y esa pantalla no pueden decir
+  // dos números distintos de lo mismo.
+  //
+  // Sin `roles`, como el propio ítem «Mi perfil»: todo el mundo tiene un
+  // contrato y una constancia que dejar, incluida DO. Y falla en silencio —si
+  // no se pudo contar, el renglón sale sin número—, igual que en /mio.
+  useEffect(() => {
+    const id = persona?.id;
+    if (!id) return;
+    let vivo = true;
+    void traerBandeja(createAdminSupabaseClient(), id)
+      .then(({ bandeja }) => { if (vivo) setMisAvisos(bandeja.avisos); });
+    return () => { vivo = false; };
+  }, [persona?.id, pathname]);
+
   async function cerrarSesion() {
     const supabase = createAdminSupabaseClient();
     await supabase.auth.signOut();
@@ -199,6 +222,10 @@ function MarcoConChrome({ pathname, children }: { pathname: string; children: Re
     revisiones: {
       n: revisiones,
       titulo: `${revisiones} persona(s) pidieron que se revise un día suyo`,
+    },
+    mio: {
+      n: misAvisos,
+      titulo: `${misAvisos} cosa(s) tuyas: lo que te falta hacer y lo que te respondieron`,
     },
   };
 

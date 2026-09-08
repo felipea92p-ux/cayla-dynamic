@@ -1,6 +1,8 @@
 import type { ClienteCayla } from "@cayla-dynamic/database";
 import { fechaLima, hoyLima } from "@cayla-dynamic/shared";
 import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
+import { traerAcusesPendientes, type AcusePendiente } from "./acuses-pendientes";
+import { ordenarContratoVigente } from "./mi-contrato";
 
 /**
  * La Bandeja de cada persona — «qué te respondieron».
@@ -17,22 +19,53 @@ import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
  *
  * QUÉ JUNTA, Y QUÉ NO
  *
- * Tres cosas que la persona pidió y alguien tenía que contestarle:
- *   · el cambio de su ficha, con sus documentos  (solicitudes_cambio_perfil, 0399)
- *   · sus vacaciones                              (solicitudes_vacaciones, 0330)
- *   · que se revisara un día suyo                 (revisiones_pedidas, 0257)
+ * DOS cosas distintas, y la diferencia entre ellas es la que ordena todo este
+ * archivo:
  *
- * NO junta los acuses pendientes, los anuncios ni «Necesita que hagas algo»:
- * esos tres ya se pintan solos arriba en /mio, y son cosas que ella tiene que
- * hacer, no respuestas que recibió. Dos puertas para la misma pregunta es
- * exactamente lo que esta pantalla vino a evitar.
+ *   PENDIENTES — lo que depende de ella y NO CADUCA. Un contrato sin firmar
+ *   sigue contando el día 90 igual que el día 1; deja de contar cuando lo
+ *   firma, no cuando lo mira.
+ *     · su contrato, mientras no confirme su firma   (contratos_generados, 0402)
+ *     · un memo disciplinario por firmar             (fn_mis_memos, 0404)
+ *     · la política salarial y el RIT sin acusar     (Ley 30709)
+ *     · días con el marcaje incompleto del periodo que se le va a pagar
  *
- * Y NO junta el expediente disciplinario, aunque `exp_select_propia` lo
- * permita: esa policy no filtra por estado, así que incluiría BORRADORES —
- * avisarle de una sanción que nadie decidió entregar todavía es peor que no
- * avisarle nada. Mismo criterio que ya tomó /mio.
+ *   RESPUESTAS — lo que pidió y alguien le contestó. Eso sí caduca a los
+ *   DIAS_NOVEDAD, porque no hay nada que hacer con ello:
+ *     · el cambio de su ficha, con sus documentos  (solicitudes_cambio_perfil, 0399)
+ *     · sus vacaciones                              (solicitudes_vacaciones, 0330)
+ *     · que se revisara un día suyo                 (revisiones_pedidas, 0257)
  *
- * CERO SQL: las tres fuentes ya dejan a cada persona leer lo suyo. Esta
+ * POR QUÉ LOS PENDIENTES NO CADUCAN, Y POR QUÉ ESO RESUELVE «LO LEÍDO»
+ *
+ * Hasta el 2026-09-08 no se guardaba en ninguna parte si una persona ya había
+ * visto su bandeja, y se decidió no guardarlo: un «leído» en el navegador se
+ * pierde al cambiar de equipo y, en una Mac compartida, puede dejarle OCULTO a
+ * la segunda persona un mensaje que nunca vio.
+ *
+ * La decisión sigue en pie, y esta versión la aprovecha en vez de pelearse con
+ * ella: para lo que hay que FIRMAR, «leído» es «firmado», y eso YA está
+ * guardado —`firma_persona_confirmada_at`, `mi_acuse_at`— desde antes. No hace
+ * falta una tabla nueva ni una migración: el sistema no necesita saber si lo
+ * miraste, necesita saber si lo hiciste.
+ *
+ * QUÉ SIGUE SIN JUNTAR
+ *
+ * Los anuncios, que no piden nada de vuelta. Y el expediente disciplinario
+ * crudo, aunque `exp_select_propia` lo permita: esa policy no filtra por
+ * estado, así que incluiría BORRADORES —avisarle de una sanción que nadie
+ * decidió entregar todavía es peor que no avisarle nada—. Por eso los memos
+ * entran por `fn_mis_memos()`, que ya filtra `estado = 'entregado'`.
+ *
+ * LO QUE SIGUE PINTÁNDOSE ARRIBA EN /mio, Y ES A PROPÓSITO
+ *
+ * La banda de acuses y el recuadro ámbar «Necesita que hagas algo» se quedan
+ * donde están (decisión de Felipe, 2026-09-08). La Bandeja no los reemplaza:
+ * los CUENTA y los enlaza, para que el aviso viaje con la persona a cualquier
+ * pantalla. No duplica ningún formulario — es el mismo criterio con el que se
+ * construyó la Bandeja del panel.
+ *
+ * CERO SQL: todas las fuentes ya dejan a cada persona leer lo suyo. Esta
  * función solo las fusiona.
  */
 
@@ -46,19 +79,32 @@ import { loQueNoSePudo } from "./admin/lo-que-no-se-pudo";
  * persona un mensaje que nunca vio — esconder el rechazo de un cambio de
  * cuenta bancaria es peor que repetirlo.
  *
- * Lo que este número hace, y hay que saberlo al tocarlo: el contador no se
- * apaga al leer, caduca solo. Se prefiere un número que insiste de más a uno
+ * Lo que este número hace, y hay que saberlo al tocarlo: una RESPUESTA no se
+ * apaga al leerla, caduca sola. Se prefiere un número que insiste de más a uno
  * que calla de menos.
+ *
+ * ⚠ NO se aplica a los PENDIENTES. Un contrato sin firmar no caduca a los 14
+ * días: caduca cuando se firma. Caducar ahí sería apagar el aviso justo cuando
+ * lleva más tiempo sin resolverse.
  */
 export const DIAS_NOVEDAD = 14;
 
-export type OrigenBandeja = "perfil" | "vacaciones" | "revision";
+export type OrigenBandeja =
+  // Lo que pediste y te contestaron.
+  | "perfil" | "vacaciones" | "revision"
+  // Lo que depende de ti. No caduca.
+  | "contrato" | "memo" | "acuse" | "marcaje";
 
 /**
  * `atendido` es de las revisiones y no es lo mismo que `aprobado`: a un pedido
  * de revisar un día no se le dice que sí o que no, se le contesta qué se hizo.
  */
-export type EstadoBandeja = "aprobado" | "rechazado" | "atendido" | "pendiente";
+export type EstadoBandeja =
+  | "aprobado" | "rechazado" | "atendido" | "pendiente"
+  /** Depende de una firma tuya: el contrato, un memo, una constancia. */
+  | "por_firmar"
+  /** Depende de que pidas que se corrija: un día con el marcaje incompleto. */
+  | "por_arreglar";
 
 export interface MensajeBandeja {
   /** Estable entre recargas: sirve de `key` de React y de desempate del orden. */
@@ -71,7 +117,13 @@ export interface MensajeBandeja {
   /** Lo que escribió Desarrollo Organizacional. `null` cuando no escribió nada — nunca un texto inventado. */
   respuesta: string | null;
   detalle: string | null;
-  /** Solo las respuestas recientes. Lo pendiente NUNCA es novedad: lo pediste tú. */
+  /**
+   * ¿Cuenta en el número del botón?
+   *
+   * Para una RESPUESTA: solo si es reciente (ver DIAS_NOVEDAD).
+   * Para un PENDIENTE: siempre, hasta que se resuelva.
+   * Para lo que estás ESPERANDO: nunca — lo pediste tú, ya sabes que existe.
+   */
   nuevo: boolean;
   /** A dónde lleva «Verlo →», o `null` si no hay a dónde ir de verdad. */
   ir: string | null;
@@ -107,19 +159,84 @@ export interface FilaRevision {
   respuesta: string | null;
 }
 
+/** El contrato vigente de la persona, de `contratos_generados` (RLS 0272). */
+export interface FilaContrato {
+  id: string;
+  tipo: string;
+  fecha_inicio: string;
+  fecha_fin: string | null;
+  generado_at: string;
+  /** La confirmación DIGITAL de su firma (0402). Null = todavía le falta. */
+  firma_persona_confirmada_at: string | null;
+}
+
+/** Un memo disciplinario ya entregado, de `fn_mis_memos()` (0404). */
+export interface FilaMemo {
+  id: string;
+  nivel: string;
+  entregado_at: string | null;
+  firma_sancionado_confirmada_at: string | null;
+  sancionado_rechazo_firma_at: string | null;
+}
+
+/** Un día del periodo abierto cuyo marcaje quedó incompleto. */
+export interface FilaMarcaje {
+  fecha: string;
+  /** `estado_jornada` de la base. */
+  estado: string;
+  horas_trabajadas: number | null;
+}
+
+/** El periodo de pago abierto hoy, de `periodos_planilla`. */
+export interface PeriodoAbierto {
+  fecha_ini: string;
+  fecha_fin: string;
+}
+
 export interface FuentesBandeja {
   perfil: FilaPerfil[];
   vacaciones: FilaVacacion[];
   revisiones: FilaRevision[];
+  /** El contrato vigente, o null si no tiene ninguno. */
+  contrato: FilaContrato | null;
+  memos: FilaMemo[];
+  /** Ya resueltos por lib/acuses-pendientes.ts: acá solo se pintan. */
+  acuses: AcusePendiente[];
+  /** Días del periodo abierto, sin filtrar: el criterio de «incompleto» vive acá. */
+  marcajes: FilaMarcaje[];
+  /** Sin periodo abierto no hay nada que arreglar a tiempo: los marcajes se ignoran. */
+  periodo: PeriodoAbierto | null;
 }
 
 export interface Bandeja {
+  /** Lo que depende de ti y no caduca, lo más urgente arriba. */
+  pendientes: MensajeBandeja[];
   /** Lo que ya te contestaron, lo más reciente arriba. */
   respuestas: MensajeBandeja[];
   /** Lo que pediste y sigue sin respuesta, lo más viejo arriba: eso es lo que más espera. */
   esperando: MensajeBandeja[];
-  /** Cuántas respuestas son novedad. El botón de /mio pinta ESTE número, no uno suyo. */
-  nuevas: number;
+  /**
+   * El número del botón «Bandeja»: los pendientes enteros más las respuestas
+   * recientes. Sale de las MISMAS listas que se pintan, así que no puede
+   * discrepar de ellas.
+   */
+  avisos: number;
+}
+
+/**
+ * ¿Este memo le falta firmar?
+ *
+ * Se exporta porque /mio pinta el mismo aviso en su recuadro ámbar. Escrito dos
+ * veces, un día uno de los dos dejaría de contar los verbales.
+ *
+ * Los tres niveles son los que llevan firma del sancionado; una «anotación» no.
+ * Y `sancionado_rechazo_firma_at` cuenta como cerrado: negarse a firmar es una
+ * respuesta con valor legal (queda el acta), no un pendiente eterno.
+ */
+export function esMemoPorFirmar(m: FilaMemo): boolean {
+  return ["verbal", "amonestacion", "suspension"].includes(m.nivel)
+    && !m.firma_sancionado_confirmada_at
+    && !m.sancionado_rechazo_firma_at;
 }
 
 const MESES = [
@@ -176,11 +293,128 @@ function instanteDe(resuelta: string | null, pedida: string): number {
   return Date.parse(resuelta ?? pedida);
 }
 
+/**
+ * En qué orden aprietan los pendientes. No es una preferencia de forma: es lo
+ * que decide qué ve primero alguien que abre la Bandeja con cuatro cosas.
+ *
+ *   memo     · corre el plazo para presentar su descargo. Es el único con un
+ *              reloj legal en contra de ELLA.
+ *   contrato · es el papel que sostiene la relación. Sin su firma, lo que se
+ *              pactó no está probado por ninguna de las dos partes.
+ *   acuse    · obligación legal de la EMPRESA (Ley 30709, RIT). Importa, pero
+ *              quien queda expuesta si falta no es ella.
+ *   marcaje  · se arregla mientras el periodo siga abierto, y hasta entonces
+ *              no hay nada perdido.
+ */
+const PESO_PENDIENTE: Record<string, number> = { memo: 0, contrato: 1, acuse: 2, marcaje: 3 };
+
 export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): Bandeja {
   const respuestas: { m: MensajeBandeja; instante: number }[] = [];
   const esperando: { m: MensajeBandeja; instante: number }[] = [];
+  const pendientes: { m: MensajeBandeja; instante: number }[] = [];
 
   const esNueva = (fecha: string) => diasEntre(fecha, hoy) <= DIAS_NOVEDAD;
+
+  // ── LO QUE DEPENDE DE TI ────────────────────────────────────────────────
+  // Todos entran con `nuevo: true` y ninguno mira DIAS_NOVEDAD: no caducan.
+
+  // El contrato. UNO, el vigente — cuál es lo decide lib/mi-contrato.ts, el
+  // mismo criterio que abre /mio/contrato, para que la Bandeja no señale un
+  // papel distinto del que la pantalla enseña.
+  if (fuentes.contrato && !fuentes.contrato.firma_persona_confirmada_at) {
+    const c = fuentes.contrato;
+    const fecha = fechaLima(c.generado_at);
+    pendientes.push({
+      instante: Date.parse(c.generado_at),
+      m: {
+        clave: `contrato:${c.id}`, origen: "contrato", estado: "por_firmar", fecha,
+        titulo: "Tu contrato está esperando tu firma",
+        respuesta: null,
+        detalle: c.fecha_fin
+          ? `Del ${diaYMes(c.fecha_inicio)} al ${diaYMes(c.fecha_fin)}. Léelo entero y confirma tu firma; hasta que lo hagas seguirá acá.`
+          : `Desde el ${diaYMes(c.fecha_inicio)}, sin fecha de término. Léelo entero y confirma tu firma; hasta que lo hagas seguirá acá.`,
+        nuevo: true,
+        ir: "/mio/contrato",
+      },
+    });
+  }
+
+  // Los memos. GENÉRICO a propósito: ni el nivel ni el motivo van acá — esta
+  // tarjeta puede verla de reojo cualquiera que pase cerca de la pantalla, y el
+  // detalle recién se ve al entrar al documento. Mismo criterio que /mio.
+  for (const m of fuentes.memos.filter(esMemoPorFirmar)) {
+    const fecha = m.entregado_at ? fechaLima(m.entregado_at) : hoy;
+    pendientes.push({
+      instante: m.entregado_at ? Date.parse(m.entregado_at) : Date.parse(`${hoy}T00:00:00Z`),
+      m: {
+        clave: `memo:${m.id}`, origen: "memo", estado: "por_firmar", fecha,
+        titulo: "Tienes un documento por revisar y firmar",
+        respuesta: null,
+        detalle: "Está en Mi perfil, en la pestaña «Historial». Firmarlo no es aceptar lo que dice: puedes firmarlo y presentar tu descargo, o dejar constancia de que te niegas a firmar.",
+        nuevo: true,
+        ir: "/mio",
+      },
+    });
+  }
+
+  // Las constancias de ley. Ya vienen resueltas: acá no se decide qué exige
+  // acuse (eso vive en lib/acuses-pendientes.ts, que es lo que también lee la
+  // banda de arriba de /mio).
+  for (const a of fuentes.acuses) {
+    pendientes.push({
+      // Sin fecha propia: lo que importa no es cuándo se publicó, sino que te
+      // falta. Se ordenan entre sí por su clave, que es estable.
+      instante: 0,
+      m: {
+        clave: a.clave, origen: "acuse", estado: "por_firmar", fecha: hoy,
+        titulo: `Te falta dejar constancia: ${a.titulo}`,
+        respuesta: null,
+        detalle: a.detalle
+          ? `${a.detalle} No firmas ningún compromiso: dejas constancia de haber sido informada.`
+          : "No firmas ningún compromiso: dejas constancia de haber sido informada.",
+        nuevo: true,
+        ir: a.href,
+      },
+    });
+  }
+
+  // Los días con el marcaje incompleto, EN UN SOLO MENSAJE y contando 1.
+  //
+  // Uno por día haría que un mes malo se comiera el número entero y tapara el
+  // contrato sin firmar, que aprieta mucho más. Es una sola tarea —«pide que
+  // revisen tus días»— y así la presenta también el recuadro ámbar de /mio.
+  //
+  // Y SOLO DEL PERIODO QUE SE VA A PAGAR. Fuera de él ya no hay nada que
+  // arreglar a tiempo, así que avisar sería pedirle algo que no puede hacer.
+  // Por eso este número puede no coincidir con el del recuadro de /mio, que
+  // habla del rango de fechas que la persona está mirando: son dos preguntas
+  // distintas, y el texto de acá dice cuál contesta.
+  if (fuentes.periodo) {
+    const { fecha_ini, fecha_fin } = fuentes.periodo;
+    const rotos = fuentes.marcajes
+      .filter((j) => j.fecha >= fecha_ini && j.fecha <= fecha_fin)
+      // El mismo criterio que `estadoDelDia` (lib/admin/jornada-esperada.ts):
+      // sin horas o cerrada por el sistema es un día que hay que revisar.
+      .filter((j) => j.estado === "auto_cerrada_pendiente" || j.horas_trabajadas === null)
+      // Su jornada de HOY todavía abierta no es un día roto: está trabajando.
+      .filter((j) => !(j.fecha === hoy && (j.estado === "abierta" || j.estado === "en_pausa")))
+      .map((j) => j.fecha)
+      .sort();
+
+    if (rotos.length > 0) {
+      pendientes.push({
+        instante: Date.parse(`${rotos[0]}T00:00:00Z`),
+        m: {
+          clave: "marcaje:periodo", origen: "marcaje", estado: "por_arreglar", fecha: rotos[0],
+          titulo: `${rotos.length} día${rotos.length === 1 ? "" : "s"} con el marcaje incompleto`,
+          respuesta: null,
+          detalle: `${rotos.map(diaYMes).join(", ")}. Falta la salida o la puso el sistema, así que las horas de ${rotos.length === 1 ? "ese día" : "esos días"} no son las que trabajaste. Se arregla mientras el periodo del ${diaYMes(fecha_ini)} al ${diaYMes(fecha_fin)} siga abierto; después ya no.`,
+          nuevo: true,
+          ir: "/mio",
+        },
+      });
+    }
+  }
 
   for (const f of fuentes.perfil) {
     const clave = `perfil:${f.id}`;
@@ -303,12 +537,23 @@ export function armarBandeja(fuentes: FuentesBandeja, hoy: string = hoyLima()): 
   // respuesta, que es lo que de verdad hay que reclamar.
   esperando.sort((a, b) => a.instante - b.instante || (a.m.clave < b.m.clave ? -1 : a.m.clave > b.m.clave ? 1 : 0));
 
+  // Los pendientes se ordenan por lo que aprietan (ver PESO_PENDIENTE) y, a
+  // igual peso, por antigüedad: lo que lleva más tiempo sin firmarse, arriba.
+  // `clave` cierra como ancla, igual que en las otras dos listas.
+  pendientes.sort((a, b) =>
+    (PESO_PENDIENTE[a.m.origen] ?? 9) - (PESO_PENDIENTE[b.m.origen] ?? 9)
+    || a.instante - b.instante
+    || (a.m.clave < b.m.clave ? -1 : a.m.clave > b.m.clave ? 1 : 0));
+
   const lista = respuestas.map((r) => r.m);
+  const porHacer = pendientes.map((r) => r.m);
   return {
+    pendientes: porHacer,
     respuestas: lista,
     esperando: esperando.map((r) => r.m),
-    // El contador se deriva de la misma lista que se pinta. No puede discrepar.
-    nuevas: lista.filter((m) => m.nuevo).length,
+    // El contador se deriva de las MISMAS listas que se pintan. No puede
+    // discrepar de ellas: los pendientes enteros, más las respuestas recientes.
+    avisos: porHacer.length + lista.filter((m) => m.nuevo).length,
   };
 }
 
@@ -349,7 +594,7 @@ export async function traerBandeja(
   personaId: string,
   hoy: string = hoyLima(),
 ): Promise<{ bandeja: Bandeja; noSePudo: string[] }> {
-  const [perfil, catalogo, vacaciones, revisiones] = await Promise.all([
+  const [perfil, catalogo, vacaciones, revisiones, contrato, memos, acuses, periodo] = await Promise.all([
     supabase.from("solicitudes_cambio_perfil")
       .select("id, campo, estado, creada_at, resuelta_at, motivo")
       .eq("persona_id", personaId)
@@ -366,7 +611,34 @@ export async function traerBandeja(
       .eq("persona_id", personaId)
       .order("pedida_at", { ascending: false })
       .limit(LIMITE),
+    // EL CONTRATO VIGENTE. Uno solo, y el mismo que abre /mio/contrato: el
+    // orden vive en lib/mi-contrato.ts. Sin `documento_html` a propósito — acá
+    // solo hace falta saber SI le falta firmar, y ese campo pesa 40 KB.
+    ordenarContratoVigente(
+      supabase.from("contratos_generados")
+        .select("id, tipo, fecha_inicio, fecha_fin, generado_at, firma_persona_confirmada_at")
+        .eq("persona_id", personaId)
+        .is("anulado_at", null),
+    ).limit(1).maybeSingle(),
+    // `fn_mis_memos()` (0404) ya filtra `estado = 'entregado'`: nunca un
+    // borrador. Ver el encabezado de este archivo.
+    supabase.rpc("fn_mis_memos"),
+    traerAcusesPendientes(supabase),
+    // El periodo que se le va a pagar. LEÍDO, nunca calculado: va del 29 al 28
+    // y eso vive en la tabla (CLAUDE.md).
+    supabase.from("periodos_planilla").select("fecha_ini, fecha_fin")
+      .lte("fecha_ini", hoy).gte("fecha_fin", hoy).maybeSingle(),
   ]);
+
+  // Las jornadas del periodo, solo si hay periodo abierto. Va en su propia
+  // ronda porque necesita las fechas de la consulta anterior; son ~30 filas.
+  const per = (periodo.data ?? null) as PeriodoAbierto | null;
+  const marcajes = per
+    ? await supabase.from("jornadas")
+        .select("fecha, estado, horas_trabajadas")
+        .eq("persona_id", personaId)
+        .gte("fecha", per.fecha_ini).lte("fecha", per.fecha_fin)
+    : null;
 
   const etiquetas = new Map(
     ((catalogo.data ?? []) as { campo: string; etiqueta: string }[]).map((c) => [c.campo, c.etiqueta] as const),
@@ -381,16 +653,31 @@ export async function traerBandeja(
       .map((f) => ({ ...f, etiqueta: etiquetas.get(f.campo) ?? f.campo })),
     vacaciones: (vacaciones.data ?? []) as unknown as FilaVacacion[],
     revisiones: (revisiones.data ?? []) as unknown as FilaRevision[],
+    contrato: (contrato.data ?? null) as unknown as FilaContrato | null,
+    memos: ((memos.data ?? []) as unknown as FilaMemo[]),
+    acuses,
+    marcajes: ((marcajes?.data ?? []) as unknown as FilaMarcaje[]),
+    periodo: per,
   }, hoy);
 
   return {
     bandeja,
     // Una consulta que falló y se pinta como lista vacía dice «no tienes
     // mensajes», que es una afirmación y no un hueco. Ver lib/admin/lo-que-no-se-pudo.ts.
+    // Una consulta que falló y se pinta como lista vacía dice «no tienes nada
+    // pendiente», y acá eso puede ser el contrato sin firmar.
+    //
+    // Los ACUSES no entran en esta lista, y es la misma excepción que ya hacía
+    // el catálogo de etiquetas: `traerAcusesPendientes` devuelve [] si algo
+    // falla, y la banda de arriba de /mio sigue avisando por su cuenta — un
+    // aviso rojo de más enseñaría a ignorarlo el día que falte algo de verdad.
     noSePudo: loQueNoSePudo([
       { error: perfil.error, que: "tus pedidos de cambio de ficha" },
       { error: vacaciones.error, que: "tus pedidos de vacaciones" },
       { error: revisiones.error, que: "tus pedidos de revisar un día" },
+      { error: contrato.error, que: "tu contrato" },
+      { error: memos.error, que: "tus documentos por firmar" },
+      { error: marcajes?.error ?? null, que: "tus días del periodo" },
     ]),
   };
 }

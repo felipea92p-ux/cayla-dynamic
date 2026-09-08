@@ -33,21 +33,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
+import { traerAcusesPendientes, type AcusePendiente } from "@/lib/acuses-pendientes";
 
-type Pendiente = { titulo: string; detalle: string; href: string };
-
-/** Lo que devuelve fn_documentos_vigentes, en lo que aquí importa. */
-type DocVigente = {
-  documento_id: string | null;
-  titulo: string | null;
-  tipo_nombre: string | null;
-  requiere_acuse: boolean | null;
-  mi_acuse_at: string | null;
-};
+// QUÉ falta acusar se decide en lib/acuses-pendientes.ts, no acá: la Bandeja
+// cuenta lo mismo que este aviso enseña, y dos copias del mismo
+// `requiere_acuse && !mi_acuse_at` se separan solas con el tiempo.
 
 export function AcusesPendientes() {
   const persona = usePersonaActual();
-  const [pendientes, setPendientes] = useState<Pendiente[]>([]);
+  const [pendientes, setPendientes] = useState<AcusePendiente[]>([]);
   const [cerrado, setCerrado] = useState(false);
 
   useEffect(() => {
@@ -56,46 +50,8 @@ export function AcusesPendientes() {
     const supabase = createAdminSupabaseClient();
 
     void (async () => {
-      const [pol, docs] = await Promise.all([
-        supabase.rpc("fn_politica_salarial_vigente"),
-        supabase.rpc("fn_documentos_vigentes"),
-      ]);
+      const lista = await traerAcusesPendientes(supabase);
       if (!vivo) return;
-
-      const lista: Pendiente[] = [];
-
-      // La política salarial. `mi_acuse` viene null mientras no se haya firmado;
-      // y si no hay versión publicada, `version` viene null y no hay nada que
-      // pedir — pedir constancia de un documento que no existe sería peor que
-      // callar.
-      const p = pol.data as { version?: number | null; mi_acuse?: unknown } | null;
-      if (p && p.version != null && !p.mi_acuse) {
-        lista.push({
-          titulo: "Política salarial",
-          detalle: "El cuadro de categorías y cómo se decide lo que cobra cada quien.",
-          href: "/admin/politica-salarial",
-        });
-      }
-
-      // Los documentos institucionales (reglamento interno y los que vengan
-      // después). Solo los que EXIGEN constancia: hay tipos que se publican
-      // para leer y no para firmar, y meterlos aquí convertiría el aviso en
-      // ruido.
-      for (const d of ((docs.data as DocVigente[] | null) ?? [])) {
-        if (d.requiere_acuse === true && !d.mi_acuse_at) {
-          lista.push({
-            titulo: d.tipo_nombre ?? d.titulo ?? "Documento",
-            detalle: d.titulo ?? "",
-            // Al documento CONCRETO, no a la pantalla. Con dos pendientes, dos
-            // enlaces al mismo sitio dejan a la persona buscando — y el segundo
-            // suele ser un anexo, que va plegado más abajo. Normas lee este
-            // fragmento al abrirse, despliega los anexos si hace falta y lleva
-            // la vista hasta él.
-            href: d.documento_id ? `/admin/normas#doc-${d.documento_id}` : "/admin/normas",
-          });
-        }
-      }
-
       setPendientes(lista);
     })();
 
@@ -127,7 +83,7 @@ export function AcusesPendientes() {
 
         <ul className="mt-4 space-y-2">
           {pendientes.map((x) => (
-            <li key={x.href + x.titulo} className="rounded-xl border border-sand bg-hueso p-3">
+            <li key={x.clave} className="rounded-xl border border-sand bg-hueso p-3">
               <p className="text-sm font-medium text-tinta">{x.titulo}</p>
               {x.detalle && <p className="mt-0.5 text-xs text-taupe">{x.detalle}</p>}
               {/* Nativo a propósito: es un <Link> de navegación, no un

@@ -33,7 +33,7 @@ import {
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
-import { traerBandeja } from "@/lib/bandeja-mia";
+import { esMemoPorFirmar, traerBandeja } from "@/lib/bandeja-mia";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -684,8 +684,8 @@ export default function MioPage() {
     vence_el: string | null; dias_para_vencer: number | null;
   } | null>(null);
   const [solicitudesVacas, setSolicitudesVacas] = useState<SolicitudVacacion[]>([]);
-  /** Cuántas respuestas recientes le esperan en /mio/bandeja. Ver `cargarNuevasEnBandeja`. */
-  const [nuevasEnBandeja, setNuevasEnBandeja] = useState(0);
+  /** Cuántos avisos le esperan en /mio/bandeja. Ver `cargarAvisosDeBandeja`. */
+  const [avisosEnBandeja, setAvisosEnBandeja] = useState(0);
   // El rango del formulario de pedir vacaciones. Arranca en mañana y en un
   // solo día — nunca en "": un campo de fecha que arranca vacío y bloquea el
   // envío es justo el error que ya costó caro acá (ver CLAUDE.md, 2026-08-26).
@@ -991,13 +991,10 @@ export default function MioPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
 
-  const memosPorFirmar = useMemo(
-    () => misMemos.filter((m) =>
-      ["verbal", "amonestacion", "suspension"].includes(m.nivel)
-      && !m.firma_sancionado_confirmada_at
-      && !m.sancionado_rechazo_firma_at),
-    [misMemos],
-  );
+  // El criterio vive en lib/bandeja-mia.ts, que es de donde sale también el
+  // número del botón «Bandeja». Escrito dos veces, un día uno de los dos
+  // dejaría de contar los verbales y el recuadro y el número dirían distinto.
+  const memosPorFirmar = useMemo(() => misMemos.filter(esMemoPorFirmar), [misMemos]);
 
   async function firmarMemo(id: string) {
     const { error } = await supabase.rpc("fn_firmar_memo_como_sancionado", { p_id: id });
@@ -1028,25 +1025,27 @@ export default function MioPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas]);
 
-  // Cuántas respuestas nuevas le esperan en la Bandeja.
+  // Cuántos avisos le esperan en la Bandeja: lo que le falta hacer (su contrato
+  // sin firmar, un documento por firmar, una constancia de ley, sus días con el
+  // marcaje incompleto) más lo que le respondieron estos días.
   //
   // Sale de `traerBandeja`, la MISMA función que arma la lista de /mio/bandeja,
-  // aunque esta pantalla ya tenga a mano dos de las tres fuentes. Contar acá
-  // con lo que ya está cargado sería más barato y crearía justo el defecto que
-  // la Bandeja vino a evitar: dos sitios respondiendo «cuántas nuevas» por su
-  // cuenta, listos para separarse el día que alguien cambie una de las dos.
+  // aunque esta pantalla ya tenga a mano varias de las fuentes. Contar acá con
+  // lo que ya está cargado sería más barato y crearía justo el defecto que la
+  // Bandeja vino a evitar: dos sitios respondiendo «cuántos» por su cuenta,
+  // listos para separarse el día que alguien cambie uno de los dos.
   //
   // Falla en silencio a propósito: si no se pudo contar, el botón sale sin
   // número. Un aviso rojo en la portada por un contador es ruido — la propia
   // Bandeja sí dice lo que no pudo traer, que es donde importa.
-  const cargarNuevasEnBandeja = useCallback(async () => {
-    if (!yo?.id) { setNuevasEnBandeja(0); return; }
+  const cargarAvisosDeBandeja = useCallback(async () => {
+    if (!yo?.id) { setAvisosEnBandeja(0); return; }
     const { bandeja } = await traerBandeja(supabase, yo.id);
-    setNuevasEnBandeja(bandeja.nuevas);
+    setAvisosEnBandeja(bandeja.avisos);
   }, [supabase, yo]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarNuevasEnBandeja(); }, [cargarNuevasEnBandeja]);
+  useEffect(() => { void cargarAvisosDeBandeja(); }, [cargarAvisosDeBandeja]);
 
   /** Pedir un rango de vacaciones. No dice si alcanza el saldo: eso lo decide
    *  el servidor con el mismo cálculo que ya se le muestra arriba. */
@@ -1407,20 +1406,22 @@ export default function MioPage() {
             {/* La Bandeja va ANTES de «Editar datos» a propósito: es donde
                 aterriza el resultado de lo que se pide ahí al lado. El número
                 sale de la misma función que arma la lista (lib/bandeja-mia.ts),
-                nunca de una cuenta propia de esta pantalla, y cuenta las
-                respuestas recientes — no se apaga al leer, caduca sola. */}
+                nunca de una cuenta propia de esta pantalla.
+                Cuenta dos cosas distintas y por eso no se apaga igual: lo que
+                le falta HACER sigue contando hasta que lo firme o lo arregle;
+                lo que le RESPONDIERON caduca solo a los DIAS_NOVEDAD. */}
             {yo && (
               <Link href="/mio/bandeja"
-                title={nuevasEnBandeja > 0
-                  ? `${nuevasEnBandeja} respuesta${nuevasEnBandeja === 1 ? "" : "s"} de estos días`
-                  : "Lo que respondieron a lo que pediste"}
+                title={avisosEnBandeja > 0
+                  ? `${avisosEnBandeja} cosa${avisosEnBandeja === 1 ? "" : "s"} en tu bandeja: lo que te falta hacer y lo que te respondieron`
+                  : "Lo que te falta hacer y lo que respondieron a lo que pediste"}
                 className="relative flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
                 {/* El mismo ícono que el panel usa para su Bandeja
                     (admin/nav-items.ts), no uno nuevo: es la misma idea en las
                     dos superficies, y quien tiene panel la reconoce sin leer. */}
                 <Inbox size={14} strokeWidth={1.8} className="shrink-0" aria-hidden />
                 Bandeja
-                {nuevasEnBandeja > 0 && (
+                {avisosEnBandeja > 0 && (
                   <>
                     {/* El número montado en la esquina, con los tokens del
                         contador del panel (`bg-rojo` sobre `text-crema`): un
@@ -1430,10 +1431,10 @@ export default function MioPage() {
                         viaja en el `sr-only` de abajo y en el `title`. */}
                     <span aria-hidden
                       className="absolute -right-1.5 -top-1.5 min-w-[1.125rem] rounded-pildora bg-rojo px-1 text-center text-[10px] font-medium leading-[1.125rem] text-crema">
-                      {nuevasEnBandeja}
+                      {avisosEnBandeja}
                     </span>
                     <span className="sr-only">
-                      {nuevasEnBandeja} respuesta{nuevasEnBandeja === 1 ? "" : "s"} sin ver
+                      {avisosEnBandeja} cosa{avisosEnBandeja === 1 ? "" : "s"} en tu bandeja
                     </span>
                   </>
                 )}
