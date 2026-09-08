@@ -121,6 +121,12 @@ function tiempoDeServicio(p: PapelesCese): string {
   return partes.join(" y ");
 }
 
+// Quién firma el certificado y la constancia por CAYLA NO se escribe acá: vive
+// en `configuracion.firmante_empresa` (0147), la misma fuente que ya usa el
+// generador de Contratos — validada por trigger, con nombre y DNI resueltos
+// desde la ficha de esa persona, nunca un literal en este archivo.
+interface FirmanteEmpresa { nombre: string; dni: string | null; cargo: string; personaId: string }
+
 const n = (v: unknown): number => (typeof v === "number" ? v : Number(v ?? 0) || 0);
 const s = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
@@ -142,6 +148,8 @@ export default function LiquidacionesPage() {
   const [ocupado, setOcupado] = useState(false);
   const [nota, setNota] = useState("");
   const [miFirma, setMiFirma] = useState<string | null>(null);
+  const [firmanteEmpresa, setFirmanteEmpresa] = useState<FirmanteEmpresa | null>(null);
+  const [esFirmanteEmpresa, setEsFirmanteEmpresa] = useState(false);
 
   // Confirmaciones que antes eran window.confirm()/window.prompt(): Felipe
   // aprobó migrar todos los diálogos nativos del panel al Modal compartido
@@ -197,6 +205,40 @@ export default function LiquidacionesPage() {
     void (async () => {
       const { data } = await supabase.rpc("fn_mi_firma");
       if (typeof data === "string" && data.startsWith("data:image")) setMiFirma(data);
+    })();
+  }, [supabase]);
+
+  // Quién certifica y hace constar por CAYLA — para el pie del certificado y
+  // la constancia, no para la liquidación (esa sigue siendo "Por CAYLA" con la
+  // firma de quien la paga, sin cambios). Un documento que sale de la empresa
+  // hacia un banco o un futuro empleador necesita decir QUIÉN certifica, no
+  // solo mostrar una firma sin nombre debajo.
+  useEffect(() => {
+    void (async () => {
+      const [cfg, yo] = await Promise.all([
+        supabase.from("configuracion").select("valor").eq("clave", "firmante_empresa").maybeSingle(),
+        supabase.rpc("fn_persona_actual_id"),
+      ]);
+      const cfgValor = (cfg.data as { valor: { persona_id?: string; cargo?: string } } | null)?.valor;
+      if (!cfgValor?.persona_id) return;
+      const { data: ficha } = await supabase
+        .from("personas")
+        .select("nombres, apellidos, documento")
+        .eq("id", cfgValor.persona_id)
+        .maybeSingle();
+      if (!ficha) return;
+      setFirmanteEmpresa({
+        nombre: `${ficha.nombres} ${ficha.apellidos}`,
+        dni: ficha.documento,
+        cargo: cfgValor.cargo ?? "Gerencia General",
+        personaId: cfgValor.persona_id,
+      });
+      // La firma escaneada SOLO se estampa si quien tiene la sesión abierta es
+      // la misma persona designada como firmante — igual que Contratos
+      // (`esFirmante`). Sin este candado, cualquier líder que abra el
+      // documento estamparía SU PROPIA firma debajo del nombre de otra
+      // persona: el papel quedaría firmado por alguien que nunca lo firmó.
+      setEsFirmanteEmpresa(Boolean(yo.data) && yo.data === cfgValor.persona_id);
     })();
   }, [supabase]);
 
@@ -430,10 +472,16 @@ export default function LiquidacionesPage() {
               <div className="hoja overflow-y-auto p-8 text-sm leading-relaxed print:overflow-visible print:p-0">
                 {modalAbierto === "liquidacion" && detalle && <Hoja d={detalle} miFirma={miFirma} />}
                 {modalAbierto === "certificado" && papelesCese && (
-                  <HojaCertificado p={papelesCese} apreciacion={apreciacion} miFirma={miFirma} />
+                  <HojaCertificado
+                    p={papelesCese} apreciacion={apreciacion} firmante={firmanteEmpresa}
+                    firma={esFirmanteEmpresa ? miFirma : null}
+                  />
                 )}
                 {modalAbierto === "constancia" && papelesCese && (
-                  <HojaConstancia p={papelesCese} detalle={detalle} miFirma={miFirma} />
+                  <HojaConstancia
+                    p={papelesCese} detalle={detalle} firmante={firmanteEmpresa}
+                    firma={esFirmanteEmpresa ? miFirma : null}
+                  />
                 )}
               </div>
             </div>
@@ -876,19 +924,40 @@ function Identidad({ p }: { p: PapelesCese }) {
   );
 }
 
+// El bloque de firma de los dos documentos que salen hacia afuera: el nombre y
+// el cargo de quien certifica van SIEMPRE (es lo que hace válido el papel ante
+// un tercero); la imagen de la firma solo si quien tiene la sesión abierta es
+// esa misma persona (`firma`, ya resuelto por el llamador con `esFirmanteEmpresa`).
+function FirmaEmpresa({ firmante, firma }: { firmante: FirmanteEmpresa | null; firma: string | null }) {
+  return (
+    <div className="text-center text-xs">
+      {firma && <img src={firma} alt="Firma" className="mx-auto h-14 w-auto" />}
+      <div className="w-56 border-t border-black pt-1">{firmante?.nombre ?? "—"}</div>
+      {firmante?.dni && <div>DNI N.° {firmante.dni}</div>}
+      <div>{firmante?.cargo ?? "Gerencia General"}</div>
+      <div>{EMPRESA.nombre}</div>
+    </div>
+  );
+}
+
 function HojaCertificado({
-  p, apreciacion, miFirma,
-}: { p: PapelesCese; apreciacion: string; miFirma: string | null }) {
+  p, apreciacion, firmante, firma,
+}: { p: PapelesCese; apreciacion: string; firmante: FirmanteEmpresa | null; firma: string | null }) {
   const hoy = hoyLima();
   return (
     <>
       <h1 className="text-center font-serif text-xl uppercase">Certificado de trabajo</h1>
 
       <p className="mt-6 text-sm leading-relaxed">
-        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}, CERTIFICA
-        que <Identidad p={p} /> prestó servicios en nuestra empresa desde el{" "}
-        {fechaLarga(p.fecha_ingreso)} hasta el {fechaLarga(p.fecha_cese)}, desempeñando el cargo de{" "}
-        <strong>{p.cargo ?? "—"}</strong>
+        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}:
+      </p>
+
+      <p className="mt-4 text-sm font-medium leading-relaxed">CERTIFICA:</p>
+
+      <p className="mt-2 text-sm leading-relaxed">
+        Que <Identidad p={p} /> prestó servicios en nuestra empresa bajo el régimen laboral de la
+        actividad privada, desde el {fechaLarga(p.fecha_ingreso)} hasta el {fechaLarga(p.fecha_cese)},
+        desempeñando el cargo de <strong>{p.cargo ?? "—"}</strong>
         {p.sede && <> en la sede {p.sede}</>}, con un tiempo de servicios de{" "}
         <strong>{tiempoDeServicio(p)}</strong>.
       </p>
@@ -909,11 +978,8 @@ function HojaCertificado({
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex justify-end text-xs">
-        <div>
-          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
-          <div className="w-56 border-t border-black pt-1">Por {EMPRESA.nombre}</div>
-        </div>
+      <div className="mt-12 flex justify-end">
+        <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
 
       <p className="mt-8 text-[10px] text-taupe">
@@ -925,8 +991,8 @@ function HojaCertificado({
 }
 
 function HojaConstancia({
-  p, detalle, miFirma,
-}: { p: PapelesCese; detalle: Detalle | null; miFirma: string | null }) {
+  p, detalle, firmante, firma,
+}: { p: PapelesCese; detalle: Detalle | null; firmante: FirmanteEmpresa | null; firma: string | null }) {
   const hoy = hoyLima();
   const cts = detalle?.cts_trunca as Record<string, unknown> | undefined;
   const yaDepositado = cts?.ya_depositado !== undefined ? n(cts.ya_depositado) : null;
@@ -936,9 +1002,14 @@ function HojaConstancia({
       <h1 className="text-center font-serif text-xl uppercase">Constancia de cese</h1>
 
       <p className="mt-6 text-sm leading-relaxed">
-        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}, deja
-        constancia de que el vínculo laboral que mantenía con <Identidad p={p} /> ha concluido con
-        fecha <strong>{fechaLarga(p.fecha_cese)}</strong>, luego de un tiempo de servicios de{" "}
+        {EMPRESA.nombre}, con RUC N.° {EMPRESA.ruc} y domicilio en {EMPRESA.domicilio}:
+      </p>
+
+      <p className="mt-4 text-sm font-medium leading-relaxed">HACE CONSTAR:</p>
+
+      <p className="mt-2 text-sm leading-relaxed">
+        Que el vínculo laboral que mantenía con <Identidad p={p} /> ha concluido con fecha{" "}
+        <strong>{fechaLarga(p.fecha_cese)}</strong>, luego de un tiempo de servicios de{" "}
         <strong>{tiempoDeServicio(p)}</strong> (ingreso: {fechaLarga(p.fecha_ingreso)}).
       </p>
 
@@ -950,20 +1021,17 @@ function HojaConstancia({
       )}
 
       <p className="mt-4 text-sm leading-relaxed">
-        Se expide la presente constancia para que la persona interesada pueda tramitar ante la
-        entidad financiera depositaria el retiro de su Compensación por Tiempo de Servicios y sus
-        intereses, conforme al artículo 45 del Decreto Supremo N.° 001-97-TR.
+        Se expide la presente constancia para que la persona interesada acredite su cese ante la
+        entidad financiera depositaria y proceda al retiro de su Compensación por Tiempo de
+        Servicios y sus intereses, conforme al artículo 45 del Decreto Supremo N.° 001-97-TR.
       </p>
 
       <p className="mt-8 text-xs">
         Trujillo, {fechaLarga(hoy)}.
       </p>
 
-      <div className="mt-12 flex justify-end text-xs">
-        <div>
-          {miFirma && <img src={miFirma} alt="Firma" className="h-14 w-auto" />}
-          <div className="w-56 border-t border-black pt-1">Por {EMPRESA.nombre}</div>
-        </div>
+      <div className="mt-12 flex justify-end">
+        <FirmaEmpresa firmante={firmante} firma={firma} />
       </div>
 
       <p className="mt-8 text-[10px] text-taupe">
