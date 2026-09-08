@@ -237,7 +237,7 @@ export default function ConstanciasDocumentoPage() {
   if (error || !doc) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <p className="rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+        <p className="rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
           {error ?? "No se pudo abrir el documento."}
         </p>
         <Boton variante="secundario" tamano="sm" className="mt-3" onClick={() => router.push("/admin/normas")}>
@@ -256,14 +256,14 @@ export default function ConstanciasDocumentoPage() {
     : `${doc.version}.ª publicación en el sistema`;
 
   return (
-    <main className="mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
+    <main className="hoja mx-auto max-w-4xl p-6 print:max-w-none print:p-0">
       <div className="mb-5 flex flex-wrap items-center gap-2 print:hidden">
         <Boton variante="primario" tamano="sm" onClick={() => window.print()} disabled={!!advertencia}
           title={advertencia ?? undefined}>
           Imprimir
         </Boton>
         <a href={`/admin/normas/${doc.id}/imprimir`} target="_blank" rel="noopener"
-          className="rounded-lg border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
+          className="rounded-control border border-tinta/30 px-3 py-1.5 text-xs text-tinta">
           Hoja del documento
         </a>
         <Boton variante="secundario" tamano="sm" onClick={() => router.push("/admin/normas")}>
@@ -275,7 +275,7 @@ export default function ConstanciasDocumentoPage() {
       </div>
 
       {advertencia && (
-        <p className="mb-5 rounded-lg border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
+        <p className="mb-5 rounded-control border border-rojo/40 bg-rojo/10 px-4 py-3 text-xs text-rojo">
           {advertencia}
         </p>
       )}
@@ -290,7 +290,7 @@ export default function ConstanciasDocumentoPage() {
         <p className="mt-1 text-sm text-tinta">{doc.tipo_nombre}</p>
       </header>
 
-      <section className="mb-5 rounded-xl border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
+      <section className="mb-5 rounded-superficie border border-sand bg-crema/40 px-4 py-3 text-xs text-tinta print:rounded-none print:bg-transparent">
         <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           <div><dt className="inline text-taupe">Documento: </dt><dd className="inline">{doc.titulo}</dd></div>
           <div><dt className="inline text-taupe">Versión: </dt><dd className="inline">{version}</dd></div>
@@ -303,7 +303,7 @@ export default function ConstanciasDocumentoPage() {
       {/* El resumen va ANTES de la tabla y con la fecha de corte pegada al
           número. Un «19 de 19» sin fecha no dice nada: la plantilla cambia, y lo
           que se acredita es el estado en un día concreto. */}
-      <section className="mb-5 rounded-xl border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
+      <section className="mb-5 rounded-superficie border border-tinta/20 px-4 py-3 text-sm text-tinta print:rounded-none">
         <p>
           Al <strong>{fechaLarga(hoyLima())}</strong>, de <strong>{total}</strong>{" "}
           {total === 1 ? "integrante comprendida" : "integrantes comprendidas"} —personal activo y en
@@ -319,7 +319,9 @@ export default function ConstanciasDocumentoPage() {
         )}
       </section>
 
-      <table className="w-full border-collapse text-xs">
+      {/* Tabla nativa a propósito: contenido de un documento que se imprime
+          como prueba legal. */}
+      <table className="w-full border-collapse text-xs [font-variant-numeric:tabular-nums]">
         <thead>
           <tr className="border-y border-tinta/30 text-left text-taupe">
             <th className="py-1.5 pr-2 font-normal">N.°</th>
@@ -358,7 +360,7 @@ export default function ConstanciasDocumentoPage() {
       </p>
 
       {pendientes.length > 0 && (
-        <section className="mt-5 break-inside-avoid rounded-xl border border-sand px-4 py-3 text-xs print:rounded-none">
+        <section className="mt-5 break-inside-avoid rounded-superficie border border-sand px-4 py-3 text-xs print:rounded-none">
           <h2 className="mb-1 font-medium text-tinta">
             Pendientes a la fecha de corte · {pendientes.length}
           </h2>

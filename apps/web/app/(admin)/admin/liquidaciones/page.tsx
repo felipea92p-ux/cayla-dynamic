@@ -389,7 +389,7 @@ export default function LiquidacionesPage() {
           </p>
 
           {cargaError && (
-            <p className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
+            <p className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm text-rojo">
               No se pudo leer la lista: {cargaError}
             </p>
           )}
@@ -399,7 +399,7 @@ export default function LiquidacionesPage() {
               esta es la pantalla que habla de beneficios. Solo aparece cuando ya
               pasó el mes: antes no cuesta nada y avisar sería ruido. */}
           {avisoUrgente.map((a) => (
-            <div key={a.persona_id} className="mb-4 rounded-lg border border-rojo bg-rojo/5 p-3 text-sm">
+            <div key={a.persona_id} className="mb-4 rounded-control border border-rojo bg-rojo/5 p-3 text-sm">
               <strong className="text-rojo">{a.persona} lleva {a.dias} días como «prueba».</strong>{" "}
               {a.aviso}
             </div>
@@ -596,7 +596,7 @@ function Bloque({
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   return (
-    <div className="mb-4 overflow-hidden rounded-2xl border border-sand bg-papel">
+    <div className="mb-4 overflow-hidden rounded-superficie border border-sand bg-papel">
       <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">{titulo}</h2>
       {filas.length === 0 ? (
         <p className="px-4 py-4 text-sm text-taupe">{vacio}</p>
@@ -719,7 +719,7 @@ function Desglose({
   onImprimir: (doc: "liquidacion" | "certificado" | "constancia") => void;
 }) {
   return (
-    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+    <div className="mt-3 rounded-control border border-sand bg-sand/20 p-3">
       {d.aviso_periodo && (
         <p className="mb-2 rounded border border-rojo/40 bg-rojo/5 p-2 text-xs text-rojo">
           {d.aviso_periodo}

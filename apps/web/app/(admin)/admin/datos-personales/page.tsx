@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { TriangleAlert } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { desacuerdoAsignacionFamiliar, esPrestadorDeServicios, hoyLima, leCorrespondeCuspp, ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS, GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION, puedeExportarPadron, puedeOperarEquipo, puedeVerIdentidad, REGIMEN_PENSION_LABELS, REGIMENES_PENSION, siNoSinDato, VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE } from "@cayla-dynamic/shared";
 import { usePersonaActual } from "@/lib/admin/use-rol";
@@ -9,8 +10,10 @@ import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { useToast } from "@/components/toast";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 
 interface Persona {
@@ -707,12 +710,15 @@ export default function DatosPersonalesPage() {
             Cada nombre lleva al formulario de esa persona: quien ve el hueco lo
             corrige sin cambiar de pantalla. */}
         {!cargando && incompletas.length > 0 && (
-          <section className="mb-5 max-w-3xl rounded-2xl border border-ambar/40 bg-ambar/5 p-4">
-            <h2 className="mb-1 text-sm font-medium">
-              {incompletas.length === 1
+          <BannerAviso
+            variante="advertencia"
+            className="mb-5 max-w-3xl"
+            titulo={
+              incompletas.length === 1
                 ? "Una ficha está incompleta"
-                : `${incompletas.length} fichas están incompletas`}
-            </h2>
+                : `${incompletas.length} fichas están incompletas`
+            }
+          >
             <p className="mb-3 text-xs text-taupe">
               Son los datos que el contador necesita para el T-Registro. Sin ellos no se puede
               declarar a esa persona ni pagarle por transferencia.
@@ -739,30 +745,33 @@ export default function DatosPersonalesPage() {
                       completa: no son un campo vacío más, y la diferencia entre
                       «falta X» y «esto no cuadra» tiene que verse. */}
                   {avisos.map((a) => (
-                    <p key={a} className="ml-0.5 mt-0.5 text-xs text-ambar">⚠ {a}</p>
+                    <p key={a} className="ml-0.5 mt-0.5 flex items-start gap-1 text-xs text-ambar">
+                      <TriangleAlert size={14} strokeWidth={1.8} className="mt-0.5 shrink-0" aria-hidden />
+                      {a}
+                    </p>
                   ))}
                 </li>
               ))}
             </ul>
-          </section>
+          </BannerAviso>
         )}
 
         <div className="grid gap-6 md:grid-cols-[260px_1fr]">
           {/* Lista de personas */}
-          <div className="overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div className="overflow-hidden rounded-superficie border border-sand bg-papel">
             <div className="border-b bg-sand/50 px-3 py-2">
               <div className="flex items-baseline justify-between">
                 <h2 className="text-sm font-medium">Equipo {personas.length > 0 && <span className="font-normal text-taupe">· {personas.length}</span>}</h2>
                 {sinFicha > 0 && (
                   <button onClick={() => setSoloSinFicha((v) => !v)} aria-pressed={soloSinFicha}
-                    className={`rounded-full px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-ambar/25 text-ambar" : "text-ambar hover:bg-ambar/15"}`}>
+                    className={`rounded-pildora px-2 py-0.5 text-xs transition-colors ${soloSinFicha ? "bg-ambar/25 text-ambar" : "text-ambar hover:bg-ambar/15"}`}>
                     {sinFicha} sin ficha
                   </button>
                 )}
               </div>
               <div className="relative mt-2">
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre…"
-                  className="w-full rounded-lg border bg-crema px-3 py-1.5 pr-8 text-sm" />
+                  className="w-full rounded-control border bg-crema px-3 py-1.5 pr-8 text-sm" />
                 {q && (
                   <button onClick={() => setQ("")} aria-label="Limpiar búsqueda"
                     className="absolute right-2 top-1/2 -translate-y-1/2 leading-none text-taupe hover:text-tinta">×</button>
@@ -782,7 +791,7 @@ export default function DatosPersonalesPage() {
                       <span>{p.nombres} {p.apellidos}</span>
                       <span className="flex items-center gap-1 text-xs text-taupe">
                         {sedes.get(p.sede_base_id)}
-                        {!fichas.has(p.id) && <span className="rounded-full bg-ambar/15 px-1.5 text-ambar">sin ficha</span>}
+                        {!fichas.has(p.id) && <Insignia variante="advertencia" tamano="sm">sin ficha</Insignia>}
                       </span>
                     </button>
                   </li>
@@ -792,7 +801,7 @@ export default function DatosPersonalesPage() {
           </div>
 
           {/* Ficha */}
-          <div ref={fichaRef} className="scroll-mt-4 rounded-2xl border border-sand bg-papel p-5">
+          <div ref={fichaRef} className="scroll-mt-4 rounded-superficie border border-sand bg-papel p-5">
             {!personaSel ? (
               <p className="text-sm text-taupe">Elige a alguien de la lista para ver o editar su ficha.</p>
             ) : (
@@ -1014,7 +1023,7 @@ export default function DatosPersonalesPage() {
                     {misDerechos.length === 0 ? (
                       <p className="text-sm text-taupe">Sin familiares registrados.</p>
                     ) : (
-                      <ul className="divide-y rounded-lg border border-sand">
+                      <ul className="divide-y rounded-control border border-sand">
                         {misDerechos.map((d) => (
                           <li key={d.id} className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm ${d.vigente_hasta ? "text-taupe" : ""}`}>
                             <span>
@@ -1026,8 +1035,11 @@ export default function DatosPersonalesPage() {
                               </span>
                             </span>
                             <span className="flex items-center gap-2 text-xs">
-                              {d.essalud && <span className="rounded-full bg-sand/60 px-2 py-0.5">EsSalud</span>}
-                              {d.vida_ley && <span className="rounded-full bg-sand/60 px-2 py-0.5">Vida Ley</span>}
+                              {/* punto={false}: son atributos, no un estado — mismo
+                                  criterio que ya usa la vista de autoservicio
+                                  (mio/editar) para este mismo par de campos. */}
+                              {d.essalud && <Insignia variante="neutral" punto={false}>EsSalud</Insignia>}
+                              {d.vida_ley && <Insignia variante="neutral" punto={false}>Vida Ley</Insignia>}
                               {d.vigente_hasta
                                 ? <span className="text-taupe">cerrado el {d.vigente_hasta}</span>
                                 : <>
@@ -1047,7 +1059,7 @@ export default function DatosPersonalesPage() {
                     )}
 
                     {dhAbierto && (
-                      <div className="mt-3 rounded-lg border border-sand bg-crema/50 p-3">
+                      <div className="mt-3 rounded-control border border-sand bg-crema/50 p-3">
                         <div className="grid gap-3 sm:grid-cols-2">
                           <Campo etiqueta="Nombres" value={dhNuevo.nombres}
                             onChange={(e) => setDhNuevo((d) => ({ ...d, nombres: e.target.value }))} />
