@@ -7,6 +7,11 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
+import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
 import { ROLES_DO, hoyLima, puedeOperarEquipo, maximoSemanalPracticante } from "@cayla-dynamic/shared";
 // horasDia() reimplementaba (salida − entrada) − refrigerio a mano, sin el
 // ajuste "si la salida no es posterior a la entrada, el turno cruza
@@ -244,185 +249,186 @@ export default function HorariosPage() {
           return (
             <section key={sede} className="mb-8">
               <h2 className="mb-2 font-serif text-lg">{sede}</h2>
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
-                  <thead className="bg-sand/50 text-left text-taupe">
-                    <tr>
-                      <th className="px-4 py-2 font-normal">Nombre</th>
-                      <th className="px-4 py-2 font-normal">Horario</th>
-                      <th className="px-4 py-2 font-normal">Semana</th>
-                      <th className="px-4 py-2 font-normal">Descanso</th>
-                      <th className="px-4 py-2 font-normal">Vigente desde</th>
-                      <th className="px-4 py-2 font-normal"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deSede.map((p) => {
-                      const h = horarios.get(p.id);
-                      const a = h ? analizar(h) : null;
-                      const semana = a ? a.dias.reduce((acc, d) => acc + horasDia(a.porDia[d].e, a.porDia[d].s, a.porDia[d].r), 0) : 0;
-                      // Máximo legal de una practicante (0324, art. 44 Ley 28518). `null`
-                      // para cualquiera que no sea practicante, o que lo sea pero sin
-                      // modalidad fijada todavía — en los dos casos no hay contra qué avisar.
-                      const maxLegal = maximoSemanalPracticante(p.tipo_vinculo, p.practicante_modalidad);
-                      const seExcede = maxLegal !== null && a && a.dias.length > 0 && semana > maxLegal + 0.01;
-                      return (
-                        <tr key={p.id} className="border-t">
-                          <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
-                          <td className="px-4 py-2">
-                            {!a || a.dias.length === 0 ? <span className="text-taupe/50">sin horario</span>
-                              : a.uniforme ? `${a.e}–${a.s}` : <span className="text-taupe">varía por día</span>}
-                          </td>
-                          <td className="px-4 py-2 text-taupe">
-                            {a && a.dias.length ? fmtH(semana) : "—"}
-                            {seExcede && (
-                              <span className="ml-1.5 rounded bg-rojo/10 px-1.5 py-0.5 text-xs text-rojo" title={`Supera el máximo legal de ${maxLegal} h/semana de una practicante ${p.practicante_modalidad} (art. 44, Ley 28518)`}>
-                                supera {maxLegal} h legales
-                              </span>
-                            )}
-                            {maxLegal === null && p.tipo_vinculo === "practicante" && !p.practicante_modalidad && (
-                              <span className="ml-1.5 text-xs text-ambar" title="Sin modalidad fijada en Equipo, no se puede avisar de su máximo legal">
-                                falta su modalidad
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
-                          <td className="px-4 py-2 text-taupe">{h ? h.vigente_desde : "—"}</td>
-                          <td className="px-4 py-2">
-                            <button onClick={() => abrirEdicion(p)} className="rounded border px-2 py-1 text-xs hover:bg-sand/50">
-                              {h ? "Cambiar" : "Asignar"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <Tabla className="[font-variant-numeric:tabular-nums]">
+                <TablaEncabezado>
+                  <Th>Nombre</Th>
+                  <Th>Horario</Th>
+                  <Th>Semana</Th>
+                  <Th>Descanso</Th>
+                  <Th>Vigente desde</Th>
+                  <Th>{null}</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {deSede.map((p) => {
+                    const h = horarios.get(p.id);
+                    const a = h ? analizar(h) : null;
+                    const semana = a ? a.dias.reduce((acc, d) => acc + horasDia(a.porDia[d].e, a.porDia[d].s, a.porDia[d].r), 0) : 0;
+                    // Máximo legal de una practicante (0324, art. 44 Ley 28518). `null`
+                    // para cualquiera que no sea practicante, o que lo sea pero sin
+                    // modalidad fijada todavía — en los dos casos no hay contra qué avisar.
+                    const maxLegal = maximoSemanalPracticante(p.tipo_vinculo, p.practicante_modalidad);
+                    const seExcede = maxLegal !== null && a && a.dias.length > 0 && semana > maxLegal + 0.01;
+                    return (
+                      <Fila key={p.id}>
+                        <td className="px-4 py-2">{p.nombres} {p.apellidos}</td>
+                        <td className="px-4 py-2">
+                          {!a || a.dias.length === 0 ? <span className="text-taupe">sin horario</span>
+                            : a.uniforme ? `${a.e}–${a.s}` : <span className="text-taupe">varía por día</span>}
+                        </td>
+                        <td className="px-4 py-2 text-taupe">
+                          {a && a.dias.length ? fmtH(semana) : "—"}
+                          {seExcede && (
+                            // El título con la cita legal se conserva envolviendo la
+                            // Insignia: el primitivo no reenvía props sueltas como
+                            // `title` (ver components/ui/insignia.tsx).
+                            <span title={`Supera el máximo legal de ${maxLegal} h/semana de una practicante ${p.practicante_modalidad} (art. 44, Ley 28518)`}>
+                              <Insignia variante="alerta" className="ml-1.5">supera {maxLegal} h legales</Insignia>
+                            </span>
+                          )}
+                          {maxLegal === null && p.tipo_vinculo === "practicante" && !p.practicante_modalidad && (
+                            <span title="Sin modalidad fijada en Equipo, no se puede avisar de su máximo legal">
+                              <Insignia variante="advertencia" className="ml-1.5">falta su modalidad</Insignia>
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-taupe">{a ? textoDescanso(a.dias) : "—"}</td>
+                        <td className="px-4 py-2 text-taupe">{h ? h.vigente_desde : "—"}</td>
+                        <td className="px-4 py-2">
+                          <Boton variante="secundario" tamano="sm" onClick={() => abrirEdicion(p)}>
+                            {h ? "Cambiar" : "Asignar"}
+                          </Boton>
+                        </td>
+                      </Fila>
+                    );
+                  })}
+                </tbody>
+              </Tabla>
             </section>
           );
         })}
 
-        {/* z-40, no z-10: mismo piso que Modal y el resto de los diálogos del
-            panel — z-10 coincidía con el encabezado pegajoso de Tabla. */}
-        {editando && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => !guardando && setEditando(null)}>
-            <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-sand bg-crema p-6" onClick={(e) => e.stopPropagation()}>
-              <h3 className="mb-1 font-serif text-lg">Horario de {editando.nombres} {editando.apellidos}</h3>
-              <p className="mb-4 text-sm text-taupe">El nuevo horario aplica desde la fecha que elijas en adelante.</p>
+        <Modal
+          abierto={editando !== null}
+          onCerrar={() => setEditando(null)}
+          bloqueado={guardando}
+          titulo={editando ? `Horario de ${editando.nombres} ${editando.apellidos}` : undefined}
+        >
+          <p className="mb-4 text-sm text-taupe">El nuevo horario aplica desde la fecha que elijas en adelante.</p>
 
-              <label className="flex flex-col gap-1 text-sm">Vigente desde
-                <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border px-3 py-2" /></label>
+          <Campo etiqueta="Vigente desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
 
-              <label className="mt-4 flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={!modoPorDia} onChange={(e) => cambiarModo(!e.target.checked)} />
-                Misma hora todos los días
-              </label>
+          <label className="mt-4 flex items-center gap-2 text-sm">
+            {/* Casilla suelta: todavía no existe <CampoCasilla> en
+                components/ui/campo.tsx (Fase A no la agregó pese a lo
+                anunciado) — se deja con las clases que ese primitivo va a
+                necesitar (accent-tinta, size-4) para que migrar sea trivial
+                en cuanto exista. */}
+            <input type="checkbox" checked={!modoPorDia} onChange={(e) => cambiarModo(!e.target.checked)} className="size-4 rounded border-sand accent-tinta" />
+            Misma hora todos los días
+          </label>
 
-              {!modoPorDia ? (
-                <>
-                  <div className="mt-3 grid grid-cols-3 gap-3">
-                    <label className="flex flex-col gap-1 text-sm">Entrada
-                      <input type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} className="rounded-lg border px-2 py-2" /></label>
-                    <label className="flex flex-col gap-1 text-sm">Salida
-                      <input type="time" value={salida} onChange={(e) => setSalida(e.target.value)} className="rounded-lg border px-2 py-2" /></label>
-                    <label className="flex flex-col gap-1 text-sm">Refrig. (min)
-                      <input type="number" min={0} value={refri} onChange={(e) => setRefri(Math.max(0, Math.round(Number(e.target.value) || 0)))} className="rounded-lg border px-2 py-2" /></label>
-                  </div>
-                  <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(entrada, salida, refri))}</span></p>
-                  <div className="mt-3">
-                    <p className="mb-1.5 text-sm">Días de trabajo <span className="text-taupe">(los que no marcas son descanso)</span></p>
-                    <div className="flex gap-1.5">
-                      {DIAS.map((d) => {
-                        const on = dias.includes(d.v);
-                        return (
-                          <button key={d.v} type="button" onClick={() => toggleDia(d.v)}
-                            className={`h-9 w-9 rounded-lg border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
-                            {d.l}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-1.5 text-xs text-taupe">Descanso: {textoDescanso(dias)}</p>
-                  </div>
-                </>
-              ) : (
-                <div className="mt-3">
-                  <p className="mb-2 text-sm">Horario por día <span className="text-taupe">(apaga el día para descanso)</span></p>
-                  <div className="flex flex-col gap-1.5">
-                    {DIAS.map((d) => {
-                      const dd = porDia[d.v];
-                      const activo = dd !== undefined;
-                      return (
-                        <div key={d.v} className="flex flex-wrap items-center gap-1.5">
-                          <button type="button" onClick={() => toggleDiaPorDia(d.v)}
-                            className={`h-8 w-14 shrink-0 rounded-lg border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
-                            {NOMBRE_DIA[d.v].slice(0, 3)}
-                          </button>
-                          {activo ? (
-                            <>
-                              <input type="time" value={dd.e} onChange={(e) => setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-lg border px-1.5 py-1 text-sm" />
-                              <span className="text-taupe">–</span>
-                              <input type="time" value={dd.s} onChange={(e) => setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-lg border px-1.5 py-1 text-sm" />
-                              <input type="number" min={0} value={dd.r} onChange={(e) => setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-12 rounded-lg border px-1 py-1 text-sm" />
-                              <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
-                            </>
-                          ) : <span className="text-sm text-taupe/60">descanso</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos.</p>
-                </div>
-              )}
-
-              {(() => {
-                // Para una practicante, "meta 45h" no significa nada: lo que
-                // importa es si se pasa del MÁXIMO LEGAL de su modalidad
-                // (0324, art. 44 Ley 28518) — un número muy distinto de la
-                // meta genérica de jornada del resto del equipo, y que si se
-                // cruza no es un objetivo de más, es una jornada que no le
-                // corresponde por ley.
-                const maxLegal = editando ? maximoSemanalPracticante(editando.tipo_vinculo, editando.practicante_modalidad) : null;
-                if (maxLegal !== null) {
-                  const seExcede = totalSemana > maxLegal + 0.01;
-                  return (
-                    <div className={`mt-4 rounded-lg px-3 py-2 text-sm ${seExcede ? "bg-rojo/10" : "bg-sand/30"}`}>
-                      Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
-                      <span className="text-taupe"> · máximo legal {maxLegal} h ({editando?.practicante_modalidad})</span>
-                      {seExcede && (
-                        <span className="text-rojo"> — supera el máximo del art. 44, Ley 28518, por {fmtH(totalSemana - maxLegal)}</span>
-                      )}
-                    </div>
-                  );
-                }
-                if (editando?.tipo_vinculo === "practicante") {
-                  return (
-                    <div className="mt-4 rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
-                      Total semana: {fmtH(totalSemana)} — falta fijarle la modalidad en Equipo (preprofesional o
-                      profesional) para poder avisar si esto supera su máximo legal.
-                    </div>
-                  );
-                }
-                return (
-                  <div className="mt-4 rounded-lg bg-sand/30 px-3 py-2 text-sm">
-                    Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
-                    <span className="text-taupe"> · meta {META_SEMANA} h</span>
-                    {totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(totalSemana - META_SEMANA)})</span>}
-                    {totalSemana < META_SEMANA - 0.01 && <span className="text-taupe"> (faltan {fmtH(META_SEMANA - totalSemana)})</span>}
-                  </div>
-                );
-              })()}
-
-              <div className="mt-5 flex justify-end gap-3">
-                <button onClick={() => setEditando(null)} disabled={guardando} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
-                <button onClick={guardar} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                  {guardando ? "Guardando…" : "Guardar horario"}
-                </button>
+          {!modoPorDia ? (
+            <>
+              {/* grid-cols-1 en el teléfono: con grid-cols-3 fijo, a 375px cada
+                  columna quedaba en ~85px y el input[type=time] nativo (que
+                  necesita dibujar "--:--" y, en iOS, el indicador am/pm) se
+                  recortaba — justo en el campo que fija la hora de entrada,
+                  la que decide si a alguien se le cuenta una tardanza. */}
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Campo etiqueta="Entrada" type="time" value={entrada} onChange={(e) => setEntrada(e.target.value)} />
+                <Campo etiqueta="Salida" type="time" value={salida} onChange={(e) => setSalida(e.target.value)} />
+                <Campo etiqueta="Refrig. (min)" type="number" min={0} value={refri} onChange={(e) => setRefri(Math.max(0, Math.round(Number(e.target.value) || 0)))} />
               </div>
+              <p className="mt-2 text-xs text-taupe">Cada día: <span className="text-tinta">{fmtH(horasDia(entrada, salida, refri))}</span></p>
+              <div className="mt-3">
+                <p className="mb-1.5 text-sm">Días de trabajo <span className="text-taupe">(los que no marcas son descanso)</span></p>
+                <div className="flex gap-1.5">
+                  {DIAS.map((d) => {
+                    const on = dias.includes(d.v);
+                    return (
+                      <button key={d.v} type="button" onClick={() => toggleDia(d.v)}
+                        className={`h-9 w-9 rounded-lg border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-xs text-taupe">Descanso: {textoDescanso(dias)}</p>
+              </div>
+            </>
+          ) : (
+            <div className="mt-3">
+              <p className="mb-2 text-sm">Horario por día <span className="text-taupe">(apaga el día para descanso)</span></p>
+              <div className="flex flex-col gap-1.5">
+                {DIAS.map((d) => {
+                  const dd = porDia[d.v];
+                  const activo = dd !== undefined;
+                  return (
+                    <div key={d.v} className="flex flex-wrap items-center gap-1.5">
+                      <button type="button" onClick={() => toggleDiaPorDia(d.v)}
+                        className={`h-8 w-14 shrink-0 rounded-lg border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                        {NOMBRE_DIA[d.v].slice(0, 3)}
+                      </button>
+                      {activo ? (
+                        <>
+                          <input type="time" value={dd.e} onChange={(e) => setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-lg border px-1.5 py-1 text-sm" />
+                          <span className="text-taupe">–</span>
+                          <input type="time" value={dd.s} onChange={(e) => setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-lg border px-1.5 py-1 text-sm" />
+                          <input type="number" min={0} value={dd.r} onChange={(e) => setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-12 rounded-lg border px-1 py-1 text-sm" />
+                          <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
+                        </>
+                      ) : <span className="text-sm text-taupe">descanso</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-xs text-taupe">La columna angosta es el refrigerio en minutos.</p>
             </div>
+          )}
+
+          {(() => {
+            // Para una practicante, "meta 45h" no significa nada: lo que
+            // importa es si se pasa del MÁXIMO LEGAL de su modalidad
+            // (0324, art. 44 Ley 28518) — un número muy distinto de la
+            // meta genérica de jornada del resto del equipo, y que si se
+            // cruza no es un objetivo de más, es una jornada que no le
+            // corresponde por ley.
+            const maxLegal = editando ? maximoSemanalPracticante(editando.tipo_vinculo, editando.practicante_modalidad) : null;
+            if (maxLegal !== null) {
+              const seExcede = totalSemana > maxLegal + 0.01;
+              return (
+                <div className={`mt-4 rounded-lg px-3 py-2 text-sm ${seExcede ? "bg-rojo/10" : "bg-sand/30"}`}>
+                  Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
+                  <span className="text-taupe"> · máximo legal {maxLegal} h ({editando?.practicante_modalidad})</span>
+                  {seExcede && (
+                    <span className="text-rojo"> — supera el máximo del art. 44, Ley 28518, por {fmtH(totalSemana - maxLegal)}</span>
+                  )}
+                </div>
+              );
+            }
+            if (editando?.tipo_vinculo === "practicante") {
+              return (
+                <div className="mt-4 rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
+                  Total semana: {fmtH(totalSemana)} — falta fijarle la modalidad en Equipo (preprofesional o
+                  profesional) para poder avisar si esto supera su máximo legal.
+                </div>
+              );
+            }
+            return (
+              <div className="mt-4 rounded-lg bg-sand/30 px-3 py-2 text-sm">
+                Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
+                <span className="text-taupe"> · meta {META_SEMANA} h</span>
+                {totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(totalSemana - META_SEMANA)})</span>}
+                {totalSemana < META_SEMANA - 0.01 && <span className="text-taupe"> (faltan {fmtH(META_SEMANA - totalSemana)})</span>}
+              </div>
+            );
+          })()}
+
+          <div className="mt-5 flex justify-end gap-3">
+            <Boton variante="secundario" onClick={() => setEditando(null)} disabled={guardando}>Cancelar</Boton>
+            <Boton variante="primario" onClick={guardar} cargando={guardando}>Guardar horario</Boton>
           </div>
-        )}
+        </Modal>
       </main>
     </div>
   );

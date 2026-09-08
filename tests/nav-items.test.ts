@@ -98,12 +98,12 @@ describe("los contadores", () => {
 describe("dónde quedó cada renglón después de reagrupar", () => {
   const grupoDe = (href: string) => GRUPOS.find((g) => g.items.some((i) => i.href === href))?.label;
 
-  it("«Ausencias» está en Asistencia, no en Nómina — la opera la encargada, no DO", () => {
+  it("«Ausencias» está en Asistencia, no en Pago — la opera la encargada, no DO", () => {
     expect(grupoDe("/admin/ausencias")).toBe("Asistencia");
-    const nomina = GRUPOS.find((g) => g.label === "Nómina");
-    // Todo lo que quedó en Nómina es de DO. Si algún día vuelve a colarse un
+    const pago = GRUPOS.find((g) => g.label === "Pago");
+    // Todo lo que quedó en Pago es de DO. Si algún día vuelve a colarse un
     // renglón de rol SEDE, para una encargada el grupo entero es un solo ítem.
-    for (const item of nomina?.items ?? []) expect(item.roles).toBe(ROLES_DO);
+    for (const item of pago?.items ?? []) expect(item.roles).toBe(ROLES_DO);
   });
 
   it("«Apariencia» está en Configuración, con lo demás que se toca una vez al año", () => {

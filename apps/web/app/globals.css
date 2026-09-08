@@ -11,6 +11,16 @@
   --color-rojo-profundo: #8b2a1f; /* énfasis sobre crema */
   --color-sand: #e8e0d0; /* recuadros, headers de tabla, líneas */
   --color-taupe: #805c4c; /* acento tonal, estados intermedios */
+  /* Borde de control: sand como borde de un input/select da 1.16:1 sobre crema
+     y 1.24:1 sobre papel — muy por debajo del 3:1 que WCAG 1.4.11 pide para lo
+     que identifica un control (Campo, CampoSelect y el Boton "secundario" hoy
+     usan border-sand). Sand sigue siendo la línea decorativa correcta para
+     separadores y marcos de tarjeta; para un control interactivo hace falta
+     más peso. Alias a taupe, que ya lo tiene: 5.21:1 sobre crema, 5.57:1 sobre
+     papel, sin sumar un color nuevo al sistema. Definido acá para que Campo,
+     CampoSelect y Boton puedan pedir border-borde-control — aplicarlo es
+     trabajo de esos archivos, no de este. */
+  --color-borde-control: var(--color-taupe);
   /* Estados operativos: verdes/ámbar cálidos, apagados para convivir con la crema.
      Retunados el 2026-09-06: los valores anteriores (#5b754f, #8d6726) daban
      4.51:1 sobre crema — el límite exacto de WCAG AA, tal como se pinta el pill
@@ -38,7 +48,10 @@
      ámbar), y compuesto ese 15% da 4.21:1 sobre crema y 4.49:1 sobre papel:
      los dos por debajo del 4.5:1 que exige WCAG AA para texto normal. Este
      valor, medido igual que como se pinta de verdad, da 4.86:1 como pill
-     sobre crema y 5.17:1 sobre papel — mismo matiz, un paso más oscuro. */
+     sobre crema y 5.17:1 sobre papel — mismo matiz, un paso más oscuro.
+     Cualquier contraste que se declare acá de ahora en más se mide con la
+     opacidad y el fondo con que el componente lo pinta de verdad, nunca sobre
+     el token plano. */
   --color-pizarra: #4c5d6e;
 
   /* ── Radios ───────────────────────────────────────────────────
@@ -62,6 +75,18 @@
      Serif para títulos y datos con alma; sans para el sistema. */
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-eb-garamond), ui-serif, Georgia, "Times New Roman", serif;
+
+  /* Piso de tamaño: no había ni un --text-*, así que cualquier pantalla se salía
+     de la escala con un text-[Npx] arbitrario sin que nada lo notara. Medido en
+     apps/web: 83 usos por debajo de text-sm (53 en 11px, 21 en 10px, 3 en 9px,
+     2 en 13px — el resto de 12px ya tiene nombre: text-xs). Estos dos son el
+     piso de acá en adelante: --text-nano es el mínimo del sistema, y los tres
+     usos de 9px (mio/page.tsx, admin/horas/page.tsx: el calendario personal y
+     la tira de asistencia) tienen que subir hasta acá, no quedarse más chicos. */
+  --text-micro: 0.6875rem; /* 11px — la talla más repetida por debajo de text-sm */
+  --text-micro--line-height: 1rem;
+  --text-nano: 0.625rem; /* 10px — el piso: nada del sistema va más chico que esto */
+  --text-nano--line-height: 0.875rem;
 }
 
 /* ── Modo oscuro ────────────────────────────────────────────────
@@ -95,6 +120,12 @@
     --color-ambar: #c99a4a;
     --color-hueso: #15110d;
     --color-pizarra: #9db0c2;
+    /* Sin esto, el calendario de <input type="date">, la lista de <select>,
+       las scrollbars y el resaltado de autocompletado los sigue pintando el
+       navegador en su paleta clara aunque la app esté en oscuro — invisibles
+       o casi (ver "Fecha de emisión" de Ausencias, el mismo campo que
+       CLAUDE.md ya documenta como el que costó una tarde). */
+    color-scheme: dark;
   }
 }
 :root[data-tema="oscuro"] {
@@ -109,9 +140,19 @@
   --color-ambar: #c99a4a;
   --color-hueso: #15110d;
   --color-pizarra: #9db0c2;
+  color-scheme: dark;
 }
 
 @layer base {
+  /* Los controles nativos del navegador (calendario de <input type="date">,
+     lista de <select>, scrollbars, resaltado de autocompletado) los pinta el
+     navegador, no este CSS, y solo cambian de paleta si la raíz declara
+     color-scheme. Claro por defecto; los bloques de tema oscuro (arriba) y el
+     de impresión (abajo) lo redeclaran cada uno al suyo. */
+  :root {
+    color-scheme: light;
+  }
+
   /* La línea fina es el único elemento decorativo: por defecto, Sand. */
   *,
   ::after,
@@ -130,8 +171,16 @@
   /* Foco de teclado de sistema, agregado el 2026-09-06: antes solo 2-9 de ~40
      archivos de admin definían algún estado de foco visible, y el resto
      dependía del anillo azul por defecto del navegador (ni token, ni
-     garantizado sobre rounded-lg ni en modo oscuro). Una sola regla lo resuelve
-     para todos los botones, enlaces e inputs de una vez. */
+     garantizado sobre rounded-lg ni en modo oscuro). Esta regla vive en
+     @layer base, así que NO alcanza a ningún control que traiga la utilidad
+     outline-none escrita a mano: esa utilidad vive en @layer utilities y gana
+     por orden de capa, sin importar la especificidad. Quedan ~14 sitios así —
+     login, nueva-clave, olvide-clave, vincular del terminal, el buscador del
+     kiosco, cuentas, mio, buscador-global, grafico-objetivos — que hoy caen a
+     un borde de 1px (focus:border-taupe) como único foco, un lenguaje visual
+     distinto del anillo rojo de 2px de todo lo demás. Quitar esos
+     outline-none —cosa de cada archivo, no de este— es lo que de verdad cierra
+     la cobertura; esta regla sola no puede. */
   :focus-visible {
     outline: 2px solid var(--color-rojo);
     outline-offset: 2px;
@@ -341,19 +390,20 @@
   margin: 0 0 0.3rem;
   position: relative;
 }
-/* La firma escaneada se apoya sobre la raya, no la reemplaza.
-   `mix-blend-mode: multiply` hace que el fondo blanco del escaneo desaparezca
-   contra el papel: sin esto se veía un recuadro blanco opaco tapando la línea,
-   como una pegatina pegada encima. Desde 2026-08-24 las firmas nuevas se
-   guardan ya con el fondo transparente, pero esto sigue haciendo falta para
-   las que se subieron antes — y no estorba a las nuevas. */
+/* La firma escaneada se apoya sobre la raya, no la reemplaza. El blend que le
+   quita el fondo blanco al escaneo antiguo (mix-blend-mode: multiply, dentro
+   de @media print más abajo) se aplica SOLO al imprimir: sobre el fondo real
+   de .contrato en pantalla, que sigue el tema de la app como cualquier .hoja,
+   `multiply` nunca puede aclarar — así que en modo oscuro no tapaba solo el
+   recuadro blanco, borraba la firma entera (fondo × imagen nunca es más claro
+   que el más oscuro de los dos). Desde 2026-08-24 las firmas nuevas se
+   guardan con el fondo transparente y no necesitan el blend en ningún lado. */
 .contrato .linea img {
   position: absolute;
   bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
   max-height: 3rem;
-  mix-blend-mode: multiply;
 }
 .contrato .pie-hoja {
   text-align: center;
@@ -404,12 +454,13 @@
      mano se llevaba la paleta oscura al papel pese a este bloque. Con la
      misma especificidad, gana el que va después en el archivo: este.
 
-     Los nueve tokens de esta lista se copian a mano en vez de derivarse de
-     un solo lugar; ya se desincronizó una vez (verde/ámbar quedaron en los
-     valores que el 2026-09-06 se retiraron por dar justo el mínimo de WCAG
-     AA, y faltaban hueso/pizarra, agregados ese mismo día). Los once
-     valores de acá son una copia exacta de los de `@theme` en modo claro —
-     si uno se retona, este bloque también. */
+     Once tokens, no nueve: la lista tiene que llevar los mismos --color- que
+     @theme y el modo oscuro, o una superficie o un estado nuevo se queda con
+     su valor de pantalla al imprimir. Ya se desincronizó una vez (verde/ámbar
+     quedaron en los valores que el 2026-09-06 se retiraron por dar justo el
+     mínimo de WCAG AA, y faltaban hueso/pizarra, agregados ese mismo día).
+     Los once valores de acá son una copia exacta de los de `@theme` en modo
+     claro — si uno se retona, este bloque también. */
   :root:not([data-tema="claro"]),
   :root[data-tema="claro"],
   :root[data-tema="oscuro"] {
@@ -424,6 +475,7 @@
     --color-ambar: #74501a;
     --color-hueso: #eae1d2;
     --color-pizarra: #4c5d6e;
+    color-scheme: light;
   }
 
   @page {
@@ -482,5 +534,15 @@
 
   .contrato .firmas {
     break-inside: avoid;
+  }
+
+  /* La firma escaneada se apoya sobre la raya solo en papel: `multiply` hace
+     que el fondo blanco del escaneo desaparezca contra el papel (fondo ×
+     imagen nunca aclara). En pantalla NO se aplica — ver el comentario junto a
+     .contrato .linea img más arriba — porque ahí el fondo sigue el tema y
+     puede ser oscuro, donde `multiply` borraría la firma entera en vez de
+     solo el recuadro blanco. */
+  .contrato .linea img {
+    mix-blend-mode: multiply;
   }
 }

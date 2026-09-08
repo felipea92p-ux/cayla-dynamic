@@ -8,23 +8,24 @@ import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { SelectorTema } from "@/components/selector-tema";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Campo } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { useToast } from "@/components/toast";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
 } from "@/lib/foto-perfil";
-import {
-  ROLES_CON_PANEL, TZ_LIMA, hoyLima,
-  ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS,
-  GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION,
-  VINCULO_DERECHOHABIENTE_LABELS, VINCULOS_DERECHOHABIENTE,
-} from "@cayla-dynamic/shared";
+import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
+import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -180,28 +181,6 @@ interface SolicitudVacacion {
   estado: "pendiente" | "aprobada" | "rechazada" | "cancelada";
   pedida_at: string;
   respuesta: string | null;
-}
-
-/** Una fila del catálogo de campos de perfil (migración 0399) — qué se puede
- *  pedir cambiar y si exige documento. Se lee de la tabla, nunca a mano
- *  (regla del repo: nada de listas escritas fuera de donde vive la verdad). */
-interface CatalogoCampoPerfil {
-  campo: string;
-  etiqueta: string;
-  requiere_documento: boolean;
-  documento_sugerido: string | null;
-  columnas: string[];
-}
-
-/** Una propuesta suya de cambio de perfil. La escribe `fn_crear_solicitud_perfil`. */
-interface SolicitudPerfil {
-  id: string;
-  campo: string;
-  valor_anterior: Record<string, unknown>;
-  valor_propuesto: Record<string, unknown>;
-  estado: "pendiente" | "aprobado" | "rechazado" | "reemplazada";
-  creada_at: string;
-  motivo: string | null;
 }
 
 /** Las seis pestañas del detalle. Ver el comentario de `tab`. */
@@ -463,14 +442,6 @@ export default function MioPage() {
   const [comentarioSolicitud, setComentarioSolicitud] = useState("");
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const [avisoSolicitud, setAvisoSolicitud] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
-  // ── Solicitudes de cambio de perfil (0399) ────────────────────────────────
-  const [catalogoPerfil, setCatalogoPerfil] = useState<CatalogoCampoPerfil[]>([]);
-  const [misSolicitudesPerfil, setMisSolicitudesPerfil] = useState<SolicitudPerfil[]>([]);
-  const [campoPerfil, setCampoPerfil] = useState("celular");
-  const [formPerfil, setFormPerfil] = useState<Record<string, string>>({});
-  const [archivosPerfil, setArchivosPerfil] = useState<File[]>([]);
-  const [enviandoPerfil, setEnviandoPerfil] = useState(false);
-  const [avisoPerfil, setAvisoPerfil] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [perdonadas, setPerdonadas] = useState<Set<string>>(new Set());
   const [tramos, setTramos] = useState<HorarioTramo[]>([]);
@@ -489,6 +460,11 @@ export default function MioPage() {
   const [puedePedirRevision, setPuedePedirRevision] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Qué de lo que alimenta las tarjetas y «Tu mes» no se pudo traer. Vacío es
+  // lo normal — ver lib/admin/lo-que-no-se-pudo.ts. Solo mira `jornadas`,
+  // `horarios_asignados` y `turnos`: el resto de esta pantalla puede seguir
+  // degradándose en silencio como hoy.
+  const [noSePudo, setNoSePudo] = useState<string[]>([]);
 
   /**
    * QUÉ PESTAÑA ESTÁ ABIERTA.
@@ -600,7 +576,7 @@ export default function MioPage() {
     const turnosHasta = hasta > corrimiento(14) ? hasta : corrimiento(14);
 
     const [
-      { data: js }, { data: perd }, { data: hs }, { data: ts },
+      { data: js, error: errJornadas }, { data: perd }, { data: hs, error: errHs }, { data: ts, error: errTs },
       { data: fl }, { data: objs }, { data: aus }, { data: tipos },
       { data: per }, { data: fer }, { data: revs, error: errRevs },
       { data: corrs },
@@ -666,6 +642,17 @@ export default function MioPage() {
         .order("corregido_at", { ascending: false })
         .limit(20),
     ]);
+
+    // Estas tres alimentan las tarjetas y la cuadrícula de «Tu mes». Si alguna
+    // falla no se pintan números: un cero acá diría «no trabajaste», y sería
+    // mentira — el mismo defecto que ya se corrigió en la Hoja de sede.
+    setNoSePudo(
+      loQueNoSePudo([
+        { error: errJornadas, que: "tus días trabajados" },
+        { error: errHs, que: "tu horario asignado" },
+        { error: errTs, que: "tus turnos" },
+      ]),
+    );
 
     setJornadas((js as Jornada[]) ?? []);
     setPerdonadas(new Set(((perd as { fecha: string }[]) ?? []).map((t) => t.fecha)));
@@ -778,86 +765,6 @@ export default function MioPage() {
     setEnviandoSolicitud(false);
     if (error) { setAvisoSolicitud({ tipo: "error", texto: error.message }); return; }
     await cargarSolicitudesVacas();
-  }
-
-  // ── Solicitudes de cambio de perfil (0399) ─────────────────────────────────
-  // El catálogo se lee una sola vez: no depende de quién es, solo de qué campos
-  // existen (regla del repo — nunca escribir a mano la lista de 11 campos).
-  useEffect(() => {
-    let vivo = true;
-    supabase.from("catalogo_campos_perfil")
-      .select("campo, etiqueta, requiere_documento, documento_sugerido, columnas")
-      .order("etiqueta")
-      .then(({ data }) => { if (vivo) setCatalogoPerfil((data as CatalogoCampoPerfil[]) ?? []); });
-    return () => { vivo = false; };
-  }, [supabase]);
-
-  const cargarSolicitudesPerfil = useCallback(async () => {
-    if (!yo?.id) { setMisSolicitudesPerfil([]); return; }
-    const { data } = await supabase
-      .from("solicitudes_cambio_perfil")
-      .select("id, campo, valor_anterior, valor_propuesto, estado, creada_at, motivo")
-      .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
-      .order("creada_at", { ascending: false });
-    setMisSolicitudesPerfil((data as SolicitudPerfil[]) ?? []);
-  }, [supabase, yo]);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void cargarSolicitudesPerfil(); }, [cargarSolicitudesPerfil]);
-
-  const campoActualPerfil = catalogoPerfil.find((c) => c.campo === campoPerfil) ?? null;
-
-  /** Hay una pendiente sobre este mismo campo — salvo familiar_nuevo, que
-   *  admite varias en paralelo (la base lo permite; acá solo se informa). */
-  const yaHayPendientePerfil = campoPerfil !== "familiar_nuevo"
-    && misSolicitudesPerfil.some((s) => s.campo === campoPerfil && s.estado === "pendiente");
-
-  /** Construye el jsonb que espera fn_crear_solicitud_perfil a partir de las
-   *  columnas que declara el catálogo para el campo elegido. */
-  function valorPropuestoPerfil(): Record<string, string | boolean> {
-    if (!campoActualPerfil) return {};
-    const v: Record<string, string | boolean> = {};
-    for (const col of campoActualPerfil.columnas) {
-      if (col === "hijos_menores" || col === "discapacidad") {
-        v[col] = formPerfil[col] === "true";
-      } else if (formPerfil[col]) {
-        v[col] = formPerfil[col];
-      }
-    }
-    // correccion_identidad admite un subconjunto — nunca se manda una clave sin
-    // valor. Los demás campos ya vienen completos por el `required` del form.
-    return v;
-  }
-
-  async function proponerCambioPerfil(e: FormEvent) {
-    e.preventDefault();
-    if (!yo?.id || !campoActualPerfil) return;
-    setAvisoPerfil(null);
-    setEnviandoPerfil(true);
-    try {
-      const rutas: string[] = [];
-      for (const archivo of archivosPerfil) {
-        const ext = archivo.name.split(".").pop()?.toLowerCase() || "jpg";
-        const ruta = `solicitud/${yo.id}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
-        const fallo = await subirArchivoConProgreso(supabase, "solicitudes-perfil", ruta, archivo, () => {});
-        if (fallo) { setAvisoPerfil({ tipo: "error", texto: `No se pudo subir «${archivo.name}»: ${fallo}` }); return; }
-        rutas.push(ruta);
-      }
-
-      const { error } = await supabase.rpc("fn_crear_solicitud_perfil", {
-        p_campo: campoPerfil,
-        p_valor_propuesto: valorPropuestoPerfil(),
-        p_rutas_adjuntas: rutas,
-      });
-      if (error) { setAvisoPerfil({ tipo: "error", texto: error.message }); return; }
-
-      setAvisoPerfil({ tipo: "ok", texto: "Pedido. Te avisamos cuando Desarrollo Organizacional responda." });
-      setFormPerfil({});
-      setArchivosPerfil([]);
-      await cargarSolicitudesPerfil();
-    } finally {
-      setEnviandoPerfil(false);
-    }
   }
 
   /** El periodo de pago en curso, para el botón. Del 29 al 28 — leído, no calculado. */
@@ -1101,15 +1008,12 @@ export default function MioPage() {
           </div>
         </div>
         <form onSubmit={entrar} className="flex w-full max-w-xs flex-col gap-3">
-          <input type="email" placeholder="correo" value={email} onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe" required />
-          <input type="password" placeholder="contraseña" value={clave} onChange={(e) => setClave(e.target.value)}
-            className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe" required />
+          <Campo type="email" placeholder="correo" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Campo type="password" placeholder="contraseña" value={clave} onChange={(e) => setClave(e.target.value)} required />
           {errorLogin && <p className="text-sm text-rojo">{errorLogin}</p>}
-          <button type="submit" disabled={entrando}
-            className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50">
-            {entrando ? "Entrando…" : "Entrar"}
-          </button>
+          <Boton type="submit" variante="primario" tamano="lg" cargando={entrando}>
+            Entrar
+          </Boton>
           <a href="/admin/olvide-clave" className="text-center text-sm text-taupe underline-offset-2 hover:underline">
             ¿Olvidaste tu clave?
           </a>
@@ -1172,10 +1076,16 @@ export default function MioPage() {
                 Volver al panel
               </Link>
             )}
-            <button onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}
-              className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+            {yo && (
+              <Link href="/mio/editar"
+                className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                Editar datos
+              </Link>
+            )}
+            <Boton variante="sutil" tamano="sm"
+              onClick={() => void supabase.auth.signOut().then(() => router.replace("/admin/login"))}>
               Salir
-            </button>
+            </Boton>
             <SelectorTema />
           </div>
         </div>
@@ -1196,6 +1106,19 @@ export default function MioPage() {
       <AnunciosWidget />
 
       {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
+
+      {/* Si esto no se pudo traer, las tarjetas y «Tu mes» de abajo NO pintan
+          números: un cero ahí no es la ausencia de un dato, es la afirmación de
+          que no trabajaste ese día. Ver lib/admin/lo-que-no-se-pudo.ts. */}
+      {noSePudo.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-rojo/30 bg-rojo/[0.06] p-4 text-sm">
+          <div className="font-medium text-rojo">No se pudo traer tu mes completo</div>
+          <p className="mt-1 text-tinta">
+            No se pudo traer {noSePudo.join(", ")}. Vuelve a cargar la página; si sigue igual, avisa a
+            Desarrollo Organizacional.
+          </p>
+        </div>
+      )}
 
       {pendientes.length > 0 && (
         <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-5">
@@ -1311,8 +1234,21 @@ export default function MioPage() {
           Mismo patrón de pestañas que la ficha de una persona en el panel
           (admin/personas/[id]): que las dos pantallas con pestañas del sistema
           se vean iguales no es cosmético, es que quien aprendió una ya sabe
-          usar la otra. */}
-      <div id="detalle" className="mb-5 flex gap-1 overflow-x-auto border-b border-sand">
+          usar la otra.
+
+          Con 7 pestañas (antes 6, "Firma" es la que se agregó) ya no entran
+          todas en una pantalla angosta, así que este `overflow-x-auto` pasa de
+          decorativo a necesario — y ahí aparece la barra de scroll horizontal
+          que se veía pesada bajo el texto. Sigue desplazándose igual con el
+          dedo o el trackpad; solo se oculta la barra en sí, no la función.
+          `scrollbar-width:none` cubre Firefox y el Chrome/Edge actuales;
+          `::-webkit-scrollbar` es el remanente para Safari, que todavía no
+          soporta la propiedad estándar (mismo motivo de las dos vías que ya
+          explica el bloque de scrollbars globales en globals.css). */}
+      <div
+        id="detalle"
+        className="mb-5 flex gap-1 overflow-x-auto border-b border-sand [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <TabBtn valor="dias" activa={tab} onSel={setTab}>Mis días</TabBtn>
         <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
         <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
@@ -1330,35 +1266,39 @@ export default function MioPage() {
               de la base y nunca calculado— y es contra el que va a querer cuadrar
               su boleta. */}
           <section className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
-            <label className="flex flex-col gap-1 text-xs text-taupe">Desde
-              <input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)}
-                className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-taupe">Hasta
-              <input type="date" value={hasta} min={desde} max={hoyLima()} onChange={(e) => setHasta(e.target.value)}
-                className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-            </label>
+            <Campo etiqueta="Desde" type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
+            <Campo etiqueta="Hasta" type="date" value={hasta} min={desde} max={hoyLima()} onChange={(e) => setHasta(e.target.value)} />
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => { setDesde(haceDias(30)); setHasta(hoyLima()); }}
-                className="rounded-lg border border-sand px-3 py-1.5 text-xs">Últimos 30 días</button>
-              <button onClick={() => void irAlPeriodoDePago()}
-                className="rounded-lg border border-sand px-3 py-1.5 text-xs">Periodo de pago</button>
+              <Boton variante="secundario" tamano="sm" onClick={() => { setDesde(haceDias(30)); setHasta(hoyLima()); }}>
+                Últimos 30 días
+              </Boton>
+              <Boton variante="secundario" tamano="sm" onClick={() => void irAlPeriodoDePago()}>
+                Periodo de pago
+              </Boton>
             </div>
           </section>
 
           {/* Cada número con su «de cuánto». Sin eso, «6h 54m de promedio» no dice
-              si va bien o mal, y ella no tiene a quién preguntarle. */}
-          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Tarjeta titulo="Días trabajados" valor={String(resumen.trabajados)}
-              pie={resumen.diasEsperados > 0 ? `de ${resumen.diasEsperados} que te tocaban` : "sin horario cargado"} />
-            <Tarjeta titulo="Total de horas" valor={comoReloj(resumen.total)}
-              pie={resumen.horasEsperadas > 0 ? `de ${comoReloj(resumen.horasEsperadas)}` : undefined} />
-            <Tarjeta titulo="Promedio por día" valor={comoReloj(resumen.promedio)}
-              pie={resumen.jornadaDiaria > 0 ? `tu jornada son ${comoReloj(resumen.jornadaDiaria)}` : undefined} />
-            {/* «de N medidos» y no un número suelto: un cero puede significar
-                «llegaste puntual» o «no había horario que comparar». */}
-            <Tarjeta titulo="Tardanzas" valor={String(resumen.tardanzas)} pie={`de ${resumen.medidos} días con horario que comparar`} />
-          </div>
+              si va bien o mal, y ella no tiene a quién preguntarle. Y si `jornadas`,
+              `horarios_asignados` o `turnos` no se pudieron traer, no se pinta nada
+              de esto: un cero acá diría «no trabajaste», y sería mentira. */}
+          {noSePudo.length > 0 ? (
+            <div className="mb-5 rounded-2xl border border-rojo/30 bg-rojo/[0.06] p-4 text-sm text-rojo">
+              No se pudieron calcular tus días y horas de este rango — ver el aviso de arriba.
+            </div>
+          ) : (
+            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Tarjeta titulo="Días trabajados" valor={String(resumen.trabajados)}
+                pie={resumen.diasEsperados > 0 ? `de ${resumen.diasEsperados} que te tocaban` : "sin horario cargado"} />
+              <Tarjeta titulo="Total de horas" valor={comoReloj(resumen.total)}
+                pie={resumen.horasEsperadas > 0 ? `de ${comoReloj(resumen.horasEsperadas)}` : undefined} />
+              <Tarjeta titulo="Promedio por día" valor={comoReloj(resumen.promedio)}
+                pie={resumen.jornadaDiaria > 0 ? `tu jornada son ${comoReloj(resumen.jornadaDiaria)}` : undefined} />
+              {/* «de N medidos» y no un número suelto: un cero puede significar
+                  «llegaste puntual» o «no había horario que comparar». */}
+              <Tarjeta titulo="Tardanzas" valor={String(resumen.tardanzas)} pie={`de ${resumen.medidos} días con horario que comparar`} />
+            </div>
+          )}
 
           {/* ── El mes de un vistazo ─────────────────────────────────────────
               Un cuadrito por día, con los MISMOS colores que ve su encargada. Que
@@ -1367,6 +1307,11 @@ export default function MioPage() {
           <section className="mb-5 rounded-2xl border border-sand p-5">
             <h2 className="mb-3 font-serif text-lg">Tu mes</h2>
             {cargando ? <p className="text-sm text-taupe">Cargando…</p>
+              : noSePudo.length > 0 ? (
+                <p className="text-sm text-rojo">
+                  No se pudo traer tu mes — ver el aviso de arriba. Lo que se vería acá no es de fiar todavía.
+                </p>
+              )
               : dias.length === 0 ? <p className="text-sm text-taupe">No hay días en este rango.</p>
               : (
                 <>
@@ -1405,7 +1350,7 @@ export default function MioPage() {
                       <div className="mt-4 rounded-2xl border border-tinta/20 bg-papel p-4 text-sm">
                         <div className="mb-2 flex items-start justify-between gap-3">
                           <h3 className="font-serif text-lg capitalize">{diaYMes(d.fecha)}</h3>
-                          <button onClick={() => setDiaAbierto(null)} className="text-xs text-taupe underline">cerrar</button>
+                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => setDiaAbierto(null)}>cerrar</Boton>
                         </div>
                         <dl className="space-y-1">
                           <div className="flex justify-between gap-4">
@@ -1467,8 +1412,10 @@ export default function MioPage() {
                             ) : (
                               <div className="mt-2 flex items-center gap-3">
                                 <span className="text-taupe">Todavía sin responder.</span>
-                                <button onClick={() => void quitarRevision(d.fecha)} disabled={enviando}
-                                  className="text-xs text-rojo underline disabled:opacity-50">retirar</button>
+                                <Boton variante="enlace" className="text-xs text-rojo" disabled={enviando}
+                                  onClick={() => void quitarRevision(d.fecha)}>
+                                  retirar
+                                </Boton>
                               </div>
                             )}
                           </div>
@@ -1476,14 +1423,13 @@ export default function MioPage() {
                           <div className="mt-3">
                             <label className="flex flex-col gap-1 text-xs text-taupe">
                               ¿Algo de este día no cuadra? Cuéntalo y le llega a tu encargada.
-                              <textarea value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2}
-                                placeholder="Ese día sí vine, marqué la entrada y la salida no me tomó."
-                                className="rounded-lg border border-sand bg-hueso px-3 py-2 text-sm text-tinta" />
+                              <AreaTexto value={comentario} onChange={(e) => setComentario(e.target.value)} rows={2}
+                                placeholder="Ese día sí vine, marqué la entrada y la salida no me tomó." />
                             </label>
-                            <button onClick={() => void pedirRevision(d.fecha)} disabled={enviando}
-                              className="mt-2 rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                              {enviando ? "Enviando…" : "Pedir que se revise"}
-                            </button>
+                            <Boton variante="primario" className="mt-2" cargando={enviando}
+                              onClick={() => void pedirRevision(d.fecha)}>
+                              Pedir que se revise
+                            </Boton>
                           </div>
                         ) : null}
                         {avisoRevision && (
@@ -1519,57 +1465,51 @@ export default function MioPage() {
             {jornadas.length === 0 ? (
               <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-sand text-left">
-                      <th className="etiqueta pb-2 font-normal text-taupe">Día</th>
-                      <th className="etiqueta pb-2 font-normal text-taupe">Entrada</th>
-                      <th className="etiqueta pb-2 font-normal text-taupe">Salida</th>
-                      <th className="etiqueta pb-2 font-normal text-taupe">Te tocaba</th>
-                      <th className="etiqueta pb-2 font-normal text-taupe">Tardanza</th>
-                      <th className="etiqueta pb-2 text-right font-normal text-taupe">Horas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...dias].reverse().filter((d) => d.jornada !== null).map((d) => {
-                      const j = d.jornada!;
-                      const tarde = (j.minutos_tarde ?? 0) > 0;
-                      const laPusoElSistema = j.estado === "auto_cerrada_pendiente";
-                      return (
-                        <tr key={d.fecha} className="border-b border-sand/60">
-                          <td className="py-2">{diaYMes(d.fecha)}</td>
-                          <td className="py-2">{hora(j.entrada_ts)}</td>
-                          <td className="py-2">
-                            {hora(j.salida_final_ts)}
-                            {/* Esa hora NO la marcó ella: la inventó el auto-cierre porque
-                                olvidó marcar. Es justo la que conviene que revise, así que
-                                se dice en vez de dejarla pasar por buena. */}
-                            {laPusoElSistema && (
-                              <span className="ml-2 rounded-full bg-ambar/15 px-2 py-0.5 text-[10px] text-ambar">
-                                la puso el sistema
-                              </span>
-                            )}
-                          </td>
-                          {/* Contra qué se midió su tardanza ese día. Sin esto, un
-                              número de minutos es una afirmación sin origen. */}
-                          <td className="py-2 text-taupe">
-                            {d.esperado.trabaja
-                              ? <>{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</>
-                              : "—"}
-                          </td>
-                          <td className="py-2">
-                            {!tarde ? <span className="text-taupe">—</span>
-                              : d.perdonada ? <span className="text-taupe line-through">{j.minutos_tarde} min</span>
-                              : <span className="text-ambar">{j.minutos_tarde} min</span>}
-                          </td>
-                          <td className="py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <Tabla>
+                <TablaEncabezado>
+                  <Th>Día</Th>
+                  <Th>Entrada</Th>
+                  <Th>Salida</Th>
+                  <Th>Te tocaba</Th>
+                  <Th>Tardanza</Th>
+                  <Th className="text-right">Horas</Th>
+                </TablaEncabezado>
+                <tbody>
+                  {[...dias].reverse().filter((d) => d.jornada !== null).map((d) => {
+                    const j = d.jornada!;
+                    const tarde = (j.minutos_tarde ?? 0) > 0;
+                    const laPusoElSistema = j.estado === "auto_cerrada_pendiente";
+                    return (
+                      <Fila key={d.fecha}>
+                        <td className="px-4 py-2">{diaYMes(d.fecha)}</td>
+                        <td className="px-4 py-2">{hora(j.entrada_ts)}</td>
+                        <td className="px-4 py-2">
+                          {hora(j.salida_final_ts)}
+                          {/* Esa hora NO la marcó ella: la inventó el auto-cierre porque
+                              olvidó marcar. Es justo la que conviene que revise, así que
+                              se dice en vez de dejarla pasar por buena. */}
+                          {laPusoElSistema && (
+                            <Insignia tamano="sm" variante="advertencia" className="ml-2">la puso el sistema</Insignia>
+                          )}
+                        </td>
+                        {/* Contra qué se midió su tardanza ese día. Sin esto, un
+                            número de minutos es una afirmación sin origen. */}
+                        <td className="px-4 py-2 text-taupe">
+                          {d.esperado.trabaja
+                            ? <>{d.esperado.entrada}{d.esperado.salida ? `–${d.esperado.salida}` : ""}</>
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {!tarde ? <span className="text-taupe">—</span>
+                            : d.perdonada ? <span className="text-taupe line-through">{j.minutos_tarde} min</span>
+                            : <span className="text-ambar">{j.minutos_tarde} min</span>}
+                        </td>
+                        <td className="px-4 py-2 text-right">{comoReloj(j.horas_trabajadas ?? 0)}</td>
+                      </Fila>
+                    );
+                  })}
+                </tbody>
+              </Tabla>
             )}
           </section>
         </>
@@ -1687,235 +1627,6 @@ export default function MioPage() {
             </section>
           )}
 
-          {/* ── Cambiar mis datos (0399) ──────────────────────────────────────
-              El valor real NO cambia acá: se propone, y Desarrollo Organizacional
-              lo aprueba o lo rechaza. El botón queda deshabilitado hasta adjuntar
-              un documento cuando el campo lo exige — el servidor lo vuelve a
-              exigir igual, esto es solo para no dejar enviar algo que va a
-              rebotar. */}
-          {catalogoPerfil.length > 0 && (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm">
-              <h2 className="mb-3 font-serif text-lg">Cambiar mis datos</h2>
-              <p className="mb-3 text-taupe">
-                Elige qué quieres cambiar. Desarrollo Organizacional lo revisa antes de que se aplique.
-              </p>
-              <form onSubmit={(e) => void proponerCambioPerfil(e)} className="flex flex-col gap-3">
-                <label className="flex flex-col gap-1 text-xs text-taupe">Qué quieres cambiar
-                  <select value={campoPerfil}
-                    onChange={(e) => { setCampoPerfil(e.target.value); setFormPerfil({}); setArchivosPerfil([]); }}
-                    className="max-w-xs rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    {catalogoPerfil.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
-                  </select>
-                </label>
-
-                <div className="flex flex-wrap items-end gap-3">
-                  {campoPerfil === "celular" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo celular
-                      <input type="tel" required value={formPerfil.celular ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, celular: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  )}
-                  {campoPerfil === "direccion" && (
-                    <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs text-taupe">Nueva dirección
-                      <input type="text" required value={formPerfil.direccion ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, direccion: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  )}
-                  {campoPerfil === "contacto_emergencia" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nombre
-                      <input type="text" required value={formPerfil.emergencia_nombre ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_nombre: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                      <input type="text" required value={formPerfil.emergencia_vinculo ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
-                        placeholder="madre, esposo…"
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Teléfono
-                      <input type="tel" required value={formPerfil.emergencia_telefono ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_telefono: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  </>)}
-                  {campoPerfil === "estado_civil" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo estado civil
-                      <select required value={formPerfil.estado_civil ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, estado_civil: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        {ESTADOS_CIVILES.map((ec) => <option key={ec} value={ec}>{ESTADO_CIVIL_LABELS[ec]}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {campoPerfil === "hijos_menores" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes hijos menores a cargo?
-                      <select required value={formPerfil.hijos_menores ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, hijos_menores: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        <option value="true">Sí</option>
-                        <option value="false">No</option>
-                      </select>
-                    </label>
-                  )}
-                  {campoPerfil === "grado_instruccion" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo grado de instrucción
-                      <select required value={formPerfil.grado_instruccion ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, grado_instruccion: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        {GRADOS_INSTRUCCION.map((g) => <option key={g} value={g}>{GRADO_INSTRUCCION_LABELS[g]}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {campoPerfil === "discapacidad" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes una discapacidad?
-                      <select required value={formPerfil.discapacidad ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        <option value="true">Sí</option>
-                        <option value="false">No</option>
-                      </select>
-                    </label>
-                    {formPerfil.discapacidad === "true" && (
-                      <label className="flex flex-col gap-1 text-xs text-taupe">Código CONADIS
-                        <input type="text" required value={formPerfil.discapacidad_conadis ?? ""}
-                          onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad_conadis: e.target.value }))}
-                          className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                      </label>
-                    )}
-                  </>)}
-                  {campoPerfil === "cuenta_bancaria" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Banco
-                      <input type="text" required value={formPerfil.entidad_bancaria ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, entidad_bancaria: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Número de cuenta
-                      <input type="text" required value={formPerfil.numero_cuenta ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, numero_cuenta: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  </>)}
-                  {campoPerfil === "cuspp" && (
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo CUSPP
-                      <input type="text" required value={formPerfil.cuspp ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, cuspp: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  )}
-                  {campoPerfil === "correccion_identidad" && (<>
-                    <p className="w-full text-xs text-taupe">
-                      Es una corrección de un dato mal capturado, no una actualización — completa solo lo que está mal.
-                    </p>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">DNI correcto
-                      <input type="text" value={formPerfil.documento ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, documento: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nombre completo correcto
-                      <input type="text" value={formPerfil.nombre_dni ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, nombre_dni: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Fecha de nacimiento correcta
-                      <input type="date" value={formPerfil.fecha_nacimiento ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Género correcto
-                      <select value={formPerfil.genero ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, genero: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="">— sin corregir —</option>
-                        {GENEROS.map((g) => <option key={g} value={g}>{GENERO_LABELS[g]}</option>)}
-                      </select>
-                    </label>
-                  </>)}
-                  {campoPerfil === "familiar_nuevo" && (<>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Nombres
-                      <input type="text" required value={formPerfil.nombres ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, nombres: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Apellidos
-                      <input type="text" required value={formPerfil.apellidos ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, apellidos: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                      <select required value={formPerfil.vinculo ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, vinculo: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                        <option value="" disabled>Elige…</option>
-                        {VINCULOS_DERECHOHABIENTE.map((v) => <option key={v} value={v}>{VINCULO_DERECHOHABIENTE_LABELS[v]}</option>)}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-taupe">
-                      Fecha de nacimiento{formPerfil.vinculo === "hijo" ? "" : " (si aplica)"}
-                      <input type="date" required={formPerfil.vinculo === "hijo"} value={formPerfil.fecha_nacimiento ?? ""}
-                        onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                    </label>
-                  </>)}
-                </div>
-
-                {campoActualPerfil?.requiere_documento && (
-                  <label className="flex flex-col gap-1 text-xs text-taupe">
-                    Documento de sustento{campoActualPerfil.documento_sugerido ? ` (${campoActualPerfil.documento_sugerido})` : ""}
-                    <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
-                      onChange={(e) => setArchivosPerfil(Array.from(e.target.files ?? []))}
-                      className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                  </label>
-                )}
-
-                {yaHayPendientePerfil && (
-                  <p className="text-xs text-ambar">
-                    Ya tienes una solicitud pendiente sobre este campo — enviar otra reemplaza a esa.
-                  </p>
-                )}
-
-                <button type="submit" disabled={
-                  enviandoPerfil || (campoActualPerfil?.requiere_documento && archivosPerfil.length === 0)
-                } className="w-fit rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-                  {enviandoPerfil ? "Enviando…" : "Pedir el cambio"}
-                </button>
-              </form>
-              {avisoPerfil && (
-                <p className={`mt-2 text-xs ${avisoPerfil.tipo === "ok" ? "text-verde" : "text-rojo"}`}>
-                  {avisoPerfil.texto}
-                </p>
-              )}
-
-              {misSolicitudesPerfil.length > 0 && (
-                <ul className="mt-4 space-y-2 border-t border-sand pt-3 text-xs">
-                  {misSolicitudesPerfil.map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span>
-                        <strong>{catalogoPerfil.find((c) => c.campo === s.campo)?.etiqueta ?? s.campo}</strong>
-                        {" · "}
-                        <span className={
-                          s.estado === "aprobado" ? "text-verde"
-                          : s.estado === "rechazado" ? "text-rojo"
-                          : s.estado === "reemplazada" ? "text-taupe"
-                          : "text-pizarra"
-                        }>
-                          {s.estado === "pendiente" ? "por resolver" : s.estado === "reemplazada" ? "reemplazada por otra" : s.estado}
-                        </span>
-                        {s.motivo && <span className="text-taupe"> — «{s.motivo}»</span>}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
           {/* ── Sus ausencias ────────────────────────────────────────────────
               «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
               que hoy se responde preguntando. Y el aviso del documento que falta la
@@ -1941,14 +1652,8 @@ export default function MioPage() {
                           algo que debería haber sabido al pedirlo, y callarlo deja
                           la sorpresa para el día de la boleta. Ningún monto: en esta
                           pantalla no hay dinero. */}
-                      {noPaga(a.tipo) && (
-                        <span className="rounded-full bg-sand px-2 py-0.5 text-[11px] text-taupe">no remunerado</span>
-                      )}
-                      {faltaDoc && (
-                        <span className="rounded-full bg-ambar/15 px-2 py-0.5 text-[11px] text-ambar">
-                          falta el documento
-                        </span>
-                      )}
+                      {noPaga(a.tipo) && <Insignia tamano="sm" atenuada>no remunerado</Insignia>}
+                      {faltaDoc && <Insignia tamano="sm" variante="advertencia">falta el documento</Insignia>}
                     </li>
                   );
                 })}
@@ -2152,14 +1857,14 @@ function FotoDePerfil({
           </span>
         )}
       </button>
-      <button
-        type="button"
+      <Boton
+        variante="enlace"
         onClick={() => inputRef.current?.click()}
         disabled={subiendo}
-        className="text-[11px] text-taupe underline disabled:opacity-60"
+        className="text-[11px] text-taupe"
       >
         {subiendo ? "Subiendo…" : "Cambiar foto"}
-      </button>
+      </Boton>
       <input
         ref={inputRef}
         type="file"
