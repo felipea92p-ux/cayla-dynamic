@@ -13,7 +13,7 @@ import { TZ_LIMA, puedeVerTodasLasSedes } from "@cayla-dynamic/shared";
 import { Boton } from "@/components/ui/boton";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
-import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 
 
@@ -465,17 +465,11 @@ function ObjetivosContenido() {
               ) : (
                 items.map((item) => (
                   <li key={item.id} className="flex items-start gap-3 px-4 py-2.5">
-                    {/* Casilla suelta: no hay <CampoCasilla> todavía en
-                        components/ui/campo.tsx pese a lo anunciado — se deja con
-                        las clases que ya usan las demás casillas sueltas del panel
-                        (accent-tinta, border-sand) para que migrar sea trivial en
-                        cuanto exista. Ver 'pendientes'. */}
-                    <input
-                      type="checkbox"
+                    <CampoCasilla
                       checked={item.cumplido}
                       disabled={!puedeGestionar}
                       onChange={(e) => void marcar(item, e.target.checked)}
-                      className="mt-1 size-4 rounded border-sand accent-tinta"
+                      className="mt-1 rounded border-sand"
                     />
                     {editandoId === item.id ? (
                       <div className="flex-1">

@@ -64,7 +64,17 @@ fi
 ocupados() {
   local dir="$1"
   {
-    for r in $(git for-each-ref --format='%(refname)' refs/heads refs/remotes 2>/dev/null); do
+    # Antes esto recorría TODAS las ramas —locales y remotas— con un
+    # `git ls-tree` por cada una. Medido el 2026-09-08: 147 ramas remotas,
+    # 108 ya fusionadas a `origin/main` y nunca borradas. Una rama fusionada
+    # no aporta ningún número que `origin/main` no tenga ya: se lee
+    # `origin/main` UNA vez, y de ahí en más solo las ramas —locales o
+    # remotas— que todavía no se fusionaron. En Windows/Git Bash cada
+    # `git ls-tree` de más cuesta mucho más que en Linux, y con casi 300
+    # llamadas de sobra (147 ramas × dos directorios) este script llegó a
+    # tardar más de un minuto en contestar algo que cabe en un parpadeo.
+    git ls-tree -r --name-only origin/main "$dir" 2>/dev/null || true
+    for r in $(git branch -a --no-merged origin/main --format='%(refname)' 2>/dev/null); do
       git ls-tree -r --name-only "$r" "$dir" 2>/dev/null || true
     done
     for w in $(git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2}'); do

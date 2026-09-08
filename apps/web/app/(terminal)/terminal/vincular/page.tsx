@@ -54,7 +54,7 @@ export default function VincularTerminalPage() {
           placeholder="correo del terminal"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-4 py-3 text-tinta outline-none placeholder:text-taupe focus:border-taupe"
+          className="rounded-control border border-sand bg-crema px-4 py-3 text-tinta placeholder:text-taupe"
           required
         />
         <input
@@ -62,14 +62,14 @@ export default function VincularTerminalPage() {
           placeholder="contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-lg border border-sand bg-crema px-4 py-3 text-tinta outline-none placeholder:text-taupe focus:border-taupe"
+          className="rounded-control border border-sand bg-crema px-4 py-3 text-tinta placeholder:text-taupe"
           required
         />
         {error && <p className="text-sm text-rojo">{error}</p>}
         <button
           type="submit"
           disabled={cargando}
-          className="rounded-lg bg-rojo px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
+          className="rounded-control bg-rojo px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
         >
           {cargando ? "Vinculando…" : "Vincular"}
         </button>
