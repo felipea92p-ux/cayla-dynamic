@@ -52,8 +52,9 @@ select is((select count(*)::int from catalogo_campos_perfil), 12,
 select is((select requiere_documento from catalogo_campos_perfil where campo = 'foto_dni'), true,
   'DE PARTIDA · foto_dni exige documento adjunto');
 
-select is((select en_formulario_generico from catalogo_campos_perfil where campo = 'foto_dni'), false,
-  'DE PARTIDA · foto_dni no sale en el desplegable de «Cambiar mis datos» — tiene pantalla propia');
+select is((select columnas from catalogo_campos_perfil where campo = 'foto_dni'),
+  array['foto_dni_anverso_ruta','foto_dni_reverso_ruta'],
+  'DE PARTIDA · el catálogo declara las dos columnas, en ese orden');
 
 
 -- ── 1 · Lo que NO se puede proponer ─────────────────────────────────────────

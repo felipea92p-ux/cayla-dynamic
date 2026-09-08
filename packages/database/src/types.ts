@@ -682,7 +682,6 @@ export type Database = {
           campo: string
           columnas: string[]
           documento_sugerido: string | null
-          en_formulario_generico: boolean
           etiqueta: string
           requiere_documento: boolean
         }
@@ -690,7 +689,6 @@ export type Database = {
           campo: string
           columnas: string[]
           documento_sugerido?: string | null
-          en_formulario_generico?: boolean
           etiqueta: string
           requiere_documento?: boolean
         }
@@ -698,7 +696,6 @@ export type Database = {
           campo?: string
           columnas?: string[]
           documento_sugerido?: string | null
-          en_formulario_generico?: boolean
           etiqueta?: string
           requiere_documento?: boolean
         }

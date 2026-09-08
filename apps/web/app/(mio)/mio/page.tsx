@@ -1727,10 +1727,17 @@ export default function MioPage() {
       {tab === "dni" && hayCampoDni && (
         <section className="rounded-2xl border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Tu DNI</h2>
+          {/* Quién las ve NO es una frase de relleno: es una promesa sobre un
+              documento de identidad, y tiene que decir la verdad. Decía «solo
+              Administración — no tu encargada» hasta que la 0403 le dio a la
+              encargada de sede permiso para ver y resolver las solicitudes de
+              su equipo. Al componerse con esta pantalla, eso incluye el DNI.
+              Si algún día se decide devolverlo a DO (ver la enmienda del ADR
+              0001), esta frase cambia con ello — no antes. */}
           <p className="mb-4 text-sm text-taupe">
-            Sube una foto de cada cara. Desarrollo Organizacional las revisa antes de que queden
-            guardadas: hasta entonces tu ficha sigue con lo que ya tenía. Solo las ve
-            Administración — no tu encargada ni el resto del equipo.
+            Sube una foto de cada cara. Se revisan antes de que queden guardadas: hasta entonces
+            tu ficha sigue con lo que ya tenía. Las ven Administración y tu encargada de sede;
+            nadie más del equipo.
           </p>
 
           {solicitudDni?.estado === "pendiente" && (

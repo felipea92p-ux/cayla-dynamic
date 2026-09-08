@@ -76,7 +76,7 @@
 --   -- 2) el campo del catálogo (las solicitudes ya creadas lo referencian, así
 --   --    que primero hay que decidir qué hacer con ellas):
 --   delete from catalogo_campos_perfil where campo = 'foto_dni';
---   alter table catalogo_campos_perfil drop column if exists en_formulario_generico;
+--   (no hay columna nueva en catalogo_campos_perfil: solo la fila de arriba)
 --   -- 3) las columnas — OJO: se lleva por delante qué DNI tenía cada quien:
 --   alter table datos_personales
 --     drop column if exists foto_dni_anverso_ruta,
@@ -105,31 +105,27 @@ comment on column datos_personales.foto_dni_reverso_ruta is
 
 
 -- ── B · El catálogo aprende un campo más ────────────────────────────────────
--- `en_formulario_generico` existe porque el DNI tiene su propia pestaña en «Lo
--- mío», con sus dos recuadros y su vista previa. Si además siguiera saliendo
--- en el desplegable de «Cambiar mis datos», habría dos puertas para la misma
--- pregunta. Se resuelve con una columna y no con un `campo === 'foto_dni'`
--- escrito en la pantalla: la regla de la casa es que la lista de campos vive
--- en esta tabla y en ningún otro lado.
-alter table catalogo_campos_perfil
-  add column if not exists en_formulario_generico boolean not null default true;
-
-comment on column catalogo_campos_perfil.en_formulario_generico is
-  'false cuando el campo tiene su propia pantalla y no debe aparecer también '
-  'en el desplegable genérico de «Cambiar mis datos» (hoy: foto_dni).';
-
+-- Una fila, sin columnas nuevas.
+--
+-- Esta migración llegó a agregar un `en_formulario_generico boolean` para que
+-- el DNI no saliera además en el desplegable de «Cambiar mis datos» — dos
+-- puertas para la misma solicitud. Se quitó antes de pegarla: la 0403 y su
+-- pantalla `/mio/editar` reemplazaron ese desplegable por una lista fija de
+-- siete campos editables (`CAMPOS_EDITABLES`, decisión de producto y no del
+-- catálogo), donde `foto_dni` sencillamente no está. La columna se quedaba sin
+-- nadie que la leyera, describiendo una pantalla que ya no existe — y una
+-- migración de este repo se lee como documentación del negocio.
 insert into catalogo_campos_perfil
-  (campo, etiqueta, requiere_documento, documento_sugerido, columnas, en_formulario_generico)
+  (campo, etiqueta, requiere_documento, documento_sugerido, columnas)
 values
   ('foto_dni', 'Foto del DNI (ambos lados)', true,
    'Las dos caras del DNI vigente, legibles y completas',
-   array['foto_dni_anverso_ruta','foto_dni_reverso_ruta'], false)
+   array['foto_dni_anverso_ruta','foto_dni_reverso_ruta'])
 on conflict (campo) do update set
-  etiqueta               = excluded.etiqueta,
-  requiere_documento     = excluded.requiere_documento,
-  documento_sugerido     = excluded.documento_sugerido,
-  columnas               = excluded.columnas,
-  en_formulario_generico = excluded.en_formulario_generico;
+  etiqueta           = excluded.etiqueta,
+  requiere_documento = excluded.requiere_documento,
+  documento_sugerido = excluded.documento_sugerido,
+  columnas           = excluded.columnas;
 
 
 -- ── C · El «antes» de una solicitud de DNI ──────────────────────────────────
@@ -506,8 +502,8 @@ select
      where table_name = 'datos_personales'
        and column_name in ('foto_dni_anverso_ruta','foto_dni_reverso_ruta')) = 2 as las_dos_columnas,
   (select count(*)::int from catalogo_campos_perfil) as filas_catalogo,        -- 12
-  (select en_formulario_generico from catalogo_campos_perfil where campo = 'foto_dni')
-    is false as el_dni_no_sale_en_el_desplegable,
+  (select requiere_documento from catalogo_campos_perfil where campo = 'foto_dni')
+    is true as el_dni_exige_documento,
   (select count(*)::int from pg_proc where proname = 'fn_solicitud_perfil_ruta_congelada') as fn_candado,
   (select count(*)::int from pg_policies where tablename = 'objects' and schemaname = 'storage'
      and policyname like 'solicitud_perfil_%') = 4 as las_cuatro_politicas_siguen,
