@@ -39,16 +39,24 @@ function MiContratoContenido() {
 
   const [yo, setYo] = useState<{ id: string; nombre: string; nombreOficial: string } | null>(null);
   const [contrato, setContrato] = useState<{
+    id: string;
     tipo: string;
     fecha_inicio: string;
     fecha_fin: string | null;
     fecha_firma: string | null;
     storage_path: string | null;
     documento_html: string | null;
+    // Confirmación DIGITAL (0402) de que la firma de abajo va en este
+    // contrato — distinta de `fecha_firma`, que sigue siendo el escaneado
+    // físico. Se congela al confirmar: si después cambias tu firma general,
+    // este contrato sigue mostrando la que confirmaste hasta que vuelvas a
+    // confirmar.
+    firma_persona_confirmada_at: string | null;
   } | null>(null);
   const [miFirma, setMiFirma] = useState<string | null>(null);
   const [firmaEmpresa, setFirmaEmpresa] = useState<string | null>(null);
   const [avisoFirma, setAvisoFirma] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,7 +97,7 @@ function MiContratoContenido() {
     const [{ data: c, error: eContrato }, { data: mf }, { data: fe }] = await Promise.all([
       supabase
         .from("contratos_generados")
-        .select("tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html")
+        .select("id, tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html, firma_persona_confirmada_at")
         .eq("persona_id", yoActual.id)
         .is("anulado_at", null)
         .order("generado_at", { ascending: false })
@@ -120,6 +128,23 @@ function MiContratoContenido() {
     if (!contrato?.storage_path) return;
     const fallo = await abrirArchivoFirmado(supabase, "contratos", contrato.storage_path);
     if (fallo) setError(fallo);
+  }
+
+  // Paso aparte de "Guardar firma" (que solo configura la imagen, reusable en
+  // cualquier documento): esto congela una copia de esa imagen EN ESTE
+  // contrato y deja constancia de cuándo, visible para admin/líder tanto en
+  // la lista de contratos como al abrir este documento (ver admin/contratos).
+  async function confirmarFirma() {
+    if (!contrato) return;
+    setConfirmando(true);
+    const { error: eConfirmar } = await supabase.rpc("fn_confirmar_mi_firma_contrato", { p_contrato_id: contrato.id });
+    if (eConfirmar) {
+      setAvisoFirma({ tipo: "error", texto: eConfirmar.message });
+    } else {
+      setContrato((c) => (c ? { ...c, firma_persona_confirmada_at: new Date().toISOString() } : c));
+      setAvisoFirma({ tipo: "ok", texto: "Firma confirmada en este contrato." });
+    }
+    setConfirmando(false);
   }
 
   if (cargando) {
@@ -209,6 +234,30 @@ function MiContratoContenido() {
           avisar={(tipo, texto) => setAvisoFirma({ tipo, texto })}
           onGuardada={setMiFirma}
         />
+
+        {/* Aparte de "Guardar firma" de arriba a propósito: guardar la firma
+            solo configura la imagen (reusable en cualquier documento futuro);
+            esto confirma que ESA imagen va en ESTE contrato puntual, y lo dice
+            en admin/contratos — en la lista y al abrir el documento. */}
+        <div className="mt-3 border-t border-sand pt-3">
+          {contrato.firma_persona_confirmada_at ? (
+            <p className="mb-2 text-xs text-verde">
+              Confirmaste tu firma en este contrato el{" "}
+              {new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "long", year: "numeric" })
+                .format(new Date(contrato.firma_persona_confirmada_at))}.
+              {" "}Si cambiaste tu firma después, vuelve a confirmar para que se actualice acá.
+            </p>
+          ) : (
+            <p className="mb-2 text-xs text-taupe">Todavía no confirmaste tu firma en este contrato.</p>
+          )}
+          <button
+            onClick={() => void confirmarFirma()}
+            disabled={confirmando || !miFirma}
+            className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40"
+          >
+            {confirmando ? "Confirmando…" : "Confirmar mi firma aquí"}
+          </button>
+        </div>
       </div>
 
       <div

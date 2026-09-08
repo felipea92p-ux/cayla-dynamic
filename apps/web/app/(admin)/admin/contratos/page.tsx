@@ -18,6 +18,7 @@ import {
   ACTIVOS_PRINCIPALES_POR_SEDE,
   FUNCIONES_PLACEHOLDER,
   MARCADOR_FIRMA_EMPRESA,
+  MARCADOR_FIRMA_PERSONA,
   tipoQueCorresponde,
   type DatosContrato,
 } from "@/lib/admin/contrato-texto";
@@ -210,6 +211,9 @@ interface ContratoFila {
   editado_at: string | null;
   editado_por: string | null;
   vigente: boolean;
+  // Confirmación digital del colaborador (0402) — distinta de `fecha_firma`,
+  // que sigue siendo el escaneado físico. Null = todavía no confirmó.
+  firma_persona_confirmada_at: string | null;
 }
 
 interface FilaTablero {
@@ -467,6 +471,13 @@ export default function ContratosPage() {
   // reimprimirlo. Estado propio y no `borrador`: el efecto que descarta el
   // borrador al editar el formulario no debe cerrar lo que se está mirando.
   const [documentoAbierto, setDocumentoAbierto] = useState<string | null>(null);
+  // La firma que el colaborador confirmó en ESTE contrato (0402), congelada al
+  // momento de confirmar — no la firma general de la persona, que puede haber
+  // cambiado después. Un valor viejo acá no se ve nunca solo: `htmlFinalModal`
+  // (más abajo) solo lo usa cuando `documentoAbierto` también está puesto, y
+  // `abrirGenerado` siempre escribe los dos juntos — no hace falta limpiarlo
+  // por separado en cada cierre del visor.
+  const [firmaPersonaAbierta, setFirmaPersonaAbierta] = useState<string | null>(null);
 
   const [subiendoPara, setSubiendoPara] = useState<string | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -1422,14 +1433,16 @@ export default function ContratosPage() {
   async function abrirGenerado(id: string) {
     const { data, error } = await supabase
       .from("contratos_generados")
-      .select("documento_html")
+      .select("documento_html, firma_persona")
       .eq("id", id)
       .maybeSingle();
     if (error || !data) {
       avisar("error", mensajeDeError(error, "abrir el contrato"));
       return;
     }
-    setDocumentoAbierto((data as { documento_html: string }).documento_html);
+    const fila = data as { documento_html: string; firma_persona: string | null };
+    setDocumentoAbierto(fila.documento_html);
+    setFirmaPersonaAbierta(fila.firma_persona);
   }
 
   /** Anota que se entregó la copia o que se comunicó al MTPE. */
@@ -1599,10 +1612,19 @@ export default function ContratosPage() {
   // devuelve únicamente la firma propia, así que no hay forma —ni la debe haber—
   // de estampar la de otra persona.
   const puedeEstampar = esFirmante && Boolean(firmaUrl);
-  const estampar = (html: string) =>
-    html.replaceAll(MARCADOR_FIRMA_EMPRESA, puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;");
+  // La del colaborador (0402) es distinta: no depende de quién mira el panel,
+  // sino de si ESE contrato puntual ya tiene una firma confirmada congelada.
+  // Por eso recibe la imagen como parámetro en vez de leerla de un estado
+  // global como `firmaUrl` — cada contrato trae la suya, o ninguna.
+  const estampar = (html: string, firmaPersona?: string | null) =>
+    html
+      .replaceAll(MARCADOR_FIRMA_EMPRESA, puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;")
+      .replaceAll(MARCADOR_FIRMA_PERSONA, firmaPersona ? `<img src="${firmaPersona}" alt="Firma del colaborador" />` : "&nbsp;");
+  // El borrador en línea (generando o corrigiendo) todavía no tiene fila
+  // guardada de la que leer una confirmación — no aplica estampar la del
+  // colaborador ahí, solo la de la empresa.
   const htmlFinal = documentoInline ? estampar(documentoInline) : null;
-  const htmlFinalModal = documentoAbierto ? estampar(documentoAbierto) : null;
+  const htmlFinalModal = documentoAbierto ? estampar(documentoAbierto, firmaPersonaAbierta) : null;
 
   return (
     <main className="p-6">
@@ -2421,6 +2443,15 @@ export default function ContratosPage() {
                         <span className={c.storage_path ? "text-xs text-verde" : "text-xs text-taupe"}>
                           {c.storage_path ? `firmado el ${formatearFecha(c.fecha_firma!)}` : "pendiente de firma"}
                         </span>
+                        {/* Confirmación DIGITAL del colaborador (0402) — no reemplaza
+                            lo de arriba, que sigue siendo el escaneado físico. Un
+                            contrato puede estar "pendiente de firma" (legal) y con
+                            la firma digital ya confirmada al mismo tiempo. */}
+                        {c.firma_persona_confirmada_at && (
+                          <span className="text-xs text-verde">
+                            firma digital confirmada el {formatearFecha(c.firma_persona_confirmada_at.slice(0, 10))}
+                          </span>
+                        )}
                       </div>
 
                       {/* Los dos plazos, solo mientras falten: confirmar en cada
@@ -2673,6 +2704,14 @@ export default function ContratosPage() {
                 });
               }
               if (c.fecha_firma) hitos.push({ fecha: c.fecha_firma, texto: "Escaneado subido, contrato activado" });
+              // Distinta de la de arriba: es una confirmación digital de la
+              // colaboradora, no el trámite legal del escaneado físico.
+              if (c.firma_persona_confirmada_at) {
+                hitos.push({
+                  fecha: c.firma_persona_confirmada_at.slice(0, 10),
+                  texto: "Colaboradora confirmó su firma digital en el contrato",
+                });
+              }
               if (c.copia_entregada_at) hitos.push({ fecha: c.copia_entregada_at, texto: "Copia entregada a la colaboradora" });
               if (c.comunicado_mtpe_at) hitos.push({ fecha: c.comunicado_mtpe_at, texto: "Comunicado a la Autoridad de Trabajo" });
               if (c.fecha_fin && c.fecha_fin < hoyLima() && !c.anulado_at) {
