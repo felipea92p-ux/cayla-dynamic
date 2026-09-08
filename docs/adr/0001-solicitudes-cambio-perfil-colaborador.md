@@ -576,3 +576,73 @@ local compartido, y por minutos.
 - `seguimiento_planilla_por_solicitud` y el resto del diseño (estados,
   aprobador único DO, sin contador nuevo en el nav, notificación por correo
   diferida) se mantienen tal cual se decidieron arriba.
+
+---
+
+## Enmienda 2026-09-08 — la foto del DNI (migración 0401)
+
+Se agregó un **campo 12: `foto_dni`**. Donde arriba diga «11 campos», léase 12.
+Vale la enmienda y no un ADR nuevo porque no cambia ninguna decisión de este
+documento: usa la misma tabla, el mismo bucket, la misma bandeja y el mismo
+resolver. Lo que sí cambia son dos cosas, y las dos merecen quedar escritas.
+
+### 1. Es el primer campo cuyo VALOR es un archivo
+
+En los otros 11 el adjunto **sustenta** un valor de texto: se aprueba «casado» y
+el acta de matrimonio es la prueba. Acá el valor propuesto son dos rutas del
+bucket, y no hay nada más que aprobar que las imágenes mismas.
+
+De ahí que `fn_crear_solicitud_perfil` exija, solo para este campo, que las dos
+rutas del `valor_propuesto` estén además dentro de `rutas_adjuntas`. Suena
+redundante y no lo es: `rutas_adjuntas` ya pasa por el bucle que comprueba que
+toda ruta empiece por `solicitud/<mi persona_id>/`, y `valor_propuesto` es
+`jsonb` libre que nadie más mira. Sin esa condición se podía proponer como DNI
+propio la ruta del DNI de otra persona. Y es también lo que garantiza que DO vea
+las dos caras en la bandeja antes de aprobar: los botones «Ver documento» leen
+`rutas_adjuntas`, no el valor propuesto.
+
+Se descartó copiar los archivos a un bucket «definitivo» al aprobar: mover bytes
+entre buckets no se puede hacer desde SQL (el objeto físico se referencia por id,
+no por `bucket_id`), y un segundo bucket con las mismas políticas era una segunda
+puerta a lo mismo.
+
+### 2. La decisión 8 se corrige: un adjunto aprobado deja de ser de quien lo subió
+
+La decisión 8 dejó las cuatro políticas del bucket mirando solo la carpeta:
+`solicitud/<tu id>/` es tuya para escribir y borrar, siempre. Junto con el
+`x-upsert: true` de `lib/subir-archivo.ts`, eso significaba que después de que DO
+aprobara, quien subió el archivo podía **reemplazar sus bytes por otros** —misma
+ruta, mismo registro en la ficha— o borrarlo, desde la consola del navegador.
+
+Mientras el valor aprobado era texto eso era feo pero no decisivo: el dato vivía
+en la tabla. Con el DNI el archivo **es** el valor, así que la promesa central de
+este ADR («no cambia hasta que se aprueba») se quedaba en la interfaz — el mismo
+tipo de agujero que el Hallazgo 3 vino a cerrar en las funciones.
+
+La 0401 agrega `fn_solicitud_perfil_ruta_congelada(text)` y se la exige a las
+políticas de `update` y `delete`: una ruta citada por una solicitud en estado
+`aprobado` solo la puede tocar un admin/líder. Se aplica a **todos** los
+adjuntos, no solo a los del DNI — el certificado CONADIS, la carátula de cuenta
+y la partida de nacimiento sustentan decisiones ya tomadas y valen lo mismo.
+`insert` y `select` no se tocaron: subir un archivo nuevo y mirar los propios
+sigue igual.
+
+Consecuencia aceptada: los archivos de un DNI viejo quedan congelados para
+siempre (su solicitud sigue en `aprobado`). Son la prueba de qué se aprobó ese
+día, y son dos JPEG de ~400 KB por actualización.
+
+### 3. Detalles menores
+
+- `catalogo_campos_perfil` gana `en_formulario_generico boolean` (false solo
+  para `foto_dni`): el DNI tiene pestaña propia en «Lo mío» y ofrecerlo también
+  en el desplegable genérico serían dos puertas a la misma solicitud.
+- `datos_personales` gana `foto_dni_anverso_ruta` y `foto_dni_reverso_ruta`. La
+  columna vieja `foto_dni_url` (enlaces de Google Drive, 0061) no se toca ni se
+  migra: guarda otra cosa y ninguna pantalla la edita.
+- Las dos columnas nuevas quedan **fuera** de `fn_set_datos_personales`, por la
+  razón de la decisión 6 llevada al extremo: esa función es un upsert que
+  reemplaza, así que incluirlas haría que cada «Guardar ficha» las borrara.
+- La encargada de sede ve las rutas (por `dp_select_supervisor`) pero no puede
+  firmar las imágenes: la política de storage sigue siendo dueño o admin/líder.
+  Es lo correcto para un documento de identidad, y ninguna pantalla se rompe
+  porque ninguna las muestra todavía fuera de «Lo mío» y la bandeja.

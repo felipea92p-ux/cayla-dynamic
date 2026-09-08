@@ -682,6 +682,7 @@ export type Database = {
           campo: string
           columnas: string[]
           documento_sugerido: string | null
+          en_formulario_generico: boolean
           etiqueta: string
           requiere_documento: boolean
         }
@@ -689,6 +690,7 @@ export type Database = {
           campo: string
           columnas: string[]
           documento_sugerido?: string | null
+          en_formulario_generico?: boolean
           etiqueta: string
           requiere_documento?: boolean
         }
@@ -696,6 +698,7 @@ export type Database = {
           campo?: string
           columnas?: string[]
           documento_sugerido?: string | null
+          en_formulario_generico?: boolean
           etiqueta?: string
           requiere_documento?: boolean
         }
@@ -1013,6 +1016,8 @@ export type Database = {
           entidad_bancaria: string | null
           estado_civil: string | null
           fecha_nacimiento: string | null
+          foto_dni_anverso_ruta: string | null
+          foto_dni_reverso_ruta: string | null
           foto_dni_url: string | null
           foto_personal_url: string | null
           foto_profesional_url: string | null
@@ -1037,6 +1042,8 @@ export type Database = {
           entidad_bancaria?: string | null
           estado_civil?: string | null
           fecha_nacimiento?: string | null
+          foto_dni_anverso_ruta?: string | null
+          foto_dni_reverso_ruta?: string | null
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
@@ -1061,6 +1068,8 @@ export type Database = {
           entidad_bancaria?: string | null
           estado_civil?: string | null
           fecha_nacimiento?: string | null
+          foto_dni_anverso_ruta?: string | null
+          foto_dni_reverso_ruta?: string | null
           foto_dni_url?: string | null
           foto_personal_url?: string | null
           foto_profesional_url?: string | null
@@ -6297,6 +6306,10 @@ export type Database = {
         Returns: string
       }
       fn_solicitud_perfil_puede_escribir: {
+        Args: { p_path: string }
+        Returns: boolean
+      }
+      fn_solicitud_perfil_ruta_congelada: {
         Args: { p_path: string }
         Returns: boolean
       }

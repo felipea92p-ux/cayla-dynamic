@@ -8,10 +8,15 @@ import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
 import { AnunciosWidget } from "@/components/anuncios-widget";
 import { SelectorTema } from "@/components/selector-tema";
+import { Modal } from "@/components/ui/modal";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
 } from "@/lib/foto-perfil";
+import {
+  BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDni,
+  urlFirmadaSolicitudPerfil, type CaraDni,
+} from "@/lib/foto-dni";
 import {
   ROLES_CON_PANEL, TZ_LIMA, hoyLima,
   ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS,
@@ -184,6 +189,11 @@ interface CatalogoCampoPerfil {
   requiere_documento: boolean;
   documento_sugerido: string | null;
   columnas: string[];
+  /** false cuando el campo tiene pantalla propia y no debe salir además en el
+   *  desplegable genérico (0401: hoy solo `foto_dni`, que vive en su pestaña).
+   *  Se lee de la tabla y no se decide acá: dos puertas para la misma pregunta
+   *  es el error que este repositorio ya pagó con la 0297/0299. */
+  en_formulario_generico: boolean;
 }
 
 /** Una propuesta suya de cambio de perfil. La escribe `fn_crear_solicitud_perfil`. */
@@ -194,11 +204,12 @@ interface SolicitudPerfil {
   valor_propuesto: Record<string, unknown>;
   estado: "pendiente" | "aprobado" | "rechazado" | "reemplazada";
   creada_at: string;
+  resuelta_at: string | null;
   motivo: string | null;
 }
 
-/** Las seis pestañas del detalle. Ver el comentario de `tab`. */
-type Tab = "dias" | "turnos" | "ausencias" | "contrato" | "objetivos" | "historial";
+/** Las siete pestañas del detalle. Ver el comentario de `tab`. */
+type Tab = "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "objetivos" | "historial";
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -463,6 +474,19 @@ export default function MioPage() {
   const [archivosPerfil, setArchivosPerfil] = useState<File[]>([]);
   const [enviandoPerfil, setEnviandoPerfil] = useState(false);
   const [avisoPerfil, setAvisoPerfil] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  // ── La foto del DNI (0401) ────────────────────────────────────────────────
+  // Tres cosas distintas que conviene no mezclar: lo que YA está aprobado en la
+  // ficha (`dniVigente`, rutas), lo que se puede mostrar de eso ahora mismo
+  // (`dniUrls`, firmadas y caducan) y lo que la persona acaba de elegir en el
+  // navegador y todavía no mandó (`dniElegido`).
+  const [dniVigente, setDniVigente] = useState<Record<CaraDni, string | null>>({ anverso: null, reverso: null });
+  const [dniUrls, setDniUrls] = useState<Record<CaraDni, string | null>>({ anverso: null, reverso: null });
+  const [dniElegido, setDniElegido] = useState<Record<CaraDni, { archivo: File; vista: string } | null>>(
+    { anverso: null, reverso: null });
+  const [enviandoDni, setEnviandoDni] = useState(false);
+  const [avisoDni, setAvisoDni] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  /** La cara que se está mirando en grande, o null. Solo la vista, nunca la ruta. */
+  const [dniAmpliado, setDniAmpliado] = useState<{ url: string; titulo: string } | null>(null);
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [perdonadas, setPerdonadas] = useState<Set<string>>(new Set());
   const [tramos, setTramos] = useState<HorarioTramo[]>([]);
@@ -771,10 +795,31 @@ export default function MioPage() {
   // existen (regla del repo — nunca escribir a mano la lista de 11 campos).
   useEffect(() => {
     let vivo = true;
-    supabase.from("catalogo_campos_perfil")
-      .select("campo, etiqueta, requiere_documento, documento_sugerido, columnas")
-      .order("etiqueta")
-      .then(({ data }) => { if (vivo) setCatalogoPerfil((data as CatalogoCampoPerfil[]) ?? []); });
+    void (async () => {
+      // `en_formulario_generico` es de la 0401. Si esa migración todavía no está
+      // pegada, PostgREST rechaza la consulta ENTERA por una columna que no
+      // conoce: el catálogo llegaría vacío y «Cambiar mis datos» —que existe
+      // desde la 0399 y no tiene nada que ver con el DNI— desaparecería de la
+      // pantalla hasta que alguien pegue el SQL. Así que se vuelve a preguntar
+      // sin ella, dando por hecho que todo campo va en el formulario, que es
+      // exactamente como se comportaba antes.
+      //
+      // Este segundo intento se puede borrar cuando la 0401 esté en producción.
+      const conNueva = await supabase.from("catalogo_campos_perfil")
+        .select("campo, etiqueta, requiere_documento, documento_sugerido, columnas, en_formulario_generico")
+        .order("etiqueta");
+      if (!vivo) return;
+      if (!conNueva.error) {
+        setCatalogoPerfil((conNueva.data as CatalogoCampoPerfil[]) ?? []);
+        return;
+      }
+      const { data } = await supabase.from("catalogo_campos_perfil")
+        .select("campo, etiqueta, requiere_documento, documento_sugerido, columnas")
+        .order("etiqueta");
+      if (!vivo) return;
+      const sinNueva = (data as Omit<CatalogoCampoPerfil, "en_formulario_generico">[]) ?? [];
+      setCatalogoPerfil(sinNueva.map((c) => ({ ...c, en_formulario_generico: true })));
+    })();
     return () => { vivo = false; };
   }, [supabase]);
 
@@ -782,7 +827,7 @@ export default function MioPage() {
     if (!yo?.id) { setMisSolicitudesPerfil([]); return; }
     const { data } = await supabase
       .from("solicitudes_cambio_perfil")
-      .select("id, campo, valor_anterior, valor_propuesto, estado, creada_at, motivo")
+      .select("id, campo, valor_anterior, valor_propuesto, estado, creada_at, resuelta_at, motivo")
       .eq("persona_id", yo.id)          // ← explícito, como todo lo de acá
       .order("creada_at", { ascending: false });
     setMisSolicitudesPerfil((data as SolicitudPerfil[]) ?? []);
@@ -792,6 +837,21 @@ export default function MioPage() {
   useEffect(() => { void cargarSolicitudesPerfil(); }, [cargarSolicitudesPerfil]);
 
   const campoActualPerfil = catalogoPerfil.find((c) => c.campo === campoPerfil) ?? null;
+
+  /** Lo que ofrece el desplegable de «Cambiar mis datos». El catálogo completo
+   *  se guarda igual —abajo se usa para poner nombre a cada solicitud del
+   *  historial, incluidas las del DNI—; lo que se filtra es solo qué se puede
+   *  PEDIR desde acá. Quién queda fuera lo dice la tabla (0401), no esta
+   *  pantalla: el DNI tiene su propia pestaña y ofrecerlo también acá sería
+   *  una segunda puerta a la misma solicitud. */
+  const camposGenericos = catalogoPerfil.filter((c) => c.en_formulario_generico);
+
+  /** ¿Existe ya el campo de la 0401? Mientras esa migración no esté pegada no
+   *  hay dónde guardar la solicitud, así que la pestaña del DNI no aparece.
+   *  Vale más que no esté a que esté y falle recién al darle a enviar, con las
+   *  dos fotos ya subidas y un mensaje de PostgREST que no significa nada para
+   *  quien lo lee — mismo criterio que `puedePedirRevision` con la 0257. */
+  const hayCampoDni = catalogoPerfil.some((c) => c.campo === "foto_dni");
 
   /** Hay una pendiente sobre este mismo campo — salvo familiar_nuevo, que
    *  admite varias en paralelo (la base lo permite; acá solo se informa). */
@@ -825,7 +885,7 @@ export default function MioPage() {
       for (const archivo of archivosPerfil) {
         const ext = archivo.name.split(".").pop()?.toLowerCase() || "jpg";
         const ruta = `solicitud/${yo.id}/${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
-        const fallo = await subirArchivoConProgreso(supabase, "solicitudes-perfil", ruta, archivo, () => {});
+        const fallo = await subirArchivoConProgreso(supabase, BUCKET_SOLICITUDES_PERFIL, ruta, archivo, () => {});
         if (fallo) { setAvisoPerfil({ tipo: "error", texto: `No se pudo subir «${archivo.name}»: ${fallo}` }); return; }
         rutas.push(ruta);
       }
@@ -843,6 +903,138 @@ export default function MioPage() {
       await cargarSolicitudesPerfil();
     } finally {
       setEnviandoPerfil(false);
+    }
+  }
+
+  // ── La foto del DNI (0401) ─────────────────────────────────────────────────
+  //
+  // Vive en su propia pestaña y no dentro del desplegable de «Cambiar mis
+  // datos» porque no se parece a los demás campos: no es un valor que se
+  // escribe, son dos imágenes que hay que ver antes y después. Por debajo es
+  // el MISMO mecanismo (una solicitud del campo `foto_dni`, que DO resuelve
+  // desde /admin/bandeja) — una sola puerta, dos formas de tocarla.
+
+  /** Las rutas ya aprobadas, de su propia ficha. Con `persona_id` explícito,
+   *  como todo lo de esta pantalla: la RLS es la red de abajo, nunca el
+   *  mecanismo (ver la cabecera del archivo y lo que costó aprenderlo). */
+  const cargarDni = useCallback(async () => {
+    if (!yo?.id) { setDniVigente({ anverso: null, reverso: null }); return; }
+    const { data } = await supabase
+      .from("datos_personales")
+      .select("foto_dni_anverso_ruta, foto_dni_reverso_ruta")
+      .eq("persona_id", yo.id)
+      .maybeSingle();
+    setDniVigente({
+      anverso: data?.foto_dni_anverso_ruta ?? null,
+      reverso: data?.foto_dni_reverso_ruta ?? null,
+    });
+  }, [supabase, yo]);
+
+  // Mismo desactivado que `cargarSolicitudesPerfil` más arriba, y por lo mismo:
+  // es una carga inicial, no un estado derivado que se pueda calcular al vuelo.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarDni(); }, [cargarDni]);
+
+  /** El bucket es privado —un DNI no se sirve por URL pública, a diferencia del
+   *  retrato del terminal—, así que para pintarlas hace falta firmarlas. Se
+   *  piden cuando cambian las rutas, no en cada render: cada firma es una
+   *  llamada de red y caduca a los cinco minutos. */
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      const [anverso, reverso] = await Promise.all([
+        dniVigente.anverso ? urlFirmadaSolicitudPerfil(supabase, dniVigente.anverso) : Promise.resolve(null),
+        dniVigente.reverso ? urlFirmadaSolicitudPerfil(supabase, dniVigente.reverso) : Promise.resolve(null),
+      ]);
+      if (vivo) setDniUrls({ anverso, reverso });
+    })();
+    return () => { vivo = false; };
+  }, [supabase, dniVigente]);
+
+  /** Su última propuesta de DNI, si la hay: `misSolicitudesPerfil` ya viene de
+   *  la más nueva a la más vieja. */
+  const solicitudDni = misSolicitudesPerfil.find((s) => s.campo === "foto_dni") ?? null;
+
+  /** Elegir una cara. La vista previa es un object URL, y el anterior se libera
+   *  acá mismo: se crea FUERA del actualizador de estado a propósito, porque
+   *  React puede invocarlo dos veces y crearíamos una vista que nadie libera. */
+  function elegirCaraDni(cara: CaraDni, archivo: File | null) {
+    setAvisoDni(null);
+    const anterior = dniElegido[cara];
+    if (anterior) URL.revokeObjectURL(anterior.vista);
+    const nuevo = archivo ? { archivo, vista: URL.createObjectURL(archivo) } : null;
+    setDniElegido((prev) => ({ ...prev, [cara]: nuevo }));
+  }
+
+  /**
+   * Manda las dos caras a revisión.
+   *
+   * Sube los archivos PRIMERO y crea la solicitud después: es el orden que
+   * espera `fn_crear_solicitud_perfil`, que recibe rutas ya subidas y las
+   * valida (no existe todavía un id de solicitud que meter en la ruta — ver la
+   * 0399). Y las dos rutas van dos veces, como valor propuesto y como adjuntos:
+   * lo segundo es lo que las hace visibles en /admin/bandeja para quien va a
+   * aprobarlas, y la base lo exige (0401).
+   */
+  async function enviarDni(e: FormEvent) {
+    e.preventDefault();
+    if (!yo?.id) return;
+    if (!dniElegido.anverso || !dniElegido.reverso) {
+      setAvisoDni({ tipo: "error", texto: "Faltan las dos caras: hay que subir el anverso y el reverso." });
+      return;
+    }
+    setAvisoDni(null);
+    setEnviandoDni(true);
+    try {
+      /** Sube una cara y devuelve su ruta, o null si falló (ya avisó por qué). */
+      const subirCara = async (
+        cara: (typeof CARAS_DNI)[number],
+        elegido: { archivo: File; vista: string },
+      ): Promise<string | null> => {
+        // Comprimido a JPEG en el navegador: alivia la conexión de la tienda y,
+        // sobre todo, convierte el HEIC del iPhone en un formato que el bucket
+        // acepta — sin esto rebotaría con 415 y la persona no sabría por qué.
+        const comprimida = await comprimirFotoDni(elegido.archivo);
+        const ruta = rutaNuevaCaraDni(yo.id, cara.clave);
+        const aEnviar = new File([comprimida], `dni-${cara.clave}.jpg`, { type: "image/jpeg" });
+        const fallo = await subirArchivoConProgreso(supabase, BUCKET_SOLICITUDES_PERFIL, ruta, aEnviar, () => {});
+        if (fallo) {
+          setAvisoDni({ tipo: "error", texto: `No se pudo subir el ${cara.etiqueta.toLowerCase()}: ${fallo}` });
+          return null;
+        }
+        return ruta;
+      };
+
+      // Las dos, una por una y con su ruta en una variable propia: si fueran un
+      // objeto parcial, TypeScript dejaría mandar la solicitud con una ruta sin
+      // definir y la base la rechazaría con «Falta el dato», que no explica nada.
+      const [caraAnverso, caraReverso] = CARAS_DNI;
+      const rutaAnverso = await subirCara(caraAnverso, dniElegido.anverso);
+      if (rutaAnverso === null) return;
+      const rutaReverso = await subirCara(caraReverso, dniElegido.reverso);
+      if (rutaReverso === null) return;
+
+      const { error } = await supabase.rpc("fn_crear_solicitud_perfil", {
+        p_campo: "foto_dni",
+        p_valor_propuesto: {
+          foto_dni_anverso_ruta: rutaAnverso,
+          foto_dni_reverso_ruta: rutaReverso,
+        },
+        p_rutas_adjuntas: [rutaAnverso, rutaReverso],
+      });
+      if (error) { setAvisoDni({ tipo: "error", texto: error.message }); return; }
+
+      for (const cara of CARAS_DNI) {
+        const elegido = dniElegido[cara.clave];
+        if (elegido) URL.revokeObjectURL(elegido.vista);
+      }
+      setDniElegido({ anverso: null, reverso: null });
+      setAvisoDni({ tipo: "ok", texto: "Enviado. Desarrollo Organizacional lo revisa y te avisamos." });
+      await cargarSolicitudesPerfil();
+    } catch {
+      setAvisoDni({ tipo: "error", texto: "Alguna de las imágenes no se pudo procesar. Prueba tomando la foto otra vez." });
+    } finally {
+      setEnviandoDni(false);
     }
   }
 
@@ -1301,6 +1493,7 @@ export default function MioPage() {
       <div id="detalle" className="mb-5 flex gap-1 overflow-x-auto border-b border-sand">
         <TabBtn valor="dias" activa={tab} onSel={setTab}>Mis días</TabBtn>
         <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
+        {hayCampoDni && <TabBtn valor="dni" activa={tab} onSel={setTab}>Mi DNI</TabBtn>}
         <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
         <TabBtn valor="contrato" activa={tab} onSel={setTab}>Contrato</TabBtn>
         <TabBtn valor="objetivos" activa={tab} onSel={setTab}>Objetivos</TabBtn>
@@ -1593,6 +1786,125 @@ export default function MioPage() {
         </section>
       )}
 
+      {/* ── MI DNI (0401) ─────────────────────────────────────────────────────
+          Dos caras, y ninguna entra a la ficha hasta que Desarrollo
+          Organizacional la aprueba.
+
+          Lo de arriba de cada recuadro es lo que ESTÁ GUARDADO; lo que se elige
+          abajo es una propuesta. Que se distingan no es un detalle de forma: si
+          al elegir una foto se reemplazara la de arriba, la pantalla estaría
+          diciendo que ya quedó guardada —justo lo contrario de lo que esta
+          pestaña promete—, y nadie entendería por qué su encargada sigue viendo
+          la anterior. */}
+      {tab === "dni" && hayCampoDni && (
+        <section className="rounded-2xl border border-sand p-5">
+          <h2 className="mb-1 font-serif text-lg">Tu DNI</h2>
+          <p className="mb-4 text-sm text-taupe">
+            Sube una foto de cada cara. Desarrollo Organizacional las revisa antes de que queden
+            guardadas: hasta entonces tu ficha sigue con lo que ya tenía. Solo las ve
+            Administración — no tu encargada ni el resto del equipo.
+          </p>
+
+          {solicitudDni?.estado === "pendiente" && (
+            <p className="mb-4 rounded-xl border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-sm text-pizarra">
+              Ya mandaste tus fotos y están en revisión desde el {diaYMes(fechaLimaDeMarca(solicitudDni.creada_at))}.
+              Si subes otras, reemplazan a esas.
+            </p>
+          )}
+          {solicitudDni?.estado === "rechazado" && (
+            <p className="mb-4 rounded-xl border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">
+              Tus últimas fotos no se aprobaron{solicitudDni.motivo ? `: «${solicitudDni.motivo}»` : ""}. Puedes volver a subirlas.
+            </p>
+          )}
+          {solicitudDni?.estado === "aprobado" && solicitudDni.resuelta_at && (
+            <p className="mb-4 text-xs text-verde">
+              Aprobadas el {diaYMes(fechaLimaDeMarca(solicitudDni.resuelta_at))}.
+            </p>
+          )}
+
+          <form onSubmit={(e) => void enviarDni(e)}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {CARAS_DNI.map((cara) => {
+                const elegido = dniElegido[cara.clave];
+                const urlGuardada = dniUrls[cara.clave];
+                const hayGuardada = dniVigente[cara.clave] !== null;
+                // La elegida manda sobre la guardada: es lo que la persona está
+                // mirando ahora. La etiqueta de abajo dice cuál de las dos es.
+                const aMostrar = elegido?.vista ?? urlGuardada;
+                return (
+                  <div key={cara.clave} className="flex flex-col gap-2 rounded-xl border border-sand p-3">
+                    <div>
+                      <div className="text-sm font-medium">{cara.etiqueta}</div>
+                      <div className="text-xs text-taupe">{cara.ayuda}</div>
+                    </div>
+
+                    {aMostrar ? (
+                      // Un <button> y no un <div> con hover: en un teléfono el
+                      // hover no existe, y esta pantalla se abre sobre todo ahí.
+                      <button type="button"
+                        onClick={() => setDniAmpliado({ url: aMostrar, titulo: `${cara.etiqueta} de tu DNI` })}
+                        className="overflow-hidden rounded-lg border border-sand bg-hueso">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local */}
+                        <img src={aMostrar} alt={`${cara.etiqueta} de tu DNI`}
+                          className="h-40 w-full object-contain" />
+                      </button>
+                    ) : (
+                      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-sand bg-hueso px-3 text-center text-xs text-taupe">
+                        {hayGuardada ? "Cargando…" : "Todavía no hay ninguna foto"}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-taupe">
+                      {elegido ? "Foto nueva, todavía sin enviar."
+                        : hayGuardada ? "Es la que está guardada en tu ficha."
+                        : "Falta subirla."}
+                    </p>
+
+                    <label className="flex flex-col gap-1 text-xs text-taupe">
+                      {elegido ? "Elegir otra" : "Elegir foto"}
+                      {/* Solo imágenes: el PDF que el bucket acepta no se puede
+                          comprimir en el navegador, y todo el mundo fotografía
+                          su DNI con el celular. Sin `capture`, para que se pueda
+                          elegir una que ya está en la galería. */}
+                      <input type="file" accept="image/*" disabled={enviandoDni}
+                        onChange={(e) => elegirCaraDni(cara.clave, e.target.files?.[0] ?? null)}
+                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta disabled:opacity-50" />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button type="submit" disabled={enviandoDni || !dniElegido.anverso || !dniElegido.reverso}
+                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                {enviandoDni ? "Enviando…" : "Enviar para aprobación"}
+              </button>
+              {(!dniElegido.anverso || !dniElegido.reverso) && (
+                <span className="text-xs text-taupe">Hacen falta las dos caras para poder enviar.</span>
+              )}
+            </div>
+          </form>
+
+          {avisoDni && (
+            <p className={`mt-3 text-xs ${avisoDni.tipo === "ok" ? "text-verde" : "text-rojo"}`}>
+              {avisoDni.texto}
+            </p>
+          )}
+
+          {/* El mismo modal que el resto del sistema (components/ui/modal):
+              un solo scrim y un solo z-index, y cierra con Escape. */}
+          <Modal abierto={dniAmpliado !== null} onCerrar={() => setDniAmpliado(null)}
+            titulo={dniAmpliado?.titulo} ancho="xl">
+            {dniAmpliado && (
+              // eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local
+              <img src={dniAmpliado.url} alt={dniAmpliado.titulo}
+                className="mx-auto w-auto max-w-full rounded-lg" />
+            )}
+          </Modal>
+        </section>
+      )}
+
       {/* ── VACACIONES Y PERMISOS ────────────────────────────────────────── */}
       {tab === "ausencias" && (
         <>
@@ -1678,7 +1990,7 @@ export default function MioPage() {
               un documento cuando el campo lo exige — el servidor lo vuelve a
               exigir igual, esto es solo para no dejar enviar algo que va a
               rebotar. */}
-          {catalogoPerfil.length > 0 && (
+          {camposGenericos.length > 0 && (
             <section className="mb-5 rounded-2xl border border-sand p-5 text-sm">
               <h2 className="mb-3 font-serif text-lg">Cambiar mis datos</h2>
               <p className="mb-3 text-taupe">
@@ -1689,7 +2001,7 @@ export default function MioPage() {
                   <select value={campoPerfil}
                     onChange={(e) => { setCampoPerfil(e.target.value); setFormPerfil({}); setArchivosPerfil([]); }}
                     className="max-w-xs rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    {catalogoPerfil.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
+                    {camposGenericos.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
                   </select>
                 </label>
 

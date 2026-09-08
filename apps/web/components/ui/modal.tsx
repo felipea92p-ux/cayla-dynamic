@@ -23,10 +23,16 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
-const ANCHO: Record<"sm" | "md" | "lg", string> = {
+// "xl" se agregó con la 0401, para el primer modal que no muestra un formulario
+// sino un DOCUMENTO: la foto de un DNI a max-w-lg se ve, pero no se LEE, y ese
+// modal existe justamente para mirarlo de cerca. Los cuatro anchos siguen
+// siendo una lista corta a propósito — el día que haga falta un quinto, será
+// porque hay una razón como esta y no porque cada pantalla eligió el suyo.
+const ANCHO: Record<"sm" | "md" | "lg" | "xl", string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-3xl",
 };
 
 export function Modal({
@@ -39,8 +45,9 @@ export function Modal({
   abierto: boolean;
   onCerrar: () => void;
   titulo?: string;
-  /** Ancho del recuadro. La mayoría de los modales de hoy son "sm"; "md" es el default por compatibilidad. */
-  ancho?: "sm" | "md" | "lg";
+  /** Ancho del recuadro. La mayoría de los modales de hoy son "sm"; "md" es el
+   *  default por compatibilidad. "xl" es para mirar un documento, no un formulario. */
+  ancho?: "sm" | "md" | "lg" | "xl";
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
