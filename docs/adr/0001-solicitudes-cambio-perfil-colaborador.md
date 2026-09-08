@@ -617,3 +617,92 @@ solicitud, "para no filtrarle un dato potencialmente sensible... solo porque
 comparte sede") **no se revirtió**: sigue sin haber correo a la encargada:
 solo lo ve si entra a la Bandeja a resolverlo. Aviso explícito, decisión
 del usuario con la contradicción a la vista, ver conversación del 2026-09-08.
+
+---
+
+## Enmienda 2026-09-08 — la foto del DNI (migración 0401)
+
+Se agregó un **campo 12: `foto_dni`**. Donde arriba diga «11 campos», léase 12.
+Vale la enmienda y no un ADR nuevo porque no cambia ninguna decisión de este
+documento: usa la misma tabla, el mismo bucket, la misma bandeja y el mismo
+resolver.
+
+### 1. Es el primer campo cuyo VALOR es un archivo
+
+En los otros 11 el adjunto **sustenta** un valor de texto: se aprueba «casado» y
+el acta de matrimonio es la prueba. Acá el valor propuesto son dos rutas del
+bucket, y no hay nada más que aprobar que las imágenes mismas.
+
+De ahí que `fn_crear_solicitud_perfil` exija, solo para este campo, que las dos
+rutas del `valor_propuesto` estén además dentro de `rutas_adjuntas`. Suena
+redundante y no lo es: `rutas_adjuntas` ya pasa por el bucle que comprueba que
+toda ruta empiece por `solicitud/<mi persona_id>/`, y `valor_propuesto` es
+`jsonb` libre que nadie más mira. Sin esa condición se podía proponer como DNI
+propio la ruta del DNI de otra persona. Y es también lo que garantiza que quien
+aprueba vea las dos caras en la bandeja: los botones «Ver documento» leen
+`rutas_adjuntas`, no el valor propuesto.
+
+Se descartó copiar los archivos a un bucket «definitivo» al aprobar: mover bytes
+entre buckets no se puede hacer desde SQL (el objeto físico se referencia por id,
+no por `bucket_id`), y un segundo bucket con las mismas políticas era una segunda
+puerta a lo mismo.
+
+### 2. La decisión 8 se corrige: un adjunto aprobado deja de ser de quien lo subió
+
+La decisión 8 dejó las cuatro políticas del bucket mirando solo la carpeta:
+`solicitud/<tu id>/` es tuya para escribir y borrar, siempre. Junto con el
+`x-upsert: true` de `lib/subir-archivo.ts`, eso significaba que después de
+aprobar, quien subió el archivo podía **reemplazar sus bytes por otros** —misma
+ruta, mismo registro en la ficha— o borrarlo, desde la consola del navegador.
+
+Mientras el valor aprobado era texto eso era feo pero no decisivo: el dato vivía
+en la tabla. Con el DNI el archivo **es** el valor, así que la promesa central de
+este ADR («no cambia hasta que se aprueba») se quedaba en la interfaz — el mismo
+tipo de agujero que el Hallazgo 3 vino a cerrar en las funciones.
+
+La 0401 agrega `fn_solicitud_perfil_ruta_congelada(text)` y se la exige a las
+políticas de `update` y `delete`: una ruta citada por una solicitud en estado
+`aprobado` solo la puede tocar un admin/líder. Se aplica a **todos** los
+adjuntos, no solo a los del DNI. `insert` y `select` no se tocaron.
+
+Consecuencia aceptada: los archivos de un DNI viejo quedan congelados para
+siempre (su solicitud sigue en `aprobado`). Son la prueba de qué se aprobó ese
+día, y son dos JPEG de ~400 KB por actualización.
+
+### 3. Lo que la 0403 le hizo a esta enmienda, y nadie decidió
+
+La corrección de arriba (DECIDÍ #9 se revierte: la encargada de sede aprueba las
+solicitudes de su equipo) se escribió cuando el catálogo tenía 11 campos y
+ninguno era un documento de identidad. Su lista de consecuencias aceptadas dice
+«estado civil, discapacidad…, cuenta bancaria».
+
+Al componer las dos migraciones aparece una que no está en esa lista: **la
+encargada de sede puede ver y aprobar la FOTO DEL DNI de su equipo.** Sale sola
+de que `foto_dni` sea una fila más del catálogo y de que `fn_solicitud_perfil_puede_leer`
+(0403) le abra los adjuntos. Nadie lo decidió; es composición.
+
+No se resolvió acá, porque no es una decisión de una migración:
+
+- **Si se acepta**, no hay nada que hacer: ya funciona así, y el texto de «Lo
+  mío» ya lo dice —decía lo contrario y se corrigió al detectarlo.
+- **Si no se acepta**, hace falta una 0404 que trate `foto_dni` aparte en
+  `fn_resolver_solicitud_perfil` y en `fn_solicitud_perfil_puede_leer`, dejándolo
+  en DO como estaba. Es acotado, pero cambia el alcance de una migración recién
+  pegada y merece decidirse a la vista, no de rebote.
+
+Queda anotado para que la próxima persona que lo lea sepa que se vio y se
+levantó, y no lo descubra en producción.
+
+### 4. Detalles menores
+
+- `datos_personales` gana `foto_dni_anverso_ruta` y `foto_dni_reverso_ruta`. La
+  columna vieja `foto_dni_url` (enlaces de Google Drive, 0061) no se toca ni se
+  migra: guarda otra cosa y ninguna pantalla la edita.
+- Las dos columnas nuevas quedan **fuera** de `fn_set_datos_personales`, por la
+  razón de la decisión 6 llevada al extremo: esa función es un upsert que
+  reemplaza, así que incluirlas haría que cada «Guardar ficha» las borrara.
+- La foto del DNI **no** se pide desde `/mio/editar`, sino desde su propia
+  pestaña en `/mio`: son dos imágenes que hay que ver antes y después, no un
+  valor que se escribe. `/mio/editar` no la ofrece porque su lista
+  `CAMPOS_EDITABLES` son siete campos nombrados y `foto_dni` no está entre
+  ellos — no hace falta ninguna marca en el catálogo para excluirla.

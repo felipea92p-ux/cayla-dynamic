@@ -27,10 +27,16 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
-const ANCHO: Record<"sm" | "md" | "lg", string> = {
+// "xl" se agregó con la 0401, para el primer modal que no muestra un formulario
+// sino un DOCUMENTO: la foto de un DNI a max-w-lg se ve, pero no se LEE, y ese
+// modal existe justamente para mirarlo de cerca. Los cuatro anchos siguen
+// siendo una lista corta a propósito — el día que haga falta un quinto, será
+// porque hay una razón como esta y no porque cada pantalla eligió el suyo.
+const ANCHO: Record<"sm" | "md" | "lg" | "xl", string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-3xl",
 };
 
 export function Modal({
@@ -45,10 +51,12 @@ export function Modal({
   onCerrar: () => void;
   titulo?: string;
   /** Ancho del recuadro. Los modales reales del panel se reparten entre los
-   * tres: sm para confirmaciones cortas, lg para texto legal/explicativo.
-   * "md" es el default, el tamaño intermedio y el que existía antes de que
-   * "ancho" se pudiera elegir. */
-  ancho?: "sm" | "md" | "lg";
+   * tres primeros: sm para confirmaciones cortas, lg para texto
+   * legal/explicativo. "md" es el default, el tamaño intermedio y el que
+   * existía antes de que "ancho" se pudiera elegir. "xl" es el cuarto y no es
+   * para un formulario: es para mirar un documento de cerca (ver el
+   * comentario de ANCHO). */
+  ancho?: "sm" | "md" | "lg" | "xl";
   /** Mientras es true, ni el clic en el velo ni Escape cierran el modal —
    * para no perder una edición a medio guardar (ver CLAUDE.md). */
   bloqueado?: boolean;

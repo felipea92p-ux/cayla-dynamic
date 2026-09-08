@@ -13,12 +13,17 @@ import { Insignia } from "@/components/ui/insignia";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
+import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/toast";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import {
   BUCKET_FOTOS_PERFIL, comprimirFotoPerfil, inicialesDe, rutaNuevaFotoPerfil, urlPublicaFotoPerfil,
 } from "@/lib/foto-perfil";
+import {
+  BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDni,
+  urlFirmadaSolicitudPerfil, type CaraDni,
+} from "@/lib/foto-dni";
 import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
@@ -183,8 +188,18 @@ interface SolicitudVacacion {
   respuesta: string | null;
 }
 
-/** Las seis pestañas del detalle. Ver el comentario de `tab`. */
-type Tab = "dias" | "turnos" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
+/** Una propuesta suya de foto del DNI (0401). Solo lo que hace falta para
+ *  contarle en qué va: el valor propuesto son rutas del almacén y no se
+ *  muestran — se mira la imagen, no su ruta. */
+interface SolicitudDni {
+  estado: "pendiente" | "aprobado" | "rechazado" | "reemplazada";
+  creada_at: string;
+  resuelta_at: string | null;
+  motivo: string | null;
+}
+
+/** Las siete pestañas del detalle. Ver el comentario de `tab`. */
+type Tab = "dias" | "turnos" | "dni" | "ausencias" | "contrato" | "firma" | "objetivos" | "historial";
 
 /**
  * Lo mínimo para saber si tiene contrato y a dónde llevarla a verlo. El texto
@@ -426,6 +441,156 @@ export default function MioPage() {
       setSubiendoFoto(false);
     }
   }
+
+  // ── La foto del DNI (0401) ─────────────────────────────────────────────────
+  //
+  // Vive en su propia pestaña y no en /mio/editar, con el resto de los cambios
+  // de ficha, porque no se parece a los demás campos: no es un valor que se
+  // escribe, son dos imágenes que hay que VER antes y después. Por debajo es el
+  // mismo mecanismo —una solicitud del campo `foto_dni` que DO resuelve desde
+  // /admin/bandeja—, así que sigue habiendo una sola puerta.
+  //
+  // Tres cosas distintas que conviene no mezclar: lo que YA está aprobado en la
+  // ficha (`dniVigente`, rutas), lo que se puede mostrar de eso ahora mismo
+  // (`dniUrls`, firmadas y caducan) y lo que acaba de elegir en el navegador y
+  // todavía no mandó (`dniElegido`).
+  const [dniVigente, setDniVigente] = useState<Record<CaraDni, string | null>>({ anverso: null, reverso: null });
+  const [dniUrls, setDniUrls] = useState<Record<CaraDni, string | null>>({ anverso: null, reverso: null });
+  const [dniElegido, setDniElegido] = useState<Record<CaraDni, { archivo: File; vista: string } | null>>(
+    { anverso: null, reverso: null });
+  const [solicitudDni, setSolicitudDni] = useState<SolicitudDni | null>(null);
+  const [enviandoDni, setEnviandoDni] = useState(false);
+  /** ¿Existe ya el campo de la 0401 en el catálogo? Mientras esa migración no
+   *  esté pegada no hay dónde guardar la solicitud, así que la pestaña no sale.
+   *  Vale más que no esté a que esté y falle recién al enviar, con las dos fotos
+   *  ya subidas — mismo criterio que `puedePedirRevision` con la 0257. */
+  const [hayCampoDni, setHayCampoDni] = useState(false);
+  /** La cara que se está mirando en grande, o null. Solo la vista, nunca la ruta. */
+  const [dniAmpliado, setDniAmpliado] = useState<{ url: string; titulo: string } | null>(null);
+
+  /** Las rutas aprobadas de su ficha, y en qué va su última propuesta. Con
+   *  `persona_id` explícito, como todo lo de esta pantalla: la RLS es la red de
+   *  abajo, nunca el mecanismo (ver la cabecera del archivo). */
+  const cargarDni = useCallback(async () => {
+    if (!yo?.id) { setDniVigente({ anverso: null, reverso: null }); setSolicitudDni(null); return; }
+    const [ficha, solicitud, campo] = await Promise.all([
+      supabase.from("datos_personales")
+        .select("foto_dni_anverso_ruta, foto_dni_reverso_ruta")
+        .eq("persona_id", yo.id).maybeSingle(),
+      supabase.from("solicitudes_cambio_perfil")
+        .select("estado, creada_at, resuelta_at, motivo")
+        .eq("persona_id", yo.id).eq("campo", "foto_dni")
+        .order("creada_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("catalogo_campos_perfil").select("campo").eq("campo", "foto_dni").maybeSingle(),
+    ]);
+    setDniVigente({
+      anverso: ficha.data?.foto_dni_anverso_ruta ?? null,
+      reverso: ficha.data?.foto_dni_reverso_ruta ?? null,
+    });
+    setSolicitudDni((solicitud.data as SolicitudDni | null) ?? null);
+    setHayCampoDni(campo.data !== null);
+  }, [supabase, yo]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarDni(); }, [cargarDni]);
+
+  /** El bucket es privado —un DNI no se sirve por URL pública, a diferencia del
+   *  retrato del terminal—, así que para pintarlas hace falta firmarlas. Se
+   *  piden cuando cambian las rutas, no en cada render: cada firma es una
+   *  llamada de red y caduca a los cinco minutos. */
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      const [anverso, reverso] = await Promise.all([
+        dniVigente.anverso ? urlFirmadaSolicitudPerfil(supabase, dniVigente.anverso) : Promise.resolve(null),
+        dniVigente.reverso ? urlFirmadaSolicitudPerfil(supabase, dniVigente.reverso) : Promise.resolve(null),
+      ]);
+      if (vivo) setDniUrls({ anverso, reverso });
+    })();
+    return () => { vivo = false; };
+  }, [supabase, dniVigente]);
+
+  /** Elegir una cara. La vista previa es un object URL y el anterior se libera
+   *  acá mismo: se crea FUERA del actualizador de estado a propósito, porque
+   *  React puede invocarlo dos veces y quedaría una vista que nadie libera. */
+  function elegirCaraDni(cara: CaraDni, archivo: File | null) {
+    const anterior = dniElegido[cara];
+    if (anterior) URL.revokeObjectURL(anterior.vista);
+    const nuevo = archivo ? { archivo, vista: URL.createObjectURL(archivo) } : null;
+    setDniElegido((prev) => ({ ...prev, [cara]: nuevo }));
+  }
+
+  /**
+   * Manda las dos caras a revisión.
+   *
+   * Sube los archivos PRIMERO y crea la solicitud después: es el orden que
+   * espera `fn_crear_solicitud_perfil`, que recibe rutas ya subidas y las valida
+   * (todavía no existe un id de solicitud que meter en la ruta — ver la 0399).
+   * Y las dos rutas van dos veces, como valor propuesto y como adjuntos: lo
+   * segundo es lo que las hace visibles en /admin/bandeja para quien va a
+   * aprobarlas, y la base lo exige (0401).
+   */
+  async function enviarDni(e: FormEvent) {
+    e.preventDefault();
+    if (!yo?.id) return;
+    if (!dniElegido.anverso || !dniElegido.reverso) {
+      avisar("error", "Faltan las dos caras: hay que subir el anverso y el reverso.");
+      return;
+    }
+    setEnviandoDni(true);
+    try {
+      /** Sube una cara y devuelve su ruta, o null si falló (ya avisó por qué). */
+      const subirCara = async (
+        cara: (typeof CARAS_DNI)[number],
+        elegido: { archivo: File; vista: string },
+      ): Promise<string | null> => {
+        // Comprimido a JPEG en el navegador: alivia la conexión de la tienda y,
+        // sobre todo, convierte el HEIC del iPhone en un formato que el bucket
+        // acepta — sin esto rebotaría con 415 y nadie sabría por qué.
+        const comprimida = await comprimirFotoDni(elegido.archivo);
+        const ruta = rutaNuevaCaraDni(yo.id, cara.clave);
+        const aEnviar = new File([comprimida], `dni-${cara.clave}.jpg`, { type: "image/jpeg" });
+        const fallo = await subirArchivoConProgreso(supabase, BUCKET_SOLICITUDES_PERFIL, ruta, aEnviar, () => {});
+        if (fallo) {
+          avisar("error", `No se pudo subir el ${cara.etiqueta.toLowerCase()}: ${fallo}`);
+          return null;
+        }
+        return ruta;
+      };
+
+      // Una por una y con su ruta en una variable propia: si fueran un objeto
+      // parcial, TypeScript dejaría mandar la solicitud con una ruta sin definir
+      // y la base la rechazaría con «Falta el dato», que no explica nada.
+      const [caraAnverso, caraReverso] = CARAS_DNI;
+      const rutaAnverso = await subirCara(caraAnverso, dniElegido.anverso);
+      if (rutaAnverso === null) return;
+      const rutaReverso = await subirCara(caraReverso, dniElegido.reverso);
+      if (rutaReverso === null) return;
+
+      const { error } = await supabase.rpc("fn_crear_solicitud_perfil", {
+        p_campo: "foto_dni",
+        p_valor_propuesto: {
+          foto_dni_anverso_ruta: rutaAnverso,
+          foto_dni_reverso_ruta: rutaReverso,
+        },
+        p_rutas_adjuntas: [rutaAnverso, rutaReverso],
+      });
+      if (error) { avisar("error", error.message); return; }
+
+      for (const cara of CARAS_DNI) {
+        const elegido = dniElegido[cara.clave];
+        if (elegido) URL.revokeObjectURL(elegido.vista);
+      }
+      setDniElegido({ anverso: null, reverso: null });
+      avisar("ok", "Enviado. Desarrollo Organizacional lo revisa y te avisamos.");
+      await cargarDni();
+    } catch {
+      avisar("error", "Alguna de las imágenes no se pudo procesar. Prueba tomando la foto otra vez.");
+    } finally {
+      setEnviandoDni(false);
+    }
+  }
+
   // Su saldo de vacaciones y hasta cuándo puede tomarlo. Sin plata: en esta
   // pantalla no hay dinero, y la función tampoco devuelve ninguno — por eso se
   // le puede preguntar a cada persona por lo suyo.
@@ -1251,6 +1416,7 @@ export default function MioPage() {
       >
         <TabBtn valor="dias" activa={tab} onSel={setTab}>Mis días</TabBtn>
         <TabBtn valor="turnos" activa={tab} onSel={setTab}>Mis turnos</TabBtn>
+        {hayCampoDni && <TabBtn valor="dni" activa={tab} onSel={setTab}>Mi DNI</TabBtn>}
         <TabBtn valor="ausencias" activa={tab} onSel={setTab}>Vacaciones y permisos</TabBtn>
         <TabBtn valor="contrato" activa={tab} onSel={setTab}>Contrato</TabBtn>
         <TabBtn valor="firma" activa={tab} onSel={setTab}>Firma</TabBtn>
@@ -1545,6 +1711,126 @@ export default function MioPage() {
               ))}
             </ul>
           )}
+        </section>
+      )}
+
+      {/* ── MI DNI (0401) ─────────────────────────────────────────────────────
+          Dos caras, y ninguna entra a la ficha hasta que Desarrollo
+          Organizacional la aprueba.
+
+          Lo de arriba de cada recuadro es lo que ESTÁ GUARDADO; lo que se elige
+          abajo es una propuesta. Que se distingan no es un detalle de forma: si
+          al elegir una foto se reemplazara la de arriba, la pantalla estaría
+          diciendo que ya quedó guardada —justo lo contrario de lo que esta
+          pestaña promete—, y nadie entendería por qué su encargada sigue viendo
+          la anterior. */}
+      {tab === "dni" && hayCampoDni && (
+        <section className="rounded-2xl border border-sand p-5">
+          <h2 className="mb-1 font-serif text-lg">Tu DNI</h2>
+          {/* Quién las ve NO es una frase de relleno: es una promesa sobre un
+              documento de identidad, y tiene que decir la verdad. Decía «solo
+              Administración — no tu encargada» hasta que la 0403 le dio a la
+              encargada de sede permiso para ver y resolver las solicitudes de
+              su equipo. Al componerse con esta pantalla, eso incluye el DNI.
+              Si algún día se decide devolverlo a DO (ver la enmienda del ADR
+              0001), esta frase cambia con ello — no antes. */}
+          <p className="mb-4 text-sm text-taupe">
+            Sube una foto de cada cara. Se revisan antes de que queden guardadas: hasta entonces
+            tu ficha sigue con lo que ya tenía. Las ven Administración y tu encargada de sede;
+            nadie más del equipo.
+          </p>
+
+          {solicitudDni?.estado === "pendiente" && (
+            <p className="mb-4 rounded-xl border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-sm text-pizarra">
+              Ya mandaste tus fotos y están en revisión desde el {diaYMes(fechaLimaDeMarca(solicitudDni.creada_at))}.
+              Si subes otras, reemplazan a esas.
+            </p>
+          )}
+          {solicitudDni?.estado === "rechazado" && (
+            <p className="mb-4 rounded-xl border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">
+              Tus últimas fotos no se aprobaron{solicitudDni.motivo ? `: «${solicitudDni.motivo}»` : ""}. Puedes volver a subirlas.
+            </p>
+          )}
+          {solicitudDni?.estado === "aprobado" && solicitudDni.resuelta_at && (
+            <p className="mb-4 text-xs text-verde">
+              Aprobadas el {diaYMes(fechaLimaDeMarca(solicitudDni.resuelta_at))}.
+            </p>
+          )}
+
+          <form onSubmit={(e) => void enviarDni(e)}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {CARAS_DNI.map((cara) => {
+                const elegido = dniElegido[cara.clave];
+                const urlGuardada = dniUrls[cara.clave];
+                const hayGuardada = dniVigente[cara.clave] !== null;
+                // La elegida manda sobre la guardada: es lo que está mirando
+                // ahora. La etiqueta de abajo dice cuál de las dos es.
+                const aMostrar = elegido?.vista ?? urlGuardada;
+                return (
+                  <div key={cara.clave} className="flex flex-col gap-2 rounded-xl border border-sand p-3">
+                    <div>
+                      <div className="text-sm font-medium">{cara.etiqueta}</div>
+                      <div className="text-xs text-taupe">{cara.ayuda}</div>
+                    </div>
+
+                    {aMostrar ? (
+                      // Un <button> y no un <div> con hover: en un teléfono el
+                      // hover no existe, y esta pantalla se abre sobre todo ahí.
+                      <button type="button"
+                        onClick={() => setDniAmpliado({ url: aMostrar, titulo: `${cara.etiqueta} de tu DNI` })}
+                        className="overflow-hidden rounded-lg border border-sand bg-hueso">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local */}
+                        <img src={aMostrar} alt={`${cara.etiqueta} de tu DNI`}
+                          className="h-40 w-full object-contain" />
+                      </button>
+                    ) : (
+                      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-sand bg-hueso px-3 text-center text-xs text-taupe">
+                        {hayGuardada ? "Cargando…" : "Todavía no hay ninguna foto"}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-taupe">
+                      {elegido ? "Foto nueva, todavía sin enviar."
+                        : hayGuardada ? "Es la que está guardada en tu ficha."
+                        : "Falta subirla."}
+                    </p>
+
+                    <label className="flex flex-col gap-1 text-xs text-taupe">
+                      {elegido ? "Elegir otra" : "Elegir foto"}
+                      {/* Solo imágenes: el PDF que el bucket acepta no se puede
+                          comprimir en el navegador, y todo el mundo fotografía
+                          su DNI con el celular. Sin `capture`, para que se pueda
+                          elegir una que ya está en la galería. */}
+                      <input type="file" accept="image/*" disabled={enviandoDni}
+                        onChange={(e) => elegirCaraDni(cara.clave, e.target.files?.[0] ?? null)}
+                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta disabled:opacity-50" />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Boton type="submit" variante="primario" cargando={enviandoDni}
+                disabled={!dniElegido.anverso || !dniElegido.reverso}>
+                Enviar para aprobación
+              </Boton>
+              {(!dniElegido.anverso || !dniElegido.reverso) && (
+                <span className="text-xs text-taupe">Hacen falta las dos caras para poder enviar.</span>
+              )}
+            </div>
+          </form>
+
+          {/* El mismo modal que el resto del sistema (components/ui/modal):
+              un solo scrim y un solo z-index, y cierra con Escape. */}
+          <Modal abierto={dniAmpliado !== null} onCerrar={() => setDniAmpliado(null)}
+            titulo={dniAmpliado?.titulo} ancho="xl">
+            {dniAmpliado && (
+              // eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local
+              <img src={dniAmpliado.url} alt={dniAmpliado.titulo}
+                className="mx-auto w-auto max-w-full rounded-lg" />
+            )}
+          </Modal>
         </section>
       )}
 

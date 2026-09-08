@@ -266,6 +266,7 @@ with repo(numero, nombre, nunca) as (values
     (398, 'firma_propia_en_el_contrato', false),
     (399, 'el_colaborador_propone_do_aprueba', false),
     (400, 'los_papeles_de_cese_entran_al_sistema', false),
+    (401, 'cada_quien_sube_su_dni_y_do_lo_aprueba', false),
     (402, 'el_colaborador_confirma_su_firma_en_el_contrato', false),
     (403, 'la_encargada_de_sede_tambien_aprueba_el_perfil', false)
 ),

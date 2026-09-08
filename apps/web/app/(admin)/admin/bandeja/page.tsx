@@ -35,6 +35,7 @@ import { Campo } from "@/components/ui/campo";
 import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
 import { fechaLima, puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas } from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
@@ -106,12 +107,23 @@ interface ItemSolicitudPerfil {
 }
 
 /** «celular: 987654321, direccion: Av. Uno 123» — genérico a propósito: son
- *  11 campos con formas distintas, y esto solo es para que quien aprueba vea
- *  de un vistazo qué cambia, no para imprimir un documento. */
+ *  campos con formas distintas, y esto solo es para que quien aprueba vea
+ *  de un vistazo qué cambia, no para imprimir un documento.
+ *
+ *  Con una excepción, desde la 0401: cuando el valor ES un archivo (la foto del
+ *  DNI), su valor es una ruta del almacén —`solicitud/<uuid>/dni-anverso-….jpg`,
+ *  sesenta caracteres que no dicen nada y empujan el resto de la fila fuera de
+ *  la pantalla—. Ahí se anuncia la cara y ya está: lo que hay que mirar es la
+ *  imagen, y para eso están los botones de adjuntos de abajo. */
 function resumenValorPerfil(v: Record<string, unknown>): string {
   const entradas = Object.entries(v).filter(([, val]) => val !== null && val !== undefined && val !== "");
   if (entradas.length === 0) return "—";
-  return entradas.map(([k, val]) => `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`).join(" · ");
+  return entradas.map(([k, val]) => {
+    if (typeof val === "string" && val.startsWith("solicitud/")) {
+      return `${k.replace(/^foto_dni_|_ruta$/g, "")}: imagen adjunta`;
+    }
+    return `${k}: ${typeof val === "boolean" ? (val ? "Sí" : "No") : String(val)}`;
+  }).join(" · ");
 }
 
 // Lo que devuelve fn_alertas_despacho_resumen (0362): lo que el despacho
@@ -327,10 +339,10 @@ export default function BandejaPage() {
   }
 
   /** El bucket es privado: cada documento se abre con una URL firmada, pedida
-   *  al momento de mirar — nunca se firman los 11 de golpe. */
+   *  al momento de mirar — nunca se firman todos de golpe. */
   async function verDocumentoPerfil(ruta: string) {
     const supabase = createAdminSupabaseClient();
-    const { data, error } = await supabase.storage.from("solicitudes-perfil").createSignedUrl(ruta, 300);
+    const { data, error } = await supabase.storage.from(BUCKET_SOLICITUDES_PERFIL).createSignedUrl(ruta, 300);
     if (error || !data) { avisar("error", "No se pudo abrir el documento."); return; }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
