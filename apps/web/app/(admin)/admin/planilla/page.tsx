@@ -3,13 +3,24 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Search } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
 import { useRolActual } from "@/lib/admin/use-rol";
+import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { descargarCsv, generarCsv } from "@/lib/admin/csv";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { Boton } from "@/components/ui/boton";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
+// "Fila" ya es el nombre de la interfaz de negocio de este archivo (una fila
+// de planilla) — el <tr> compartido del primitivo entra con alias para no
+// chocar.
+import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 import {
   TZ_LIMA, parsearMontoSoles, puedeVerPlanilla,
   TIPOS_VINCULO, TIPO_VINCULO_LABEL, type TipoVinculo,
@@ -36,14 +47,17 @@ export function fechaCorta(iso: string): string {
   return `${Number(d)} ${MESES_ABR[Number(m) - 1]}`;
 }
 
-// Hoy en Lima como DD/MM/AAAA. Se arma con Intl y no con new Date().toISOString(),
-// que resuelve en UTC: a partir de las 19:00 de Lima daría el día siguiente.
-function hoyLimaDMA(): string {
-  const p = new Intl.DateTimeFormat("es-PE", {
-    timeZone: TZ_LIMA, year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(new Date());
-  const v = (t: string) => p.find((x) => x.type === t)!.value;
-  return `${v("day")}/${v("month")}/${v("year")}`;
+// Hoy en Lima como AAAA-MM-DD — para comparar contra `fecha_fin` (mismo
+// formato) y para el valor inicial de un <input type="date">.
+function hoyLimaISO(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_LIMA }).format(new Date());
+}
+
+// "2026-07-14" → "14/07/2026" — el formato que ya llevan escrito el concepto
+// de "Ya le pagué aparte" y el de un desembolso adelantado.
+function isoADiaMesAnio(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 // "2026-06-15" → "15/06"
@@ -447,6 +461,16 @@ function etiquetaPeriodo(p: PeriodoInfo): string {
   return `${MESES_LARGO[p.mes_etiqueta - 1]} ${p.anio_etiqueta} · ${fechaCorta(p.fecha_ini)} → ${fechaCorta(p.fecha_fin)}`;
 }
 
+// Un periodo ya terminó y nadie lo dice: `estado` es el agregado de los 5
+// grupos (fn_periodos), así que "abierto" con `fecha_fin` ya pasada significa
+// que a alguien le falta pagar. Entre varios así —no debería pasar, pero el
+// desplegable no lo impide—, el más antiguo es el más urgente de cerrar.
+function periodoVencidoSinPagar(lista: PeriodoInfo[], hoyIso: string): PeriodoInfo | null {
+  const vencidos = lista.filter((p) => p.estado === "abierto" && p.fecha_fin < hoyIso);
+  if (vencidos.length === 0) return null;
+  return vencidos.reduce((a, b) => (a.fecha_fin < b.fecha_fin ? a : b));
+}
+
 // Columnas de la tabla principal. Se usa como colSpan en las filas de estado
 // vacío: si no coincide con los <th> reales, esas filas se dibujan torcidas.
 // Contadas a mano el 2026-08-06 tras sacar Objetivos, Rendim. y Plus (mig 0171):
@@ -583,31 +607,32 @@ function TablaPlanilla(props: {
   const saleDelBanco = totales.total + totales.pension + totales.essalud + totales.retencion_4ta;
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-      <table className="w-full text-sm">
-        <thead className="bg-sand/70 text-left text-taupe">
-          <tr>
-            <th className="px-4 py-2 font-normal">Nombre</th>
-            <th className="px-4 py-2 font-normal">Sede</th>
-            <th className="px-4 py-2 font-normal">Rango y salario</th>
-            <th className="px-4 py-2 font-normal">Horas</th>
-            <th className="px-4 py-2 text-right font-normal">Pago base</th>
-            <th className="px-4 py-2 text-right font-normal">Feriados</th>
-            <th className="px-4 py-2 text-right font-normal">Asig. familiar</th>
-            {/* Objetivos, Rendim. y Plus salieron de acá el 2026-08-06 (mig 0171).
-                Los objetivos siguen existiendo en /admin/objetivos, pero como
-                historial para promover: dejaron de pagar. Y el rendimiento dejó
-                de escalar el sueldo — escribir un 80 ahí recortaba una
-                remuneración con dos clics, que el art. 30.b de la LPCL prohíbe. */}
-            <th className="px-4 py-2 text-right font-normal" title="Remuneración básica legal mensual: la que se declara en PLAME. Vacía = la boleta no imprime esa línea.">
-              Básica legal
-            </th>
-            <th className="px-4 py-2 text-right font-normal">Bonos</th>
-            <th className="px-4 py-2 text-right font-normal">Descuentos</th>
-            <th className="px-4 py-2 text-right font-normal">Total</th>
-          </tr>
-        </thead>
-        <tbody>
+    <Tabla>
+      <TablaEncabezado>
+        <Th>Nombre</Th>
+        <Th>Sede</Th>
+        <Th>Rango y salario</Th>
+        <Th>Horas</Th>
+        <Th className="text-right">Pago base</Th>
+        <Th className="text-right">Feriados</Th>
+        <Th className="text-right">Asig. familiar</Th>
+        {/* Objetivos, Rendim. y Plus salieron de acá el 2026-08-06 (mig 0171).
+            Los objetivos siguen existiendo en /admin/objetivos, pero como
+            historial para promover: dejaron de pagar. Y el rendimiento dejó
+            de escalar el sueldo — escribir un 80 ahí recortaba una
+            remuneración con dos clics, que el art. 30.b de la LPCL prohíbe. */}
+        <Th className="text-right">
+          {/* Th no reenvía `title` (solo toma children/className) — el tooltip
+              va en un span propio adentro. */}
+          <span title="Remuneración básica legal mensual: la que se declara en PLAME. Vacía = la boleta no imprime esa línea.">
+            Básica legal
+          </span>
+        </Th>
+        <Th className="text-right">Bonos</Th>
+        <Th className="text-right">Descuentos</Th>
+        <Th className="text-right">Total</Th>
+      </TablaEncabezado>
+      <tbody>
           {filas.length === 0 && (
             <tr>
               <td colSpan={COLS} className="px-4 py-6 text-center text-taupe">
@@ -624,9 +649,9 @@ function TablaPlanilla(props: {
                   <td className="px-4 py-2">
                     {f.nombre}
                     {f.estado !== "activo" && (
-                      <span className="ml-1.5 whitespace-nowrap rounded-full bg-sand px-2 py-0.5 text-xs text-taupe">
+                      <Insignia variante="neutral" atenuada className="ml-1.5">
                         ya no está
-                      </span>
+                      </Insignia>
                     )}
                     {editable && f.total > 0 && onYaPagado && (
                       <>
@@ -757,11 +782,10 @@ function TablaPlanilla(props: {
                   <td className="px-4 py-2">
                     <span className="whitespace-nowrap">{fmtHoras(f.horas_mes)}</span>
                     {f.dias_pendientes > 0 && (
-                      <span
-                        className="ml-2 whitespace-nowrap rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar"
-                        title="Días auto-cerrados sin revisar — corrígelos en Correcciones"
-                      >
-                        {f.dias_pendientes} pend.
+                      <span title="Días auto-cerrados sin revisar — corrígelos en Correcciones">
+                        <Insignia variante="advertencia" className="ml-2">
+                          {f.dias_pendientes} pend.
+                        </Insignia>
                       </span>
                     )}
                   </td>
@@ -844,11 +868,10 @@ function TablaPlanilla(props: {
                           Sin ella el total no se explicaría desde esta tabla,
                           que es lo que se mira antes de transferir. */}
                       {(f.retencion_4ta ?? 0) > 0 && (
-                        <span
-                          className="rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo"
-                          title="Retención de Impuesto a la Renta de 4ta categoría (8 %). Se paga a SUNAT a nombre de la persona."
-                        >
-                          4ta −{formatSoles(f.retencion_4ta ?? 0)}
+                        <span title="Retención de Impuesto a la Renta de 4ta categoría (8 %). Se paga a SUNAT a nombre de la persona.">
+                          <Insignia variante="alerta">
+                            4ta −{formatSoles(f.retencion_4ta ?? 0)}
+                          </Insignia>
                         </span>
                       )}
                       {editable && (
@@ -899,80 +922,71 @@ function TablaPlanilla(props: {
                           </ul>
                         )}
                         <div className="flex flex-wrap items-end gap-2 border-t pt-2">
-                          <label className="flex flex-col gap-1 text-xs text-taupe">
-                            Tipo
-                            <select
-                              value={movForm.tipo}
-                              onChange={(e) => alCambiarTipo(f, e.target.value as ClaseMov)}
-                              disabled={pagado || guardandoMov}
-                              title={pagado ? hintPagado : undefined}
-                              className="rounded-lg border bg-crema px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
-                            >
-                              <option value="bono">Bono</option>
-                              <option value="descuento">Descuento</option>
-                              <option value="vacaciones">Vacaciones</option>
-                              {/* Solo en el periodo que corresponde (fecha de pago legal dentro del rango) */}
-                              {gc?.gratiAplica && <option value="gratificacion">{CLASE_LABEL.gratificacion}</option>}
-                              {/* CAMBIO 0346 — sigue la misma aplicabilidad que la gratificación: es un 9% de ese mismo monto. */}
-                              {gc?.gratiAplica && <option value="bonificacion_extraordinaria">{CLASE_LABEL.bonificacion_extraordinaria}</option>}
-                              {gc?.ctsAplica && <option value="cts">{CLASE_LABEL.cts}</option>}
-                              <option value="otros">Otros</option>
-                            </select>
-                          </label>
-                          <label className="flex flex-col gap-1 text-xs text-taupe">
-                            Concepto
-                            <input
-                              value={movForm.concepto}
-                              onChange={(e) => onMovForm?.({ ...movForm, concepto: e.target.value })}
-                              placeholder={CLASE_PLACEHOLDER[movForm.tipo]}
-                              disabled={pagado || guardandoMov}
-                              title={pagado ? hintPagado : undefined}
-                              className="w-52 rounded-lg border px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1 text-xs text-taupe">
-                            Monto (S/)
-                            <input
-                              type="number"
-                              min={0.01}
-                              step={0.01}
-                              value={movForm.monto}
-                              onChange={(e) => onMovForm?.({ ...movForm, monto: e.target.value })}
-                              placeholder="0.00"
-                              disabled={pagado || guardandoMov}
-                              title={pagado ? hintPagado : undefined}
-                              className="w-24 rounded-lg border px-2 py-1.5 text-right text-sm text-tinta disabled:opacity-50"
-                            />
-                          </label>
+                          <CampoSelect
+                            etiqueta="Tipo"
+                            value={movForm.tipo}
+                            onChange={(e) => alCambiarTipo(f, e.target.value as ClaseMov)}
+                            disabled={pagado || guardandoMov}
+                            title={pagado ? hintPagado : undefined}
+                          >
+                            <option value="bono">Bono</option>
+                            <option value="descuento">Descuento</option>
+                            <option value="vacaciones">Vacaciones</option>
+                            {/* Solo en el periodo que corresponde (fecha de pago legal dentro del rango) */}
+                            {gc?.gratiAplica && <option value="gratificacion">{CLASE_LABEL.gratificacion}</option>}
+                            {/* CAMBIO 0346 — sigue la misma aplicabilidad que la gratificación: es un 9% de ese mismo monto. */}
+                            {gc?.gratiAplica && <option value="bonificacion_extraordinaria">{CLASE_LABEL.bonificacion_extraordinaria}</option>}
+                            {gc?.ctsAplica && <option value="cts">{CLASE_LABEL.cts}</option>}
+                            <option value="otros">Otros</option>
+                          </CampoSelect>
+                          <Campo
+                            etiqueta="Concepto"
+                            value={movForm.concepto}
+                            onChange={(e) => onMovForm?.({ ...movForm, concepto: e.target.value })}
+                            placeholder={CLASE_PLACEHOLDER[movForm.tipo]}
+                            disabled={pagado || guardandoMov}
+                            title={pagado ? hintPagado : undefined}
+                            className="w-52"
+                          />
+                          <Campo
+                            etiqueta="Monto (S/)"
+                            type="number"
+                            min={0.01}
+                            step={0.01}
+                            value={movForm.monto}
+                            onChange={(e) => onMovForm?.({ ...movForm, monto: e.target.value })}
+                            placeholder="0.00"
+                            disabled={pagado || guardandoMov}
+                            title={pagado ? hintPagado : undefined}
+                            className="w-24 text-right"
+                          />
                           {/* CAMBIO 0305 — Solo aparece si HAY meses ya pagados
                               antes de este. En el primer periodo de la historia
                               no hay nada que corregir, y un desplegable vacío
                               solo invita a preguntarse qué falta. */}
                           {origenes.length > 0 && (
-                            <label className="flex flex-col gap-1 text-xs text-taupe">
-                              ¿Corrige un mes anterior?
-                              <select
-                                value={movForm.origen}
-                                onChange={(e) => onMovForm?.({ ...movForm, origen: e.target.value })}
-                                disabled={pagado || guardandoMov}
-                                title={pagado ? hintPagado : "Si esto paga una diferencia de un mes ya cerrado, dilo acá: queda registrado de dónde viene."}
-                                className="rounded-lg border px-2 py-1.5 text-sm text-tinta disabled:opacity-50"
-                              >
-                                <option value="">No — es de este mes</option>
-                                {origenes.map((o) => (
-                                  <option key={o.id} value={o.id}>{o.etiqueta}</option>
-                                ))}
-                              </select>
-                            </label>
+                            <CampoSelect
+                              etiqueta="¿Corrige un mes anterior?"
+                              value={movForm.origen}
+                              onChange={(e) => onMovForm?.({ ...movForm, origen: e.target.value })}
+                              disabled={pagado || guardandoMov}
+                              title={pagado ? hintPagado : "Si esto paga una diferencia de un mes ya cerrado, dilo acá: queda registrado de dónde viene."}
+                            >
+                              <option value="">No — es de este mes</option>
+                              {origenes.map((o) => (
+                                <option key={o.id} value={o.id}>{o.etiqueta}</option>
+                              ))}
+                            </CampoSelect>
                           )}
-                          <button
+                          <Boton
+                            variante="primario"
                             onClick={() => onAgregarMov?.(f)}
-                            disabled={pagado || guardandoMov || ocupado}
+                            disabled={pagado || ocupado}
+                            cargando={guardandoMov}
                             title={pagado ? hintPagado : undefined}
-                            className="rounded-lg bg-tinta px-3 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                           >
-                            {guardandoMov ? "Guardando…" : "Agregar"}
-                          </button>
+                            Agregar
+                          </Boton>
                         </div>
                       </div>
                     </td>
@@ -1031,8 +1045,7 @@ function TablaPlanilla(props: {
             )}
           </tfoot>
         )}
-      </table>
-    </div>
+    </Tabla>
   );
 }
 
@@ -1049,6 +1062,7 @@ export default function PlanillaPage() {
   const [guardandoPeriodo, setGuardandoPeriodo] = useState(false);
   // Desvíos de un periodo YA pagado: qué personas cambiaron de cifra desde el pago.
   const [desvios, setDesvios] = useState<Desvio[] | null>(null);
+  const [errorDesvios, setErrorDesvios] = useState<string | null>(null);
   const [variacion, setVariacion] = useState<Variacion | null>(null);
   const [mostrandoVariacion, setMostrandoVariacion] = useState(false);
   const [variacionTodas, setVariacionTodas] = useState(false);
@@ -1075,10 +1089,15 @@ export default function PlanillaPage() {
   const { avisar } = useToast();
   const reqId = useRef(0); // "última carga gana": descarta respuestas fuera de orden
 
-  const [sedeFiltro, setSedeFiltro] = useState("todas");
+  // Preferencia de VISTA — se acuerda entre visitas (ver use-filtro-guardado.ts):
+  // quien solo mira su sede no debería reelegirla cada vez que abre Planilla.
+  const [sedeFiltro, setSedeFiltro] = useFiltroGuardado("planilla.sede", "todas");
   // Activos / ya no están / todos. Arranca en "activos" porque es lo que se mira
   // el 99 % de las veces; el aviso de abajo cubre el 1 % peligroso.
-  const [estadoFiltro, setEstadoFiltro] = useState<"activos" | "inactivos" | "todos">("activos");
+  const [estadoFiltro, setEstadoFiltro] = useFiltroGuardado<"activos" | "inactivos" | "todos">("planilla.estado", "activos");
+  // Texto de búsqueda: NUNCA con useFiltroGuardado — es de esta visita, no de
+  // "cómo miro siempre esta pantalla" (ver use-filtro-guardado.ts).
+  const [nombreFiltro, setNombreFiltro] = useState("");
   // Una pestaña por tipo_vinculo (0323): cada una es su propio candado de
   // pago —RxH se paga más tarde que planilla, y ya no hace falta fingir que
   // se pagó todo el mismo día—. Antes era un binario planilla/honorarios; con
@@ -1099,6 +1118,51 @@ export default function PlanillaPage() {
   const [guardandoMov, setGuardandoMov] = useState(false);
   // CAMBIO 0355 — «Agregar todo» de gratificación/CTS/bonificación pendientes.
   const [guardandoBulk, setGuardandoBulk] = useState(false);
+
+  // ── Diálogos del sistema operativo migrados a <Modal> ──────────────────────
+  // Felipe aprobó migrar TODOS los window.confirm/alert/prompt de este panel
+  // (ver CLAUDE.md): no se pintan con ningún --color-* y no siguen el modo
+  // oscuro, y un window.prompt() se cierra solo al primer error y se lleva el
+  // texto escrito. No cambia qué función se llama al confirmar — solo cómo se
+  // pregunta.
+  //
+  // Los seis confirm() + el único alert() de esta pantalla comparten un solo
+  // Modal genérico: los seis solo necesitan mensaje + Sí/Cancelar (o, en el
+  // caso del alert, un único "Entendido"), y nada de lo que preguntan se
+  // escribe — es la misma razón por la que no hace falta un Modal por acción,
+  // a diferencia de los prompt() de abajo, que sí piden datos.
+  const [confirmPendiente, setConfirmPendiente] = useState<{
+    mensaje: string;
+    /** null = solo informativo (antes window.alert) — un único botón "Entendido". */
+    accion: (() => void | Promise<void>) | null;
+    variante?: "primario" | "peligro";
+    textoBoton?: string;
+  } | null>(null);
+
+  // Reabrir un pago pagado, y Volver a pagar (repagarPeriodo): los dos
+  // pedían un motivo obligatorio por window.prompt(). Se quedan cada uno con
+  // su propio Modal (no el genérico de arriba) porque piden un dato, con la
+  // misma forma que ya usa Correcciones: <textarea autoFocus> dentro de un
+  // Modal, Cancelar/Confirmar.
+  const [reabrirModal, setReabrirModal] = useState<TipoVinculo | null>(null);
+  const [reabrirMotivo, setReabrirMotivo] = useState("");
+  const [repagoModal, setRepagoModal] = useState(false);
+  const [repagoMotivo, setRepagoMotivo] = useState("");
+
+  // «Ya le pagué aparte»: antes dos window.prompt() en cadena (monto, fecha).
+  const [yaPagadoModal, setYaPagadoModal] = useState<{ fila: Fila; sugerido: number; liq: Liquidada | null } | null>(null);
+  const [yaPagadoMonto, setYaPagadoMonto] = useState("");
+  const [yaPagadoFecha, setYaPagadoFecha] = useState("");
+
+  // «Adelanto de beneficio»: antes cuatro window.prompt() en cadena (tipo,
+  // monto, fecha, nota).
+  const [desembolsoModal, setDesembolsoModal] = useState<Fila | null>(null);
+  const [desembolsoForm, setDesembolsoForm] = useState<{
+    beneficio: "gratificacion" | "cts" | "vacaciones";
+    monto: string;
+    fecha: string;
+    nota: string;
+  }>({ beneficio: "gratificacion", monto: "", fecha: "", nota: "" });
 
   // Provisiones (plegable)
   const [mostrandoProvisiones, setMostrandoProvisiones] = useState(false);
@@ -1151,12 +1215,17 @@ export default function PlanillaPage() {
     return lista;
   }, [supabase, puedeVer]);
 
-  // Carga inicial: lista + selección del más reciente
+  // Carga inicial: lista + selección. Si hay un periodo que YA TERMINÓ y
+  // sigue sin pagar, arranca ahí — no en el más reciente. El día 29, en
+  // cuanto DO crea el periodo siguiente, "el más reciente" pasa a ser el mes
+  // en curso, y abrir la pantalla mostraba justo el que no había que mirar
+  // todavía en vez del que llevaba días esperando cerrarse.
   useEffect(() => {
     void (async () => {
       const lista = await cargarPeriodos();
       if (lista && lista.length > 0) {
-        setPeriodoSel((prev) => prev ?? lista[0].id);
+        const vencido = periodoVencidoSinPagar(lista, hoyLimaISO());
+        setPeriodoSel((prev) => prev ?? vencido?.id ?? lista[0].id);
       }
     })();
   }, [cargarPeriodos]);
@@ -1201,16 +1270,38 @@ export default function PlanillaPage() {
   );
   const esUltimo = periodos !== null && periodos.length > 0 && periodoSel === periodos[0].id;
   const pagado = periodoActual?.estado === "pagado";
+  // El periodo que se está mirando terminó y no está pagado — se recalcula con
+  // `periodos` completo (no solo el seleccionado) para poder avisar aunque la
+  // encargada haya cambiado a otro periodo desde el que arrancó por defecto.
+  const periodoVencido = useMemo(
+    () => (periodos ? periodoVencidoSinPagar(periodos, hoyLimaISO()) : null),
+    [periodos],
+  );
+  const viendoElVencido = periodoVencido !== null && periodoVencido.id === periodoSel;
 
   // Solo tiene sentido preguntarlo cuando el periodo está pagado: es la única
   // situación en la que existe una foto contra la que comparar.
   const cargarDesvios = useCallback(async () => {
-    if (!puedeVer || !periodoActual || periodoActual.estado !== "pagado") { setDesvios(null); return; }
+    if (!puedeVer || !periodoActual || periodoActual.estado !== "pagado") {
+      setDesvios(null);
+      setErrorDesvios(null);
+      return;
+    }
+    setErrorDesvios(null);
     const { data, error } = await supabase.rpc("fn_planilla_foto_diferencias", {
       p_periodo_id: periodoActual.id,
     });
-    // Si la consulta falla no se dice «todo cuadra»: se deja en desconocido.
-    setDesvios(error ? null : ((data as unknown as Desvio[]) ?? []));
+    // Si la consulta falla no se dice «todo cuadra»: se deja en desconocido —
+    // y desde acá SE MUESTRA como error (antes el dato distinguía null de [],
+    // pero la pantalla nunca leía esa diferencia: un fallo se veía exactamente
+    // igual que «no hay desvíos», el falso negativo que ninguna consulta que
+    // puede fallar debería producir en silencio).
+    if (error) {
+      setDesvios(null);
+      setErrorDesvios(error.message);
+      return;
+    }
+    setDesvios((data as unknown as Desvio[]) ?? []);
   }, [supabase, puedeVer, periodoActual]);
 
   useEffect(() => { void cargarDesvios(); }, [cargarDesvios]);
@@ -1351,25 +1442,28 @@ export default function PlanillaPage() {
     setPeriodoSel(nuevo.id);
   }
 
-  async function eliminarPeriodo() {
+  function eliminarPeriodo() {
     if (!periodoActual) return;
-    if (
-      !window.confirm(
+    const periodoId = periodoActual.id;
+    setConfirmPendiente({
+      mensaje:
         `¿Eliminar el periodo ${fechaCorta(periodoActual.fecha_ini)} → ${fechaCorta(periodoActual.fecha_fin)}? ` +
-          "Se pierden los bonos y descuentos registrados en él. Solo se puede eliminar el último periodo abierto.",
-      )
-    )
-      return;
-    setGuardandoPeriodo(true);
-    const { error } = await supabase.rpc("fn_eliminar_periodo", { p_periodo_id: periodoActual.id });
-    setGuardandoPeriodo(false);
-    if (error) {
-      avisar("error", mensajeDeError(error, "eliminar el periodo"));
-      return;
-    }
-    avisar("ok", "Periodo eliminado.");
-    const lista = await cargarPeriodos();
-    setPeriodoSel(lista && lista.length > 0 ? lista[0].id : null);
+        "Se pierden los bonos y descuentos registrados en él. Solo se puede eliminar el último periodo abierto.",
+      variante: "peligro",
+      textoBoton: "Eliminar",
+      accion: async () => {
+        setGuardandoPeriodo(true);
+        const { error } = await supabase.rpc("fn_eliminar_periodo", { p_periodo_id: periodoId });
+        setGuardandoPeriodo(false);
+        if (error) {
+          avisar("error", mensajeDeError(error, "eliminar el periodo"));
+          return;
+        }
+        avisar("ok", "Periodo eliminado.");
+        const lista = await cargarPeriodos();
+        setPeriodoSel(lista && lista.length > 0 ? lista[0].id : null);
+      },
+    });
   }
 
   // CAMBIO 0284, ahora por grupo (0323) — Días con la salida puesta por el
@@ -1399,8 +1493,9 @@ export default function PlanillaPage() {
   // periodo entero sigue existiendo como AGREGADO en la base —pasa a pagado
   // solo cuando los 5 grupos con gente ya lo están— pero el botón vive por
   // pestaña.
-  async function marcarPagado(grupo: TipoVinculo, pagar: boolean) {
+  function marcarPagado(grupo: TipoVinculo, pagar: boolean) {
     if (!periodoActual) return;
+    const periodoId = periodoActual.id;
     const etiqueta = TIPO_VINCULO_LABEL[grupo];
     if (pagar) {
       // CAMBIO 0284 — Se avisa ANTES de intentarlo. La base lo frena igual
@@ -1409,46 +1504,60 @@ export default function PlanillaPage() {
       // horas por confirmar. Decirlo acá convierte un error en una instrucción.
       const pendientes = diasPendientesPorGrupo.get(grupo);
       if (pendientes) {
-        window.alert(
-          `Todavía no se puede pagar «${etiqueta}».\n\n` +
+        setConfirmPendiente({
+          mensaje:
+            `Todavía no se puede pagar «${etiqueta}».\n\n` +
             `Hay ${pendientes.dias} día(s) cuya hora de salida la puso el sistema porque nadie marcó, ` +
             `y aún están sin confirmar: ${pendientes.nombres.join(", ")}.\n\n` +
             `Esa hora no la marcó ninguna persona, y si cruza las 48 h de la semana se paga recargo sobre ella. ` +
             `Entra a Correcciones, confirma o corrige esas salidas, y vuelve aquí.`,
-        );
+          accion: null,
+        });
         return;
       }
-      if (
-        !window.confirm(
+      setConfirmPendiente({
+        mensaje:
           `Marcar «${etiqueta}» como PAGADO guarda una copia intacta del desglose de cada persona de ese grupo: ` +
-            "es el número que queda para contabilidad y ya no cambia solo.\n\n" +
-            "Si después hay que corregir algo, se reabre con Revertir pago (queda el motivo) y se vuelve " +
-            "a marcar como pagado: se guarda una copia nueva y la anterior se conserva.\n\n¿Continuar?",
-        )
-      )
-        return;
-      setGuardandoPeriodo(true);
-      const { error } = await supabase.rpc("fn_periodo_pagado", {
-        p_periodo_id: periodoActual.id, p_pagado: true, p_grupo: grupo,
+          "es el número que queda para contabilidad y ya no cambia solo.\n\n" +
+          "Si después hay que corregir algo, se reabre con Revertir pago (queda el motivo) y se vuelve " +
+          "a marcar como pagado: se guarda una copia nueva y la anterior se conserva.\n\n¿Continuar?",
+        textoBoton: "Marcar como pagado",
+        accion: async () => {
+          setGuardandoPeriodo(true);
+          const { error } = await supabase.rpc("fn_periodo_pagado", {
+            p_periodo_id: periodoId, p_pagado: true, p_grupo: grupo,
+          });
+          setGuardandoPeriodo(false);
+          if (error) { avisar("error", mensajeDeError(error, "actualizar el periodo")); return; }
+          avisar("ok", `«${etiqueta}» marcado como PAGADO 🔒.`);
+          await Promise.all([cargarPeriodos(), cargarProyeccion()]);
+        },
       });
-      setGuardandoPeriodo(false);
-      if (error) { avisar("error", mensajeDeError(error, "actualizar el periodo")); return; }
-      avisar("ok", `«${etiqueta}» marcado como PAGADO 🔒.`);
-      await Promise.all([cargarPeriodos(), cargarProyeccion()]);
       return;
     }
-    // Reabrir un pago DEJA RASTRO: se pide el motivo y queda auditado (quién/cuándo/por qué).
-    const motivo = window.prompt(
-      `Vas a REABRIR «${etiqueta}», ya pagado. ¿Por qué? (queda registrado)\nEj.: corregir una tardanza mal contada.`
-    );
-    if (motivo === null) return;
-    if (motivo.trim().length < 4) { avisar("error", "El motivo de la reapertura es obligatorio (mínimo 4 caracteres)."); return; }
+    // Reabrir un pago DEJA RASTRO: se pide el motivo y queda auditado
+    // (quién/cuándo/por qué) — por eso tiene su propio Modal con <textarea>
+    // en vez del confirm genérico de arriba.
+    setReabrirMotivo("");
+    setReabrirModal(grupo);
+  }
+
+  async function confirmarReabrir() {
+    if (!periodoActual || !reabrirModal) return;
+    const motivo = reabrirMotivo.trim();
+    if (motivo.length < 4) {
+      avisar("error", "El motivo de la reapertura es obligatorio (mínimo 4 caracteres).");
+      return;
+    }
+    const grupo = reabrirModal;
+    const etiqueta = TIPO_VINCULO_LABEL[grupo];
     setGuardandoPeriodo(true);
     const { error } = await supabase.rpc("fn_revertir_pago", {
-      p_periodo_id: periodoActual.id, p_motivo: motivo.trim(), p_grupo: grupo,
+      p_periodo_id: periodoActual.id, p_motivo: motivo, p_grupo: grupo,
     });
     setGuardandoPeriodo(false);
     if (error) { avisar("error", mensajeDeError(error, "reabrir")); return; }
+    setReabrirModal(null);
     avisar("ok", `«${etiqueta}» reabierto con registro. Corrige lo necesario y vuelve a marcarlo como PAGADO.`);
     await Promise.all([cargarPeriodos(), cargarProyeccion()]);
   }
@@ -1458,27 +1567,28 @@ export default function PlanillaPage() {
   // UN grupo a la vez —el de la pestaña activa—, porque cada grupo tiene su
   // propia foto. Si el desvío de abajo es de otro grupo, cambia de pestaña y
   // vuelve a apretar el botón ahí.
-  async function repagarPeriodo() {
+  function repagarPeriodo() {
     if (!periodoActual) return;
-    const etiqueta = TIPO_VINCULO_LABEL[tablaTabEfectiva];
-    const motivo = window.prompt(
-      `Vas a recalcular «${etiqueta}» y guardar una copia nueva de su desglose.\n` +
-        "La copia anterior se conserva y queda registrado quién lo hizo y por qué.\n\n" +
-        "¿Por qué se vuelve a pagar? (mínimo 4 caracteres)\nEj.: se corrigió una marca del 12."
-    );
-    if (motivo === null) return;
-    if (motivo.trim().length < 4) {
+    setRepagoMotivo("");
+    setRepagoModal(true);
+  }
+
+  async function confirmarRepago() {
+    if (!periodoActual) return;
+    const motivo = repagoMotivo.trim();
+    if (motivo.length < 4) {
       avisar("error", "El motivo es obligatorio: volver a pagar cambia una cifra que ya se entregó.");
       return;
     }
     setGuardandoPeriodo(true);
     const { data, error } = await supabase.rpc("fn_repagar_periodo", {
       p_periodo_id: periodoActual.id,
-      p_motivo: motivo.trim(),
+      p_motivo: motivo,
       p_grupo: tablaTabEfectiva,
     });
     setGuardandoPeriodo(false);
     if (error) { avisar("error", mensajeDeError(error, "volver a pagar")); return; }
+    setRepagoModal(false);
     const r = data as unknown as { diferencia: number; personas: number; version: number };
     const d = Number(r?.diferencia ?? 0);
     avisar(
@@ -1529,17 +1639,23 @@ export default function PlanillaPage() {
     await Promise.all([cargarFeriadosAnio(), cargarProyeccion()]);
   }
 
-  async function quitarFeriado(f: Feriado) {
-    if (!window.confirm(`¿Quitar el feriado "${f.nombre}" (${fechaCorta(f.fecha)})? La planilla dejará de pagarlo doble.`)) return;
-    setGuardandoFeriado(true);
-    const { error } = await supabase.rpc("fn_quitar_feriado", { p_fecha: f.fecha });
-    setGuardandoFeriado(false);
-    if (error) {
-      avisar("error", mensajeDeError(error, "quitar el feriado"));
-      return;
-    }
-    avisar("ok", "Feriado quitado.");
-    await Promise.all([cargarFeriadosAnio(), cargarProyeccion()]);
+  function quitarFeriado(f: Feriado) {
+    setConfirmPendiente({
+      mensaje: `¿Quitar el feriado "${f.nombre}" (${fechaCorta(f.fecha)})? La planilla dejará de pagarlo doble.`,
+      variante: "peligro",
+      textoBoton: "Quitar",
+      accion: async () => {
+        setGuardandoFeriado(true);
+        const { error } = await supabase.rpc("fn_quitar_feriado", { p_fecha: f.fecha });
+        setGuardandoFeriado(false);
+        if (error) {
+          avisar("error", mensajeDeError(error, "quitar el feriado"));
+          return;
+        }
+        avisar("ok", "Feriado quitado.");
+        await Promise.all([cargarFeriadosAnio(), cargarProyeccion()]);
+      },
+    });
   }
 
   // ── Básica legal (0103/0106) ────────────────────────────────────────────────
@@ -1685,8 +1801,9 @@ export default function PlanillaPage() {
     setMovForm({ tipo: "bono", concepto: "", monto: "", origen: "" });
   }
 
-  async function agregarMovimiento(f: Fila) {
+  function agregarMovimiento(f: Fila) {
     if (!proy?.periodo_id) return;
+    const periodoId = proy.periodo_id;
     const concepto = movForm.concepto.trim();
     const monto = Number(movForm.monto);
     if (concepto.length < 2) {
@@ -1697,75 +1814,81 @@ export default function PlanillaPage() {
       avisar("error", "El monto debe ser mayor a 0.");
       return;
     }
+    const tipo = movForm.tipo;
+    const origen = movForm.origen;
     // Mismo candado que las otras seis acciones de dinero de esta pantalla
     // (quitar movimiento, marcar pagado, repagar periodo, eliminar periodo,
     // quitar feriado, agregar pendientes de grati/CTS): confirmar el monto
     // exacto antes de escribir, para que un typo de un dígito (S/350 →
     // S/3500) no se guarde sin que nadie lo revise primero.
-    if (!window.confirm(`¿Registrar ${CLASE_LABEL[movForm.tipo]} de ${formatSoles(monto)} para ${f.nombre} — "${concepto}"?`)) {
-      return;
-    }
-    setGuardandoMov(true);
-    const { error } = await supabase.rpc("fn_agregar_movimiento", {
-      p_periodo_id: proy.periodo_id,
-      p_persona_id: f.persona_id,
-      p_tipo: CLASE_A_TIPO[movForm.tipo],
-      p_concepto: concepto,
-      p_monto: monto,
-      p_categoria: CLASE_A_CATEGORIA[movForm.tipo],
-      // CAMBIO 0305 — vacío significa «no corrige nada», y la base lo espera en
-      // null, no en cadena vacía.
-      p_periodo_origen_id: movForm.origen || null,
+    setConfirmPendiente({
+      mensaje: `¿Registrar ${CLASE_LABEL[tipo]} de ${formatSoles(monto)} para ${f.nombre} — "${concepto}"?`,
+      accion: async () => {
+        setGuardandoMov(true);
+        const { error } = await supabase.rpc("fn_agregar_movimiento", {
+          p_periodo_id: periodoId,
+          p_persona_id: f.persona_id,
+          p_tipo: CLASE_A_TIPO[tipo],
+          p_concepto: concepto,
+          p_monto: monto,
+          p_categoria: CLASE_A_CATEGORIA[tipo],
+          // CAMBIO 0305 — vacío significa «no corrige nada», y la base lo espera en
+          // null, no en cadena vacía.
+          p_periodo_origen_id: origen || null,
+        });
+        setGuardandoMov(false);
+        if (error) {
+          avisar("error", mensajeDeError(error, "registrar el movimiento"));
+          return;
+        }
+        avisar("ok", `${CLASE_LABEL[tipo]} de ${formatSoles(monto)} para ${f.nombre}.`);
+        await cargarProyeccion(); // cierra el panel ± y limpia el formulario
+      },
     });
-    setGuardandoMov(false);
-    if (error) {
-      avisar("error", mensajeDeError(error, "registrar el movimiento"));
-      return;
-    }
-    avisar("ok", `${CLASE_LABEL[movForm.tipo]} de ${formatSoles(monto)} para ${f.nombre}.`);
-    await cargarProyeccion(); // cierra el panel ± y limpia el formulario
-
   }
 
   // CAMBIO 0355 — «Agregar todo». fn_grati_cts_agregar_pendientes ya decide
   // quién tiene algo pendiente (deja el monto en 0 a quien no); acá solo se
   // suma para mostrar el aviso ANTES de escribir nada.
-  async function agregarPendientesGratiCts() {
+  function agregarPendientesGratiCts() {
     if (!proy?.periodo_id || !pendientesGratiCts) return;
-    const ok = window.confirm(
-      `Vas a registrar ${pendientesGratiCts.movimientos} movimiento(s) para ` +
-      `${pendientesGratiCts.personas} persona(s), por un total de ${formatSoles(pendientesGratiCts.total)}. ` +
-      `¿Confirmas?`
-    );
-    if (!ok) return;
-    setGuardandoBulk(true);
-    const { data, error } = await supabase.rpc("fn_grati_cts_agregar_pendientes", {
-      p_periodo_id: proy.periodo_id,
+    const periodoId = proy.periodo_id;
+    setConfirmPendiente({
+      mensaje:
+        `Vas a registrar ${pendientesGratiCts.movimientos} movimiento(s) para ` +
+        `${pendientesGratiCts.personas} persona(s), por un total de ${formatSoles(pendientesGratiCts.total)}. ` +
+        `¿Confirmas?`,
+      accion: async () => {
+        setGuardandoBulk(true);
+        const { data, error } = await supabase.rpc("fn_grati_cts_agregar_pendientes", {
+          p_periodo_id: periodoId,
+        });
+        setGuardandoBulk(false);
+        if (error) {
+          avisar("error", mensajeDeError(error, "agregar los pendientes"));
+          return;
+        }
+        const r = data as unknown as {
+          agregados: { nombre: string; categoria: string; monto: number }[];
+          fallidos: { nombre: string; categoria: string; motivo: string }[];
+          total_agregado: number;
+        };
+        if (r.agregados.length > 0) {
+          avisar("ok", `Se agregaron ${r.agregados.length} movimiento(s) por ${formatSoles(r.total_agregado)}.`);
+        }
+        if (r.fallidos.length > 0) {
+          avisar(
+            "error",
+            `${r.fallidos.length} no se pudieron agregar — ` +
+            r.fallidos.map((f) => `${f.nombre} (${CLASE_LABEL[f.categoria as ClaseMov] ?? f.categoria}): ${f.motivo}`).join(" · ")
+          );
+        }
+        if (r.agregados.length === 0 && r.fallidos.length === 0) {
+          avisar("ok", "No había nada pendiente por agregar.");
+        }
+        await cargarProyeccion();
+      },
     });
-    setGuardandoBulk(false);
-    if (error) {
-      avisar("error", mensajeDeError(error, "agregar los pendientes"));
-      return;
-    }
-    const r = data as unknown as {
-      agregados: { nombre: string; categoria: string; monto: number }[];
-      fallidos: { nombre: string; categoria: string; motivo: string }[];
-      total_agregado: number;
-    };
-    if (r.agregados.length > 0) {
-      avisar("ok", `Se agregaron ${r.agregados.length} movimiento(s) por ${formatSoles(r.total_agregado)}.`);
-    }
-    if (r.fallidos.length > 0) {
-      avisar(
-        "error",
-        `${r.fallidos.length} no se pudieron agregar — ` +
-        r.fallidos.map((f) => `${f.nombre} (${CLASE_LABEL[f.categoria as ClaseMov] ?? f.categoria}): ${f.motivo}`).join(" · ")
-      );
-    }
-    if (r.agregados.length === 0 && r.fallidos.length === 0) {
-      avisar("ok", "No había nada pendiente por agregar.");
-    }
-    await cargarProyeccion();
   }
 
   // «Ya le pagué aparte». No borra a la persona de la planilla: le pone un
@@ -1775,7 +1898,7 @@ export default function PlanillaPage() {
   // Se prefiere esto a excluirla del periodo porque dentro de un año «esta
   // persona no aparece en julio» no explica nada y parece un fallo; «se le
   // descontó S/850 porque ya se le había pagado el 14/07» sí.
-  async function marcarYaPagado(f: Fila) {
+  function marcarYaPagado(f: Fila) {
     if (!proy?.periodo_id) return;
     // CAMBIO 0244 · Qué importe se propone. Si esta persona ya cobró su
     // liquidación, lo que hay que descontar es lo que ESA liquidación pagó de
@@ -1786,30 +1909,23 @@ export default function PlanillaPage() {
     //
     // Sigue siendo una PROPUESTA: el campo se puede editar, porque el único que
     // sabe cuánto salió del banco es quien lo transfirió.
-    const liq = liquidadas[f.persona_id];
+    const liq = liquidadas[f.persona_id] ?? null;
     const porCubrir = liq ? liq.cobro_del_periodo - f.descuentos : f.total;
     const sugerido = Math.max(0, Math.round(porCubrir * 100) / 100);
-    const montoTxt = window.prompt(
-      `${f.nombre} — ¿cuánto le pagaste ya, fuera de la planilla?\n\n` +
-        `Este periodo le calcula ${formatSoles(f.total)}. Se registrará como un descuento por lo ` +
-        `que ya recibió, así su total queda en cero (o en la diferencia) y en su boleta queda ` +
-        `escrito por qué.` +
-        // De dónde sale el número que viene puesto. Sin esta línea, quien lo lee
-        // no sabe si el importe propuesto es lo que la planilla le calcula o lo
-        // que su liquidación ya le pagó — y son cosas distintas.
-        (liq
-          ? `\n\nSu liquidación del ${fechaCorta(liq.pagada_el)} ya le pagó ` +
-            `${formatSoles(liq.cobro_del_periodo)} de este mes` +
-            (f.descuentos > 0 ? `, y aquí ya hay ${formatSoles(f.descuentos)} descontados` : "") +
-            `. Por eso viene propuesto ${formatSoles(sugerido)}.`
-          : ""),
-      String(sugerido),
-    );
-    if (montoTxt === null) return;
+    setYaPagadoModal({ fila: f, sugerido, liq });
+    setYaPagadoMonto(String(sugerido));
+    // Un campo de fecha que bloquea el envío no puede arrancar vacío (ver
+    // CLAUDE.md) — arranca en hoy, visible y editable en un clic.
+    setYaPagadoFecha(hoyLimaISO());
+  }
+
+  async function confirmarYaPagado() {
+    if (!proy?.periodo_id || !yaPagadoModal) return;
+    const f = yaPagadoModal.fila;
     // El monto lo lee `parsearMontoSoles`, no un `replace` a mano: la app
     // imprime «8,500.00» con Intl y quien copia esa cifra tiene que poder
     // pegarla. Ver packages/shared/src/montos.ts para por qué esto no vive acá.
-    const leido = parsearMontoSoles(montoTxt);
+    const leido = parsearMontoSoles(yaPagadoMonto);
     if (!leido.ok) {
       avisar("error", leido.motivo);
       return;
@@ -1819,21 +1935,17 @@ export default function PlanillaPage() {
       avisar("error", "El monto tiene que ser mayor a 0.");
       return;
     }
-    const fecha = window.prompt(
-      "¿Qué día se lo pagaste? (formato DD/MM/AAAA)\n\nQueda escrito en su boleta y en la foto del pago.",
-      hoyLimaDMA(),
-    );
-    if (fecha === null) return;
-    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(fecha.trim())) {
-      avisar("error", "La fecha tiene que ir como DD/MM/AAAA — por ejemplo 14/07/2026.");
+    if (!yaPagadoFecha) {
+      avisar("error", "Pon el día en que se le pagó.");
       return;
     }
+    const fechaTexto = isoADiaMesAnio(yaPagadoFecha);
     setGuardandoMov(true);
     const { error } = await supabase.rpc("fn_agregar_movimiento", {
       p_periodo_id: proy.periodo_id,
       p_persona_id: f.persona_id,
       p_tipo: "descuento",
-      p_concepto: `Ya pagado el ${fecha.trim()} — fuera de planilla`,
+      p_concepto: `Ya pagado el ${fechaTexto} — fuera de planilla`,
       p_monto: monto,
       p_categoria: null,
     });
@@ -1842,7 +1954,8 @@ export default function PlanillaPage() {
       avisar("error", mensajeDeError(error, "registrar"));
       return;
     }
-    avisar("ok", `Registrado: a ${f.nombre} ya se le habían pagado ${formatSoles(monto)} el ${fecha.trim()}.`);
+    setYaPagadoModal(null);
+    avisar("ok", `Registrado: a ${f.nombre} ya se le habían pagado ${formatSoles(monto)} el ${fechaTexto}.`);
     await cargarProyeccion();
   }
 
@@ -1853,27 +1966,19 @@ export default function PlanillaPage() {
   // fn_grati_trunca / fn_cts_trunca / fn_vacaciones_truncas lo restan solas al
   // armar la liquidación, y no hace falta tocar el sueldo del periodo con un
   // bono suelto que la liquidación no sabría reconocer.
-  async function registrarDesembolso(f: Fila) {
-    const tipoTxt = window.prompt(
-      `${f.nombre} — ¿qué beneficio se le está adelantando?\n\n` +
-        `Escribe: gratificación, cts o vacaciones.`,
-      "gratificación",
-    );
-    if (tipoTxt === null) return;
-    const tipo = tipoTxt.trim().toLowerCase();
-    const beneficio: "gratificacion" | "cts" | "vacaciones" | null =
-      tipo.startsWith("grati") ? "gratificacion"
-      : tipo === "cts" ? "cts"
-      : tipo.startsWith("vacacion") ? "vacaciones"
-      : null;
-    if (!beneficio) {
-      avisar("error", "Escribe exactamente: gratificación, cts o vacaciones.");
-      return;
-    }
+  //
+  // Antes eran cuatro window.prompt() en cadena (tipo, monto, fecha, nota) —
+  // ahora un único Modal con los cuatro campos a la vista a la vez.
+  function registrarDesembolso(f: Fila) {
+    setDesembolsoForm({ beneficio: "gratificacion", monto: "", fecha: hoyLimaISO(), nota: "" });
+    setDesembolsoModal(f);
+  }
 
-    const montoTxt = window.prompt(`${f.nombre} — ¿cuánto se le adelanta?`, "");
-    if (montoTxt === null) return;
-    const leido = parsearMontoSoles(montoTxt);
+  async function confirmarDesembolso() {
+    const f = desembolsoModal;
+    if (!f) return;
+    const { beneficio, fecha } = desembolsoForm;
+    const leido = parsearMontoSoles(desembolsoForm.monto);
     if (!leido.ok) {
       avisar("error", leido.motivo);
       return;
@@ -1882,20 +1987,11 @@ export default function PlanillaPage() {
       avisar("error", "El monto tiene que ser mayor a 0.");
       return;
     }
-
-    const fechaTxt = window.prompt(
-      "¿Qué día se le paga? (formato DD/MM/AAAA)\n\n" +
-        "De esta fecha se deduce a qué semestre o ventana corresponde.",
-      hoyLimaDMA(),
-    );
-    if (fechaTxt === null) return;
-    const m = fechaTxt.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (!m) {
-      avisar("error", "La fecha tiene que ir como DD/MM/AAAA — por ejemplo 29/08/2026.");
+    if (!fecha) {
+      avisar("error", "Pon el día en que se le paga.");
       return;
     }
-    const [, dd, mm, aaaa] = m;
-    const fechaIso = `${aaaa}-${mm}-${dd}`;
+    const [aaaa, mm] = fecha.split("-");
     const mesNum = Number(mm);
     const anio = Number(aaaa);
 
@@ -1906,27 +2002,22 @@ export default function PlanillaPage() {
       : beneficio === "gratificacion" ? (mesNum <= 6 ? "grati_s1" : "grati_s2")
       : (mesNum <= 6 ? "cts_may" : "cts_nov");
 
-    const nota = window.prompt(
-      "¿Alguna nota? (opcional — por ejemplo, el motivo del adelanto)",
-      "",
-    );
-    if (nota === null) return;
-
     setGuardandoMov(true);
     const { error } = await supabase.rpc("fn_registrar_desembolso", {
       p_persona_id: f.persona_id,
       p_ventana: ventana,
       p_anio: anio,
       p_monto: leido.monto,
-      p_fecha_pago: fechaIso,
+      p_fecha_pago: fecha,
       p_origen: "transferencia",
-      p_nota: nota.trim() || null,
+      p_nota: desembolsoForm.nota.trim() || null,
     });
     setGuardandoMov(false);
     if (error) {
       avisar("error", mensajeDeError(error, "registrar el adelanto"));
       return;
     }
+    setDesembolsoModal(null);
     avisar(
       "ok",
       `Registrado: adelanto de ${formatSoles(leido.monto)} de ${CLASE_LABEL[beneficio]} para ${f.nombre}. ` +
@@ -1934,8 +2025,16 @@ export default function PlanillaPage() {
     );
   }
 
-  async function quitarMovimiento(m: Movimiento) {
-    if (!window.confirm(`¿Quitar el ${m.tipo} "${m.concepto}" de ${formatSoles(m.monto)}?`)) return;
+  function quitarMovimiento(m: Movimiento) {
+    setConfirmPendiente({
+      mensaje: `¿Quitar el ${m.tipo} "${m.concepto}" de ${formatSoles(m.monto)}?`,
+      variante: "peligro",
+      textoBoton: "Quitar",
+      accion: () => quitarMovimientoConfirmado(m),
+    });
+  }
+
+  async function quitarMovimientoConfirmado(m: Movimiento) {
     setGuardandoMov(true);
     const { error } = await supabase.rpc("fn_quitar_movimiento", { p_movimiento_id: m.id });
     setGuardandoMov(false);
@@ -1967,22 +2066,34 @@ export default function PlanillaPage() {
     setSimProy(data as unknown as Proyeccion);
   }
 
-  // ── Filtro de sede ─────────────────────────────────────────────────────────
+  // ── Filtro de sede + nombre ────────────────────────────────────────────────
   const sedes = useMemo(
     () => Array.from(new Set((proy?.filas ?? []).map((f) => f.sede))).sort(),
     [proy],
   );
+  // Sin tildes ni mayúsculas, igual que Equipo y el buscador global (⌘K):
+  // buscar "nunez" tiene que encontrar a "Núñez".
+  const nombreBuscado = useMemo(
+    () => nombreFiltro.trim().normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase(),
+    [nombreFiltro],
+  );
   const filasVisibles = useMemo(
     () => (proy?.filas ?? []).filter(
-      (f) => (sedeFiltro === "todas" || f.sede === sedeFiltro) && pasaEstado(f, estadoFiltro),
+      (f) =>
+        (sedeFiltro === "todas" || f.sede === sedeFiltro) &&
+        pasaEstado(f, estadoFiltro) &&
+        (!nombreBuscado || f.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes(nombreBuscado)),
     ),
-    [proy, sedeFiltro, estadoFiltro],
+    [proy, sedeFiltro, estadoFiltro, nombreBuscado],
   );
   const simFilasVisibles = useMemo(
     () => (simProy?.filas ?? []).filter(
-      (f) => (sedeFiltro === "todas" || f.sede === sedeFiltro) && pasaEstado(f, estadoFiltro),
+      (f) =>
+        (sedeFiltro === "todas" || f.sede === sedeFiltro) &&
+        pasaEstado(f, estadoFiltro) &&
+        (!nombreBuscado || f.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes(nombreBuscado)),
     ),
-    [simProy, sedeFiltro, estadoFiltro],
+    [simProy, sedeFiltro, estadoFiltro, nombreBuscado],
   );
   // Partidas de la misma lista, una por pestaña (tipo_vinculo, 0323). Un dato
   // ausente o desconocido cae en "planilla" — mismo defecto seguro que usa
@@ -2156,47 +2267,55 @@ export default function PlanillaPage() {
           <h1 className="font-serif text-2xl">Planilla</h1>
           {periodos && periodos.length > 0 && (
             <>
-              <select
+              <CampoSelect
                 value={periodoSel ?? ""}
                 onChange={(e) => {
                   setPeriodoSel(e.target.value);
                 }}
-                className="rounded-lg border bg-crema px-3 py-1.5 text-sm"
                 aria-label="Periodo de pago"
               >
                 {periodos.map((p) => (
                   <option key={p.id} value={p.id}>
                     {etiquetaPeriodo(p)}
-                    {p.estado === "pagado" ? " · PAGADO" : ""}
+                    {p.estado === "pagado" ? " · PAGADO" : periodoVencido?.id === p.id ? " · VENCIDO SIN PAGAR" : ""}
                   </option>
                 ))}
-              </select>
+              </CampoSelect>
               {periodoActual &&
                 (periodoActual.estado === "pagado" ? (
-                  <span className="whitespace-nowrap rounded-full bg-verde/15 px-2.5 py-0.5 text-xs font-medium text-verde">
-                    PAGADO 🔒
-                  </span>
+                  <Insignia variante="positivo">PAGADO 🔒</Insignia>
+                ) : viendoElVencido ? (
+                  <Insignia variante="alerta">VENCIDO SIN PAGAR</Insignia>
                 ) : (
-                  <span className="whitespace-nowrap rounded-full bg-ambar/15 px-2.5 py-0.5 text-xs text-ambar">
-                    abierto
-                  </span>
+                  <Insignia variante="advertencia">abierto</Insignia>
                 ))}
-              <button
+              {/* Ningún otro sitio del panel recuerda que este periodo sigue
+                  esperando — ver CLAUDE.md. Se pinta solo cuando NO se está
+                  mirando ya el vencido, para no duplicar la insignia de arriba. */}
+              {periodoVencido && !viendoElVencido && (
+                <Boton
+                  variante="enlace"
+                  className="text-xs text-rojo hover:text-rojo-profundo"
+                  onClick={() => setPeriodoSel(periodoVencido.id)}
+                >
+                  {etiquetaPeriodo(periodoVencido)} terminó y sigue sin pagar →
+                </Boton>
+              )}
+              <Boton
                 onClick={() => {
                   setMostrandoNuevo((v) => !v);
                 }}
-                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50"
               >
                 + Nuevo periodo
-              </button>
+              </Boton>
               {esUltimo && periodoActual?.estado === "abierto" && (
-                <button
+                <Boton
+                  variante="peligro"
                   onClick={() => void eliminarPeriodo()}
                   disabled={guardandoPeriodo}
-                  className="rounded-lg border px-3 py-1.5 text-sm text-rojo hover:bg-rojo/10 disabled:opacity-50"
                 >
                   Eliminar
-                </button>
+                </Boton>
               )}
             </>
           )}
@@ -2205,17 +2324,21 @@ export default function PlanillaPage() {
         {errorPeriodos && (
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los periodos: {errorPeriodos}{" "}
-            <button
+            <Boton
+              variante="enlace"
+              className="font-medium"
               onClick={() =>
                 void (async () => {
                   const lista = await cargarPeriodos();
-                  if (lista && lista.length > 0) setPeriodoSel((prev) => prev ?? lista[0].id);
+                  if (lista && lista.length > 0) {
+                    const vencido = periodoVencidoSinPagar(lista, hoyLimaISO());
+                    setPeriodoSel((prev) => prev ?? vencido?.id ?? lista[0].id);
+                  }
                 })()
               }
-              className="font-medium underline"
             >
               Reintentar
-            </button>
+            </Boton>
           </div>
         )}
 
@@ -2232,31 +2355,16 @@ export default function PlanillaPage() {
               Solo este primer periodo necesita fecha de inicio. Cada periodo debe durar entre 20 y 46 días.
             </p>
             <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                Fecha de inicio
-                <input
-                  type="date"
-                  value={primerIni}
-                  onChange={(e) => setPrimerIni(e.target.value)}
-                  className="rounded-lg border px-3 py-2"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Fecha de cierre
-                <input
-                  type="date"
-                  value={primerFin}
-                  onChange={(e) => setPrimerFin(e.target.value)}
-                  className="rounded-lg border px-3 py-2"
-                />
-              </label>
-              <button
+              <Campo etiqueta="Fecha de inicio" type="date" value={primerIni} onChange={(e) => setPrimerIni(e.target.value)} />
+              <Campo etiqueta="Fecha de cierre" type="date" value={primerFin} onChange={(e) => setPrimerFin(e.target.value)} />
+              <Boton
+                variante="primario"
                 onClick={() => void crearPeriodo(primerFin, primerIni)}
-                disabled={creandoPeriodo || !primerIni || !primerFin}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                disabled={!primerIni || !primerFin}
+                cargando={creandoPeriodo}
               >
-                {creandoPeriodo ? "Creando…" : "Crear periodo"}
-              </button>
+                Crear periodo
+              </Boton>
             </div>
           </div>
         )}
@@ -2269,40 +2377,19 @@ export default function PlanillaPage() {
               <div className="mb-4 max-w-2xl rounded-lg border bg-sand/30 p-4">
                 <p className="mb-2 text-sm font-medium">Nuevo periodo</p>
                 <div className="flex flex-wrap items-end gap-3">
-                  <label className="flex flex-col gap-1 text-sm">
-                    Inicio (encadenado)
-                    <input
-                      type="date"
-                      value={inicioEncadenado}
-                      readOnly
-                      disabled
-                      className="rounded-lg border px-3 py-2 opacity-60"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    Fecha de cierre
-                    <input
-                      type="date"
-                      value={nuevoFin}
-                      min={sumarDias(inicioEncadenado, 19)}
-                      max={sumarDias(inicioEncadenado, 45)}
-                      onChange={(e) => setNuevoFin(e.target.value)}
-                      className="rounded-lg border px-3 py-2"
-                    />
-                  </label>
-                  <button
-                    onClick={() => void crearPeriodo(nuevoFin)}
-                    disabled={creandoPeriodo || !nuevoFin}
-                    className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
-                  >
-                    {creandoPeriodo ? "Creando…" : "Crear periodo"}
-                  </button>
-                  <button
-                    onClick={() => setMostrandoNuevo(false)}
-                    className="rounded-lg border px-3 py-2 text-sm hover:bg-sand/50"
-                  >
-                    Cancelar
-                  </button>
+                  <Campo etiqueta="Inicio (encadenado)" type="date" value={inicioEncadenado} readOnly disabled className="opacity-60" />
+                  <Campo
+                    etiqueta="Fecha de cierre"
+                    type="date"
+                    value={nuevoFin}
+                    min={sumarDias(inicioEncadenado, 19)}
+                    max={sumarDias(inicioEncadenado, 45)}
+                    onChange={(e) => setNuevoFin(e.target.value)}
+                  />
+                  <Boton variante="primario" onClick={() => void crearPeriodo(nuevoFin)} disabled={!nuevoFin} cargando={creandoPeriodo}>
+                    Crear periodo
+                  </Boton>
+                  <Boton onClick={() => setMostrandoNuevo(false)}>Cancelar</Boton>
                 </div>
                 <p className="mt-2 text-xs text-taupe">
                   El inicio no se puede cambiar: siempre es el día siguiente al último cierre
@@ -2315,9 +2402,21 @@ export default function PlanillaPage() {
             {errorCarga && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudo cargar la proyección: {errorCarga}{" "}
-                <button onClick={() => void cargarProyeccion()} className="font-medium underline">
+                <Boton variante="enlace" className="font-medium" onClick={() => void cargarProyeccion()}>
                   Reintentar
-                </button>
+                </Boton>
+              </div>
+            )}
+
+            {/* Sin esto, un fallo al comprobar los desvíos se veía IGUAL que
+                «no hay desvíos» — el mismo falso negativo silencioso que la
+                regla de diseño de hoy prohíbe. */}
+            {pagado && errorDesvios && (
+              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                No se pudo comprobar si este periodo pagado sigue cuadrando con los datos de hoy: {errorDesvios}{" "}
+                <Boton variante="enlace" className="font-medium" onClick={() => void cargarDesvios()}>
+                  Reintentar
+                </Boton>
               </div>
             )}
 
@@ -2379,9 +2478,9 @@ export default function PlanillaPage() {
                 <span>Base full-time: {fmtHoras(proy.base_horas)}</span>
                 {proy.feriados.length > 0 && <span>·</span>}
                 {proy.feriados.map((f) => (
-                  <span key={f.fecha} className="whitespace-nowrap rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">
+                  <Insignia key={f.fecha} variante="advertencia">
                     {fechaCorta(f.fecha)} — {f.nombre}
-                  </span>
+                  </Insignia>
                 ))}
                 {proy.feriados.length === 0 && <span>· sin feriados en este periodo</span>}
               </div>
@@ -2425,7 +2524,7 @@ export default function PlanillaPage() {
                   {errorFeriados ? (
                     <p className="text-sm text-rojo">
                       No se pudieron cargar los feriados: {errorFeriados}{" "}
-                      <button onClick={() => void cargarFeriadosAnio()} className="font-medium underline">Reintentar</button>
+                      <Boton variante="enlace" className="font-medium" onClick={() => void cargarFeriadosAnio()}>Reintentar</Boton>
                     </p>
                   ) : feriadosAnio === null ? (
                     <Cargando />
@@ -2450,31 +2549,21 @@ export default function PlanillaPage() {
                     </ul>
                   )}
                   <div className="mt-2 flex flex-wrap items-end gap-3 border-t pt-3">
-                    <label className="flex flex-col gap-1 text-sm">
-                      Fecha
-                      <input
-                        type="date"
-                        value={nuevoFeriado.fecha}
-                        onChange={(e) => setNuevoFeriado({ ...nuevoFeriado, fecha: e.target.value })}
-                        className="rounded-lg border px-3 py-2"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm">
-                      Nombre
-                      <input
-                        value={nuevoFeriado.nombre}
-                        onChange={(e) => setNuevoFeriado({ ...nuevoFeriado, nombre: e.target.value })}
-                        placeholder="ej. Fiestas Patrias"
-                        className="rounded-lg border px-3 py-2"
-                      />
-                    </label>
-                    <button
-                      onClick={() => void agregarFeriado()}
-                      disabled={guardandoFeriado}
-                      className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
-                    >
-                      {guardandoFeriado ? "Guardando…" : "Agregar feriado"}
-                    </button>
+                    <Campo
+                      etiqueta="Fecha"
+                      type="date"
+                      value={nuevoFeriado.fecha}
+                      onChange={(e) => setNuevoFeriado({ ...nuevoFeriado, fecha: e.target.value })}
+                    />
+                    <Campo
+                      etiqueta="Nombre"
+                      value={nuevoFeriado.nombre}
+                      onChange={(e) => setNuevoFeriado({ ...nuevoFeriado, nombre: e.target.value })}
+                      placeholder="ej. Fiestas Patrias"
+                    />
+                    <Boton variante="primario" onClick={() => void agregarFeriado()} cargando={guardandoFeriado}>
+                      Agregar feriado
+                    </Boton>
                   </div>
                   <p className="mt-2 text-xs text-taupe">
                     Solo feriados nacionales por ley: cada uno paga el proporcional a todos, y doble a quien lo trabaja.
@@ -2495,51 +2584,48 @@ export default function PlanillaPage() {
                   con {formatSoles(ocultosPorCobrar.monto)} por cobrar en este periodo,
                 </strong>{" "}
                 y el filtro las está ocultando. Trabajaron parte del periodo antes de irse.{" "}
-                <button
-                  onClick={() => setEstadoFiltro("todos")}
-                  className="font-medium underline"
-                >
+                <Boton variante="enlace" className="font-medium" onClick={() => setEstadoFiltro("todos")}>
                   Verlas
-                </button>
+                </Boton>
               </div>
             )}
 
             {/* Filtros + CSV */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-sm">
-                  Sede
-                  <select
-                    value={sedeFiltro}
-                    onChange={(e) => setSedeFiltro(e.target.value)}
-                    className="rounded-lg border bg-crema px-3 py-1.5"
-                  >
-                    <option value="todas">Todas</option>
-                    {sedes.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  Mostrar
-                  <select
-                    value={estadoFiltro}
-                    onChange={(e) => setEstadoFiltro(e.target.value as EstadoFiltro)}
-                    className="rounded-lg border bg-crema px-3 py-1.5"
-                  >
-                    <option value="activos">Solo el equipo actual</option>
-                    <option value="inactivos">Solo quienes ya no están</option>
-                    <option value="todos">Todos</option>
-                  </select>
-                </label>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="relative">
+                  <Search size={15} strokeWidth={1.8} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-taupe" />
+                  <Campo
+                    value={nombreFiltro}
+                    onChange={(e) => setNombreFiltro(e.target.value)}
+                    placeholder="Buscar por nombre…"
+                    aria-label="Buscar por nombre"
+                    className="w-52 pl-8"
+                  />
+                </div>
+                <CampoSelect etiqueta="Sede" value={sedeFiltro} onChange={(e) => setSedeFiltro(e.target.value)}>
+                  <option value="todas">Todas</option>
+                  {sedes.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </CampoSelect>
+                <CampoSelect
+                  etiqueta="Mostrar"
+                  value={estadoFiltro}
+                  onChange={(e) => setEstadoFiltro(e.target.value as EstadoFiltro)}
+                >
+                  <option value="activos">Solo el equipo actual</option>
+                  <option value="inactivos">Solo quienes ya no están</option>
+                  <option value="todos">Todos</option>
+                </CampoSelect>
               </div>
-              <button
+              <Boton
+                variante="primario"
                 onClick={descargarCsvPlanilla}
                 disabled={cargando || errorCarga !== null || !proy || filasVisibles.length === 0}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
               >
                 Descargar CSV
-              </button>
+              </Boton>
             </div>
 
             {/* ── Qué cambió respecto al mes pasado (0319) ──────────────────
@@ -2604,12 +2690,9 @@ export default function PlanillaPage() {
                       {visibles.length === 0 ? (
                         <p className="mt-3 text-sm text-taupe">
                           Nadie levantó un aviso.{" "}
-                          <button
-                            onClick={() => setVariacionTodas(true)}
-                            className="font-medium underline"
-                          >
+                          <Boton variante="enlace" className="font-medium" onClick={() => setVariacionTodas(true)}>
                             Ver a todo el equipo igualmente
-                          </button>
+                          </Boton>
                         </p>
                       ) : (
                         <div className="mt-3 overflow-x-auto">
@@ -2682,10 +2765,15 @@ export default function PlanillaPage() {
                       )}
 
                       <label className="mt-3 flex items-center gap-2 text-xs text-taupe">
+                        {/* Casilla suelta: no hay CampoCasilla todavía en components/ui/campo.tsx
+                            (Fase A no la agregó pese a lo anunciado) — mismas clases que ese
+                            primitivo va a necesitar (accent-tinta, size-4), para que migrar sea
+                            trivial en cuanto exista. */}
                         <input
                           type="checkbox"
                           checked={variacionTodas}
                           onChange={(e) => setVariacionTodas(e.target.checked)}
+                          className="size-4 rounded border-sand accent-tinta"
                         />
                         Mostrar también a quien no levantó ningún aviso
                       </label>
@@ -2746,23 +2834,20 @@ export default function PlanillaPage() {
                       {grupoActivo?.pagado_por_nombre ? ` por ${grupoActivo.pagado_por_nombre}` : ""} — el desglose de
                       «{TIPO_VINCULO_LABEL[tablaTabEfectiva]}» quedó congelado; es la cifra que va a Costos.
                     </span>
-                    <button
-                      onClick={() => void marcarPagado(tablaTabEfectiva, false)}
-                      disabled={guardandoPeriodo}
-                      className="rounded-lg border px-3 py-1.5 text-sm hover:bg-sand/50 disabled:opacity-50"
-                    >
+                    <Boton onClick={() => void marcarPagado(tablaTabEfectiva, false)} disabled={guardandoPeriodo}>
                       Reabrir «{TIPO_VINCULO_LABEL[tablaTabEfectiva]}»
-                    </button>
+                    </Boton>
                   </>
                 ) : (
-                  <button
+                  <Boton
+                    variante="primario"
                     onClick={() => void marcarPagado(tablaTabEfectiva, true)}
-                    disabled={guardandoPeriodo || cargando || filasTabActiva.length === 0}
+                    disabled={cargando || filasTabActiva.length === 0}
+                    cargando={guardandoPeriodo}
                     title={filasTabActiva.length === 0 ? "No hay nadie de este grupo en el periodo." : undefined}
-                    className="rounded-lg bg-tinta px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                   >
-                    {guardandoPeriodo ? "Guardando…" : `Marcar «${TIPO_VINCULO_LABEL[tablaTabEfectiva]}» como PAGADO`}
-                  </button>
+                    Marcar «{TIPO_VINCULO_LABEL[tablaTabEfectiva]}» como PAGADO
+                  </Boton>
                 )}
               </div>
             )}
@@ -2827,48 +2912,44 @@ export default function PlanillaPage() {
                 </button>
                 {mostrandoProvisiones && (
                   <div className="mt-2">
-                    <div className="max-w-3xl overflow-x-auto rounded-2xl border border-sand bg-papel">
-                      <table className="w-full text-sm">
-                        <thead className="bg-sand/70 text-left text-taupe">
+                    <Tabla className="max-w-3xl">
+                      <TablaEncabezado>
+                        <Th>Nombre</Th>
+                        <Th className="text-right">Gratificación</Th>
+                        <Th className="text-right">CTS</Th>
+                        <Th className="text-right">Vacaciones</Th>
+                        <Th className="text-right">Total provisión</Th>
+                      </TablaEncabezado>
+                      <tbody>
+                        {filasVisibles.length === 0 && (
                           <tr>
-                            <th className="px-4 py-2 font-normal">Nombre</th>
-                            <th className="px-4 py-2 text-right font-normal">Gratificación</th>
-                            <th className="px-4 py-2 text-right font-normal">CTS</th>
-                            <th className="px-4 py-2 text-right font-normal">Vacaciones</th>
-                            <th className="px-4 py-2 text-right font-normal">Total provisión</th>
+                            <td colSpan={5} className="px-4 py-6 text-center text-taupe">
+                              No hay personas para mostrar en este periodo.
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {filasVisibles.length === 0 && (
-                            <tr>
-                              <td colSpan={5} className="px-4 py-6 text-center text-taupe">
-                                No hay personas para mostrar en este periodo.
-                              </td>
-                            </tr>
-                          )}
-                          {filasVisibles.map((f) => (
-                            <tr key={f.persona_id} className="border-t">
-                              <td className="px-4 py-2">{f.nombre}</td>
-                              <td className="px-4 py-2 text-right">{formatSoles(f.provision_gratificacion)}</td>
-                              <td className="px-4 py-2 text-right">{formatSoles(f.provision_cts)}</td>
-                              <td className="px-4 py-2 text-right">{formatSoles(f.provision_vacaciones)}</td>
-                              <td className="px-4 py-2 text-right font-medium">{formatSoles(f.provision_total)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        {filasVisibles.length > 0 && (
-                          <tfoot>
-                            <tr className="border-t bg-sand/50">
-                              <td className="px-4 py-2 font-medium">Total</td>
-                              <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.gratificacion)}</td>
-                              <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.cts)}</td>
-                              <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.vacaciones)}</td>
-                              <td className="px-4 py-2 text-right font-bold">{formatSoles(provTotales.total)}</td>
-                            </tr>
-                          </tfoot>
                         )}
-                      </table>
-                    </div>
+                        {filasVisibles.map((f) => (
+                          <FilaTabla key={f.persona_id}>
+                            <td className="px-4 py-2">{f.nombre}</td>
+                            <td className="px-4 py-2 text-right">{formatSoles(f.provision_gratificacion)}</td>
+                            <td className="px-4 py-2 text-right">{formatSoles(f.provision_cts)}</td>
+                            <td className="px-4 py-2 text-right">{formatSoles(f.provision_vacaciones)}</td>
+                            <td className="px-4 py-2 text-right font-medium">{formatSoles(f.provision_total)}</td>
+                          </FilaTabla>
+                        ))}
+                      </tbody>
+                      {filasVisibles.length > 0 && (
+                        <tfoot>
+                          <tr className="border-t bg-sand/50">
+                            <td className="px-4 py-2 font-medium">Total</td>
+                            <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.gratificacion)}</td>
+                            <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.cts)}</td>
+                            <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.vacaciones)}</td>
+                            <td className="px-4 py-2 text-right font-bold">{formatSoles(provTotales.total)}</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </Tabla>
                     <p className="mt-2 max-w-3xl text-xs text-taupe">
                       Las provisiones NO forman parte del pago del periodo: son acumulación futura
                       (ahorro/deuda que se va juntando). Factores MYPE editables en configuración — validar con el contador.
@@ -2889,31 +2970,11 @@ export default function PlanillaPage() {
               {mostrandoSim && (
                 <div className="mt-2 rounded-lg border bg-sand/30 p-4">
                   <div className="flex flex-wrap items-end gap-3">
-                    <label className="flex flex-col gap-1 text-sm">
-                      Desde
-                      <input
-                        type="date"
-                        value={simIni}
-                        onChange={(e) => setSimIni(e.target.value)}
-                        className="rounded-lg border px-3 py-2"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-sm">
-                      Hasta
-                      <input
-                        type="date"
-                        value={simFin}
-                        onChange={(e) => setSimFin(e.target.value)}
-                        className="rounded-lg border px-3 py-2"
-                      />
-                    </label>
-                    <button
-                      onClick={() => void simular()}
-                      disabled={simCargando || !simIni || !simFin}
-                      className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
-                    >
-                      {simCargando ? "Calculando…" : "Calcular"}
-                    </button>
+                    <Campo etiqueta="Desde" type="date" value={simIni} onChange={(e) => setSimIni(e.target.value)} />
+                    <Campo etiqueta="Hasta" type="date" value={simFin} onChange={(e) => setSimFin(e.target.value)} />
+                    <Boton variante="primario" onClick={() => void simular()} disabled={!simIni || !simFin} cargando={simCargando}>
+                      Calcular
+                    </Boton>
                   </div>
                   <p className="mt-2 text-xs text-taupe">
                     Rango libre de hasta 62 días, solo para mirar: no crea periodos ni guarda nada.
@@ -2948,6 +3009,218 @@ export default function PlanillaPage() {
             </p>
           </>
         )}
+
+        {/* ── Diálogos migrados de window.confirm/alert/prompt a <Modal> ──────
+            Ver CLAUDE.md: Felipe aprobó migrar TODOS los diálogos nativos del
+            panel. No cambia qué función se llama al confirmar — solo cómo se
+            pregunta. */}
+
+        {/* Genérico: los seis confirm() + el único alert() de esta pantalla. */}
+        <Modal
+          abierto={confirmPendiente !== null}
+          onCerrar={() => setConfirmPendiente(null)}
+          titulo={confirmPendiente?.accion === null ? "Aviso" : "Confirmar"}
+          ancho="sm"
+        >
+          {confirmPendiente && (
+            <>
+              <p className="mb-4 whitespace-pre-line text-sm text-taupe">{confirmPendiente.mensaje}</p>
+              <div className="flex justify-end gap-2">
+                {confirmPendiente.accion === null ? (
+                  <Boton variante="primario" onClick={() => setConfirmPendiente(null)}>Entendido</Boton>
+                ) : (
+                  <>
+                    <Boton onClick={() => setConfirmPendiente(null)}>Cancelar</Boton>
+                    <Boton
+                      variante={confirmPendiente.variante ?? "primario"}
+                      onClick={() => {
+                        const accion = confirmPendiente.accion;
+                        setConfirmPendiente(null);
+                        if (accion) void accion();
+                      }}
+                    >
+                      {confirmPendiente.textoBoton ?? "Confirmar"}
+                    </Boton>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </Modal>
+
+        {/* Reabrir un pago: pedía el motivo por window.prompt(). */}
+        <Modal
+          abierto={reabrirModal !== null}
+          onCerrar={() => setReabrirModal(null)}
+          bloqueado={guardandoPeriodo}
+          titulo={reabrirModal ? `Reabrir «${TIPO_VINCULO_LABEL[reabrirModal]}»` : undefined}
+          ancho="sm"
+        >
+          {reabrirModal && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                Ya está pagado. Reabrir deja rastro: se pide el motivo y queda auditado (quién, cuándo y por qué).
+              </p>
+              <label className="mb-4 flex flex-col gap-1 text-sm">
+                Motivo (obligatorio)
+                <AreaTexto
+                  value={reabrirMotivo}
+                  onChange={(e) => setReabrirMotivo(e.target.value)}
+                  rows={2}
+                  autoFocus
+                  placeholder="ej. corregir una tardanza mal contada"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <Boton onClick={() => setReabrirModal(null)} disabled={guardandoPeriodo}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarReabrir()} cargando={guardandoPeriodo}>
+                  Reabrir
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        {/* Volver a pagar: pedía el motivo por window.prompt(). */}
+        <Modal
+          abierto={repagoModal}
+          onCerrar={() => setRepagoModal(false)}
+          bloqueado={guardandoPeriodo}
+          titulo={`Volver a pagar «${TIPO_VINCULO_LABEL[tablaTabEfectiva]}»`}
+          ancho="sm"
+        >
+          <p className="mb-4 text-sm text-taupe">
+            Se guarda una copia nueva del desglose. La copia anterior se conserva y queda registrado quién lo
+            hizo y por qué.
+          </p>
+          <label className="mb-4 flex flex-col gap-1 text-sm">
+            ¿Por qué se vuelve a pagar? (obligatorio)
+            <AreaTexto
+              value={repagoMotivo}
+              onChange={(e) => setRepagoMotivo(e.target.value)}
+              rows={2}
+              autoFocus
+              placeholder="ej. se corrigió una marca del 12"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Boton onClick={() => setRepagoModal(false)} disabled={guardandoPeriodo}>Cancelar</Boton>
+            <Boton variante="primario" onClick={() => void confirmarRepago()} cargando={guardandoPeriodo}>
+              Volver a pagar
+            </Boton>
+          </div>
+        </Modal>
+
+        {/* «Ya le pagué aparte»: antes dos window.prompt() en cadena (monto, fecha). */}
+        <Modal
+          abierto={yaPagadoModal !== null}
+          onCerrar={() => setYaPagadoModal(null)}
+          bloqueado={guardandoMov}
+          titulo="Ya le pagué aparte"
+          ancho="sm"
+        >
+          {yaPagadoModal && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                {yaPagadoModal.fila.nombre} — este periodo le calcula {formatSoles(yaPagadoModal.fila.total)}.
+                Se registra como un descuento por lo que ya recibió, así su total queda en cero (o en la
+                diferencia) y en su boleta queda escrito por qué.
+                {yaPagadoModal.liq && (
+                  <>
+                    {" "}Su liquidación del {fechaCorta(yaPagadoModal.liq.pagada_el)} ya le pagó{" "}
+                    {formatSoles(yaPagadoModal.liq.cobro_del_periodo)} de este mes
+                    {yaPagadoModal.fila.descuentos > 0
+                      ? `, y aquí ya hay ${formatSoles(yaPagadoModal.fila.descuentos)} descontados`
+                      : ""}
+                    . Por eso viene propuesto {formatSoles(yaPagadoModal.sugerido)}.
+                  </>
+                )}
+              </p>
+              <div className="mb-4 flex flex-wrap gap-3">
+                <Campo
+                  etiqueta="Monto (S/)"
+                  value={yaPagadoMonto}
+                  onChange={(e) => setYaPagadoMonto(e.target.value)}
+                  autoFocus
+                  className="w-32"
+                />
+                <Campo
+                  etiqueta="Fecha de pago"
+                  type="date"
+                  value={yaPagadoFecha}
+                  onChange={(e) => setYaPagadoFecha(e.target.value)}
+                />
+              </div>
+              <p className="mb-4 text-xs text-taupe">Queda escrito en su boleta y en la foto del pago.</p>
+              <div className="flex justify-end gap-2">
+                <Boton onClick={() => setYaPagadoModal(null)} disabled={guardandoMov}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarYaPagado()} cargando={guardandoMov}>
+                  Registrar
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        {/* Adelanto de beneficio: antes cuatro window.prompt() en cadena. */}
+        <Modal
+          abierto={desembolsoModal !== null}
+          onCerrar={() => setDesembolsoModal(null)}
+          bloqueado={guardandoMov}
+          titulo="Adelanto de beneficio"
+          ancho="sm"
+        >
+          {desembolsoModal && (
+            <>
+              <p className="mb-3 text-sm text-taupe">
+                Para {desembolsoModal.nombre}, fuera del ciclo normal. La liquidación lo va a restar sola
+                cuando corresponda.
+              </p>
+              <div className="mb-3 flex flex-wrap gap-3">
+                <CampoSelect
+                  etiqueta="Beneficio"
+                  value={desembolsoForm.beneficio}
+                  onChange={(e) =>
+                    setDesembolsoForm({ ...desembolsoForm, beneficio: e.target.value as typeof desembolsoForm.beneficio })
+                  }
+                  autoFocus
+                >
+                  <option value="gratificacion">Gratificación</option>
+                  <option value="cts">CTS</option>
+                  <option value="vacaciones">Vacaciones</option>
+                </CampoSelect>
+                <Campo
+                  etiqueta="Monto (S/)"
+                  value={desembolsoForm.monto}
+                  onChange={(e) => setDesembolsoForm({ ...desembolsoForm, monto: e.target.value })}
+                  className="w-32"
+                />
+                <Campo
+                  etiqueta="Fecha de pago"
+                  type="date"
+                  value={desembolsoForm.fecha}
+                  onChange={(e) => setDesembolsoForm({ ...desembolsoForm, fecha: e.target.value })}
+                />
+              </div>
+              <label className="mb-2 flex flex-col gap-1 text-sm">
+                Nota (opcional)
+                <AreaTexto
+                  value={desembolsoForm.nota}
+                  onChange={(e) => setDesembolsoForm({ ...desembolsoForm, nota: e.target.value })}
+                  rows={2}
+                  placeholder="ej. el motivo del adelanto"
+                />
+              </label>
+              <p className="mb-4 text-xs text-taupe">De la fecha se deduce a qué semestre o ventana corresponde.</p>
+              <div className="flex justify-end gap-2">
+                <Boton onClick={() => setDesembolsoModal(null)} disabled={guardandoMov}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarDesembolso()} cargando={guardandoMov}>
+                  Registrar adelanto
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

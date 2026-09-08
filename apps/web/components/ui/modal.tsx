@@ -17,7 +17,11 @@
 //   así que quien lo pasara iba a escribir el encabezado dos veces: una acá
 //   sin que se viera, y otra a mano dentro de `children`). El rótulo de
 //   accesibilidad pasa a `aria-labelledby` apuntando al propio `<h2>` — una
-//   sola fuente de verdad en vez de dos copias del mismo texto.
+//   sola fuente de verdad en vez de dos copias del mismo texto. Sin
+//   `titulo`, el diálogo sigue necesitando un nombre accesible: cae a
+//   `aria-label="Diálogo"`.
+// - `bloqueado`: mientras es true, ni el clic en el velo ni Escape cierran el
+//   modal — para no perder una edición a medio guardar (ver CLAUDE.md).
 
 "use client";
 
@@ -34,13 +38,20 @@ export function Modal({
   onCerrar,
   titulo,
   ancho = "md",
+  bloqueado = false,
   children,
 }: {
   abierto: boolean;
   onCerrar: () => void;
   titulo?: string;
-  /** Ancho del recuadro. La mayoría de los modales de hoy son "sm"; "md" es el default por compatibilidad. */
+  /** Ancho del recuadro. Los modales reales del panel se reparten entre los
+   * tres: sm para confirmaciones cortas, lg para texto legal/explicativo.
+   * "md" es el default, el tamaño intermedio y el que existía antes de que
+   * "ancho" se pudiera elegir. */
   ancho?: "sm" | "md" | "lg";
+  /** Mientras es true, ni el clic en el velo ni Escape cierran el modal —
+   * para no perder una edición a medio guardar (ver CLAUDE.md). */
+  bloqueado?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -49,19 +60,21 @@ export function Modal({
   useEffect(() => {
     if (!abierto) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCerrar();
+      if (e.key === "Escape" && !bloqueado) onCerrar();
     };
     document.addEventListener("keydown", onKey);
     ref.current?.focus();
     return () => document.removeEventListener("keydown", onKey);
-  }, [abierto, onCerrar]);
+  }, [abierto, bloqueado, onCerrar]);
 
   if (!abierto) return null;
 
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
-      onClick={onCerrar}
+      onClick={() => {
+        if (!bloqueado) onCerrar();
+      }}
     >
       <div
         ref={ref}

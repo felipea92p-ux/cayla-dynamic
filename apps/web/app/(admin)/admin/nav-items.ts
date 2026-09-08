@@ -57,6 +57,15 @@ export type Grupo = { label?: string; items: Item[] };
 //     se toca una vez. Comparte permiso (`puedeGestionarCatalogos`) y frecuencia
 //     con Áreas, Sedes y Cuentas.
 //
+//   · «Nómina» pasa a llamarse «Pago». `git grep -niI "nómina"` en todo el
+//     repo daba tres coincidencias en total, y las otras dos eran un
+//     comentario ajeno y el nombre de una migración: en todo lo demás la casa
+//     dice «planilla» y «pago» (periodos_planilla, fn_planilla_calcular,
+//     docs/planilla-anexo-tecnico.md, y CLAUDE.md con «lo que registra este
+//     sistema alimenta el pago»). El menú era el único sitio con la palabra
+//     que no se usa en ningún otro lado, justo encima de un renglón que
+//     nombra lo mismo con la palabra de la casa («Planilla»).
+//
 // Lo que NO cambió: ninguna URL, ningún `roles`, ningún nombre de pantalla.
 export const GRUPOS: Grupo[] = [
   { items: [
@@ -98,7 +107,7 @@ export const GRUPOS: Grupo[] = [
     { href: "/admin/objetivos", label: "Objetivos", Icon: Target, roles: SEDE },
     { href: "/admin/disciplina", label: "Disciplina", Icon: Gavel, roles: SEDE },
   ] },
-  { label: "Nómina", items: [
+  { label: "Pago", items: [
     { href: "/admin/planilla", label: "Planilla", Icon: ReceiptText, roles: DO },
     { href: "/admin/provisiones", label: "Provisiones", Icon: PiggyBank, roles: DO },
     { href: "/admin/costos", label: "Costos", Icon: Coins, roles: DO },
