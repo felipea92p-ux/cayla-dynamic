@@ -274,7 +274,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       });
       if (error && esFuncionInexistente(error) && tipo === "imagen") {
         // Mismo caso que al cargar: si producción todavía no tiene la 0395,
-        // la función de 3 argumentos no existe. "Subir imagen" no necesita
+        // la función de 3 argumentos no existe. "Escanear" no necesita
         // las columnas nuevas para nada, así que cae a la firma de siempre
         // en vez de quedar bloqueada hasta que alguien pegue el SQL.
         ({ error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl }));
@@ -286,7 +286,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
           throw new Error(
             tipo === "imagen"
               ? "No se pudo guardar: el servidor no respondió ni con el método nuevo ni con el de siempre. Avisa a Felipe."
-              : "Este método todavía no está disponible en el servidor. Usa \"Subir imagen\" mientras tanto, o vuelve a intentarlo en unos minutos.",
+              : "Este método todavía no está disponible en el servidor. Usa \"Escanear\" mientras tanto, o vuelve a intentarlo en unos minutos.",
           );
         }
         throw error;
@@ -346,7 +346,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
   if (cargando) return <p className="text-sm text-taupe">Cargando tu firma…</p>;
 
   const TABS: { id: Metodo; label: string }[] = [
-    { id: "imagen", label: "Subir imagen" },
+    { id: "imagen", label: "Escanear" },
     { id: "dibujo", label: "Dibujar" },
     { id: "tipografica", label: "Escribir" },
   ];
@@ -378,7 +378,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         <div className="rounded-xl border border-sand bg-crema/40 p-4">
           {sqlDesactualizado && (
             <p className="mb-3 rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
-              «Dibujar» y «Escribir» todavía no están disponibles: el servidor no tiene la actualización más reciente. Puedes seguir usando «Subir imagen» mientras tanto — vuelve a intentar los otros dos en unos minutos.
+              «Dibujar» y «Escribir» todavía no están disponibles: el servidor no tiene la actualización más reciente. Puedes seguir usando «Escanear» mientras tanto — vuelve a intentar los otros dos en unos minutos.
             </p>
           )}
           <div className="mb-4 flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">

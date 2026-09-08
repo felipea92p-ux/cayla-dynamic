@@ -1,5 +1,6 @@
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
+import { Insignia } from "@/components/ui/insignia";
 import {
   MESES_LARGO,
   fechaCorta,
@@ -333,7 +334,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
       : null;
 
   return (
-      <div className="hoja rounded-lg border border-sand p-8 print:rounded-none print:border-0 print:p-0">
+      <div className="hoja rounded-lg border border-sand p-4 sm:p-8 print:rounded-none print:border-0 print:p-0">
         <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3">
           {/* ── QUIÉN EMITE ESTE PAPEL (auditoría del 2026-08-19) ──────────────
               La cabecera imprimía el lockup de producto «Dynamic / CAYLA» y
@@ -355,13 +356,12 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               {MESES_LARGO[proy.mes_etiqueta - 1]} {proy.anio_etiqueta}
             </p>
             {sello && (
-              <p
-                className={`mt-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                  sello.alerta ? "bg-rojo/10 text-rojo" : "bg-verde/10 text-verde"
-                }`}
+              <Insignia
+                variante={sello.alerta ? "alerta" : "positivo"}
+                className="mt-1 font-medium"
               >
                 {sello.texto}
-              </p>
+              </Insignia>
             )}
             <p className="text-xs text-taupe">
               {fechaCorta(proy.fecha_ini)} → {fechaCorta(proy.fecha_fin)}
@@ -725,7 +725,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
                       el que la persona calcula lo que tendrá al jubilarse.
                       En ONP no hay cuenta individual —es un fondo común—, así
                       que la frase tampoco valía ahí. */}
-                  <span className="block text-xs text-rojo/70">
+                  <span className="block text-xs text-rojo">
                     {f.regimen_pension === "onp"
                       ? "se remite a la ONP — no se queda en CAYLA"
                       : "se remite a tu AFP — no se queda en CAYLA. Incluye tu aporte al fondo, la comisión y la prima del seguro"}
@@ -758,7 +758,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               <tr className="border-t border-sand">
                 <td className="py-2">
                   Pensión — no se te descuenta
-                  <span className="block text-xs text-tinta/60">
+                  <span className="block text-xs text-taupe">
                     ya te jubilaste, así que no aportas al sistema de pensiones
                   </span>
                 </td>
@@ -784,7 +784,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               <tr className="border-t border-sand">
                 <td className="py-2 text-rojo">
                   Retención — Impuesto a la Renta de 4ta categoría
-                  <span className="block text-xs text-rojo/70">
+                  <span className="block text-xs text-rojo">
                     8 % de {formatSoles(importeDelRecibo)} — CAYLA lo paga a SUNAT a tu nombre,
                     no se queda acá
                   </span>
@@ -860,7 +860,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             gratificación» — que es, en una palabra, la definición de trabajador.
             La regla se dice por lo que la persona ES, no por lo que le salió. */}
         {!esLocador && (aporteEssalud > 0 || f.provision_total > 0) && (
-          <div className="mb-6 rounded-lg bg-arena/60 p-4 print:mb-4">
+          <div className="mb-6 rounded-lg bg-sand/40 p-4 print:mb-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-tinta">
               Además, CAYLA paga por ti
             </p>

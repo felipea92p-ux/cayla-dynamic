@@ -6,6 +6,11 @@ import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EsqueletoTabla } from "@/components/cargando";
 import { useToast } from "@/components/toast";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { useFiltroGuardado } from "@/lib/admin/use-filtro-guardado";
 import { RANGOS, RANGO_LABEL, baseDeclaradaDe, formatSoles } from "@/lib/rangos";
@@ -189,6 +194,11 @@ export default function EquipoPage() {
   const [retenciones4ta, setRetenciones4ta] = useState<Map<string, { modo: string; hasta: string }>>(new Map());
   const [retencionesOk, setRetencionesOk] = useState(false);
   const [cargando, setCargando] = useState(true);
+  // ¿La última carga de personas falló? Distinto de "personas vacío": lo
+  // primero es un error que hay que poder reintentar, lo segundo es "nadie
+  // coincide con el filtro" — confundirlos hace parecer que no hay nadie en
+  // el equipo cuando en realidad la consulta no respondió.
+  const [falloPersonas, setFalloPersonas] = useState(false);
   const { avisar } = useToast();
 
   // Filtros. Con ~30 personas y sin ninguno, encontrar a alguien era leer la
@@ -234,6 +244,9 @@ export default function EquipoPage() {
   const [ceseId, setCeseId] = useState<string | null>(null);
   const [ceseForm, setCeseForm] = useState<{ fecha: string; motivo: MotivoCese | "" }>({ fecha: "", motivo: "" });
   const [guardandoCese, setGuardandoCese] = useState(false);
+  // Confirmación de "Reactivar" (antes window.confirm): la persona en espera
+  // de que se confirme en el Modal de abajo, no si hay alguna.
+  const [reactivarPendiente, setReactivarPendiente] = useState<Persona | null>(null);
 
   // Salarios (dato sensible: solo admin/lider_do). Se leen/escriben por RPC.
   // OJO: mientras no estén CARGADOS ("ok") no se permite asignar/editar — si se
@@ -295,6 +308,11 @@ export default function EquipoPage() {
           .map((r) => [r.persona_id, { fecha_ingreso: r.fecha_ingreso, primera_entrada: r.primera_entrada }] as const),
       ),
     );
+    // Se guarda aparte del toast: el toast se apaga solo a los pocos segundos,
+    // y sin este estado la tabla vacía se leía como "nadie coincide con el
+    // filtro" en vez de "la consulta falló" (hallazgo de la auditoría de
+    // apariencia, 2026-09-06/07).
+    setFalloPersonas(!!personasError);
     if (personasError || sedesError) {
       avisar("error", mensajeDeError((personasError ?? sedesError)!, "cargar el equipo"));
     }
@@ -814,10 +832,10 @@ export default function EquipoPage() {
     avisar("ok", `${p?.nombres} ${p?.apellidos} figura como inactiva desde el ${fmtFechaDMA(ceseForm.fecha)}. Su historial se conserva.`);
   }
 
+  // La confirmación pasa de window.confirm a un Modal (Sí/Cancelar) — ver
+  // confirmarReactivar y el <Modal> al final de la pantalla. Mismo
+  // fn_reactivar_persona de siempre: lo único que cambia es cómo se pregunta.
   async function reactivar(p: Persona) {
-    if (!window.confirm(
-      `¿Reactivar a ${p.nombres} ${p.apellidos}? Se borra su fecha de salida y vuelve a aparecer en el terminal. Ojo: si ya se le pagó una liquidación, volvería a devengar desde su fecha de ingreso original.`
-    )) return;
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_reactivar_persona", { p_persona_id: p.id });
     if (error) {
@@ -826,6 +844,13 @@ export default function EquipoPage() {
     }
     await cargar();
     avisar("ok", `${p.nombres} ${p.apellidos} está activa otra vez. Revísale el salario y el horario: al cesar se cerraron sus tramos.`);
+  }
+
+  async function confirmarReactivar() {
+    if (!reactivarPendiente) return;
+    const p = reactivarPendiente;
+    setReactivarPendiente(null);
+    await reactivar(p);
   }
 
   // El PIN nace en el servidor (0364): `fn_regenerar_pin` genera los cuatro
@@ -1312,19 +1337,20 @@ export default function EquipoPage() {
         </label>
       )}
       <div className="flex gap-3 sm:col-span-2">
-        <button
+        <Boton
+          variante="primario"
           onClick={modo === "alta" ? crearPersona : guardarEdicion}
           disabled={guardando}
-          className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+          cargando={guardando}
         >
-          {guardando ? "Guardando…" : modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
-        </button>
-        <button
+          {modo === "alta" ? "Agregar (genera PIN)" : "Guardar cambios"}
+        </Boton>
+        <Boton
+          variante="secundario"
           onClick={() => { setMostrandoAlta(false); setEditandoId(null); setForm(FORM_VACIO); }}
-          className="rounded-lg border px-4 py-2 text-sm"
         >
           Cancelar
-        </button>
+        </Boton>
       </div>
     </div>
   );
@@ -1390,10 +1416,10 @@ export default function EquipoPage() {
           Cambiar el salario cierra el tramo anterior el día previo a la vigencia y abre uno nuevo — los meses ya pagados no se alteran.
         </p>
         <div className="flex gap-3 sm:col-span-2">
-          <button onClick={guardarSalario} disabled={guardandoSal} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-            {guardandoSal ? "Guardando…" : "Guardar salario"}
-          </button>
-          <button onClick={() => setSalEditId(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+          <Boton variante="primario" onClick={guardarSalario} disabled={guardandoSal} cargando={guardandoSal}>
+            Guardar salario
+          </Boton>
+          <Boton variante="secundario" onClick={() => setSalEditId(null)}>Cancelar</Boton>
         </div>
       </div>
     );
@@ -1453,10 +1479,10 @@ export default function EquipoPage() {
           real —ni el de hoy por comodidad, ni el de su carta.
         </p>
         <div className="flex gap-3 sm:col-span-2">
-          <button onClick={guardarCese} disabled={guardandoCese} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
-            {guardandoCese ? "Guardando…" : "Registrar salida"}
-          </button>
-          <button onClick={() => setCeseId(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+          <Boton variante="primario" onClick={guardarCese} disabled={guardandoCese} cargando={guardandoCese}>
+            Registrar salida
+          </Boton>
+          <Boton variante="secundario" onClick={() => setCeseId(null)}>Cancelar</Boton>
         </div>
       </div>
     );
@@ -1478,15 +1504,12 @@ export default function EquipoPage() {
         <p className="text-sm font-medium">PIN de {pinNuevo.nombre}</p>
         <p className="mt-3 font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo.pin}</p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => void copiarPin()}
-            className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
-          >
+          <Boton variante="primario" onClick={() => void copiarPin()}>
             {pinCopiado ? "Copiado" : "Copiar"}
-          </button>
-          <button onClick={() => setPinNuevo(null)} className="rounded-lg border px-4 py-2 text-sm">
+          </Boton>
+          <Boton variante="secundario" onClick={() => setPinNuevo(null)}>
             Ya lo tengo — cerrar
-          </button>
+          </Boton>
         </div>
         <p className="mt-3 text-xs text-taupe">
           Este panel no se cierra solo, así que tómate el tiempo de anotarlo y entrégalo en privado. Es la
@@ -1509,6 +1532,13 @@ export default function EquipoPage() {
         {hist.length === 0 ? (
           <p className="text-sm text-taupe">Sin registros todavía.</p>
         ) : (
+          // overflow-x-auto: sin este envoltorio, una fila angosta más las dos
+          // fechas ISO desbordaba en un teléfono y arrastraba a TODA la página
+          // (título, nav y demás secciones) en horizontal (hallazgo de la
+          // auditoría de apariencia, 2026-09-06/07) — acá no hace falta el
+          // primitivo <Tabla> completo porque este panel no es de página, es
+          // una tarjeta angosta con su propio molde (border-sand, no bg-sand/70
+          // en el encabezado).
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-taupe">
@@ -1545,12 +1575,12 @@ export default function EquipoPage() {
           <h1 className="font-serif text-2xl">Equipo</h1>
           {!mostrandoAlta && !editandoId && (
             <div className="flex flex-wrap gap-2">
-              <button
+              <Boton
+                variante="primario"
                 onClick={() => { setMostrandoAlta(true); setForm(FORM_VACIO); setSalEditId(null); setHistId(null); setCeseId(null); }}
-                className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema"
               >
                 + Agregar persona
-              </button>
+              </Boton>
             </div>
           )}
         </div>
@@ -1559,9 +1589,9 @@ export default function EquipoPage() {
           <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los salarios, así que su edición está deshabilitada (para no pisar
             un salario real con el valor por defecto).{" "}
-            <button onClick={() => void cargarSalarios()} className="font-medium underline">
+            <Boton variante="enlace" className="font-medium" onClick={() => void cargarSalarios()}>
               Reintentar
-            </button>
+            </Boton>
           </div>
         )}
 
@@ -1578,47 +1608,37 @@ export default function EquipoPage() {
             cargado: son ~30 personas, no hay nada que pedirle a la base. */}
         {!cargando && (
           <div className="mb-3 flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Buscar
-              <input
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="nombre o apellido"
-                className="w-52 rounded-lg border px-3 py-1.5 text-sm text-tinta"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Sede
-              <select value={fSede} onChange={(e) => setFSede(e.target.value)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
-                <option value="todas">Todas</option>
-                {sedes.map((s) => (<option key={s.id} value={s.id}>{s.nombre}</option>))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Área
-              <select value={fArea} onChange={(e) => setFArea(e.target.value)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
-                <option value="todas">Todas</option>
-                {areas.filter((a) => a.activa).map((a) => (<option key={a.codigo} value={a.codigo}>{a.nombre}</option>))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-taupe">
-              Mostrar
-              <select value={fEstado} onChange={(e) => setFEstado(e.target.value as FiltroEstado)} className="rounded-lg border bg-crema px-3 py-1.5 text-sm text-tinta">
-                <option value="activos">Solo el equipo actual</option>
-                <option value="inactivos">Solo quienes ya no están</option>
-                {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
-                    devolvería una lista vacía sin poder explicarle por qué. */}
-                {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
-                <option value="todos">Todos</option>
-              </select>
-            </label>
+            <Campo
+              etiqueta="Buscar"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="nombre o apellido"
+              className="w-52"
+            />
+            <CampoSelect etiqueta="Sede" value={fSede} onChange={(e) => setFSede(e.target.value)}>
+              <option value="todas">Todas</option>
+              {sedes.map((s) => (<option key={s.id} value={s.id}>{s.nombre}</option>))}
+            </CampoSelect>
+            <CampoSelect etiqueta="Área" value={fArea} onChange={(e) => setFArea(e.target.value)}>
+              <option value="todas">Todas</option>
+              {areas.filter((a) => a.activa).map((a) => (<option key={a.codigo} value={a.codigo}>{a.nombre}</option>))}
+            </CampoSelect>
+            <CampoSelect etiqueta="Mostrar" value={fEstado} onChange={(e) => setFEstado(e.target.value as FiltroEstado)}>
+              <option value="activos">Solo el equipo actual</option>
+              <option value="inactivos">Solo quienes ya no están</option>
+              {/* Solo para quien ve el dato: a quien no lo ve, esta opción le
+                  devolvería una lista vacía sin poder explicarle por qué. */}
+              {puedeSalarios && <option value="fin_contrato">Con fin de contrato anotado</option>}
+              <option value="todos">Todos</option>
+            </CampoSelect>
             {ocultas > 0 && (
-              <button
+              <Boton
+                variante="enlace"
+                className="pb-2 text-xs text-taupe"
                 onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
-                className="pb-1.5 text-xs text-taupe underline hover:text-tinta"
               >
                 {ocultas === 1 ? "1 persona oculta" : `${ocultas} personas ocultas`} — quitar filtros
-              </button>
+              </Boton>
             )}
           </div>
         )}
@@ -1627,150 +1647,171 @@ export default function EquipoPage() {
           <EsqueletoTabla
             anchos={["w-36", "w-16", "w-20", "w-24", ...(puedeSalarios ? ["w-20"] : []), "w-40", "w-16", "w-24"]}
           />
+        ) : falloPersonas ? (
+          // Distinto del "ninguna persona coincide" de abajo: acá la consulta
+          // FALLÓ, no es que no haya nadie. Antes de esto, un fallo de la
+          // consulta principal se veía igual que un filtro sin resultados —
+          // el peor falso negativo que puede dar esta pantalla (hallazgo de
+          // la auditoría de apariencia, 2026-09-06/07).
+          <div className="max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+            <p>No se pudo cargar el equipo — esto no quiere decir que no haya nadie.</p>
+            <Boton variante="secundario" tamano="sm" className="mt-2" onClick={() => void cargar()}>
+              Reintentar
+            </Boton>
+          </div>
         ) : visibles.length === 0 ? (
           <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
             Ninguna persona coincide con lo que buscas.{" "}
-            <button
+            <Boton
+              variante="enlace"
+              className="font-medium"
               onClick={() => { setBusca(""); setFSede("todas"); setFArea("todas"); setFEstado("todos"); }}
-              className="font-medium underline"
             >
               Quitar filtros
-            </button>
+            </Boton>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-sand">
-            <table className="w-full text-sm">
-              <thead className="bg-sand/70 text-left text-taupe">
-                <tr>
-                  <th className="px-4 py-2 font-normal">Nombre</th>
-                  <th className="px-4 py-2 font-normal">Sede</th>
-                  <th className="px-4 py-2 font-normal">Rol</th>
-                  <th className="px-4 py-2 font-normal">Área</th>
-                  {puedeSalarios && <th className="px-4 py-2 font-normal">Salario</th>}
-                  <th className="px-4 py-2 font-normal">Correo</th>
-                  <th className="px-4 py-2 font-normal">Estado</th>
-                  <th className="px-4 py-2 font-normal">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibles.map((p) => (
-                  <tr key={p.id} className={`border-t bg-papel transition-colors hover:bg-crema ${p.estado === "inactivo" ? "text-taupe" : ""}`}>
-                    <td className="px-4 py-2">
-                      <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
-                      {p.con_hijos && (
-                        <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
-                      )}
-                      {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
-                        <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
-                      )}
-                      {/* En ámbar cuando su contrato vence este mes o antes: es el
-                          momento en que sale del tablero de Documentación y, si es
-                          que no se renueva, cuando hay que registrar su cese. */}
-                      {puedeSalarios && finesContrato.has(p.id) && (
-                        <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
-                          Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
-                        </div>
-                      )}
-                      {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
-                          propias para no ensanchar una tabla que ya tiene ocho, y
-                          porque solo aplica a quien está inactivo: al equipo activo
-                          no le agrega una celda vacía en cada fila. Cierra la
-                          secuencia que ya cuentan las dos líneas de arriba:
-                          entró · hasta cuándo tenía contrato · cuándo se fue.
-                          El motivo llega null si quien mira no es admin ni líder DO
-                          —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
-                      {p.estado === "inactivo" && p.fecha_cese && (
-                        <div className="text-xs text-taupe">
-                          Se fue: {fmtFechaDMA(p.fecha_cese)}
-                          {p.motivo_cese && (
-                            // El texto sale del catálogo también cuando es
-                            // `por_revisar`: el desplegable de cese ya lo nombra
-                            // así, y dos formas de decir lo mismo en la misma
-                            // pantalla se contradicen a la primera. Lo único que
-                            // cambia es el ámbar, que dice «esto falta».
-                            <> · {p.motivo_cese === "por_revisar"
-                              ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
-                                  {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
-                                </span>
-                              : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
-                    {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
-                        es un permiso —qué pantallas abre— y usarlo como título
-                        hacía que tres locadores figuraran como «Líder de equipo
-                        (encargada)» y «Admin». Cargo de mando, área, sede, rango
-                        y monto fijo son los indicios que desnaturalizan una
-                        locación de servicios, y el expediente lo armaba esta
-                        misma celda. Sin cargo escrito, se muestra el rol como
-                        siempre. */}
-                    <td className="px-4 py-2">
-                      {p.cargo !== null && p.cargo !== ""
-                        ? <span className="whitespace-nowrap">{p.cargo}</span>
-                        : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
-                    </td>
-                    <td className="px-4 py-2">
-                      {esOperativaEn(areas, p.funcion)
-                        ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
-                        : <span className="whitespace-nowrap rounded-full bg-ambar/15 px-2 py-0.5 text-xs text-ambar">{areaCorto(areas, p.funcion)}</span>}
-                    </td>
-                    {puedeSalarios && (() => {
-                      if (salariosEstado !== "ok") {
-                        // sin datos confiables no se ofrece Asignar/Editar (evita pisar salarios reales)
-                        return (
-                          <td className="px-4 py-2 text-xs text-taupe">
-                            {salariosEstado === "cargando" ? "Cargando…" : "No disponible"}
-                          </td>
-                        );
-                      }
-                      const sal = salarios[p.id];
-                      return (
-                        <td className="px-4 py-2">
-                          {sal ? (
-                            <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
-                          ) : (
-                            <span className="text-taupe">Sin asignar</span>
-                          )}
-                          <div className="mt-1 flex gap-3 text-xs">
-                            <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{sal ? "Editar" : "Asignar"}</button>
-                            <button onClick={() => verHistorial(p)} className="text-taupe hover:underline">Historial</button>
-                          </div>
-                        </td>
-                      );
-                    })()}
-                    <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${p.estado === "activo" ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
-                        {p.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <button onClick={() => empezarEdicion(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                        {/* Solo a quien está activa: desde la 0364 el servidor
-                            rechaza regenerar el PIN de una persona inactiva, y
-                            no se ofrece un botón que solo puede terminar en un
-                            error. Si vuelve al equipo, «Reactivar» primero. */}
-                        {p.estado === "activo" && (
-                          <button onClick={() => regenerarPin(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Nuevo PIN</button>
-                        )}
-                        {p.estado === "activo" ? (
-                          // «Registrar salida» y no «Desactivar»: lo que se hace
-                          // es anotar un hecho con su fecha y su motivo, no
-                          // apagar un interruptor.
-                          <button onClick={() => empezarCese(p)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Registrar salida</button>
-                        ) : (
-                          <button onClick={() => reactivar(p)} className="rounded border px-2 py-1 hover:bg-sand/50">Reactivar</button>
+          <Tabla alturaMaxima="70vh">
+            <TablaEncabezado>
+              <Th>Nombre</Th>
+              <Th>Sede</Th>
+              <Th>Rol</Th>
+              <Th>Área</Th>
+              {puedeSalarios && <Th>Salario</Th>}
+              <Th>Correo</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </TablaEncabezado>
+            <tbody>
+              {visibles.map((p) => (
+                <Fila key={p.id} className={p.estado === "inactivo" ? "text-taupe" : ""}>
+                  <td className="px-4 py-2">
+                    <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
+                    {p.con_hijos && (
+                      <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
+                    )}
+                    {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
+                      <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>
+                    )}
+                    {/* En ámbar cuando su contrato vence este mes o antes: es el
+                        momento en que sale del tablero de Documentación y, si es
+                        que no se renueva, cuando hay que registrar su cese. */}
+                    {puedeSalarios && finesContrato.has(p.id) && (
+                      <div className={`text-xs ${p.estado === "activo" && saleDelTablero(finesContrato.get(p.id)) ? "text-ambar" : "text-taupe"}`}>
+                        Contrato hasta: {fmtFechaDMA(finesContrato.get(p.id)!)}
+                      </div>
+                    )}
+                    {/* Cuándo y por qué se fue (0179). Va acá y no en columnas
+                        propias para no ensanchar una tabla que ya tiene ocho, y
+                        porque solo aplica a quien está inactivo: al equipo activo
+                        no le agrega una celda vacía en cada fila. Cierra la
+                        secuencia que ya cuentan las dos líneas de arriba:
+                        entró · hasta cuándo tenía contrato · cuándo se fue.
+                        El motivo llega null si quien mira no es admin ni líder DO
+                        —la RPC no se lo entrega— y entonces solo se ve la fecha. */}
+                    {p.estado === "inactivo" && p.fecha_cese && (
+                      <div className="text-xs text-taupe">
+                        Se fue: {fmtFechaDMA(p.fecha_cese)}
+                        {p.motivo_cese && (
+                          // El texto sale del catálogo también cuando es
+                          // `por_revisar`: el desplegable de cese ya lo nombra
+                          // así, y dos formas de decir lo mismo en la misma
+                          // pantalla se contradicen a la primera. Lo único que
+                          // cambia es el ámbar, que dice «esto falta».
+                          <> · {p.motivo_cese === "por_revisar"
+                            ? <span className="text-ambar" title="Nadie registró por qué se fue. Edita su ficha y elige el motivo real.">
+                                {etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}
+                              </span>
+                            : etiquetaDeCatalogo(p.motivo_cese, MOTIVO_CESE_LABELS)}</>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">{codigoSede(p.sede_base_id)}</td>
+                  {/* El CARGO manda sobre la etiqueta del rol (0182). El rol
+                      es un permiso —qué pantallas abre— y usarlo como título
+                      hacía que tres locadores figuraran como «Líder de equipo
+                      (encargada)» y «Admin». Cargo de mando, área, sede, rango
+                      y monto fijo son los indicios que desnaturalizan una
+                      locación de servicios, y el expediente lo armaba esta
+                      misma celda. Sin cargo escrito, se muestra el rol como
+                      siempre. */}
+                  <td className="px-4 py-2">
+                    {p.cargo !== null && p.cargo !== ""
+                      ? <span className="whitespace-nowrap">{p.cargo}</span>
+                      : (ROLES_OPCIONES.find((r) => r.valor === p.rol)?.label ?? p.rol)}
+                  </td>
+                  <td className="px-4 py-2">
+                    {esOperativaEn(areas, p.funcion)
+                      ? <span className="text-taupe">{areaCorto(areas, p.funcion)}</span>
+                      : (
+                        // "informativo" (pizarra) y no "advertencia" (ámbar):
+                        // no cuenta para la cobertura de tienda es un hecho
+                        // neutro de Central (administración/DO), no un aviso
+                        // de que algo está mal en la ficha de esa persona —
+                        // el ámbar aquí pintaba de "hay que revisar esto" a
+                        // gente cuya ficha está perfecta (hallazgo de la
+                        // auditoría de apariencia, 2026-09-06/07).
+                        <Insignia variante="informativo">{areaCorto(areas, p.funcion)}</Insignia>
+                      )}
+                  </td>
+                  {puedeSalarios && (() => {
+                    if (salariosEstado !== "ok") {
+                      // sin datos confiables no se ofrece Asignar/Editar (evita pisar salarios reales)
+                      return (
+                        <td className="px-4 py-2 text-xs text-taupe">
+                          {salariosEstado === "cargando" ? "Cargando…" : "No disponible"}
+                        </td>
+                      );
+                    }
+                    const sal = salarios[p.id];
+                    return (
+                      <td className="px-4 py-2">
+                        {sal ? (
+                          <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
+                        ) : (
+                          // text-taupe a plena opacidad (no /60): esta celda es
+                          // el dato por el que se abre la columna Salario — que
+                          // no tenga uno asignado es justo lo que hay que poder
+                          // leer, y menos de 4.5:1 no lo garantiza (auditoría
+                          // 2026-09-06/07).
+                          <span className="text-taupe">Sin asignar</span>
+                        )}
+                        <div className="mt-1 flex gap-3 text-xs">
+                          <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{sal ? "Editar" : "Asignar"}</button>
+                          <button onClick={() => verHistorial(p)} className="text-taupe hover:underline">Historial</button>
+                        </div>
+                      </td>
+                    );
+                  })()}
+                  <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
+                  <td className="px-4 py-2">
+                    <Insignia atenuada={p.estado !== "activo"}>{p.estado}</Insignia>
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(p)}>Editar</Boton>
+                      {/* Solo a quien está activa: desde la 0364 el servidor
+                          rechaza regenerar el PIN de una persona inactiva, y
+                          no se ofrece un botón que solo puede terminar en un
+                          error. Si vuelve al equipo, «Reactivar» primero. */}
+                      {p.estado === "activo" && (
+                        <Boton variante="secundario" tamano="sm" onClick={() => regenerarPin(p)}>Nuevo PIN</Boton>
+                      )}
+                      {p.estado === "activo" ? (
+                        // «Registrar salida» y no «Desactivar»: lo que se hace
+                        // es anotar un hecho con su fecha y su motivo, no
+                        // apagar un interruptor.
+                        <Boton variante="peligro" tamano="sm" onClick={() => empezarCese(p)}>Registrar salida</Boton>
+                      ) : (
+                        <Boton variante="secundario" tamano="sm" onClick={() => setReactivarPendiente(p)}>Reactivar</Boton>
+                      )}
+                    </div>
+                  </td>
+                </Fila>
+              ))}
+            </tbody>
+          </Tabla>
         )}
 
         <p className="mt-4 max-w-2xl text-xs text-taupe">
@@ -1781,6 +1822,29 @@ export default function EquipoPage() {
           su CTS y sus vacaciones truncas. Anotar el fin de contrato es otra cosa y no da de baja a
           nadie: es la fecha prevista de término, y está para avisar antes de que llegue.
         </p>
+
+        {/* Modal: reactivar (reemplaza window.confirm). Mismo
+            fn_reactivar_persona de siempre — ver confirmarReactivar. */}
+        <Modal
+          abierto={reactivarPendiente !== null}
+          onCerrar={() => setReactivarPendiente(null)}
+          titulo="Reactivar"
+          ancho="sm"
+        >
+          {reactivarPendiente && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                ¿Reactivar a {reactivarPendiente.nombres} {reactivarPendiente.apellidos}? Se borra su fecha
+                de salida y vuelve a aparecer en el terminal. Ojo: si ya se le pagó una liquidación,
+                volvería a devengar desde su fecha de ingreso original.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Boton variante="secundario" onClick={() => setReactivarPendiente(null)}>Cancelar</Boton>
+                <Boton variante="primario" onClick={() => void confirmarReactivar()}>Sí, reactivar</Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

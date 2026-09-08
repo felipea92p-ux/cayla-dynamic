@@ -10,6 +10,15 @@ import { useToast } from "@/components/toast";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { hoyLima, puedeVerPlanilla } from "@cayla-dynamic/shared";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { AreaTexto } from "@/components/ui/area-texto";
+import { Insignia } from "@/components/ui/insignia";
+import { Modal } from "@/components/ui/modal";
+import { CabeceraPagina } from "@/components/ui/cabecera-pagina";
+// "Fila" ya nombra acá la interfaz de una fila de la tabla (línea 20): el
+// componente de fila de la tabla compartida entra con alias para no chocar.
+import { Tabla, TablaEncabezado, Th, Fila as FilaTabla } from "@/components/ui/tabla";
 
 // La asignación por educación (art. 19 f) D.S. 001-97-TR) no es remuneración
 // SIEMPRE QUE esté sostenida por un comprobante. Por eso esta pantalla no deja
@@ -137,6 +146,20 @@ export default function EducacionPage() {
   // El detalle de papeles de UNA fila, abierto bajo ella. null = ninguna abierta.
   const [papelesDe, setPapelesDe] = useState<{ fila: Fila; papeles: Papel[]; faltan: string[] } | null>(null);
   const [adjuntando, setAdjuntando] = useState<string | null>(null);
+
+  // Los dos diálogos nativos de esta pantalla (window.prompt para el motivo de
+  // quitar un comprobante, y para hasta cuándo cerrar una asignación) pasan al
+  // <Modal> compartido — Felipe aprobó migrar todos los diálogos nativos del
+  // panel (ver CLAUDE.md). Ninguna de las dos funciones que se llaman cambia.
+  const [quitando, setQuitando] = useState<{ fila: Fila; papel: Papel } | null>(null);
+  const [motivoQuitar, setMotivoQuitar] = useState("");
+  const [quitandoGuardando, setQuitandoGuardando] = useState(false);
+  const [cerrando, setCerrando] = useState<Fila | null>(null);
+  // Nace con hoy, nunca en "": un campo de fecha que bloquea el envío no puede
+  // arrancar vacío (ver CLAUDE.md, 2026-08-26) — es la misma fecha que el
+  // window.prompt anterior sugería por defecto.
+  const [hastaCierre, setHastaCierre] = useState("");
+  const [cerrandoGuardando, setCerrandoGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -391,42 +414,47 @@ export default function EducacionPage() {
     avisar("ok", `Comprobante de ${nombreMes(mes)} adjuntado.`);
   }
 
-  async function quitarPapel(f: Fila, papel: Papel) {
-    const motivo = window.prompt(
-      `¿Por qué se quita el comprobante de ${nombreMes(papel.mes_cubierto)}?\n\n` +
-      `El archivo NO se borra del almacén: solo deja de sostener esta asignación. ` +
-      `Si era el único, la asignación deja de pagarse hasta que subas otro.`,
-      "",
-    );
-    if (motivo === null) return;
-    if (motivo.trim().length < 3) { avisar("error", "Escribe el motivo: sin él, esa fila se queda sin con qué defenderse."); return; }
+  function pedirQuitarPapel(f: Fila, papel: Papel) {
+    setQuitando({ fila: f, papel });
+    setMotivoQuitar("");
+  }
 
+  async function confirmarQuitarPapel() {
+    if (!quitando) return;
+    if (motivoQuitar.trim().length < 3) { avisar("error", "Escribe el motivo: sin él, esa fila se queda sin con qué defenderse."); return; }
+
+    setQuitandoGuardando(true);
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.rpc("fn_educacion_quitar_comprobante", { p_id: papel.id, p_motivo: motivo.trim() });
+    const { error } = await supabase.rpc("fn_educacion_quitar_comprobante", { p_id: quitando.papel.id, p_motivo: motivoQuitar.trim() });
+    setQuitandoGuardando(false);
     if (error) { avisar("error", mensajeDeError(error, "quitar el comprobante")); return; }
+    const f = quitando.fila;
+    setQuitando(null);
     await cargar();
     await cargarPapeles(f);
     avisar("ok", "Comprobante quitado.");
   }
 
-  async function cerrar(f: Fila) {
-    const sugerida = hoyLima();
-    const hasta = window.prompt(
-      `¿Hasta qué día se le paga la asignación a ${f.persona}?\n\n` +
-      `La fila NO se borra: sigue sosteniendo lo que ya se pagó. Solo deja de sumarse ` +
-      `en los periodos posteriores a la fecha que pongas.\n\nFormato AAAA-MM-DD:`,
-      sugerida,
-    );
-    if (!hasta) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) { avisar("error", "La fecha va como AAAA-MM-DD (por ejemplo 2026-12-31)."); return; }
+  function pedirCierre(f: Fila) {
+    setCerrando(f);
+    setHastaCierre(hoyLima());
+  }
+
+  async function confirmarCierre() {
+    if (!cerrando) return;
+    if (!hastaCierre) { avisar("error", "Indica hasta qué día se le paga."); return; }
+    setCerrandoGuardando(true);
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_educacion_cerrar", {
-      p_id: f.id, p_hasta: hasta,
-      p_motivo: `Cierre manual desde la pantalla de educación (${f.institucion})`,
+      p_id: cerrando.id, p_hasta: hastaCierre,
+      p_motivo: `Cierre manual desde la pantalla de educación (${cerrando.institucion})`,
     });
+    setCerrandoGuardando(false);
     if (error) { avisar("error", mensajeDeError(error)); return; }
+    const persona = cerrando.persona;
+    setCerrando(null);
     await cargar();
-    avisar("ok", `Cerrada al ${fmtFecha(hasta)}. Deja de pagarse en los periodos posteriores.`);
+    avisar("ok", `Cerrada al ${fmtFecha(hastaCierre)}. Deja de pagarse los periodos posteriores para ${persona}.`);
   }
 
   // Antes "vigente" era `vigente_hasta === null`. Desde la 0149 toda asignación
@@ -451,13 +479,12 @@ export default function EducacionPage() {
 
   const formulario = (
     <div className="mb-6 grid max-w-3xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-        ¿De quién es?
-        <select
+      <div className="flex flex-col gap-1 sm:col-span-2">
+        <CampoSelect
+          etiqueta="¿De quién es?"
           value={form.personaId}
           onChange={(e) => setForm({ ...form, personaId: e.target.value })}
           disabled={editandoId !== null}
-          className="rounded-lg border bg-crema px-3 py-2 disabled:text-taupe"
         >
           <option value="">— elige a la persona —</option>
           {candidatos.map((c) => (
@@ -465,7 +492,7 @@ export default function EducacionPage() {
               {c.persona} · {c.sede} · rango {c.rango}
             </option>
           ))}
-        </select>
+        </CampoSelect>
         {/* El aviso que había acá —«ya tiene una vigente»— preguntaba por una
             columna que la 0149 dejó NOT NULL: devolvía siempre falso y no se
             encendió nunca. Y lo que DO necesita saber tampoco era ése: es cuánto
@@ -481,64 +508,60 @@ export default function EducacionPage() {
             El rango “{candidato.rango}” no tiene tope cargado, así que aquí solo manda el comprobante.
           </span>
         )}
-      </label>
+      </div>
 
-      <label className="flex flex-col gap-1 text-sm">
-        Institución
-        <input
+      <div className="flex flex-col gap-1">
+        <Campo
+          etiqueta="Institución"
           value={form.institucion}
           onChange={(e) => setForm({ ...form, institucion: e.target.value })}
           placeholder="ej. Instituto San Ignacio"
-          className="rounded-lg border px-3 py-2"
         />
         <span className="text-xs text-taupe">Tal como aparece en el comprobante.</span>
-      </label>
+      </div>
 
-      <label className="flex flex-col gap-1 text-sm">
-        ¿De quién es el estudio?
-        <select
+      <div className="flex flex-col gap-1">
+        <CampoSelect
+          etiqueta="¿De quién es el estudio?"
           value={form.beneficiario}
           onChange={(e) => setForm({ ...form, beneficiario: e.target.value as "trabajador" | "hijo" })}
-          className="rounded-lg border bg-crema px-3 py-2"
         >
           <option value="trabajador">De la persona misma</option>
           <option value="hijo">De su hijo o hija</option>
-        </select>
+        </CampoSelect>
         <span className="text-xs text-taupe">
           {form.beneficiario === "hijo"
             ? "Archiva también el documento que acredita el vínculo."
             : "Basta la constancia de matrícula a su nombre."}
         </span>
-      </label>
+      </div>
 
       {form.beneficiario === "hijo" && (
-        <label className="flex flex-col gap-1 text-sm">
-          ¿A nombre de quién está el comprobante?
-          <input
+        <div className="flex flex-col gap-1">
+          <Campo
+            etiqueta="¿A nombre de quién está el comprobante?"
             value={form.beneficiarioNombre}
             onChange={(e) => setForm({ ...form, beneficiarioNombre: e.target.value })}
             placeholder="nombre completo del hijo o hija"
-            className="rounded-lg border px-3 py-2"
           />
           <span className="text-xs text-taupe">
             Sin esto, un papel a nombre de un tercero no tiene cómo atarse a quien cobra —
             que es el hueco por el que estos conceptos se desconocen en una fiscalización.
             No sale en la boleta.
           </span>
-        </label>
+        </div>
       )}
 
-      <label className="flex flex-col gap-1 text-sm">
-        Costo que dice el comprobante
-        <input
+      <div className="flex flex-col gap-1">
+        <Campo
+          etiqueta="Costo que dice el comprobante"
           type="number" min="0" step="0.01" inputMode="decimal"
           value={form.costoDeclarado}
           onChange={(e) => setForm({ ...form, costoDeclarado: e.target.value })}
           placeholder="ej. 200.00"
-          className="rounded-lg border px-3 py-2"
         />
         <span className="text-xs text-taupe">El importe real del papel, no una estimación.</span>
-      </label>
+      </div>
 
       <div className="flex flex-col gap-1 text-sm">
         ¿Qué parte cubre CAYLA?
@@ -570,41 +593,39 @@ export default function EducacionPage() {
         </span>
       </div>
 
-      <label className="flex flex-col gap-1 text-sm">
-        Se paga desde
-        <input
+      <div className="flex flex-col gap-1">
+        <Campo
+          etiqueta="Se paga desde"
           type="date"
           value={form.vigenteDesde}
           onChange={(e) => setForm({ ...form, vigenteDesde: e.target.value })}
-          className="rounded-lg border px-3 py-2"
         />
         <span className="text-xs text-taupe">
           Se paga completo en cada periodo que la encuentre vigente al empezar. Si la
           matrícula ya está corriendo, pon el primer día del periodo.
         </span>
-      </label>
+      </div>
 
-      <label className="flex flex-col gap-1 text-sm">
-        Hasta cuándo vale el comprobante
-        <input
+      <div className="flex flex-col gap-1">
+        <Campo
+          etiqueta="Hasta cuándo vale el comprobante"
           type="date"
           value={form.vigenteHasta}
           onChange={(e) => setForm({ ...form, vigenteHasta: e.target.value })}
-          className="rounded-lg border px-3 py-2"
         />
         <span className="text-xs text-taupe">
           El fin del ciclo que cubre este papel. Un mes antes la fila se pone ámbar para
           que puedas pedir el comprobante nuevo; al vencer deja de pagarse sola.
         </span>
-      </label>
+      </div>
 
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-        Comprobante {editandoId && "(subir uno nuevo reemplaza el anterior)"}
-        <input
+      <div className="flex flex-col gap-1 sm:col-span-2">
+        <Campo
+          etiqueta={`Comprobante ${editandoId ? "(subir uno nuevo reemplaza el anterior)" : ""}`}
           type="file"
           accept={limite.tipos}
           onChange={(e) => elegirArchivo(e.target.files?.[0] ?? null)}
-          className="rounded-lg border bg-crema px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
+          className="file:mr-3 file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm"
         />
         <span className="text-xs text-taupe">
           Foto o PDF de la constancia o boleta, hasta {mb(limite.bytes)}. Puedes guardar sin él si el papel
@@ -636,37 +657,35 @@ export default function EducacionPage() {
             </span>
           </div>
         )}
-      </label>
+      </div>
 
       {editandoId && (
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          ¿Por qué se corrige?
-          <input
+        <div className="flex flex-col gap-1 sm:col-span-2">
+          <Campo
+            etiqueta="¿Por qué se corrige?"
             value={form.motivo}
             onChange={(e) => setForm({ ...form, motivo: e.target.value })}
             placeholder="ej. el comprobante decía 180 y se registró 200"
-            className="rounded-lg border px-3 py-2"
           />
           <span className="text-xs text-taupe">
             Obligatorio: esto mueve lo que cobra una persona. Queda en la auditoría con tu
             nombre. Si cambias el costo o las fechas, se abre una vigencia nueva desde el
             periodo abierto — lo que ya se pagó no se toca.
           </span>
-        </label>
+        </div>
       )}
 
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-        Nota (opcional)
-        <input
+      <div className="sm:col-span-2">
+        <Campo
+          etiqueta="Nota (opcional)"
           value={form.nota}
           onChange={(e) => setForm({ ...form, nota: e.target.value })}
           placeholder="ej. ciclo agosto–diciembre 2026"
-          className="rounded-lg border px-3 py-2"
         />
-      </label>
+      </div>
 
       <div className="flex items-end gap-3 sm:col-span-2">
-        <button onClick={guardar} disabled={guardando} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+        <Boton variante="primario" onClick={guardar} disabled={guardando}>
           {progreso !== null
             ? `Subiendo… ${progreso}%`
             : guardando
@@ -674,8 +693,8 @@ export default function EducacionPage() {
               : editandoId
                 ? "Guardar cambios"
                 : "Registrar asignación"}
-        </button>
-        <button onClick={cancelar} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
+        </Boton>
+        <Boton onClick={cancelar}>Cancelar</Boton>
       </div>
     </div>
   );
@@ -683,12 +702,14 @@ export default function EducacionPage() {
   return (
     <div className="flex flex-1 flex-col">
       <main className="flex-1 p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="font-serif text-2xl">Asignación por educación</h1>
-          {puedeGestionar && !cargaError && !mostrandoAlta && !editandoId && (
-            <button onClick={empezarAlta} className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema">+ Registrar asignación</button>
-          )}
-        </div>
+        <CabeceraPagina
+          titulo="Asignación por educación"
+          accion={
+            puedeGestionar && !cargaError && !mostrandoAlta && !editandoId ? (
+              <Boton variante="primario" onClick={empezarAlta}>+ Registrar asignación</Boton>
+            ) : undefined
+          }
+        />
 
         {rol === null ? (
           <Cargando />
@@ -707,7 +728,7 @@ export default function EducacionPage() {
             {cargaError && (
               <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las asignaciones: {cargaError}.{" "}
-                <button onClick={() => void cargar()} className="font-medium underline">Reintentar</button>
+                <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
               </div>
             )}
 
@@ -724,7 +745,17 @@ export default function EducacionPage() {
               <>
                 <div className="mb-3 flex flex-wrap items-center gap-4 text-sm">
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={verSoloVigentes} onChange={(e) => setVerSoloVigentes(e.target.checked)} />
+                    {/* Casilla suelta: no hay CampoCasilla todavía en
+                        components/ui/campo.tsx (Fase A no la agregó pese a lo
+                        anunciado) — se deja con las clases que ese primitivo
+                        va a necesitar (accent-tinta, size-4) para que migrar
+                        sea trivial en cuanto exista. Ver 'pendientes'. */}
+                    <input
+                      type="checkbox"
+                      checked={verSoloVigentes}
+                      onChange={(e) => setVerSoloVigentes(e.target.checked)}
+                      className="size-4 rounded border-sand accent-tinta"
+                    />
                     Solo las vigentes
                   </label>
                   <span className="text-taupe">
@@ -736,173 +767,245 @@ export default function EducacionPage() {
                   </span>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-sand bg-papel">
-                  <table className="w-full text-sm">
-                    <thead className="bg-sand/70 text-left text-taupe">
-                      <tr>
-                        <th className="px-4 py-2 font-normal">Persona</th>
-                        <th className="px-4 py-2 font-normal">Institución</th>
-                        <th className="px-4 py-2 font-normal">Estudia</th>
-                        <th className="px-4 py-2 font-normal">Mensual</th>
-                        <th className="px-4 py-2 font-normal">Sustento</th>
-                        <th className="px-4 py-2 font-normal">Vigencia</th>
-                        <th className="px-4 py-2 font-normal">Papel</th>
-                        <th className="px-4 py-2 font-normal">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibles.map((f) => (
-                        <Fragment key={f.id}>
-                        <tr className={`border-t ${f.semaforo === "vencida" ? "text-taupe" : ""}`}>
-                          <td className="px-4 py-2">
-                            {f.persona}
-                            <span className="ml-1 text-xs text-taupe">{f.sede} · {f.rango}</span>
-                          </td>
-                          <td className="px-4 py-2">{f.institucion}</td>
-                          <td className="px-4 py-2 text-xs">
-                            {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "la persona misma"}
-                          </td>
-                          <td className="px-4 py-2 tabular-nums">{soles(Number(f.monto))}</td>
-                          {/* Decir 75% de S/727 cuando se pagan S/90 es decir algo falso:
-                              en cuatro de cada cinco filas reales lo que decide es el TECHO
-                              del rango, no el porcentaje. La celda dice cuál de los dos ganó
-                              — es la misma explicación que el formulario da al escribir, y
-                              que en la lista faltaba. */}
-                          <td className="px-4 py-2 text-xs text-taupe">
-                            {(() => {
-                              const delPapel = Math.round(Number(f.costo_declarado) * Number(f.cobertura_pct)) / 100;
-                              const mandaElTecho = Number(f.monto) < delPapel - 0.005;
-                              // ¿Comparte el techo con otro estudio suyo? Desde la 0281 el
-                              // tope del rango se reparte entre las vigencias que se
-                              // solapan, y decir «tope del rango cayla» cuando se pagan
-                              // S/30 de un techo de S/180 sería decir algo falso.
-                              const comparte = filas.some(
-                                (o) => o.id !== f.id && o.persona_id === f.persona_id &&
-                                  o.vigente_desde <= f.vigente_hasta && o.vigente_hasta >= f.vigente_desde);
-                              return mandaElTecho ? (
-                                <>
-                                  {comparte ? "techo del rango, repartido" : "tope del rango"}{" "}
-                                  <strong className="text-tinta">{f.rango}</strong>
-                                  <span className="block">
-                                    el {f.cobertura_pct}% de {soles(Number(f.costo_declarado))} daría {soles(delPapel)}
-                                  </span>
-                                </>
-                              ) : (
-                                <>{f.cobertura_pct}% de {soles(Number(f.costo_declarado))}</>
-                              );
-                            })()}
-                          </td>
-                          <td className="px-4 py-2 text-xs">
-                            desde {fmtFecha(f.vigente_desde)}
-                            {f.semaforo === "vencida" ? (
-                              <span className="block text-taupe">venció el {fmtFecha(f.vigente_hasta)}</span>
-                            ) : f.semaforo === "sin_comprobante" ? (
-                              <span className="block font-medium text-rojo">
-                                falta el comprobante · no se paga
-                              </span>
-                            ) : f.semaforo === "por_vencer" ? (
-                              <span className="block font-medium text-rojo">
-                                vence en {f.dias_para_vencer} día{f.dias_para_vencer === 1 ? "" : "s"} · pide el papel nuevo
-                              </span>
+                <Tabla>
+                  <TablaEncabezado>
+                    <Th>Persona</Th>
+                    <Th>Institución</Th>
+                    <Th>Estudia</Th>
+                    <Th>Mensual</Th>
+                    <Th>Sustento</Th>
+                    <Th>Vigencia</Th>
+                    <Th>Papel</Th>
+                    <Th>Acciones</Th>
+                  </TablaEncabezado>
+                  <tbody>
+                    {visibles.map((f) => (
+                      <Fragment key={f.id}>
+                      <FilaTabla className={f.semaforo === "vencida" ? "text-taupe" : undefined}>
+                        <td className="px-4 py-2">
+                          {f.persona}
+                          <span className="ml-1 text-xs text-taupe">{f.sede} · {f.rango}</span>
+                        </td>
+                        <td className="px-4 py-2">{f.institucion}</td>
+                        <td className="px-4 py-2 text-xs">
+                          {f.beneficiario === "hijo" ? (f.beneficiario_nombre ?? "su hijo/a") : "la persona misma"}
+                        </td>
+                        <td className="px-4 py-2 tabular-nums">{soles(Number(f.monto))}</td>
+                        {/* Decir 75% de S/727 cuando se pagan S/90 es decir algo falso:
+                            en cuatro de cada cinco filas reales lo que decide es el TECHO
+                            del rango, no el porcentaje. La celda dice cuál de los dos ganó
+                            — es la misma explicación que el formulario da al escribir, y
+                            que en la lista faltaba. */}
+                        <td className="px-4 py-2 text-xs text-taupe">
+                          {(() => {
+                            const delPapel = Math.round(Number(f.costo_declarado) * Number(f.cobertura_pct)) / 100;
+                            const mandaElTecho = Number(f.monto) < delPapel - 0.005;
+                            // ¿Comparte el techo con otro estudio suyo? Desde la 0281 el
+                            // tope del rango se reparte entre las vigencias que se
+                            // solapan, y decir «tope del rango cayla» cuando se pagan
+                            // S/30 de un techo de S/180 sería decir algo falso.
+                            const comparte = filas.some(
+                              (o) => o.id !== f.id && o.persona_id === f.persona_id &&
+                                o.vigente_desde <= f.vigente_hasta && o.vigente_hasta >= f.vigente_desde);
+                            return mandaElTecho ? (
+                              <>
+                                {comparte ? "techo del rango, repartido" : "tope del rango"}{" "}
+                                <strong className="text-tinta">{f.rango}</strong>
+                                <span className="block">
+                                  el {f.cobertura_pct}% de {soles(Number(f.costo_declarado))} daría {soles(delPapel)}
+                                </span>
+                              </>
                             ) : (
-                              <span className="block text-tinta">vigente hasta {fmtFecha(f.vigente_hasta)}</span>
+                              <>{f.cobertura_pct}% de {soles(Number(f.costo_declarado))}</>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-2 text-xs">
+                          desde {fmtFecha(f.vigente_desde)}
+                          {f.semaforo === "vencida" ? (
+                            <span className="block text-taupe">venció el {fmtFecha(f.vigente_hasta)}</span>
+                          ) : f.semaforo === "sin_comprobante" ? (
+                            <span className="block font-medium text-rojo">
+                              falta el comprobante · no se paga
+                            </span>
+                          ) : f.semaforo === "por_vencer" ? (
+                            <span className="block font-medium text-rojo">
+                              vence en {f.dias_para_vencer} día{f.dias_para_vencer === 1 ? "" : "s"} · pide el papel nuevo
+                            </span>
+                          ) : (
+                            <span className="block text-tinta">vigente hasta {fmtFecha(f.vigente_hasta)}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          {/* Desde la 0290 una asignación tiene un papel por cada mes
+                              que paga, así que acá ya no hay UN comprobante que ver:
+                              hay una cuenta, y el detalle se abre debajo. */}
+                          {f.papeles > 0 ? (
+                            <Boton variante="enlace" className="text-xs" onClick={() => void verPapeles(f)}>
+                              {f.papeles} papel{f.papeles === 1 ? "" : "es"}
+                            </Boton>
+                          ) : (
+                            // Antes bg-rojo/10 + text-rojo: ese par no llega a 4.5:1 en
+                            // ningún tema (ver comentario de Insignia en
+                            // components/ui/insignia.tsx). La variante "alerta" ya
+                            // resuelve el contraste con text-rojo-profundo.
+                            <button
+                              onClick={() => void verPapeles(f)}
+                              className="rounded-pildora border-0 bg-transparent p-0"
+                              title="Sin comprobante, este pago se recategoriza como remuneración en una fiscalización"
+                            >
+                              <Insignia variante="alerta">falta</Insignia>
+                            </button>
+                          )}
+                          {f.meses_sin_papel > 0 && f.papeles > 0 && (
+                            <span className="block text-xs text-ambar">
+                              falta{f.meses_sin_papel === 1 ? "" : "n"} {f.meses_sin_papel} mes{f.meses_sin_papel === 1 ? "" : "es"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(f)}>Editar</Boton>
+                            {/* La condición era `!f.vigente_hasta`, y esa columna es NOT NULL
+                                desde la 0149 (línea 84): el botón NO se dibujaba nunca. Quien
+                                dejaba el instituto en septiembre con la asignación puesta hasta
+                                diciembre seguía devengando entre S/90 y S/480 al mes, porque
+                                desde la pantalla no había forma de cerrarla salvo deducir que
+                                se entra por «Editar». `cerrar()` y fn_educacion_cerrar existían
+                                y no los llamaba nadie.
+                                El criterio es el mismo del filtro «ver solo vigentes» (línea
+                                295), para que no vuelvan a divergir: lo ya vencido no se cierra
+                                porque ya está cerrado. */}
+                            {f.semaforo !== "vencida" && (
+                              <Boton variante="peligro" tamano="sm" onClick={() => pedirCierre(f)}>Cerrar</Boton>
                             )}
-                          </td>
-                          <td className="px-4 py-2">
-                            {/* Desde la 0290 una asignación tiene un papel por cada mes
-                                que paga, así que acá ya no hay UN comprobante que ver:
-                                hay una cuenta, y el detalle se abre debajo. */}
-                            {f.papeles > 0 ? (
-                              <button onClick={() => void verPapeles(f)} className="text-xs font-medium underline">
-                                {f.papeles} papel{f.papeles === 1 ? "" : "es"}
-                              </button>
-                            ) : (
-                              <button onClick={() => void verPapeles(f)}
-                                className="rounded-full bg-rojo/10 px-2 py-0.5 text-xs text-rojo"
-                                title="Sin comprobante, este pago se recategoriza como remuneración en una fiscalización">
-                                falta
-                              </button>
-                            )}
-                            {f.meses_sin_papel > 0 && f.papeles > 0 && (
-                              <span className="block text-xs text-ambar">
-                                falta{f.meses_sin_papel === 1 ? "" : "n"} {f.meses_sin_papel} mes{f.meses_sin_papel === 1 ? "" : "es"}
+                          </div>
+                        </td>
+                      </FilaTabla>
+                      {papelesDe?.fila.id === f.id && (
+                        <tr className="border-t bg-sand/20">
+                          <td colSpan={8} className="px-4 py-3">
+                            <div className="flex flex-col gap-2 text-xs">
+                              <span className="font-medium text-tinta">
+                                Los papeles de esta asignación, uno por cada mes que paga
                               </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2">
-                            <div className="flex flex-wrap gap-2 text-xs">
-                              <button onClick={() => empezarEdicion(f)} className="rounded border px-2 py-1 hover:bg-sand/50">Editar</button>
-                              {/* La condición era `!f.vigente_hasta`, y esa columna es NOT NULL
-                                  desde la 0149 (línea 84): el botón NO se dibujaba nunca. Quien
-                                  dejaba el instituto en septiembre con la asignación puesta hasta
-                                  diciembre seguía devengando entre S/90 y S/480 al mes, porque
-                                  desde la pantalla no había forma de cerrarla salvo deducir que
-                                  se entra por «Editar». `cerrar()` y fn_educacion_cerrar existían
-                                  y no los llamaba nadie.
-                                  El criterio es el mismo del filtro «ver solo vigentes» (línea
-                                  295), para que no vuelvan a divergir: lo ya vencido no se cierra
-                                  porque ya está cerrado. */}
-                              {f.semaforo !== "vencida" && (
-                                <button onClick={() => void cerrar(f)} className="rounded border border-rojo/30 px-2 py-1 text-rojo hover:bg-rojo/10">Cerrar</button>
+
+                              {papelesDe.papeles.map((papel) => (
+                                <div key={papel.id} className="flex flex-wrap items-center gap-3">
+                                  <span className="w-36 text-tinta">{nombreMes(papel.mes_cubierto)}</span>
+                                  <Boton variante="enlace" onClick={() => void abrirPapel(papel)}>Ver</Boton>
+                                  <Boton variante="enlace" className="text-rojo" onClick={() => pedirQuitarPapel(f, papel)}>Quitar</Boton>
+                                  <span className="text-taupe">lo subió {papel.subido_por}</span>
+                                </div>
+                              ))}
+
+                              {papelesDe.faltan.map((mes) => (
+                                <div key={mes} className="flex flex-wrap items-center gap-3">
+                                  <span className="w-36 text-ambar">{nombreMes(mes)}</span>
+                                  <label className="cursor-pointer font-medium underline">
+                                    {adjuntando === mes ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar el recibo de este mes"}
+                                    <input
+                                      type="file"
+                                      accept={limite.tipos}
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const archivo = e.target.files?.[0];
+                                        e.target.value = "";
+                                        if (archivo) void adjuntarPapel(f, mes, archivo);
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              ))}
+
+                              {papelesDe.faltan.length === 0 && (
+                                <span className="text-taupe">
+                                  Todos los meses que esta asignación ya cobró tienen su papel. Los que
+                                  todavía no llegan se piden cuando llegue su mes.
+                                </span>
                               )}
                             </div>
                           </td>
                         </tr>
-                        {papelesDe?.fila.id === f.id && (
-                          <tr className="border-t bg-sand/20">
-                            <td colSpan={8} className="px-4 py-3">
-                              <div className="flex flex-col gap-2 text-xs">
-                                <span className="font-medium text-tinta">
-                                  Los papeles de esta asignación, uno por cada mes que paga
-                                </span>
-
-                                {papelesDe.papeles.map((papel) => (
-                                  <div key={papel.id} className="flex flex-wrap items-center gap-3">
-                                    <span className="w-36 text-tinta">{nombreMes(papel.mes_cubierto)}</span>
-                                    <button onClick={() => void abrirPapel(papel)} className="font-medium underline">Ver</button>
-                                    <button onClick={() => void quitarPapel(f, papel)} className="text-rojo underline">Quitar</button>
-                                    <span className="text-taupe">lo subió {papel.subido_por}</span>
-                                  </div>
-                                ))}
-
-                                {papelesDe.faltan.map((mes) => (
-                                  <div key={mes} className="flex flex-wrap items-center gap-3">
-                                    <span className="w-36 text-ambar">{nombreMes(mes)}</span>
-                                    <label className="cursor-pointer font-medium underline">
-                                      {adjuntando === mes ? `Subiendo… ${progreso ?? 0}%` : "Adjuntar el recibo de este mes"}
-                                      <input
-                                        type="file"
-                                        accept={limite.tipos}
-                                        className="hidden"
-                                        onChange={(e) => {
-                                          const archivo = e.target.files?.[0];
-                                          e.target.value = "";
-                                          if (archivo) void adjuntarPapel(f, mes, archivo);
-                                        }}
-                                      />
-                                    </label>
-                                  </div>
-                                ))}
-
-                                {papelesDe.faltan.length === 0 && (
-                                  <span className="text-taupe">
-                                    Todos los meses que esta asignación ya cobró tienen su papel. Los que
-                                    todavía no llegan se piden cuando llegue su mes.
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </Tabla>
               </>
             )}
           </>
         )}
+
+        {/* Modal: motivo para quitar un comprobante. Antes era window.prompt —
+            no cambia qué función se llama al confirmar, solo cómo se pregunta. */}
+        <Modal
+          abierto={quitando !== null}
+          onCerrar={() => setQuitando(null)}
+          bloqueado={quitandoGuardando}
+          titulo="Quitar este comprobante"
+          ancho="sm"
+        >
+          {quitando && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                Comprobante de {nombreMes(quitando.papel.mes_cubierto)}, de {quitando.fila.persona}.
+                El archivo <strong>no se borra</strong> del almacén: solo deja de sostener esta
+                asignación. Si era el único, la asignación deja de pagarse hasta que subas otro.
+              </p>
+              <label className="mb-4 flex flex-col gap-1 text-sm">
+                ¿Por qué se quita? (obligatorio)
+                <AreaTexto
+                  value={motivoQuitar}
+                  onChange={(e) => setMotivoQuitar(e.target.value)}
+                  rows={2}
+                  autoFocus
+                  placeholder="ej. el archivo subido no corresponde a este mes"
+                />
+              </label>
+              <div className="flex justify-end gap-3">
+                <Boton onClick={() => setQuitando(null)} disabled={quitandoGuardando}>Cancelar</Boton>
+                <Boton variante="peligro" onClick={() => void confirmarQuitarPapel()} cargando={quitandoGuardando}>
+                  Quitar
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        {/* Modal: hasta cuándo se cierra una asignación. Antes era window.prompt
+            pidiendo AAAA-MM-DD a mano; el campo de fecha nace con hoy, nunca en
+            "" (ver CLAUDE.md sobre fechas que bloquean el envío). */}
+        <Modal
+          abierto={cerrando !== null}
+          onCerrar={() => setCerrando(null)}
+          bloqueado={cerrandoGuardando}
+          titulo="Cerrar esta asignación"
+          ancho="sm"
+        >
+          {cerrando && (
+            <>
+              <p className="mb-4 text-sm text-taupe">
+                ¿Hasta qué día se le paga la asignación a {cerrando.persona}? La fila{" "}
+                <strong>no se borra</strong>: sigue sosteniendo lo que ya se pagó. Solo deja de sumarse
+                en los periodos posteriores a la fecha que pongas.
+              </p>
+              <Campo
+                etiqueta="Se paga hasta"
+                type="date"
+                value={hastaCierre}
+                onChange={(e) => setHastaCierre(e.target.value)}
+                autoFocus
+              />
+              <div className="mt-4 flex justify-end gap-3">
+                <Boton onClick={() => setCerrando(null)} disabled={cerrandoGuardando}>Cancelar</Boton>
+                <Boton variante="peligro" onClick={() => void confirmarCierre()} cargando={cerrandoGuardando}>
+                  Cerrar
+                </Boton>
+              </div>
+            </>
+          )}
+        </Modal>
       </main>
     </div>
   );

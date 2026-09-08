@@ -14,7 +14,10 @@
 // - Nueva variante `contador`: nav.tsx escribe seis veces a mano
 //   "rounded-full bg-rojo ... text-crema" para los contadores del menú, en
 //   dos tamaños — un pill de ESTADO (fondo tenue + punto) no sirve para eso.
-//   `punto` pasa a opcional porque un número ya es su propia señal.
+//   `punto` pasa a opcional porque un número ya es su propia señal. El
+//   tamaño chico ("sm") no quedó exclusivo del contador: varias pantallas
+//   (mio, turnos, horas, dashboard, buscador-global) ya lo piden también
+//   sobre variantes de estado para insignias secundarias más discretas.
 import type { ReactNode } from "react";
 import { cx } from "./cx";
 
@@ -35,36 +38,43 @@ const TONOS: Record<Variante, string> = {
   contador: "bg-rojo font-medium text-crema",
 };
 
-const TAMANOS_CONTADOR: Record<Tamano, string> = {
+const TAMANOS: Record<Tamano, string> = {
+  // El de siempre, sin cambios.
+  md: "px-2 py-0.5 text-xs",
+  // El contador chico del menú, junto a un ícono — y cualquier insignia de
+  // estado que necesite achicarse (ver el comentario de arriba).
   sm: "px-1.5 text-[10px] leading-4",
-  md: "px-2 text-xs leading-5",
 };
 
 export function Insignia({
   children,
   variante = "neutral",
+  tamano = "md",
   atenuada = false,
   punto,
-  tamano = "md",
   className,
 }: {
   children: ReactNode;
   variante?: Variante;
+  /** "sm" es el tamaño chico: el contador del menú y cualquier pill de estado que deba achicarse. El resto usa "md" (por defecto). */
+  tamano?: Tamano;
   /** Para estados neutros que no ameritan llamar la atención (ej. "inactiva"): mismo fondo, texto apagado. */
   atenuada?: boolean;
-  /** El punto de color además del texto. Por defecto va en las variantes de estado y no en "contador" (un número ya es su propia señal). */
+  /**
+   * Punto de color junto al texto. Por defecto va encendido en las variantes
+   * de estado y apagado en "contador" (un número no es un estado). Se puede
+   * forzar en cualquier caso — por ejemplo una etiqueta puramente descriptiva
+   * ("se paga") que no debe leerse como un semáforo de estado.
+   */
   punto?: boolean;
-  /** Solo aplica a variante="contador": los dos tamaños que ya usa nav.tsx. */
-  tamano?: Tamano;
   className?: string;
 }) {
-  const esContador = variante === "contador";
-  const mostrarPunto = punto ?? !esContador;
+  const mostrarPunto = punto ?? variante !== "contador";
   return (
     <span
       className={cx(
-        "inline-flex items-center whitespace-nowrap rounded-pildora",
-        esContador ? cx("justify-center", TAMANOS_CONTADOR[tamano]) : "gap-1.5 px-2 py-0.5 text-xs",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-pildora",
+        TAMANOS[tamano],
         atenuada ? "bg-sand text-taupe" : TONOS[variante],
         className,
       )}
