@@ -7,6 +7,11 @@ import { useRolActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { AreaTexto } from "@/components/ui/area-texto";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoCasilla, CampoSelect } from "@/components/ui/campo";
+import { Modal } from "@/components/ui/modal";
+import { Insignia } from "@/components/ui/insignia";
+import { TablaEncabezado, Th } from "@/components/ui/tabla";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
@@ -270,20 +275,6 @@ const ETIQUETA_CORTA: Record<string, string> = {
   por_vencer: "Vence pronto",
   tramite_pendiente: "Falta trámite",
   ok: "Vigente",
-};
-
-/**
- * Las clases de cada tono. Escritas enteras porque Tailwind no arma nombres.
- *
- * Ya solo las usa la insignia del VISOR: la tabla perdió su columna de estado
- * el 2026-09-07 (decisión de Felipe) y ahora lo dice en el `title` de la fila.
- * `pizarra` es el token de «en proceso» que se agregó el 2026-09-06.
- */
-const CLASE_TONO: Record<string, string> = {
-  rojo: "bg-rojo/15 text-rojo-profundo",
-  ambar: "bg-ambar/15 text-ambar",
-  pizarra: "bg-pizarra/15 text-pizarra",
-  verde: "bg-verde/15 text-verde",
 };
 
 /**
@@ -1682,7 +1673,7 @@ export default function ContratosPage() {
                         {c.etiqueta}
                       </span>
                       <span
-                        className={`block font-serif text-2xl ${c.grave && c.n > 0 ? "text-rojo" : "text-tinta"}`}
+                        className={`block font-serif text-2xl tabular-nums ${c.grave && c.n > 0 ? "text-rojo" : "text-tinta"}`}
                       >
                         {c.n}
                       </span>
@@ -1697,25 +1688,15 @@ export default function ContratosPage() {
                 que abrió Central. */}
             {tablero.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={filtroSede}
-                  onChange={(e) => setFiltroSede(e.target.value)}
-                  aria-label="Filtrar por sede"
-                  className="rounded-lg border border-sand bg-hueso p-2 text-sm"
-                >
+                <CampoSelect value={filtroSede} onChange={(e) => setFiltroSede(e.target.value)} aria-label="Filtrar por sede">
                   <option value="">Todas las sedes</option>
                   {sedesEnTablero.map((sd) => (
                     <option key={sd} value={sd}>
                       {sd}
                     </option>
                   ))}
-                </select>
-                <select
-                  value={filtroEstado}
-                  onChange={(e) => setFiltroEstado(e.target.value)}
-                  aria-label="Filtrar por estado"
-                  className="rounded-lg border border-sand bg-hueso p-2 text-sm"
-                >
+                </CampoSelect>
+                <CampoSelect value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} aria-label="Filtrar por estado">
                   <option value="pendientes">Necesitan atención</option>
                   <option value="todos">Todos los estados</option>
                   {Object.keys(ESTADO_TABLERO).map((e) => (
@@ -1723,7 +1704,7 @@ export default function ContratosPage() {
                       {ESTADO_TABLERO[e].texto}
                     </option>
                   ))}
-                </select>
+                </CampoSelect>
               </div>
             )}
 
@@ -1737,76 +1718,128 @@ export default function ContratosPage() {
                     se ve son los cuatro contadores, y quien quiera los nombres
                     los abre. Decisión de Felipe (2026-09-07). */}
                 <summary className="cursor-pointer list-none px-3 py-2.5 font-serif text-lg marker:content-['']">
-                  Colaboradores <span className="text-sm text-taupe">· {filas.length}</span>
+                  Colaboradores <span className="text-sm tabular-nums text-taupe">· {filas.length}</span>
                 </summary>
-                <table className="w-full table-fixed border-t border-sand text-sm">
-                  <thead>
-                    <tr className="bg-sand text-left text-xs text-taupe">
-                      <th className="w-[44%] px-3 py-2 font-medium">Colaboradora</th>
-                      <th className="w-[14%] px-2 py-2 font-medium">Sede</th>
-                      <th className="w-[26%] px-2 py-2 font-medium">Tipo</th>
-                      <th className="w-[16%] px-3 py-2 font-medium">Vence</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filas.map((f, i) => {
-                      const personaFila = personas.find((p) => p.id === f.persona_id);
-                      const esPracticanteFila = personaFila?.tipo_vinculo === "practicante";
-                      const e =
-                        f.estado === "sin_contrato"
-                          ? estadoSinContrato(f)
-                          : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
-                      // Para una practicante, `fecha_fin_contrato`/`estado` los
-                      // mueve el tope legal de 12 meses (0336), no lo que dice su
-                      // convenio: decirlo con las palabras de un contrato vencido
-                      // confundiría.
-                      const texto =
-                        esPracticanteFila && f.estado === "vencido"
-                          ? "Pasó 12 meses"
-                          : esPracticanteFila && f.estado === "por_vencer"
-                            ? "Cerca del tope"
-                            : esPracticanteFila && f.estado === "sin_vencimiento"
-                              ? "Sin fecha fin"
-                              : // Un indefinido nunca debe comunicación al MTPE (0347).
-                                f.tipo === "indefinido" && f.estado === "tramite_pendiente"
-                                ? "Falta la copia"
-                                : (ETIQUETA_CORTA[f.estado] ?? e.texto);
-                      const v = venceTexto(f);
-                      const tipoFila = esPracticanteFila
-                        ? "convenio_practicas"
-                        : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
-                      // La fila entera abre el detalle; quien no tiene contrato
-                      // todavía no tiene detalle que abrir, así que se le prepara
-                      // el formulario, que es lo único que se puede hacer con ella.
-                      const abrir = () => {
-                        const c = f.contrato_id ? contratos.find((x) => x.id === f.contrato_id) : undefined;
-                        if (c) setDetalleId(c.id);
-                        else {
-                          setPersonaId(f.persona_id);
-                          setTipo(tipoFila);
-                        }
-                      };
-                      return (
-                        <tr
-                          key={f.persona_id}
-                          onClick={abrir}
-                          title={texto}
-                          className={`cursor-pointer border-t border-sand hover:bg-sand/40 ${i % 2 === 1 ? "bg-hueso" : ""}`}
-                        >
-                          <td className="truncate px-3 py-2.5">{f.persona}</td>
-                          <td className="px-2 py-2.5 text-taupe">{f.sede}</td>
-                          <td className="truncate px-2 py-2.5 text-taupe">
-                            {f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—"}
-                          </td>
-                          <td className={`px-3 py-2.5 ${v.alerta ? "text-rojo" : "text-taupe"}`}>{v.texto}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {(() => {
+                  // Una sola pasada calcula lo que necesitan LAS DOS vistas —
+                  // la tabla de escritorio y las tarjetas de celular—, para que
+                  // no puedan divergir la una de la otra.
+                  const filasCalculadas = filas.map((f) => {
+                    const personaFila = personas.find((p) => p.id === f.persona_id);
+                    const esPracticanteFila = personaFila?.tipo_vinculo === "practicante";
+                    const e =
+                      f.estado === "sin_contrato"
+                        ? estadoSinContrato(f)
+                        : (ESTADO_TABLERO[f.estado] ?? { texto: f.estado, grave: false });
+                    // Para una practicante, `fecha_fin_contrato`/`estado` los
+                    // mueve el tope legal de 12 meses (0336), no lo que dice su
+                    // convenio: decirlo con las palabras de un contrato vencido
+                    // confundiría.
+                    const texto =
+                      esPracticanteFila && f.estado === "vencido"
+                        ? "Pasó 12 meses"
+                        : esPracticanteFila && f.estado === "por_vencer"
+                          ? "Cerca del tope"
+                          : esPracticanteFila && f.estado === "sin_vencimiento"
+                            ? "Sin fecha fin"
+                            : // Un indefinido nunca debe comunicación al MTPE (0347).
+                              f.tipo === "indefinido" && f.estado === "tramite_pendiente"
+                              ? "Falta la copia"
+                              : (ETIQUETA_CORTA[f.estado] ?? e.texto);
+                    const v = venceTexto(f);
+                    const tipoFila = esPracticanteFila
+                      ? "convenio_practicas"
+                      : tipoQueCorresponde(personaFila?.fecha_ingreso, hoyLima());
+                    // La fila entera abre el detalle; quien no tiene contrato
+                    // todavía no tiene detalle que abrir, así que se le prepara
+                    // el formulario, que es lo único que se puede hacer con ella.
+                    const abrir = () => {
+                      const c = f.contrato_id ? contratos.find((x) => x.id === f.contrato_id) : undefined;
+                      if (c) setDetalleId(c.id);
+                      else {
+                        setPersonaId(f.persona_id);
+                        setTipo(tipoFila);
+                      }
+                    };
+                    return { f, texto, v, abrir };
+                  });
+
+                  return (
+                    <>
+                      {/* Escritorio: tabla completa. En celular una tabla de
+                          cuatro columnas obliga a scroll horizontal o a
+                          recortar el nombre, así que de sm hacia abajo se arma
+                          la versión en tarjetas de más abajo — mismos datos,
+                          sin recortar nada. */}
+                      <div className="hidden sm:block">
+                        <table className="w-full table-fixed border-t border-sand text-sm">
+                          <TablaEncabezado>
+                            <Th className="w-[44%] text-xs">Colaboradora</Th>
+                            <Th className="w-[14%] text-xs">Sede</Th>
+                            <Th className="w-[26%] text-xs">Tipo</Th>
+                            <Th className="w-[16%] text-xs">Vence</Th>
+                          </TablaEncabezado>
+                          <tbody>
+                            {filasCalculadas.map(({ f, texto, v, abrir }) => (
+                              // <Fila> no reenvía onClick/title (solo children/className, ver
+                              // components/ui/tabla.tsx) — la fila entera tiene que ser clicable
+                              // para abrir el detalle, así que va un <tr> con su misma cadena de
+                              // clases en vez del componente compartido.
+                              <tr
+                                key={f.persona_id}
+                                onClick={abrir}
+                                title={texto}
+                                className="cursor-pointer border-t border-sand transition-colors duration-150 even:bg-hueso/50 hover:bg-crema/60"
+                              >
+                                <td className="truncate px-3 py-2.5">{f.persona}</td>
+                                <td className="px-2 py-2.5 text-taupe">{f.sede}</td>
+                                <td className="truncate px-2 py-2.5 text-taupe">
+                                  {f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—"}
+                                </td>
+                                <td className={`px-3 py-2.5 tabular-nums ${v.alerta ? "text-rojo" : "text-taupe"}`}>
+                                  {v.texto}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Celular: la misma información apilada, una fila por
+                          persona, separadas por un divisor en vez de scroll. */}
+                      <div className="flex flex-col divide-y divide-sand border-t border-sand sm:hidden">
+                        {filasCalculadas.map(({ f, texto, v, abrir }) => (
+                          <div
+                            key={f.persona_id}
+                            onClick={abrir}
+                            title={texto}
+                            className="cursor-pointer px-3 py-2.5 transition-colors duration-150 hover:bg-sand/40"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 flex-1 truncate">{f.persona}</span>
+                              <span className={`shrink-0 tabular-nums text-xs ${v.alerta ? "text-rojo" : "text-taupe"}`}>
+                                {v.texto}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-taupe">
+                              <span>{f.sede}</span>
+                              <span>·</span>
+                              <span>{f.tipo ? (TIPO_CONTRATO[f.tipo] ?? f.tipo) : "—"}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
                 {filas.length === 0 && (
                   <p className="px-3 py-4 text-sm text-taupe">
                     Nada coincide con ese filtro.{" "}
+                    {/* Se queda nativo, mismo criterio que los "Anular"/"Ver" de
+                        más abajo: su hover (taupe → tinta) no es el que trae
+                        <Boton variante="enlace"> (hover:text-taupe), y forzar
+                        los dos hover en la misma clase deja el color final
+                        librado al orden de generación de Tailwind. */}
                     <button
                       className="underline underline-offset-2 hover:text-tinta"
                       onClick={() => {
@@ -1830,57 +1863,48 @@ export default function ContratosPage() {
               (2026-09-07), volviendo al orden de siempre. */}
           <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm">
-                Persona
-                <select
-                  className="mt-1 w-full rounded border border-sand p-2 disabled:bg-crema disabled:text-taupe"
-                  value={personaId}
-                  // Un borrador es de quien es. Cambiarle la persona no sería
-                  // corregirlo, sería otro documento — y para eso está generar.
-                  disabled={editando !== null}
-                  onChange={(e) => setPersonaId(e.target.value)}
+              <CampoSelect
+                etiqueta="Persona"
+                className="disabled:bg-crema disabled:text-taupe"
+                value={personaId}
+                // Un borrador es de quien es. Cambiarle la persona no sería
+                // corregirlo, sería otro documento — y para eso está generar.
+                disabled={editando !== null}
+                onChange={(e) => setPersonaId(e.target.value)}
+              >
+                <option value="">— elegir —</option>
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.apellidos}, {p.nombres}
+                  </option>
+                ))}
+              </CampoSelect>
+              {persona?.tipo_vinculo === "practicante" ? (
+                // Una practicante solo tiene un documento posible — no
+                // "nuevo ingreso" ni "renovación", que son conceptos de un
+                // contrato de trabajo (0333). Se fija sola y no se elige.
+                <Campo etiqueta="Tipo" className="disabled:bg-crema disabled:text-taupe" value="Convenio de prácticas" disabled />
+              ) : (
+                <CampoSelect
+                  etiqueta="Tipo"
+                  value={tipo}
+                  onChange={(e) =>
+                    setTipo(
+                      e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
+                    )
+                  }
                 >
-                  <option value="">— elegir —</option>
-                  {personas.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.apellidos}, {p.nombres}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm">
-                Tipo
-                {persona?.tipo_vinculo === "practicante" ? (
-                  // Una practicante solo tiene un documento posible — no
-                  // "nuevo ingreso" ni "renovación", que son conceptos de un
-                  // contrato de trabajo (0333). Se fija sola y no se elige.
-                  <input
-                    className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                    value="Convenio de prácticas"
-                    disabled
-                  />
-                ) : (
-                  <select
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    value={tipo}
-                    onChange={(e) =>
-                      setTipo(
-                        e.target.value as "nuevo" | "renovacion" | "adendum" | "indefinido" | "convenio_practicas",
-                      )
-                    }
-                  >
-                    <option value="renovacion">Renovación</option>
-                    <option value="nuevo">Nuevo ingreso</option>
-                    <option value="indefinido">Indefinido</option>
-                    {/* Elegible a mano desde la 0348 para alguien que no está
-                        marcado tipo_vinculo="practicante" en su ficha — no
-                        cambia esa ficha, solo genera el documento (ver el
-                        aviso que sale más abajo cuando se elige así). */}
-                    <option value="convenio_practicas">Convenio de prácticas</option>
-                    <option value="adendum">Adendum</option>
-                  </select>
-                )}
-              </label>
+                  <option value="renovacion">Renovación</option>
+                  <option value="nuevo">Nuevo ingreso</option>
+                  <option value="indefinido">Indefinido</option>
+                  {/* Elegible a mano desde la 0348 para alguien que no está
+                      marcado tipo_vinculo="practicante" en su ficha — no
+                      cambia esa ficha, solo genera el documento (ver el
+                      aviso que sale más abajo cuando se elige así). */}
+                  <option value="convenio_practicas">Convenio de prácticas</option>
+                  <option value="adendum">Adendum</option>
+                </CampoSelect>
+              )}
             </div>
 
             {/* EDITANDO: lo que se ve tiene que decir que esto NO va a crear
@@ -1899,9 +1923,9 @@ export default function ContratosPage() {
                     arrancar en su relleno. <strong>Revísalos antes de guardar.</strong>
                   </p>
                 )}
-                <button className="mt-2 text-xs underline underline-offset-2" onClick={cancelarEdicion}>
+                <Boton variante="enlace" className="mt-2 text-xs" onClick={cancelarEdicion}>
                   Cancelar edición
-                </button>
+                </Boton>
               </div>
             )}
 
@@ -1920,6 +1944,11 @@ export default function ContratosPage() {
                   {borradoresVivos.map((c) => (
                     <li key={c.id} className="flex flex-wrap items-baseline gap-x-3 text-xs">
                       <span className="min-w-0 flex-1">{describir(c)}</span>
+                      {/* Los dos se quedan nativos, mismo criterio que sus gemelos
+                          del archivo: ni hover:text-tinta ni hover:text-rojo son
+                          el hover:text-taupe fijo de <Boton variante="enlace">, y
+                          forzarlos deja el color final librado al orden de
+                          generación de Tailwind en vez del className. */}
                       <button
                         className="underline underline-offset-2 hover:text-tinta"
                         onClick={() => empezarEdicion(c)}
@@ -1944,115 +1973,96 @@ export default function ContratosPage() {
             {persona && (
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm">
-                    Fecha de inicio
-                    <input
-                      type="date"
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      value={fechaInicio}
-                      onChange={(e) => setFechaInicio(e.target.value)}
+                  <Campo
+                    etiqueta="Fecha de inicio"
+                    type="date"
+                    value={fechaInicio}
+                    onChange={(e) => setFechaInicio(e.target.value)}
+                  />
+                  {esIndefinido ? (
+                    <Campo
+                      etiqueta="Fecha de fin"
+                      className="disabled:bg-crema disabled:text-taupe"
+                      value="Sin fecha de fin — contrato indefinido"
+                      disabled
                     />
-                  </label>
-                  <label className="text-sm">
-                    Fecha de fin
-                    {esIndefinido ? (
-                      <input
-                        className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                        value="Sin fecha de fin — contrato indefinido"
-                        disabled
-                      />
-                    ) : (
-                      <input
-                        type="date"
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        value={fechaFin}
-                        min={fechaInicio || undefined}
-                        onChange={(e) => setFechaFin(e.target.value)}
-                      />
-                    )}
-                  </label>
+                  ) : (
+                    <Campo
+                      etiqueta="Fecha de fin"
+                      type="date"
+                      value={fechaFin}
+                      min={fechaInicio || undefined}
+                      onChange={(e) => setFechaFin(e.target.value)}
+                    />
+                  )}
                 </div>
 
-                <label className="block text-sm">
-                  Cargo
-                  <input
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    list="cargos-existentes"
-                    value={cargoEditado}
-                    onChange={(e) => setCargoEditado(e.target.value)}
-                  />
-                  <datalist id="cargos-existentes">
-                    {cargosExistentes.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-                </label>
-                <label className="block text-sm">
-                  Ciudad donde se firma
-                  <input
-                    className="mt-1 w-full rounded border border-sand p-2"
-                    list="ciudades-existentes"
-                    placeholder={ciudadDeLaSede ?? "Arequipa, Lima o Trujillo"}
-                    value={ciudadEditada}
-                    onChange={(e) => setCiudadEditada(e.target.value)}
-                  />
-                  <datalist id="ciudades-existentes">
-                    {ciudadesExistentes.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-                  <span className="mt-1 block text-xs text-taupe">
-                    {ciudadDeLaSede
-                      ? `Rellenada con ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom} — cámbiala si corresponde otra.`
-                      : "Central no tiene una ciudad propia: su gente puede estar en cualquiera, así que hay que elegirla."}
-                  </span>
-                </label>
+                <Campo
+                  etiqueta="Cargo"
+                  list="cargos-existentes"
+                  value={cargoEditado}
+                  onChange={(e) => setCargoEditado(e.target.value)}
+                />
+                <datalist id="cargos-existentes">
+                  {cargosExistentes.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+                <Campo
+                  etiqueta="Ciudad donde se firma"
+                  list="ciudades-existentes"
+                  placeholder={ciudadDeLaSede ?? "Arequipa, Lima o Trujillo"}
+                  value={ciudadEditada}
+                  onChange={(e) => setCiudadEditada(e.target.value)}
+                />
+                <datalist id="ciudades-existentes">
+                  {ciudadesExistentes.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+                <span className="-mt-2 block text-xs text-taupe">
+                  {ciudadDeLaSede
+                    ? `Rellenada con ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom} — cámbiala si corresponde otra.`
+                    : "Central no tiene una ciudad propia: su gente puede estar en cualquiera, así que hay que elegirla."}
+                </span>
                 {/* Un adendum no repite el contrato ni sus anexos, así que los
                     campos que solo alimentan al contrato no se piden. Un
                     convenio (0333) no tiene causa objetiva ni funciones — tiene
                     un plan de capacitación específico (Ley 28518, art. 15). */}
                 {esAdendum ? (
-                  <label className="block text-sm">
-                    Qué se modifica del contrato vigente — una modificación por línea
-                    <AreaTexto
-                      className="mt-1 w-full rounded border border-sand p-2"
-                      rows={4}
-                      placeholder="Ej.: Se modifica la Cláusula Sexta, fijando la remuneración mensual base en S/ …"
-                      value={adendumEditado}
-                      onChange={(e) => setAdendumEditado(e.target.value)}
-                    />
-                  </label>
+                  <AreaTexto
+                    etiqueta="Qué se modifica del contrato vigente — una modificación por línea"
+                    rows={4}
+                    placeholder="Ej.: Se modifica la Cláusula Sexta, fijando la remuneración mensual base en S/ …"
+                    value={adendumEditado}
+                    onChange={(e) => setAdendumEditado(e.target.value)}
+                  />
                 ) : esConvenio ? (
                   <>
                     {persona.tipo_vinculo === "practicante" ? (
-                      <label className="block text-sm">
-                        Modalidad
-                        <input
-                          className="mt-1 w-full rounded border border-sand bg-crema p-2 text-taupe"
-                          disabled
-                          value={
-                            persona.practicante_modalidad === "preprofesional"
-                              ? "Preprofesional — 30h/semana (art. 44)"
-                              : persona.practicante_modalidad === "profesional"
-                                ? "Profesional — 48h/semana (art. 44)"
-                                : "Sin asignar — ve a Equipo y elígela primero"
-                          }
-                        />
-                      </label>
+                      <Campo
+                        etiqueta="Modalidad"
+                        className="disabled:bg-crema disabled:text-taupe"
+                        disabled
+                        value={
+                          persona.practicante_modalidad === "preprofesional"
+                            ? "Preprofesional — 30h/semana (art. 44)"
+                            : persona.practicante_modalidad === "profesional"
+                              ? "Profesional — 48h/semana (art. 44)"
+                              : "Sin asignar — ve a Equipo y elígela primero"
+                        }
+                      />
                     ) : (
                       <>
-                        <label className="block text-sm">
-                          Modalidad
-                          <select
-                            className="mt-1 w-full rounded border border-sand p-2"
-                            value={modalidadManualEditada}
-                            onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
-                          >
-                            <option value="">— elegir —</option>
-                            <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
-                            <option value="profesional">Profesional — 48h/semana (art. 44)</option>
-                          </select>
-                        </label>
+                        <CampoSelect
+                          etiqueta="Modalidad"
+                          value={modalidadManualEditada}
+                          onChange={(e) => setModalidadManualEditada(e.target.value as "preprofesional" | "profesional" | "")}
+                        >
+                          <option value="">— elegir —</option>
+                          <option value="preprofesional">Preprofesional — 30h/semana (art. 44)</option>
+                          <option value="profesional">Profesional — 48h/semana (art. 44)</option>
+                        </CampoSelect>
                         <p className="text-xs text-taupe">
                           {persona.nombres} no está marcada como practicante en su ficha (Equipo) — generar este
                           convenio no cambia eso. Si el vínculo es permanente, márcala allá primero.
@@ -2066,203 +2076,147 @@ export default function ContratosPage() {
                     {modalidadEfectiva === "preprofesional" ? (
                       <>
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="text-sm">
-                            Centro de formación — razón social
-                            <input
-                              className="mt-1 w-full rounded border border-sand p-2"
-                              placeholder="Ej.: Universidad Nacional de Trujillo"
-                              value={centroFormacionNombreEditado}
-                              onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
-                            />
-                          </label>
-                          <label className="text-sm">
-                            Centro de formación — RUC
-                            <input
-                              className="mt-1 w-full rounded border border-sand p-2"
-                              value={centroFormacionRucEditado}
-                              onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
-                            />
-                          </label>
+                          <Campo
+                            etiqueta="Centro de formación — razón social"
+                            placeholder="Ej.: Universidad Nacional de Trujillo"
+                            value={centroFormacionNombreEditado}
+                            onChange={(e) => setCentroFormacionNombreEditado(e.target.value)}
+                          />
+                          <Campo
+                            etiqueta="Centro de formación — RUC"
+                            value={centroFormacionRucEditado}
+                            onChange={(e) => setCentroFormacionRucEditado(e.target.value)}
+                          />
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="text-sm">
-                            Centro de formación — domicilio
-                            <input
-                              className="mt-1 w-full rounded border border-sand p-2"
-                              value={centroFormacionDomicilioEditado}
-                              onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
-                            />
-                          </label>
-                          <label className="text-sm">
-                            Centro de formación — representante
-                            <input
-                              className="mt-1 w-full rounded border border-sand p-2"
-                              value={centroFormacionRepresentanteEditado}
-                              onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
-                            />
-                          </label>
+                          <Campo
+                            etiqueta="Centro de formación — domicilio"
+                            value={centroFormacionDomicilioEditado}
+                            onChange={(e) => setCentroFormacionDomicilioEditado(e.target.value)}
+                          />
+                          <Campo
+                            etiqueta="Centro de formación — representante"
+                            value={centroFormacionRepresentanteEditado}
+                            onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
+                          />
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="text-sm">
-                            Carrera / especialidad
-                            <input
-                              className="mt-1 w-full rounded border border-sand p-2"
-                              value={carreraEspecialidadEditada}
-                              onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
-                            />
-                          </label>
-                          <label className="text-sm">
-                            Ciclo académico
-                            <input
-                              className="mt-1 w-full rounded border border-sand p-2"
-                              value={cicloAcademicoEditado}
-                              onChange={(e) => setCicloAcademicoEditado(e.target.value)}
-                            />
-                          </label>
+                          <Campo
+                            etiqueta="Carrera / especialidad"
+                            value={carreraEspecialidadEditada}
+                            onChange={(e) => setCarreraEspecialidadEditada(e.target.value)}
+                          />
+                          <Campo
+                            etiqueta="Ciclo académico"
+                            value={cicloAcademicoEditado}
+                            onChange={(e) => setCicloAcademicoEditado(e.target.value)}
+                          />
                         </div>
                       </>
                     ) : (
-                      <label className="block text-sm">
-                        Grado / título (referencial — no aplica al centro de formación, que no firma en el profesional)
-                        <AreaTexto
-                          className="mt-1 w-full rounded border border-sand p-2"
-                          rows={2}
-                          placeholder="Ej.: Bachiller en Ingeniería de Sistemas — UNT, egresado el 15/12/2025"
-                          value={gradoTituloTextoEditado}
-                          onChange={(e) => setGradoTituloTextoEditado(e.target.value)}
-                        />
-                      </label>
+                      <AreaTexto
+                        etiqueta="Grado / título (referencial — no aplica al centro de formación, que no firma en el profesional)"
+                        rows={2}
+                        placeholder="Ej.: Bachiller en Ingeniería de Sistemas — UNT, egresado el 15/12/2025"
+                        value={gradoTituloTextoEditado}
+                        onChange={(e) => setGradoTituloTextoEditado(e.target.value)}
+                      />
                     )}
-                    <label className="block text-sm">
-                      Anexo I — área / proyecto de destino
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={2}
-                        placeholder="Ej.: Proyecto ERP CAYLA — módulo de inventario"
-                        value={areaProyectoEditado}
-                        onChange={(e) => setAreaProyectoEditado(e.target.value)}
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      Anexo I — objetivo formativo general
-                      {/* Un Enter acá llega al papel como salto de línea, no
-                          colapsado a un espacio dentro del párrafo del Anexo I
-                          (ver parrafoDesdeTexto en contrato-texto). */}
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={2}
-                        placeholder="Qué debe saber hacer al finalizar"
-                        value={objetivoFormativoGeneralEditado}
-                        onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      Anexo I — actividades principales (una por línea; se numeran solas)
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={3}
-                        placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
-                        value={planCapacitacionEditado}
-                        onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      Anexo I — supervisor(a) asignado(a)
-                      <input
-                        className="mt-1 w-full rounded border border-sand p-2 sm:w-1/2"
-                        value={supervisorAsignadoEditado}
-                        onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
-                      />
-                    </label>
+                    <AreaTexto
+                      etiqueta="Anexo I — área / proyecto de destino"
+                      rows={2}
+                      placeholder="Ej.: Proyecto ERP CAYLA — módulo de inventario"
+                      value={areaProyectoEditado}
+                      onChange={(e) => setAreaProyectoEditado(e.target.value)}
+                    />
+                    {/* Un Enter acá llega al papel como salto de línea, no
+                        colapsado a un espacio dentro del párrafo del Anexo I
+                        (ver parrafoDesdeTexto en contrato-texto). */}
+                    <AreaTexto
+                      etiqueta="Anexo I — objetivo formativo general"
+                      rows={2}
+                      placeholder="Qué debe saber hacer al finalizar"
+                      value={objetivoFormativoGeneralEditado}
+                      onChange={(e) => setObjetivoFormativoGeneralEditado(e.target.value)}
+                    />
+                    <AreaTexto
+                      etiqueta="Anexo I — actividades principales (una por línea; se numeran solas)"
+                      rows={3}
+                      placeholder="Ej.: Apoyo en el desarrollo de módulos del sistema interno de asistencia, bajo supervisión del área de Desarrollo."
+                      value={planCapacitacionEditado}
+                      onChange={(e) => setPlanCapacitacionEditado(e.target.value)}
+                    />
+                    <Campo
+                      etiqueta="Anexo I — supervisor(a) asignado(a)"
+                      className="sm:w-1/2"
+                      value={supervisorAsignadoEditado}
+                      onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
+                    />
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="text-sm">
-                        Anexo I — hito de evaluación, mes 3
-                        <AreaTexto
-                          className="mt-1 w-full rounded border border-sand p-2"
-                          rows={2}
-                          value={hitoMes3Editado}
-                          onChange={(e) => setHitoMes3Editado(e.target.value)}
-                        />
-                      </label>
-                      <label className="text-sm">
-                        Anexo I — hito de evaluación, mes 6
-                        <AreaTexto
-                          className="mt-1 w-full rounded border border-sand p-2"
-                          rows={2}
-                          value={hitoMes6Editado}
-                          onChange={(e) => setHitoMes6Editado(e.target.value)}
-                        />
-                      </label>
-                    </div>
-                    <label className="block text-sm">
-                      Anexo IV — ajuste de activos para esta persona (uno por línea)
                       <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
+                        etiqueta="Anexo I — hito de evaluación, mes 3"
                         rows={2}
-                        value={activosLibre}
-                        disabled={sinActivosAdicionales}
-                        onChange={(e) => setActivosLibre(e.target.value)}
+                        value={hitoMes3Editado}
+                        onChange={(e) => setHitoMes3Editado(e.target.value)}
                       />
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={sinActivosAdicionales}
-                        onChange={(e) => {
-                          setSinActivosAdicionales(e.target.checked);
-                          if (e.target.checked) setActivosLibre("");
-                        }}
+                      <AreaTexto
+                        etiqueta="Anexo I — hito de evaluación, mes 6"
+                        rows={2}
+                        value={hitoMes6Editado}
+                        onChange={(e) => setHitoMes6Editado(e.target.value)}
                       />
-                      Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
-                      de la sede
-                    </label>
+                    </div>
+                    <AreaTexto
+                      etiqueta="Anexo IV — ajuste de activos para esta persona (uno por línea)"
+                      className="disabled:opacity-50"
+                      rows={2}
+                      value={activosLibre}
+                      disabled={sinActivosAdicionales}
+                      onChange={(e) => setActivosLibre(e.target.value)}
+                    />
+                    <CampoCasilla
+                      etiqueta={`Confirmo que ${persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales de la sede`}
+                      checked={sinActivosAdicionales}
+                      onChange={(e) => {
+                        setSinActivosAdicionales(e.target.checked);
+                        if (e.target.checked) setActivosLibre("");
+                      }}
+                    />
                   </>
                 ) : (
                   <>
                     {/* Un indefinido no tiene causa objetiva — no es modalidad
                         temporal, no la necesita (0347). */}
                     {!esIndefinido && (
-                      <label className="block text-sm">
-                        Causa objetiva (revisar antes de imprimir)
-                        <AreaTexto
-                          className="mt-1 w-full rounded border border-sand p-2"
-                          rows={4}
-                          value={causaEditada}
-                          onChange={(e) => setCausaEditada(e.target.value)}
-                        />
-                      </label>
+                      <AreaTexto
+                        etiqueta="Causa objetiva (revisar antes de imprimir)"
+                        rows={4}
+                        value={causaEditada}
+                        onChange={(e) => setCausaEditada(e.target.value)}
+                      />
                     )}
-                    <label className="block text-sm">
-                      Funciones del cargo (Anexo I) — una por línea; se numeran solas
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2"
-                        rows={3}
-                        value={funcionesEditadas}
-                        onChange={(e) => setFuncionesEditadas(e.target.value)}
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      Anexo IV — ajuste de activos para esta persona (uno por línea)
-                      <AreaTexto
-                        className="mt-1 w-full rounded border border-sand p-2 disabled:opacity-50"
-                        rows={2}
-                        value={activosLibre}
-                        disabled={sinActivosAdicionales}
-                        onChange={(e) => setActivosLibre(e.target.value)}
-                      />
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={sinActivosAdicionales}
-                        onChange={(e) => {
-                          setSinActivosAdicionales(e.target.checked);
-                          if (e.target.checked) setActivosLibre("");
-                        }}
-                      />
-                      Confirmo que {persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales
-                      de la sede
-                    </label>
+                    <AreaTexto
+                      etiqueta="Funciones del cargo (Anexo I) — una por línea; se numeran solas"
+                      rows={3}
+                      value={funcionesEditadas}
+                      onChange={(e) => setFuncionesEditadas(e.target.value)}
+                    />
+                    <AreaTexto
+                      etiqueta="Anexo IV — ajuste de activos para esta persona (uno por línea)"
+                      className="disabled:opacity-50"
+                      rows={2}
+                      value={activosLibre}
+                      disabled={sinActivosAdicionales}
+                      onChange={(e) => setActivosLibre(e.target.value)}
+                    />
+                    <CampoCasilla
+                      etiqueta={`Confirmo que ${persona.nombres} no tiene activos adicionales a su cargo, más allá de los generales de la sede`}
+                      checked={sinActivosAdicionales}
+                      onChange={(e) => {
+                        setSinActivosAdicionales(e.target.checked);
+                        if (e.target.checked) setActivosLibre("");
+                      }}
+                    />
                   </>
                 )}
 
@@ -2287,7 +2241,7 @@ export default function ContratosPage() {
                   </div>
                   <div>
                     <dt className="font-semibold">Sueldo base vigente</dt>
-                    <dd>{salarioVigente !== null ? `S/ ${salarioVigente.toFixed(2)}` : "sin asignación vigente"}</dd>
+                    <dd className="tabular-nums">{salarioVigente !== null ? `S/ ${salarioVigente.toFixed(2)}` : "sin asignación vigente"}</dd>
                   </div>
                   <div>
                     <dt className="font-semibold">Jornada del {esConvenio ? "convenio" : "contrato"}</dt>
@@ -2302,7 +2256,7 @@ export default function ContratosPage() {
                   </div>
                   <div>
                     <dt className="font-semibold">Movilidad</dt>
-                    <dd>
+                    <dd className="tabular-nums">
                       {esConvenio
                         ? "no aplica — no está en planilla (0322)"
                         : persona.cobra_movilidad
@@ -2350,31 +2304,33 @@ export default function ContratosPage() {
                 )}
 
                 {editando ? (
-                  <button
-                    className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
+                  <Boton
+                    variante="primario"
                     disabled={!datosParaGenerar || bloqueos.length > 0 || guardandoEdicion}
+                    cargando={guardandoEdicion}
                     onClick={guardarEdicion}
                   >
-                    {guardandoEdicion ? "Guardando…" : "Guardar cambios"}
-                  </button>
+                    Guardar cambios
+                  </Boton>
                 ) : (
-                  <button
-                    className="rounded bg-tinta px-4 py-2 text-sm text-crema disabled:opacity-50"
+                  <Boton
+                    variante="primario"
                     disabled={!datosParaGenerar || bloqueos.length > 0 || generando}
+                    cargando={generando}
                     onClick={generarBorrador}
                   >
-                    {generando ? "Generando…" : "Generar borrador"}
-                  </button>
+                    Generar borrador
+                  </Boton>
                 )}
                 {editando && (
-                  <button className="ml-2 text-sm underline underline-offset-2" onClick={cancelarEdicion}>
+                  <Boton variante="enlace" className="ml-2 text-sm" onClick={cancelarEdicion}>
                     Cancelar
-                  </button>
+                  </Boton>
                 )}
                 {borrador && (
-                  <button className="ml-2 rounded border border-sand px-4 py-2 text-sm" onClick={imprimir}>
+                  <Boton variante="secundario" className="ml-2" onClick={imprimir}>
                     Imprimir / Guardar como PDF
-                  </button>
+                  </Boton>
                 )}
               </>
             )}
@@ -2439,42 +2395,46 @@ export default function ContratosPage() {
                         )}
 
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirGenerado(c.id)}>
+                        <Boton variante="enlace" onClick={() => abrirGenerado(c.id)}>
                           Ver / imprimir
-                        </button>
+                        </Boton>
                         {/* Editar solo mientras sea un borrador. Con el escaneo
                             firmado adentro manda el papel: se corrige con un
                             adendum o se anula, nunca reescribiendo por detrás lo
                             que dos partes ya firmaron. */}
                         {!c.storage_path && (
-                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => empezarEdicion(c)}>
+                          <Boton variante="enlace" onClick={() => empezarEdicion(c)}>
                             Editar
-                          </button>
+                          </Boton>
                         )}
                         {!c.storage_path && (
-                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => abrirSubida(c.id)}>
+                          <Boton variante="enlace" onClick={() => abrirSubida(c.id)}>
                             Subir contrato firmado
-                          </button>
+                          </Boton>
                         )}
                         {c.storage_path && (
-                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => verDocumento(c.storage_path!)}>
+                          <Boton variante="enlace" onClick={() => verDocumento(c.storage_path!)}>
                             Ver escaneo
-                          </button>
+                          </Boton>
                         )}
                         {c.fecha_firma && !c.copia_entregada_at && (
-                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "copia")}>
+                          <Boton variante="enlace" onClick={() => marcarTramite(c.id, "copia")}>
                             Marcar copia entregada
-                          </button>
+                          </Boton>
                         )}
                         {c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
-                          <button className="underline underline-offset-2 hover:text-taupe" onClick={() => marcarTramite(c.id, "mtpe")}>
+                          <Boton variante="enlace" onClick={() => marcarTramite(c.id, "mtpe")}>
                             Marcar comunicado al MTPE
-                          </button>
+                          </Boton>
                         )}
                         {/* Anular va al final y en taupe: es destructivo, no
                             urgente. En rojo junto a acciones inofensivas se
                             pulsa por error, y el rojo de esta paleta está
-                            reservado para lo que de verdad avisa. */}
+                            reservado para lo que de verdad avisa. Se queda como
+                            <button> nativo: su hover (taupe → rojo) no es el que
+                            trae <Boton variante="enlace"> (hover:text-taupe), y
+                            forzar los dos hover en la misma clase deja el color
+                            final librado al orden de generación de Tailwind. */}
                         <button className="ml-auto text-taupe underline underline-offset-2 hover:text-rojo" onClick={() => setAnulando(c.id)}>
                           Anular
                         </button>
@@ -2517,92 +2477,54 @@ export default function ContratosPage() {
         {/* LOS DOS PANELES DE ACCIÓN SON MODALES desde que la pantalla se
             partió en dos columnas. Como sección al pie de una de ellas, quien
             pulsaba «Subir contrato firmado» en una fila cualquiera del archivo
-            no veía aparecer nada: el panel se abría fuera de la pantalla.
-            El velo va en bg-black/40 y NO en bg-tinta — tinta se ACLARA en modo
-            oscuro, o sea que aclararía el fondo en vez de apagarlo, justo lo
-            contrario de lo que un velo tiene que hacer. */}
-        {subiendoPara && (
-          <div
-            className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4"
-            onClick={() => !guardandoFirma && setSubiendoPara(null)}
-          >
-            <section
-              className="w-full max-w-lg space-y-2 rounded-xl border border-sand bg-crema p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p className="font-serif text-lg">Subir contrato firmado</p>
-              <p className="text-sm text-taupe">
-                El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1 text-sm">
-                  Archivo escaneado
-                  {/* El estilo `file:` es el de la casa —lo usan Documentación,
-                      Educación, Normas, Feriados y Disciplina—. Sin él, el input
-                      sale con el control crudo del navegador: no parece pulsable
-                      y no se parece a nada más del panel. */}
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-crema"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  Fecha de firma
-                  <input
-                    type="date"
-                    className="rounded-lg border border-sand bg-hueso px-3 py-2 text-sm"
-                    value={fechaFirma}
-                    max={hoyLima()}
-                    onChange={(e) => setFechaFirma(e.target.value)}
-                  />
-                </label>
-              </div>
-              {progreso !== null && <p className="text-xs">{progreso}%</p>}
-              <div className="space-x-2 pt-1">
-                <button
-                  className="rounded bg-tinta px-3 py-1.5 text-sm text-crema disabled:opacity-50"
-                  disabled={guardandoFirma}
-                  onClick={guardarFirma}
-                >
-                  Guardar
-                </button>
-                <button className="text-sm" onClick={() => setSubiendoPara(null)}>
-                  Cancelar
-                </button>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {anulando && (
-          <div
-            className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4"
-            onClick={() => setAnulando(null)}
-          >
-            <section
-              className="w-full max-w-md space-y-2 rounded-xl border border-rojo bg-crema p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p className="font-serif text-lg">Anular contrato</p>
-              <AreaTexto
-                className="w-full rounded border border-sand bg-hueso p-2 text-sm"
-                placeholder="Motivo (mínimo 3 caracteres)"
-                value={motivoAnular}
-                onChange={(e) => setMotivoAnular(e.target.value)}
+            no veía aparecer nada: el panel se abría fuera de la pantalla. */}
+        <Modal
+          abierto={subiendoPara !== null}
+          onCerrar={() => setSubiendoPara(null)}
+          bloqueado={guardandoFirma}
+          titulo="Subir contrato firmado"
+          ancho="lg"
+        >
+          <p className="mb-4 text-sm text-taupe">
+            El PDF o la foto del contrato ya firmado por las dos partes. Hasta 50 MB.
+          </p>
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm">
+              Archivo escaneado
+              {/* El estilo `file:` es el de la casa —lo usan Documentación,
+                  Educación, Normas, Feriados y Disciplina—. Sin él, el input
+                  sale con el control crudo del navegador: no parece pulsable
+                  y no se parece a nada más del panel. */}
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                className="rounded-control border border-sand bg-hueso px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-sand file:px-3 file:py-1 file:text-sm hover:file:bg-taupe hover:file:text-crema"
               />
-              <div className="space-x-2 pt-1">
-                <button className="rounded bg-rojo px-3 py-1.5 text-sm text-crema" onClick={anular}>
-                  Confirmar anulación
-                </button>
-                <button className="text-sm" onClick={() => setAnulando(null)}>
-                  Cancelar
-                </button>
-              </div>
-            </section>
+            </label>
+            <Campo etiqueta="Fecha de firma" type="date" value={fechaFirma} max={hoyLima()} onChange={(e) => setFechaFirma(e.target.value)} />
           </div>
-        )}
+          {progreso !== null && <p className="mb-2 text-xs tabular-nums">{progreso}%</p>}
+          <div className="flex justify-end gap-2">
+            <Boton onClick={() => setSubiendoPara(null)}>Cancelar</Boton>
+            <Boton variante="primario" onClick={guardarFirma} disabled={guardandoFirma} cargando={guardandoFirma}>
+              Guardar
+            </Boton>
+          </div>
+        </Modal>
+
+        <Modal abierto={anulando !== null} onCerrar={() => setAnulando(null)} titulo="Anular contrato" ancho="sm">
+          <AreaTexto
+            className="mb-4 w-full"
+            placeholder="Motivo (mínimo 3 caracteres)"
+            value={motivoAnular}
+            onChange={(e) => setMotivoAnular(e.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Boton onClick={() => setAnulando(null)}>Cancelar</Boton>
+            <Boton variante="peligro" onClick={anular}>Confirmar anulación</Boton>
+          </div>
+        </Modal>
       </div>
 
       {htmlFinal && (
@@ -2649,15 +2571,18 @@ export default function ContratosPage() {
             {(() => {
               const c = detalle;
               const vive = !c.anulado_at;
-              const insignia = c.anulado_at
-                ? { texto: "Anulado", tono: "pizarra" }
+              // Ya solo la usa esta insignia del VISOR: la tabla perdió su
+              // columna de estado el 2026-09-07 (decisión de Felipe) y ahora
+              // lo dice en el `title` de la fila.
+              const insignia: { texto: string; variante: "informativo" | "alerta" | "advertencia" | "positivo" } = c.anulado_at
+                ? { texto: "Anulado", variante: "informativo" }
                 : !c.storage_path
-                  ? { texto: "Pendiente de firma", tono: "pizarra" }
+                  ? { texto: "Pendiente de firma", variante: "informativo" }
                   : c.fecha_fin && c.fecha_fin < hoyLima()
-                    ? { texto: "Vencido", tono: "rojo" }
+                    ? { texto: "Vencido", variante: "alerta" }
                     : !c.copia_entregada_at || (c.tipo !== "indefinido" && !c.comunicado_mtpe_at)
-                      ? { texto: "Trámite pendiente", tono: "ambar" }
-                      : { texto: "Vigente", tono: "verde" };
+                      ? { texto: "Trámite pendiente", variante: "advertencia" }
+                      : { texto: "Vigente", variante: "positivo" };
               // La historia, de lo más reciente a lo más antiguo. Solo eventos
               // que de verdad ocurrieron: una línea de tiempo con huecos
               // rellenados a ojo deja de servir para sustentar nada.
@@ -2696,9 +2621,9 @@ export default function ContratosPage() {
                           : `desde ${formatearFecha(c.fecha_inicio)}, sin fecha de término`}
                       </p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs ${CLASE_TONO[insignia.tono]}`}>
+                    <Insignia variante={insignia.variante} className="shrink-0">
                       {insignia.texto}
-                    </span>
+                    </Insignia>
                   </div>
 
                   <div className="mb-4 grid gap-4 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
@@ -2710,29 +2635,28 @@ export default function ContratosPage() {
                         {c.fecha_firma ? formatearFecha(c.fecha_firma) : "todavía sin firmar"}
                       </p>
                       {c.storage_path && (
-                        <button
-                          className="mb-1.5 w-full rounded-lg border border-sand bg-papel px-3 py-1.5 text-xs"
-                          onClick={() => verDocumento(c.storage_path!)}
-                        >
+                        <Boton variante="secundario" tamano="sm" className="mb-1.5 w-full bg-papel" onClick={() => verDocumento(c.storage_path!)}>
                           Ver escaneo
-                        </button>
+                        </Boton>
                       )}
-                      <button
-                        className="w-full rounded-lg border border-sand bg-papel px-3 py-1.5 text-xs"
+                      <Boton
+                        variante="secundario"
+                        tamano="sm"
+                        className="w-full bg-papel"
                         onClick={() => {
                           setDetalleId(null);
                           void abrirGenerado(c.id);
                         }}
                       >
                         Ver / imprimir
-                      </button>
+                      </Boton>
                     </div>
 
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-1 self-start text-sm">
                       <dt className="text-taupe">Cargo</dt>
                       <dd className="text-right">{c.cargo}</dd>
                       <dt className="text-taupe">Remuneración</dt>
-                      <dd className="text-right">S/ {Number(c.remuneracion_mensual).toFixed(2)}</dd>
+                      <dd className="text-right tabular-nums">S/ {Number(c.remuneracion_mensual).toFixed(2)}</dd>
                       <dt className="text-taupe">Copia entregada</dt>
                       <dd className={`text-right ${c.copia_entregada_at ? "text-verde" : "text-taupe"}`}>
                         {c.copia_entregada_at ? formatearFecha(c.copia_entregada_at) : "falta"}
@@ -2767,46 +2691,44 @@ export default function ContratosPage() {
 
                   <div className="flex flex-wrap items-center gap-2 border-t border-sand pt-3">
                     {vive && !c.storage_path && (
-                      <button
-                        className="rounded-lg bg-tinta px-4 py-1.5 text-sm text-crema"
+                      <Boton
+                        variante="primario"
                         onClick={() => {
                           setDetalleId(null);
                           void empezarEdicion(c);
                         }}
                       >
                         Editar
-                      </button>
+                      </Boton>
                     )}
                     {vive && !c.storage_path && (
-                      <button
-                        className="rounded-lg border border-sand px-4 py-1.5 text-sm"
+                      <Boton
+                        variante="secundario"
                         onClick={() => {
                           setDetalleId(null);
                           abrirSubida(c.id);
                         }}
                       >
                         Subir firmado
-                      </button>
+                      </Boton>
                     )}
                     {vive && c.fecha_firma && !c.copia_entregada_at && (
-                      <button
-                        className="rounded-lg border border-sand px-4 py-1.5 text-sm"
-                        onClick={() => void marcarTramite(c.id, "copia")}
-                      >
+                      <Boton variante="secundario" onClick={() => void marcarTramite(c.id, "copia")}>
                         Marcar copia entregada
-                      </button>
+                      </Boton>
                     )}
                     {vive && c.fecha_firma && c.tipo !== "indefinido" && !c.comunicado_mtpe_at && (
-                      <button
-                        className="rounded-lg border border-sand px-4 py-1.5 text-sm"
-                        onClick={() => void marcarTramite(c.id, "mtpe")}
-                      >
+                      <Boton variante="secundario" onClick={() => void marcarTramite(c.id, "mtpe")}>
                         Marcar comunicado al MTPE
-                      </button>
+                      </Boton>
                     )}
-                    <button className="ml-auto text-sm underline underline-offset-2" onClick={() => setDetalleId(null)}>
+                    <Boton variante="enlace" className="ml-auto text-sm" onClick={() => setDetalleId(null)}>
                       Cerrar
-                    </button>
+                    </Boton>
+                    {/* Se queda nativo, igual que su gemelo del archivo: el
+                        hover taupe → rojo no coincide con el de <Boton
+                        variante="enlace"> y forzarlo deja el color final
+                        librado al orden de generación de Tailwind. */}
                     {vive && (
                       <button
                         className="ml-4 text-sm text-taupe underline underline-offset-2 hover:text-rojo"
@@ -2839,12 +2761,12 @@ export default function ContratosPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
-              <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={imprimir}>
+              <Boton variante="primario" onClick={imprimir}>
                 Imprimir / Guardar como PDF
-              </button>
-              <button className="text-sm underline" onClick={() => setDocumentoAbierto(null)}>
+              </Boton>
+              <Boton variante="enlace" onClick={() => setDocumentoAbierto(null)}>
                 Cerrar
-              </button>
+              </Boton>
             </div>
             <div
               className="hoja overflow-y-auto p-8 text-sm leading-relaxed print:overflow-visible print:p-0"
