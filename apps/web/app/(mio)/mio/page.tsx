@@ -24,7 +24,7 @@ import {
   BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDni,
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
-import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
@@ -219,6 +219,24 @@ const MESES = [
   "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre",
 ];
 const LETRA_DIA = ["D", "L", "M", "M", "J", "V", "S"];
+
+/**
+ * Lo que se acepta al mandar las fotos del DNI (Ley N.° 29733, 0404).
+ *
+ * Va aquí, palabra por palabra, y no en la base: es texto legal que se lee en
+ * pantalla y se guarda tal cual en `consentimientos_datos_personales.texto` al
+ * aceptarlo, para que cada constancia diga QUÉ aceptó esa persona ese día
+ * aunque esta redacción cambie después. La razón social y el RUC salen de
+ * `EMPRESA` —una sola respuesta a «cómo se identifica la empresa», ver
+ * packages/shared/src/empresa.ts—, nunca escritos a mano acá.
+ */
+const TEXTO_CONSENTIMIENTO_DNI =
+  `Declaro que el Documento Nacional de Identidad (DNI) que adjunto corresponde a mi persona y autorizo a ` +
+  `${EMPRESA.nombre} (RUC ${EMPRESA.ruc}) a tratar este documento y mis demás datos personales con la finalidad ` +
+  `de verificar mi identidad y dejar constancia de mi aceptación de los términos del contrato. Estos datos se ` +
+  `incorporarán al banco de datos personales de ${EMPRESA.nombre}. Su entrega es necesaria para continuar el ` +
+  `proceso; de no autorizarlo, no será posible continuar con la firma del contrato. Puedo ejercer mis derechos ` +
+  `de acceso, rectificación, cancelación y oposición escribiendo a info@cayla.pe.`;
 
 /** «2026-07-29» → «29 de julio». */
 function diaYMes(iso: string): string {
@@ -460,6 +478,11 @@ export default function MioPage() {
     { anverso: null, reverso: null });
   const [solicitudDni, setSolicitudDni] = useState<SolicitudDni | null>(null);
   const [enviandoDni, setEnviandoDni] = useState(false);
+  /** La casilla de consentimiento (0404). Arranca desmarcada SIEMPRE y vuelve a
+   *  desmarcarse tras cada envío: la ley pide el consentimiento en el momento
+   *  de recolectar el dato, así que un envío nuevo es un acto nuevo — no lo
+   *  cubre el de la vez anterior. */
+  const [aceptoDatos, setAceptoDatos] = useState(false);
   /** ¿Existe ya el campo de la 0401 en el catálogo? Mientras esa migración no
    *  esté pegada no hay dónde guardar la solicitud, así que la pestaña no sale.
    *  Vale más que no esté a que esté y falle recién al enviar, con las dos fotos
@@ -537,6 +560,10 @@ export default function MioPage() {
       avisar("error", "Faltan las dos caras: hay que subir el anverso y el reverso.");
       return;
     }
+    if (!aceptoDatos) {
+      avisar("error", "Falta marcar la autorización para tratar tus datos personales.");
+      return;
+    }
     setEnviandoDni(true);
     try {
       /** Sube una cara y devuelve su ruta, o null si falló (ya avisó por qué). */
@@ -567,6 +594,17 @@ export default function MioPage() {
       const rutaReverso = await subirCara(caraReverso, dniElegido.reverso);
       if (rutaReverso === null) return;
 
+      // La constancia ANTES de la solicitud, y no al revés: si algo falla en
+      // medio, es preferible una constancia de una aceptación que no llegó a
+      // mandar fotos —inofensiva: dice lo que dice, con su fecha— que unas
+      // fotos recolectadas sin constancia de haberlo autorizado, que es
+      // justamente lo que la Ley N.° 29733 no admite.
+      const { error: eConsentimiento } = await supabase.rpc("fn_registrar_mi_consentimiento", {
+        p_finalidad: "foto_dni",
+        p_texto: TEXTO_CONSENTIMIENTO_DNI,
+      });
+      if (eConsentimiento) { avisar("error", eConsentimiento.message); return; }
+
       const { error } = await supabase.rpc("fn_crear_solicitud_perfil", {
         p_campo: "foto_dni",
         p_valor_propuesto: {
@@ -582,6 +620,7 @@ export default function MioPage() {
         if (elegido) URL.revokeObjectURL(elegido.vista);
       }
       setDniElegido({ anverso: null, reverso: null });
+      setAceptoDatos(false);
       avisar("ok", "Enviado. Desarrollo Organizacional lo revisa y te avisamos.");
       await cargarDni();
     } catch {
@@ -1810,13 +1849,36 @@ export default function MioPage() {
               })}
             </div>
 
+            {/* El consentimiento (0404) va AQUÍ, pegado a las fotos y antes del
+                botón, y no dentro del contrato que se firma después: la Ley
+                N.° 29733 lo pide en el momento de recolectar el dato. Lo que
+                se lee acá es lo que se guarda como constancia, palabra por
+                palabra — por eso el texto es una constante y no se arma en el
+                JSX. */}
+            <label className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
+              <input
+                type="checkbox"
+                checked={aceptoDatos}
+                onChange={(e) => setAceptoDatos(e.target.checked)}
+                disabled={enviandoDni}
+                className="mt-0.5 shrink-0"
+              />
+              <span>
+                {TEXTO_CONSENTIMIENTO_DNI}
+                <span className="mt-1 block font-medium">Acepto y autorizo.</span>
+              </span>
+            </label>
+
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Boton type="submit" variante="primario" cargando={enviandoDni}
-                disabled={!dniElegido.anverso || !dniElegido.reverso}>
+                disabled={!dniElegido.anverso || !dniElegido.reverso || !aceptoDatos}>
                 Enviar para aprobación
               </Boton>
               {(!dniElegido.anverso || !dniElegido.reverso) && (
                 <span className="text-xs text-taupe">Hacen falta las dos caras para poder enviar.</span>
+              )}
+              {dniElegido.anverso && dniElegido.reverso && !aceptoDatos && (
+                <span className="text-xs text-taupe">Falta marcar la autorización para poder enviar.</span>
               )}
             </div>
           </form>

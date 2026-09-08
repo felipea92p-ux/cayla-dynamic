@@ -1278,10 +1278,14 @@ export function construirContrato(datosSinEscapar: DatosContrato): string {
     horas correspondientes se remunerarán como sobretiempo conforme a ley.</p>
 
     <h3>DÉCIMA SÉPTIMA. PROTECCIÓN DE DATOS PERSONALES</h3>
-    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a LA COLABORADORA que sus datos personales serán
-    tratados con las finalidades exclusivas de gestión de la relación laboral, cumplimiento de obligaciones legales,
-    comunicaciones internas y emisión de constancias. LA COLABORADORA otorga su consentimiento expreso mediante la
-    firma del presente contrato.</p>
+    <p>De conformidad con la Ley N.° 29733, Ley de Protección de Datos Personales, y su Reglamento aprobado por
+    Decreto Supremo N.° 016-2024-JUS, LA EMPRESA informa a LA COLABORADORA que sus datos personales —incluyendo
+    nombre, documento de identidad, domicilio, datos laborales, remunerativos y previsionales— serán incorporados y
+    tratados en los sistemas de LA EMPRESA con las siguientes finalidades exclusivas: (i) gestión de la relación
+    laboral; (ii) cumplimiento de obligaciones legales ante el Ministerio de Trabajo, SUNAT, EsSalud, AFP/ONP y otras
+    autoridades; (iii) comunicaciones internas propias de la relación de trabajo; (iv) emisión de constancias,
+    certificados y documentos laborales; y (v) verificación de identidad mediante la carga de la copia del Documento
+    Nacional de Identidad (DNI) y constancia de la aceptación de los términos del presente contrato.</p>
 
     ${clausulaEntregaCopia(d)}
 
