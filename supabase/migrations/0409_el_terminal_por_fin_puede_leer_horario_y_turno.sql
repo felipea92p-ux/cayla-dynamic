@@ -54,3 +54,6 @@ drop policy if exists turnos_select_terminal on turnos;
 create policy turnos_select_terminal on turnos
   for select to authenticated
   using (fn_persona_en_roster_terminal(persona_id));
+
+insert into migraciones_aplicadas (numero, nombre) values (409, 'el_terminal_por_fin_puede_leer_horario_y_turno')
+on conflict (numero) do nothing;
