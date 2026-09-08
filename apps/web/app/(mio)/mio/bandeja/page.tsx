@@ -41,12 +41,18 @@ import {
  * la haya cargado — mismo criterio que /mio/editar, /mio/boleta y /mio/contrato.
  */
 
-const TONO: Record<EstadoBandeja, "positivo" | "alerta" | "informativo"> = {
+const TONO: Record<EstadoBandeja, "positivo" | "alerta" | "informativo" | "advertencia"> = {
   aprobado: "positivo",
   rechazado: "alerta",
   // Una revisión no se aprueba ni se rechaza: se contesta qué se hizo.
   atendido: "informativo",
   pendiente: "informativo",
+  // Los dos que dependen de ella van en ámbar, el tono de «esto te toca a ti»
+  // que ya usa el recuadro «Necesita que hagas algo» de /mio. No en rojo: el
+  // rojo es el acento sagrado de esta casa y lo gastan los errores, no las
+  // tareas — y un contrato sin firmar no es un error de nadie todavía.
+  por_firmar: "advertencia",
+  por_arreglar: "advertencia",
 };
 
 const ETIQUETA: Record<EstadoBandeja, string> = {
@@ -54,6 +60,8 @@ const ETIQUETA: Record<EstadoBandeja, string> = {
   rechazado: "rechazado",
   atendido: "revisado",
   pendiente: "sin respuesta",
+  por_firmar: "falta tu firma",
+  por_arreglar: "por arreglar",
 };
 
 /** «7 de setiembre», y con año cuando no es el de hoy: «25 de junio de 2025». */
@@ -68,18 +76,30 @@ type Resultado =
   | { tipo: "error"; texto: string }
   | { tipo: "sin-sesion" };
 
+/** Los dos estados que dependen de ella. Se pregunta por el estado y no por la
+ *  lista en la que vino: una tarjeta tiene que poder pintarse sola. */
+function esPendiente(m: MensajeBandeja): boolean {
+  return m.estado === "por_firmar" || m.estado === "por_arreglar";
+}
+
 function Tarjeta({ m, hoy }: { m: MensajeBandeja; hoy: string }) {
   return (
-    <li className="rounded-2xl border border-sand bg-papel p-4">
+    // Los pendientes llevan el borde ámbar del recuadro «Necesita que hagas
+    // algo» de /mio: es la misma clase de cosa y se reconoce sin leerla.
+    <li className={esPendiente(m)
+      ? "rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-4"
+      : "rounded-2xl border border-sand bg-papel p-4"}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5">
         <strong className="text-sm font-medium">{m.titulo}</strong>
         <span className="flex shrink-0 items-center gap-1.5">
-          {m.nuevo && <Insignia variante="contador" tamano="sm">nuevo</Insignia>}
+          {/* «nuevo» solo tiene sentido frente a algo que NO lo es. En la lista
+              de pendientes todos lo llevarían, así que ahí no dice nada. */}
+          {m.nuevo && !esPendiente(m) && <Insignia variante="contador" tamano="sm">nuevo</Insignia>}
           <Insignia variante={TONO[m.estado]} tamano="sm">{ETIQUETA[m.estado]}</Insignia>
         </span>
       </div>
 
-      {m.estado !== "pendiente" && (
+      {!esPendiente(m) && m.estado !== "pendiente" && (
         <p className="mt-1 text-xs text-taupe">Te respondieron el {cuandoFue(m.fecha, hoy)}.</p>
       )}
 
@@ -93,7 +113,7 @@ function Tarjeta({ m, hoy }: { m: MensajeBandeja; hoy: string }) {
 
       {m.ir && (
         <Link href={m.ir} className="mt-2 inline-block text-xs text-tinta underline underline-offset-2 hover:text-rojo-profundo">
-          Verlo →
+          {esPendiente(m) ? "Hacerlo →" : "Verlo →"}
         </Link>
       )}
     </li>
@@ -156,8 +176,8 @@ export default function MiBandejaPage() {
 
       <h1 className="mt-3 font-serif text-2xl">Bandeja</h1>
       <p className="mt-1 mb-6 text-sm text-taupe">
-        Lo que respondieron a lo que pediste: tus cambios de ficha, tus vacaciones y tus pedidos de
-        revisar un día.
+        Lo que te falta hacer y lo que te respondieron: tu contrato, los documentos por firmar, tus
+        cambios de ficha, tus vacaciones y tus pedidos de revisar un día.
       </p>
 
       {cargando && <Cargando texto="Cargando tu bandeja…" />}
@@ -181,11 +201,25 @@ export default function MiBandejaPage() {
 
       {bandeja && (
         <>
-          {bandeja.respuestas.length === 0 && bandeja.esperando.length === 0 && noSePudo.length === 0 && (
+          {bandeja.pendientes.length === 0 && bandeja.respuestas.length === 0 && bandeja.esperando.length === 0 && noSePudo.length === 0 && (
             <SinDatos
               texto="Todavía no tienes nada en la bandeja."
               pista="Acá aparecen las respuestas a lo que pidas: un cambio en tu ficha, tus vacaciones o que se revise un día tuyo."
             />
+          )}
+
+          {/* PRIMERO lo que depende de ella. Es lo único de esta pantalla que
+              tiene consecuencias si nadie lo toca. */}
+          {bandeja.pendientes.length > 0 && (
+            <section className="mb-8">
+              <h2 className="mb-1 font-serif text-lg">Necesita que hagas algo</h2>
+              <p className="mb-3 text-xs text-taupe">
+                Esto no se va solo con el tiempo: sigue acá hasta que lo firmes o lo arregles.
+              </p>
+              <ul className="space-y-3">
+                {bandeja.pendientes.map((m) => <Tarjeta key={m.clave} m={m} hoy={hoy} />)}
+              </ul>
+            </section>
           )}
 
           {bandeja.respuestas.length > 0 && (

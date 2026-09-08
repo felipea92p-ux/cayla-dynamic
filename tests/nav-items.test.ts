@@ -78,15 +78,26 @@ describe("la lista no tiene agujeros", () => {
 });
 
 describe("los contadores", () => {
-  // La vara para un cuarto contador está escrita en nav.tsx y es exigente: no es
-  // «¿es importante?», es «¿tiene fecha límite y cuesta plata pasarla?».
-  it("son exactamente tres, y en las pantallas que los saben atender", () => {
-    const conContador = TODOS.filter((i) => i.contador);
-    expect(conContador.map((i) => [i.href, i.contador])).toEqual([
+  // La vara para un contador DE EQUIPO está escrita en nav.tsx y es exigente: no
+  // es «¿es importante?», es «¿tiene fecha límite y cuesta plata pasarla?».
+  //
+  // El de «Mi perfil» (2026-09-08) no compite con esos tres y por eso no los
+  // vuelve cuatro: los tres hablan del EQUIPO —lo que a esta persona le toca
+  // atender— y aquel habla de ELLA, de su contrato sin firmar y su constancia de
+  // ley pendiente. La prueba conserva la vara separando las dos familias, en vez
+  // de subir el número y perder lo que vigilaba.
+  it("los del equipo son exactamente tres, en las pantallas que los saben atender", () => {
+    const deEquipo = TODOS.filter((i) => i.contador && i.href.startsWith("/admin/"));
+    expect(deEquipo.map((i) => [i.href, i.contador])).toEqual([
       ["/admin/incidencias", "revisiones"],
       ["/admin/ausencias", "vacaciones"],
       ["/admin/educacion", "educacion"],
     ]);
+  });
+
+  it("el único contador que habla de quien mira el menú es el de «Mi perfil»", () => {
+    const propios = TODOS.filter((i) => i.contador && !i.href.startsWith("/admin/"));
+    expect(propios.map((i) => [i.href, i.contador])).toEqual([["/mio", "mio"]]);
   });
 
   it("ninguna pantalla lleva dos contadores ni repite el de otra", () => {
