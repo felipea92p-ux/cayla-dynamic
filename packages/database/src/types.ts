@@ -684,6 +684,7 @@ export type Database = {
           documento_sugerido: string | null
           etiqueta: string
           requiere_documento: boolean
+          solo_do: boolean
         }
         Insert: {
           campo: string
@@ -691,6 +692,7 @@ export type Database = {
           documento_sugerido?: string | null
           etiqueta: string
           requiere_documento?: boolean
+          solo_do?: boolean
         }
         Update: {
           campo?: string
@@ -698,6 +700,7 @@ export type Database = {
           documento_sugerido?: string | null
           etiqueta?: string
           requiere_documento?: boolean
+          solo_do?: boolean
         }
         Relationships: []
       }
@@ -769,6 +772,45 @@ export type Database = {
           valor?: Json
         }
         Relationships: []
+      }
+      confirmaciones_firma_contrato: {
+        Row: {
+          confirmada_at: string
+          contrato_id: string
+          id: string
+          imagen: string
+          persona_id: string
+        }
+        Insert: {
+          confirmada_at?: string
+          contrato_id: string
+          id?: string
+          imagen: string
+          persona_id: string
+        }
+        Update: {
+          confirmada_at?: string
+          contrato_id?: string
+          id?: string
+          imagen?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "confirmaciones_firma_contrato_contrato_id_fkey"
+            columns: ["contrato_id"]
+            isOneToOne: false
+            referencedRelation: "contratos_generados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "confirmaciones_firma_contrato_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       consentimientos_datos_personales: {
         Row: {
@@ -6371,6 +6413,7 @@ export type Database = {
           persona_id: string
           rutas_adjuntas: string[]
           sede: string
+          solo_do: boolean
           valor_anterior: Json
           valor_propuesto: Json
         }[]
