@@ -1678,6 +1678,8 @@ export type Database = {
           entregado_por: string | null
           estado: string
           fecha_cese: string | null
+          firma_sancionado: string | null
+          firma_sancionado_confirmada_at: string | null
           firmado_at: string | null
           firmante_id: string | null
           hechos: Json
@@ -1692,6 +1694,7 @@ export type Database = {
           resuelto_motivo: string | null
           resuelto_por: string | null
           resuelto_resultado: string | null
+          sancionado_rechazo_firma_at: string | null
           suspension_desde: string | null
           suspension_dias: number | null
           suspension_fechas: string[] | null
@@ -1713,6 +1716,8 @@ export type Database = {
           entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
+          firma_sancionado?: string | null
+          firma_sancionado_confirmada_at?: string | null
           firmado_at?: string | null
           firmante_id?: string | null
           hechos?: Json
@@ -1727,6 +1732,7 @@ export type Database = {
           resuelto_motivo?: string | null
           resuelto_por?: string | null
           resuelto_resultado?: string | null
+          sancionado_rechazo_firma_at?: string | null
           suspension_desde?: string | null
           suspension_dias?: number | null
           suspension_fechas?: string[] | null
@@ -1748,6 +1754,8 @@ export type Database = {
           entregado_por?: string | null
           estado?: string
           fecha_cese?: string | null
+          firma_sancionado?: string | null
+          firma_sancionado_confirmada_at?: string | null
           firmado_at?: string | null
           firmante_id?: string | null
           hechos?: Json
@@ -1762,6 +1770,7 @@ export type Database = {
           resuelto_motivo?: string | null
           resuelto_por?: string | null
           resuelto_resultado?: string | null
+          sancionado_rechazo_firma_at?: string | null
           suspension_desde?: string | null
           suspension_dias?: number | null
           suspension_fechas?: string[] | null
@@ -5473,6 +5482,10 @@ export type Database = {
           nombre: string
         }[]
       }
+      fn_firmar_memo_como_sancionado: {
+        Args: { p_id: string | null }
+        Returns: undefined
+      }
       fn_foto_perfil_puede_escribir: {
         Args: { p_path: string | null }
         Returns: boolean
@@ -5643,6 +5656,18 @@ export type Database = {
         Args: { p_client_uuids: string[] | null }
         Returns: string[]
       }
+      fn_memos_recientes_respuesta_sancionado: {
+        Args: { p_dias?: number | null }
+        Returns: {
+          correlativo: string
+          firmado_at: string
+          id: string
+          nivel: string
+          persona: string
+          rechazado_at: string
+          tipo_causal: string
+        }[]
+      }
       fn_mes_planilla_pagado: {
         Args: { p_anio: number | null; p_mes: number | null }
         Returns: boolean
@@ -5661,6 +5686,19 @@ export type Database = {
           estilo: string
           imagen: string
           tipo: string
+        }[]
+      }
+      fn_mis_memos: {
+        Args: never
+        Returns: {
+          correlativo: string
+          entregado_at: string
+          firma_sancionado_confirmada_at: string
+          id: string
+          medio_entrega: string
+          nivel: string
+          sancionado_rechazo_firma_at: string
+          tipo_causal: string
         }[]
       }
       fn_mis_solicitudes_perfil: {
@@ -5922,6 +5960,7 @@ export type Database = {
         Args: { p_fecha: string | null; p_persona_id: string | null }
         Returns: undefined
       }
+      fn_rechazar_firma_memo: { Args: { p_id: string | null }; Returns: undefined }
       fn_regenerar_pin: { Args: { p_persona_id: string | null }; Returns: string }
       fn_regimen_pension_divergentes: {
         Args: never
@@ -6320,8 +6359,12 @@ export type Database = {
         Args: { p_path: string | null }
         Returns: boolean
       }
+      fn_solicitud_perfil_puede_leer: {
+        Args: { p_path: string | null }
+        Returns: boolean
+      }
       fn_solicitud_perfil_ruta_congelada: {
-        Args: { p_path: string }
+        Args: { p_path: string | null }
         Returns: boolean
       }
       fn_solicitudes_perfil_pendientes: {
