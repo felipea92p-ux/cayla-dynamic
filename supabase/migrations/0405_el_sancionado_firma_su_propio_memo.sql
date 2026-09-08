@@ -201,5 +201,5 @@ $$;
 grant execute on function fn_memos_recientes_respuesta_sancionado(int) to authenticated;
 revoke execute on function fn_memos_recientes_respuesta_sancionado(int) from public, anon;
 
-insert into migraciones_aplicadas (numero, nombre) values (404, 'el_sancionado_firma_su_propio_memo')
+insert into migraciones_aplicadas (numero, nombre) values (405, 'el_sancionado_firma_su_propio_memo')
 on conflict (numero) do nothing;
