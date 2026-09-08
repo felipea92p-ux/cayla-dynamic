@@ -6,6 +6,48 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-08 — Auditoría dedicada a AFP/ONP: dos huecos de permisos cerrados (0404/0405)
+
+10 agentes en paralelo, solo lectura, auditaron el descuento de AFP/ONP de
+punta a punta — cálculo, exclusiones por tipo de vínculo, vigencia del
+régimen, permisos, pruebas y consistencia contra este mismo documento y
+`hallazgos-abiertos.md`. La aritmética central resultó sana: 5 casos
+numéricos trazados a mano sobre `fn_planilla_calcular_nucleo` (0397) dieron
+los 5 el resultado correcto.
+
+El hallazgo grave no fue de cálculo, fue de permisos, y lo confirmaron dos
+agentes por caminos separados: `personas.regimen_pension` **no** tenía el
+mismo candado que `rol` (0296) y `sede_base_id` (0342) — contradiciendo
+directamente el cierre de arriba, el del 2026-09-03 ("el patrón función
+guardián... las tres funciones ya funcionan bien"). No era cierto para la
+tercera: cualquier sesión admin/líder podía pisar el régimen de pensión con
+un `UPDATE` directo, saltándose `fn_cambiar_regimen_pension` (0332) entero.
+
+**Cerrado hoy, aplicado y verificado en producción (commit `dcef5a3`):**
+- **[0404](../supabase/migrations/0404_el_regimen_de_pension_tambien_se_cambia_por_una_puerta.sql)**
+  — trigger que bloquea el `UPDATE` directo de `regimen_pension`, mismo
+  molde que 0296/0342.
+- **[0405](../supabase/migrations/0405_la_tasa_de_pension_de_respaldo_se_valida_al_escribir.sql)**
+  — exige que `configuracion.tasa_afp` (el respaldo global que usa la
+  planilla cuando falta el régimen de alguien) sea un número entre 0 % y
+  20 % al escribirse; no toca el valor ya sembrado.
+
+**Medido en producción de paso:** `configuracion.tasa_afp` sigue exacto en
+`{"tasa": 0}`, y hay al menos una persona activa, en planilla, sin ningún
+régimen de pensión asignado hoy — aportando S/0 de pensión cada mes hasta
+que se le asigne desde `/admin/datos-personales`.
+
+**Quedan abiertos** ~9 hallazgos 🟡: la boleta y `/admin/planilla` quedan
+mudos cuando a alguien le falta el régimen (no solo cuando está "jubilada"),
+el mismo hueco de "sin régimen → aporte cero" también vive en
+`fn_vacaciones_truncas` (liquidación al cesar), `tipo_vinculo` no está
+versionado por fecha a diferencia de `regimen_pension`, no existe función
+para corregir una liquidación ya pagada con AFP/ONP mal calculado, y tres
+huecos de cobertura en las pruebas pgTAP de AFP. Detalle completo, con
+evidencia archivo:línea, en [`hallazgos-abiertos.md`](hallazgos-abiertos.md).
+
+---
+
 ## 2026-09-07 — 25 hallazgos de diseño de la auditoría del 2026-09-06/07, cerrados
 
 Rama `claude/stoic-chandrasekhar-5a16c4`, 4 commits. De los 27 hallazgos de

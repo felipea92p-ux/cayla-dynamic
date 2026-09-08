@@ -68,7 +68,7 @@ sin que se haya revisado si alguna ya lo neutralizó por otro lado).
 | 🔴 Se pagan **ausencias posteriores al cese** — CONFIRMADO ABIERTO 2026-09-05 | S/193.55 medidos | `fn_planilla_calcular_nucleo` (0349): `vacd`/`dmd`/`lic`/`mat` no miran `fecha_cese`; `fn_cesar_persona` (0327) cierra `asignaciones_salario`/`horarios_asignados` al cesar pero NO revisa `ausencias` con fecha posterior — la misma asimetría que deja el hueco |
 | 🔴 **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad — CONFIRMADO ABIERTO 2026-09-05 | S/1,306.45 medidos | `fn_planilla_calcular_nucleo` (0349) línea ~1131: `sf.salario` ignora `p_ini`/`p_fin` por completo. Golpea incluso a `fn_liquidacion` (0244), que SÍ pasa `p_fin = fecha_cese` con el comentario "ni un día más" — la rama `sueldo_fijo` lo viola en silencio |
 | 🔴 **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes — CONFIRMADO ABIERTO 2026-09-05 | S/1,509.64 medidos | `fn_planilla_calcular_nucleo` (0349), CTE `pers`: excluye a quien cesó sin ninguna `jornada` ni `movimientos_planilla` ese `periodo_id`. Ya hay un parche en el REPORTE de variación (`fn_que_cambio_respecto_al_mes_pasado`, prueba 255) pero el cálculo real de planilla sigue sin la persona |
-| 🟡 **Sin régimen de pensión → aporte cero** — CONFIRMADO ABIERTO 2026-09-05, con matiz: el hallazgo original decía "ninguna pantalla avisa" y eso ya era falso el 19/08 — `/admin/datos-personales` avisa "falta régimen de pensión" desde el commit `6039302` (2026-08-08), antes del propio hallazgo | ~S/208/mes por persona, SI `configuracion.tasa_afp` sigue en el seed `{"tasa":0}` de la 0110 — no medido en producción | `coalesce(tpen.tasa, v_tasa_afp)` en `fn_planilla_calcular_nucleo` (0349). El dato para avisar en Planilla (`tasa_es_del_regimen`) ya lo calcula la función desde la 0114; falta solo la UI en `/admin/planilla` |
+| 🟡 **Sin régimen de pensión → aporte cero** — CONFIRMADO ABIERTO Y MEDIDO EN PRODUCCIÓN 2026-09-08: `configuracion.tasa_afp` sigue exacto en `{"tasa": 0}` (consulta directa en el SQL Editor), y hay **al menos una persona activa, en planilla, sin régimen asignado hoy mismo** — aportando S/0 de pensión cada mes hasta que se le asigne desde `/admin/datos-personales`. Ya no es hipotético | ~S/160-208/mes esa persona, mientras no se le asigne régimen | `coalesce(tpen.tasa, v_tasa_afp)` en `fn_planilla_calcular_nucleo` (vigente: 0397). El dato para avisar en Planilla (`tasa_es_del_regimen`) ya lo calcula la función desde la 0114; sigue faltando la UI en `/admin/planilla` (confirmado sin cambios el 2026-09-08) y también falta en la boleta y en `fn_vacaciones_truncas` — ver la auditoría del 2026-09-08 más abajo. La escritura de un valor imposible en `configuracion.tasa_afp` ya no es posible desde la 0405 (2026-09-08), pero el valor actual (0) no se tocó. |
 | 🔴 El **sobretiempo pierde el exceso** del ciclo que cruza el borde del periodo — CONFIRMADO ABIERTO 2026-09-05, mecanismo verificado con ejemplo de fechas | S/14–19 (no remedido hoy) | `ot_dias`/`ot_islas`/`ot_ciclos` en `fn_planilla_calcular_nucleo` (0349) siguen leyendo `p_ini - 7`: una racha real de 8+ días que cruza ese borde pierde el exceso del ciclo que cae del lado equivocado. Sin ninguna prueba pgTAP que cubra una racha cruzando el borde |
 | 🔴 La **pantalla de Feriados y la planilla dividen por bases distintas** — CONFIRMADO ABIERTO 2026-09-05 | 3.33–10.7 % de cada sobretasa según el par de meses | `fn_feriados_laborados` (0238, pantalla) sigue usando mes calendario; `fn_feriado_devengado_nucleo` (0349, el que realmente paga) usa el periodo 29→28 desde hace ~15 migraciones. Nunca se reconciliaron |
 
@@ -1984,3 +1984,141 @@ está fusionado a esta fecha.
   mitad de "persona cesada" no se cerró por el camino pedido, pero ya estaba
   cubierta desde antes por `fn_marcaje_no_posterior_al_cese` (0086, por fecha
   de cese en vez de por estado).
+
+---
+
+## Auditoría del 2026-09-08 · 10 agentes sobre AFP/ONP
+
+Auditoría dedicada, de solo lectura, al descuento de AFP/ONP: 10 agentes en
+paralelo, cada uno con un recorte propio — núcleo del cálculo, comisión mixta
+vs. flujo, cambio de régimen y vigencia, liquidación y vacaciones truncas,
+exclusiones por tipo de vínculo (RxH/sueldo fijo/dirección/practicante),
+pantallas del panel, cobertura de pruebas pgTAP, consistencia contra este
+mismo documento y `estado.md`, un recálculo numérico a mano de 5 casos
+sintéticos trazando `fn_planilla_calcular_nucleo` línea por línea, y permisos
+RLS. Ninguno tocó el Postgres local compartido ni ejecutó SQL contra
+producción — todo por lectura de migraciones y razonamiento, con
+`donde-vive.sh` para confirmar la versión vigente de cada función antes de
+opinar sobre ella.
+
+La aritmética central está sana: los 5 casos numéricos (AFP normal, con
+feriado + sobretiempo, ONP, RxH, sin régimen) dieron los 5 el resultado
+correcto. El hallazgo grave no fue de cálculo — fue que dos agentes,
+trabajando por caminos separados, llegaron **de forma independiente** a la
+misma falla de permisos, que además contradice un cierre que este mismo
+documento y `CLAUDE.md` daban por hecho.
+
+### Cerrado el mismo día
+
+- ✅ **`personas.regimen_pension` no tenía el candado que `rol` (0296) y
+  `sede_base_id` (0342) sí tienen.** Cualquier sesión admin/líder podía
+  pisarla con un `UPDATE`/`PATCH` directo, saltándose `fn_cambiar_regimen_
+  pension` (0332) entero — sin el freno de "no reescribas un mes ya pagado",
+  sin fila en `correcciones_auditoria`. Contradecía el cierre del
+  2026-09-03 (ver más abajo, "El régimen de pensión no tiene historia"), que
+  daba las tres puertas —rol, sede, régimen de pensión— por igualmente
+  protegidas. **Cerrado por la
+  [0404](../supabase/migrations/0404_el_regimen_de_pension_tambien_se_cambia_por_una_puerta.sql)**,
+  mismo molde que 0296/0342. Confirmado con el trigger vivo en producción el
+  2026-09-08 (commit `dcef5a3`).
+- ✅ **`configuracion.tasa_afp` —el respaldo global que usa `fn_planilla_
+  calcular_nucleo` cuando alguien no tiene régimen asignado— aceptaba
+  cualquier valor sin validar,** con blast radius sobre la planilla COMPLETA
+  del mes (se lee una sola vez para todos, no por persona). Un valor no
+  numérico revienta el cálculo entero; un valor mal escrito (`12.92` en vez
+  de `0.1292`) descuenta mal a todo el mes en silencio. El lote de arreglos
+  críticos del 2026-09-07 no lo había tocado. **Cerrado por la
+  [0405](../supabase/migrations/0405_la_tasa_de_pension_de_respaldo_se_valida_al_escribir.sql)**
+  — exige un número entre 0 % y 20 %, nunca cero, sin tocar el valor ya
+  sembrado. Confirmado con el trigger vivo en producción el 2026-09-08
+  (commit `dcef5a3`).
+
+### Confirmado y pendiente
+
+- 🟡 **El hueco "sin régimen → aporte cero" también vive en
+  `fn_vacaciones_truncas`** (liquidación al cesar), no solo en la planilla
+  mensual — mismo `coalesce(..., configuracion.tasa_afp)` (0341:219-238). Sin
+  medir en producción cuántas liquidaciones ya cayeron ahí.
+- 🟡 **`fn_vacaciones_truncas` no copia la bandera `tasa_es_del_regimen`**
+  que sí expone el núcleo desde la 0114 — ni la pantalla de Liquidaciones ni
+  la Hoja que la persona firma al cesar pueden distinguir "está exento de
+  verdad" de "le falta el dato". El componente `Linea`
+  (`admin/liquidaciones/page.tsx:664-701, 854-880`) solo pinta la línea de
+  descuento si es distinto de cero — con régimen `NULL` desaparece sin
+  ninguna nota.
+- 🟡 **La boleta (`boleta-hoja.tsx`) queda muda cuando falta el régimen**,
+  confirmado por tres agentes independientes. Solo existe la rama que explica
+  el descuento en cero para `regimen_pension = 'jubilada'` (líneas 705, 757,
+  1138); para alguien sin régimen asignado, ninguna condición se cumple y no
+  se imprime nada — ni el descuento, ni una explicación. Afecta también el
+  autoservicio `/mio/boleta`: la propia persona ve su boleta sin ninguna
+  pista de que algo falta.
+- 🟡 **`/admin/planilla` sigue sin ningún indicador de régimen faltante**,
+  confirmado hoy 2026-09-08 (la fila 71 original de este documento seguía sin
+  medir en producción; ya se midió: hay al menos una persona activa, en
+  planilla, con este hueco hoy mismo). `tasa_es_del_regimen` está declarado
+  en el tipo `Fila` (`planilla/page.tsx:277`) pero nunca se lee en el resto
+  del archivo — ni en la tabla, ni en la boleta individual.
+- 🟡 **No existe ninguna función para corregir una liquidación ya pagada con
+  AFP/ONP mal calculado.** El criterio correcto —con AFP se recupera el
+  bruto porque queda en la cuenta individual, con ONP solo el neto porque el
+  resto se perdió en el reparto (caso real: Pillaca/Gavilan/Ticona, más abajo
+  en este documento)— vive solo en la documentación, no en código. El único
+  camino de función (`fn_liquidacion_pagar`, re-versiona y sí audita) solo
+  recalcula desde cero; no ejecuta el ajuste monetario de la diferencia.
+- 🟡 **`tipo_vinculo` no está versionado por fecha**, a diferencia de
+  `regimen_pension` (fijo desde la 0261). Un cambio de categoría a mitad de
+  un periodo abierto (RxH→planilla, practicante→planilla — el patrón exacto
+  del caso real de Geison Alcántara) recalcula el periodo ENTERO con la
+  clasificación actual: `fn_set_tipo_vinculo` (0324) no llama a `fn_fecha_en_
+  periodo_pagado` como sí hace `fn_cambiar_regimen_pension` desde la 0332.
+  Sin plata mal pagada confirmada hoy — el mecanismo está sin candado, no se
+  ha disparado.
+- 🟡 **El lookup de `tasas_pension` (`order by vigente_desde desc limit 1`)
+  no tiene el desempate `id desc`** que sí llevan las 6 funciones ya
+  corregidas por la familia 0386-0389. No es el mismo defecto exacto (esas
+  ordenan por `_at`/`now()` dentro de una transacción; acá es una fecha de
+  negocio con constraint de no-solape, así que hoy no hay empate posible) —
+  pero es la misma FORMA de riesgo, y es barato de cerrar agregando el
+  ancla.
+- 🟡 **Tres huecos de cobertura en las pruebas pgTAP de AFP:** ningún test
+  ejercita un cambio de régimen a mitad de un periodo abierto con marcajes
+  en ambos lados de la fecha del cambio; `fn_vacaciones_truncas` no tiene
+  ninguna prueba para alguien con `sueldo_fijo=true`, pese a que el resto
+  del sistema excluye a ese grupo de la base de AFP; los candados de
+  "periodo ya pagado" en las pruebas `202` y `214` usan
+  `throws_ok(sql,null,null)`, que acepta CUALQUIER excepción, no solo la
+  esperada — extiende (sin estar contado ahí) la debilidad ya documentada
+  más abajo sobre `throws_ok` genérico en candados de dinero.
+- 🟡 **El CSV al contador sigue sin la columna `descuento_afp`** — ya
+  documentado más arriba en este archivo ("El CSV que se le pasa al
+  contador..."), confirmado sin cambios el 2026-09-08
+  (`planilla/page.tsx:2173-2230`).
+- ⚪ **Los porcentajes de AFP en el selector de Datos Personales están
+  "congelados" como texto estático** en `packages/shared/src/labels.ts`, no
+  leen `tasas_pension` en vivo. Si la SBS ajusta una comisión, el texto del
+  desplegable puede quedar desactualizado sin aviso — el cálculo real sí usa
+  la tasa vigente, así que no mueve plata, solo puede confundir al elegir.
+- ⚪ **Color fuera de tokens en Liquidaciones** — `border-black` en vez de
+  `border-tinta` dentro de contenedores `.hoja`
+  (`admin/liquidaciones/page.tsx:880,894,899,935`). En modo oscuro, en
+  pantalla, la línea de firma queda casi invisible (no afecta al PDF
+  impreso).
+
+### Confirmado sin objeción (no reabrir sin caso nuevo)
+
+Verificado a fondo y sin defecto: las tasas sembradas en `tasas_pension`
+(ONP 13,00 %; AFP flujo 12,84 %-13,06 %; AFP mixta 11,37 %) · el tope de
+comisión mixta no aplica hoy (ningún sueldo de CAYLA se acerca al techo de
+la prima de seguro, ya razonado en la 0114) · la migración 0331 es
+idempotente y su criterio de selección es correcto · el catálogo de AFP en
+`enums.ts`/`labels.ts` no tiene huecos frente a `tasas_pension` · la base
+imponible de `fn_planilla_calcular_nucleo` (0397) incluye/excluye los 7
+conceptos legales correctamente · la guarda que impide retenerle AFP a un
+locador (0242) sigue intacta · `personal_direccion` solo se excluye de
+sobretiempo, nunca de AFP · `practicante` sigue en cero para AFP en todos
+los caminos revisados · la boleta es consistente entre el nombre del
+régimen y el monto (mismo origen de datos) · el formulario de asignación en
+Datos Personales no reproduce el patrón de "campo que arranca vacío y
+bloquea en silencio" · las ~15-18 pruebas centrales de AFP afirman montos
+exactos, no solo "no falla".
