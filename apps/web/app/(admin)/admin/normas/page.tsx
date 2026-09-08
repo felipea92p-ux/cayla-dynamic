@@ -11,6 +11,9 @@ import { subirArchivoConProgreso } from "@/lib/subir-archivo";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
 import { ROLES_DO, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
 import { Documento } from "@/components/documento";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
 
 // Normas: los documentos que rigen para todo el equipo, y la prueba de que se
 // entregaron.
@@ -571,6 +574,11 @@ export default function NormasPage() {
                   </p>
                 )}
                 <div className="flex flex-wrap items-end gap-2">
+                  {/* Se queda como <input> a mano (no <Campo>, que no es
+                      forwardRef): el efecto de más arriba lee
+                      `refNombre.current` para llevar el foco aquí cuando la
+                      constancia falla. Comparte la misma cadena base que
+                      Campo para no desentonar. */}
                   <label className="flex flex-col gap-1 text-xs">
                     Tu nombre y apellido
                     <input ref={refNombre} value={nombreDeclarado}
@@ -579,12 +587,11 @@ export default function NormasPage() {
                       autoComplete="name"
                       aria-invalid={msgConstancia !== null}
                       aria-describedby={msgConstancia ? "error-constancia" : undefined}
-                      className={`w-64 rounded border px-2 py-1 text-xs ${msgConstancia ? "border-rojo" : ""}`} />
+                      className={`w-64 rounded-control border bg-hueso px-3 py-2 text-base text-tinta sm:text-sm ${msgConstancia ? "border-rojo" : "border-sand"}`} />
                   </label>
-                  <button onClick={() => void acusar(d)} disabled={ocupado}
-                    className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
+                  <Boton variante="primario" tamano="sm" onClick={() => void acusar(d)} disabled={ocupado}>
                     Dejar constancia
-                  </button>
+                  </Boton>
                 </div>
               </>
             )}
@@ -594,17 +601,18 @@ export default function NormasPage() {
         {/* ── El seguimiento, sólo para quien manda ── */}
         {puedeGestionar && d.requiere_acuse && (
           <div className="mt-4">
-            <button
+            <Boton
+              variante="enlace"
+              className="text-xs"
               onClick={() => {
                 const nuevo = verSeguimiento === d.documento_id ? null : d.documento_id;
                 setVerSeguimiento(nuevo);
                 if (nuevo) void cargarAcuses(nuevo);
-              }}
-              className="text-xs font-medium underline">
+              }}>
               {d.total_acuses} de {d.poblacion} han dejado constancia
               {d.total_acuses < d.poblacion && ` · faltan ${d.poblacion - d.total_acuses}`}
               {verSeguimiento === d.documento_id ? " · ocultar" : " · ver quién"}
-            </button>
+            </Boton>
 
             {verSeguimiento === d.documento_id && (
               <ul className="mt-2 divide-y rounded-lg border border-sand">
@@ -612,13 +620,17 @@ export default function NormasPage() {
                   <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
                     <span>
                       {f.nombre} <span className="text-taupe">· {f.sede}</span>
-                      {!f.tiene_cuenta && <span className="ml-2 rounded-full bg-sand px-2 py-0.5 text-taupe">sin cuenta</span>}
+                      {!f.tiene_cuenta && <Insignia atenuada className="ml-2">sin cuenta</Insignia>}
                     </span>
                     {f.acusado_at ? (
                       <span className="text-taupe">
                         {selloLima(f.acusado_at)} · {f.via === "papel" ? "en papel" : "desde el sistema"}
                       </span>
                     ) : (
+                      // Se queda nativo (no <Boton>): su color de reposo
+                      // —borde y texto en tinta— no es ninguna de las cinco
+                      // variantes (la más cercana, "sutil", arranca en taupe
+                      // y solo llega a tinta al pasar el mouse).
                       <button
                         onClick={() => {
                           setPapelPara({ doc: d.documento_id, persona: f.persona_id, nombre: f.nombre });
@@ -658,26 +670,25 @@ export default function NormasPage() {
               </p>
             )}
             <div className="grid gap-2 sm:grid-cols-2">
+              {/* Se queda como <input> a mano (no <Campo>): `guardarPapel`
+                  necesita `refCargo.current` para llevar el foco aquí si
+                  falta el escaneo, y Campo no reenvía ref. Comparte la
+                  cadena base de Campo (borde, radio, fondo) para no
+                  desentonar. */}
               <label className="flex flex-col gap-1 text-xs">
                 Cargo firmado
                 <input ref={refCargo} type="file" accept={TIPOS_CARGO}
                   onChange={(e) => { setArchivo(e.target.files?.[0] ?? null); setMsgPapel(null); }}
                   aria-invalid={msgPapel !== null}
                   aria-describedby={msgPapel ? "error-papel" : undefined}
-                  className={`rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs ${msgPapel ? "border-rojo" : ""}`} />
+                  className={`rounded-control border bg-hueso px-3 py-2 text-sm file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs ${msgPapel ? "border-rojo" : "border-sand"}`} />
               </label>
-              <label className="flex flex-col gap-1 text-xs">
-                Fecha de recepción
-                <input type="date" value={fechaPapel} max={hoyLima()}
-                  onChange={(e) => setFechaPapel(e.target.value)}
-                  className="rounded border px-2 py-1 text-xs" />
-              </label>
-              <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                Nota (opcional)
-                <input value={notaPapel} onChange={(e) => setNotaPapel(e.target.value)}
-                  placeholder="ej. entregado en la tienda, con la encargada presente"
-                  className="rounded border px-2 py-1 text-xs" />
-              </label>
+              <Campo etiqueta="Fecha de recepción" type="date" value={fechaPapel} max={hoyLima()}
+                onChange={(e) => setFechaPapel(e.target.value)} />
+              <div className="sm:col-span-2">
+                <Campo etiqueta="Nota (opcional)" value={notaPapel} onChange={(e) => setNotaPapel(e.target.value)}
+                  placeholder="ej. entregado en la tienda, con la encargada presente" />
+              </div>
             </div>
             {progreso !== null && (
               <div className="mt-2">
@@ -690,13 +701,12 @@ export default function NormasPage() {
               </div>
             )}
             <div className="mt-2 flex items-center gap-2">
-              <button onClick={() => void guardarPapel()} disabled={ocupado}
-                className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+              <Boton variante="primario" tamano="sm" onClick={() => void guardarPapel()} disabled={ocupado}>
                 {progreso !== null ? `Subiendo… ${progreso}%` : "Registrar constancia"}
-              </button>
-              <button onClick={() => setPapelPara(null)} className="rounded-lg border px-3 py-1 text-xs">
+              </Boton>
+              <Boton variante="secundario" tamano="sm" onClick={() => setPapelPara(null)}>
                 Cancelar
-              </button>
+              </Boton>
             </div>
           </div>
         )}
@@ -794,40 +804,33 @@ export default function NormasPage() {
                         className="rounded border bg-crema px-2 py-1 text-xs file:mr-2 file:rounded file:border-0 file:bg-sand file:px-2 file:py-0.5 file:text-xs" />
                     )}
                   </label>
-                  <label className="flex flex-col gap-1 text-xs">
-                    Título con el que se muestra
-                    <input value={tituloDoc} onChange={(e) => setTituloDoc(e.target.value)}
-                      placeholder="Reglamento Interno de Trabajo"
-                      className="rounded border px-2 py-1 text-xs" />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs">
-                    Rige desde
-                    <input type="date" value={vigenteDesde} onChange={(e) => setVigenteDesde(e.target.value)}
-                      className="rounded border px-2 py-1 text-xs" />
-                    <span className="text-taupe">Si lo dejas vacío, rige desde hoy.</span>
-                  </label>
+                  <Campo etiqueta="Título con el que se muestra" value={tituloDoc}
+                    onChange={(e) => setTituloDoc(e.target.value)}
+                    placeholder="Reglamento Interno de Trabajo" />
+                  <div className="flex flex-col gap-1">
+                    <Campo etiqueta="Rige desde" type="date" value={vigenteDesde}
+                      onChange={(e) => setVigenteDesde(e.target.value)} />
+                    <span className="text-xs text-taupe">Si lo dejas vacío, rige desde hoy.</span>
+                  </div>
                   {/* La versión que DICE el documento, que es la que va en el cargo
                       que se firma. No se deduce del texto a propósito: solo el
                       Reglamento la lleva en un sitio predecible, los anexos la
                       tienen embutida en prosa y un texto pegado desde un Word
                       puede no traerla. Un analizador acertaría en uno y fallaría
                       en silencio en el resto. */}
-                  <label className="flex flex-col gap-1 text-xs">
-                    Versión que dice el documento (opcional)
-                    <input value={etiquetaDoc} onChange={(e) => setEtiquetaDoc(e.target.value)}
-                      placeholder="ej. 4.0"
-                      className="rounded border px-2 py-1 text-xs" />
-                    <span className="text-taupe">
+                  <div className="flex flex-col gap-1">
+                    <Campo etiqueta="Versión que dice el documento (opcional)" value={etiquetaDoc}
+                      onChange={(e) => setEtiquetaDoc(e.target.value)} placeholder="ej. 4.0" />
+                    <span className="text-xs text-taupe">
                       La que aparece en el cargo que se firma. Si la dejas vacía, se muestra
                       solo el número de publicación.
                     </span>
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                    Nota de la versión (opcional)
-                    <input value={notasDoc} onChange={(e) => setNotasDoc(e.target.value)}
-                      placeholder="ej. sustituye a la v3.0 de junio de 2026"
-                      className="rounded border px-2 py-1 text-xs" />
-                  </label>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Campo etiqueta="Nota de la versión (opcional)" value={notasDoc}
+                      onChange={(e) => setNotasDoc(e.target.value)}
+                      placeholder="ej. sustituye a la v3.0 de junio de 2026" />
+                  </div>
                 </div>
 
                 {creandoTipo && (
@@ -837,16 +840,19 @@ export default function NormasPage() {
                       presentación de la empresa. El código interno se deriva del nombre.
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="flex flex-col gap-1 text-xs">
-                        Nombre
-                        <input value={tipoNuevo.nombre}
+                      <div className="flex flex-col gap-1">
+                        <Campo etiqueta="Nombre" value={tipoNuevo.nombre}
                           onChange={(e) => setTipoNuevo((t) => ({ ...t, nombre: e.target.value }))}
-                          placeholder="Reglamento Interno de Seguridad y Salud"
-                          className="rounded border px-2 py-1 text-xs" />
+                          placeholder="Reglamento Interno de Seguridad y Salud" />
                         {tipoNuevo.nombre.trim() !== "" && (
                           <span className="text-[11px] text-taupe">código: {codigoDesde(tipoNuevo.nombre) || "—"}</span>
                         )}
-                      </label>
+                      </div>
+                      {/* Se queda como <label> a mano (no <CampoCasilla>): su
+                          etiqueta lleva una segunda línea explicativa debajo, y
+                          `etiqueta` en CampoCasilla solo admite texto plano.
+                          "size-4 accent-tinta" es a propósito el mismo patrón
+                          que usa CampoCasilla por dentro. */}
                       <label className="flex items-start gap-2 text-xs sm:pt-5">
                         <input type="checkbox" checked={tipoNuevo.acuse} className="mt-0.5 size-4 accent-tinta"
                           onChange={(e) => setTipoNuevo((t) => ({ ...t, acuse: e.target.checked }))} />
@@ -861,10 +867,10 @@ export default function NormasPage() {
                       </label>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
-                      <button onClick={() => void crearTipo()} disabled={ocupado || !tipoNuevo.nombre.trim()}
-                        className="rounded-lg bg-tinta px-3 py-1 text-xs font-medium text-crema disabled:opacity-40">
+                      <Boton variante="primario" tamano="sm" onClick={() => void crearTipo()}
+                        disabled={ocupado || !tipoNuevo.nombre.trim()}>
                         Añadir
-                      </button>
+                      </Boton>
                     </div>
                   </div>
                 )}
@@ -889,12 +895,13 @@ export default function NormasPage() {
                 )}
 
                 <div className="mt-3 flex items-center gap-2">
-                  <button onClick={() => void publicar()} disabled={ocupado || !archivoDoc}
-                    className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
+                  <Boton variante="primario" tamano="sm" onClick={() => void publicar()} disabled={ocupado || !archivoDoc}>
                     Publicar
-                  </button>
-                  <button onClick={() => { setPublicando(false); setArchivoDoc(null); setTituloDoc(""); setTextoPegado(""); }}
-                    className="rounded-lg border px-3 py-1.5 text-xs">Cancelar</button>
+                  </Boton>
+                  <Boton variante="secundario" tamano="sm"
+                    onClick={() => { setPublicando(false); setArchivoDoc(null); setTituloDoc(""); setTextoPegado(""); }}>
+                    Cancelar
+                  </Boton>
                 </div>
               </div>
             )}
@@ -933,9 +940,9 @@ export default function NormasPage() {
                       {!d.requiere_acuse ? (
                         <span className="whitespace-nowrap text-taupe">solo lectura</span>
                       ) : d.mi_acuse_at ? (
-                        <span className="whitespace-nowrap rounded-full bg-sand px-2 py-0.5 text-tinta">tu constancia está</span>
+                        <Insignia variante="neutral">tu constancia está</Insignia>
                       ) : (
-                        <span className="whitespace-nowrap rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">falta tu constancia</span>
+                        <Insignia variante="alerta">falta tu constancia</Insignia>
                       )}
                       <span className="text-taupe">{abierto === d.documento_id ? "ocultar" : "leer"}</span>
                     </span>
@@ -1021,8 +1028,8 @@ export default function NormasPage() {
                         </span>
                         <span className="flex items-center gap-2 text-xs">
                           {a.requiere_acuse && (a.mi_acuse_at
-                            ? <span className="whitespace-nowrap rounded-full bg-sand px-2 py-0.5 text-tinta">tu constancia está</span>
-                            : <span className="whitespace-nowrap rounded-full bg-rojo/10 px-2 py-0.5 text-rojo">falta tu constancia</span>)}
+                            ? <Insignia variante="neutral">tu constancia está</Insignia>
+                            : <Insignia variante="alerta">falta tu constancia</Insignia>)}
                           <span className="text-taupe">{abierto === a.documento_id ? "ocultar" : "leer"}</span>
                         </span>
                       </button>

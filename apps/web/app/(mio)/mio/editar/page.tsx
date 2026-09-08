@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
+import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
+import { Insignia } from "@/components/ui/insignia";
 import {
   ESTADO_CIVIL_LABELS, ESTADOS_CIVILES, GENERO_LABELS, GENEROS,
   GRADO_INSTRUCCION_LABELS, GRADOS_INSTRUCCION,
@@ -200,177 +203,123 @@ function MiEditarContenido() {
       {catalogoPerfil.length > 0 && (
         <section className="rounded-2xl border border-sand bg-papel p-5 text-sm">
           <form onSubmit={(e) => void proponerCambioPerfil(e)} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-xs text-taupe">Qué quieres cambiar
-              <select value={campoPerfil}
-                onChange={(e) => { setCampoPerfil(e.target.value); setFormPerfil({}); setArchivosPerfil([]); }}
-                className="max-w-xs rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                {catalogoPerfil.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
-              </select>
-            </label>
+            <CampoSelect
+              etiqueta="Qué quieres cambiar"
+              value={campoPerfil}
+              onChange={(e) => { setCampoPerfil(e.target.value); setFormPerfil({}); setArchivosPerfil([]); }}
+              className="max-w-xs"
+            >
+              {catalogoPerfil.map((c) => <option key={c.campo} value={c.campo}>{c.etiqueta}</option>)}
+            </CampoSelect>
 
             <div className="flex flex-wrap items-end gap-3">
               {campoPerfil === "celular" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo celular
-                  <input type="tel" required value={formPerfil.celular ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, celular: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
+                <Campo etiqueta="Nuevo celular" type="tel" required value={formPerfil.celular ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, celular: e.target.value }))} />
               )}
               {campoPerfil === "direccion" && (
-                <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs text-taupe">Nueva dirección
-                  <input type="text" required value={formPerfil.direccion ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, direccion: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
+                <div className="min-w-56 flex-1">
+                  <Campo etiqueta="Nueva dirección" type="text" required value={formPerfil.direccion ?? ""}
+                    onChange={(e) => setFormPerfil((f) => ({ ...f, direccion: e.target.value }))} />
+                </div>
               )}
               {campoPerfil === "contacto_emergencia" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nombre
-                  <input type="text" required value={formPerfil.emergencia_nombre ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_nombre: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                  <input type="text" required value={formPerfil.emergencia_vinculo ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
-                    placeholder="madre, esposo…"
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Teléfono
-                  <input type="tel" required value={formPerfil.emergencia_telefono ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_telefono: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
+                <Campo etiqueta="Nombre" type="text" required value={formPerfil.emergencia_nombre ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_nombre: e.target.value }))} />
+                <Campo etiqueta="Vínculo" type="text" required value={formPerfil.emergencia_vinculo ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_vinculo: e.target.value }))}
+                  placeholder="madre, esposo…" />
+                <Campo etiqueta="Teléfono" type="tel" required value={formPerfil.emergencia_telefono ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, emergencia_telefono: e.target.value }))} />
               </>)}
               {campoPerfil === "estado_civil" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo estado civil
-                  <select required value={formPerfil.estado_civil ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, estado_civil: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    {ESTADOS_CIVILES.map((ec) => <option key={ec} value={ec}>{ESTADO_CIVIL_LABELS[ec]}</option>)}
-                  </select>
-                </label>
+                <CampoSelect etiqueta="Nuevo estado civil" required value={formPerfil.estado_civil ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, estado_civil: e.target.value }))}>
+                  <option value="" disabled>Elige…</option>
+                  {ESTADOS_CIVILES.map((ec) => <option key={ec} value={ec}>{ESTADO_CIVIL_LABELS[ec]}</option>)}
+                </CampoSelect>
               )}
               {campoPerfil === "hijos_menores" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes hijos menores a cargo?
-                  <select required value={formPerfil.hijos_menores ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, hijos_menores: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
+                <CampoSelect etiqueta="¿Tienes hijos menores a cargo?" required value={formPerfil.hijos_menores ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, hijos_menores: e.target.value }))}>
+                  <option value="" disabled>Elige…</option>
+                  <option value="true">Sí</option>
+                  <option value="false">No</option>
+                </CampoSelect>
               )}
               {campoPerfil === "grado_instruccion" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo grado de instrucción
-                  <select required value={formPerfil.grado_instruccion ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, grado_instruccion: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    {GRADOS_INSTRUCCION.map((g) => <option key={g} value={g}>{GRADO_INSTRUCCION_LABELS[g]}</option>)}
-                  </select>
-                </label>
+                <CampoSelect etiqueta="Nuevo grado de instrucción" required value={formPerfil.grado_instruccion ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, grado_instruccion: e.target.value }))}>
+                  <option value="" disabled>Elige…</option>
+                  {GRADOS_INSTRUCCION.map((g) => <option key={g} value={g}>{GRADO_INSTRUCCION_LABELS[g]}</option>)}
+                </CampoSelect>
               )}
               {campoPerfil === "discapacidad" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">¿Tienes una discapacidad?
-                  <select required value={formPerfil.discapacidad ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                </label>
+                <CampoSelect etiqueta="¿Tienes una discapacidad?" required value={formPerfil.discapacidad ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad: e.target.value }))}>
+                  <option value="" disabled>Elige…</option>
+                  <option value="true">Sí</option>
+                  <option value="false">No</option>
+                </CampoSelect>
                 {formPerfil.discapacidad === "true" && (
-                  <label className="flex flex-col gap-1 text-xs text-taupe">Código CONADIS
-                    <input type="text" required value={formPerfil.discapacidad_conadis ?? ""}
-                      onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad_conadis: e.target.value }))}
-                      className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                  </label>
+                  <Campo etiqueta="Código CONADIS" type="text" required value={formPerfil.discapacidad_conadis ?? ""}
+                    onChange={(e) => setFormPerfil((f) => ({ ...f, discapacidad_conadis: e.target.value }))} />
                 )}
               </>)}
               {campoPerfil === "cuenta_bancaria" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Banco
-                  <input type="text" required value={formPerfil.entidad_bancaria ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, entidad_bancaria: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Número de cuenta
-                  <input type="text" required value={formPerfil.numero_cuenta ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, numero_cuenta: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
+                <Campo etiqueta="Banco" type="text" required value={formPerfil.entidad_bancaria ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, entidad_bancaria: e.target.value }))} />
+                <Campo etiqueta="Número de cuenta" type="text" required value={formPerfil.numero_cuenta ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, numero_cuenta: e.target.value }))} />
               </>)}
               {campoPerfil === "cuspp" && (
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nuevo CUSPP
-                  <input type="text" required value={formPerfil.cuspp ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, cuspp: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
+                <Campo etiqueta="Nuevo CUSPP" type="text" required value={formPerfil.cuspp ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, cuspp: e.target.value }))} />
               )}
               {campoPerfil === "correccion_identidad" && (<>
                 <p className="w-full text-xs text-taupe">
                   Es una corrección de un dato mal capturado, no una actualización — completa solo lo que está mal.
                 </p>
-                <label className="flex flex-col gap-1 text-xs text-taupe">DNI correcto
-                  <input type="text" value={formPerfil.documento ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, documento: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nombre completo correcto
-                  <input type="text" value={formPerfil.nombre_dni ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, nombre_dni: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Fecha de nacimiento correcta
-                  <input type="date" value={formPerfil.fecha_nacimiento ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Género correcto
-                  <select value={formPerfil.genero ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, genero: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="">— sin corregir —</option>
-                    {GENEROS.map((g) => <option key={g} value={g}>{GENERO_LABELS[g]}</option>)}
-                  </select>
-                </label>
+                <Campo etiqueta="DNI correcto" type="text" value={formPerfil.documento ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, documento: e.target.value }))} />
+                <Campo etiqueta="Nombre completo correcto" type="text" value={formPerfil.nombre_dni ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, nombre_dni: e.target.value }))} />
+                <Campo etiqueta="Fecha de nacimiento correcta" type="date" value={formPerfil.fecha_nacimiento ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))} />
+                <CampoSelect etiqueta="Género correcto" value={formPerfil.genero ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, genero: e.target.value }))}>
+                  <option value="">— sin corregir —</option>
+                  {GENEROS.map((g) => <option key={g} value={g}>{GENERO_LABELS[g]}</option>)}
+                </CampoSelect>
               </>)}
               {campoPerfil === "familiar_nuevo" && (<>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Nombres
-                  <input type="text" required value={formPerfil.nombres ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, nombres: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Apellidos
-                  <input type="text" required value={formPerfil.apellidos ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, apellidos: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">Vínculo
-                  <select required value={formPerfil.vinculo ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, vinculo: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta">
-                    <option value="" disabled>Elige…</option>
-                    {VINCULOS_DERECHOHABIENTE.map((v) => <option key={v} value={v}>{VINCULO_DERECHOHABIENTE_LABELS[v]}</option>)}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-xs text-taupe">
-                  Fecha de nacimiento{formPerfil.vinculo === "hijo" ? "" : " (si aplica)"}
-                  <input type="date" required={formPerfil.vinculo === "hijo"} value={formPerfil.fecha_nacimiento ?? ""}
-                    onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
-                </label>
+                <Campo etiqueta="Nombres" type="text" required value={formPerfil.nombres ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, nombres: e.target.value }))} />
+                <Campo etiqueta="Apellidos" type="text" required value={formPerfil.apellidos ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, apellidos: e.target.value }))} />
+                <CampoSelect etiqueta="Vínculo" required value={formPerfil.vinculo ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, vinculo: e.target.value }))}>
+                  <option value="" disabled>Elige…</option>
+                  {VINCULOS_DERECHOHABIENTE.map((v) => <option key={v} value={v}>{VINCULO_DERECHOHABIENTE_LABELS[v]}</option>)}
+                </CampoSelect>
+                <Campo
+                  etiqueta={`Fecha de nacimiento${formPerfil.vinculo === "hijo" ? "" : " (si aplica)"}`}
+                  type="date" required={formPerfil.vinculo === "hijo"} value={formPerfil.fecha_nacimiento ?? ""}
+                  onChange={(e) => setFormPerfil((f) => ({ ...f, fecha_nacimiento: e.target.value }))} />
               </>)}
             </div>
 
             {campoActualPerfil?.requiere_documento && (
+              // Sin componente propio: el catálogo de UI compartido todavía no
+              // tiene un input de archivo (solo Campo/CampoSelect/CampoCasilla/
+              // AreaTexto), así que se queda con el mismo tratamiento nativo
+              // que ya traía, para no inventar un componente a mitad de una
+              // migración de presentación.
               <label className="flex flex-col gap-1 text-xs text-taupe">
                 Documento de sustento{campoActualPerfil.documento_sugerido ? ` (${campoActualPerfil.documento_sugerido})` : ""}
                 <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
                   onChange={(e) => setArchivosPerfil(Array.from(e.target.files ?? []))}
-                  className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
+                  className="rounded-control border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
               </label>
             )}
 
@@ -380,11 +329,11 @@ function MiEditarContenido() {
               </p>
             )}
 
-            <button type="submit" disabled={
+            <Boton type="submit" variante="primario" className="w-fit" disabled={
               enviandoPerfil || (campoActualPerfil?.requiere_documento && archivosPerfil.length === 0)
-            } className="w-fit rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+            } cargando={enviandoPerfil}>
               {enviandoPerfil ? "Enviando…" : "Pedir el cambio"}
-            </button>
+            </Boton>
           </form>
           {avisoPerfil && (
             <p className={`mt-2 text-xs ${avisoPerfil.tipo === "ok" ? "text-verde" : "text-rojo"}`}>
@@ -398,15 +347,15 @@ function MiEditarContenido() {
                 <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2">
                   <span>
                     <strong>{catalogoPerfil.find((c) => c.campo === s.campo)?.etiqueta ?? s.campo}</strong>
-                    {" · "}
-                    <span className={
-                      s.estado === "aprobado" ? "text-verde"
-                      : s.estado === "rechazado" ? "text-rojo"
-                      : s.estado === "reemplazada" ? "text-taupe"
-                      : "text-pizarra"
+                    {" "}
+                    <Insignia tamano="sm" atenuada={s.estado === "reemplazada"} variante={
+                      s.estado === "aprobado" ? "positivo"
+                      : s.estado === "rechazado" ? "alerta"
+                      : s.estado === "reemplazada" ? "neutral"
+                      : "informativo"
                     }>
                       {s.estado === "pendiente" ? "por resolver" : s.estado === "reemplazada" ? "reemplazada por otra" : s.estado}
-                    </span>
+                    </Insignia>
                     {s.motivo && <span className="text-taupe"> — «{s.motivo}»</span>}
                   </span>
                 </li>
