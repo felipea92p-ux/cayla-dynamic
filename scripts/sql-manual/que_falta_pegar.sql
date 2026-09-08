@@ -264,7 +264,7 @@ with repo(numero, nombre, nunca) as (values
     (397, 'la_practicante_cobra_movilidad_y_educacion', false),
     (398, 'firma_propia_en_el_contrato', false),
     (399, 'el_colaborador_propone_do_aprueba', false),
-    (405, 'el_terminal_por_fin_puede_leer_horario_y_turno', false)
+    (409, 'el_terminal_por_fin_puede_leer_horario_y_turno', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
