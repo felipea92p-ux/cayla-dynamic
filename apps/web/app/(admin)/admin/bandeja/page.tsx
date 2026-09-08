@@ -36,7 +36,9 @@ import { useToast } from "@/components/toast";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { BUCKET_SOLICITUDES_PERFIL } from "@/lib/foto-dni";
-import { fechaLima, puedeOperarEquipo, puedeVerPlanilla, puedeVerSaludDeAlertas } from "@cayla-dynamic/shared";
+import {
+  fechaLima, puedeOperarEquipo, puedeVerIdentidad, puedeVerPlanilla, puedeVerSaludDeAlertas,
+} from "@cayla-dynamic/shared";
 
 interface ItemEducacion {
   id: string;
@@ -104,6 +106,9 @@ interface ItemSolicitudPerfil {
   valor_propuesto: Record<string, unknown>;
   rutas_adjuntas: string[];
   creada_at: string;
+  /** Este campo solo lo aprueba DO, aunque la encargada vea la solicitud (0405).
+   *  Lo dice el catálogo, no esta pantalla: `catalogo_campos_perfil.solo_do`. */
+  solo_do: boolean;
 }
 
 /** «celular: 987654321, direccion: Av. Uno 123» — genérico a propósito: son
@@ -547,6 +552,18 @@ export default function BandejaPage() {
                           ))}
                         </div>
                       )}
+                      {/* La solicitud se muestra igual a la encargada —si no,
+                          su equipo estaría esperando algo que ella no ve— pero
+                          sin los botones cuando el campo es de DO (0405). Antes
+                          los botones estaban y reventaban al pulsarlos, con un
+                          mensaje que hablaba de un permiso que la pantalla
+                          acababa de decirle que tenía. */}
+                      {s.solo_do && !puedeVerIdentidad(rol) ? (
+                        <p className="mt-2 rounded-lg border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-xs text-pizarra">
+                          Esta solicitud cambia el número de documento: la resuelve Desarrollo Organizacional.
+                          Avísales para que la revisen.
+                        </p>
+                      ) : (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <div className="min-w-64 flex-1">
                           <Campo
@@ -570,6 +587,7 @@ export default function BandejaPage() {
                           Rechazar
                         </Boton>
                       </div>
+                      )}
                     </li>
                   ))}
                 </ul>
