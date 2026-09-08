@@ -5713,6 +5713,10 @@ export type Database = {
         }
         Returns: string
       }
+      fn_papeles_cese: {
+        Args: { p_persona_id: string | null }
+        Returns: Json
+      }
       fn_pedir_revision: {
         Args: { p_comentario: string | null; p_fecha: string | null }
         Returns: undefined
