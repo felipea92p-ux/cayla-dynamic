@@ -130,6 +130,10 @@ export function AcusesPendientes() {
             <li key={x.href + x.titulo} className="rounded-xl border border-sand bg-hueso p-3">
               <p className="text-sm font-medium text-tinta">{x.titulo}</p>
               {x.detalle && <p className="mt-0.5 text-xs text-taupe">{x.detalle}</p>}
+              {/* Nativo a propósito: es un <Link> de navegación, no un
+                  <button> — <Boton> no acepta href (mismo criterio que los
+                  <Link> "Ver documento" ya dejados nativos en otras pantallas
+                  migradas). */}
               <Link
                 href={x.href}
                 onClick={() => setCerrado(true)}
@@ -141,6 +145,9 @@ export function AcusesPendientes() {
           ))}
         </ul>
 
+        {/* Nativo a propósito: arranca en text-taupe y oscurece a text-tinta en
+            hover — lo opuesto a <Boton variante="enlace"> (hover:text-taupe).
+            Forzarlo invertiría la dirección del único cambio visible. */}
         <button
           onClick={() => setCerrado(true)}
           className="mt-4 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta"
