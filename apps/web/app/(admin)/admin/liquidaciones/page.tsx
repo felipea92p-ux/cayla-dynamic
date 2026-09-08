@@ -13,6 +13,7 @@ import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Modal } from "@/components/ui/modal";
+import { Insignia } from "@/components/ui/insignia";
 
 // Liquidación por cese. La ley da 48 HORAS desde el cese para pagar (art. 4 del
 // D.S. 001-97-TR), así que esta pantalla existe para que ese plazo no dependa de
@@ -608,9 +609,9 @@ function Bloque({
                   <strong>{f.persona}</strong>{" "}
                   <span className="text-taupe">· {f.sede} · cesó el {fechaLarga(f.fecha_cese)}</span>
                   {f.descuadra && (
-                    <span className="ml-2 rounded bg-rojo/10 px-1.5 py-0.5 text-xs font-medium text-rojo">
+                    <Insignia variante="alerta" className="ml-2">
                       el cálculo ya no coincide
-                    </span>
+                    </Insignia>
                   )}
                 </span>
                 <div className="flex items-center gap-3">
