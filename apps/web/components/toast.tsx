@@ -48,10 +48,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[60] flex flex-col gap-2">
         {avisos.map((a) => (
           <div key={a.id} role={a.tipo === "error" ? "alert" : "status"}
-            className={`pointer-events-auto flex w-80 max-w-[calc(100vw-2rem)] items-start gap-2.5 rounded-lg border bg-papel px-4 py-3 text-sm shadow-xl transition ${
+            className={`pointer-events-auto flex w-80 max-w-[calc(100vw-2rem)] items-start gap-2.5 rounded-control border bg-papel px-4 py-3 text-sm shadow-xl transition ${
               a.tipo === "error" ? "border-rojo/30 text-rojo" : "border-sand text-tinta"}`}>
             <span aria-hidden
-              className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${a.tipo === "error" ? "bg-rojo" : "bg-verde"}`} />
+              className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-pildora ${a.tipo === "error" ? "bg-rojo" : "bg-verde"}`} />
             <span className="flex-1">{a.texto}</span>
             {/* Nativo a propósito: botón de solo ícono, misma familia que los
                 demás cerrar/Tema/Atajos — <Boton> no cubre un ícono suelto. */}

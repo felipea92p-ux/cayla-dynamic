@@ -1,3 +1,4 @@
+import { Baby, Check } from "lucide-react";
 import { RANGO_LABEL, formatSoles } from "@/lib/rangos";
 import { Marca } from "@/components/marca";
 import { Insignia } from "@/components/ui/insignia";
@@ -334,7 +335,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
       : null;
 
   return (
-      <div className="hoja rounded-lg border border-sand p-4 sm:p-8 print:rounded-none print:border-0 print:p-0">
+      <div className="hoja rounded-control border border-sand p-4 sm:p-8 print:rounded-none print:border-0 print:p-0">
         <div className="mb-6 flex items-start justify-between border-b border-sand pb-4 print:mb-4 print:pb-3">
           {/* ── QUIÉN EMITE ESTE PAPEL (auditoría del 2026-08-19) ──────────────
               La cabecera imprimía el lockup de producto «Dynamic / CAYLA» y
@@ -592,7 +593,10 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             )}
             {f.asignacion_familiar > 0 && (
               <tr className="border-t border-sand">
-                <td className="py-2">Asignación familiar 👶</td>
+                <td className="py-2">
+                  Asignación familiar{" "}
+                  <Baby size={14} className="inline-block align-text-bottom text-taupe" />
+                </td>
                 <td className="py-2 text-right">{formatSoles(f.asignacion_familiar)}</td>
               </tr>
             )}
@@ -860,7 +864,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             gratificación» — que es, en una palabra, la definición de trabajador.
             La regla se dice por lo que la persona ES, no por lo que le salió. */}
         {!esLocador && (aporteEssalud > 0 || f.provision_total > 0) && (
-          <div className="mb-6 rounded-lg bg-sand/40 p-4 print:mb-4">
+          <div className="mb-6 rounded-control bg-sand/40 p-4 print:mb-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-tinta">
               Además, CAYLA paga por ti
             </p>
@@ -989,7 +993,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             en contra. El impuesto de cuarta se nombra sin porcentaje a propósito
             —depende de su suspensión de retenciones, que es trámite suyo. */}
         {esLocador ? (
-          <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
+          <div className="mb-6 rounded-control bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
             <p className="mb-3 font-medium">Sobre este documento</p>
             <ul className="list-disc space-y-2 pl-5">
               <li>
@@ -1033,7 +1037,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
           // el sistema todavía no calcula solo se dicen igual — omitirlos
           // sería negarle a la persona un derecho real por una limitación de
           // esta pantalla, y eso pesa distinto que un adorno de más.
-          <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
+          <div className="mb-6 rounded-control bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
             <p className="mb-3 font-medium">Sobre este documento</p>
             <ul className="list-disc space-y-2 pl-5">
               <li>
@@ -1068,7 +1072,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             </ul>
           </div>
         ) : (
-        <div className="mb-6 rounded-lg bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
+        <div className="mb-6 rounded-control bg-sand/40 p-4 text-sm print:mb-3 print:break-inside-avoid print:p-3">
           <p className="mb-3 font-medium">Aclaración y Deslinde Legal de Remuneración</p>
           <ul className="mb-3 list-disc space-y-2 pl-5">
             {/* SIN CIFRA, y remitiendo al PLAME. Decidido con Felipe el 2026-07-28.
@@ -1131,13 +1135,13 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
               Se separan, y la de pensión se dice como es: no se queda en CAYLA,
               pero tampoco va entera a su fondo. */}
           <p className="mb-1">
-            <span className="text-verde">✓</span>{" "}
+            <Check size={14} className="inline-block align-text-bottom text-verde" />{" "}
             <span className="font-medium">EsSalud:</span> lo paga CAYLA aparte de tu sueldo — son 9 %
             sobre tu remuneración y no se te descuentan.
           </p>
           {pension > 0 && (
             <p className="mb-1">
-              <span className="text-verde">✓</span>{" "}
+              <Check size={14} className="inline-block align-text-bottom text-verde" />{" "}
               <span className="font-medium">Pensión:</span> esto sí sale de tu sueldo, y lo verás
               arriba en rojo. No se queda en CAYLA: se remite al sistema de pensiones. La mayor parte
               va a tu cuenta individual; el resto es la comisión de la administradora y la prima del
@@ -1145,7 +1149,7 @@ export function BoletaHoja({ f, proy, baseLegal, documento, fechaIngreso }: Bole
             </p>
           )}
           <p>
-            <span className="text-verde">✓</span>{" "}
+            <Check size={14} className="inline-block align-text-bottom text-verde" />{" "}
             <span className="font-medium">Gratificación, CTS y vacaciones:</span> se siguen acumulando
             y se pagan en sus fechas. Si este mes ya te tocó alguna, la verás arriba en el desglose.
             {/* Antes decía «la verás arriba como bono». Dejó de ser cierto el

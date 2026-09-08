@@ -14,7 +14,7 @@ export default function NotFound() {
       </div>
       <Link
         href="/admin/dashboard"
-        className="rounded-lg bg-tinta px-5 py-2.5 font-medium text-crema transition-colors hover:bg-rojo-profundo"
+        className="rounded-control bg-tinta px-5 py-2.5 font-medium text-crema transition-colors hover:bg-rojo-profundo"
       >
         Ir al inicio
       </Link>

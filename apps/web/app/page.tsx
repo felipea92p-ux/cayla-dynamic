@@ -6,10 +6,10 @@ export default function HomePage() {
       <h1 className="text-2xl font-semibold">Dynamic — CAYLA</h1>
       <p className="text-taupe">Elige el módulo al que quieres entrar.</p>
       <div className="flex gap-4">
-        <Link href="/terminal" className="rounded-lg bg-tinta px-5 py-3 text-crema">
+        <Link href="/terminal" className="rounded-control bg-tinta px-5 py-3 text-crema">
           Terminal de marcaje
         </Link>
-        <Link href="/admin" className="rounded-lg border border-sand px-5 py-3">
+        <Link href="/admin" className="rounded-control border border-sand px-5 py-3">
           Panel de administración
         </Link>
       </div>

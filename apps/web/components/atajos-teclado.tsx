@@ -101,7 +101,7 @@ export function AtajosTeclado({
     <>
       <div onClick={() => setAbierto(false)} className="fixed inset-0 z-40 bg-black/20" aria-hidden />
       <div role="dialog" aria-label="Atajos de teclado"
-        className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 overflow-hidden rounded-xl border border-sand bg-papel shadow-xl">
+        className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 overflow-hidden rounded-flotante border border-sand bg-papel shadow-xl">
         <div className="flex items-center justify-between border-b border-sand px-4 py-3">
           <h2 className="font-serif text-lg">Atajos de teclado</h2>
           {/* Nativo a propósito, y el panel entero sin <Modal>: no está
@@ -109,7 +109,7 @@ export function AtajosTeclado({
               de cerrar en la misma fila — el <Modal> compartido solo dibuja
               un <h2> a todo el ancho, sin ese layout ni esa posición. */}
           <button onClick={() => setAbierto(false)} aria-label="Cerrar"
-            className="rounded-md p-1 text-taupe transition hover:bg-sand/40 hover:text-tinta">
+            className="rounded-control p-1 text-taupe transition hover:bg-sand/40 hover:text-tinta">
             <X size={16} strokeWidth={1.8} aria-hidden />
           </button>
         </div>
@@ -149,7 +149,7 @@ function Fila({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-md px-3 py-2 text-sm">
+    <div className="flex items-center justify-between rounded-control px-3 py-2 text-sm">
       <span className="flex items-center gap-2 text-tinta">
         {Icono && <Icono size={15} strokeWidth={1.8} aria-hidden />}
         {etiqueta}

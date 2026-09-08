@@ -28,7 +28,7 @@ export default function TerminalError({
       </div>
       <button
         onClick={reset}
-        className="rounded-2xl bg-tinta px-10 py-5 text-lg font-medium text-crema transition-colors hover:bg-rojo-profundo"
+        className="rounded-superficie bg-tinta px-10 py-5 text-lg font-medium text-crema transition-colors hover:bg-rojo-profundo"
       >
         Reintentar
       </button>

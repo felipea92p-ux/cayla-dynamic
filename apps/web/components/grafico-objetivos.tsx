@@ -271,7 +271,7 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
             <div
               id={`${idBase}-tooltip`}
               role="tooltip"
-              className={`pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-tinta px-2.5 py-1.5 text-xs text-crema shadow-lg ${
+              className={`pointer-events-none absolute z-10 -translate-x-1/2 whitespace-nowrap rounded-control bg-tinta px-2.5 py-1.5 text-xs text-crema shadow-lg ${
                 volteado ? "" : "-translate-y-full"
               }`}
               style={{ left: xActivo, top: volteado ? yTopActivo + 8 : yTopActivo - 8 }}
@@ -289,16 +289,16 @@ export function GraficoObjetivos({ historial, cargando = false }: { historial: M
           estado, igual que la insignia «Observación» de la barra de arriba. */}
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-taupe">
         <span className="flex items-center gap-1.5">
-          <span className={`h-2.5 w-2.5 rounded-full ${CLASE_BG_NIVEL.verde}`} /> Cumplido (≥60%)
+          <span className={`h-2.5 w-2.5 rounded-pildora ${CLASE_BG_NIVEL.verde}`} /> Cumplido (≥60%)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className={`h-2.5 w-2.5 rounded-full ${CLASE_BG_NIVEL.ambar}`} /> Parcial (30–59%)
+          <span className={`h-2.5 w-2.5 rounded-pildora ${CLASE_BG_NIVEL.ambar}`} /> Parcial (30–59%)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className={`h-2.5 w-2.5 rounded-full ${CLASE_BG_NIVEL.rojo}`} /> Bajo desempeño (&lt;30%)
+          <span className={`h-2.5 w-2.5 rounded-pildora ${CLASE_BG_NIVEL.rojo}`} /> Bajo desempeño (&lt;30%)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-taupe/40" /> Sin checklist ese mes
+          <span className="h-2.5 w-2.5 rounded-pildora bg-taupe/40" /> Sin checklist ese mes
         </span>
       </div>
 

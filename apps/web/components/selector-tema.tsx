@@ -38,7 +38,7 @@ export function SelectorTema({ className = "" }: { className?: string }) {
       onClick={() => setTema(siguienteVisible(tema))}
       aria-label={`Tema: ${ETIQUETA[tema]}`}
       title={`Tema: ${ETIQUETA[tema]} (clic para cambiar)`}
-      className={`rounded-md border border-sand p-1.5 text-taupe transition hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo ${className}`}
+      className={`rounded-control border border-sand p-1.5 text-taupe transition hover:border-taupe/40 hover:bg-sand/30 hover:text-rojo active:scale-[0.97] active:text-rojo-profundo ${className}`}
     >
       <Icono size={15} strokeWidth={1.8} aria-hidden />
     </button>

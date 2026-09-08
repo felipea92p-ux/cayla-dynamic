@@ -356,7 +356,10 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-4">
         {firma ? (
-          <div className="w-60 rounded-lg border border-sand bg-white px-4 pb-2 pt-3">
+          // bg-white nativo a propósito: es la vista previa "así se verá en el
+          // memo" de la firma, sobre papel — tiene que verse igual sin importar
+          // el tema, igual que la política salarial.
+          <div className="w-60 rounded-control border border-sand bg-white px-4 pb-2 pt-3">
             <div className="flex h-20 items-end justify-center">
               <img src={firma.imagen} alt="Tu firma" className="block h-20 w-auto max-w-full" />
             </div>
@@ -380,9 +383,9 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       </div>
 
       {editando && (
-        <div className="rounded-xl border border-sand bg-crema/40 p-4">
+        <div className="rounded-superficie border border-sand bg-crema/40 p-4">
           {sqlDesactualizado && (
-            <p className="mb-3 rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+            <p className="mb-3 rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
               «Dibujar» y «Escribir» todavía no están disponibles: el servidor no tiene la actualización más reciente. Puedes seguir usando «Escanear» mientras tanto — vuelve a intentar los otros dos en unos minutos.
             </p>
           )}
@@ -391,7 +394,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
               selector de estilo de más abajo, pero no hay un <Segmentado>
               compartido todavía — no se inventa uno nuevo fuera del alcance de
               esta migración de presentación. */}
-          <div className="mb-4 flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
+          <div className="mb-4 flex gap-1 rounded-control bg-sand/50 p-1 text-sm">
             {TABS.map((t) => {
               const deshabilitada = sqlDesactualizado && t.id !== "imagen";
               return (
@@ -400,7 +403,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 onClick={() => setMetodo(t.id)}
                 disabled={deshabilitada}
                 title={deshabilitada ? "Todavía no disponible en el servidor" : undefined}
-                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
+                className={`flex-1 rounded-control px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
               >
                 {t.label}
               </button>
@@ -426,11 +429,14 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
           {metodo === "dibujo" && (
             <div className="flex flex-col gap-2">
               <p className="text-sm text-taupe">Traza tu firma con el mouse, el trackpad o el dedo.</p>
+              {/* bg-white nativo a propósito: simula el papel donde se firma, y el
+                  recorte de tinta (recortarYTransparentar) asume luminancia real
+                  de blanco sobre el fondo — no un tono que cambie con el tema. */}
               <canvas
                 ref={canvasRef}
                 width={600}
                 height={200}
-                className="w-full max-w-md touch-none rounded-lg border border-sand bg-white"
+                className="w-full max-w-md touch-none rounded-control border border-sand bg-white"
                 style={{ aspectRatio: "3 / 1" }}
                 onPointerDown={iniciarTrazo}
                 onPointerMove={continuarTrazo}
@@ -458,24 +464,27 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                   value={nombreOficial}
                   readOnly
                   tabIndex={-1}
-                  className="w-full cursor-default rounded-lg border border-sand bg-sand/40 px-3 py-2 text-sm text-tinta"
+                  className="w-full cursor-default rounded-control border border-sand bg-sand/40 px-3 py-2 text-sm text-tinta"
                 />
                 <p className="mt-1 text-xs text-taupe">Viene de tu Ficha personal — no se puede escribir un nombre distinto.</p>
               </div>
               {/* Pestañas-cápsula nativas, mismo criterio que las de arriba
                   (Escanear/Dibujar/Escribir): no hay <Segmentado> compartido. */}
-              <div className="flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
+              <div className="flex gap-1 rounded-control bg-sand/50 p-1 text-sm">
                 {(Object.keys(FUENTES) as Estilo[]).map((e) => (
                   <button
                     key={e}
                     onClick={() => setEstilo(e)}
-                    className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${estilo === e ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
+                    className={`flex-1 rounded-control px-3 py-1.5 font-medium transition-colors ${estilo === e ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
                   >
                     {FUENTES[e].label}
                   </button>
                 ))}
               </div>
-              <div className="rounded-lg border border-sand bg-white px-4 py-6 text-center">
+              {/* bg-white nativo a propósito: vista previa "así se verá" de la
+                  firma tipográfica sobre papel — mismo criterio que la vista
+                  previa de arriba, no sigue el tema. */}
+              <div className="rounded-control border border-sand bg-white px-4 py-6 text-center">
                 {nombreOficial ? (
                   <span className={`${FUENTES[estilo].className} text-4xl text-tinta`}>{nombreOficial}</span>
                 ) : (

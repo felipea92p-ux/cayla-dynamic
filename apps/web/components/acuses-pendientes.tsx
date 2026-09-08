@@ -114,7 +114,7 @@ export function AcusesPendientes() {
       aria-labelledby="acuses-titulo"
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-taupe/35 bg-papel p-6">
+      <div className="w-full max-w-lg rounded-flotante border border-taupe/35 bg-papel p-6">
         <h2 id="acuses-titulo" className="font-serif text-xl text-tinta">
           {uno ? "Te falta dejar una constancia" : "Te faltan dos constancias"}
         </h2>
@@ -127,7 +127,7 @@ export function AcusesPendientes() {
 
         <ul className="mt-4 space-y-2">
           {pendientes.map((x) => (
-            <li key={x.href + x.titulo} className="rounded-xl border border-sand bg-hueso p-3">
+            <li key={x.href + x.titulo} className="rounded-superficie border border-sand bg-hueso p-3">
               <p className="text-sm font-medium text-tinta">{x.titulo}</p>
               {x.detalle && <p className="mt-0.5 text-xs text-taupe">{x.detalle}</p>}
               {/* Nativo a propósito: es un <Link> de navegación, no un
@@ -137,7 +137,7 @@ export function AcusesPendientes() {
               <Link
                 href={x.href}
                 onClick={() => setCerrado(true)}
-                className="mt-2 inline-block rounded-lg bg-tinta px-3 py-1.5 text-xs text-crema hover:bg-tinta/90"
+                className="mt-2 inline-block rounded-control bg-tinta px-3 py-1.5 text-xs text-crema hover:bg-tinta/90"
               >
                 Leer y dejar constancia
               </Link>

@@ -409,7 +409,7 @@ export default function ExportarPage() {
         </div>
 
         {error && (
-          <div className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             {error}{" "}
             {reintentar && (
               <Boton variante="enlace" onClick={() => void reintentar()}>
@@ -421,7 +421,7 @@ export default function ExportarPage() {
 
         {resultado && (
           <p
-            className={`max-w-md rounded-lg px-4 py-3 text-sm ${
+            className={`max-w-md rounded-control px-4 py-3 text-sm ${
               resultado.tipo === "exito" ? "bg-verde/10 text-verde" : "bg-pizarra/8 text-pizarra"
             }`}
           >

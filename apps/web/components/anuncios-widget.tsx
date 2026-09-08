@@ -59,13 +59,13 @@ export function AnunciosWidget() {
   if (pendientes.length === 0) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-sand bg-papel p-4">
+    <section className="mb-6 rounded-superficie border border-sand bg-papel p-4">
       <h2 className="mb-2 text-sm font-medium text-tinta">
         {pendientes.length === 1 ? "Un anuncio para ti" : `${pendientes.length} anuncios para ti`}
       </h2>
       <ul className="space-y-2">
         {pendientes.map((a) => (
-          <li key={a.id} className="rounded-xl border border-sand/70 bg-crema p-3">
+          <li key={a.id} className="rounded-superficie border border-sand/70 bg-crema p-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-sm font-medium text-tinta">{a.titulo}</p>
               {a.sede_codigo && <span className="text-xs text-taupe">{a.sede_codigo}</span>}

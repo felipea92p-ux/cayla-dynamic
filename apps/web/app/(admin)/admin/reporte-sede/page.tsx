@@ -319,7 +319,7 @@ function ReporteSedeContenido() {
             salir diciendo que está incompleto. Un aviso que desaparece justo en
             el papel es el defecto que la A11 tuvo con el memo en borrador. */}
         {noSePudo.length > 0 && (
-          <div className="mb-6 rounded-2xl border border-rojo/30 bg-rojo/[0.06] p-4 text-sm">
+          <div className="mb-6 rounded-superficie border border-rojo/30 bg-rojo/[0.06] p-4 text-sm">
             <div className="font-medium text-rojo">Esta hoja está incompleta — no la imprimas todavía</div>
             <p className="mt-1 text-tinta">
               No se pudo traer {noSePudo.join(", ")}. Lo que falta aparece abajo como cero o como raya, y
@@ -334,7 +334,7 @@ function ReporteSedeContenido() {
             no está». Se imprime igual que el aviso de arriba, por si alguien fuerza
             ⌘P: el papel tiene que decir por qué salió vacío. */}
         {sedeNoElegible && (
-          <div className="mb-6 max-w-3xl rounded-2xl border border-ambar/40 bg-ambar/[0.06] p-4 text-sm">
+          <div className="mb-6 max-w-3xl rounded-superficie border border-ambar/40 bg-ambar/[0.06] p-4 text-sm">
             {/* El título no dice «no está activa»: la consulta trae SOLO las
                 activas, así que la pantalla no puede distinguir «desactivada» de
                 «ese código no existe». Afirmar la primera manda a buscar en
@@ -373,12 +373,17 @@ function ReporteSedeContenido() {
             </h2>
 
             {/* HOY */}
-            <section className="mb-6 rounded-2xl border border-verde/20 bg-verde/[0.06] p-5 print:break-inside-avoid print:bg-white">
+            {/* print:bg-white nativo a propósito: en pantalla este bloque lleva un
+                tinte verde para resaltarlo; el papel que se firma y archiva no lo
+                necesita — un tinte de color en una hoja que puede salir de una
+                impresora en blanco y negro se ve como una fotocopia sucia, y el
+                bloque de ATENCIÓN de abajo hace lo mismo con su tinte rojo. */}
+            <section className="mb-6 rounded-superficie border border-verde/20 bg-verde/[0.06] p-5 print:break-inside-avoid print:bg-white">
               <div className="etiqueta text-verde">Hoy · {activos.length} trabajando de {filas.length}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {activos.length === 0 ? <span className="text-sm text-taupe">Nadie marcado todavía.</span> :
                   activos.map((f) => (
-                    <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm">
+                    <span key={f.personaId} className="rounded-pildora border border-sand bg-papel px-3 py-1 text-sm">
                       {f.nombre}{f.estadoHoy === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
                     </span>
                   ))}
@@ -419,7 +424,9 @@ function ReporteSedeContenido() {
             </section>
 
             {/* ATENCIÓN */}
-            <section className="rounded-2xl border border-sand bg-rojo/[0.04] p-5 print:break-inside-avoid print:bg-white">
+            {/* print:bg-white nativo a propósito, mismo criterio que la sección HOY:
+                el tinte rojo de pantalla se apaga en el papel que se firma y archiva. */}
+            <section className="rounded-superficie border border-sand bg-rojo/[0.04] p-5 print:break-inside-avoid print:bg-white">
               <div className="etiqueta mb-2 text-rojo">Necesita atención</div>
               {tardAlerta.length === 0 && faltaAlerta.length === 0 ? (
                 <p className="text-sm text-taupe">Nada pendiente en disciplina. Buena señal.</p>

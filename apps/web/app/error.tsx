@@ -42,7 +42,7 @@ export default function Error({
         </Boton>
         <a
           href={inicio}
-          className="rounded-lg border border-sand px-5 py-2.5 font-medium text-tinta transition-colors hover:bg-papel"
+          className="rounded-control border border-sand px-5 py-2.5 font-medium text-tinta transition-colors hover:bg-papel"
         >
           Ir al inicio
         </a>

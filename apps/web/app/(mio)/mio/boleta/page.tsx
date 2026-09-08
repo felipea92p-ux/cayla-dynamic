@@ -153,7 +153,7 @@ function MiBoletaContenido() {
   if (error) {
     return (
       <main className="p-6">
-        <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+        <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {error}{" "}
           <Boton variante="enlace" onClick={() => void cargar()}>
             Reintentar
@@ -169,7 +169,7 @@ function MiBoletaContenido() {
   if (!yo || !periodo || !fila || sinDatos) {
     return (
       <main className="p-6">
-        <p className="max-w-md rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+        <p className="max-w-md rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
           Todavía no hay datos de tu planilla para este periodo. Si ya deberías tener marcajes, avisa a
           Desarrollo Organizacional.
         </p>

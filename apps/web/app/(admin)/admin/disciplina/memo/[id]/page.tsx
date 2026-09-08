@@ -421,11 +421,11 @@ export default function MemoPage() {
         {cargando ? (
           <Cargando />
         ) : err ? (
-          <p className="max-w-[760px] rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
+          <p className="max-w-[760px] rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">{err}</p>
         ) : doc && (
-          <div className="memo hoja mx-auto max-w-[760px] rounded-lg border border-sand p-10 font-serif text-[13px] leading-relaxed text-tinta print:rounded-none print:border-0 print:p-0">
+          <div className="memo hoja mx-auto max-w-[760px] rounded-superficie border border-sand p-10 font-serif text-[13px] leading-relaxed text-tinta print:rounded-none print:border-0 print:p-0">
             {esNivel4 && (
-              <p className="mb-4 rounded bg-ambar/15 px-3 py-2 text-xs text-ambar print:hidden">
+              <p className="mb-4 rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar print:hidden">
                 Documento de Nivel 4. Antes de emitirlo, valídalo con un abogado laboralista y entrégalo en físico o por vía notarial (nunca por correo).
               </p>
             )}
@@ -435,13 +435,13 @@ export default function MemoPage() {
               // «borrador», e impreso no ponía nada. Imprimir un borrador para
               // revisarlo es legítimo y por eso no se deshabilita el botón —
               // lo que no puede pasar es que el papel no diga lo que es.
-              <p className="mb-4 rounded border border-ambar/40 bg-ambar/15 px-3 py-2 text-xs text-ambar">
+              <p className="mb-4 rounded-control border border-ambar/40 bg-ambar/15 px-3 py-2 text-xs text-ambar">
                 <strong>BORRADOR — sin numerar y sin firmar.</strong> No tiene validez como
                 documento entregado. Fírmalo en la pantalla de Disciplina para asignarle su número.
               </p>
             )}
             {firmanteIlegible && (
-              <p className="mb-4 rounded bg-sand/50 px-3 py-2 text-xs text-taupe print:hidden">
+              <p className="mb-4 rounded-control bg-sand/50 px-3 py-2 text-xs text-taupe print:hidden">
                 No se pudo leer la ficha de quien firma este documento —lo normal es que sea de
                 otra sede—, así que abajo figura el representante legal de la empresa. Si lo
                 suscribió otra persona, compruébalo antes de entregarlo.
@@ -517,7 +517,7 @@ export default function MemoPage() {
                 blanco para la firma física, que es la que de verdad prueba la
                 entrega. Esto es evidencia adicional, no un reemplazo. */}
             {!esNivel4 && (doc.firma_sancionado_confirmada_at || doc.sancionado_rechazo_firma_at) && (
-              <div className="mt-4 rounded-lg border border-sand bg-papel p-3 text-xs text-taupe print:hidden">
+              <div className="mt-4 rounded-superficie border border-sand bg-papel p-3 text-xs text-taupe print:hidden">
                 {doc.firma_sancionado_confirmada_at ? (
                   <>
                     <p className="mb-2 text-verde">

@@ -9,6 +9,7 @@ import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
 import { Modal } from "@/components/ui/modal";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { TarjetaInfo } from "@/components/ui/tarjeta-info";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
@@ -131,7 +132,7 @@ export default function SedesPage() {
   }
 
   const formulario = (modo: "alta" | "edicion") => (
-    <div className="mb-6 grid max-w-2xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+    <TarjetaInfo className="mb-6 grid max-w-2xl gap-3 sm:grid-cols-2">
       <div>
         {modo === "alta" ? (
           <>
@@ -179,7 +180,7 @@ export default function SedesPage() {
         </Boton>
         <Boton variante="secundario" onClick={cancelarForm}>Cancelar</Boton>
       </div>
-    </div>
+    </TarjetaInfo>
   );
 
   return (
@@ -195,13 +196,13 @@ export default function SedesPage() {
         {rol === null ? (
           <Cargando />
         ) : !puedeGestionar ? (
-          <div className="max-w-2xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <div className="max-w-2xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
             Solo administradores y líderes pueden gestionar sedes.
           </div>
         ) : (
           <>
             {cargaError && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+              <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las sedes: {cargaError}.{" "}
                 <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
               </div>

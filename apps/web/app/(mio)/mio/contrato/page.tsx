@@ -159,7 +159,7 @@ function MiContratoContenido() {
   if (error) {
     return (
       <main className="p-6">
-        <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+        <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
           {error}{" "}
           <Boton variante="enlace" onClick={() => void cargar()}>
             Reintentar
@@ -175,7 +175,7 @@ function MiContratoContenido() {
   if (!yo || !contrato || !contrato.documento_html) {
     return (
       <main className="p-6">
-        <p className="max-w-md rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+        <p className="max-w-md rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
           Todavía no tienes un contrato registrado en el sistema. Si crees que deberías tener uno, avisa a
           Desarrollo Organizacional.
         </p>
@@ -214,7 +214,7 @@ function MiContratoContenido() {
       </div>
 
       {!contrato.fecha_firma && (
-        <p className="mb-4 rounded-lg bg-ambar/[0.08] px-4 py-3 text-sm text-taupe print:hidden">
+        <p className="mb-4 rounded-control bg-ambar/[0.08] px-4 py-3 text-sm text-taupe print:hidden">
           Este contrato todavía no ha sido firmado. Lo que ves es el borrador tal como se generó.
         </p>
       )}
@@ -223,7 +223,7 @@ function MiContratoContenido() {
           siendo el mismo. Es para que la firma que ya generaste (o generes
           ahora) aparezca en el documento que ves y que imprimes, en tu propio
           apartado, en vez de quedar siempre en blanco. */}
-      <div className="mb-4 rounded-lg border border-sand bg-papel p-4 print:hidden">
+      <div className="mb-4 rounded-control border border-sand bg-papel p-4 print:hidden">
         <h2 className="mb-1 font-serif text-base">Tu firma</h2>
         <p className="mb-3 text-xs text-taupe">
           Aparecerá en tu apartado del contrato de arriba, junto a la de la empresa.
@@ -256,7 +256,7 @@ function MiContratoContenido() {
           <button
             onClick={() => void confirmarFirma()}
             disabled={confirmando || !miFirma}
-            className="rounded-lg bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40"
+            className="rounded-control bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40"
           >
             {confirmando ? "Confirmando…" : "Confirmar mi firma aquí"}
           </button>
@@ -264,7 +264,7 @@ function MiContratoContenido() {
       </div>
 
       <div
-        className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0"
+        className="hoja rounded-control border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </main>
