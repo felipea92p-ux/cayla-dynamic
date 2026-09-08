@@ -74,6 +74,31 @@ function recortarYTransparentar(src: HTMLCanvasElement, anchoSalida = 520): stri
   return out.toDataURL("image/png");
 }
 
+// PostgrestError es un objeto plano (no siempre `instanceof Error`), así que
+// `e instanceof Error ? e.message : generico` lo descartaba y siempre se veía
+// el mismo texto genérico — aunque Postgres SÍ había explicado el motivo real
+// (función inexistente, permiso denegado, validación...). Diagnosticar un
+// fallo real se volvía imposible desde la pantalla.
+function mensajeError(e: unknown, generico: string): string {
+  if (e && typeof e === "object" && "message" in e && typeof (e as { message?: unknown }).message === "string") {
+    return (e as { message: string }).message || generico;
+  }
+  return generico;
+}
+
+// La 0395 se pega a mano en producción y puede tardar en llegar (o quedar a
+// medias). Mientras tanto, llamar a las funciones que agrega devuelve un
+// error de "función no encontrada" — PGRST202 si PostgREST ya recargó su
+// caché de esquema y de verdad no existe, 42883 (undefined_function) si el
+// Postgres de abajo es el que se queja. Distinguir ESTE caso del resto
+// importa: no es un permiso ni un dato inválido, es que el servidor todavía
+// no tiene la actualización.
+function esFuncionInexistente(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return typeof error.message === "string" && /could not find the function|does not exist/i.test(error.message);
+}
+
 function procesarImagenSubida(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -140,6 +165,11 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
   const [cargando, setCargando] = useState(true);
   const [firma, setFirma] = useState<{ imagen: string; tipo: Metodo; estilo: Estilo | null } | null>(null);
   const [editando, setEditando] = useState(false);
+  // El servidor todavía no tiene la 0395 (o PostgREST no recargó su caché de
+  // esquema tras pegarla): "Dibujar" y "Escribir" dependen de funciones que
+  // no existen todavía, así que se desactivan con una explicación en vez de
+  // dejar que alguien dibuje o escriba su firma y recién ahí se entere.
+  const [sqlDesactualizado, setSqlDesactualizado] = useState(false);
   const [metodo, setMetodo] = useState<Metodo>("imagen");
   const [estilo, setEstilo] = useState<Estilo>("elegante");
   const [guardando, setGuardando] = useState(false);
@@ -161,11 +191,13 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         // pantalla una firma que sigue intacta en la base. `fn_mi_firma()` es
         // la función vieja, previa a los tres métodos: solo devuelve la
         // imagen, pero sigue viva y sirve de red mientras tanto.
-        const { data: imagenVieja } = await supabase.rpc("fn_mi_firma");
+        if (esFuncionInexistente(error)) setSqlDesactualizado(true);
+        const { data: imagenVieja, error: errorViejo } = await supabase.rpc("fn_mi_firma");
         if (!vivo) return;
         if (typeof imagenVieja === "string" && imagenVieja.startsWith("data:image")) {
           setFirma({ imagen: imagenVieja, tipo: "imagen", estilo: null });
         } else {
+          if (errorViejo) avisar("error", mensajeError(errorViejo, "No se pudo leer tu firma."));
           setEditando(true);
         }
         setCargando(false);
@@ -183,7 +215,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       setCargando(false);
     })();
     return () => { vivo = false; };
-  }, [supabase]);
+  }, [supabase, avisar]);
 
   function limpiarCanvas() {
     const canvas = canvasRef.current;
@@ -240,20 +272,31 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         p_tipo: tipo,
         p_estilo: tipo === "tipografica" ? estiloUsado : null,
       });
-      if (error && tipo === "imagen") {
+      if (error && esFuncionInexistente(error) && tipo === "imagen") {
         // Mismo caso que al cargar: si producción todavía no tiene la 0395,
         // la función de 3 argumentos no existe. "Subir imagen" no necesita
         // las columnas nuevas para nada, así que cae a la firma de siempre
         // en vez de quedar bloqueada hasta que alguien pegue el SQL.
         ({ error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl }));
       }
-      if (error) throw error;
+      if (error) {
+        if (esFuncionInexistente(error)) {
+          setSqlDesactualizado(true);
+          if (tipo !== "imagen") setMetodo("imagen");
+          throw new Error(
+            tipo === "imagen"
+              ? "No se pudo guardar: el servidor no respondió ni con el método nuevo ni con el de siempre. Avisa a Felipe."
+              : "Este método todavía no está disponible en el servidor. Usa \"Subir imagen\" mientras tanto, o vuelve a intentarlo en unos minutos.",
+          );
+        }
+        throw error;
+      }
       setFirma({ imagen: dataUrl, tipo, estilo: tipo === "tipografica" ? (estiloUsado ?? null) : null });
       setEditando(false);
       avisar("ok", "Firma guardada.");
       onGuardada?.(dataUrl);
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo guardar la firma.");
+      avisar("error", mensajeError(e, "No se pudo guardar la firma."));
     } finally {
       setGuardando(false);
     }
@@ -265,7 +308,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       const dataUrl = await procesarImagenSubida(file);
       await guardar(dataUrl, "imagen");
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo procesar la imagen.");
+      avisar("error", mensajeError(e, "No se pudo procesar la imagen."));
       setGuardando(false);
     }
   }
@@ -277,7 +320,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       const dataUrl = recortarYTransparentar(canvas);
       await guardar(dataUrl, "dibujo");
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo guardar el trazo.");
+      avisar("error", mensajeError(e, "No se pudo guardar el trazo."));
     }
   }
 
@@ -287,7 +330,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       const dataUrl = await renderizarTipografica(nombreOficial, estilo);
       await guardar(dataUrl, "tipografica", estilo);
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo generar la firma.");
+      avisar("error", mensajeError(e, "No se pudo generar la firma."));
       setGuardando(false);
     }
   }
@@ -295,7 +338,8 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
   async function quitarFirma() {
     setGuardando(true);
     const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
-    if (!error) { setFirma(null); setEditando(true); avisar("ok", "Firma quitada."); onGuardada?.(null); }
+    if (error) avisar("error", mensajeError(error, "No se pudo quitar la firma."));
+    else { setFirma(null); setEditando(true); avisar("ok", "Firma quitada."); onGuardada?.(null); }
     setGuardando(false);
   }
 
@@ -332,16 +376,26 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
 
       {editando && (
         <div className="rounded-xl border border-sand bg-crema/40 p-4">
+          {sqlDesactualizado && (
+            <p className="mb-3 rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+              «Dibujar» y «Escribir» todavía no están disponibles: el servidor no tiene la actualización más reciente. Puedes seguir usando «Subir imagen» mientras tanto — vuelve a intentar los otros dos en unos minutos.
+            </p>
+          )}
           <div className="mb-4 flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
-            {TABS.map((t) => (
+            {TABS.map((t) => {
+              const deshabilitada = sqlDesactualizado && t.id !== "imagen";
+              return (
               <button
                 key={t.id}
                 onClick={() => setMetodo(t.id)}
-                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
+                disabled={deshabilitada}
+                title={deshabilitada ? "Todavía no disponible en el servidor" : undefined}
+                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
               >
                 {t.label}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {metodo === "imagen" && (
