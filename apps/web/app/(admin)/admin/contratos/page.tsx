@@ -777,7 +777,14 @@ export default function ContratosPage() {
   useEffect(() => {
     const p = personas.find((x) => x.id === personaId);
     setBorrador(null);
-    setDocumentoAbierto(null);
+    // Acá NO se cierra el visor, y hace falta decir por qué: hasta el
+    // 2026-09-08 sí lo hacía, por precaución. Era precaución muerta —mientras
+    // el visor está abierto, su scrim tapa el desplegable de persona, así que
+    // este efecto no puede correr con un documento a la vista— y desde que el
+    // borrador corregido se abre en el visor pasó a ser dañina: `guardarEdicion`
+    // limpia la persona en el mismo lote, así que este efecto se disparaba
+    // después y cerraba de golpe el documento recién abierto. Quien cambia de
+    // contexto a propósito ya lo cierra: `empezarEdicion` y `cancelarEdicion`.
     if (!p) return;
     // Ver el efecto de arriba: editar repuebla el formulario con lo que se
     // tecleó aquel día, y este efecto lo borraría entero un instante después.
@@ -1001,8 +1008,6 @@ export default function ContratosPage() {
           hitoMes6: unaLinea(hitoMes6Editado),
         }
       : null;
-
-  const previewHtml = datosParaGenerar ? construirContrato(datosParaGenerar) : null;
 
   // Campos que un olvido puede dejar exactamente iguales a como empezaron — y
   // un campo sin tocar no debe poder imprimirse como si fuera una respuesta.
@@ -1257,7 +1262,11 @@ export default function ContratosPage() {
       avisar("error", mensajeDeError(error, "generar el contrato"));
       return;
     }
-    setDocumentoAbierto(null);
+    // Se abre en el visor, que desde el 2026-09-08 es el único sitio donde se
+    // ve un contrato. Sin firma del colaborador: acaba de nacer, nadie la ha
+    // confirmado todavía.
+    setFirmaPersonaAbierta(null);
+    setDocumentoAbierto(html);
     setBorrador({ id: id as string, html });
     await cargar();
     avisar("ok", "Borrador generado. Revísalo, imprímelo y fírmalo; después sube el escaneo desde el historial.");
@@ -1349,6 +1358,12 @@ export default function ContratosPage() {
     setEditando(null);
     setEdicionSinFoto(false);
     setPersonaId("");
+    // Igual que al generar: el aviso dice «vuelve a imprimirlo», así que el
+    // documento corregido se abre en el visor en vez de mandar a buscarlo al
+    // archivo. Sin firma del colaborador: si alguna vez la confirmó, ese
+    // contrato ya no sería un borrador y no se estaría corrigiendo.
+    setFirmaPersonaAbierta(null);
+    setDocumentoAbierto(html);
     await cargar();
     avisar("ok", "Borrador corregido. Vuelve a imprimirlo antes de firmarlo — el anterior ya no vale.");
   }
@@ -1589,20 +1604,29 @@ export default function ContratosPage() {
 
   const porPersonaVisible = porPersona.filter(([nombre]) => coincide(nombre));
 
-  // "Ver / imprimir" un contrato del historial abre un modal flotante — antes
-  // se pegaba al final de la página entera y había que bajar hasta ahí para
-  // verlo, con el tablero y la lista todavía visibles arriba. El borrador
-  // recién generado y la vista previa mientras se llena el formulario siguen
-  // en línea, debajo del formulario: ahí sí tiene sentido verlos junto con lo
-  // que se está editando.
+  // UN SOLO SITIO DONDE SE VE UN CONTRATO: el visor de "Ver / imprimir".
   //
-  // Mientras el modal está abierto NO se pinta el de abajo, y no es cosmética:
-  // `imprimir()` manda a papel la página entera, así que con los dos en el DOM
-  // —basta con tener a alguien elegido en el formulario y abrir un contrato del
-  // archivo— saldrían DOS contratos del mismo tirón, uno detrás del otro, para
-  // firmar. Es la misma precedencia que tenía el `documentoAbierto ?? borrador
-  // ?? previewHtml` de antes, cuando los dos compartían un solo hueco.
-  const documentoInline = documentoAbierto ? null : (borrador?.html ?? previewHtml);
+  // Hasta el 2026-09-08 había dos. El documento también se pintaba EN LÍNEA al
+  // final de la página —el borrador recién generado, y la vista previa mientras
+  // se llenaba el formulario—, así que bajando por el archivo aparecía de
+  // pronto un contrato entero entre la lista y el pie, sin que nadie lo hubiera
+  // pedido. Decisión de Felipe: quitarlo.
+  //
+  // Con él se va la vista previa mientras se teclea, y no hace falta: un
+  // borrador se corrige EN SU SITIO (0388) sin generar otro, así que el ciclo
+  // «generar → leerlo → corregirlo» ya existía y no deja documentos de más. Y
+  // la nota «[REVISAR antes de imprimir…]» de la causa objetiva la caza
+  // `bloqueos`, que impide generar hasta quitarla — nunca dependió de que
+  // alguien leyera la vista previa.
+  //
+  // A cambio, el documento se ABRE SOLO en el visor apenas se genera o se
+  // corrige un borrador: si no, «Borrador generado, revísalo» dejaría sin nada
+  // que revisar hasta ir a buscarlo al archivo.
+  //
+  // Y de paso desaparece un riesgo que tenía la vista en línea: `imprimir()`
+  // manda a papel la página entera, así que con las dos superficies en el DOM
+  // —alguien elegido en el formulario y un contrato del archivo abierto—
+  // salían DOS contratos del mismo tirón, uno detrás del otro, para firmar.
 
   // LA FIRMA SE ESTAMPA AL MOSTRAR, NUNCA AL GUARDAR. Lo que la 0272 congela en
   // `documento_html` es el borrador SIN firmar; meterle la imagen convertiría un
@@ -1621,10 +1645,9 @@ export default function ContratosPage() {
     html
       .replaceAll(MARCADOR_FIRMA_EMPRESA, puedeEstampar ? `<img src="${firmaUrl}" alt="Firma" />` : "&nbsp;")
       .replaceAll(MARCADOR_FIRMA_PERSONA, firmaPersona ? `<img src="${firmaPersona}" alt="Firma del colaborador" />` : "&nbsp;");
-  // El borrador en línea (generando o corrigiendo) todavía no tiene fila
-  // guardada de la que leer una confirmación — no aplica estampar la del
-  // colaborador ahí, solo la de la empresa.
-  const htmlFinal = documentoInline ? estampar(documentoInline) : null;
+  // Un borrador recién generado o recién corregido llega acá con
+  // `firmaPersonaAbierta` en null: todavía no tiene fila de la que leer una
+  // confirmación del colaborador, así que solo se estampa la de la empresa.
   const htmlFinalModal = documentoAbierto ? estampar(documentoAbierto, firmaPersonaAbierta) : null;
 
   return (
@@ -2367,9 +2390,20 @@ export default function ContratosPage() {
                     Cancelar
                   </Boton>
                 )}
+                {/* Reabre en el visor el borrador recién generado, por si se
+                    cerró. Ya no imprime directo: lo que sale por la impresora
+                    es lo que el visor tenga abierto, y con la vista en línea
+                    retirada no hay nada que imprimir si está cerrado. */}
                 {borrador && (
-                  <Boton variante="secundario" className="ml-2" onClick={imprimir}>
-                    Imprimir / Guardar como PDF
+                  <Boton
+                    variante="secundario"
+                    className="ml-2"
+                    onClick={() => {
+                      setFirmaPersonaAbierta(null);
+                      setDocumentoAbierto(borrador.html);
+                    }}
+                  >
+                    Ver / imprimir
                   </Boton>
                 )}
               </>
@@ -2575,13 +2609,6 @@ export default function ContratosPage() {
           </div>
         </Modal>
       </div>
-
-      {htmlFinal && (
-        <div
-          className="hoja mx-auto mt-6 max-w-3xl rounded-lg border border-sand p-8 text-sm leading-relaxed print:mt-0 print:max-w-none print:rounded-none print:border-0 print:p-0"
-          dangerouslySetInnerHTML={{ __html: htmlFinal }}
-        />
-      )}
 
       {/* "Ver / imprimir" un contrato del historial, en un modal flotante y no
           pegado al final de la página: uno del historial puede tener ocho
