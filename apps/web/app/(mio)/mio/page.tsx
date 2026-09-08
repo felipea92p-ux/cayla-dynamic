@@ -25,13 +25,14 @@ import {
   BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDni,
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
-import { EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { traerBandeja } from "@/lib/bandeja-mia";
 
 /**
@@ -215,6 +216,21 @@ interface MiContrato {
   fecha_fin: string | null;
   fecha_firma: string | null;
 }
+
+/** Fila de `fn_mis_memos()` (0404) — ya filtrada a `estado = 'entregado'`,
+ *  nunca un borrador ni uno firmado-pero-no-entregado. */
+interface MiMemo {
+  id: string;
+  correlativo: string | null;
+  tipo_causal: string;
+  nivel: string;
+  entregado_at: string | null;
+  medio_entrega: string | null;
+  firma_sancionado_confirmada_at: string | null;
+  sancionado_rechazo_firma_at: string | null;
+}
+
+const CAUSAL_LABEL_MIO: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
 
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -960,6 +976,42 @@ export default function MioPage() {
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
 
+  // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
+  // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
+  // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
+  // servidor — nunca un borrador ni uno firmado-pero-no-entregado, que es
+  // justo lo que el comentario de cabecera de este archivo advierte que
+  // `exp_select_propia` por sí sola no evita.
+  const [misMemos, setMisMemos] = useState<MiMemo[]>([]);
+  const cargarMisMemos = useCallback(async () => {
+    if (!yo?.id) { setMisMemos([]); return; }
+    const { data } = await supabase.rpc("fn_mis_memos");
+    setMisMemos((data as MiMemo[] | null) ?? []);
+  }, [supabase, yo?.id]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+
+  const memosPorFirmar = useMemo(
+    () => misMemos.filter((m) =>
+      ["verbal", "amonestacion", "suspension"].includes(m.nivel)
+      && !m.firma_sancionado_confirmada_at
+      && !m.sancionado_rechazo_firma_at),
+    [misMemos],
+  );
+
+  async function firmarMemo(id: string) {
+    const { error } = await supabase.rpc("fn_firmar_memo_como_sancionado", { p_id: id });
+    if (error) { avisar("error", mensajeDeError(error, "firmar el memo")); return; }
+    avisar("ok", "Firma guardada en el memo.");
+    void cargarMisMemos();
+  }
+  async function rechazarFirmaMemo(id: string) {
+    const { error } = await supabase.rpc("fn_rechazar_firma_memo", { p_id: id });
+    if (error) { avisar("error", mensajeDeError(error, "registrar tu respuesta")); return; }
+    avisar("ok", "Quedó anotado que prefieres no firmar digitalmente.");
+    void cargarMisMemos();
+  }
+
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
   // fechas que esté mirando en la cuadrícula del mes.
@@ -1247,9 +1299,20 @@ export default function MioPage() {
         ir: () => { setTab("ausencias"); irArriba(); },
       });
     }
+    // Genérica a propósito: ni el nivel ni el motivo de la sanción van acá.
+    // Esta tarjeta puede verla de reojo cualquiera que pase cerca de la
+    // pantalla — el detalle recién se ve al entrar al documento mismo.
+    if (memosPorFirmar.length > 0) {
+      const n = memosPorFirmar.length;
+      out.push({
+        clave: "memos",
+        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por revisar y firmar`,
+        ir: () => { setTab("historial"); irArriba(); },
+      });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, vacas]);
+  }, [resumen, respondidas, vacas, memosPorFirmar]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -2233,6 +2296,65 @@ export default function MioPage() {
           Estaba de tercera sección de la pantalla, ocupándole media vista a algo
           que se consulta una vez al mes. */}
       {tab === "historial" && (
+        <>
+          {/* Solo visible si tiene al menos un memo entregado — nada que
+              mostrar, nada que ocupe pantalla. `fn_mis_memos()` (0404) ya
+              garantiza que nunca llegue acá un borrador. */}
+          {misMemos.length > 0 && (
+            <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
+              <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
+              <p className="mb-3 text-taupe">
+                Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no
+                hacerlo) no reemplaza el trámite en físico — es evidencia adicional, con su propia fecha y hora.
+              </p>
+              <ul className="space-y-3">
+                {misMemos.map((m) => {
+                  const puedeFirmar = ["verbal", "amonestacion", "suspension"].includes(m.nivel);
+                  const resuelto = Boolean(m.firma_sancionado_confirmada_at || m.sancionado_rechazo_firma_at);
+                  return (
+                    <li key={m.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                        <span className="font-medium">
+                          {NIVEL_DISCIPLINARIO_LABELS[m.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? m.nivel}
+                        </span>
+                        <span className="text-xs text-taupe">
+                          {m.entregado_at ? diaYMes(m.entregado_at.slice(0, 10)) : "—"}
+                        </span>
+                      </div>
+                      <p className="text-taupe">
+                        {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
+                        {m.correlativo ? ` · ${m.correlativo}` : ""}
+                      </p>
+                      {m.firma_sancionado_confirmada_at && (
+                        <p className="mt-1 text-verde">
+                          Firmaste este documento el {diaYMes(m.firma_sancionado_confirmada_at.slice(0, 10))}.
+                        </p>
+                      )}
+                      {m.sancionado_rechazo_firma_at && (
+                        <p className="mt-1 text-taupe">
+                          Quedó anotado que preferiste no firmarlo digitalmente, el{" "}
+                          {diaYMes(m.sancionado_rechazo_firma_at.slice(0, 10))}.
+                        </p>
+                      )}
+                      {!resuelto && puedeFirmar && (
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <Boton variante="primario" tamano="sm" onClick={() => void firmarMemo(m.id)}>Firmar</Boton>
+                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void rechazarFirmaMemo(m.id)}>
+                            Prefiero no firmar digitalmente
+                          </Boton>
+                        </div>
+                      )}
+                      {!resuelto && !puedeFirmar && (
+                        <p className="mt-1 text-xs text-taupe">
+                          Este documento se firma en físico o vía notarial — no admite firma digital.
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         <section className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
           <p className="mb-3 text-taupe">
@@ -2266,6 +2388,7 @@ export default function MioPage() {
             </ul>
           )}
         </section>
+        </>
       )}
 
       <p className="mt-6 text-xs text-taupe">

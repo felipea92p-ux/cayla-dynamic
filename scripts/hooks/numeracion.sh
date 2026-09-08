@@ -1,5 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Freno de numeración: que dos trabajos no reclamen el mismo número.
+#
+# `#!/usr/bin/env bash` y no `#!/bin/bash` a propósito: este script usa
+# `declare -A` (mapas asociativos), que pide bash 4+, y macOS trae de fábrica
+# el bash 3.2 de 2007 en `/bin/bash` —Apple lo congeló ahí por licencia GPLv3—
+# sin planes de moverlo nunca. Con la ruta fija, este hook falla en CUALQUIER
+# Mac que no tenga instalado un bash más nuevo por su cuenta (típicamente vía
+# `brew install bash`, que lo deja en `/opt/homebrew/bin/bash`, antes que
+# `/usr/bin`/`/bin` en el PATH). `env bash` resuelve al primero que encuentre
+# ahí. Descubierto el 2026-09-08: el push de una migración real se frenó con
+# «declare: -A: invalid option» en una Mac sin bash de Homebrew — nada que ver
+# con una colisión de números, solo el intérprete equivocado.
 #
 # POR QUÉ EXISTE. El 2026-08-05, en una sola jornada, hubo CUATRO choques entre
 # sesiones que trabajaban en paralelo sobre este repo:
