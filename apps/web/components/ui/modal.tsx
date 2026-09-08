@@ -65,13 +65,25 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null);
   const tituloId = useId();
 
+  // Separado a propósito del efecto de abajo: `onCerrar` casi siempre llega
+  // como una función nueva en cada render de quien usa el modal (acá mismo,
+  // en Contratos, es un `() => setAnulando(null)` inline). Si el foco
+  // estuviera en ESE efecto, cada tecla que se escribe en un campo de adentro
+  // —cualquier `onChange` dispara un re-render del padre— volvería a robarle
+  // el foco al contenedor del modal, y la tecla siguiente no llegaba a
+  // ningún lado: "escribo una letra y me bota". Este efecto solo depende de
+  // `abierto`, así que el foco se pone UNA VEZ, al abrir, y listo.
+  useEffect(() => {
+    if (!abierto) return;
+    ref.current?.focus();
+  }, [abierto]);
+
   useEffect(() => {
     if (!abierto) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !bloqueado) onCerrar();
     };
     document.addEventListener("keydown", onKey);
-    ref.current?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [abierto, bloqueado, onCerrar]);
 
