@@ -89,7 +89,7 @@ interface ItemSolicitudVacacion {
   comentario: string | null;
 }
 
-/** Una propuesta de cambio de perfil por resolver (migración 0396). */
+/** Una propuesta de cambio de perfil por resolver (migración 0399). */
 interface ItemSolicitudPerfil {
   id: string;
   persona_id: string;

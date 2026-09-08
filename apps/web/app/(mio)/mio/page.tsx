@@ -175,7 +175,7 @@ interface SolicitudVacacion {
   respuesta: string | null;
 }
 
-/** Una fila del catálogo de campos de perfil (migración 0396) — qué se puede
+/** Una fila del catálogo de campos de perfil (migración 0399) — qué se puede
  *  pedir cambiar y si exige documento. Se lee de la tabla, nunca a mano
  *  (regla del repo: nada de listas escritas fuera de donde vive la verdad). */
 interface CatalogoCampoPerfil {
@@ -455,7 +455,7 @@ export default function MioPage() {
   const [comentarioSolicitud, setComentarioSolicitud] = useState("");
   const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
   const [avisoSolicitud, setAvisoSolicitud] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
-  // ── Solicitudes de cambio de perfil (0396) ────────────────────────────────
+  // ── Solicitudes de cambio de perfil (0399) ────────────────────────────────
   const [catalogoPerfil, setCatalogoPerfil] = useState<CatalogoCampoPerfil[]>([]);
   const [misSolicitudesPerfil, setMisSolicitudesPerfil] = useState<SolicitudPerfil[]>([]);
   const [campoPerfil, setCampoPerfil] = useState("celular");
@@ -766,7 +766,7 @@ export default function MioPage() {
     await cargarSolicitudesVacas();
   }
 
-  // ── Solicitudes de cambio de perfil (0396) ─────────────────────────────────
+  // ── Solicitudes de cambio de perfil (0399) ─────────────────────────────────
   // El catálogo se lee una sola vez: no depende de quién es, solo de qué campos
   // existen (regla del repo — nunca escribir a mano la lista de 11 campos).
   useEffect(() => {
@@ -1672,7 +1672,7 @@ export default function MioPage() {
             </section>
           )}
 
-          {/* ── Cambiar mis datos (0396) ──────────────────────────────────────
+          {/* ── Cambiar mis datos (0399) ──────────────────────────────────────
               El valor real NO cambia acá: se propone, y Desarrollo Organizacional
               lo aprueba o lo rechaza. El botón queda deshabilitado hasta adjuntar
               un documento cuando el campo lo exige — el servidor lo vuelve a

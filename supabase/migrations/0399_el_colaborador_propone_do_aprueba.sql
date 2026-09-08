@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0396 — Cambiar el perfil pasa por una solicitud
+-- 0399 — Cambiar el perfil pasa por una solicitud
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -306,7 +306,7 @@ create or replace function public.fn_set_datos_personales(p_persona_id uuid, p_n
  SET search_path TO 'public'
 AS $function$
 begin
-  -- CAMBIO 0396: se quita "or p_persona_id = fn_persona_actual_id()" — la
+  -- CAMBIO 0399: se quita "or p_persona_id = fn_persona_actual_id()" — la
   -- propia persona ya no edita su ficha directo, pasa por
   -- fn_crear_solicitud_perfil / fn_aplicar_cambio_perfil.
   if (fn_es_admin_o_lider()
@@ -376,7 +376,7 @@ begin
     raise exception 'La persona no existe.';
   end if;
 
-  -- CAMBIO 0396: se quita "or p_persona_id = fn_persona_actual_id()".
+  -- CAMBIO 0399: se quita "or p_persona_id = fn_persona_actual_id()".
   if (fn_es_admin_o_lider()
           or (fn_rol_actual() = 'supervisor_sede' and v_sede = fn_sede_actual_persona())) is not true then
     raise exception 'Sin permiso para editar los familiares de esta persona.';
@@ -436,7 +436,7 @@ begin
     raise exception 'Ese familiar no existe.';
   end if;
 
-  -- CAMBIO 0396: se quita "or v_persona = fn_persona_actual_id()".
+  -- CAMBIO 0399: se quita "or v_persona = fn_persona_actual_id()".
   if (fn_es_admin_o_lider()
           or (fn_rol_actual() = 'supervisor_sede' and v_sede = fn_sede_actual_persona())) is not true then
     raise exception 'Sin permiso para editar los familiares de esta persona.';
@@ -857,7 +857,7 @@ revoke execute on function fn_resolver_seguimiento_planilla(uuid, text) from pub
 
 
 insert into migraciones_aplicadas (numero, nombre)
-values (396, 'el_colaborador_propone_do_aprueba')
+values (399, 'el_colaborador_propone_do_aprueba')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';

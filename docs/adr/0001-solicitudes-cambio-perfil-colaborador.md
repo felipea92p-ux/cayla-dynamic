@@ -1,8 +1,8 @@
 # ADR 0001 — Solicitudes de cambio de perfil del colaborador
 
 Fecha: 2026-09-07. Estado: implementado — migración
-`supabase/migrations/0396_el_colaborador_propone_do_aprueba.sql`, prueba
-`supabase/tests/314_el_colaborador_propone_do_aprueba.test.sql` (23/23 en
+`supabase/migrations/0399_el_colaborador_propone_do_aprueba.sql`, prueba
+`supabase/tests/316_el_colaborador_propone_do_aprueba.test.sql` (23/23 en
 verde contra Postgres local, dentro de `BEGIN…ROLLBACK`, sin dejar rastro en
 la base compartida).
 
@@ -535,7 +535,7 @@ navegador y cambiar su celular, estado civil o cuenta bancaria al instante,
 sin aprobación ni documento.
 
 Confirmado con el usuario 2026-09-07: se cierra. Las tres funciones se
-reescriben en la migración 0396 quitando esa rama — DO y la encargada de sede
+reescriben en la migración 0399 quitando esa rama — DO y la encargada de sede
 mantienen su edición directa intacta; solo se retira la autoedición. Como son
 funciones **existentes** que se reescriben, la migración declara el md5 de
 partida contra Postgres LOCAL (no hay una migración anterior contra la cual

@@ -2,9 +2,9 @@
 -- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local. En producción
 -- falla con "function plan(integer) does not exist" — y falla a propósito.
 -- Se corre así, en esta Mac:   npx supabase test db
--- Lo que sí se pega vive en supabase/migrations/0396_....sql.
+-- Lo que sí se pega vive en supabase/migrations/0399_....sql.
 -- ============================================================================
--- 314_el_colaborador_propone_do_aprueba.test.sql
+-- 316_el_colaborador_propone_do_aprueba.test.sql
 -- ============================================================================
 -- Lo que esta prueba vigila, por orden de importancia:
 --
