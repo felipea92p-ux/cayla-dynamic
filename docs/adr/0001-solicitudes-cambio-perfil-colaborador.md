@@ -592,7 +592,7 @@ las 11', a pedido explícito"); confirmó que sí, quiere revertirlo — ahora p
 los 7 campos que el colaborador puede pedir desde `/mio/editar`, no solo los 3
 sin documento que se había planteado la vez anterior.
 
-Lo que cambia, en la migración 0402:
+Lo que cambia, en la migración 0403:
 
 - `fn_resolver_solicitud_perfil` y `fn_solicitudes_perfil_pendientes` aceptan
   también `fn_rol_actual() = 'supervisor_sede' and` la sede de quien pidió el

@@ -2,14 +2,14 @@
 -- Es una PRUEBA: usa pgTAP, que solo existe en el Postgres local. En producción
 -- falla con "function plan(integer) does not exist" — y falla a propósito.
 -- Se corre así, en esta Mac:   npx supabase test db
--- Lo que sí se pega vive en supabase/migrations/0402_....sql.
+-- Lo que sí se pega vive en supabase/migrations/0403_....sql.
 -- ============================================================================
--- 319_la_encargada_de_sede_tambien_aprueba_el_perfil.test.sql
+-- 320_la_encargada_de_sede_tambien_aprueba_el_perfil.test.sql
 -- ============================================================================
 -- Lo que esta prueba vigila, por orden de importancia:
 --
 --   1. La encargada de la MISMA sede que la colaboradora puede resolver su
---      solicitud de perfil — antes de la 0402 esto era exclusivo de DO.
+--      solicitud de perfil — antes de la 0403 esto era exclusivo de DO.
 --   2. La encargada de OTRA sede no puede: ni resolverla, ni verla en su
 --      bandeja de pendientes.
 --   3. fn_solicitudes_perfil_pendientes le muestra a cada encargada solo lo

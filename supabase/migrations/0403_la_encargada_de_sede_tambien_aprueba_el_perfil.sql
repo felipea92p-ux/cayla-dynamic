@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0402 — La encargada de sede también aprueba solicitudes de perfil
+-- 0403 — La encargada de sede también aprueba solicitudes de perfil
 -- ============================================================================
 --
 -- QUÉ PROMETE
@@ -166,7 +166,7 @@ create policy solicitud_perfil_select on storage.objects
 
 
 insert into migraciones_aplicadas (numero, nombre)
-values (402, 'la_encargada_de_sede_tambien_aprueba_el_perfil')
+values (403, 'la_encargada_de_sede_tambien_aprueba_el_perfil')
 on conflict (numero) do nothing;
 
 notify pgrst, 'reload schema';

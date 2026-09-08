@@ -170,7 +170,7 @@ export default function BandejaPage() {
   // que ya usa fn_aprobar_ausencia — es DO, nunca la encargada de la sede.
   const puedeResolverVacaciones = puedeVerPlanilla(rol);
   const puedeSaludAlertas = puedeVerSaludDeAlertas(rol);
-  // CAMBIO 0402 — Antes era DO en exclusiva (ADR 0001, DECIDÍ #9). Se revirtió
+  // CAMBIO 0403 — Antes era DO en exclusiva (ADR 0001, DECIDÍ #9). Se revirtió
   // al día siguiente de confirmarse, al construir /mio/editar: la encargada de
   // sede también resuelve, pero solo lo de su propio equipo — el guard vive en
   // fn_resolver_solicitud_perfil/fn_solicitudes_perfil_pendientes, esto solo

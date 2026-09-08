@@ -31,7 +31,7 @@ import {
  * EL VALOR REAL NO CAMBIA ACÁ: cada campo que cambió se manda como una
  * propuesta separada con `fn_crear_solicitud_perfil` (0399) — el catálogo
  * sigue siendo la única fuente de qué exige documento, nunca una lista
- * escrita a mano acá. Quien aprueba es el admin/DO o, desde la 0402, la
+ * escrita a mano acá. Quien aprueba es el admin/DO o, desde la 0403, la
  * encargada de la propia sede.
  */
 
