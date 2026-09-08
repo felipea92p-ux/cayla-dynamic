@@ -268,7 +268,24 @@ diff as (
 -- ella y se marcaba «✓ aplicada». Ahora la lista viene de git, así que lo que
 -- no esté commiteado en ningún lado aparece acá.
 --
--- Cero filas es lo normal. Una fila es cosa de hoy, no de mañana.
+-- SE LLAMA «SOBRA LA FILA» PORQUE ASÍ LA LLAMA YA `huecos-conocidos.txt`, que
+-- desde su primera versión manda buscar ese estado exacto antes de silenciar un
+-- hueco. Prometía una comprobación que nadie había construido: hasta el
+-- 2026-09-07 ese texto no existía en ninguna parte del script ni de la consulta.
+--
+-- QUÉ HACER CUANDO APARECE UNA, y son dos cosas distintas que conviene no
+-- confundir — el detector encuentra la discrepancia, no decide qué significa:
+--
+--   a) La migración existe y no se guardó → COMMITEARLA HOY. Es el caso de la
+--      0177, la 0243 y la 0381.
+--   b) El número se anotó pero su contenido quedó SUPERADO por migraciones
+--      posteriores que sí están guardadas → NO commitear el archivo viejo, que
+--      podría crear una sobrecarga y repetir el «function is not unique» de la
+--      0297/0299. Se anota el número en `huecos-conocidos.txt` con su razón.
+--      Es el caso de la 0393, medido el 2026-09-08.
+--
+-- Para distinguirlas hay que mirar si lo que esa migración creaba sigue vigente
+-- en producción con la misma firma. Cero filas es lo normal.
 huerfanas as (
   select a.numero, a.nombre, a.aplicada_at
   from migraciones_aplicadas a
@@ -292,7 +309,7 @@ select * from (
   -- único que importa de toda esta consulta.
   select a.numero::text,
          a.nombre,
-         '⚠️  PEGADA Y NO ESTÁ EN GIT — commitéala HOY',
+         '⚠️  SOBRA LA FILA — revísala (ver abajo)',
          to_char(a.aplicada_at, 'DD/MM/YYYY'),
          999997
   from huerfanas a
