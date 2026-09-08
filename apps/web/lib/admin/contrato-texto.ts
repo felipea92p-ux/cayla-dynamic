@@ -1055,11 +1055,22 @@ function documentoConvenio(d: DatosContrato): string {
     incidencias, conforme a la Ley N.° 29733. ${etiquetaPracticante} declara conocer y aceptar su existencia mediante la
     firma del presente convenio.</p>`,
 
+    // Espeja la cláusula DÉCIMA SÉPTIMA del contrato de trabajo, con las
+    // diferencias que impone la Ley N.° 28518: aquí NO hay AFP/ONP —una
+    // modalidad formativa no genera aportes previsionales— ni datos
+    // «remunerativos», porque la subvención económica no es remuneración y
+    // este mismo documento lo subraya dos cláusulas más arriba. Copiar la del
+    // contrato tal cual habría metido las dos cosas.
     `<h3>{{N}}. PROTECCIÓN DE DATOS PERSONALES</h3>
-    <p>De conformidad con la Ley N.° 29733, LA EMPRESA informa a ${etiquetaPracticante} que sus datos personales serán
-    tratados con las finalidades exclusivas de gestión del presente convenio, cumplimiento de obligaciones legales,
-    comunicaciones internas y emisión de constancias. ${etiquetaPracticante} otorga su consentimiento expreso mediante la
-    firma del presente convenio.</p>`,
+    <p>De conformidad con la Ley N.° 29733, Ley de Protección de Datos Personales, y su Reglamento aprobado por
+    Decreto Supremo N.° 016-2024-JUS, LA EMPRESA informa a ${etiquetaPracticante} que sus datos personales —incluyendo
+    nombre, documento de identidad, domicilio, datos formativos y los relativos a la subvención económica— serán
+    incorporados y tratados en los sistemas de LA EMPRESA con las siguientes finalidades exclusivas: (i) gestión del
+    presente convenio; (ii) cumplimiento de obligaciones legales ante el Ministerio de Trabajo y Promoción del Empleo,
+    EsSalud, el centro de formación profesional y demás autoridades competentes; (iii) comunicaciones internas propias
+    de las prácticas; (iv) emisión de constancias, certificados y documentos formativos; y (v) verificación de
+    identidad mediante la carga de la copia del Documento Nacional de Identidad (DNI) y constancia de la aceptación de
+    los términos del presente convenio.</p>`,
 
     `<h3>{{N}}. BENEFICIOS ADICIONALES VOLUNTARIOS</h3>
     <p>LA EMPRESA podrá, a su sola discreción, extender a ${etiquetaPracticante} beneficios adicionales no remunerativos
