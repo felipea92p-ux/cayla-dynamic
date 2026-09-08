@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Inbox } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -1146,10 +1147,28 @@ export default function MioPage() {
                 title={nuevasEnBandeja > 0
                   ? `${nuevasEnBandeja} respuesta${nuevasEnBandeja === 1 ? "" : "s"} de estos días`
                   : "Lo que respondieron a lo que pediste"}
-                className="flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="relative flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                {/* El mismo ícono que el panel usa para su Bandeja
+                    (admin/nav-items.ts), no uno nuevo: es la misma idea en las
+                    dos superficies, y quien tiene panel la reconoce sin leer. */}
+                <Inbox size={14} strokeWidth={1.8} className="shrink-0" aria-hidden />
                 Bandeja
                 {nuevasEnBandeja > 0 && (
-                  <Insignia variante="contador" tamano="sm">{nuevasEnBandeja}</Insignia>
+                  <>
+                    {/* El número montado en la esquina, con los tokens del
+                        contador del panel (`bg-rojo` sobre `text-crema`): un
+                        dígito sale círculo y dos salen píldora corta, sin
+                        deformar el botón. Va `aria-hidden` porque un número
+                        suelto no dice nada a quien no lo ve — el dato entero
+                        viaja en el `sr-only` de abajo y en el `title`. */}
+                    <span aria-hidden
+                      className="absolute -right-1.5 -top-1.5 min-w-[1.125rem] rounded-pildora bg-rojo px-1 text-center text-[10px] font-medium leading-[1.125rem] text-crema">
+                      {nuevasEnBandeja}
+                    </span>
+                    <span className="sr-only">
+                      {nuevasEnBandeja} respuesta{nuevasEnBandeja === 1 ? "" : "s"} sin ver
+                    </span>
+                  </>
                 )}
               </Link>
             )}
