@@ -111,14 +111,18 @@ export interface DatosContrato {
    * ANEXO I — Plan Específico de Aprendizaje (0348, ambas modalidades). Antes
    * era un único texto libre (`planCapacitacionTexto`, que sigue existiendo
    * para "actividades principales"); el modelo de DO lo pide como ficha con
-   * estos campos propios, con dos hitos de evaluación porque un convenio
-   * formativo se supervisa por avance, no solo se firma y se olvida.
+   * estos campos propios.
+   *
+   * Traía además "hito de evaluación — mes 3 / mes 6", quitado (0404): eran
+   * meses de calendario fijos sobre un convenio de duración variable —se
+   * rompían en cualquier convenio de menos de 6 meses, pidiendo evaluar algo
+   * después de que ya había terminado— y sin ningún seguimiento real detrás
+   * en el sistema, el campo obligatorio solo empujaba a escribir relleno para
+   * poder generar el contrato.
    */
   areaProyecto: string;
   objetivoFormativoGeneral: string;
   supervisorAsignado: string;
-  hitoMes3: string;
-  hitoMes6: string;
 
   // Plazo — la jornada es siempre de 48h, el máximo legal; no se declara un
   // número calculado del horario, que es solo la disposición operativa de hoy.
@@ -314,8 +318,6 @@ function escapado(d: DatosContrato): DatosContrato {
     areaProyecto: escapeHtml(d.areaProyecto),
     objetivoFormativoGeneral: escapeHtml(d.objetivoFormativoGeneral),
     supervisorAsignado: escapeHtml(d.supervisorAsignado),
-    hitoMes3: escapeHtml(d.hitoMes3),
-    hitoMes6: escapeHtml(d.hitoMes6),
     activosPrincipales: escapeHtml(d.activosPrincipales),
     activosLibre: escapeHtml(d.activosLibre),
     adendumTexto: escapeHtml(d.adendumTexto),
@@ -1170,8 +1172,6 @@ function documentoConvenio(d: DatosContrato): string {
       <p><strong>Actividades principales:</strong></p>
       ${listaDesdeTexto(d.planCapacitacionTexto)}
       <p><strong>Supervisor(a) asignado(a):</strong> ${d.supervisorAsignado || "[completar]"}</p>
-      <p><strong>Hito de evaluación — mes 3:</strong> ${d.hitoMes3 || "[completar]"}</p>
-      <p><strong>Hito de evaluación — mes 6:</strong> ${d.hitoMes6 || "[completar]"}</p>
       <p><strong>Fecha de inicio / término:</strong> ${formatearFecha(d.fechaInicio)} – ${formatearFecha(d.fechaFin)}</p>
       ${pieAnexo(d, etiquetaPracticante)}
     </section>
