@@ -352,10 +352,13 @@ const ESTADO_TABLERO: Record<string, { texto: string; grave: boolean }> = {
  * campo nuevo uno de los dos se queda sin reponerlo, y el formulario arrastra
  * al documento siguiente lo que quedó del anterior.
  */
-function camposIniciales(p: Persona, sedeNombre: string): DatosFormulario {
+function camposIniciales(p: Persona, sedeNombre: string, sedeCiudad: string | null): DatosFormulario {
   return {
     cargo: p.cargo ?? "",
-    ciudad: "",
+    // Prellenada de verdad, no solo como placeholder (pedido de Felipe,
+    // 2026-09-07): Central no tiene ciudad propia y se queda vacía a
+    // propósito — su gente puede estar en cualquiera, así que se elige a mano.
+    ciudad: sedeCiudad ?? "",
     causa:
       `La causa objetiva determinante de la contratación es la siguiente: LA EMPRESA opera la sede ` +
       `${sedeNombre}, que ha experimentado un crecimiento sostenido de su actividad y de atención al ` +
@@ -578,6 +581,42 @@ export default function ContratosPage() {
 
   const sedeCodigo = useMemo(() => new Map(sedes.map((s) => [s.id, s.codigo])), [sedes]);
   const sedeNombreMap = useMemo(() => new Map(sedes.map((s) => [s.id, s.nombre])), [sedes]);
+  const sedeCiudadMap = useMemo(() => new Map(sedes.map((s) => [s.id, s.ciudad])), [sedes]);
+
+  // Sugerencias para "Cargo" y "Ciudad donde se firma": lo que YA se usó en el
+  // sistema, no una lista escrita a mano (regla de la casa) — si mañana
+  // alguien crea un cargo nuevo, aparece solo. Siguen siendo campos libres:
+  // el `<datalist>` sugiere, nunca restringe a lo que ya existe.
+  //
+  // El cargo actual de `personas` (2026-09-07) se quedaba corto a propósito
+  // de la pregunta: la mayoría de colaboradoras no tiene `cargo` propio —sin
+  // él se les muestra el rol (0182)— así que solo aparecían los tres o cuatro
+  // puestos de jefatura que sí lo tienen escrito. `contratos` (`fn_contratos_listar`)
+  // ya trae el cargo con el que se generó CADA contrato de la historia, de
+  // cualquier persona, activa o no: esa es la lista completa de puestos que
+  // la empresa ha usado de verdad.
+  //
+  // Excluye los anulados a propósito (2026-09-07): un borrador de PRUEBA —con
+  // "asdf" o cualquier relleno en Cargo— se descarta anulándolo, nunca
+  // borrándolo (regla de la casa), así que sin este filtro cada prueba deja
+  // basura permanente en esta lista. Un contrato anulado sigue siendo el
+  // registro de lo que se pactó (no se toca su texto), solo deja de contar
+  // como "un cargo que la empresa usa".
+  const cargosExistentes = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [...personas.map((p) => p.cargo), ...contratos.filter((c) => !c.anulado_at).map((c) => c.cargo)]
+            .map((c) => c?.trim())
+            .filter((c): c is string => !!c),
+        ),
+      ).sort(),
+    [personas, contratos],
+  );
+  const ciudadesExistentes = useMemo(
+    () => Array.from(new Set(sedes.map((s) => s.ciudad?.trim()).filter((c): c is string => !!c))).sort(),
+    [sedes],
+  );
 
   // La tarifa de movilidad de una sede: SU fila, o la general. Mismo criterio
   // que usa fn_planilla_calcular y /admin/documentacion — el contrato y la
@@ -737,7 +776,13 @@ export default function ContratosPage() {
     // tecleó aquel día, y este efecto lo borraría entero un instante después.
     if (editando) return;
 
-    aplicarCampos(camposIniciales(p, p.sede_base_id ? (sedeNombreMap.get(p.sede_base_id) ?? "") : ""))
+    aplicarCampos(
+      camposIniciales(
+        p,
+        p.sede_base_id ? (sedeNombreMap.get(p.sede_base_id) ?? "") : "",
+        p.sede_base_id ? (sedeCiudadMap.get(p.sede_base_id) ?? null) : null,
+      ),
+    )
 
     const inicio = tipo === "renovacion" && p.fecha_fin_contrato ? sumarDias(p.fecha_fin_contrato, 1) : hoyLima();
     setFechaInicio(inicio);
@@ -846,8 +891,17 @@ export default function ContratosPage() {
   // Los anulados no cuentan: anular es exactamente cómo dice este sistema «este
   // ya no vale» (acá nada se borra, se marca). Y el que se está editando
   // tampoco se cuenta contra sí mismo.
+  // El que se acaba de generar tampoco cuenta contra sí mismo: `borrador.id`
+  // es su id desde que `generarBorrador` lo guarda, y el formulario sigue
+  // mostrando la misma persona/tipo/fechas para poder imprimirlo — sin este
+  // descarte, el candado de arriba se disparaba contra el documento que
+  // acababa de crear, como si fuera un segundo borrador. `borrador` se pone en
+  // null en cuanto se toca cualquier campo (ver el efecto de arriba), así que
+  // esto deja de aplicar apenas se intenta generar uno de verdad.
   const vivosDeLaPersona = persona
-    ? contratos.filter((c) => c.persona_id === persona.id && !c.anulado_at && c.id !== editando?.id)
+    ? contratos.filter(
+        (c) => c.persona_id === persona.id && !c.anulado_at && c.id !== editando?.id && c.id !== borrador?.id,
+      )
     : [];
   const borradoresVivos = vivosDeLaPersona.filter((c) => !c.storage_path);
   const borradorMismoTipo = borradoresVivos.find((c) => c.tipo === tipoEfectivo) ?? null;
@@ -978,12 +1032,20 @@ export default function ContratosPage() {
   if (persona && !datoPersonal?.nombre_dni) {
     bloqueos.push('Carga el nombre completo (como en el DNI) en Datos personales — sin él no se puede generar el contrato.');
   }
-  // El Anexo III (Domicilio Electrónico, contrato-texto.ts:1298) fija el
-  // correo de LA COLABORADORA como domicilio válido para notificaciones —
-  // incluida la entrega del RIT. Sin este candado se imprimía como
-  // "[completar]" sin que nadie lo notara antes de firmar. Solo aplica al
-  // contrato general: el convenio y el adendum no traen este anexo.
-  if (persona && !esAdendum && !esConvenio && !persona.email) {
+  // El domicilio del trabajador va en la cláusula de identificación de las
+  // partes ("...con domicilio en X..."), en el contrato general y en el
+  // convenio por igual. Sin este candado se imprimía sin esa frase, sin que
+  // nadie lo notara antes de firmar — igual que pasaba con el correo. El
+  // adendum no lo necesita: no repite la identificación de las partes.
+  if (persona && !esAdendum && !datoPersonal?.direccion) {
+    bloqueos.push("Carga el domicilio en Datos personales — el contrato debe consignar el domicilio del trabajador.");
+  }
+  // El Anexo III (Domicilio Electrónico) fija el correo de LA COLABORADORA o
+  // LA PRACTICANTE como domicilio válido para notificaciones — incluida la
+  // entrega del RIT en el contrato general. Sin este candado se imprimía
+  // como "[completar]" sin que nadie lo notara antes de firmar. El adendum
+  // no lo necesita: modifica un contrato que ya lo tiene, no repite anexos.
+  if (persona && !esAdendum && !persona.email) {
     bloqueos.push("Carga el correo electrónico en Equipo — el Anexo III (Domicilio Electrónico) lo necesita para notificaciones válidas.");
   }
   if (persona && salarioVigente === null) {
@@ -1226,7 +1288,14 @@ export default function ContratosPage() {
     setTipo(c.tipo as "nuevo" | "renovacion" | "adendum" | "convenio_practicas" | "indefinido");
     setFechaInicio(c.fecha_inicio);
     setFechaFin(c.fecha_fin ?? "");
-    aplicarCampos(foto ?? camposIniciales(p, p.sede_base_id ? (sedeNombreMap.get(p.sede_base_id) ?? "") : ""));
+    aplicarCampos(
+      foto ??
+        camposIniciales(
+          p,
+          p.sede_base_id ? (sedeNombreMap.get(p.sede_base_id) ?? "") : "",
+          p.sede_base_id ? (sedeCiudadMap.get(p.sede_base_id) ?? null) : null,
+        ),
+    );
     avisar("ok", "Borrador abierto para editar. Al guardar se reemplaza su texto — no se crea otro.");
   }
 
@@ -1453,7 +1522,7 @@ export default function ContratosPage() {
   const contadores: { clave: string; etiqueta: string; n: number; grave: boolean }[] = [
     { clave: "desnaturalizado", etiqueta: "Riesgo art. 77", n: cuenta("desnaturalizado"), grave: true },
     { clave: "sin_firmar", etiqueta: "Sin escaneado", n: cuenta("sin_firmar"), grave: false },
-    { clave: "tramite_pendiente", etiqueta: "Falta copia o MTPE", n: cuenta("tramite_pendiente"), grave: false },
+    { clave: "vencido", etiqueta: "Vencidos", n: cuenta("vencido"), grave: true },
     { clave: "por_vencer", etiqueta: "Vencen en 30 días", n: cuenta("por_vencer"), grave: false },
   ];
 
@@ -1908,21 +1977,33 @@ export default function ContratosPage() {
                   Cargo
                   <input
                     className="mt-1 w-full rounded border border-sand p-2"
+                    list="cargos-existentes"
                     value={cargoEditado}
                     onChange={(e) => setCargoEditado(e.target.value)}
                   />
+                  <datalist id="cargos-existentes">
+                    {cargosExistentes.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </label>
                 <label className="block text-sm">
                   Ciudad donde se firma
                   <input
                     className="mt-1 w-full rounded border border-sand p-2"
+                    list="ciudades-existentes"
                     placeholder={ciudadDeLaSede ?? "Arequipa, Lima o Trujillo"}
                     value={ciudadEditada}
                     onChange={(e) => setCiudadEditada(e.target.value)}
                   />
+                  <datalist id="ciudades-existentes">
+                    {ciudadesExistentes.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                   <span className="mt-1 block text-xs text-taupe">
                     {ciudadDeLaSede
-                      ? `Si lo dejas vacío se usa ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom}.`
+                      ? `Rellenada con ${ciudadDeLaSede}, la ciudad de la sede ${sedeNom} — cámbiala si corresponde otra.`
                       : "Central no tiene una ciudad propia: su gente puede estar en cualquiera, así que hay que elegirla."}
                   </span>
                 </label>
@@ -2193,6 +2274,16 @@ export default function ContratosPage() {
                   <div>
                     <dt className="font-semibold">Nombre legal</dt>
                     <dd>{datoPersonal?.nombre_dni ?? "falta en Ficha personal"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Domicilio</dt>
+                    <dd className={datoPersonal?.direccion ? "" : "text-rojo"}>
+                      {datoPersonal?.direccion ?? "falta — cárgalo en Datos personales"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Correo (Anexo III)</dt>
+                    <dd className={persona.email ? "" : "text-rojo"}>{persona.email ?? "falta — cárgalo en Equipo"}</dd>
                   </div>
                   <div>
                     <dt className="font-semibold">Sueldo base vigente</dt>
