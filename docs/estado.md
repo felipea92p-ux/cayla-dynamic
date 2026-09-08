@@ -37,6 +37,42 @@ nombres que hay que revisar, tampoco: va la consulta que los encuentra sola.
 
 ---
 
+## 2026-09-07 — Un practicante puede cobrar movilidad y educación (0397) · PEGADA Y VERIFICADA
+
+Motivado por un caso real: Geison Alcantára —de prácticas, ingresó el 3 de
+septiembre— estaba mal registrado como planilla normal y su boleta le
+descontaba AFP y le acumulaba gratificación/CTS que no le correspondían.
+Se corrigió su `tipo_vinculo` a `practicante` desde `/admin/equipo` (dato, no
+código), y de ahí salió la pregunta: ¿puede CAYLA ofrecerle también movilidad
+y educación? Legalmente sí (Ley 28518 no lo prohíbe) — pero el sistema no se
+las pagaba, porque las dos seguían condicionadas solo a `en_planilla`, que
+para un practicante es `false` por definición.
+
+**La 0397** amplía la condición a `pe.en_planilla or pe.tipo_vinculo =
+'practicante'` en los 7 sitios exactos de `fn_planilla_calcular_nucleo` donde
+se leía `en_planilla` para estos dos conceptos — el mismo patrón quirúrgico
+que la 0322 usó para EsSalud. AFP, CTS, gratificación, bonificación
+extraordinaria y asignación familiar **no se tocan** y siguen en cero para un
+practicante. Sigue siendo una opción: sin tarifa de movilidad cargada para su
+sede o sin una asignación de educación con comprobante, un practicante sigue
+cobrando S/0 de los dos, igual que hoy.
+
+Auditado contra Postgres local dentro de `BEGIN…ROLLBACK` antes de escribir
+([PR #254](https://github.com/felipea92p-ux/cayla-dynamic/pull/254)): monto
+correcto, `total` cuadra con `chk_foto_cuadra`, el periodo cierra por el grupo
+`practicante` (0323), y las pruebas 115/193 (educación/movilidad existentes)
+sin regresión. `db-tests` en verde (3m57s). **Confirmado en producción el
+2026-09-07**: la consulta de comprobación del final de la migración devolvió
+exactamente lo esperado — las dos funciones núcleo creadas, en la lista negra,
+y NO ejecutables directamente por `authenticated`.
+
+**Pendiente que no se arregla solo:** para que esto mueva un sol de verdad hay
+que cargarle a la persona una tarifa de movilidad vigente para su sede (si no
+la tiene) y/o una asignación de educación con comprobante desde
+`/admin/educacion`. Sin eso, nada cambia para nadie.
+
+---
+
 ## 2026-09-07 — El mega menú pasa a sidebar lateral colapsable, y los grupos de 5 a 7 · SIN MIGRACIONES, SIN DESPLEGAR
 
 Ejecuta la decisión que [`plan-apariencia-2026-09-06.md`](plan-apariencia-2026-09-06.md)
