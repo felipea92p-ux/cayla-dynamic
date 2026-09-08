@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Inbox } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
 import { AcusesPendientes } from "@/components/acuses-pendientes";
@@ -24,13 +25,15 @@ import {
   BUCKET_SOLICITUDES_PERFIL, CARAS_DNI, comprimirFotoDni, rutaNuevaCaraDni,
   urlFirmadaSolicitudPerfil, type CaraDni,
 } from "@/lib/foto-dni";
-import { ROLES_CON_PANEL, TZ_LIMA, hoyLima } from "@cayla-dynamic/shared";
+import { EMPRESA, ROLES_CON_PANEL, TZ_LIMA, hoyLima, NIVEL_DISCIPLINARIO_LABELS } from "@cayla-dynamic/shared";
 import { MESES as MESES_LARGOS, type ObjetivoItem } from "@/lib/objetivos";
 import {
   esperadoDelDia, horarioVigente, fechasDelRango, dowDe, estadoDelDia,
   type Esperado, type EstadoDia, type HorarioTramo, type TurnoDia,
 } from "@/lib/admin/jornada-esperada";
 import { loQueNoSePudo } from "@/lib/admin/lo-que-no-se-pudo";
+import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { traerBandeja } from "@/lib/bandeja-mia";
 
 /**
  * «Lo mío» — lo que cada persona ve de sí misma.
@@ -214,11 +217,44 @@ interface MiContrato {
   fecha_firma: string | null;
 }
 
+/** Fila de `fn_mis_memos()` (0404) — ya filtrada a `estado = 'entregado'`,
+ *  nunca un borrador ni uno firmado-pero-no-entregado. */
+interface MiMemo {
+  id: string;
+  correlativo: string | null;
+  tipo_causal: string;
+  nivel: string;
+  entregado_at: string | null;
+  medio_entrega: string | null;
+  firma_sancionado_confirmada_at: string | null;
+  sancionado_rechazo_firma_at: string | null;
+}
+
+const CAUSAL_LABEL_MIO: Record<string, string> = { tardanza: "Tardanzas", falta: "Faltas", conducta: "Conducta" };
+
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "setiembre", "octubre", "noviembre", "diciembre",
 ];
 const LETRA_DIA = ["D", "L", "M", "M", "J", "V", "S"];
+
+/**
+ * Lo que se acepta al mandar las fotos del DNI (Ley N.° 29733, 0404).
+ *
+ * Va aquí, palabra por palabra, y no en la base: es texto legal que se lee en
+ * pantalla y se guarda tal cual en `consentimientos_datos_personales.texto` al
+ * aceptarlo, para que cada constancia diga QUÉ aceptó esa persona ese día
+ * aunque esta redacción cambie después. La razón social y el RUC salen de
+ * `EMPRESA` —una sola respuesta a «cómo se identifica la empresa», ver
+ * packages/shared/src/empresa.ts—, nunca escritos a mano acá.
+ */
+const TEXTO_CONSENTIMIENTO_DNI =
+  `Declaro que el Documento Nacional de Identidad (DNI) que adjunto corresponde a mi persona y autorizo a ` +
+  `${EMPRESA.nombre} (RUC ${EMPRESA.ruc}) a tratar este documento y mis demás datos personales con la finalidad ` +
+  `de verificar mi identidad y dejar constancia de mi aceptación de los términos del contrato. Estos datos se ` +
+  `incorporarán al banco de datos personales de ${EMPRESA.nombre}. Su entrega es necesaria para continuar el ` +
+  `proceso; de no autorizarlo, no será posible continuar con la firma del contrato. Puedo ejercer mis derechos ` +
+  `de acceso, rectificación, cancelación y oposición escribiendo a info@cayla.pe.`;
 
 /** «2026-07-29» → «29 de julio». */
 function diaYMes(iso: string): string {
@@ -388,6 +424,32 @@ function colorDia(d: Dia): string {
   }
 }
 
+/**
+ * ¿Este día es su jornada de HOY, todavía abierta?
+ *
+ * `estadoDelDia` la devuelve como "revisar" —marcó y el día no está cerrado—, y
+ * para un día PASADO eso es exactamente lo que hay que decir: falta la salida,
+ * así que las horas de ese día no son las que trabajó. Pero para HOY, con la
+ * jornada `abierta` o `en_pausa`, no falta nada: está trabajando en este
+ * momento. Llamarlo «marcaje incompleto» acusa de un problema a quien está
+ * cumpliendo su turno, y encima de uno que no puede arreglar hasta salir.
+ *
+ * Se distingue ACÁ, en la pantalla, y NO en `estadoDelDia`: esa función la
+ * comparten el panel y esta pantalla, y el color del día tiene que seguir
+ * significando lo mismo para la integrante y para su encargada.
+ *
+ * El corte por fecha es lo que hace segura la excepción: una jornada que quedó
+ * `abierta` de AYER sí es un marcaje roto —se fue sin marcar la salida— y
+ * sigue avisando como siempre. Queda un borde conocido y a propósito: un turno
+ * que cruza la medianoche (raro, pero existe — ver `lib/terminal/jornada-en-curso.ts`
+ * y la migración 0240) cuelga de la fecha de AYER, así que entre las 00:00 y su
+ * salida vuelve a leerse como incompleto. Cerrarlo pediría reconstruir acá la
+ * ventana de horas del terminal, y esa regla ya vive en un solo sitio.
+ */
+function enJornadaAbierta(d: Dia, hoy: string): boolean {
+  return d.fecha === hoy && (d.jornada?.estado === "abierta" || d.jornada?.estado === "en_pausa");
+}
+
 function explicaDia(d: Dia): string {
   const p: string[] = [diaYMes(d.fecha)];
   if (d.esperado.trabaja) p.push(`te tocaba ${d.esperado.entrada}${d.esperado.salida ? `–${d.esperado.salida}` : ""}`);
@@ -398,7 +460,9 @@ function explicaDia(d: Dia): string {
     p.push(d.perdonada ? "tardanza levantada" : `${comoMinutos(d.jornada!.minutos_tarde!)} tarde`);
   }
   if (d.estado === "falta") p.push("no hay marcaje");
-  if (d.estado === "revisar") p.push("marcaje incompleto");
+  if (d.estado === "revisar") {
+    p.push(enJornadaAbierta(d, hoyLima()) ? "en jornada, todavía sin marcar la salida" : "marcaje incompleto");
+  }
   return p.join(" · ");
 }
 
@@ -460,6 +524,11 @@ export default function MioPage() {
     { anverso: null, reverso: null });
   const [solicitudDni, setSolicitudDni] = useState<SolicitudDni | null>(null);
   const [enviandoDni, setEnviandoDni] = useState(false);
+  /** La casilla de consentimiento (0404). Arranca desmarcada SIEMPRE y vuelve a
+   *  desmarcarse tras cada envío: la ley pide el consentimiento en el momento
+   *  de recolectar el dato, así que un envío nuevo es un acto nuevo — no lo
+   *  cubre el de la vez anterior. */
+  const [aceptoDatos, setAceptoDatos] = useState(false);
   /** ¿Existe ya el campo de la 0401 en el catálogo? Mientras esa migración no
    *  esté pegada no hay dónde guardar la solicitud, así que la pestaña no sale.
    *  Vale más que no esté a que esté y falle recién al enviar, con las dos fotos
@@ -537,6 +606,10 @@ export default function MioPage() {
       avisar("error", "Faltan las dos caras: hay que subir el anverso y el reverso.");
       return;
     }
+    if (!aceptoDatos) {
+      avisar("error", "Falta marcar la autorización para tratar tus datos personales.");
+      return;
+    }
     setEnviandoDni(true);
     try {
       /** Sube una cara y devuelve su ruta, o null si falló (ya avisó por qué). */
@@ -567,6 +640,17 @@ export default function MioPage() {
       const rutaReverso = await subirCara(caraReverso, dniElegido.reverso);
       if (rutaReverso === null) return;
 
+      // La constancia ANTES de la solicitud, y no al revés: si algo falla en
+      // medio, es preferible una constancia de una aceptación que no llegó a
+      // mandar fotos —inofensiva: dice lo que dice, con su fecha— que unas
+      // fotos recolectadas sin constancia de haberlo autorizado, que es
+      // justamente lo que la Ley N.° 29733 no admite.
+      const { error: eConsentimiento } = await supabase.rpc("fn_registrar_mi_consentimiento", {
+        p_finalidad: "foto_dni",
+        p_texto: TEXTO_CONSENTIMIENTO_DNI,
+      });
+      if (eConsentimiento) { avisar("error", eConsentimiento.message); return; }
+
       const { error } = await supabase.rpc("fn_crear_solicitud_perfil", {
         p_campo: "foto_dni",
         p_valor_propuesto: {
@@ -582,6 +666,7 @@ export default function MioPage() {
         if (elegido) URL.revokeObjectURL(elegido.vista);
       }
       setDniElegido({ anverso: null, reverso: null });
+      setAceptoDatos(false);
       avisar("ok", "Enviado. Desarrollo Organizacional lo revisa y te avisamos.");
       await cargarDni();
     } catch {
@@ -599,6 +684,8 @@ export default function MioPage() {
     vence_el: string | null; dias_para_vencer: number | null;
   } | null>(null);
   const [solicitudesVacas, setSolicitudesVacas] = useState<SolicitudVacacion[]>([]);
+  /** Cuántas respuestas recientes le esperan en /mio/bandeja. Ver `cargarNuevasEnBandeja`. */
+  const [nuevasEnBandeja, setNuevasEnBandeja] = useState(0);
   // El rango del formulario de pedir vacaciones. Arranca en mañana y en un
   // solo día — nunca en "": un campo de fecha que arranca vacío y bloquea el
   // envío es justo el error que ya costó caro acá (ver CLAUDE.md, 2026-08-26).
@@ -889,6 +976,42 @@ export default function MioPage() {
     return () => { vivo = false; };
   }, [supabase, yo?.id]);
 
+  // Sus propios memos disciplinarios ya entregados (0404). Aparte del bloque
+  // grande por la misma razón que `contrato`/`vacas`: depende solo de quién
+  // es. `fn_mis_memos()` ya filtra `estado = 'entregado'` del lado del
+  // servidor — nunca un borrador ni uno firmado-pero-no-entregado, que es
+  // justo lo que el comentario de cabecera de este archivo advierte que
+  // `exp_select_propia` por sí sola no evita.
+  const [misMemos, setMisMemos] = useState<MiMemo[]>([]);
+  const cargarMisMemos = useCallback(async () => {
+    if (!yo?.id) { setMisMemos([]); return; }
+    const { data } = await supabase.rpc("fn_mis_memos");
+    setMisMemos((data as MiMemo[] | null) ?? []);
+  }, [supabase, yo?.id]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarMisMemos(); }, [cargarMisMemos]);
+
+  const memosPorFirmar = useMemo(
+    () => misMemos.filter((m) =>
+      ["verbal", "amonestacion", "suspension"].includes(m.nivel)
+      && !m.firma_sancionado_confirmada_at
+      && !m.sancionado_rechazo_firma_at),
+    [misMemos],
+  );
+
+  async function firmarMemo(id: string) {
+    const { error } = await supabase.rpc("fn_firmar_memo_como_sancionado", { p_id: id });
+    if (error) { avisar("error", mensajeDeError(error, "firmar el memo")); return; }
+    avisar("ok", "Firma guardada en el memo.");
+    void cargarMisMemos();
+  }
+  async function rechazarFirmaMemo(id: string) {
+    const { error } = await supabase.rpc("fn_rechazar_firma_memo", { p_id: id });
+    if (error) { avisar("error", mensajeDeError(error, "registrar tu respuesta")); return; }
+    avisar("ok", "Quedó anotado que prefieres no firmar digitalmente.");
+    void cargarMisMemos();
+  }
+
   // Sus propias solicitudes de vacaciones. Aparte del bloque grande de arriba
   // por la misma razón que `vacas`: depende solo de quién es, no del rango de
   // fechas que esté mirando en la cuadrícula del mes.
@@ -904,6 +1027,26 @@ export default function MioPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void cargarSolicitudesVacas(); }, [cargarSolicitudesVacas]);
+
+  // Cuántas respuestas nuevas le esperan en la Bandeja.
+  //
+  // Sale de `traerBandeja`, la MISMA función que arma la lista de /mio/bandeja,
+  // aunque esta pantalla ya tenga a mano dos de las tres fuentes. Contar acá
+  // con lo que ya está cargado sería más barato y crearía justo el defecto que
+  // la Bandeja vino a evitar: dos sitios respondiendo «cuántas nuevas» por su
+  // cuenta, listos para separarse el día que alguien cambie una de las dos.
+  //
+  // Falla en silencio a propósito: si no se pudo contar, el botón sale sin
+  // número. Un aviso rojo en la portada por un contador es ruido — la propia
+  // Bandeja sí dice lo que no pudo traer, que es donde importa.
+  const cargarNuevasEnBandeja = useCallback(async () => {
+    if (!yo?.id) { setNuevasEnBandeja(0); return; }
+    const { bandeja } = await traerBandeja(supabase, yo.id);
+    setNuevasEnBandeja(bandeja.nuevas);
+  }, [supabase, yo]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void cargarNuevasEnBandeja(); }, [cargarNuevasEnBandeja]);
 
   /** Pedir un rango de vacaciones. No dice si alcanza el saldo: eso lo decide
    *  el servidor con el mismo cálculo que ya se le muestra arriba. */
@@ -1051,7 +1194,10 @@ export default function MioPage() {
       // por qué seguir viéndola en su marcador.
       tardanzas: jornadas.filter((d) => (d.minutos_tarde ?? 0) > 0 && !perdonadas.has(d.fecha)).length,
       medidos: jornadas.filter((d) => d.minutos_tarde !== null).length,
-      porRevisar: dias.filter((d) => d.estado === "revisar"),
+      // Su jornada de hoy todavía abierta NO es un día por revisar: está
+      // trabajando. Sale de la cuenta y se cuenta aparte (ver `enJornadaAbierta`).
+      porRevisar: dias.filter((d) => d.estado === "revisar" && !enJornadaAbierta(d, hoy)),
+      enJornadaAhora: dias.some((d) => enJornadaAbierta(d, hoy)),
       faltas: dias.filter((d) => d.estado === "falta"),
     };
   }, [jornadas, perdonadas, dias]);
@@ -1088,12 +1234,18 @@ export default function MioPage() {
   // puede afirmar sin decir una cifra.
   const estadoDelPeriodo = useMemo(() => {
     if (!periodo) return null;
-    const cierra = fechasDelRango(hoyLima(), periodo.fecha_fin).length - 1;
+    const hoy = hoyLima();
+    const cierra = fechasDelRango(hoy, periodo.fecha_fin).length - 1;
     const mios = dias.filter((d) => d.fecha >= periodo.fecha_ini && d.fecha <= periodo.fecha_fin);
-    const pendientes = mios.filter((d) => d.estado === "revisar" || d.estado === "falta").length;
+    // Misma exclusión que en `resumen`: su turno de hoy en curso no es un día
+    // pendiente, y sin esto la tarjeta seguía diciendo «tienes 1 día por
+    // revisar» —en alerta— justo debajo del aviso que se acaba de calmar.
+    const pendientes = mios.filter(
+      (d) => (d.estado === "revisar" && !enJornadaAbierta(d, hoy)) || d.estado === "falta",
+    ).length;
     // `cubre` dice si el rango que está mirando abarca el periodo entero: si no,
     // el «todo completo» sería una afirmación sobre días que no se consultaron.
-    const cubre = desde <= periodo.fecha_ini && hasta >= hoyLima();
+    const cubre = desde <= periodo.fecha_ini && hasta >= hoy;
     return { cierra, pendientes, cubre };
   }, [periodo, dias, desde, hasta]);
 
@@ -1147,9 +1299,20 @@ export default function MioPage() {
         ir: () => { setTab("ausencias"); irArriba(); },
       });
     }
+    // Genérica a propósito: ni el nivel ni el motivo de la sanción van acá.
+    // Esta tarjeta puede verla de reojo cualquiera que pase cerca de la
+    // pantalla — el detalle recién se ve al entrar al documento mismo.
+    if (memosPorFirmar.length > 0) {
+      const n = memosPorFirmar.length;
+      out.push({
+        clave: "memos",
+        texto: `Tienes ${n} documento${n === 1 ? "" : "s"} por revisar y firmar`,
+        ir: () => { setTab("historial"); irArriba(); },
+      });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, respondidas, vacas]);
+  }, [resumen, respondidas, vacas, memosPorFirmar]);
 
   const objCumplidos = objetivos.filter((o) => o.cumplido).length;
   const mesLabel = `${MESES_LARGOS[Number(hasta.slice(5, 7)) - 1].toLowerCase()} ${hasta.slice(0, 4)}`;
@@ -1241,6 +1404,41 @@ export default function MioPage() {
                 Volver al panel
               </Link>
             )}
+            {/* La Bandeja va ANTES de «Editar datos» a propósito: es donde
+                aterriza el resultado de lo que se pide ahí al lado. El número
+                sale de la misma función que arma la lista (lib/bandeja-mia.ts),
+                nunca de una cuenta propia de esta pantalla, y cuenta las
+                respuestas recientes — no se apaga al leer, caduca sola. */}
+            {yo && (
+              <Link href="/mio/bandeja"
+                title={nuevasEnBandeja > 0
+                  ? `${nuevasEnBandeja} respuesta${nuevasEnBandeja === 1 ? "" : "s"} de estos días`
+                  : "Lo que respondieron a lo que pediste"}
+                className="relative flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                {/* El mismo ícono que el panel usa para su Bandeja
+                    (admin/nav-items.ts), no uno nuevo: es la misma idea en las
+                    dos superficies, y quien tiene panel la reconoce sin leer. */}
+                <Inbox size={14} strokeWidth={1.8} className="shrink-0" aria-hidden />
+                Bandeja
+                {nuevasEnBandeja > 0 && (
+                  <>
+                    {/* El número montado en la esquina, con los tokens del
+                        contador del panel (`bg-rojo` sobre `text-crema`): un
+                        dígito sale círculo y dos salen píldora corta, sin
+                        deformar el botón. Va `aria-hidden` porque un número
+                        suelto no dice nada a quien no lo ve — el dato entero
+                        viaja en el `sr-only` de abajo y en el `title`. */}
+                    <span aria-hidden
+                      className="absolute -right-1.5 -top-1.5 min-w-[1.125rem] rounded-pildora bg-rojo px-1 text-center text-[10px] font-medium leading-[1.125rem] text-crema">
+                      {nuevasEnBandeja}
+                    </span>
+                    <span className="sr-only">
+                      {nuevasEnBandeja} respuesta{nuevasEnBandeja === 1 ? "" : "s"} sin ver
+                    </span>
+                  </>
+                )}
+              </Link>
+            )}
             {yo && (
               <Link href="/mio/editar"
                 className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
@@ -1307,6 +1505,17 @@ export default function MioPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {/* Su jornada de hoy sigue abierta. No es un pendiente —no hay nada roto
+          que arreglar— así que va FUERA del recuadro ámbar «Necesita que hagas
+          algo»: en `pizarra`, el tono informativo/«en proceso», con el mismo
+          criterio que ya usa la banda de Equipo. Lo único que aporta es el
+          recordatorio de marcar al salir, que es lo único que ella puede hacer. */}
+      {resumen.enJornadaAhora && (
+        <div className="mb-6 rounded-2xl border border-pizarra/40 bg-pizarra/[0.07] px-5 py-4 text-sm">
+          Te encuentras en jornada laboral, no te olvides de marcar al salir.
+        </div>
       )}
 
       {/* ══ 3 · TUS CUATRO CIFRAS, Y LO QUE SE HACE CON ELLAS ═══════════════
@@ -1810,13 +2019,36 @@ export default function MioPage() {
               })}
             </div>
 
+            {/* El consentimiento (0404) va AQUÍ, pegado a las fotos y antes del
+                botón, y no dentro del contrato que se firma después: la Ley
+                N.° 29733 lo pide en el momento de recolectar el dato. Lo que
+                se lee acá es lo que se guarda como constancia, palabra por
+                palabra — por eso el texto es una constante y no se arma en el
+                JSX. */}
+            <label className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
+              <input
+                type="checkbox"
+                checked={aceptoDatos}
+                onChange={(e) => setAceptoDatos(e.target.checked)}
+                disabled={enviandoDni}
+                className="mt-0.5 shrink-0"
+              />
+              <span>
+                {TEXTO_CONSENTIMIENTO_DNI}
+                <span className="mt-1 block font-medium">Acepto y autorizo.</span>
+              </span>
+            </label>
+
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Boton type="submit" variante="primario" cargando={enviandoDni}
-                disabled={!dniElegido.anverso || !dniElegido.reverso}>
+                disabled={!dniElegido.anverso || !dniElegido.reverso || !aceptoDatos}>
                 Enviar para aprobación
               </Boton>
               {(!dniElegido.anverso || !dniElegido.reverso) && (
                 <span className="text-xs text-taupe">Hacen falta las dos caras para poder enviar.</span>
+              )}
+              {dniElegido.anverso && dniElegido.reverso && !aceptoDatos && (
+                <span className="text-xs text-taupe">Falta marcar la autorización para poder enviar.</span>
               )}
             </div>
           </form>
@@ -2064,6 +2296,65 @@ export default function MioPage() {
           Estaba de tercera sección de la pantalla, ocupándole media vista a algo
           que se consulta una vez al mes. */}
       {tab === "historial" && (
+        <>
+          {/* Solo visible si tiene al menos un memo entregado — nada que
+              mostrar, nada que ocupe pantalla. `fn_mis_memos()` (0404) ya
+              garantiza que nunca llegue acá un borrador. */}
+          {misMemos.length > 0 && (
+            <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
+              <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
+              <p className="mb-3 text-taupe">
+                Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no
+                hacerlo) no reemplaza el trámite en físico — es evidencia adicional, con su propia fecha y hora.
+              </p>
+              <ul className="space-y-3">
+                {misMemos.map((m) => {
+                  const puedeFirmar = ["verbal", "amonestacion", "suspension"].includes(m.nivel);
+                  const resuelto = Boolean(m.firma_sancionado_confirmada_at || m.sancionado_rechazo_firma_at);
+                  return (
+                    <li key={m.id} className="border-t border-sand pt-3 first:border-t-0 first:pt-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                        <span className="font-medium">
+                          {NIVEL_DISCIPLINARIO_LABELS[m.nivel as keyof typeof NIVEL_DISCIPLINARIO_LABELS] ?? m.nivel}
+                        </span>
+                        <span className="text-xs text-taupe">
+                          {m.entregado_at ? diaYMes(m.entregado_at.slice(0, 10)) : "—"}
+                        </span>
+                      </div>
+                      <p className="text-taupe">
+                        {CAUSAL_LABEL_MIO[m.tipo_causal] ?? m.tipo_causal}
+                        {m.correlativo ? ` · ${m.correlativo}` : ""}
+                      </p>
+                      {m.firma_sancionado_confirmada_at && (
+                        <p className="mt-1 text-verde">
+                          Firmaste este documento el {diaYMes(m.firma_sancionado_confirmada_at.slice(0, 10))}.
+                        </p>
+                      )}
+                      {m.sancionado_rechazo_firma_at && (
+                        <p className="mt-1 text-taupe">
+                          Quedó anotado que preferiste no firmarlo digitalmente, el{" "}
+                          {diaYMes(m.sancionado_rechazo_firma_at.slice(0, 10))}.
+                        </p>
+                      )}
+                      {!resuelto && puedeFirmar && (
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <Boton variante="primario" tamano="sm" onClick={() => void firmarMemo(m.id)}>Firmar</Boton>
+                          <Boton variante="enlace" className="text-xs text-taupe" onClick={() => void rechazarFirmaMemo(m.id)}>
+                            Prefiero no firmar digitalmente
+                          </Boton>
+                        </div>
+                      )}
+                      {!resuelto && !puedeFirmar && (
+                        <p className="mt-1 text-xs text-taupe">
+                          Este documento se firma en físico o vía notarial — no admite firma digital.
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         <section className="rounded-2xl border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
           <p className="mb-3 text-taupe">
@@ -2097,6 +2388,7 @@ export default function MioPage() {
             </ul>
           )}
         </section>
+        </>
       )}
 
       <p className="mt-6 text-xs text-taupe">

@@ -7,6 +7,9 @@ import { usePersonaActual } from "@/lib/admin/use-rol";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
+import { Boton } from "@/components/ui/boton";
+import { Campo } from "@/components/ui/campo";
+import { TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import {
   categoriasFueraDeOrden,
   construirDocumento,
@@ -146,6 +149,11 @@ function BloqueVista({ b }: { b: Bloque }) {
       </ul>
     );
   }
+  // Tabla nativa a propósito, no <Tabla>/<Th>: esto es contenido del documento
+  // que se publica y se imprime (el cuadro de categorías dentro del propio
+  // papel), no una tabla de la interfaz — lleva borde en cada celda a
+  // propósito, como una tabla de un documento formal, y <Th>/<Tabla> no traen
+  // esa cuadrícula.
   return (
     <div className="mb-4 overflow-x-auto">
       <table className="w-full border-collapse text-left text-sm">
@@ -347,13 +355,9 @@ export default function PoliticaSalarialPage() {
             {/* La Ley 30709 pide ENTREGAR este documento a cada integrante, así
                 que llevarse una copia no es cosa de la Gerencia: el botón lo ve
                 cualquiera que pueda leer la pantalla. */}
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="rounded border border-sand px-3 py-1.5 text-sm font-medium text-tinta hover:bg-sand/20"
-            >
+            <Boton variante="secundario" tamano="sm" onClick={() => window.print()}>
               Imprimir / Guardar como PDF
-            </button>
+            </Boton>
           </div>
           <p className="mb-6 text-sm text-taupe">
             Cómo se organiza el trabajo en CAYLA y cómo se determina lo que gana cada persona.
@@ -399,14 +403,14 @@ export default function PoliticaSalarialPage() {
                   Todavía no se ha publicado ninguna versión. Hasta publicarla y recoger las
                   constancias, CAYLA sigue incursa en el numeral 25.23 del RLGIT.
                 </p>
-                <button
-                  type="button"
+                <Boton
+                  variante="primario"
                   onClick={() => void publicar()}
                   disabled={guardando}
-                  className="rounded bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                  cargando={guardando}
                 >
                   Publicar esta versión
-                </button>
+                </Boton>
               </>
             ) : (
               <>
@@ -427,14 +431,14 @@ export default function PoliticaSalarialPage() {
                     nueva — las constancias volverán a pedirse.
                   </p>
                 )}
-                <button
-                  type="button"
+                <Boton
+                  variante="primario"
                   onClick={() => void publicar()}
                   disabled={guardando}
-                  className="rounded bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                  cargando={guardando}
                 >
                   {desactualizada ? "Publicar versión nueva" : "Volver a publicar"}
-                </button>
+                </Boton>
               </>
             )}
           </section>
@@ -487,21 +491,21 @@ export default function PoliticaSalarialPage() {
                   discrepancia, puedes plantearla a la Gerencia y recibirás respuesta por escrito.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
-                  <input
+                  <Campo
                     type="text"
                     value={nombreAcuse}
                     onChange={(e) => setNombreAcuse(e.target.value)}
                     placeholder="Tu nombre completo"
-                    className="min-w-64 flex-1 rounded border bg-crema px-3 py-2 text-sm text-tinta"
+                    className="min-w-64 flex-1"
                   />
-                  <button
-                    type="button"
+                  <Boton
+                    variante="primario"
                     onClick={() => void acusar()}
                     disabled={guardando || nombreAcuse.trim() === ""}
-                    className="rounded bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50"
+                    cargando={guardando}
                   >
                     Dejar constancia
-                  </button>
+                  </Boton>
                 </div>
               </>
             )}
@@ -527,25 +531,25 @@ export default function PoliticaSalarialPage() {
               </>
             )}
             {yaAcusaron.length > 0 && (
-              <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr>
-                    <th className="border-b border-sand py-2 font-semibold text-tinta">
-                      Persona
-                    </th>
-                    <th className="border-b border-sand py-2 font-semibold text-tinta">
-                      Dejó constancia
-                    </th>
-                  </tr>
-                </thead>
+              // Sin el envoltorio <Tabla> a propósito: esta tabla ya vive
+              // dentro de la tarjeta con borde de la sección que la contiene,
+              // y el borde+esquinas propios de <Tabla> le quedarían doble
+              // aro. Sí toma TablaEncabezado/Th/Fila, que es lo que unifica
+              // el tipo de letra del encabezado y la zebra de las filas con
+              // el resto del panel.
+              <table className="w-full text-sm">
+                <TablaEncabezado>
+                  <Th>Persona</Th>
+                  <Th>Dejó constancia</Th>
+                </TablaEncabezado>
                 <tbody>
                   {yaAcusaron.map((a) => (
-                    <tr key={a.persona_id}>
-                      <td className="border-b border-sand py-2 text-tinta">{a.nombre}</td>
-                      <td className="border-b border-sand py-2 text-tinta">
+                    <Fila key={a.persona_id}>
+                      <td className="px-4 py-2 text-tinta">{a.nombre}</td>
+                      <td className="px-4 py-2 text-tinta">
                         {a.acusado_at !== null ? fechaHora(a.acusado_at) : "—"}
                       </td>
-                    </tr>
+                    </Fila>
                   ))}
                 </tbody>
               </table>
