@@ -2530,11 +2530,13 @@ export default function ContratosPage() {
 
         <Modal abierto={anulando !== null} onCerrar={() => setAnulando(null)} titulo="Anular contrato" ancho="sm">
           <AreaTexto
-            className="mb-4 w-full"
+            className="mb-1 w-full"
             placeholder="Motivo (mínimo 3 caracteres)"
             value={motivoAnular}
             onChange={(e) => setMotivoAnular(e.target.value)}
+            maxLength={250}
           />
+          <p className="mb-4 text-right text-xs text-taupe">{motivoAnular.length}/250</p>
           <div className="flex justify-end gap-2">
             <Boton onClick={() => setAnulando(null)}>Cancelar</Boton>
             <Boton variante="peligro" onClick={anular}>Confirmar anulación</Boton>

@@ -27,10 +27,16 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
-const ANCHO: Record<"sm" | "md" | "lg", string> = {
+// "xl" se agregó con la 0401, para el primer modal que no muestra un formulario
+// sino un DOCUMENTO: la foto de un DNI a max-w-lg se ve, pero no se LEE, y ese
+// modal existe justamente para mirarlo de cerca. Los cuatro anchos siguen
+// siendo una lista corta a propósito — el día que haga falta un quinto, será
+// porque hay una razón como esta y no porque cada pantalla eligió el suyo.
+const ANCHO: Record<"sm" | "md" | "lg" | "xl", string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-3xl",
 };
 
 export function Modal({
@@ -45,10 +51,12 @@ export function Modal({
   onCerrar: () => void;
   titulo?: string;
   /** Ancho del recuadro. Los modales reales del panel se reparten entre los
-   * tres: sm para confirmaciones cortas, lg para texto legal/explicativo.
-   * "md" es el default, el tamaño intermedio y el que existía antes de que
-   * "ancho" se pudiera elegir. */
-  ancho?: "sm" | "md" | "lg";
+   * tres primeros: sm para confirmaciones cortas, lg para texto
+   * legal/explicativo. "md" es el default, el tamaño intermedio y el que
+   * existía antes de que "ancho" se pudiera elegir. "xl" es el cuarto y no es
+   * para un formulario: es para mirar un documento de cerca (ver el
+   * comentario de ANCHO). */
+  ancho?: "sm" | "md" | "lg" | "xl";
   /** Mientras es true, ni el clic en el velo ni Escape cierran el modal —
    * para no perder una edición a medio guardar (ver CLAUDE.md). */
   bloqueado?: boolean;
@@ -57,13 +65,25 @@ export function Modal({
   const ref = useRef<HTMLDivElement>(null);
   const tituloId = useId();
 
+  // Separado a propósito del efecto de abajo: `onCerrar` casi siempre llega
+  // como una función nueva en cada render de quien usa el modal (acá mismo,
+  // en Contratos, es un `() => setAnulando(null)` inline). Si el foco
+  // estuviera en ESE efecto, cada tecla que se escribe en un campo de adentro
+  // —cualquier `onChange` dispara un re-render del padre— volvería a robarle
+  // el foco al contenedor del modal, y la tecla siguiente no llegaba a
+  // ningún lado: "escribo una letra y me bota". Este efecto solo depende de
+  // `abierto`, así que el foco se pone UNA VEZ, al abrir, y listo.
+  useEffect(() => {
+    if (!abierto) return;
+    ref.current?.focus();
+  }, [abierto]);
+
   useEffect(() => {
     if (!abierto) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !bloqueado) onCerrar();
     };
     document.addEventListener("keydown", onKey);
-    ref.current?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [abierto, bloqueado, onCerrar]);
 
