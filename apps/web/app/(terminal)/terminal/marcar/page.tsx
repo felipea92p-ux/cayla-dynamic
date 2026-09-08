@@ -566,15 +566,6 @@ export default function MarcarPage() {
               ⟳ {pendientesSinEnviar} sin enviar
             </span>
           )}
-          {/* Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven.
-              Por eso van en rojo y con instrucción, no en ámbar como las de arriba
-              —que se van a enviar solas en cuanto haya red— y por eso el texto
-              nombra a la encargada: es la única acción que resuelve esto. */}
-          {marcasApartadas > 0 && (
-            <span className="rounded-full bg-rojo/15 px-3 py-1 text-xs font-medium text-rojo">
-              ⚠ {marcasApartadas} sin registrar — avisa a tu encargada
-            </span>
-          )}
           {/* El reloj corrido va DESPUÉS de los avisos de la cola y antes del
               nombre de la sede: no es urgente como una marca sin registrar
               —nadie tiene que hacer nada ahora mismo— pero sí permanente, y
@@ -599,6 +590,22 @@ export default function MarcarPage() {
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
         </div>
       </header>
+
+      {/* Banda de ancho completo, no una píldora más de la cabecera: es lo más
+          grave que este terminal puede decir —una marca que no llegó y no va a
+          llegar sola— y antes vivía a 12px, más chico que el resto de avisos,
+          mientras el reloj (que todos llevan encima) ocupa 60px. Medido: rojo
+          sobre rojo/15 daba 3,93:1 en claro y 3,92:1 en oscuro, bajo el 4,5:1
+          que WCAG pide para texto normal; a este tamaño (20px, negrita) el
+          umbral que aplica es el de texto grande, 3:1, que sí se cumple —y con
+          bg-rojo/10 en vez de /15 sube a 4,20-4,21:1, con margen de sobra.
+          Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven.
+          Por eso nombra a la encargada: es la única acción que resuelve esto. */}
+      {marcasApartadas > 0 && (
+        <div className="border-b border-rojo/30 bg-rojo/10 px-6 py-3 text-center text-xl font-bold text-rojo">
+          ⚠ {marcasApartadas} sin registrar — avisa a tu encargada
+        </div>
+      )}
 
       <main className="flex flex-1 flex-col items-center justify-center p-6">
         {pantalla === "lista" && (

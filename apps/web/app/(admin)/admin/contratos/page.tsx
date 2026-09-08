@@ -1032,6 +1032,14 @@ export default function ContratosPage() {
   if (persona && !datoPersonal?.nombre_dni) {
     bloqueos.push('Carga el nombre completo (como en el DNI) en Datos personales — sin él no se puede generar el contrato.');
   }
+  // El domicilio del trabajador va en la cláusula de identificación de las
+  // partes ("...con domicilio en X..."), en el contrato general y en el
+  // convenio por igual. Sin este candado se imprimía sin esa frase, sin que
+  // nadie lo notara antes de firmar — igual que pasaba con el correo. El
+  // adendum no lo necesita: no repite la identificación de las partes.
+  if (persona && !esAdendum && !datoPersonal?.direccion) {
+    bloqueos.push("Carga el domicilio en Datos personales — el contrato debe consignar el domicilio del trabajador.");
+  }
   // El Anexo III (Domicilio Electrónico) fija el correo de LA COLABORADORA o
   // LA PRACTICANTE como domicilio válido para notificaciones — incluida la
   // entrega del RIT en el contrato general. Sin este candado se imprimía
@@ -1821,7 +1829,7 @@ export default function ContratosPage() {
               y recién entonces generarle el suyo. Decisión de Felipe
               (2026-09-07), volviendo al orden de siempre. */}
           <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm">
                 Persona
                 <select
@@ -1935,7 +1943,7 @@ export default function ContratosPage() {
 
             {persona && (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm">
                     Fecha de inicio
                     <input
@@ -2057,7 +2065,7 @@ export default function ContratosPage() {
                         (0348). */}
                     {modalidadEfectiva === "preprofesional" ? (
                       <>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-sm">
                             Centro de formación — razón social
                             <input
@@ -2076,7 +2084,7 @@ export default function ContratosPage() {
                             />
                           </label>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-sm">
                             Centro de formación — domicilio
                             <input
@@ -2094,7 +2102,7 @@ export default function ContratosPage() {
                             />
                           </label>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-sm">
                             Carrera / especialidad
                             <input
@@ -2266,6 +2274,12 @@ export default function ContratosPage() {
                   <div>
                     <dt className="font-semibold">Nombre legal</dt>
                     <dd>{datoPersonal?.nombre_dni ?? "falta en Ficha personal"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Domicilio</dt>
+                    <dd className={datoPersonal?.direccion ? "" : "text-rojo"}>
+                      {datoPersonal?.direccion ?? "falta — cárgalo en Datos personales"}
+                    </dd>
                   </div>
                   <div>
                     <dt className="font-semibold">Correo (Anexo III)</dt>

@@ -1509,28 +1509,30 @@ export default function EquipoPage() {
         {hist.length === 0 ? (
           <p className="text-sm text-taupe">Sin registros todavía.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-taupe">
-              <tr>
-                <th className="py-1 font-normal">Rango</th>
-                <th className="py-1 font-normal">Salario</th>
-                <th className="py-1 font-normal">Desde</th>
-                <th className="py-1 font-normal">Hasta</th>
-                <th className="py-1 font-normal">Asignado por</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hist.map((h, i) => (
-                <tr key={i} className="border-t">
-                  <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
-                  <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
-                  <td className="py-1">{h.vigente_desde}</td>
-                  <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
-                  <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-taupe">
+                <tr>
+                  <th className="py-1 font-normal">Rango</th>
+                  <th className="py-1 font-normal">Salario</th>
+                  <th className="py-1 font-normal">Desde</th>
+                  <th className="py-1 font-normal">Hasta</th>
+                  <th className="py-1 font-normal">Asignado por</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {hist.map((h, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="py-1">{RANGO_LABEL[h.rango] ?? h.rango}</td>
+                    <td className="py-1">{formatSoles(Number(h.salario_mensual_soles))}</td>
+                    <td className="py-1">{h.vigente_desde}</td>
+                    <td className="py-1">{h.vigente_hasta ?? <span className="text-rojo">vigente</span>}</td>
+                    <td className="py-1 text-taupe">{h.asignado_por ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     );
@@ -1718,7 +1720,7 @@ export default function EquipoPage() {
                       if (salariosEstado !== "ok") {
                         // sin datos confiables no se ofrece Asignar/Editar (evita pisar salarios reales)
                         return (
-                          <td className="px-4 py-2 text-xs text-taupe/60">
+                          <td className="px-4 py-2 text-xs text-taupe">
                             {salariosEstado === "cargando" ? "Cargando…" : "No disponible"}
                           </td>
                         );
@@ -1729,7 +1731,7 @@ export default function EquipoPage() {
                           {sal ? (
                             <span className="whitespace-nowrap">{RANGO_LABEL[sal.rango] ?? sal.rango} · {formatSoles(sal.salario)}</span>
                           ) : (
-                            <span className="text-taupe/60">Sin asignar</span>
+                            <span className="text-taupe">Sin asignar</span>
                           )}
                           <div className="mt-1 flex gap-3 text-xs">
                             <button onClick={() => empezarSalario(p)} className="text-rojo hover:underline">{sal ? "Editar" : "Asignar"}</button>
@@ -1738,7 +1740,7 @@ export default function EquipoPage() {
                         </td>
                       );
                     })()}
-                    <td className="px-4 py-2">{p.email ?? <span className="text-taupe/50">—</span>}</td>
+                    <td className="px-4 py-2">{p.email ?? <span className="text-taupe">—</span>}</td>
                     <td className="px-4 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs ${p.estado === "activo" ? "bg-sand text-tinta" : "bg-sand text-taupe"}`}>
                         {p.estado}
