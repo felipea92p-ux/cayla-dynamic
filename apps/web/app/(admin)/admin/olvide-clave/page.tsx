@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import * as Sentry from "@sentry/nextjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Colibri } from "@/components/marca";
+import { Campo } from "@/components/ui/campo";
+import { Boton } from "@/components/ui/boton";
 
 export default function OlvideClavePage() {
   const [email, setEmail] = useState("");
@@ -66,22 +68,17 @@ export default function OlvideClavePage() {
           <p className="text-sm text-taupe">
             Escribe el correo con el que entras al panel. Te enviaremos un enlace para crear una nueva clave.
           </p>
-          <input
+          <Campo
             type="email"
             placeholder="correo"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-sand bg-crema px-4 py-3 outline-none placeholder:text-taupe/60 focus:border-taupe"
             required
           />
           {error && <p className="text-sm text-rojo">{error}</p>}
-          <button
-            type="submit"
-            disabled={enviando}
-            className="rounded-lg bg-tinta px-4 py-3 font-medium text-crema transition-colors hover:bg-rojo-profundo disabled:opacity-50"
-          >
+          <Boton type="submit" variante="primario" disabled={enviando} cargando={enviando}>
             {enviando ? "Enviando…" : "Enviar enlace"}
-          </button>
+          </Boton>
           <a href="/admin/login" className="text-center text-sm text-taupe underline-offset-2 hover:underline">
             Volver a entrar
           </a>
