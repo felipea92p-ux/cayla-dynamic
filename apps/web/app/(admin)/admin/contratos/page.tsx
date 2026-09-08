@@ -1829,7 +1829,7 @@ export default function ContratosPage() {
               y recién entonces generarle el suyo. Decisión de Felipe
               (2026-09-07), volviendo al orden de siempre. */}
           <section className="min-w-0 space-y-3 rounded-lg border border-sand bg-papel p-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm">
                 Persona
                 <select
@@ -1943,7 +1943,7 @@ export default function ContratosPage() {
 
             {persona && (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm">
                     Fecha de inicio
                     <input
@@ -2065,7 +2065,7 @@ export default function ContratosPage() {
                         (0348). */}
                     {modalidadEfectiva === "preprofesional" ? (
                       <>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-sm">
                             Centro de formación — razón social
                             <input
@@ -2084,7 +2084,7 @@ export default function ContratosPage() {
                             />
                           </label>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-sm">
                             Centro de formación — domicilio
                             <input
@@ -2102,7 +2102,7 @@ export default function ContratosPage() {
                             />
                           </label>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-sm">
                             Carrera / especialidad
                             <input

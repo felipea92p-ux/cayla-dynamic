@@ -516,13 +516,14 @@ qué se migró y qué sigue — no crear un archivo de estado nuevo con fecha.
   sueltos de color medidos en la auditoría son esta excepción ya decidida desde
   agosto 2026, no deuda nueva) — por ejemplo un décimo/decimosegundo token
   `--color-scrim`.
-- **Decisión abierta, no resolverla sin preguntar:** `personas/[id]:645` usa
-  `bg-white` fijo en la tarjeta de vista previa de firma ("así se verá en el
-  memo"). Es probablemente la misma familia de excepción que política salarial
-  (mostrar tal cual se ve impreso), pero **no está escrita en ningún lado** como
-  tercera excepción — a diferencia de `.hoja` y política salarial. Preguntarle a
-  Felipe si se documenta como excepción o se cambia a `bg-papel`; no decidirlo
-  por cuenta propia.
+- ~~Decisión abierta sobre `personas/[id]:645`~~ — **ya resuelta, esta nota
+  quedó vieja.** El `bg-white` fijo de la tarjeta "así se verá sobre la línea
+  del memo" ya está escrito como parte de la excepción de política salarial en
+  `CLAUDE.md` (commit `06afd11`, 2026-09-05, un día antes de este plan) — la
+  frase "la vista previa 'así se verá en el memo' de una firma" del `CLAUDE.md`
+  actual es literalmente esa pantalla. Una auditoría del 2026-09-07 volvió a
+  levantar esto citando esta nota sin cruzarla contra `CLAUDE.md`; corregido
+  acá para que no se repita.
 - Único hallazgo sin excepción documentada de ningún tipo:
   `admin/liquidaciones/page.tsx`, componente `Hoja()`, usa `border-black` x3 y
   nunca la clase `.hoja` — alinearlo con esa convención cuando se toque esa
