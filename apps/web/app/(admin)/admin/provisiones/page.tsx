@@ -320,7 +320,7 @@ export default function ProvisionesPage() {
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
-            <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
@@ -334,7 +334,7 @@ export default function ProvisionesPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver las provisiones.
           </p>
         </main>
@@ -353,11 +353,11 @@ export default function ProvisionesPage() {
         {/* Banda destacada: próximo desembolso */}
         {data &&
           (data.proximo?.fecha && data.proximo?.tipo ? (
-            <div className="mb-3 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm font-medium text-ambar">
+            <div className="mb-3 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm font-medium text-ambar">
               Próximo desembolso: {tipoLabel(data.proximo.tipo)} el {fechaLarga(data.proximo.fecha)}
             </div>
           ) : (
-            <div className="mb-3 max-w-3xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+            <div className="mb-3 max-w-3xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
               No quedan desembolsos programados en lo que resta del año.
             </div>
           ))}
@@ -392,7 +392,7 @@ export default function ProvisionesPage() {
             que quien reserva no tenga que recorrer la tabla buscando el cero
             que miente. */}
         {data && ((data.personas_sin_salario ?? 0) > 0 || conHueco > 0) && (
-          <div className="mb-4 max-w-3xl rounded-lg border border-rojo bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control border border-rojo bg-rojo/10 px-4 py-3 text-sm text-rojo">
             {(data.personas_sin_salario ?? 0) > 0 && (
               <>
                 <strong className="font-medium">
@@ -418,7 +418,7 @@ export default function ProvisionesPage() {
 
         {/* Error de carga */}
         {error && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las provisiones: {error}{" "}
             <Boton variante="enlace" className="font-medium" onClick={() => void cargar()}>
               Reintentar
@@ -457,7 +457,7 @@ export default function ProvisionesPage() {
                 (Gratificación, CTS, Vacaciones, con colSpan) y la de
                 columna—, y <TablaEncabezado>/<Th> solo dan una fila y no
                 aceptan colSpan. */}
-            <Tabla>
+            <Tabla className="[font-variant-numeric:tabular-nums]">
                 <thead className="bg-sand/70 text-left text-taupe">
                   {/* Encabezados de grupo (fechas de pago del payload) */}
                   <tr>
@@ -537,7 +537,7 @@ export default function ProvisionesPage() {
                             <span className="mt-1 flex flex-wrap items-center gap-2">
                               {p.sin_salario_vigente && (
                                 <span
-                                  className="inline-block rounded-full border border-rojo bg-rojo/10 px-2 py-0.5 text-xs font-medium text-rojo"
+                                  className="inline-block rounded-pildora border border-rojo bg-rojo/10 px-2 py-0.5 text-xs font-medium text-rojo"
                                   title="No tiene ningún salario vigente a la fecha de corte (se asigna en Equipo). Sus reservas salen cortas o en cero, no porque no le toque."
                                 >
                                   Sin tramo de salario vigente

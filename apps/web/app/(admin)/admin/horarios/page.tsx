@@ -347,7 +347,7 @@ export default function HorariosPage() {
                     const on = dias.includes(d.v);
                     return (
                       <button key={d.v} type="button" onClick={() => toggleDia(d.v)}
-                        className={`h-9 w-9 rounded-lg border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                        className={`h-9 w-9 rounded-control border text-sm ${on ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
                         {d.l}
                       </button>
                     );
@@ -366,15 +366,15 @@ export default function HorariosPage() {
                   return (
                     <div key={d.v} className="flex flex-wrap items-center gap-1.5">
                       <button type="button" onClick={() => toggleDiaPorDia(d.v)}
-                        className={`h-8 w-14 shrink-0 rounded-lg border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
+                        className={`h-8 w-14 shrink-0 rounded-control border text-xs capitalize ${activo ? "border-tinta bg-tinta text-crema" : "border-sand text-taupe hover:bg-sand/40"}`}>
                         {NOMBRE_DIA[d.v].slice(0, 3)}
                       </button>
                       {activo ? (
                         <>
-                          <input type="time" value={dd.e} onChange={(e) => setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-lg border px-1.5 py-1 text-sm" />
+                          <input type="time" value={dd.e} onChange={(e) => setCampoPorDia(d.v, "e", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
                           <span className="text-taupe">–</span>
-                          <input type="time" value={dd.s} onChange={(e) => setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-lg border px-1.5 py-1 text-sm" />
-                          <input type="number" min={0} value={dd.r} onChange={(e) => setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-12 rounded-lg border px-1 py-1 text-sm" />
+                          <input type="time" value={dd.s} onChange={(e) => setCampoPorDia(d.v, "s", e.target.value)} className="w-[90px] rounded-control border px-1.5 py-1 text-sm" />
+                          <input type="number" min={0} value={dd.r} onChange={(e) => setRefriPorDia(d.v, e.target.value)} title="refrigerio (min)" className="w-12 rounded-control border px-1 py-1 text-sm" />
                           <span className="w-14 text-right text-xs text-tinta">{fmtH(horasDia(dd.e, dd.s, dd.r))}</span>
                         </>
                       ) : <span className="text-sm text-taupe">descanso</span>}
@@ -397,7 +397,7 @@ export default function HorariosPage() {
             if (maxLegal !== null) {
               const seExcede = totalSemana > maxLegal + 0.01;
               return (
-                <div className={`mt-4 rounded-lg px-3 py-2 text-sm ${seExcede ? "bg-rojo/10" : "bg-sand/30"}`}>
+                <div className={`mt-4 rounded-control px-3 py-2 text-sm ${seExcede ? "bg-rojo/10" : "bg-sand/30"}`}>
                   Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
                   <span className="text-taupe"> · máximo legal {maxLegal} h ({editando?.practicante_modalidad})</span>
                   {seExcede && (
@@ -408,14 +408,14 @@ export default function HorariosPage() {
             }
             if (editando?.tipo_vinculo === "practicante") {
               return (
-                <div className="mt-4 rounded-lg bg-ambar/10 px-3 py-2 text-sm text-ambar">
+                <div className="mt-4 rounded-control bg-ambar/10 px-3 py-2 text-sm text-ambar">
                   Total semana: {fmtH(totalSemana)} — falta fijarle la modalidad en Equipo (preprofesional o
                   profesional) para poder avisar si esto supera su máximo legal.
                 </div>
               );
             }
             return (
-              <div className="mt-4 rounded-lg bg-sand/30 px-3 py-2 text-sm">
+              <div className="mt-4 rounded-control bg-sand/30 px-3 py-2 text-sm">
                 Total semana: <span className="font-medium text-tinta">{fmtH(totalSemana)}</span>
                 <span className="text-taupe"> · meta {META_SEMANA} h</span>
                 {totalSemana > META_SEMANA + 0.01 && <span className="text-ambar"> (te pasas {fmtH(totalSemana - META_SEMANA)})</span>}
