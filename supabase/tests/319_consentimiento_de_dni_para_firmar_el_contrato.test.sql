@@ -63,9 +63,15 @@ select is((select storage_path from fn_mi_consentimiento_dni()), '00000000-0000-
   'REEMPLAZO · la fila quedó con la ruta más reciente');
 
 -- ── 5 · RLS: otra colaboradora no ve la constancia ajena, admin sí ──────────
+-- `set local role authenticated` es imprescindible acá: sin él, la sesión sigue
+-- corriendo como dueña de la tabla (la que usa pgTAP), que se salta RLS entera
+-- y vería la fila igual sin importar de quién sea — el mismo patrón que ya usan
+-- 118/121/136 para probar RLS de verdad, no solo la lógica de negocio.
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000dccc', true);
+set local role authenticated;
 select is((select count(*)::int from consentimientos_dni where persona_id = '00000000-0000-0000-0000-00000000d30a'),
   0, 'RLS · otra colaboradora no ve la constancia de DniColab');
+reset role;
 
 select * from finish();
 rollback;
