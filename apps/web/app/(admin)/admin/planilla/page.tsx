@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, HandCoins, Gift, Receipt, Baby, Lock, CircleCheck, AlertTriangle } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando, SinDatos } from "@/components/cargando";
 import { useToast } from "@/components/toast";
@@ -660,9 +660,9 @@ function TablaPlanilla(props: {
                           onClick={() => onYaPagado(f)}
                           disabled={ocupado}
                           title="Registrar que ya se le pagó fuera de la planilla"
-                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
+                          className="inline-flex items-center gap-1 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
                         >
-                          💸 Ya le pagué aparte
+                          <HandCoins size={12} strokeWidth={2} aria-hidden /> Ya le pagué aparte
                         </button>
                       </>
                     )}
@@ -679,9 +679,9 @@ function TablaPlanilla(props: {
                           onClick={() => onRegistrarDesembolso(f)}
                           disabled={ocupado}
                           title="Registrar un adelanto de gratificación, CTS o vacaciones fuera del ciclo normal"
-                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
+                          className="inline-flex items-center gap-1 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta disabled:opacity-50"
                         >
-                          🎁 Adelanto de beneficio
+                          <Gift size={12} strokeWidth={2} aria-hidden /> Adelanto de beneficio
                         </button>
                       </>
                     )}
@@ -707,13 +707,19 @@ function TablaPlanilla(props: {
                       // seguía pidiendo en ámbar que se descontara un saldo que SÍ es suyo.
                       const resuelto = f.total <= 0 || f.descuentos >= liq.cobro_del_periodo;
                       return (
-                        <p className={`mt-0.5 text-xs ${resuelto ? "text-taupe" : "text-ambar"}`}>
-                          {resuelto ? "✓ " : "⚠ "}
-                          Ya cobró su liquidación el {fechaCorta(liq.pagada_el)} ·{" "}
-                          {formatSoles(liq.cobro_del_periodo)} de este mes
-                          {resuelto
-                            ? " — ya está descontado aquí."
-                            : " — si no vas a transferirle otra vez, usa «Ya le pagué aparte»."}
+                        <p className={`mt-0.5 flex items-start gap-1 text-xs ${resuelto ? "text-taupe" : "text-ambar"}`}>
+                          {resuelto ? (
+                            <CircleCheck size={12} strokeWidth={2} className="mt-0.5 shrink-0" aria-hidden />
+                          ) : (
+                            <AlertTriangle size={12} strokeWidth={2} className="mt-0.5 shrink-0" aria-hidden />
+                          )}
+                          <span>
+                            Ya cobró su liquidación el {fechaCorta(liq.pagada_el)} ·{" "}
+                            {formatSoles(liq.cobro_del_periodo)} de este mes
+                            {resuelto
+                              ? " — ya está descontado aquí."
+                              : " — si no vas a transferirle otra vez, usa «Ya le pagué aparte»."}
+                          </span>
                         </p>
                       );
                     })()}
@@ -721,8 +727,9 @@ function TablaPlanilla(props: {
                       const r = razonDelCero(f);
                       if (!r) return null;
                       return (
-                        <p className={`mt-0.5 text-xs ${r.grave ? "text-ambar" : "text-taupe"}`}>
-                          {r.grave ? "⚠ " : ""}{r.texto}
+                        <p className={`mt-0.5 flex items-start gap-1 text-xs ${r.grave ? "text-ambar" : "text-taupe"}`}>
+                          {r.grave && <AlertTriangle size={12} strokeWidth={2} className="mt-0.5 shrink-0" aria-hidden />}
+                          <span>{r.texto}</span>
                         </p>
                       );
                     })()}
@@ -736,9 +743,12 @@ function TablaPlanilla(props: {
                         Se configura en Equipo, no acá: es un dato de la persona,
                         no de este mes. */}
                     {f.retencion_4ta_sin_configurar && (
-                      <p className="mt-0.5 text-xs text-ambar">
-                        ⚠ Su recibo pasa de S/1,500 y no tiene configurada la retención de 4ta —
-                        decídelo en Equipo (o confirma que tiene constancia de suspensión).
+                      <p className="mt-0.5 flex items-start gap-1 text-xs text-ambar">
+                        <AlertTriangle size={12} strokeWidth={2} className="mt-0.5 shrink-0" aria-hidden />
+                        <span>
+                          Su recibo pasa de S/1,500 y no tiene configurada la retención de 4ta —
+                          decídelo en Equipo (o confirma que tiene constancia de suspensión).
+                        </span>
                       </p>
                     )}
                     {!simulacion && periodoId && (
@@ -747,9 +757,9 @@ function TablaPlanilla(props: {
                         <Link
                           href={`/admin/planilla/boleta?periodo=${periodoId}&persona=${f.persona_id}`}
                           target="_blank"
-                          className="text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta"
+                          className="inline-flex items-center gap-1 text-xs text-taupe underline decoration-taupe/30 underline-offset-2 hover:text-tinta hover:decoration-tinta"
                         >
-                          🧾 Ver boleta
+                          <Receipt size={12} strokeWidth={2} aria-hidden /> Ver boleta
                         </Link>
                       </>
                     )}
@@ -763,7 +773,7 @@ function TablaPlanilla(props: {
                           : f.en_planilla === false
                             ? "Honorarios"
                             : ((f.rango && (RANGO_LABEL[f.rango] ?? f.rango)) ?? "—")}
-                        {" · "}{formatSoles(f.salario_ref)}
+                        {" · "}<span className="tabular-nums">{formatSoles(f.salario_ref)}</span>
                       </span>
                     ) : (
                       <span className="text-rojo">Sin salario</span>
@@ -780,7 +790,7 @@ function TablaPlanilla(props: {
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    <span className="whitespace-nowrap">{fmtHoras(f.horas_mes)}</span>
+                    <span className="whitespace-nowrap tabular-nums">{fmtHoras(f.horas_mes)}</span>
                     {f.dias_pendientes > 0 && (
                       <span title="Días auto-cerrados sin revisar — corrígelos en Correcciones">
                         <Insignia variante="advertencia" className="ml-2">
@@ -789,9 +799,9 @@ function TablaPlanilla(props: {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right">{formatSoles(f.pago_base)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{formatSoles(f.pago_base)}</td>
                   <td
-                    className="px-4 py-2 text-right"
+                    className="px-4 py-2 text-right tabular-nums"
                     title={
                       f.feriados_detalle.length > 0
                         ? f.feriados_detalle
@@ -812,8 +822,14 @@ function TablaPlanilla(props: {
                       </p>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right whitespace-nowrap" title={f.con_hijos ? "Asignación familiar (con hijos)" : undefined}>
-                    {f.asignacion_familiar > 0 ? <>👶 {formatSoles(f.asignacion_familiar)}</> : <span className="text-taupe/50">—</span>}
+                  <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap" title={f.con_hijos ? "Asignación familiar (con hijos)" : undefined}>
+                    {f.asignacion_familiar > 0 ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Baby size={14} strokeWidth={2} aria-hidden /> {formatSoles(f.asignacion_familiar)}
+                      </span>
+                    ) : (
+                      <span className="text-taupe/50">—</span>
+                    )}
                   </td>
                   {/* La celda de Objetivos salió el 2026-08-06 (mig 0171). Los
                       objetivos se cargan en /admin/objetivos, que es donde
@@ -823,7 +839,7 @@ function TablaPlanilla(props: {
                   {/* Básica legal — es de la PERSONA, no del periodo, así que se
                       puede editar incluso con el periodo pagado. Ojo: cambiarla
                       cambia el desglose de sus boletas pasadas (ver 0106). */}
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right tabular-nums">
                     {editable ? (
                       <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                         <input
@@ -835,7 +851,7 @@ function TablaPlanilla(props: {
                           onChange={(e) => onBaseChange?.(f.persona_id, e.target.value)}
                           onBlur={() => onBaseBlur?.(f)}
                           disabled={ocupado}
-                          className="w-20 rounded-lg border px-2 py-1 text-right disabled:opacity-50"
+                          className="w-20 rounded-control border px-2 py-1 text-right tabular-nums disabled:opacity-50"
                         />
                         {guardandoBase === f.persona_id && <span className="text-xs text-taupe">…</span>}
                       </div>
@@ -847,14 +863,14 @@ function TablaPlanilla(props: {
                   </td>
                   {/* Las celdas de Rendimiento y Plus salieron el 2026-08-06
                       junto con sus columnas (mig 0171). */}
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right tabular-nums">
                     {f.bonos > 0 ? (
                       <span className="whitespace-nowrap text-verde">+{formatSoles(f.bonos)}</span>
                     ) : (
                       <span className="text-taupe/50">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-right tabular-nums">
                     <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                       {f.descuentos > 0 ? (
                         <span className="text-rojo">−{formatSoles(f.descuentos)}</span>
@@ -869,7 +885,7 @@ function TablaPlanilla(props: {
                           que es lo que se mira antes de transferir. */}
                       {(f.retencion_4ta ?? 0) > 0 && (
                         <span title="Retención de Impuesto a la Renta de 4ta categoría (8 %). Se paga a SUNAT a nombre de la persona.">
-                          <Insignia variante="alerta">
+                          <Insignia variante="alerta" className="tabular-nums">
                             4ta −{formatSoles(f.retencion_4ta ?? 0)}
                           </Insignia>
                         </span>
@@ -880,14 +896,14 @@ function TablaPlanilla(props: {
                           disabled={ocupado}
                           title="Ver y editar bonos y descuentos"
                           aria-label={`Bonos y descuentos de ${f.nombre}`}
-                          className={`rounded-lg border px-2 py-0.5 text-xs hover:bg-sand/50 disabled:opacity-50 ${movAbierto === f.persona_id ? "bg-sand/60" : ""}`}
+                          className={`rounded-control border px-2 py-0.5 text-xs hover:bg-sand/50 disabled:opacity-50 ${movAbierto === f.persona_id ? "bg-sand/60" : ""}`}
                         >
                           ±
                         </button>
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-2 text-right font-bold">{formatSoles(f.total)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums font-bold">{formatSoles(f.total)}</td>
                 </tr>
                 {editable && movAbierto === f.persona_id && movForm && (
                   <tr className="border-t bg-sand/20">
@@ -895,7 +911,9 @@ function TablaPlanilla(props: {
                       <div className="max-w-2xl">
                         <p className="mb-2 text-sm font-medium">Bonos y descuentos — {f.nombre}</p>
                         {pagado && (
-                          <p className="mb-2 text-xs text-taupe">🔒 {hintPagado}</p>
+                          <p className="mb-2 flex items-center gap-1 text-xs text-taupe">
+                            <Lock size={12} strokeWidth={2} aria-hidden /> {hintPagado}
+                          </p>
                         )}
                         {movs.length === 0 ? (
                           <p className="mb-2 text-sm text-taupe">Sin bonos ni descuentos en este periodo.</p>
@@ -904,7 +922,7 @@ function TablaPlanilla(props: {
                             {movs.map((m) => (
                               <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
                                 <span>
-                                  <span className={m.tipo === "bono" ? "text-verde" : "text-rojo"}>
+                                  <span className={`tabular-nums ${m.tipo === "bono" ? "text-verde" : "text-rojo"}`}>
                                     {m.tipo === "bono" ? "+" : "−"}{formatSoles(m.monto)}
                                   </span>{" "}
                                   <span className="text-taupe">({m.tipo})</span> — {m.concepto}
@@ -1003,19 +1021,19 @@ function TablaPlanilla(props: {
                 Total ({filas.length} {filas.length === 1 ? "persona" : "personas"}
                 {sedeFiltro !== "todas" ? ` — ${sedeFiltro}` : ""})
               </td>
-              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.pago_base)}</td>
-              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.feriados)}</td>
-              <td className="px-4 py-2 text-right font-medium">{formatSoles(totales.asignacion)}</td>
+              <td className="px-4 py-2 text-right tabular-nums font-medium">{formatSoles(totales.pago_base)}</td>
+              <td className="px-4 py-2 text-right tabular-nums font-medium">{formatSoles(totales.feriados)}</td>
+              <td className="px-4 py-2 text-right tabular-nums font-medium">{formatSoles(totales.asignacion)}</td>
               {/* Básica legal: no se suma. Es la remuneración que se declara en
                   PLAME de cada persona, no un concepto que se pague acá. */}
               <td className="px-4 py-2" />
-              <td className="px-4 py-2 text-right font-medium">
+              <td className="px-4 py-2 text-right tabular-nums font-medium">
                 {totales.bonos > 0 ? <span className="text-verde">+{formatSoles(totales.bonos)}</span> : <span className="text-taupe/50">—</span>}
               </td>
-              <td className="px-4 py-2 text-right font-medium">
+              <td className="px-4 py-2 text-right tabular-nums font-medium">
                 {totales.descuentos > 0 ? <span className="text-rojo">−{formatSoles(totales.descuentos)}</span> : <span className="text-taupe/50">—</span>}
               </td>
-              <td className="px-4 py-2 text-right font-bold">{formatSoles(totales.total)}</td>
+              <td className="px-4 py-2 text-right tabular-nums font-bold">{formatSoles(totales.total)}</td>
             </tr>
             {/* ── LA SEGUNDA FILA: LO QUE HAY QUE TENER EN LA CUENTA ──────────
                 Va como fila aparte y no como columna nueva porque no es del
@@ -1033,14 +1051,14 @@ function TablaPlanilla(props: {
               <tr className="border-t bg-sand/50">
                 <td className="px-4 py-2 text-taupe" colSpan={COLS - 1}>
                   Sale de la cuenta de CAYLA
-                  <span className="block text-xs">
+                  <span className="block text-xs tabular-nums">
                     el total de arriba + {formatSoles(totales.pension)} de pensión +{" "}
                     {formatSoles(totales.essalud)} de EsSalud
                     {totales.retencion_4ta > 0 && <> + {formatSoles(totales.retencion_4ta)} de retención de 4ta</>}
                     {" "}· no incluye provisiones, que se pagan después
                   </span>
                 </td>
-                <td className="px-4 py-2 text-right font-bold">{formatSoles(saleDelBanco)}</td>
+                <td className="px-4 py-2 text-right tabular-nums font-bold">{formatSoles(saleDelBanco)}</td>
               </tr>
             )}
           </tfoot>
@@ -1529,7 +1547,7 @@ export default function PlanillaPage() {
           });
           setGuardandoPeriodo(false);
           if (error) { avisar("error", mensajeDeError(error, "actualizar el periodo")); return; }
-          avisar("ok", `«${etiqueta}» marcado como PAGADO 🔒.`);
+          avisar("ok", `«${etiqueta}» marcado como PAGADO.`);
           await Promise.all([cargarPeriodos(), cargarProyeccion()]);
         },
       });
@@ -2235,7 +2253,7 @@ export default function PlanillaPage() {
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
           {rolDemorado ? (
-            <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+            <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
               No se pudo identificar tu usuario — cierra sesión y vuelve a entrar.
             </p>
           ) : (
@@ -2249,7 +2267,7 @@ export default function PlanillaPage() {
     return (
       <div className="flex flex-1 flex-col">
         <main className="flex-1 p-6">
-          <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             Solo administradores y líderes pueden ver la planilla.
           </p>
         </main>
@@ -2283,7 +2301,9 @@ export default function PlanillaPage() {
               </CampoSelect>
               {periodoActual &&
                 (periodoActual.estado === "pagado" ? (
-                  <Insignia variante="positivo">PAGADO 🔒</Insignia>
+                  <Insignia variante="positivo">
+                    PAGADO <Lock size={12} strokeWidth={2} aria-hidden />
+                  </Insignia>
                 ) : viendoElVencido ? (
                   <Insignia variante="alerta">VENCIDO SIN PAGAR</Insignia>
                 ) : (
@@ -2322,7 +2342,7 @@ export default function PlanillaPage() {
         </div>
 
         {errorPeriodos && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los periodos: {errorPeriodos}{" "}
             <Boton
               variante="enlace"
@@ -2347,7 +2367,7 @@ export default function PlanillaPage() {
 
         {/* Sin periodos: pantalla de arranque */}
         {periodos !== null && periodos.length === 0 && (
-          <div className="max-w-xl rounded-lg border bg-sand/30 p-6">
+          <div className="max-w-xl rounded-control border bg-sand/30 p-6">
             <h2 className="mb-2 font-serif text-lg">Crear el primer periodo</h2>
             <p className="mb-4 text-sm text-taupe">
               La planilla se paga por periodos encadenados: tú eliges el día de cierre y el siguiente
@@ -2374,7 +2394,7 @@ export default function PlanillaPage() {
           <>
             {/* Nuevo periodo (encadenado) */}
             {mostrandoNuevo && inicioEncadenado && (
-              <div className="mb-4 max-w-2xl rounded-lg border bg-sand/30 p-4">
+              <div className="mb-4 max-w-2xl rounded-control border bg-sand/30 p-4">
                 <p className="mb-2 text-sm font-medium">Nuevo periodo</p>
                 <div className="flex flex-wrap items-end gap-3">
                   <Campo etiqueta="Inicio (encadenado)" type="date" value={inicioEncadenado} readOnly disabled className="opacity-60" />
@@ -2400,7 +2420,7 @@ export default function PlanillaPage() {
             )}
 
             {errorCarga && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+              <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudo cargar la proyección: {errorCarga}{" "}
                 <Boton variante="enlace" className="font-medium" onClick={() => void cargarProyeccion()}>
                   Reintentar
@@ -2412,7 +2432,7 @@ export default function PlanillaPage() {
                 «no hay desvíos» — el mismo falso negativo silencioso que la
                 regla de diseño de hoy prohíbe. */}
             {pagado && errorDesvios && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+              <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudo comprobar si este periodo pagado sigue cuadrando con los datos de hoy: {errorDesvios}{" "}
                 <Boton variante="enlace" className="font-medium" onClick={() => void cargarDesvios()}>
                   Reintentar
@@ -2423,7 +2443,7 @@ export default function PlanillaPage() {
             {/* El periodo pagado dejó de cuadrar. El sistema lo DICE; corregir es
                 decisión de una persona, nunca automática. */}
             {pagado && desvios && desvios.length > 0 && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+              <div className="mb-4 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
                 <p className="font-medium">
                   Este periodo ya está pagado, pero su desglose dejó de coincidir con los datos de hoy.
                 </p>
@@ -2449,7 +2469,7 @@ export default function PlanillaPage() {
                 <button
                   onClick={() => void repagarPeriodo()}
                   disabled={guardandoPeriodo}
-                  className="mt-3 rounded-lg bg-ambar px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                  className="mt-3 rounded-control bg-ambar px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                 >
                   {guardandoPeriodo ? "Guardando…" : `Recalcular y volver a pagar «${TIPO_VINCULO_LABEL[tablaTabEfectiva]}»`}
                 </button>
@@ -2492,7 +2512,7 @@ export default function PlanillaPage() {
                 que el monto se vuelva un movimiento real, y después dice a
                 quién se le agregó y a quién no (y por qué). */}
             {pendientesGratiCts && (
-              <div className="mb-4 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+              <div className="mb-4 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
                 <span>
                   {[gc?.gratiAplica && "Gratificación", gc?.gratiAplica && "Bonificación 9%", gc?.ctsAplica && "CTS"]
                     .filter(Boolean)
@@ -2503,7 +2523,7 @@ export default function PlanillaPage() {
                 <button
                   onClick={() => void agregarPendientesGratiCts()}
                   disabled={guardandoBulk}
-                  className="whitespace-nowrap rounded-lg bg-ambar px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
+                  className="whitespace-nowrap rounded-control bg-ambar px-4 py-1.5 text-sm font-medium text-crema disabled:opacity-50"
                 >
                   {guardandoBulk ? "Agregando…" : `Agregar todo (${pendientesGratiCts.movimientos})`}
                 </button>
@@ -2519,7 +2539,7 @@ export default function PlanillaPage() {
                 {mostrandoFeriados ? "▾" : "▸"} Gestionar feriados
               </button>
               {mostrandoFeriados && (
-                <div className="mt-2 max-w-2xl rounded-lg border bg-sand/30 p-4">
+                <div className="mt-2 max-w-2xl rounded-control border bg-sand/30 p-4">
                   <p className="mb-2 text-sm font-medium">Feriados nacionales de {anioFeriados}</p>
                   {errorFeriados ? (
                     <p className="text-sm text-rojo">
@@ -2576,7 +2596,7 @@ export default function PlanillaPage() {
                 deja plata sin pagar a la vista, el sistema lo dice. Es la razón por
                 la que el filtro puede arrancar en «solo el equipo actual» sin riesgo. */}
             {ocultosPorCobrar && (
-              <div className="mb-3 max-w-3xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+              <div className="mb-3 max-w-3xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
                 <strong className="font-medium">
                   {ocultosPorCobrar.n === 1
                     ? "Hay 1 persona que ya no está en el equipo"
@@ -2636,7 +2656,7 @@ export default function PlanillaPage() {
               const conAviso = variacion.filas.filter((f) => f.avisos.length > 0);
               const visibles = variacionTodas ? variacion.filas : conAviso;
               return (
-                <div className="mb-4 max-w-4xl rounded-lg border bg-papel p-4">
+                <div className="mb-4 max-w-4xl rounded-control border bg-papel p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-3">
                     <div>
                       <p className="font-medium">Qué cambió respecto al mes pasado</p>
@@ -2679,7 +2699,7 @@ export default function PlanillaPage() {
                       lados no miden lo mismo, se dice ANTES que ninguna cifra:
                       medio informe se explica solo con eso. */}
                   {variacion.periodos_de_distinto_largo && (
-                    <p className="mt-2 rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+                    <p className="mt-2 rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
                       Ojo: los dos periodos no duran lo mismo ({variacion.periodo_dias} días contra{" "}
                       {variacion.previo_dias}). Parte de lo que se ve aquí es el calendario, no un cambio real.
                     </p>
@@ -2695,73 +2715,71 @@ export default function PlanillaPage() {
                           </Boton>
                         </p>
                       ) : (
-                        <div className="mt-3 overflow-x-auto">
-                          <table className="w-full min-w-[46rem] text-sm">
-                            <thead>
-                              <tr className="bg-sand/60 text-left text-xs">
-                                <th className="px-3 py-2 font-normal">Persona</th>
-                                <th className="px-3 py-2 text-right font-normal">Mes pasado</th>
-                                <th className="px-3 py-2 text-right font-normal">Este mes</th>
-                                <th className="px-3 py-2 text-right font-normal">Diferencia</th>
-                                <th className="px-3 py-2 text-right font-normal" title="Horas marcadas. Las ausencias pagadas no marcan: por eso una caída a cero puede ser normal.">
-                                  Horas
-                                </th>
-                                <th className="px-3 py-2 font-normal">Qué pasa</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {visibles.map((f) => (
-                                <tr key={f.persona_id} className="border-b border-sand/60 align-top">
-                                  <td className="px-3 py-2">
-                                    <span className="font-medium">{f.nombre}</span>
-                                    {f.sede && <span className="ml-1.5 text-xs text-taupe">{f.sede}</span>}
-                                  </td>
-                                  <td className="px-3 py-2 text-right tabular-nums text-taupe">
-                                    {formatSoles(f.total_previo)}
-                                  </td>
-                                  <td className="px-3 py-2 text-right tabular-nums">{formatSoles(f.total_actual)}</td>
-                                  <td
-                                    className={`px-3 py-2 text-right tabular-nums font-medium ${
-                                      f.avisos.length > 0 ? "text-rojo" : "text-taupe"
-                                    }`}
-                                  >
-                                    {f.delta > 0 ? "+" : ""}
-                                    {formatSoles(f.delta)}
-                                    {f.delta_pct !== null && (
-                                      <span className="ml-1 text-xs font-normal opacity-70">
-                                        ({f.delta_pct > 0 ? "+" : ""}
-                                        {f.delta_pct}%)
+                        <Tabla className="mt-3" anchoMinimo="46rem">
+                          <TablaEncabezado>
+                            <Th>Persona</Th>
+                            <Th className="text-right">Mes pasado</Th>
+                            <Th className="text-right">Este mes</Th>
+                            <Th className="text-right">Diferencia</Th>
+                            <Th className="text-right">
+                              <span title="Horas marcadas. Las ausencias pagadas no marcan: por eso una caída a cero puede ser normal.">
+                                Horas
+                              </span>
+                            </Th>
+                            <Th>Qué pasa</Th>
+                          </TablaEncabezado>
+                          <tbody>
+                            {visibles.map((f) => (
+                              <FilaTabla key={f.persona_id} className="align-top">
+                                <td className="px-3 py-2">
+                                  <span className="font-medium">{f.nombre}</span>
+                                  {f.sede && <span className="ml-1.5 text-xs text-taupe">{f.sede}</span>}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums text-taupe">
+                                  {formatSoles(f.total_previo)}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums">{formatSoles(f.total_actual)}</td>
+                                <td
+                                  className={`px-3 py-2 text-right tabular-nums font-medium ${
+                                    f.avisos.length > 0 ? "text-rojo" : "text-taupe"
+                                  }`}
+                                >
+                                  {f.delta > 0 ? "+" : ""}
+                                  {formatSoles(f.delta)}
+                                  {f.delta_pct !== null && (
+                                    <span className="ml-1 text-xs font-normal opacity-70">
+                                      ({f.delta_pct > 0 ? "+" : ""}
+                                      {f.delta_pct}%)
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums text-xs text-taupe">
+                                  {f.horas_previo.toFixed(0)} → {f.horas_actual.toFixed(0)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {f.avisos.map((a) => (
+                                      <span
+                                        key={a}
+                                        className="rounded-control bg-rojo/12 px-2 py-0.5 text-xs text-rojo-profundo"
+                                      >
+                                        {AVISO_LABEL[a] ?? a}
+                                      </span>
+                                    ))}
+                                    {/* La explicación NO es un aviso y no se pinta como tal:
+                                        va en gris, al lado, para que quien lea la fila no
+                                        tenga que ir a otra pantalla a descartar el susto. */}
+                                    {f.explica.length > 0 && (
+                                      <span className="text-xs text-taupe">
+                                        {f.explica.map((e) => EXPLICA_LABEL[e] ?? e).join(" · ")}
                                       </span>
                                     )}
-                                  </td>
-                                  <td className="px-3 py-2 text-right tabular-nums text-xs text-taupe">
-                                    {f.horas_previo.toFixed(0)} → {f.horas_actual.toFixed(0)}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      {f.avisos.map((a) => (
-                                        <span
-                                          key={a}
-                                          className="rounded-lg bg-rojo/12 px-2 py-0.5 text-xs text-rojo-profundo"
-                                        >
-                                          {AVISO_LABEL[a] ?? a}
-                                        </span>
-                                      ))}
-                                      {/* La explicación NO es un aviso y no se pinta como tal:
-                                          va en gris, al lado, para que quien lea la fila no
-                                          tenga que ir a otra pantalla a descartar el susto. */}
-                                      {f.explica.length > 0 && (
-                                        <span className="text-xs text-taupe">
-                                          {f.explica.map((e) => EXPLICA_LABEL[e] ?? e).join(" · ")}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                                  </div>
+                                </td>
+                              </FilaTabla>
+                            ))}
+                          </tbody>
+                        </Tabla>
                       )}
 
                       <label className="mt-3 flex items-center gap-2 text-xs text-taupe">
@@ -2808,14 +2826,16 @@ export default function PlanillaPage() {
                   <button
                     key={g}
                     onClick={() => setTablaTab(g)}
-                    className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
+                    className={`inline-flex items-center gap-1 rounded-t-control px-4 py-2 text-sm font-medium ${
                       tablaTabEfectiva === g
                         ? "border border-b-0 border-sand bg-papel text-tinta"
                         : "text-taupe hover:text-tinta"
                     }`}
                   >
                     {TIPO_VINCULO_LABEL[g]} ({filasPorGrupo.get(g)?.length ?? 0})
-                    {grupos?.find((x) => x.grupo === g)?.estado === "pagado" && " 🔒"}
+                    {grupos?.find((x) => x.grupo === g)?.estado === "pagado" && (
+                      <Lock size={12} strokeWidth={2} aria-hidden />
+                    )}
                   </button>
                 ))}
               </div>
@@ -2931,10 +2951,10 @@ export default function PlanillaPage() {
                         {filasVisibles.map((f) => (
                           <FilaTabla key={f.persona_id}>
                             <td className="px-4 py-2">{f.nombre}</td>
-                            <td className="px-4 py-2 text-right">{formatSoles(f.provision_gratificacion)}</td>
-                            <td className="px-4 py-2 text-right">{formatSoles(f.provision_cts)}</td>
-                            <td className="px-4 py-2 text-right">{formatSoles(f.provision_vacaciones)}</td>
-                            <td className="px-4 py-2 text-right font-medium">{formatSoles(f.provision_total)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums">{formatSoles(f.provision_gratificacion)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums">{formatSoles(f.provision_cts)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums">{formatSoles(f.provision_vacaciones)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums font-medium">{formatSoles(f.provision_total)}</td>
                           </FilaTabla>
                         ))}
                       </tbody>
@@ -2942,10 +2962,10 @@ export default function PlanillaPage() {
                         <tfoot>
                           <tr className="border-t bg-sand/50">
                             <td className="px-4 py-2 font-medium">Total</td>
-                            <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.gratificacion)}</td>
-                            <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.cts)}</td>
-                            <td className="px-4 py-2 text-right font-medium">{formatSoles(provTotales.vacaciones)}</td>
-                            <td className="px-4 py-2 text-right font-bold">{formatSoles(provTotales.total)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums font-medium">{formatSoles(provTotales.gratificacion)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums font-medium">{formatSoles(provTotales.cts)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums font-medium">{formatSoles(provTotales.vacaciones)}</td>
+                            <td className="px-4 py-2 text-right tabular-nums font-bold">{formatSoles(provTotales.total)}</td>
                           </tr>
                         </tfoot>
                       )}
@@ -2968,7 +2988,7 @@ export default function PlanillaPage() {
                 {mostrandoSim ? "▾" : "▸"} Simular otro rango de fechas
               </button>
               {mostrandoSim && (
-                <div className="mt-2 rounded-lg border bg-sand/30 p-4">
+                <div className="mt-2 rounded-control border bg-sand/30 p-4">
                   <div className="flex flex-wrap items-end gap-3">
                     <Campo etiqueta="Desde" type="date" value={simIni} onChange={(e) => setSimIni(e.target.value)} />
                     <Campo etiqueta="Hasta" type="date" value={simFin} onChange={(e) => setSimFin(e.target.value)} />
@@ -2980,13 +3000,13 @@ export default function PlanillaPage() {
                     Rango libre de hasta 62 días, solo para mirar: no crea periodos ni guarda nada.
                   </p>
                   {simError && (
-                    <div className="mt-3 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                    <div className="mt-3 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
                       No se pudo simular: {simError}
                     </div>
                   )}
                   {simProy && !simError && (
                     <div className="mt-3">
-                      <div className="mb-3 rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+                      <div className="mb-3 rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
                         SIMULACIÓN — nada de esto se guarda. {fechaCorta(simProy.fecha_ini)} →{" "}
                         {fechaCorta(simProy.fecha_fin)} · {simProy.dias} días · base {fmtHoras(simProy.base_horas)}.
                         Sin bonos ni descuentos (esos viven en cada periodo oficial).

@@ -10,6 +10,7 @@ export function Tabla({
   children,
   className,
   alturaMaxima,
+  anchoMinimo,
 }: {
   children: ReactNode;
   className?: string;
@@ -21,8 +22,18 @@ export function Tabla({
    * de verdad (ver TablaEncabezado más abajo).
    */
   alturaMaxima?: string;
+  /**
+   * Ancho mínimo de la TABLA (ej. "46rem"), no del envoltorio. `className`
+   * pinta el div con `overflow-x-auto`; un min-width ahí no da scroll interno,
+   * empuja al propio div a desbordar a SU padre. Este prop va al `<table>`,
+   * que es quien de verdad necesita el piso para que las columnas no se
+   * apachurren — el div sigue encogiendo con su padre y el sobrante se
+   * resuelve con scroll horizontal contenido, como antes de usar <Tabla>.
+   */
+  anchoMinimo?: string;
 }) {
   const style: CSSProperties | undefined = alturaMaxima ? { maxHeight: alturaMaxima } : undefined;
+  const styleTabla: CSSProperties | undefined = anchoMinimo ? { minWidth: anchoMinimo } : undefined;
   return (
     <div
       className={cx(
@@ -32,7 +43,7 @@ export function Tabla({
       )}
       style={style}
     >
-      <table className="w-full text-sm">{children}</table>
+      <table className="w-full text-sm" style={styleTabla}>{children}</table>
     </div>
   );
 }

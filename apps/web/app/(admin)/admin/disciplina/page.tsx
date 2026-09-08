@@ -168,7 +168,7 @@ function FormularioCargo({
   alGuardar: () => void; alCancelar: () => void;
 }) {
   return (
-    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+    <div className="mt-3 rounded-control border border-sand bg-sand/20 p-3">
       <p className="mb-2 text-xs text-taupe">
         {tipo === "acta_negativa"
           ? pideFecha
@@ -212,7 +212,7 @@ function FormularioCargo({
       </div>
       {progreso !== null && (
         <div className="mt-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
+          <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
             <div className="h-full bg-tinta transition-[width] duration-200"
               style={{ width: `${progreso}%` }}
               role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}
@@ -1034,7 +1034,7 @@ function fechasDe(h: Hecho[]): string {
         </p>
 
         {/* Semáforo de tardanzas */}
-        <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="mb-6 max-w-3xl overflow-hidden rounded-superficie border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-medium">
@@ -1087,7 +1087,7 @@ function fechasDe(h: Hecho[]): string {
                 hoy era imposible. Las dos advertencias que lo acotan no las
                 puede decidir el código, así que se dicen acá. */}
             {mesTard !== primeroDeMesLima() && (
-              <p className="mt-2 rounded-lg bg-ambar/10 px-3 py-2 text-xs text-ambar">
+              <p className="mt-2 rounded-control bg-ambar/10 px-3 py-2 text-xs text-ambar">
                 Estás mirando un <strong>mes ya cerrado</strong>. El numeral 19.4 permite emitir el
                 documento por hechos de un mes concluido, pero el art. 52 dice que una demora
                 injustificada equivale a condonación — y un hecho condonado no sustenta sanción ni
@@ -1159,7 +1159,7 @@ function fechasDe(h: Hecho[]): string {
         </div>
 
         {/* Semáforo de faltas */}
-        <div className="mb-6 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div className="mb-6 max-w-3xl overflow-hidden rounded-superficie border border-sand bg-papel">
           <div className="border-b bg-sand/50 px-4 py-2">
             <h2 className="text-sm font-medium">Faltas — últimos 180 días{!cargando && faltas.length > 0 && <span className="font-normal text-taupe"> · {faltas.length}</span>}</h2>
             <p className="mt-0.5 text-xs text-taupe">Umbrales art. 25-h: 4 consecutivas · 6 en 30 días · 16 en 180 días.</p>
@@ -1197,7 +1197,7 @@ function fechasDe(h: Hecho[]): string {
         </div>
 
         {/* Borradores pendientes de firma */}
-        <div ref={borradoresRef} className="mb-6 max-w-3xl scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
+        <div ref={borradoresRef} className="mb-6 max-w-3xl scroll-mt-4 overflow-hidden rounded-superficie border border-sand bg-papel">
           <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
             Borradores pendientes {borradores.length > 0 && <span className="font-normal text-taupe">· {borradores.length}</span>}
           </h2>
@@ -1222,7 +1222,7 @@ function fechasDe(h: Hecho[]): string {
                             ?? (firmantes[d.id] ?? [])[0]?.persona_id
                             ?? ""}
                           onChange={(e) => setFirmanteElegido((m) => ({ ...m, [d.id]: e.target.value }))}
-                          className="rounded-lg border border-sand bg-papel px-2 py-1 text-xs text-tinta"
+                          className="rounded-control border border-sand bg-papel px-2 py-1 text-xs text-tinta"
                           title="Quién firma este documento">
                           {(firmantes[d.id] ?? []).map((f) => (
                             <option key={f.persona_id} value={f.persona_id}>
@@ -1267,7 +1267,7 @@ function fechasDe(h: Hecho[]): string {
                         <select value="" disabled={ocupado === d.id}
                           onChange={(e) => { if (e.target.value) elegirValoracion(d, e.target.value); }}
                           title="Art. 19.3 del RIT: hay que dejar por escrito si el descargo se acoge, aunque no se haya presentado ninguno."
-                          className="rounded-lg border border-tinta/30 bg-papel px-2 py-1 text-xs text-tinta disabled:opacity-50">
+                          className="rounded-control border border-tinta/30 bg-papel px-2 py-1 text-xs text-tinta disabled:opacity-50">
                           <option value="">Valorar el descargo…</option>
                           {Object.entries(ETIQUETA_DESCARGO).map(([valor, etiqueta]) => (
                             <option key={valor} value={valor}>{etiqueta}</option>
@@ -1425,7 +1425,7 @@ function fechasDe(h: Hecho[]): string {
                       alguien escribía 04/09/2026. Nace en hoy, se corrige en
                       un clic, y no admite un día futuro. */}
                   {declarando === d.id && (
-                    <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+                    <div className="mt-3 rounded-control border border-sand bg-sand/20 p-3">
                       <p className="mb-2 text-xs text-taupe">
                         ¿Qué día se le comunicaron los cargos a {nombres.get(d.persona_id) ?? "esta persona"}?
                         Desde ese día corren los dos días hábiles de descargo; si todavía no han pasado,
@@ -1469,7 +1469,7 @@ function fechasDe(h: Hecho[]): string {
 
         {/* Firmados — pendientes de entrega */}
         {firmados.length > 0 && (
-          <div className="max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div className="max-w-3xl overflow-hidden rounded-superficie border border-sand bg-papel">
             <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">Firmados — por entregar · {firmados.length}</h2>
             <ul className="divide-y">
               {firmados.map((d) => (
@@ -1537,7 +1537,7 @@ function fechasDe(h: Hecho[]): string {
             dos meses no había ningún sitio. Plegado por defecto para que la
             pantalla siga enfocada en lo que falta hacer. */}
         {entregados.length > 0 && (
-          <div id="entregados" className="mt-4 max-w-3xl scroll-mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div id="entregados" className="mt-4 max-w-3xl scroll-mt-4 overflow-hidden rounded-superficie border border-sand bg-papel">
             <button onClick={() => setVerCerrados((v) => !v)}
               className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
               <span>Entregados · {entregados.length}</span>
@@ -1798,7 +1798,7 @@ function fechasDe(h: Hecho[]): string {
           {anulando && (
             <>
               {anulando.entregado && (
-                <p className="mb-3 rounded-lg border border-rojo/30 bg-rojo/5 px-3 py-2 text-sm text-rojo-profundo">
+                <p className="mb-3 rounded-control border border-rojo/30 bg-rojo/5 px-3 py-2 text-sm text-rojo-profundo">
                   Este documento YA SE ENTREGÓ y la persona lo tiene. Anularlo lo deja sin efecto y
                   queda el rastro con tu motivo, pero el sistema no puede avisarle: tendrás que
                   comunicárselo tú por escrito.

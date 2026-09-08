@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowLeftRight, Check, Plus } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { AREA_DEFAULT, AREAS_FALLBACK, parseAreas, areaCorto, esOperativaEn, type Area } from "@/lib/areas";
@@ -72,6 +73,10 @@ const MARCAS_HORA = [7, 9, 11, 13, 15, 17, 19, 21];
 // de Felipe: más simple y predecible que recalcularlo cada vez).
 const HORA_INICIO_SEMANA = 7.75; // 07:45
 const N_FRANJAS_SEMANA = 28; // 07:45 → 21:45 (28 franjas de 30 min; la operación máxima real)
+// Ancho fijo (px) de la columna de nombre en la Vista Día: lo comparten el eje
+// de horas (margen izquierdo), la fila de cada persona y la banda de
+// Cobertura, para que las tres columnas queden alineadas verticalmente.
+const ANCHO_COL_NOMBRE = 176;
 function horaADecimal(hm: string): number {
   const [h, m] = hm.split(":").map(Number);
   return (h ?? 0) + (m ?? 0) / 60;
@@ -294,19 +299,19 @@ function AlertaSobretiempo({ sedeSel }: { sedeSel: string }) {
   }, [sedeSel, supabase]);
 
   if (error) {
-    return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo calcular el sobretiempo del ciclo vigente.</div>;
+    return <div className="mb-4 max-w-2xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo calcular el sobretiempo del ciclo vigente.</div>;
   }
   if (filas === null) return null; // cargando en silencio
   if (filas.length === 0) {
     return (
-      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
-        <span>✓</span> Nadie está cerca del tope de 48 h de su ciclo vigente.
+      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-control border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
+        <Check size={16} strokeWidth={2} aria-hidden /> Nadie está cerca del tope de 48 h de su ciclo vigente.
       </div>
     );
   }
   const algunoEnExceso = filas.some((f) => f.ciclo.horas >= 48);
   return (
-    <div className={`mb-4 max-w-2xl overflow-hidden rounded-2xl border ${algunoEnExceso ? "border-rojo/40 bg-rojo/[0.06]" : "border-ambar/40 bg-ambar/[0.06]"}`}>
+    <div className={`mb-4 max-w-2xl overflow-hidden rounded-superficie border ${algunoEnExceso ? "border-rojo/40 bg-rojo/[0.06]" : "border-ambar/40 bg-ambar/[0.06]"}`}>
       <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
         <span className={`font-medium ${algunoEnExceso ? "text-rojo" : "text-ambar"}`}>
           {filas.length} persona{filas.length === 1 ? "" : "s"} cerca o sobre las 48 h de su ciclo vigente
@@ -463,19 +468,19 @@ function RevisionTurnos({ sedeSel, onIrADia }: { sedeSel: string; onIrADia: (iso
   }
 
   if (error) {
-    return <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo revisar los turnos contra el horario base.</div>;
+    return <div className="mb-4 max-w-2xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">No se pudo revisar los turnos contra el horario base.</div>;
   }
   if (divs === null) return null; // cargando en silencio (no estorba la vista principal)
   if (divs.length === 0) {
     return (
-      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-lg border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
-        <span>✓</span> Todos los turnos de hoy en adelante coinciden con el horario base.
+      <div className="mb-4 flex max-w-2xl items-center gap-2 rounded-control border border-verde/25 bg-verde/[0.06] px-4 py-2.5 text-sm text-verde">
+        <Check size={16} strokeWidth={2} aria-hidden /> Todos los turnos de hoy en adelante coinciden con el horario base.
       </div>
     );
   }
   const espejos = divs.filter((d) => d.espejo);
   return (
-    <div className="mb-4 max-w-2xl overflow-hidden rounded-2xl border border-ambar/40 bg-ambar/[0.06]">
+    <div className="mb-4 max-w-2xl overflow-hidden rounded-superficie border border-ambar/40 bg-ambar/[0.06]">
       <button onClick={() => setAbierto((a) => !a)} className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm">
         <span className="font-medium text-ambar">
           {divs.length} turno{divs.length === 1 ? "" : "s"} no coincide{divs.length === 1 ? "" : "n"} con el horario base
@@ -850,7 +855,7 @@ export default function TurnosPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-sand p-0.5 text-sm">
+            <div className="flex rounded-control border border-sand p-0.5 text-sm">
               {([["dia", "Día"], ["semana", "Semana"], ["integrada", "Integrada"]] as const).map(([v, txt]) => (
                 <button key={v} onClick={() => setVista(v)}
                   className={`rounded px-3 py-1.5 transition-colors ${vista === v ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"}`}>
@@ -859,7 +864,7 @@ export default function TurnosPage() {
               ))}
             </div>
             {esAdmin && (
-              <select value={sedeSel} onChange={(e) => setSedeSel(e.target.value)} className="rounded-lg border border-sand bg-crema px-3 py-2 text-sm">
+              <select value={sedeSel} onChange={(e) => setSedeSel(e.target.value)} className="rounded-control border border-sand bg-crema px-3 py-2 text-sm">
                 {/* El nombre, no el código: quien arma turnos piensa en
                     "Tienda LIM", no en "003". */}
                 {sedes.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
@@ -874,7 +879,7 @@ export default function TurnosPage() {
         </div>
 
         {funcionesFallo && !cargando && (
-          <div className="mb-4 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-2xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudo cargar el área del personal: la cobertura está contando a <strong>todos</strong> como
             operativos y puede marcar de más. <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
@@ -933,7 +938,7 @@ export default function TurnosPage() {
                         const nadieProgramado = !r.hayTurnos && metaDia > 0;
                         return (
                           <button key={iso} onClick={() => irADia(iso)}
-                            className={`rounded-lg border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}
+                            className={`rounded-control border p-2 text-center transition-opacity hover:opacity-80 ${hoy ? "border-tinta" : "border-sand"}`}
                             title={r.sug ?? undefined}>
                             <div className={`mb-1 text-sm ${hoy ? "text-tinta" : ""}`}>
                               <span className="font-serif">{abr}</span> <span className="text-xs text-taupe">{num}</span>
@@ -962,9 +967,13 @@ export default function TurnosPage() {
                             {/* Aviso corto: redistribuir (ámbar) o falta personal (rojo) */}
                             <div className="flex h-3 items-center justify-center">
                               {r.redistribuir ? (
-                                <span className="text-[10px] text-ambar">↔ reparte turnos</span>
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-ambar">
+                                  <ArrowLeftRight size={10} strokeWidth={2} aria-hidden /> reparte turnos
+                                </span>
                               ) : r.sug ? (
-                                <span className="text-[10px] text-rojo">+ falta personal</span>
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-rojo">
+                                  <Plus size={10} strokeWidth={2} aria-hidden /> falta personal
+                                </span>
                               ) : r.supHoras > 0 ? (
                                 <span className="text-[10px] text-taupe">sobra {r.supHoras}h</span>
                               ) : null}
@@ -1001,7 +1010,7 @@ export default function TurnosPage() {
                 <p className="mb-3 max-w-3xl text-xs text-taupe">
                   Toda la semana, hora por hora. El <strong>número</strong> es cuántas operativas cubren esa media
                   hora; el <strong>color</strong> va de rojo (falta) a verde (llega a la meta de su tramo). Los{" "}
-                  <span className="inline-block h-1.5 w-1.5 translate-y-[1px] rounded-full bg-taupe" /> son encargadas.
+                  <span className="inline-block h-1.5 w-1.5 translate-y-px rounded-pildora bg-taupe" /> son encargadas.
                   Toca una celda para ver quién cubre y editar sus turnos.
                 </p>
                 {!hayGente ? (
@@ -1010,7 +1019,7 @@ export default function TurnosPage() {
                   // —una recién creada, por ejemplo— eso manda a buscar cómo
                   // crear turnos cuando lo que falta es asignar personas. El
                   // mensaje tiene que nombrar la causa real, no el síntoma.
-                  <div className="rounded-lg border border-sand">
+                  <div className="rounded-control border border-sand">
                     {personas.length === 0 ? (
                       <SinDatos
                         texto="Todavía no hay nadie asignado a esta sede."
@@ -1024,7 +1033,7 @@ export default function TurnosPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-sand bg-crema p-2">
+                  <div className="overflow-x-auto rounded-superficie border border-sand bg-crema p-2">
                     <div className="min-w-[720px]">
                       {/* Cabecera: los 7 días */}
                       <div className="grid" style={{ gridTemplateColumns: cols }}>
@@ -1068,9 +1077,9 @@ export default function TurnosPage() {
                                   style={{ background: bg, color: claro ? "var(--color-crema)" : "var(--color-taupe)", textShadow: claro ? "0 1px 2px rgba(0,0,0,0.30)" : "none" }}>
                                   {nOp > 0 ? nOp : ""}
                                   {nEnc > 0 && (
-                                    <span className="pointer-events-none absolute right-[3px] top-[3px] flex gap-[2px]">
+                                    <span className="pointer-events-none absolute right-[3px] top-[3px] flex gap-0.5">
                                       {Array.from({ length: nEnc }).map((_, k) => (
-                                        <span key={k} className="h-[3px] w-[3px] rounded-full"
+                                        <span key={k} className="h-[3px] w-[3px] rounded-pildora"
                                           style={{ background: claro ? "var(--color-crema)" : "var(--color-taupe)", opacity: encFalta ? 0.4 : 0.95 }} />
                                       ))}
                                     </span>
@@ -1114,7 +1123,7 @@ export default function TurnosPage() {
                   if (c) candidato = `Ej. retrasa la salida de ${c.nombres}.`;
                 }
                 return (
-                  <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-2xl border bg-papel ${hoy ? "border-tinta" : "border-sand"}`}>
+                  <section key={iso} id={`turnos-dia-${iso}`} className={`overflow-hidden rounded-superficie border bg-papel ${hoy ? "border-tinta" : "border-sand"}`}>
                     {/* Cabecera del día: fecha + metas editables (mañana/tarde) + resumen */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-sand/50 px-4 py-2">
                       <div className={hoy ? "text-tinta" : ""}>
@@ -1161,13 +1170,14 @@ export default function TurnosPage() {
                     </div>
                     {/* Sugerencia: redistribuir (hay gente que mover) o falta personal (contratar) */}
                     {r.sug && (
-                      <div className="border-t border-sand/60 px-4 py-1.5 text-xs" style={{ color: r.redistribuir ? "var(--color-ambar)" : "var(--color-rojo)" }}>
-                        {r.redistribuir ? "↔ " : "＋ "}{r.sug}{candidato && ` ${candidato}`}
+                      <div className="flex items-center gap-1 border-t border-sand/60 px-4 py-1.5 text-xs" style={{ color: r.redistribuir ? "var(--color-ambar)" : "var(--color-rojo)" }}>
+                        {r.redistribuir ? <ArrowLeftRight size={12} strokeWidth={2} className="shrink-0" aria-hidden /> : <Plus size={12} strokeWidth={2} className="shrink-0" aria-hidden />}
+                        <span>{r.sug}{candidato && ` ${candidato}`}</span>
                       </div>
                     )}
 
                     {/* Eje de horas */}
-                    <div className="relative ml-[176px] h-4 border-b border-sand/60 text-[10px] text-taupe">
+                    <div className="relative h-4 border-b border-sand/60 text-[10px] text-taupe" style={{ marginLeft: ANCHO_COL_NOMBRE }}>
                       {MARCAS_HORA.map((h) => (
                         <span key={h} className="absolute -translate-x-1/2" style={{ left: `${pctEnRango(h)}%` }}>{h}h</span>
                       ))}
@@ -1180,7 +1190,7 @@ export default function TurnosPage() {
                       return (
                         <button key={p.id} onClick={() => abrir(p.id, iso)}
                           className="flex w-full items-center border-t border-sand/60 text-left transition-colors hover:bg-sand/20">
-                          <span className="w-[176px] shrink-0 truncate px-3 py-2 text-xs">
+                          <span className="shrink-0 truncate px-3 py-2 text-xs" style={{ width: ANCHO_COL_NOMBRE }}>
                             {p.nombres} {p.apellidos}
                             {!operativa && (
                               <Insignia variante="advertencia" tamano="sm" className="ml-1.5">{areaCorto(areas, p.funcion)}</Insignia>
@@ -1219,7 +1229,7 @@ export default function TurnosPage() {
                               );
                             })()}
                             {c.tipo === "descanso" && <span className="absolute left-2 top-1.5 rounded bg-sand px-1.5 py-0.5 text-[10px] text-taupe">descanso</span>}
-                            {c.tipo === "libre" && <span className="absolute left-2 top-1.5 text-[10px] text-taupe">+</span>}
+                            {c.tipo === "libre" && <Plus size={10} strokeWidth={2} className="absolute left-2 top-1.5 text-taupe" aria-hidden />}
                           </span>
                         </button>
                       );
@@ -1229,7 +1239,7 @@ export default function TurnosPage() {
                         (rojo = lejos de la meta, verde = la alcanza o la pasa), con el
                         número exacto de cada hora superpuesto para no perder precisión. */}
                     <div className="flex items-stretch border-t-2 border-sand">
-                      <span className="w-[176px] shrink-0 px-3 py-2 text-xs text-taupe">Cobertura</span>
+                      <span className="shrink-0 px-3 py-2 text-xs text-taupe" style={{ width: ANCHO_COL_NOMBRE }}>Cobertura</span>
                       <div className="relative h-8 flex-1" style={{ background: gradienteCoberturaBanda(horas, metaMan, metaTar, HORA_INICIO) }}>
                         {horas.map((n, i) => {
                           const metaHora = metaDeHora(HORA_INICIO + i, metaMan, metaTar);
@@ -1292,7 +1302,7 @@ export default function TurnosPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {ops.map((p) => (
                       <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
-                        className="rounded-full border border-sand bg-crema px-3 py-1 text-sm transition-colors hover:bg-sand/40">
+                        className="rounded-pildora border border-sand bg-crema px-3 py-1 text-sm transition-colors hover:bg-sand/40">
                         {p.nombres} {p.apellidos}
                       </button>
                     ))}
@@ -1308,7 +1318,7 @@ export default function TurnosPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {encs.map((p) => (
                       <button key={p.id} onClick={() => abrirDesdePanel(p.id)}
-                        className="rounded-full border border-taupe/30 bg-taupe/10 px-3 py-1 text-sm text-taupe transition-colors hover:bg-taupe/20">
+                        className="rounded-pildora border border-taupe/30 bg-taupe/10 px-3 py-1 text-sm text-taupe transition-colors hover:bg-taupe/20">
                         {p.nombres} {p.apellidos}
                       </button>
                     ))}
@@ -1339,7 +1349,7 @@ export default function TurnosPage() {
               <h3 className="mb-1 font-serif text-lg">{p?.nombres} {p?.apellidos}</h3>
               <p className="mb-4 text-sm text-taupe">{abr} {num}</p>
               {propio ? (
-                <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                <p className="mb-2 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo">
                   No puedes fijar tu propio turno (la hora de entrada define tu tardanza). Pídeselo a un administrador.
                 </p>
               ) : (
@@ -1350,7 +1360,7 @@ export default function TurnosPage() {
                   </div>
                   {/* La pregunta que evita que una excepción se coma la regla:
                       ¿es solo por hoy, o de ahora en adelante? Lo decide quien sabe. */}
-                  <div className="mt-5 rounded-lg border border-sand p-3">
+                  <div className="mt-5 rounded-control border border-sand p-3">
                     <p className="mb-2 text-xs text-taupe">¿Este cambio es solo por este día, o de ahora en adelante?</p>
                     <div className="flex flex-wrap gap-2">
                       <Boton variante="primario" disabled={guardando} onClick={guardarTurno}>

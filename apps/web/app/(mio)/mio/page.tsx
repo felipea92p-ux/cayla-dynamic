@@ -15,6 +15,8 @@ import { Campo } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
 import { Tabla, TablaEncabezado, Th, Fila } from "@/components/ui/tabla";
 import { Modal } from "@/components/ui/modal";
+import { BannerAviso } from "@/components/ui/banner-aviso";
+import { ItemObjetivo } from "@/components/ui/item-objetivo";
 import { useToast } from "@/components/toast";
 import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 import { subirArchivoConProgreso } from "@/lib/subir-archivo";
@@ -1362,7 +1364,7 @@ export default function MioPage() {
           La antigüedad va acá y no escondida: es lo que decide cuántos días de
           vacaciones le tocan, y hasta hoy solo la sabía quien abría su ficha
           en el panel — o sea, todo el mundo menos ella. */}
-      <header className="mb-6 overflow-hidden rounded-2xl border border-sand bg-papel">
+      <header className="mb-6 overflow-hidden rounded-superficie border border-sand bg-papel">
         <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
           <div className="flex items-center gap-4">
             {yo ? (
@@ -1399,7 +1401,7 @@ export default function MioPage() {
           <div className="flex items-center gap-3">
             {yo && ROLES_CON_PANEL.includes(yo.rol as never) && (
               <Link href="/admin/dashboard"
-                className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="rounded-control border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
                 Volver al panel
               </Link>
             )}
@@ -1415,7 +1417,7 @@ export default function MioPage() {
                 title={avisosEnBandeja > 0
                   ? `${avisosEnBandeja} cosa${avisosEnBandeja === 1 ? "" : "s"} en tu bandeja: lo que te falta hacer y lo que te respondieron`
                   : "Lo que te falta hacer y lo que respondieron a lo que pediste"}
-                className="relative flex items-center gap-1.5 rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="relative flex items-center gap-1.5 rounded-control border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
                 {/* El mismo ícono que el panel usa para su Bandeja
                     (admin/nav-items.ts), no uno nuevo: es la misma idea en las
                     dos superficies, y quien tiene panel la reconoce sin leer. */}
@@ -1442,7 +1444,7 @@ export default function MioPage() {
             )}
             {yo && (
               <Link href="/mio/editar"
-                className="rounded-lg border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
+                className="rounded-control border border-sand px-3 py-1.5 text-xs text-tinta transition-colors hover:bg-hueso">
                 Editar datos
               </Link>
             )}
@@ -1469,24 +1471,22 @@ export default function MioPage() {
 
       <AnunciosWidget />
 
-      {aviso && <div className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-4 text-sm">{aviso}</div>}
+      {aviso && <BannerAviso variante="advertencia" className="mb-6">{aviso}</BannerAviso>}
 
       {/* Si esto no se pudo traer, las tarjetas y «Tu mes» de abajo NO pintan
           números: un cero ahí no es la ausencia de un dato, es la afirmación de
           que no trabajaste ese día. Ver lib/admin/lo-que-no-se-pudo.ts. */}
       {noSePudo.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-rojo/30 bg-rojo/[0.06] p-4 text-sm">
-          <div className="font-medium text-rojo">No se pudo traer tu mes completo</div>
-          <p className="mt-1 text-tinta">
+        <BannerAviso variante="alerta" titulo="No se pudo traer tu mes completo" className="mb-6">
+          <p className="text-tinta">
             No se pudo traer {noSePudo.join(", ")}. Vuelve a cargar la página; si sigue igual, avisa a
             Desarrollo Organizacional.
           </p>
-        </div>
+        </BannerAviso>
       )}
 
       {pendientes.length > 0 && (
-        <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/[0.07] p-5">
-          <h2 className="mb-1 font-serif text-lg">Necesita que hagas algo</h2>
+        <BannerAviso variante="advertencia" titulo="Necesita que hagas algo" className="mb-6">
           <p className="mb-3 text-sm text-taupe">
             Un marcaje se arregla mientras el periodo sigue abierto; al final del mes ya no.
           </p>
@@ -1505,7 +1505,7 @@ export default function MioPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </BannerAviso>
       )}
 
       {/* Su jornada de hoy sigue abierta. No es un pendiente —no hay nada roto
@@ -1514,7 +1514,7 @@ export default function MioPage() {
           criterio que ya usa la banda de Equipo. Lo único que aporta es el
           recordatorio de marcar al salir, que es lo único que ella puede hacer. */}
       {resumen.enJornadaAhora && (
-        <div className="mb-6 rounded-2xl border border-pizarra/40 bg-pizarra/[0.07] px-5 py-4 text-sm">
+        <div className="mb-6 rounded-superficie border border-pizarra/40 bg-pizarra/[0.07] px-5 py-4 text-sm">
           Te encuentras en jornada laboral, no te olvides de marcar al salir.
         </div>
       )}
@@ -1641,7 +1641,7 @@ export default function MioPage() {
               está porque es el tramo con el que se le paga —del 29 al 28, leído
               de la base y nunca calculado— y es contra el que va a querer cuadrar
               su boleta. */}
-          <section className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-sand px-4 py-3">
+          <section className="mb-5 flex flex-wrap items-end gap-3 rounded-superficie border border-sand px-4 py-3">
             <Campo etiqueta="Desde" type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} />
             <Campo etiqueta="Hasta" type="date" value={hasta} min={desde} max={hoyLima()} onChange={(e) => setHasta(e.target.value)} />
             <div className="flex flex-wrap gap-2">
@@ -1659,7 +1659,7 @@ export default function MioPage() {
               `horarios_asignados` o `turnos` no se pudieron traer, no se pinta nada
               de esto: un cero acá diría «no trabajaste», y sería mentira. */}
           {noSePudo.length > 0 ? (
-            <div className="mb-5 rounded-2xl border border-rojo/30 bg-rojo/[0.06] p-4 text-sm text-rojo">
+            <div className="mb-5 rounded-superficie border border-rojo/30 bg-rojo/[0.06] p-4 text-sm text-rojo">
               No se pudieron calcular tus días y horas de este rango — ver el aviso de arriba.
             </div>
           ) : (
@@ -1680,7 +1680,7 @@ export default function MioPage() {
               Un cuadrito por día, con los MISMOS colores que ve su encargada. Que
               las dos vean el mismo día del mismo color es lo que les deja hablar
               de él sin traducirse la una a la otra. */}
-          <section className="mb-5 rounded-2xl border border-sand p-5">
+          <section className="mb-5 rounded-superficie border border-sand p-5">
             <h2 className="mb-3 font-serif text-lg">Tu mes</h2>
             {cargando ? <p className="text-sm text-taupe">Cargando…</p>
               : noSePudo.length > 0 ? (
@@ -1694,7 +1694,7 @@ export default function MioPage() {
                   <div className="overflow-x-auto pb-1">
                     <div className="flex">
                       {dias.map((d) => (
-                        <div key={d.fecha} className="w-[22px] shrink-0 px-[1px] text-center">
+                        <div key={d.fecha} className="w-[22px] shrink-0 px-px text-center">
                           <div className={`text-[9px] leading-tight ${dowDe(d.fecha) === 0 ? "text-rojo/60" : "text-taupe"}`}>
                             {LETRA_DIA[dowDe(d.fecha)]}
                           </div>
@@ -1723,7 +1723,7 @@ export default function MioPage() {
                     if (!d) return null;
                     const rev = revisiones.get(d.fecha);
                     return (
-                      <div className="mt-4 rounded-2xl border border-tinta/20 bg-papel p-4 text-sm">
+                      <div className="mt-4 rounded-superficie border border-tinta/20 bg-papel p-4 text-sm">
                         <div className="mb-2 flex items-start justify-between gap-3">
                           <h3 className="font-serif text-lg capitalize">{diaYMes(d.fecha)}</h3>
                           <Boton variante="enlace" className="text-xs text-taupe" onClick={() => setDiaAbierto(null)}>cerrar</Boton>
@@ -1764,12 +1764,12 @@ export default function MioPage() {
                         </dl>
 
                         {d.estado === "falta" && (
-                          <p className="mt-3 rounded-lg bg-rojo/10 px-3 py-2 text-rojo">
+                          <p className="mt-3 rounded-control bg-rojo/10 px-3 py-2 text-rojo">
                             Te tocaba trabajar y no hay ningún marcaje tuyo de ese día.
                           </p>
                         )}
                         {d.estado === "justificada" && (
-                          <p className="mt-3 rounded-lg bg-sand/60 px-3 py-2">No marcaste, y está justificado.</p>
+                          <p className="mt-3 rounded-control bg-sand/60 px-3 py-2">No marcaste, y está justificado.</p>
                         )}
 
                         {/* ── Decir que algo no cuadra ──────────────────────────
@@ -1778,7 +1778,7 @@ export default function MioPage() {
                             un teléfono es un callejón: lo ve, cierra el navegador y
                             se acuerda cuando llega la boleta. */}
                         {rev ? (
-                          <div className="mt-3 rounded-lg border border-tinta/20 px-3 py-2">
+                          <div className="mt-3 rounded-control border border-tinta/20 px-3 py-2">
                             <p className="text-taupe">Pediste que se revise este día:</p>
                             <p className="mt-1">«{rev.comentario}»</p>
                             {rev.atendida_at ? (
@@ -1836,12 +1836,12 @@ export default function MioPage() {
               Solo los días con marcaje. Un día de descanso o un feriado no tienen
               por qué ocupar una fila vacía en una pantalla que se mira en el
               teléfono. */}
-          <section className="rounded-2xl border border-sand p-5">
+          <section className="rounded-superficie border border-sand p-5">
             <h2 className="mb-4 font-serif text-lg">Día por día</h2>
             {jornadas.length === 0 ? (
               <p className="text-sm text-taupe">No hay días marcados en este rango.</p>
             ) : (
-              <Tabla>
+              <Tabla className="[font-variant-numeric:tabular-nums]">
                 <TablaEncabezado>
                   <Th>Día</Th>
                   <Th>Entrada</Th>
@@ -1893,7 +1893,7 @@ export default function MioPage() {
 
       {/* ── MIS TURNOS ───────────────────────────────────────────────────── */}
       {tab === "turnos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section className="rounded-superficie border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Cuándo te toca</h2>
           <p className="mb-3 text-sm text-taupe">Tus próximos días de trabajo, de hoy en adelante.</p>
           {proximos.length === 0 ? (
@@ -1904,7 +1904,7 @@ export default function MioPage() {
             <ul className="flex flex-wrap gap-2">
               {proximos.map(({ fecha, esperado }) => (
                 <li key={fecha}
-                  className={`rounded-xl border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
+                  className={`rounded-control border px-3 py-2 ${fecha === hoyLima() ? "border-tinta bg-papel" : "border-sand"}`}>
                   <div className="text-xs capitalize text-taupe">{cuando(fecha)}</div>
                   <div className="font-medium">{esperado.entrada}{esperado.salida ? `–${esperado.salida}` : ""}</div>
                   {esperado.origen === "turno" && <div className="text-[10px] text-taupe">turno del día</div>}
@@ -1935,7 +1935,7 @@ export default function MioPage() {
           pestaña promete—, y nadie entendería por qué su encargada sigue viendo
           la anterior. */}
       {tab === "dni" && hayCampoDni && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section className="rounded-superficie border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Tu DNI</h2>
           {/* Quién las ve NO es una frase de relleno: es una promesa sobre un
               documento de identidad, y tiene que decir la verdad. Decía «solo
@@ -1951,13 +1951,13 @@ export default function MioPage() {
           </p>
 
           {solicitudDni?.estado === "pendiente" && (
-            <p className="mb-4 rounded-xl border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-sm text-pizarra">
+            <p className="mb-4 rounded-control border border-pizarra/30 bg-pizarra/10 px-3 py-2 text-sm text-pizarra">
               Ya mandaste tus fotos y están en revisión desde el {diaYMes(fechaLimaDeMarca(solicitudDni.creada_at))}.
               Si subes otras, reemplazan a esas.
             </p>
           )}
           {solicitudDni?.estado === "rechazado" && (
-            <p className="mb-4 rounded-xl border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">
+            <p className="mb-4 rounded-control border border-rojo/30 bg-rojo/10 px-3 py-2 text-sm text-rojo">
               Tus últimas fotos no se aprobaron{solicitudDni.motivo ? `: «${solicitudDni.motivo}»` : ""}. Puedes volver a subirlas.
             </p>
           )}
@@ -1977,7 +1977,7 @@ export default function MioPage() {
                 // ahora. La etiqueta de abajo dice cuál de las dos es.
                 const aMostrar = elegido?.vista ?? urlGuardada;
                 return (
-                  <div key={cara.clave} className="flex flex-col gap-2 rounded-xl border border-sand p-3">
+                  <div key={cara.clave} className="flex flex-col gap-2 rounded-superficie border border-sand p-3">
                     <div>
                       <div className="text-sm font-medium">{cara.etiqueta}</div>
                       <div className="text-xs text-taupe">{cara.ayuda}</div>
@@ -1988,13 +1988,13 @@ export default function MioPage() {
                       // hover no existe, y esta pantalla se abre sobre todo ahí.
                       <button type="button"
                         onClick={() => setDniAmpliado({ url: aMostrar, titulo: `${cara.etiqueta} de tu DNI` })}
-                        className="overflow-hidden rounded-lg border border-sand bg-hueso">
+                        className="overflow-hidden rounded-control border border-sand bg-hueso">
                         {/* eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local */}
                         <img src={aMostrar} alt={`${cara.etiqueta} de tu DNI`}
                           className="h-40 w-full object-contain" />
                       </button>
                     ) : (
-                      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-sand bg-hueso px-3 text-center text-xs text-taupe">
+                      <div className="flex h-40 items-center justify-center rounded-control border border-dashed border-sand bg-hueso px-3 text-center text-xs text-taupe">
                         {hayGuardada ? "Cargando…" : "Todavía no hay ninguna foto"}
                       </div>
                     )}
@@ -2013,7 +2013,7 @@ export default function MioPage() {
                           elegir una que ya está en la galería. */}
                       <input type="file" accept="image/*" disabled={enviandoDni}
                         onChange={(e) => elegirCaraDni(cara.clave, e.target.files?.[0] ?? null)}
-                        className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta disabled:opacity-50" />
+                        className="rounded-control border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta disabled:opacity-50" />
                     </label>
                   </div>
                 );
@@ -2026,7 +2026,7 @@ export default function MioPage() {
                 se lee acá es lo que se guarda como constancia, palabra por
                 palabra — por eso el texto es una constante y no se arma en el
                 JSX. */}
-            <label className="mt-4 flex items-start gap-2 rounded-xl border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
+            <label className="mt-4 flex items-start gap-2 rounded-control border border-sand bg-hueso p-3 text-xs leading-relaxed text-tinta">
               <input
                 type="checkbox"
                 checked={aceptoDatos}
@@ -2061,7 +2061,7 @@ export default function MioPage() {
             {dniAmpliado && (
               // eslint-disable-next-line @next/next/no-img-element -- imagen de un bucket privado, no un asset local
               <img src={dniAmpliado.url} alt={dniAmpliado.titulo}
-                className="mx-auto w-auto max-w-full rounded-lg" />
+                className="mx-auto w-auto max-w-full rounded-control" />
             )}
           </Modal>
         </section>
@@ -2080,7 +2080,7 @@ export default function MioPage() {
               empresa debe una indemnización (art. 23 del D. Leg. 713) y la persona
               se quedó sin su descanso — que es lo que de verdad importa acá. */}
           {vacas ? (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm">
+            <section className="mb-5 rounded-superficie border border-sand p-5 text-sm">
               <h2 className="mb-3 font-serif text-lg">Pedir vacaciones</h2>
               <p className="mb-3 text-taupe">
                 Tienes <strong className="text-tinta">{vacas.dias_pendientes} días</strong> pendientes. Elige el rango y avisa —tu
@@ -2090,20 +2090,20 @@ export default function MioPage() {
                 <label className="flex flex-col gap-1 text-xs text-taupe">Desde
                   <input type="date" value={desdeSolicitud} min={hoyLima()} max={hastaSolicitud}
                     onChange={(e) => setDesdeSolicitud(e.target.value)}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" required />
+                    className="rounded-control border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" required />
                 </label>
                 <label className="flex flex-col gap-1 text-xs text-taupe">Hasta
                   <input type="date" value={hastaSolicitud} min={desdeSolicitud}
                     onChange={(e) => setHastaSolicitud(e.target.value)}
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" required />
+                    className="rounded-control border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" required />
                 </label>
                 <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-taupe">Comentario (opcional)
                   <input type="text" value={comentarioSolicitud} onChange={(e) => setComentarioSolicitud(e.target.value)}
                     placeholder="Lo que quieras que sepa Desarrollo Organizacional"
-                    className="rounded-lg border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
+                    className="rounded-control border border-sand bg-hueso px-3 py-1.5 text-sm text-tinta" />
                 </label>
                 <button type="submit" disabled={enviandoSolicitud}
-                  className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
+                  className="rounded-control bg-tinta px-4 py-2 text-sm font-medium text-crema disabled:opacity-50">
                   {enviandoSolicitud ? "Enviando…" : "Pedir"}
                 </button>
               </form>
@@ -2140,7 +2140,7 @@ export default function MioPage() {
               )}
             </section>
           ) : (
-            <section className="mb-5 rounded-2xl border border-sand p-5 text-sm text-taupe">
+            <section className="mb-5 rounded-superficie border border-sand p-5 text-sm text-taupe">
               Todavía no te corresponden vacaciones. Se acumulan por año trabajado; si crees que ya te tocan,
               avísale a Desarrollo Organizacional.
             </section>
@@ -2150,7 +2150,7 @@ export default function MioPage() {
               «El descanso médico que presenté, ¿quedó registrado?» es una pregunta
               que hoy se responde preguntando. Y el aviso del documento que falta la
               protege a ella: sin documento, ese permiso no cuenta igual. */}
-          <section className="rounded-2xl border border-sand p-5">
+          <section className="rounded-superficie border border-sand p-5">
             {/* Incluye las vacaciones: la vista `vacaciones` no es otra tabla,
                 es un SELECT sobre `ausencias` con tipo='vacaciones'. Consultarla
                 aparte traería las mismas filas dos veces. */}
@@ -2190,7 +2190,7 @@ export default function MioPage() {
           Solo dice si tiene uno y lleva a verlo. El documento en sí —que se
           imprime— vive en /mio/contrato, mismo criterio que la boleta. */}
       {tab === "contrato" && (
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section className="rounded-superficie border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Tu contrato</h2>
           {!contratoCargado ? (
             <p className="text-taupe">Cargando…</p>
@@ -2230,7 +2230,7 @@ export default function MioPage() {
           anticipación — en cuanto DO genere el contrato, la firma ya está
           lista sin que haga falta volver a hacer nada. */}
       {tab === "firma" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section className="rounded-superficie border border-sand p-5">
           <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
           <p className="mb-3 text-sm text-taupe">
             Aparecerá en tu contrato de trabajo, en tu propio apartado. Si además firmas documentos por la
@@ -2249,7 +2249,7 @@ export default function MioPage() {
           razón por la que valen. Sin lenguaje de premio — desde la 0171 los
           objetivos NO pagan, así que nada de «plus» ni de verde de recompensa. */}
       {tab === "objetivos" && (
-        <section className="rounded-2xl border border-sand p-5">
+        <section className="rounded-superficie border border-sand p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-serif text-lg">Tus objetivos de {mesLabel}</h2>
             {objetivos.length > 0 && (
@@ -2262,21 +2262,13 @@ export default function MioPage() {
             </p>
           ) : (
             <>
-              <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
-                <div className="h-full rounded-full bg-verde"
+              <div className="mb-3 h-2 overflow-hidden rounded-pildora bg-sand">
+                <div className="h-full rounded-pildora bg-verde"
                   style={{ width: `${Math.round((objCumplidos / objetivos.length) * 100)}%` }} />
               </div>
               <ul className="space-y-1.5 text-sm">
                 {objetivos.map((o) => (
-                  <li key={o.id} className="flex items-start gap-2">
-                    <span className={o.cumplido ? "text-verde" : "text-taupe/50"}>{o.cumplido ? "✓" : "○"}</span>
-                    <div>
-                      <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
-                      {o.indicaciones && (
-                        <p className="mt-0.5 whitespace-pre-wrap text-xs text-taupe">{o.indicaciones}</p>
-                      )}
-                    </div>
-                  </li>
+                  <ItemObjetivo key={o.id} cumplido={o.cumplido} descripcion={o.descripcion} indicaciones={o.indicaciones} />
                 ))}
               </ul>
               <p className="mt-3 text-xs text-taupe">
@@ -2302,7 +2294,7 @@ export default function MioPage() {
               mostrar, nada que ocupe pantalla. `fn_mis_memos()` (0404) ya
               garantiza que nunca llegue acá un borrador. */}
           {misMemos.length > 0 && (
-            <section className="mb-4 rounded-2xl border border-sand p-5 text-sm">
+            <section className="mb-4 rounded-superficie border border-sand p-5 text-sm">
               <h2 className="mb-1 font-serif text-lg">Tus memos disciplinarios</h2>
               <p className="mb-3 text-taupe">
                 Los que ya te entregaron. Firmarlos digitalmente (o dejar constancia de que prefieres no
@@ -2356,7 +2348,7 @@ export default function MioPage() {
               </ul>
             </section>
           )}
-        <section className="rounded-2xl border border-sand p-5 text-sm">
+        <section className="rounded-superficie border border-sand p-5 text-sm">
           <h2 className="mb-1 font-serif text-lg">Correcciones a tus marcajes</h2>
           <p className="mb-3 text-taupe">
             Cuando alguien corrige uno de tus marcajes queda anotado acá, con el motivo. Son las 20 más recientes.
@@ -2425,7 +2417,7 @@ function FotoDePerfil({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={subiendo}
-        className="h-20 w-20 overflow-hidden rounded-full border border-sand disabled:opacity-60"
+        className="h-20 w-20 overflow-hidden rounded-pildora border border-sand disabled:opacity-60"
       >
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element -- foto de un bucket externo, no un asset local
@@ -2462,7 +2454,7 @@ function FotoDePerfil({
 
 function Tarjeta({ titulo, valor, pie }: { titulo: string; valor: string; pie?: string }) {
   return (
-    <div className="rounded-2xl border border-sand px-4 py-3">
+    <div className="rounded-superficie border border-sand px-4 py-3">
       <div className="etiqueta text-taupe">{titulo}</div>
       <div className="mt-1 font-serif text-2xl leading-none">{valor}</div>
       {pie && <div className="mt-1 text-[11px] text-taupe">{pie}</div>}
@@ -2488,7 +2480,7 @@ function TarjetaClave({
   alerta?: boolean;
 }) {
   return (
-    <div className={`flex flex-col rounded-2xl border p-4 ${
+    <div className={`flex flex-col rounded-superficie border p-4 ${
       alerta ? "border-ambar/40 bg-ambar/[0.07]" : "border-sand bg-papel"}`}>
       <div className="etiqueta text-taupe">{titulo}</div>
       <div className="mt-1 font-serif text-2xl leading-tight">{valor}</div>

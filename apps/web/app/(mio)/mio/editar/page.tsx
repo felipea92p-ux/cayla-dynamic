@@ -299,7 +299,7 @@ function MiEditarContenido() {
   if (error) {
     return (
       <main className="p-6">
-        <p className="max-w-md rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>
+        <p className="max-w-md rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">{error}</p>
         <Link href="/mio" className="mt-3 inline-block text-sm text-taupe hover:text-tinta hover:underline">
           ← Volver a Mi perfil
         </Link>
@@ -360,12 +360,12 @@ function MiEditarContenido() {
           // <input type="file"> nativo a propósito: acá el disparador vive
           // dentro de un aviso ambar, no es un campo con su propia etiqueta —
           // igual que ya documenta /admin/educacion para el mismo caso.
-          <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+          <span className="flex flex-col gap-1 rounded-control border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
             Este cambio exige un documento de sustento
             {documentoSugerido(campo) && ` (${documentoSugerido(campo)})`}.
             <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
               onChange={(e) => setArchivos((a) => ({ ...a, [campo]: Array.from(e.target.files ?? []) }))}
-              className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
+              className="rounded-control border border-sand bg-hueso px-2 py-1 text-xs" />
           </span>
         )}
       </div>
@@ -403,12 +403,12 @@ function MiEditarContenido() {
       </p>
 
       {aviso && (
-        <p className={`mb-4 rounded-lg px-4 py-3 text-sm ${aviso.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>
+        <p className={`mb-4 rounded-control px-4 py-3 text-sm ${aviso.tipo === "ok" ? "bg-verde/10 text-verde" : "bg-rojo/10 text-rojo"}`}>
           {aviso.texto}
         </p>
       )}
 
-      <div className="space-y-4 rounded-2xl border border-sand bg-papel p-5">
+      <div className="space-y-4 rounded-superficie border border-sand bg-papel p-5">
         <section>
           <p className="mb-2 text-[11px] uppercase tracking-wider text-taupe">Identidad</p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -430,11 +430,11 @@ function MiEditarContenido() {
                   </CampoSelect>
                   {cambios.estado_civil && requiereDocumento("estado_civil") && (
                     // <input type="file"> nativo — ver el comentario de campoEditable.
-                    <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+                    <span className="flex flex-col gap-1 rounded-control border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
                       Este cambio exige un documento de sustento ({documentoSugerido("estado_civil")}).
                       <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
                         onChange={(e) => setArchivos((a) => ({ ...a, estado_civil: Array.from(e.target.files ?? []) }))}
-                        className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
+                        className="rounded-control border border-sand bg-hueso px-2 py-1 text-xs" />
                     </span>
                   )}
                 </div>
@@ -455,11 +455,11 @@ function MiEditarContenido() {
                   </CampoSelect>
                   {cambios.grado_instruccion && requiereDocumento("grado_instruccion") && (
                     // <input type="file"> nativo — ver el comentario de campoEditable.
-                    <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+                    <span className="flex flex-col gap-1 rounded-control border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
                       Este cambio exige un documento de sustento ({documentoSugerido("grado_instruccion")}).
                       <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
                         onChange={(e) => setArchivos((a) => ({ ...a, grado_instruccion: Array.from(e.target.files ?? []) }))}
-                        className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
+                        className="rounded-control border border-sand bg-hueso px-2 py-1 text-xs" />
                     </span>
                   )}
                 </div>
@@ -481,11 +481,11 @@ function MiEditarContenido() {
                   </CampoSelect>
                   {cambios.hijos_menores && requiereDocumento("hijos_menores") && (
                     // <input type="file"> nativo — ver el comentario de campoEditable.
-                    <span className="flex flex-col gap-1 rounded-lg border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
+                    <span className="flex flex-col gap-1 rounded-control border border-ambar/40 bg-ambar/5 p-2 text-xs text-taupe">
                       Este cambio exige un documento de sustento ({documentoSugerido("hijos_menores")}).
                       <input type="file" multiple accept="image/jpeg,image/png,application/pdf"
                         onChange={(e) => setArchivos((a) => ({ ...a, hijos_menores: Array.from(e.target.files ?? []) }))}
-                        className="rounded-lg border border-sand bg-hueso px-2 py-1 text-xs" />
+                        className="rounded-control border border-sand bg-hueso px-2 py-1 text-xs" />
                     </span>
                   )}
                 </div>
@@ -549,7 +549,7 @@ function MiEditarContenido() {
           {derechos.length === 0 ? (
             <p className="text-sm text-taupe">Sin familiares registrados.</p>
           ) : (
-            <ul className="divide-y rounded-lg border border-sand">
+            <ul className="divide-y rounded-control border border-sand">
               {derechos.map((d) => (
                 <li key={d.id} className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm ${d.vigente_hasta ? "text-taupe" : ""}`}>
                   <span>
@@ -594,7 +594,7 @@ function MiEditarContenido() {
       </div>
 
       {misSolicitudesPerfil.length > 0 && (
-        <section className="mt-5 rounded-2xl border border-sand bg-papel p-5 text-sm">
+        <section className="mt-5 rounded-superficie border border-sand bg-papel p-5 text-sm">
           <h2 className="mb-3 font-serif text-lg">Tus pedidos de cambio</h2>
           <ul className="space-y-2 text-xs">
             {misSolicitudesPerfil.map((s) => (

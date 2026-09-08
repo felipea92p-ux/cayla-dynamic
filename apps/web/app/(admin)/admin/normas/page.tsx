@@ -554,7 +554,7 @@ export default function NormasPage() {
       <>
         {/* ── La constancia propia ── */}
         {d.requiere_acuse && (
-          <div className="mt-4 rounded-lg border border-sand bg-sand/20 p-3">
+          <div className="mt-4 rounded-control border border-sand bg-sand/20 p-3">
             {d.mi_acuse_at ? (
               <p className="text-xs text-taupe">
                 Dejaste constancia el <strong>{selloLima(d.mi_acuse_at)}</strong>. No hace falta
@@ -615,7 +615,7 @@ export default function NormasPage() {
             </Boton>
 
             {verSeguimiento === d.documento_id && (
-              <ul className="mt-2 divide-y rounded-lg border border-sand">
+              <ul className="mt-2 divide-y rounded-control border border-sand">
                 {filas.map((f) => (
                   <li key={f.persona_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
                     <span>
@@ -658,7 +658,7 @@ export default function NormasPage() {
 
         {/* ── El formulario del cargo en papel ── */}
         {papelPara && papelPara.doc === d.documento_id && (
-          <div className="mt-3 rounded-lg border border-sand bg-sand/20 p-3">
+          <div className="mt-3 rounded-control border border-sand bg-sand/20 p-3">
             <p className="mb-2 text-xs text-taupe">
               Constancia en papel de <strong>{papelPara.nombre}</strong>. Sin el escaneo del cargo
               firmado no se registra: aquí la constancia es la prueba.
@@ -692,7 +692,7 @@ export default function NormasPage() {
             </div>
             {progreso !== null && (
               <div className="mt-2">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-sand">
+                <div className="h-1.5 w-full overflow-hidden rounded-pildora bg-sand">
                   <div className="h-full bg-tinta transition-[width] duration-200" style={{ width: `${progreso}%` }}
                     role="progressbar" aria-valuenow={progreso} aria-valuemin={0} aria-valuemax={100}
                     aria-label="Subiendo el cargo" />
@@ -746,7 +746,7 @@ export default function NormasPage() {
 
         {/* ── Publicar, sólo para quien puede ── */}
         {puedeGestionar && (
-          <div className="mb-5 max-w-3xl overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div className="mb-5 max-w-3xl overflow-hidden rounded-superficie border border-sand bg-papel">
             <button onClick={() => setPublicando((v) => !v)}
               className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
               <span>Publicar una versión</span>
@@ -834,7 +834,7 @@ export default function NormasPage() {
                 </div>
 
                 {creandoTipo && (
-                  <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">
+                  <div className="mt-3 rounded-control border border-sand bg-crema/40 p-3">
                     <p className="mb-2 text-xs text-taupe">
                       Un documento nuevo del expediente — una política, un protocolo, la
                       presentación de la empresa. El código interno se deriva del nombre.
@@ -876,7 +876,7 @@ export default function NormasPage() {
                 )}
 
                 {archivoDoc && (
-                  <div className="mt-3 rounded-lg border border-sand bg-crema/40 p-3">
+                  <div className="mt-3 rounded-control border border-sand bg-crema/40 p-3">
                     {/* El recuento de artículos solo sale si hay alguno: «0 artículos
                         detectados» en unos valores institucionales parece un fallo del
                         lector, y no lo es — ese documento no tiene artículos. */}
@@ -911,7 +911,7 @@ export default function NormasPage() {
         {cargando ? (
           <Cargando texto="Cargando los documentos…" />
         ) : docs.length === 0 ? (
-          <p className="max-w-xl rounded-2xl border border-sand bg-papel px-4 py-6 text-sm text-taupe">
+          <p className="max-w-xl rounded-superficie border border-sand bg-papel px-4 py-6 text-sm text-taupe">
             Todavía no hay ningún documento publicado.
             {puedeGestionar && " Publica el primero con el botón de arriba."}
           </p>
@@ -920,7 +920,7 @@ export default function NormasPage() {
             {docs.filter((d) => PRINCIPALES.includes(d.tipo)).map((d) => {
               return (
                 <div key={d.documento_id} id={`doc-${d.documento_id}`}
-                  className="max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+                  className="max-w-4xl overflow-hidden rounded-superficie border border-sand bg-papel">
                   <button
                     onClick={() => setAbierto(abierto === d.documento_id ? null : d.documento_id)}
                     className="flex w-full flex-wrap items-center justify-between gap-3 border-b bg-sand/50 px-4 py-3 text-left">
@@ -981,7 +981,7 @@ export default function NormasPage() {
                           el panel de seguimiento —el que usa DO— no acabe 61
                           artículos más abajo. `overscroll-contain` evita que el
                           gesto se le escape a la página al llegar al final. */}
-                      <div className="max-h-[60vh] overscroll-contain overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3 sm:max-h-[28rem]">
+                      <div className="max-h-[60vh] overscroll-contain overflow-y-auto rounded-control border border-sand bg-crema/40 px-4 py-3 sm:max-h-[28rem]">
                         <Documento texto={d.documento} />
                       </div>
 
@@ -1004,7 +1004,7 @@ export default function NormasPage() {
             de discrepancia prevalece este Reglamento»; ponerlos al mismo nivel
             haría que la pantalla dijera lo contrario que el articulado. */}
         {!cargando && anexosVisibles.length > 0 && (
-          <div className="mt-6 max-w-4xl overflow-hidden rounded-2xl border border-sand bg-papel">
+          <div className="mt-6 max-w-4xl overflow-hidden rounded-superficie border border-sand bg-papel">
             <button onClick={() => setVerAnexos((v) => !v)}
               className="flex w-full items-center justify-between border-b bg-sand/50 px-4 py-2 text-left text-sm font-medium">
               <span>Anexos <span className="font-normal text-taupe">· {anexosVisibles.length}</span></span>
@@ -1047,7 +1047,7 @@ export default function NormasPage() {
                             </a>
                           )}
                         </div>
-                        <div className="mt-1 max-h-[24rem] overflow-y-auto rounded-lg border border-sand bg-crema/40 px-4 py-3">
+                        <div className="mt-1 max-h-[24rem] overflow-y-auto rounded-control border border-sand bg-crema/40 px-4 py-3">
                           <Documento texto={a.documento} />
                         </div>
                         <BloqueConstancia d={a} />
