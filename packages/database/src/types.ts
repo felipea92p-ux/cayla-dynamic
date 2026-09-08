@@ -5252,6 +5252,7 @@ export type Database = {
         }[]
       }
       fn_firma_de_memo: { Args: { p_doc_id: string | null }; Returns: string }
+      fn_firma_empresa: { Args: never; Returns: string }
       fn_firma_persona: { Args: { p_persona_id: string | null }; Returns: string }
       fn_firmantes_disponibles: {
         Args: never

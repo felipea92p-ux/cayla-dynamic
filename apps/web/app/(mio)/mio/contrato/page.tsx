@@ -7,7 +7,8 @@ import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { useTituloDocumento } from "@/lib/admin/use-titulo-documento";
 import { Cargando } from "@/components/cargando";
 import { abrirArchivoFirmado } from "@/lib/abrir-archivo-firmado";
-import { MARCADOR_FIRMA_EMPRESA } from "@/lib/admin/contrato-texto";
+import { MARCADOR_FIRMA_EMPRESA, MARCADOR_FIRMA_PERSONA } from "@/lib/admin/contrato-texto";
+import { FirmaEditor } from "@/app/(admin)/admin/personas/[id]/FirmaEditor";
 
 // Tu contrato, en autoservicio — mismo criterio que /mio/boleta: siempre el
 // propio (`auth_user_id` de la sesión, nunca un id que viaje en la URL), y el
@@ -24,15 +25,19 @@ import { MARCADOR_FIRMA_EMPRESA } from "@/lib/admin/contrato-texto";
 // CUALQUIER persona), así que acá se repite el mismo criterio —nunca uno
 // inventado— contra la propia fila, que la RLS ya deja ver.
 //
-// LA FIRMA DE LA EMPRESA NO SE ESTAMPA ACÁ. El marcador solo se reemplaza por
-// la imagen cuando quien mira ES la firmante configurada (`fn_mi_firma`, ver
-// admin/contratos) — nadie más debería poder estampar esa firma, y esta
-// pantalla la abre la propia colaboradora, no la firmante.
+// LAS DOS FIRMAS SE ESTAMPAN AL MOSTRAR, NUNCA AL GUARDAR — igual que en
+// admin/contratos: `documento_html` congela el texto PACTADO, no cómo se ve.
+// La de la empresa (0397, `fn_firma_empresa`) ya no depende de que quien mire
+// SEA la firmante: es la del cargo, no la de la sesión, así que puede
+// mostrarse aquí, donde quien mira es la propia colaboradora. La suya propia
+// (`fn_mi_firma`, sin cambios) sale de la misma tabla y función que ya usa el
+// editor de admin/personas/[id] — 0397 solo le abrió el guardado a cualquier
+// persona, no solo a admin/líder.
 function MiContratoContenido() {
   const router = useRouter();
   const supabase = createAdminSupabaseClient();
 
-  const [yo, setYo] = useState<{ id: string; nombre: string } | null>(null);
+  const [yo, setYo] = useState<{ id: string; nombre: string; nombreOficial: string } | null>(null);
   const [contrato, setContrato] = useState<{
     tipo: string;
     fecha_inicio: string;
@@ -41,6 +46,9 @@ function MiContratoContenido() {
     storage_path: string | null;
     documento_html: string | null;
   } | null>(null);
+  const [miFirma, setMiFirma] = useState<string | null>(null);
+  const [firmaEmpresa, setFirmaEmpresa] = useState<string | null>(null);
+  const [avisoFirma, setAvisoFirma] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,35 +71,44 @@ function MiContratoContenido() {
     }
 
     const { data: p } = await supabase
-      .from("personas")
-      .select("id, nombres, apellidos")
-      .eq("auth_user_id", uid)
-      .maybeSingle();
+      .from("personas").select("id, nombres, apellidos").eq("auth_user_id", uid).maybeSingle();
     if (!p) {
       setCargando(false);
       setError("Tu cuenta todavía no está enlazada con tu ficha. Avisa a Desarrollo Organizacional.");
       return;
     }
-    const yoActual = { id: p.id as string, nombre: `${p.nombres as string} ${p.apellidos as string}` };
+    // `nombre_dni`, no `nombres`+`apellidos`: es el nombre que se imprime en el
+    // contrato y en la firma tipográfica (ver FirmaEditor), y sale del DNI, no
+    // de cómo se escribió la ficha.
+    const { data: ficha } = await supabase
+      .from("datos_personales").select("nombre_dni").eq("persona_id", p.id).maybeSingle();
+    const nombre = `${p.nombres as string} ${p.apellidos as string}`;
+    const yoActual = { id: p.id as string, nombre, nombreOficial: (ficha?.nombre_dni as string | null) || nombre };
     setYo(yoActual);
 
-    const { data: c, error: eContrato } = await supabase
-      .from("contratos_generados")
-      .select("tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html")
-      .eq("persona_id", yoActual.id)
-      .is("anulado_at", null)
-      .order("generado_at", { ascending: false })
-      .order("fecha_inicio", { ascending: false })
-      .order("fecha_fin", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [{ data: c, error: eContrato }, { data: mf }, { data: fe }] = await Promise.all([
+      supabase
+        .from("contratos_generados")
+        .select("tipo, fecha_inicio, fecha_fin, fecha_firma, storage_path, documento_html")
+        .eq("persona_id", yoActual.id)
+        .is("anulado_at", null)
+        .order("generado_at", { ascending: false })
+        .order("fecha_inicio", { ascending: false })
+        .order("fecha_fin", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.rpc("fn_mi_firma"),
+      supabase.rpc("fn_firma_empresa"),
+    ]);
     setCargando(false);
     if (eContrato) {
       setError(eContrato.message);
       return;
     }
     setContrato(c as typeof contrato);
+    setMiFirma((mf as string | null) ?? null);
+    setFirmaEmpresa((fe as string | null) ?? null);
   }, [supabase, router]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -143,7 +160,9 @@ function MiContratoContenido() {
     );
   }
 
-  const html = contrato.documento_html.replaceAll(MARCADOR_FIRMA_EMPRESA, "&nbsp;");
+  const html = contrato.documento_html
+    .replaceAll(MARCADOR_FIRMA_EMPRESA, firmaEmpresa ? `<img src="${firmaEmpresa}" alt="Firma de la empresa" />` : "&nbsp;")
+    .replaceAll(MARCADOR_FIRMA_PERSONA, miFirma ? `<img src="${miFirma}" alt="Tu firma" />` : "&nbsp;");
 
   return (
     <main className="mx-auto max-w-2xl p-6 print:p-0">
@@ -171,6 +190,26 @@ function MiContratoContenido() {
           Este contrato todavía no ha sido firmado. Lo que ves es el borrador tal como se generó.
         </p>
       )}
+
+      {/* Firmar acá NO reemplaza el escaneado físico — el trámite legal sigue
+          siendo el mismo. Es para que la firma que ya generaste (o generes
+          ahora) aparezca en el documento que ves y que imprimes, en tu propio
+          apartado, en vez de quedar siempre en blanco. */}
+      <div className="mb-4 rounded-lg border border-sand bg-papel p-4 print:hidden">
+        <h2 className="mb-1 font-serif text-base">Tu firma</h2>
+        <p className="mb-3 text-xs text-taupe">
+          Aparecerá en tu apartado del contrato de arriba, junto a la de la empresa.
+        </p>
+        {avisoFirma && (
+          <p className={`mb-3 text-xs ${avisoFirma.tipo === "ok" ? "text-verde" : "text-rojo"}`}>{avisoFirma.texto}</p>
+        )}
+        <FirmaEditor
+          supabase={supabase}
+          nombreOficial={yo.nombreOficial}
+          avisar={(tipo, texto) => setAvisoFirma({ tipo, texto })}
+          onGuardada={setMiFirma}
+        />
+      </div>
 
       <div
         className="hoja rounded-lg border border-sand p-8 text-sm leading-relaxed print:rounded-none print:border-0 print:p-0"
