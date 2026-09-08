@@ -127,7 +127,8 @@ type DatosFormulario = {
   centroFormacionNombre: string;
   centroFormacionRuc: string;
   centroFormacionDomicilio: string;
-  centroFormacionRepresentante: string;
+  centroFormacionRepresentanteNombre: string;
+  centroFormacionRepresentanteCargo: string;
   carreraEspecialidad: string;
   cicloAcademico: string;
   gradoTituloTexto: string;
@@ -377,7 +378,8 @@ function camposIniciales(p: Persona, sedeNombre: string, sedeCiudad: string | nu
     centroFormacionNombre: "",
     centroFormacionRuc: "",
     centroFormacionDomicilio: "",
-    centroFormacionRepresentante: "",
+    centroFormacionRepresentanteNombre: "",
+    centroFormacionRepresentanteCargo: "",
     carreraEspecialidad: "",
     cicloAcademico: "",
     gradoTituloTexto: "",
@@ -435,7 +437,8 @@ export default function ContratosPage() {
   const [centroFormacionNombreEditado, setCentroFormacionNombreEditado] = useState("");
   const [centroFormacionRucEditado, setCentroFormacionRucEditado] = useState("");
   const [centroFormacionDomicilioEditado, setCentroFormacionDomicilioEditado] = useState("");
-  const [centroFormacionRepresentanteEditado, setCentroFormacionRepresentanteEditado] = useState("");
+  const [centroFormacionRepresentanteNombreEditado, setCentroFormacionRepresentanteNombreEditado] = useState("");
+  const [centroFormacionRepresentanteCargoEditado, setCentroFormacionRepresentanteCargoEditado] = useState("");
   const [carreraEspecialidadEditada, setCarreraEspecialidadEditada] = useState("");
   const [cicloAcademicoEditado, setCicloAcademicoEditado] = useState("");
   // Solo profesional (0348): "Bachiller en X — Universidad Y, egresado el Z".
@@ -520,7 +523,7 @@ export default function ContratosPage() {
 
   const { avisar } = useToast();
 
-  /** Vuelca al formulario los veintiún campos editables, de una sola vez. */
+  /** Vuelca al formulario los veintidós campos editables, de una sola vez. */
   function aplicarCampos(d: DatosFormulario) {
     setCargoEditado(d.cargo);
     setCiudadEditada(d.ciudad);
@@ -536,7 +539,8 @@ export default function ContratosPage() {
     setCentroFormacionNombreEditado(d.centroFormacionNombre);
     setCentroFormacionRucEditado(d.centroFormacionRuc);
     setCentroFormacionDomicilioEditado(d.centroFormacionDomicilio);
-    setCentroFormacionRepresentanteEditado(d.centroFormacionRepresentante);
+    setCentroFormacionRepresentanteNombreEditado(d.centroFormacionRepresentanteNombre);
+    setCentroFormacionRepresentanteCargoEditado(d.centroFormacionRepresentanteCargo);
     setCarreraEspecialidadEditada(d.carreraEspecialidad);
     setCicloAcademicoEditado(d.cicloAcademico);
     setGradoTituloTextoEditado(d.gradoTituloTexto);
@@ -567,7 +571,8 @@ export default function ContratosPage() {
       centroFormacionNombre: centroFormacionNombreEditado,
       centroFormacionRuc: centroFormacionRucEditado,
       centroFormacionDomicilio: centroFormacionDomicilioEditado,
-      centroFormacionRepresentante: centroFormacionRepresentanteEditado,
+      centroFormacionRepresentanteNombre: centroFormacionRepresentanteNombreEditado,
+      centroFormacionRepresentanteCargo: centroFormacionRepresentanteCargoEditado,
       carreraEspecialidad: carreraEspecialidadEditada,
       cicloAcademico: cicloAcademicoEditado,
       gradoTituloTexto: gradoTituloTextoEditado,
@@ -819,7 +824,8 @@ export default function ContratosPage() {
     centroFormacionNombreEditado,
     centroFormacionRucEditado,
     centroFormacionDomicilioEditado,
-    centroFormacionRepresentanteEditado,
+    centroFormacionRepresentanteNombreEditado,
+    centroFormacionRepresentanteCargoEditado,
     carreraEspecialidadEditada,
     cicloAcademicoEditado,
     gradoTituloTextoEditado,
@@ -976,7 +982,8 @@ export default function ContratosPage() {
           centroFormacionNombre: centroFormacionNombreEditado.trim() || null,
           centroFormacionRuc: centroFormacionRucEditado.trim() || null,
           centroFormacionDomicilio: centroFormacionDomicilioEditado.trim() || null,
-          centroFormacionRepresentante: centroFormacionRepresentanteEditado.trim() || null,
+          centroFormacionRepresentanteNombre: centroFormacionRepresentanteNombreEditado.trim() || null,
+          centroFormacionRepresentanteCargo: centroFormacionRepresentanteCargoEditado.trim() || null,
           carreraEspecialidad: carreraEspecialidadEditada.trim() || null,
           cicloAcademico: cicloAcademicoEditado.trim() || null,
           gradoTituloTexto: gradoTituloTextoEditado.trim() || null,
@@ -1147,8 +1154,11 @@ export default function ContratosPage() {
     if (centroFormacionDomicilioEditado.trim() === "") {
       bloqueos.push("Completa el domicilio del centro de formación.");
     }
-    if (centroFormacionRepresentanteEditado.trim() === "") {
-      bloqueos.push("Completa el representante del centro de formación.");
+    if (centroFormacionRepresentanteNombreEditado.trim() === "") {
+      bloqueos.push("Completa el nombre del representante del centro de formación.");
+    }
+    if (centroFormacionRepresentanteCargoEditado.trim() === "") {
+      bloqueos.push("Completa el cargo del representante del centro de formación.");
     }
     if (carreraEspecialidadEditada.trim() === "") {
       bloqueos.push("Completa la carrera / especialidad de la practicante.");
@@ -2094,11 +2104,22 @@ export default function ContratosPage() {
                             />
                           </label>
                           <label className="text-sm">
-                            Centro de formación — representante
+                            Representante del centro — nombre
                             <input
                               className="mt-1 w-full rounded border border-sand p-2"
-                              value={centroFormacionRepresentanteEditado}
-                              onChange={(e) => setCentroFormacionRepresentanteEditado(e.target.value)}
+                              value={centroFormacionRepresentanteNombreEditado}
+                              onChange={(e) => setCentroFormacionRepresentanteNombreEditado(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="text-sm">
+                            Representante del centro — cargo
+                            <input
+                              className="mt-1 w-full rounded border border-sand p-2"
+                              placeholder="Ej.: Director Académico"
+                              value={centroFormacionRepresentanteCargoEditado}
+                              onChange={(e) => setCentroFormacionRepresentanteCargoEditado(e.target.value)}
                             />
                           </label>
                         </div>
