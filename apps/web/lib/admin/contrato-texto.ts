@@ -92,7 +92,15 @@ export interface DatosContrato {
   centroFormacionNombre: string | null;
   centroFormacionRuc: string | null;
   centroFormacionDomicilio: string | null;
-  centroFormacionRepresentante: string | null;
+  /**
+   * Antes era un solo campo de texto libre («representante»). Se separó
+   * (0399) porque el convenio necesita decir en qué calidad firma esa
+   * persona por el centro — "representado por Juan Pérez, en su calidad de
+   * Director Académico" — y un campo único dejaba el cargo a discreción de
+   * quien tipeaba, o ausente.
+   */
+  centroFormacionRepresentanteNombre: string | null;
+  centroFormacionRepresentanteCargo: string | null;
   /** Preprofesional: qué carrera cursa y en qué ciclo. */
   carreraEspecialidad: string | null;
   cicloAcademico: string | null;
@@ -294,7 +302,12 @@ function escapado(d: DatosContrato): DatosContrato {
     centroFormacionNombre: d.centroFormacionNombre ? escapeHtml(d.centroFormacionNombre) : null,
     centroFormacionRuc: d.centroFormacionRuc ? escapeHtml(d.centroFormacionRuc) : null,
     centroFormacionDomicilio: d.centroFormacionDomicilio ? escapeHtml(d.centroFormacionDomicilio) : null,
-    centroFormacionRepresentante: d.centroFormacionRepresentante ? escapeHtml(d.centroFormacionRepresentante) : null,
+    centroFormacionRepresentanteNombre: d.centroFormacionRepresentanteNombre
+      ? escapeHtml(d.centroFormacionRepresentanteNombre)
+      : null,
+    centroFormacionRepresentanteCargo: d.centroFormacionRepresentanteCargo
+      ? escapeHtml(d.centroFormacionRepresentanteCargo)
+      : null,
     carreraEspecialidad: d.carreraEspecialidad ? escapeHtml(d.carreraEspecialidad) : null,
     cicloAcademico: d.cicloAcademico ? escapeHtml(d.cicloAcademico) : null,
     gradoTituloTexto: d.gradoTituloTexto ? escapeHtml(d.gradoTituloTexto) : null,
@@ -427,7 +440,7 @@ function enLaCiudadDe(d: DatosContrato): string {
 function bloqueFirmas(
   d: DatosContrato,
   etiquetaPersona = "LA COLABORADORA",
-  tercero?: { etiqueta: string; nombre: string; ruc: string },
+  tercero?: { etiqueta: string; nombre: string; ruc: string; representanteNombre: string; representanteCargo: string },
 ): string {
   return `
     <div class="firmas">
@@ -439,7 +452,7 @@ function bloqueFirmas(
         tercero
           ? `<div>
         <p class="linea">&nbsp;</p>
-        <p><strong>${tercero.etiqueta}</strong><br/>${tercero.nombre}<br/>RUC N.° ${tercero.ruc}</p>
+        <p><strong>${(tercero.representanteCargo || tercero.etiqueta).toUpperCase()}</strong><br/>${tercero.representanteNombre}<br/>${tercero.nombre}<br/>RUC N.° ${tercero.ruc}</p>
       </div>`
           : ""
       }
@@ -919,13 +932,19 @@ function documentoConvenio(d: DatosContrato): string {
       : `<strong>[FALTA ASIGNAR LA MODALIDAD DE ${etiquetaPracticante} EN EQUIPO — preprofesional (30h) o profesional
         (48h), art. 44 Ley N.° 28518, antes de imprimir este convenio]</strong>`;
 
+  const representanteCentroTexto = d.centroFormacionRepresentanteNombre
+    ? `${d.centroFormacionRepresentanteNombre}${
+        d.centroFormacionRepresentanteCargo ? `, en su calidad de ${d.centroFormacionRepresentanteCargo}` : ""
+      }`
+    : "[completar]";
+
   const datosCentro = esPreprofesional
     ? `
     <h3>II. DATOS DEL CENTRO DE FORMACIÓN PROFESIONAL</h3>
     <p>${d.centroFormacionNombre ?? "[completar — razón social del centro de formación]"}, identificado con
     R.U.C. N.° ${d.centroFormacionRuc ?? "[completar]"}, con domicilio en
     ${d.centroFormacionDomicilio ?? "[completar]"}, representado por
-    ${d.centroFormacionRepresentante ?? "[completar]"}, a quien en adelante se denominará EL CENTRO DE FORMACIÓN
+    ${representanteCentroTexto}, a quien en adelante se denominará EL CENTRO DE FORMACIÓN
     PROFESIONAL.</p>`
     : "";
 
@@ -1137,6 +1156,8 @@ function documentoConvenio(d: DatosContrato): string {
             etiqueta: "EL CENTRO DE FORMACIÓN PROFESIONAL",
             nombre: d.centroFormacionNombre ?? "[completar]",
             ruc: d.centroFormacionRuc ?? "[completar]",
+            representanteNombre: d.centroFormacionRepresentanteNombre ?? "[completar]",
+            representanteCargo: d.centroFormacionRepresentanteCargo ?? "",
           })
         : bloqueFirmas(d, etiquetaPracticante)
     }
