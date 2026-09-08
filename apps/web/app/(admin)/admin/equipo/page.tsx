@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Baby } from "lucide-react";
 import bcrypt from "bcryptjs";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { EsqueletoTabla } from "@/components/cargando";
@@ -994,18 +995,18 @@ export default function EquipoPage() {
   }
 
   const formulario = (modo: "alta" | "edicion") => (
-    <div className="mb-6 grid max-w-3xl gap-4 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+    <div className="mb-6 grid max-w-3xl gap-4 rounded-superficie border border-sand bg-papel p-5 sm:grid-cols-2">
       <label className="flex flex-col gap-1 text-sm">
         Nombres
-        <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="rounded-lg border px-3 py-2" />
+        <input value={form.nombres} onChange={(e) => setForm({ ...form, nombres: e.target.value })} className="rounded-control border px-3 py-2" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Apellidos
-        <input value={form.apellidos} onChange={(e) => setForm({ ...form, apellidos: e.target.value })} className="rounded-lg border px-3 py-2" />
+        <input value={form.apellidos} onChange={(e) => setForm({ ...form, apellidos: e.target.value })} className="rounded-control border px-3 py-2" />
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Sede
-        <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-lg border bg-crema px-3 py-2">
+        <select value={form.sedeId} onChange={(e) => setForm({ ...form, sedeId: e.target.value })} className="rounded-control border bg-crema px-3 py-2">
           <option value="">Elegir…</option>
           {/* El nombre, no el código: al dar de alta a alguien se elige
               "Taller LIM", no "LIM". Con dos sedes en Lima no alcanza. */}
@@ -1016,7 +1017,7 @@ export default function EquipoPage() {
       </label>
       <label className="flex flex-col gap-1 text-sm">
         Rol
-        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} className="rounded-lg border bg-crema px-3 py-2">
+        <select value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value as Rol })} className="rounded-control border bg-crema px-3 py-2">
           {ROLES_OPCIONES.map((r) => (
             <option key={r.valor} value={r.valor}>{r.label}</option>
           ))}
@@ -1037,7 +1038,7 @@ export default function EquipoPage() {
           onChange={(e) => setForm({ ...form, cargo: e.target.value })}
           placeholder="—"
           maxLength={60}
-          className="rounded-lg border bg-crema px-3 py-2"
+          className="rounded-control border bg-crema px-3 py-2"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
@@ -1051,7 +1052,7 @@ export default function EquipoPage() {
           value={form.funcion}
           onChange={(e) => setForm({ ...form, funcion: e.target.value })}
           disabled={modo === "edicion" && !funcionesOk}
-          className="rounded-lg border bg-crema px-3 py-2 disabled:opacity-50"
+          className="rounded-control border bg-crema px-3 py-2 disabled:opacity-50"
         >
           {(() => {
             const activas = areas.filter((a) => a.activa);
@@ -1075,7 +1076,7 @@ export default function EquipoPage() {
       </label>
       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
         Correo (opcional)
-        <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-lg border px-3 py-2" />
+        <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-control border px-3 py-2" />
       </label>
       {modo === "edicion" && puedeSalarios && (
         // La fecha de ingreso decide qué feriados le corresponden: un feriado anterior al ingreso
@@ -1086,7 +1087,7 @@ export default function EquipoPage() {
             type="date"
             value={form.fechaIngreso}
             onChange={(e) => setForm({ ...form, fechaIngreso: e.target.value })}
-            className="rounded-lg border px-3 py-2"
+            className="rounded-control border px-3 py-2"
           />
           {(() => {
             const primera = editandoId ? ingresos.get(editandoId)?.primera_entrada : null;
@@ -1141,7 +1142,7 @@ export default function EquipoPage() {
                 min={form.fechaIngreso || undefined}
                 disabled={cesada || !finesOk}
                 onChange={(e) => setForm({ ...form, finContrato: e.target.value })}
-                className="rounded-lg border px-3 py-2 disabled:opacity-50"
+                className="rounded-control border px-3 py-2 disabled:opacity-50"
               />
             </label>
             <span className="text-xs text-taupe">
@@ -1163,7 +1164,7 @@ export default function EquipoPage() {
             {/* La consecuencia, mientras se escribe la fecha y no después de
                 guardarla: quien la pone tiene que poder decidir sabiéndola. */}
             {!cesada && !antesDelIngreso && saleDelTablero(form.finContrato || undefined) && (
-              <span className="rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+              <span className="rounded-control bg-ambar/15 px-3 py-2 text-xs text-ambar">
                 Con esta fecha sale del tablero de Documentación: ya nadie le va a perseguir la firma
                 de su declaración de ruta. Sigue cobrando la movilidad de los días que le queden, así
                 que esos días quedan pagados sin el pacto individual que los sostiene — y eso se
@@ -1183,7 +1184,7 @@ export default function EquipoPage() {
                       ? "ej. el contrato se renovó por 6 meses"
                       : "ej. carta de no renovación entregada el 04/08"
                   }
-                  className="rounded-lg border px-3 py-2"
+                  className="rounded-control border px-3 py-2"
                 />
               </label>
             )}
@@ -1219,7 +1220,7 @@ export default function EquipoPage() {
             value={form.tipoVinculo}
             onChange={(e) => setForm({ ...form, tipoVinculo: e.target.value })}
             disabled={modo === "edicion" && !funcionesOk}
-            className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
+            className="rounded-control border border-sand bg-papel px-3 py-2 disabled:opacity-50"
           >
             <option value="planilla">Planilla — contrato de trabajo</option>
             <option value="prueba">Prueba — días de prueba, aún sin contrato</option>
@@ -1254,7 +1255,7 @@ export default function EquipoPage() {
             value={form.practicanteModalidad}
             onChange={(e) => setForm({ ...form, practicanteModalidad: e.target.value })}
             disabled={modo === "edicion" && !funcionesOk}
-            className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
+            className="rounded-control border border-sand bg-papel px-3 py-2 disabled:opacity-50"
           >
             <option value="">Sin definir todavía</option>
             <option value="preprofesional">Preprofesional — estudiante, máx. 30h/semana</option>
@@ -1288,7 +1289,7 @@ export default function EquipoPage() {
               value={form.retencion4ta}
               onChange={(e) => setForm({ ...form, retencion4ta: e.target.value })}
               disabled={modo === "edicion" && !retencionesOk}
-              className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
+              className="rounded-control border border-sand bg-papel px-3 py-2 disabled:opacity-50"
             >
               <option value="">No retenerle</option>
               <option value="automatica">Automática — 8 % solo si el recibo pasa de S/1,500</option>
@@ -1309,7 +1310,7 @@ export default function EquipoPage() {
               value={form.constancia4ta}
               onChange={(e) => setForm({ ...form, constancia4ta: e.target.value })}
               disabled={modo === "edicion" && !retencionesOk}
-              className="rounded-lg border border-sand bg-papel px-3 py-2 disabled:opacity-50"
+              className="rounded-control border border-sand bg-papel px-3 py-2 disabled:opacity-50"
             />
             <span className="text-xs text-taupe">
               Su constancia del Formulario Virtual 1609. Mientras esté vigente NO se le
@@ -1359,7 +1360,7 @@ export default function EquipoPage() {
     const p = personas.find((x) => x.id === salEditId);
     if (!p) return null;
     return (
-      <div className="mb-6 grid max-w-2xl gap-4 rounded-2xl border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
+      <div className="mb-6 grid max-w-2xl gap-4 rounded-superficie border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
         <p className="text-sm font-medium sm:col-span-2">Salario de {p.nombres} {p.apellidos}</p>
         <label className="flex flex-col gap-1 text-sm">
           Rango
@@ -1373,7 +1374,7 @@ export default function EquipoPage() {
               rango: e.target.value,
               salario: String(baseDeclaradaDe(e.target.value) ?? salForm.salario),
             })}
-            className="rounded-lg border bg-crema px-3 py-2"
+            className="rounded-control border bg-crema px-3 py-2"
           >
             {RANGOS.map((r) => (
               <option key={r.codigo} value={r.codigo}>{r.label} · {formatSoles(r.baseDeclarada)}</option>
@@ -1384,7 +1385,7 @@ export default function EquipoPage() {
           Base declarada (S/)
           <input type="number" min="0" step="10" value={salForm.salario}
             onChange={(e) => setSalForm({ ...salForm, salario: e.target.value })}
-            className={`rounded-lg border px-3 py-2 ${fueraDeLaBase ? "border-ambar" : ""}`} />
+            className={`rounded-control border px-3 py-2 ${fueraDeLaBase ? "border-ambar" : ""}`} />
           {/* Lo que va al PLAME y lo que el sistema paga. Se puede pisar cuando se
               acordó otra cosa; el aviso deja constancia de que fue deliberado. */}
           {fueraDeLaBase && (
@@ -1406,11 +1407,11 @@ export default function EquipoPage() {
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Vigente desde
-          <input type="date" value={salForm.vigenteDesde} onChange={(e) => setSalForm({ ...salForm, vigenteDesde: e.target.value })} className="rounded-lg border px-3 py-2" />
+          <input type="date" value={salForm.vigenteDesde} onChange={(e) => setSalForm({ ...salForm, vigenteDesde: e.target.value })} className="rounded-control border px-3 py-2" />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Nota (opcional)
-          <input value={salForm.nota} onChange={(e) => setSalForm({ ...salForm, nota: e.target.value })} placeholder="ej. ascenso, ajuste anual" className="rounded-lg border px-3 py-2" />
+          <input value={salForm.nota} onChange={(e) => setSalForm({ ...salForm, nota: e.target.value })} placeholder="ej. ascenso, ajuste anual" className="rounded-control border px-3 py-2" />
         </label>
         <p className="text-xs text-taupe sm:col-span-2">
           Cambiar el salario cierra el tramo anterior el día previo a la vigencia y abre uno nuevo — los meses ya pagados no se alteran.
@@ -1430,7 +1431,7 @@ export default function EquipoPage() {
     if (!p) return null;
     const fin = finesContrato.get(p.id);
     return (
-      <div className="mb-6 grid max-w-2xl gap-4 rounded-2xl border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
+      <div className="mb-6 grid max-w-2xl gap-4 rounded-superficie border border-rojo/30 bg-papel p-5 sm:grid-cols-2">
         <p className="text-sm font-medium sm:col-span-2">Registrar la salida de {p.nombres} {p.apellidos}</p>
         <label className="flex flex-col gap-1 text-sm">
           Último día trabajado
@@ -1441,7 +1442,7 @@ export default function EquipoPage() {
             // plan. Lo previsto se anota en «Último día que trabaja por contrato».
             max={hoyLima()}
             onChange={(e) => setCeseForm({ ...ceseForm, fecha: e.target.value })}
-            className="rounded-lg border px-3 py-2"
+            className="rounded-control border px-3 py-2"
           />
           {fin && fin !== ceseForm.fecha && (
             <span className="text-xs text-taupe">
@@ -1457,7 +1458,7 @@ export default function EquipoPage() {
           <select
             value={ceseForm.motivo}
             onChange={(e) => setCeseForm({ ...ceseForm, motivo: e.target.value as MotivoCese })}
-            className="rounded-lg border bg-crema px-3 py-2"
+            className="rounded-control border bg-crema px-3 py-2"
           >
             <option value="">Elegir…</option>
             {MOTIVOS_CESE.map((m) => (
@@ -1500,7 +1501,7 @@ export default function EquipoPage() {
     // en el único panel de la pantalla cuyo motivo entero es que no se pierda
     // de vista.
     return (
-      <div role="status" aria-live="polite" className="mb-6 max-w-2xl rounded-2xl border border-rojo/30 bg-papel p-5">
+      <div role="status" aria-live="polite" className="mb-6 max-w-2xl rounded-superficie border border-rojo/30 bg-papel p-5">
         <p className="text-sm font-medium">PIN de {pinNuevo.nombre}</p>
         <p className="mt-3 font-serif text-6xl tracking-[0.25em] tabular-nums text-tinta">{pinNuevo.pin}</p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -1524,7 +1525,7 @@ export default function EquipoPage() {
     const p = personas.find((x) => x.id === histId);
     if (!p) return null;
     return (
-      <div className="mb-6 max-w-2xl rounded-2xl border border-sand bg-papel p-5">
+      <div className="mb-6 max-w-2xl rounded-superficie border border-sand bg-papel p-5">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-sm font-medium">Historial de salario — {p.nombres} {p.apellidos}</p>
           <button onClick={() => setHistId(null)} className="text-xs text-taupe hover:underline">Cerrar</button>
@@ -1540,7 +1541,7 @@ export default function EquipoPage() {
           // una tarjeta angosta con su propio molde (border-sand, no bg-sand/70
           // en el encabezado).
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm [font-variant-numeric:tabular-nums]">
               <thead className="text-left text-taupe">
                 <tr>
                   <th className="py-1 font-normal">Rango</th>
@@ -1586,7 +1587,7 @@ export default function EquipoPage() {
         </div>
 
         {puedeSalarios && salariosEstado === "error" && (
-          <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar los salarios, así que su edición está deshabilitada (para no pisar
             un salario real con el valor por defecto).{" "}
             <Boton variante="enlace" className="font-medium" onClick={() => void cargarSalarios()}>
@@ -1653,14 +1654,14 @@ export default function EquipoPage() {
           // consulta principal se veía igual que un filtro sin resultados —
           // el peor falso negativo que puede dar esta pantalla (hallazgo de
           // la auditoría de apariencia, 2026-09-06/07).
-          <div className="max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
+          <div className="max-w-2xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo-profundo">
             <p>No se pudo cargar el equipo — esto no quiere decir que no haya nadie.</p>
             <Boton variante="secundario" tamano="sm" className="mt-2" onClick={() => void cargar()}>
               Reintentar
             </Boton>
           </div>
         ) : visibles.length === 0 ? (
-          <div className="max-w-2xl rounded-lg bg-sand/40 px-4 py-3 text-sm text-taupe">
+          <div className="max-w-2xl rounded-control bg-sand/40 px-4 py-3 text-sm text-taupe">
             Ninguna persona coincide con lo que buscas.{" "}
             <Boton
               variante="enlace"
@@ -1671,7 +1672,7 @@ export default function EquipoPage() {
             </Boton>
           </div>
         ) : (
-          <Tabla alturaMaxima="70vh">
+          <Tabla alturaMaxima="70vh" className="[font-variant-numeric:tabular-nums]">
             <TablaEncabezado>
               <Th>Nombre</Th>
               <Th>Sede</Th>
@@ -1688,7 +1689,9 @@ export default function EquipoPage() {
                   <td className="px-4 py-2">
                     <button onClick={() => router.push(`/admin/personas/${p.id}`)} className="text-left font-medium text-tinta hover:underline" title="Ver perfil completo">{p.nombres} {p.apellidos}</button>
                     {p.con_hijos && (
-                      <span title="Asignación familiar activa" className="ml-1.5 cursor-default text-xs">👶</span>
+                      <span title="Asignación familiar activa" className="ml-1.5 inline-block align-text-bottom text-taupe">
+                        <Baby size={14} />
+                      </span>
                     )}
                     {puedeSalarios && ingresos.get(p.id)?.fecha_ingreso && (
                       <div className="text-xs text-taupe">Ingresó: {fmtFechaDMA(ingresos.get(p.id)!.fecha_ingreso!)}</div>

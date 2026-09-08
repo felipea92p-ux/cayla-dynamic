@@ -646,7 +646,7 @@ export default function CorreccionesPage() {
             están desordenados; estas son marcas que NO existen todavía. Si nadie
             las repone, ese día se paga como si la persona no hubiera venido. */}
         {apartadas.length > 0 && (
-          <div className="mb-6 max-w-3xl rounded-xl border border-rojo/40 bg-rojo/5 p-4">
+          <div className="mb-6 max-w-3xl rounded-superficie border border-rojo/40 bg-rojo/5 p-4">
             <p className="text-sm font-medium text-tinta">
               {apartadas.length === 1
                 ? "1 marca no llegó a registrarse"
@@ -658,7 +658,7 @@ export default function CorreccionesPage() {
             </p>
             <ul className="flex flex-col gap-2">
               {apartadas.map((m) => (
-                <li key={m.id} className="rounded-lg bg-papel px-3 py-2 text-sm">
+                <li key={m.id} className="rounded-control bg-papel px-3 py-2 text-sm">
                   <div>
                     <span className="font-medium text-tinta">{m.persona}</span>
                     <span className="text-taupe">
@@ -734,7 +734,7 @@ export default function CorreccionesPage() {
                 <li key={`${d.persona_id}-${d.fecha}`}>
                   <button
                     onClick={() => abrir(d)}
-                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${hover}`}
+                    className={`w-full rounded-control px-3 py-2 text-left text-sm transition-colors ${hover}`}
                   >
                     <span className="font-medium text-tinta">{d.nombre}</span>
                     <span className="text-taupe"> · {d.sede} · {d.fecha}</span>
@@ -748,7 +748,7 @@ export default function CorreccionesPage() {
             <>
               {/* 1 · El día está roto de verdad. Es el único que pide trabajo. */}
               {rotos.length > 0 && (
-                <div className="mb-6 max-w-3xl rounded-xl border border-ambar/40 bg-ambar/5 p-4">
+                <div className="mb-6 max-w-3xl rounded-superficie border border-ambar/40 bg-ambar/5 p-4">
                   <p className="text-sm font-medium text-tinta">
                     {rotos.length === 1
                       ? "1 día quedó con una secuencia imposible"
@@ -765,7 +765,7 @@ export default function CorreccionesPage() {
 
               {/* 2 · El día cuadra; falta decir si la hora que inventó el robot vale. */}
               {cerrados.length > 0 && (
-                <div className="mb-6 max-w-3xl rounded-xl border border-pizarra/40 bg-pizarra/5 p-4">
+                <div className="mb-6 max-w-3xl rounded-superficie border border-pizarra/40 bg-pizarra/5 p-4">
                   <p className="text-sm font-medium text-tinta">
                     {cerrados.length === 1
                       ? "1 día espera que confirmes la hora de salida"
@@ -783,7 +783,7 @@ export default function CorreccionesPage() {
 
               {/* 3 · Ya no hay nada que hacer, y aun así siguen marcados. */}
               {sellados.length > 0 && (
-                <div className="mb-6 max-w-3xl rounded-xl border border-sand bg-sand/20 p-4">
+                <div className="mb-6 max-w-3xl rounded-superficie border border-sand bg-sand/20 p-4">
                   <p className="text-sm font-medium text-tinta">
                     {sellados.length === 1
                       ? "1 día quedó marcado y ya cuadra"
@@ -833,7 +833,7 @@ export default function CorreccionesPage() {
                 "secuencia imposible" aunque el motivo real fuera un auto-cierre,
                 que es otra cosa. Ahora se pregunta en vivo y cada caso dice lo suyo. */}
             {diaIncoherente && (
-              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
+              <div className="mb-4 rounded-control border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
                 <strong className="text-tinta">La secuencia de marcas de este día no es posible.</strong>{" "}
                 <span className="text-taupe">
                   Por ejemplo, dos salidas seguidas sin retorno entre medio. Suele pasar cuando una
@@ -843,7 +843,7 @@ export default function CorreccionesPage() {
               </div>
             )}
             {marcajes.some((m) => m.anulada_at === null && m.origen === "auto_cierre" && m.estado_revision === "pendiente_revision") && (
-              <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
+              <div className="mb-4 rounded-control border border-ambar/40 bg-ambar/5 px-4 py-3 text-sm leading-relaxed">
                 <strong className="text-tinta">Este día lo cerró el sistema.</strong>{" "}
                 <span className="text-taupe">
                   Nadie marcó la salida, así que el auto-cierre nocturno puso una hora. Mientras
@@ -853,7 +853,7 @@ export default function CorreccionesPage() {
               </div>
             )}
             {jornada && (
-              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-sand/50 px-4 py-3 text-sm">
+              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1 rounded-control border bg-sand/50 px-4 py-3 text-sm">
                 <span>Estado: <strong>{jornada.estado}</strong></span>
                 <span>Horas: <strong>{jornada.horas_trabajadas ?? "—"}</strong></span>
                 <span className="flex items-center gap-2">
@@ -882,7 +882,7 @@ export default function CorreccionesPage() {
             {/* De dónde sale la tardanza: la hora esperada de ese día y su origen.
                 Si viene de un turno puntual (pisa el horario base), se resalta. */}
             {esperado && (
-              <div className={`mb-4 rounded-lg border px-4 py-2.5 text-sm ${
+              <div className={`mb-4 rounded-control border px-4 py-2.5 text-sm ${
                 esperado.origen === "sin_horario" && leTocaHorario(personaSel)
                   ? "border-ambar/40 bg-ambar/5" : ""}`}>
                 {esperado.entrada ? (
@@ -928,7 +928,7 @@ export default function CorreccionesPage() {
             {marcajes.length === 0 ? (
               <p className="mb-4 text-sm text-taupe">No hay marcajes ese día. Puedes agregar uno abajo.</p>
             ) : (
-              <Tabla className="mb-4">
+              <Tabla className="mb-4 [font-variant-numeric:tabular-nums]">
                 <TablaEncabezado>
                   <Th>Tipo</Th>
                   <Th>Hora</Th>
@@ -1032,7 +1032,7 @@ export default function CorreccionesPage() {
             )}
 
             {/* Agregar marcaje faltante */}
-            <div className="rounded-lg border bg-sand/50 p-4">
+            <div className="rounded-control border bg-sand/50 p-4">
               <h2 className="mb-3 text-sm font-medium">Agregar un marcaje faltante</h2>
               <div className="flex flex-wrap items-end gap-3">
                 <CampoSelect etiqueta="Tipo" value={agregarTipo} onChange={(e) => setAgregarTipo(e.target.value as TipoMarca)}>
@@ -1057,7 +1057,7 @@ export default function CorreccionesPage() {
 
             {/* Historial de correcciones: el motivo de cada cambio, quién y cuándo.
                 Es donde se LEE la auditoría que cada corrección va guardando. */}
-            <div className="mt-4 overflow-hidden rounded-2xl border border-sand bg-papel">
+            <div className="mt-4 overflow-hidden rounded-superficie border border-sand bg-papel">
               <h2 className="border-b bg-sand/50 px-4 py-2 text-sm font-medium">
                 Historial de correcciones · {personaSel.nombres} {personaSel.apellidos}
               </h2>
@@ -1154,7 +1154,7 @@ export default function CorreccionesPage() {
                 {accion.modo === "agregar" && `${TIPO_MARCA_LABELS[accion.tipo]} a las ${accion.hora}, para ${personaSel?.nombres} ${personaSel?.apellidos}.`}
               </p>
               {accion.modo === "editar" && accion.posteriores.length > 0 && (
-                <div className="mb-4 rounded-lg border border-ambar/40 bg-ambar/5 px-3 py-3 text-sm">
+                <div className="mb-4 rounded-control border border-ambar/40 bg-ambar/5 px-3 py-3 text-sm">
                   <p className="mb-2 text-taupe">
                     Después de esa salida final quedan {accion.posteriores.length}{" "}
                     {accion.posteriores.length === 1 ? "marca" : "marcas"}. Se anularán con el mismo

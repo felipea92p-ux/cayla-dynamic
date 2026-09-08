@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { usePersonaActual } from "@/lib/admin/use-rol";
 import { Cargando, EsqueletoSecciones, SinDatos } from "@/components/cargando";
+import { BannerAviso } from "@/components/ui/banner-aviso";
 import { Boton } from "@/components/ui/boton";
 import { Campo, CampoSelect } from "@/components/ui/campo";
 import { AreaTexto } from "@/components/ui/area-texto";
@@ -808,13 +809,13 @@ function IncidenciasContenido() {
         <div className="mb-1 flex flex-wrap items-end justify-between gap-3">
           <div className="flex items-center gap-3">
             <h1 className="font-serif text-2xl">Incidencias</h1>
-            <div role="tablist" aria-label="Modo de vista" className="flex rounded-full border border-sand p-0.5">
+            <div role="tablist" aria-label="Modo de vista" className="flex rounded-pildora border border-sand p-0.5">
               <button
                 type="button"
                 role="tab"
                 aria-selected={vistaModo === "resumen"}
                 onClick={() => setVistaModo("resumen")}
-                className={`etiqueta rounded-full px-3 py-1 transition-colors ${
+                className={`etiqueta rounded-pildora px-3 py-1 transition-colors ${
                   vistaModo === "resumen" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"
                 }`}
               >
@@ -825,7 +826,7 @@ function IncidenciasContenido() {
                 role="tab"
                 aria-selected={vistaModo === "detalle"}
                 onClick={() => setVistaModo("detalle")}
-                className={`etiqueta rounded-full px-3 py-1 transition-colors ${
+                className={`etiqueta rounded-pildora px-3 py-1 transition-colors ${
                   vistaModo === "detalle" ? "bg-tinta text-crema" : "text-taupe hover:bg-sand/40"
                 }`}
               >
@@ -863,7 +864,7 @@ function IncidenciasContenido() {
             que estuvo ahí ese día. Un aviso automático puede esperar; alguien
             que escribió «ese día sí vine» no. */}
         {revisiones.length > 0 && (
-          <section className="mb-6 rounded-2xl border border-tinta/25 bg-papel p-5">
+          <section className="mb-6 rounded-superficie border border-tinta/25 bg-papel p-5">
             <h2 className="mb-1 font-serif text-lg">Tu equipo pidió revisar {revisiones.length} día{revisiones.length === 1 ? "" : "s"}</h2>
             <p className="mb-4 text-sm text-taupe">
               Lo escribieron desde «Lo mío». Corrige el día en Correcciones si hace falta y cierra acá diciendo
@@ -871,7 +872,7 @@ function IncidenciasContenido() {
             </p>
             <ul className="space-y-3">
               {revisiones.map((r) => (
-                <li key={r.id} className="rounded-xl border border-sand p-3 text-sm">
+                <li key={r.id} className="rounded-superficie border border-sand p-3 text-sm">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span><strong>{r.nombre}</strong> <span className="text-taupe">· {r.sede} · {r.fecha}</span></span>
                     <Link href={`/admin/correcciones?persona=${r.persona_id}&fecha=${r.fecha}`}
@@ -905,10 +906,11 @@ function IncidenciasContenido() {
             Contratos, no acá: renovar o cerrar un convenio no es cosa de
             Incidencias. */}
         {practicantesSobreTope.length > 0 && (
-          <section className="mb-6 rounded-2xl border border-ambar/40 bg-ambar/5 p-5">
-            <h2 className="mb-1 font-serif text-lg">
-              {practicantesSobreTope.length} convenio{practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses
-            </h2>
+          <BannerAviso
+            variante="advertencia"
+            className="mb-6"
+            titulo={`${practicantesSobreTope.length} convenio${practicantesSobreTope.length === 1 ? "" : "s"} de prácticas en el tope de 12 meses`}
+          >
             <p className="mb-3 text-sm text-taupe">
               Ley 28518, art. 30: pasado el tope, la relación arriesga considerarse desnaturalizada —
               aunque siga viniendo con normalidad. Se revisa en Contratos, no acá.
@@ -932,11 +934,11 @@ function IncidenciasContenido() {
                 </li>
               ))}
             </ul>
-          </section>
+          </BannerAviso>
         )}
 
         {personaFiltro && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rojo/30 bg-rojo/5 px-4 py-2.5 text-sm">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-control border border-rojo/30 bg-rojo/5 px-4 py-2.5 text-sm">
             <span>
               {nombreFiltro
                 ? <>Mostrando solo las incidencias de <strong>{nombreFiltro}</strong> en este periodo.</>
@@ -947,7 +949,7 @@ function IncidenciasContenido() {
         )}
 
         {error && (
-          <div className="mb-6 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-6 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             No se pudieron cargar las incidencias: {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
@@ -957,7 +959,7 @@ function IncidenciasContenido() {
             pantalla sí cargó, pero el aviso de "patrón de tardanzas" se apagó
             porque no se pudo comprobar cuáles ya fueron perdonadas. */}
         {avisoLevantadas && (
-          <div className="mb-6 rounded-lg border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
+          <div className="mb-6 rounded-control border border-ambar/30 bg-ambar/10 px-4 py-3 text-sm">
             {avisoLevantadas}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
           </div>
@@ -968,7 +970,7 @@ function IncidenciasContenido() {
             un fallo de carga y con un botón «Reintentar» que recargaba la
             pantalla en vez de repetir la acción — dos mentiras seguidas. */}
         {errorAccion && (
-          <div className="mb-6 flex items-start gap-3 rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="mb-6 flex items-start gap-3 rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             <span className="flex-1">{errorAccion}</span>
             <Boton variante="enlace" className="shrink-0" onClick={() => setErrorAccion(null)}>Entendido</Boton>
           </div>
@@ -1003,7 +1005,7 @@ function IncidenciasContenido() {
                   </Boton>
                 )}
               </div>
-              <Tabla>
+              <Tabla className="[font-variant-numeric:tabular-nums]">
                 <TablaEncabezado>
                   <Th>Persona</Th>
                   <Th>Fecha</Th>
@@ -1105,7 +1107,7 @@ function IncidenciasContenido() {
                   que le pasó a su compañera, y la pantalla la deja sin salida.
                   Acá se dice antes, y se dice a dónde ir. */}
               {motivoSel === "descanso_medico" && (
-                <p className="mb-4 rounded-lg bg-sand/60 px-3 py-2 text-sm text-tinta">
+                <p className="mb-4 rounded-control bg-sand/60 px-3 py-2 text-sm text-tinta">
                   El descanso médico <strong>se paga</strong>, así que necesita su documento
                   (profesional o institución, colegiatura y fecha) y se registra en{" "}
                   <a href="/admin/ausencias" className="font-medium underline">Ausencias</a>.
@@ -1125,7 +1127,7 @@ function IncidenciasContenido() {
                   mensaje del servidor explica qué hacer en su lugar y merece
                   leerse entero. */}
               {errorJustif && (
-                <p className="mb-3 whitespace-pre-line rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                <p className="mb-3 whitespace-pre-line rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo">
                   {errorJustif}
                 </p>
               )}

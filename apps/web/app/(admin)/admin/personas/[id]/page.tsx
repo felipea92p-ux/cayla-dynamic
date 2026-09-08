@@ -15,6 +15,7 @@ import { useToast } from "@/components/toast";
 import { Boton } from "@/components/ui/boton";
 import { Campo } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
+import { ItemObjetivo } from "@/components/ui/item-objetivo";
 import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { FirmaEditor } from "./FirmaEditor";
 
@@ -85,7 +86,7 @@ type Tab = "ficha" | "desempeno";
 // recrearía en cada render (regla react-hooks/static-components).
 function AvisoNoSeCargo({ que, motivo, noSignifica, reintentar }: { que: string; motivo: string; noSignifica: string; reintentar: () => void }) {
   return (
-    <div className="rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+    <div className="rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
       <p>No se pudo cargar {que}: {motivo}</p>
       <p className="mt-1">
         Esto <strong>no</strong> quiere decir que {noSignifica}.{" "}
@@ -370,7 +371,7 @@ export default function PerfilPersonaPage() {
         {cargando ? (
           <Cargando texto="Cargando el perfil…" />
         ) : err ? (
-          <div className="max-w-xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+          <div className="max-w-xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
             <p>{err}</p>
             {errReintentable && (
               <p className="mt-1">
@@ -382,7 +383,7 @@ export default function PerfilPersonaPage() {
           <>
             {/* Cabecera */}
             <div className="mb-4 flex flex-wrap items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-rojo/10 font-serif text-2xl text-rojo">{iniciales.toUpperCase()}</div>
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-pildora bg-rojo/10 font-serif text-2xl text-rojo">{iniciales.toUpperCase()}</div>
               <div className="min-w-0">
                 <h1 className="font-serif text-2xl leading-tight">{ficha?.nombre_dni || nombre}</h1>
                 <p className="text-sm text-taupe">
@@ -425,7 +426,7 @@ export default function PerfilPersonaPage() {
               <>
                 <div className="grid gap-5 lg:grid-cols-2">
                   {/* Datos personales */}
-                  <section className="rounded-2xl border border-sand bg-papel p-5">
+                  <section className="rounded-superficie border border-sand bg-papel p-5">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Datos personales</h2>
                       <Link href="/admin/datos-personales" className="no-print text-xs text-tinta hover:underline">Editar →</Link>
@@ -453,7 +454,7 @@ export default function PerfilPersonaPage() {
 
                   {/* Compensación — solo DO */}
                   {puedeSalario && (
-                  <section className={`rounded-2xl border border-sand bg-papel p-5 ${!incluirSueldo ? "no-print" : ""}`}>
+                  <section className={`rounded-superficie border border-sand bg-papel p-5 ${!incluirSueldo ? "no-print" : ""}`}>
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Compensación</h2>
                       <Link href="/admin/planilla" className="no-print text-xs text-tinta hover:underline">Planilla →</Link>
@@ -476,7 +477,7 @@ export default function PerfilPersonaPage() {
                       y en el Dashboard (fn_vacaciones_saldo, fn_contratos_por_vencer),
                       leídos acá para no tener que ir a buscarlos aparte. */}
                   {(vacas || contrato || errVacas || errContrato) && (
-                    <section className="rounded-2xl border border-sand bg-papel p-5">
+                    <section className="rounded-superficie border border-sand bg-papel p-5">
                       <h2 className="mb-2 font-serif text-lg">Vacaciones y contrato</h2>
                       {errVacas ? (
                         <AvisoNoSeCargo que="el saldo de vacaciones" motivo={errVacas} noSignifica="no tenga días pendientes" reintentar={reintentar} />
@@ -522,7 +523,7 @@ export default function PerfilPersonaPage() {
                   )}
 
                   {/* Disciplina / legajo */}
-                  <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
+                  <section className="rounded-superficie border border-sand bg-papel p-5 lg:col-span-2">
                     <div className="mb-2 flex items-baseline justify-between">
                       <h2 className="font-serif text-lg">Legajo disciplinario {docs.length > 0 && <span className="text-sm font-normal text-taupe">· {docs.length}</span>}</h2>
                       <Link href="/admin/disciplina" className="no-print text-xs text-tinta hover:underline">Disciplina →</Link>
@@ -556,7 +557,7 @@ export default function PerfilPersonaPage() {
                     )}
                   </section>
                   {esMiPerfil && puedeSalario && (
-                    <section className="rounded-2xl border border-sand bg-papel p-5 lg:col-span-2">
+                    <section className="rounded-superficie border border-sand bg-papel p-5 lg:col-span-2">
                       <h2 className="mb-1 font-serif text-lg">Mi firma</h2>
                       <p className="mb-3 text-sm text-taupe">Se imprime en los memos disciplinarios leves (amonestación, suspensión) que tú firmes, y en los contratos de trabajo si eres quien firma por la empresa. Despido/imputación van con firma a mano o digital certificada.</p>
                       <FirmaEditor supabase={supabase} nombreOficial={ficha?.nombre_dni || nombre} avisar={avisar} />
@@ -572,8 +573,8 @@ export default function PerfilPersonaPage() {
                       ?persona= abre su panel encima, no recorta la tabla. El
                       enlace ya no promete «solo esta persona» — promete verla
                       al lado de las demás, que es para lo que se usa. */}
-                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Junto al equipo</Link>
-                  <Link href={`/admin/incidencias?persona=${persona.id}`} className="rounded-xl border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Incidencias</Link>
+                  <Link href={`/admin/horas?persona=${persona.id}`} className="rounded-control border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Junto al equipo</Link>
+                  <Link href={`/admin/incidencias?persona=${persona.id}`} className="rounded-control border border-sand bg-papel px-3 py-1 transition-all hover:-translate-y-0.5 hover:border-taupe">Incidencias</Link>
                 </div>
               </>
             ) : (
@@ -588,14 +589,14 @@ export default function PerfilPersonaPage() {
                 </div>
 
                 {errDes && (
-                  <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                  <div className="mb-6 max-w-2xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
                     No se pudo cargar el desempeño: {errDes}{" "}
                     <Boton variante="enlace" onClick={() => void cargarDesempeno()}>Reintentar</Boton>
                   </div>
                 )}
 
                 {errParcialDes.length > 0 && (
-                  <div className="mb-6 max-w-2xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+                  <div className="mb-6 max-w-2xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
                     <p>El periodo se cargó, pero faltó parte de lo que se muestra:</p>
                     <ul className="mt-1 list-disc pl-5">
                       {errParcialDes.map((t) => <li key={t}>No se pudieron cargar {t}.</li>)}
@@ -621,7 +622,7 @@ export default function PerfilPersonaPage() {
                         { label: "Salidas anticipadas", valor: `${stats.salidasTempranas} de ${stats.diasSalidaMedidos} medidos` },
                         { label: "Tiempo adicional", valor: stats.horasExtra > 0 ? fmtHoras(stats.horasExtra) : "—" },
                       ].map((c) => (
-                        <div key={c.label} className="rounded-2xl border border-sand bg-papel px-4 py-3 transition-all hover:-translate-y-0.5 hover:border-taupe">
+                        <div key={c.label} className="rounded-superficie border border-sand bg-papel px-4 py-3 transition-all hover:-translate-y-0.5 hover:border-taupe">
                           <div className="etiqueta text-taupe">{c.label}</div>
                           <div className="mt-1 font-serif text-2xl">{c.valor}</div>
                         </div>
@@ -638,7 +639,7 @@ export default function PerfilPersonaPage() {
                     )}
 
                     {objetivos.length > 0 && (
-                      <div className="mb-6 max-w-3xl rounded-2xl border border-sand bg-papel p-5">
+                      <div className="mb-6 max-w-3xl rounded-superficie border border-sand bg-papel p-5">
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                           <h2 className="font-serif text-lg">Objetivos de {objMesLabel.toLowerCase()}</h2>
                           <span className="flex items-center gap-2 text-sm">
@@ -649,28 +650,23 @@ export default function PerfilPersonaPage() {
                             <Insignia punto={false}>{objNivel.etiqueta}</Insignia>
                           </span>
                         </div>
-                        <div className="mb-3 h-2 overflow-hidden rounded-full bg-sand">
-                          <div className={`h-full rounded-full ${objPct >= 60 ? "bg-verde" : objPct >= 30 ? "bg-ambar" : "bg-rojo"}`} style={{ width: `${objPct}%` }} />
+                        <div className="mb-3 h-2 overflow-hidden rounded-pildora bg-sand">
+                          <div className={`h-full rounded-pildora ${objPct >= 60 ? "bg-verde" : objPct >= 30 ? "bg-ambar" : "bg-rojo"}`} style={{ width: `${objPct}%` }} />
                         </div>
                         <ul className="space-y-1 text-sm">
                           {objetivos.map((o) => (
-                            <li key={o.id} className="flex items-start gap-2">
-                              {/* text-taupe sin diluir: al 50% de opacidad este círculo
-                                  quedaba en ~1.8:1 sobre papel, muy por debajo de AA. */}
-                              <span className={o.cumplido ? "text-verde" : "text-taupe"}>{o.cumplido ? "✓" : "○"}</span>
-                              <span className={o.cumplido ? "text-taupe line-through" : ""}>{o.descripcion}</span>
-                            </li>
+                            <ItemObjetivo key={o.id} cumplido={o.cumplido} descripcion={o.descripcion} />
                           ))}
                         </ul>
                       </div>
                     )}
 
-                    <div className="mb-8 rounded-2xl border border-sand bg-papel p-5">
+                    <div className="mb-8 rounded-superficie border border-sand bg-papel p-5">
                       <h2 className="mb-3 font-serif text-lg">Horas por día</h2>
                       <GraficoHoras dias={stats.datosGrafico} meta={META_DIA} />
                     </div>
 
-                    <Tabla>
+                    <Tabla className="[font-variant-numeric:tabular-nums]">
                       <TablaEncabezado>
                         <Th>Fecha</Th>
                         <Th>Entrada</Th>

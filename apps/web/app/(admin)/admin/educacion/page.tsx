@@ -478,7 +478,7 @@ export default function EducacionPage() {
   ).length;
 
   const formulario = (
-    <div className="mb-6 grid max-w-3xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
+    <div className="mb-6 grid max-w-3xl gap-3 rounded-superficie border border-sand bg-papel p-5 sm:grid-cols-2">
       <div className="flex flex-col gap-1 sm:col-span-2">
         <CampoSelect
           etiqueta="¿De quién es?"
@@ -565,7 +565,7 @@ export default function EducacionPage() {
 
       <div className="flex flex-col gap-1 text-sm">
         ¿Qué parte cubre CAYLA?
-        <div className="rounded-lg border border-dashed bg-sand/40 px-3 py-2 text-tinta">
+        <div className="rounded-control border border-dashed bg-sand/40 px-3 py-2 text-tinta">
           {COBERTURA}% del comprobante
         </div>
         <span className="text-xs text-taupe">
@@ -579,7 +579,7 @@ export default function EducacionPage() {
           y se explica de dónde sale — si no, parece magia. */}
       <div className="flex flex-col gap-1 text-sm">
         Monto mensual a pagar
-        <div className="rounded-lg border border-dashed bg-sand/40 px-3 py-2 font-medium text-tinta">
+        <div className="rounded-control border border-dashed bg-sand/40 px-3 py-2 font-medium text-tinta">
           {costo > 0 ? soles(monto) : "—"}
         </div>
         <span className="text-xs text-taupe">
@@ -640,7 +640,7 @@ export default function EducacionPage() {
             cuando más importa saber la verdad. */}
         {progreso !== null && (
           <div className="flex flex-col gap-1">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-sand">
+            <div className="h-2 w-full overflow-hidden rounded-pildora bg-sand">
               <div
                 className="h-full bg-tinta transition-[width] duration-200"
                 style={{ width: `${progreso}%` }}
@@ -714,7 +714,7 @@ export default function EducacionPage() {
         {rol === null ? (
           <Cargando />
         ) : !puedeGestionar ? (
-          <div className="max-w-2xl rounded-lg bg-ambar/15 px-4 py-3 text-sm text-ambar">
+          <div className="max-w-2xl rounded-control bg-ambar/15 px-4 py-3 text-sm text-ambar">
             Solo Desarrollo Organizacional gestiona las asignaciones por educación.
           </div>
         ) : (
@@ -726,7 +726,7 @@ export default function EducacionPage() {
             </p>
 
             {cargaError && (
-              <div className="mb-4 max-w-3xl rounded-lg bg-rojo/10 px-4 py-3 text-sm text-rojo">
+              <div className="mb-4 max-w-3xl rounded-control bg-rojo/10 px-4 py-3 text-sm text-rojo">
                 No se pudieron cargar las asignaciones: {cargaError}.{" "}
                 <Boton variante="enlace" onClick={() => void cargar()}>Reintentar</Boton>
               </div>
@@ -737,7 +737,7 @@ export default function EducacionPage() {
             {cargando ? (
               <Cargando />
             ) : filas.length === 0 ? (
-              <div className="max-w-3xl rounded-2xl border border-sand bg-papel px-5 py-6 text-sm text-taupe">
+              <div className="max-w-3xl rounded-superficie border border-sand bg-papel px-5 py-6 text-sm text-taupe">
                 Todavía no hay ninguna asignación cargada. Cada una necesita su comprobante: es lo que
                 permite que el pago no cuente como remuneración.
               </div>

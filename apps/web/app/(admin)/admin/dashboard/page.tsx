@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { parseAreas, esOperativaEn, AREA_DEFAULT, AREAS_FALLBACK, type Area } from "@/lib/areas";
 import { Cargando } from "@/components/cargando";
@@ -110,7 +111,7 @@ const ESTILO_ESTADO: Record<
   abierta: { label: "Presente", variante: "positivo" },
   en_pausa: { label: "En pausa", variante: "advertencia" },
   cerrada: { label: "Salió", atenuada: true },
-  auto_cerrada_pendiente: { label: "Auto-cerrada ⚠", clase: "bg-rojo text-crema" },
+  auto_cerrada_pendiente: { label: "Auto-cerrada", clase: "bg-rojo text-crema" },
   revisada: { label: "Salió (revisada)", atenuada: true },
   sin_marcar: { label: "Sin marcar", clase: "text-taupe/50" },
 };
@@ -135,12 +136,13 @@ function EstadoCelda({ f, linkCorregir }: { f: FilaPersona; linkCorregir: (perso
   }
   if (f.estado === "auto_cerrada_pendiente") {
     return (
-      <Link href={linkCorregir(f.personaId)} className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase} transition-opacity hover:opacity-80`}>
+      <Link href={linkCorregir(f.personaId)} className={`inline-flex items-center gap-1 rounded-pildora px-2 py-0.5 text-xs ${estilo.clase} transition-opacity hover:opacity-80`}>
+        <AlertTriangle size={12} strokeWidth={2} aria-hidden />
         {estilo.label} ›
       </Link>
     );
   }
-  if (estilo.clase) return <span className={`rounded-full px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>;
+  if (estilo.clase) return <span className={`rounded-pildora px-2 py-0.5 text-xs ${estilo.clase}`}>{estilo.label}</span>;
   return <Insignia variante={estilo.variante} atenuada={estilo.atenuada}>{estilo.label}</Insignia>;
 }
 
@@ -466,8 +468,8 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <span className="relative flex h-2 w-2" aria-hidden>
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-verde/60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-verde" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-pildora bg-verde/60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-pildora bg-verde" />
                   </span>
                   En vivo · actualizado {actualizado} · se refresca cada 30s
                 </>
@@ -478,14 +480,14 @@ export default function DashboardPage() {
             href="https://docs.google.com/spreadsheets/d/19jhc5IN0LpbyG00jEwqt4ZB420Ob_rVcGRAdXR88riA/edit"
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-xl border border-sand bg-papel px-4 py-2 text-sm font-medium text-tinta transition-all hover:-translate-y-0.5 hover:border-taupe"
+            className="rounded-control border border-sand bg-papel px-4 py-2 text-sm font-medium text-tinta transition-all hover:-translate-y-0.5 hover:border-taupe"
           >
             Ver en Google Sheets ↗
           </a>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-2xl border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo">
+          <div className="mb-6 rounded-superficie border border-rojo/20 bg-rojo/[0.06] px-4 py-3 text-sm text-rojo">
             No se pudo cargar la asistencia de hoy: {error}{" "}
             <Boton variante="enlace" onClick={() => void cargar()}>
               Reintentar
@@ -510,7 +512,7 @@ export default function DashboardPage() {
           // igual de tranquilos en una portada, y solo uno de los dos es cierto.
           if (discNoRespondio) {
             return (
-              <section className="mb-6 rounded-2xl border border-ambar/30 bg-ambar/[0.06] p-5">
+              <section className="mb-6 rounded-superficie border border-ambar/30 bg-ambar/[0.06] p-5">
                 <div className="etiqueta text-ambar">Disciplina · no se pudo consultar</div>
                 <p className="mt-2 text-sm text-tinta">
                   El semáforo de tardanzas y faltas no respondió, así que esta franja{" "}
@@ -523,7 +525,7 @@ export default function DashboardPage() {
           }
           if (!rojosT.length && !avisoT && !rojosF.length && !ambarF && !sinCargo && !sinCargoNoRespondio) return null;
           return (
-            <div className="mb-10 rounded-2xl border border-sand bg-rojo/[0.04] p-5">
+            <div className="mb-10 rounded-superficie border border-sand bg-rojo/[0.04] p-5">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-serif text-lg text-tinta">Disciplina — necesita tu atención</span>
                 <Link href="/admin/disciplina" className="text-xs font-medium text-rojo hover:underline">Ver disciplina →</Link>
@@ -579,7 +581,7 @@ export default function DashboardPage() {
             documento y dejó una constancia digital, firmando o prefiriendo no
             hacerlo. Ninguna de las dos reemplaza el trámite físico. */}
         {respuestasMemo.length > 0 && (
-          <div className="mb-10 rounded-2xl border border-sand bg-verde/[0.04] p-5">
+          <div className="mb-10 rounded-superficie border border-sand bg-verde/[0.04] p-5">
             <div className="mb-2 flex items-center justify-between">
               <span className="font-serif text-lg text-tinta">Colaboradores respondieron su memo</span>
               <Link href="/admin/disciplina" className="text-xs font-medium text-taupe hover:underline">Ver disciplina →</Link>
@@ -621,13 +623,13 @@ export default function DashboardPage() {
             .sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
           const hayRacimo = cuantos >= 3;
           return (
-            <div className="mb-10 rounded-2xl border border-sand bg-ambar/[0.05] p-5">
+            <div className="mb-10 rounded-superficie border border-sand bg-ambar/[0.05] p-5">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-serif text-lg text-tinta">Contratos a plazo fijo</span>
                 <Link href="/admin/equipo" className="text-xs font-medium text-rojo hover:underline">Ver equipo →</Link>
               </div>
               {hayRacimo && (
-                <p className="mb-2 rounded-lg bg-rojo/10 px-3 py-2 text-sm text-rojo">
+                <p className="mb-2 rounded-control bg-rojo/10 px-3 py-2 text-sm text-rojo">
                   <strong>{cuantos} contratos vencen el mismo día</strong> ({fechaBonita(fechaRacimo)}).
                   No son {cuantos} trámites repartidos: son {cuantos} decisiones, {cuantos} redacciones
                   y {cuantos} firmas en la misma semana. Al que se pase de fecha con la persona
@@ -698,21 +700,21 @@ export default function DashboardPage() {
               {/* La única alerta que se permite el rojo sagrado en esta pantalla: una
                   sede entera sin un solo marcaje, con el horario ya empezado. */}
               {alertaSinEntrada && (
-                <div className="mb-5 flex items-center gap-2 rounded-2xl border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rojo text-[10px] font-bold text-crema">!</span>
+                <div className="mb-5 flex items-center gap-2 rounded-superficie border border-rojo bg-rojo/[0.06] px-5 py-3 text-sm font-semibold text-rojo">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-pildora bg-rojo text-[10px] font-bold text-crema">!</span>
                   Sin marcajes desde las {horaAmPmDe(alertaSinEntrada)} — nadie de esta sede ha marcado entrada todavía.
                 </div>
               )}
 
               {/* Trabajando ahora — para que la encargada verifique contra quién está físicamente */}
-              <div className="mb-5 rounded-2xl border border-verde/20 bg-verde/[0.06] px-5 py-4">
+              <div className="mb-5 rounded-superficie border border-verde/20 bg-verde/[0.06] px-5 py-4">
                 <div className="etiqueta text-verde">Trabajando ahora · {activos.length}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {activos.length === 0 ? (
                     <span className="text-sm text-taupe">Nadie marcado todavía.</span>
                   ) : (
                     activos.map((f) => (
-                      <span key={f.personaId} className="rounded-full border border-sand bg-papel px-3 py-1 text-sm transition-colors hover:border-taupe">
+                      <span key={f.personaId} className="rounded-pildora border border-sand bg-papel px-3 py-1 text-sm transition-colors hover:border-taupe">
                         {f.nombre}
                         {f.estado === "en_pausa" && <span className="ml-1 text-ambar">· en pausa</span>}
                       </span>
@@ -730,7 +732,7 @@ export default function DashboardPage() {
                   scroll horizontal incómodo, así que de sm hacia abajo se arma la
                   versión en tarjetas de más abajo — mismos datos, sin recortar nada. */}
               <div className="hidden sm:block">
-                <Tabla>
+                <Tabla className="[font-variant-numeric:tabular-nums]">
                   <TablaEncabezado>
                     <Th>Nombre</Th>
                     <Th>Estado</Th>
