@@ -260,7 +260,8 @@ with repo(numero, nombre, nunca) as (values
     (390, 'el_motor_de_faltas_desempata_como_el_de_tardanzas', false),
     (391, 'las_cuatro_que_quedaban_del_mismo_empate', false),
     (392, 'los_guardianes_de_retail_dejan_de_colarse_por_el_or_suelto', false),
-    (395, 'firma_con_tres_metodos', false)
+    (395, 'firma_con_tres_metodos', false),
+    (397, 'la_practicante_cobra_movilidad_y_educacion', false)
 ),
 diff as (
   -- `falta` NO incluye las que nunca se van a aplicar: esas se explican aparte
@@ -304,8 +305,8 @@ select * from (
          'fn_planilla_calcular · versión viva',
          coalesce((
            select case md5(prosrc)
-             when 'dacebb574315f3f7d880c9117cb3de7f' then '0349 — al día con el repositorio'
-             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '0397 — al día con el repositorio'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0397 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '6ad7e6bb9d7a1678924c07c89a8e9df4' then '⚠ se quedó en la 0025 — falta pegar lo posterior'
              when '83c9996ff2c82490c8191edc5bd0a996' then '✗ 0025 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when '5b263656b9ff462699eaca0db6e1a7b4' then '⚠ se quedó en la 0026 — falta pegar lo posterior'
@@ -417,6 +418,8 @@ select * from (
              when '71b1779aa219c4ea7b01d9a062563552' then '✗ 0322 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0339 — falta pegar lo posterior'
              when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0339 CON LOS ACENTOS ROTOS — vuelve a pegarla'
+             when 'dacebb574315f3f7d880c9117cb3de7f' then '⚠ se quedó en la 0349 — falta pegar lo posterior'
+             when '03bbe3413099044329ddaab8a1dec8c8' then '✗ 0349 CON LOS ACENTOS ROTOS — vuelve a pegarla'
              else '⚠ md5 SIN CATALOGAR: ' || md5(prosrc)
            end
            from pg_proc where proname = 'fn_planilla_calcular'
