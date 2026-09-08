@@ -390,6 +390,13 @@ function parrafoDesdeTexto(texto: string): string {
 export const MARCADOR_FIRMA_EMPRESA = "<!--FIRMA_EMPRESA-->";
 
 /**
+ * El mismo mecanismo que `MARCADOR_FIRMA_EMPRESA`, para la firma de quien
+ * suscribe el contrato como persona (0397). Tampoco viaja dentro de
+ * `documento_html` — se estampa al mostrar, nunca al guardar.
+ */
+export const MARCADOR_FIRMA_PERSONA = "<!--FIRMA_PERSONA-->";
+
+/**
  * «en la ciudad de Trujillo» — o, si esa sede todavía no tiene ciudad cargada
  * (0279), lo dice en vez de inventarla. Es la misma regla que la tarifa de
  * movilidad en `/admin/documentacion`: un dato que falta se ve, no se rellena.
@@ -437,7 +444,7 @@ function bloqueFirmas(
           : ""
       }
       <div>
-        <p class="linea">&nbsp;</p>
+        <p class="linea">${MARCADOR_FIRMA_PERSONA}</p>
         <p><strong>${etiquetaPersona}</strong><br/>${d.nombreDni}<br/>DNI N.° ${d.documento}</p>
       </div>
     </div>`;

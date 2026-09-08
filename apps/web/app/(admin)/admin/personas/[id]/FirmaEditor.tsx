@@ -130,9 +130,13 @@ interface Props {
   supabase: ReturnType<typeof createAdminSupabaseClient>;
   nombreOficial: string;
   avisar: (tipo: "ok" | "error", texto: string) => void;
+  // Para que quien la usa pueda refrescar una vista propia de la firma (el
+  // contrato de /mio, por ejemplo) sin esperar a recargar la página. Opcional
+  // y sin efecto en admin/personas/[id], que no lo pasa.
+  onGuardada?: (imagen: string | null) => void;
 }
 
-export function FirmaEditor({ supabase, nombreOficial, avisar }: Props) {
+export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Props) {
   const [cargando, setCargando] = useState(true);
   const [firma, setFirma] = useState<{ imagen: string; tipo: Metodo; estilo: Estilo | null } | null>(null);
   const [editando, setEditando] = useState(false);
@@ -246,7 +250,8 @@ export function FirmaEditor({ supabase, nombreOficial, avisar }: Props) {
       if (error) throw error;
       setFirma({ imagen: dataUrl, tipo, estilo: tipo === "tipografica" ? (estiloUsado ?? null) : null });
       setEditando(false);
-      avisar("ok", "Firma guardada. Aparecerá en los memos leves que firmes.");
+      avisar("ok", "Firma guardada.");
+      onGuardada?.(dataUrl);
     } catch (e) {
       avisar("error", e instanceof Error ? e.message : "No se pudo guardar la firma.");
     } finally {
@@ -290,7 +295,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar }: Props) {
   async function quitarFirma() {
     setGuardando(true);
     const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
-    if (!error) { setFirma(null); setEditando(true); avisar("ok", "Firma quitada."); }
+    if (!error) { setFirma(null); setEditando(true); avisar("ok", "Firma quitada."); onGuardada?.(null); }
     setGuardando(false);
   }
 
