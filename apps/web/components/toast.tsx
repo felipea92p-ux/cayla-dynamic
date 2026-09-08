@@ -53,6 +53,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <span aria-hidden
               className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${a.tipo === "error" ? "bg-rojo" : "bg-verde"}`} />
             <span className="flex-1">{a.texto}</span>
+            {/* Nativo a propósito: botón de solo ícono, misma familia que los
+                demás cerrar/Tema/Atajos — <Boton> no cubre un ícono suelto. */}
             <button onClick={() => cerrar(a.id)} aria-label="Cerrar aviso"
               className="shrink-0 text-taupe transition hover:text-tinta">
               <X size={14} strokeWidth={1.8} aria-hidden />

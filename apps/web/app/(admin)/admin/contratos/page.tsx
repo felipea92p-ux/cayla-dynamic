@@ -108,11 +108,11 @@ function seSolapan(aIni: string, aFin: string | null, bIni: string, bFin: string
  * Lo que se tecleó en el formulario, tal cual, para poder volver a abrirlo.
  *
  * `documento_html` guarda el RESULTADO —el papel que se imprime—, no las
- * respuestas que lo produjeron: la causa objetiva, las funciones, los cuatro
- * datos del centro de formación, los hitos del Anexo I. Sin esta foto,
- * «editar» obligaría a reescribir veintiún campos para corregir una fecha, y
- * nadie corrige una fecha a ese precio: volvería a generar otro documento,
- * que es justo el duplicado que esta migración viene a impedir.
+ * respuestas que lo produjeron: la causa objetiva, las funciones, los cinco
+ * datos del centro de formación, el Anexo I. Sin esta foto, «editar»
+ * obligaría a reescribir veinte campos para corregir una fecha, y nadie
+ * corrige una fecha a ese precio: volvería a generar otro documento, que es
+ * justo el duplicado que esta migración viene a impedir.
  *
  * Nace con la 0388, así que un borrador anterior la tiene en null — la
  * pantalla lo dice al abrirlo en vez de fingir que los textos son los suyos.
@@ -141,8 +141,6 @@ type DatosFormulario = {
   areaProyecto: string;
   objetivoFormativoGeneral: string;
   supervisorAsignado: string;
-  hitoMes3: string;
-  hitoMes6: string;
 };
 
 interface Persona {
@@ -381,8 +379,6 @@ function camposIniciales(p: Persona, sedeNombre: string, sedeCiudad: string | nu
     areaProyecto: "",
     objetivoFormativoGeneral: "",
     supervisorAsignado: "",
-    hitoMes3: "",
-    hitoMes6: "",
   };
 }
 
@@ -447,8 +443,6 @@ export default function ContratosPage() {
   const [areaProyectoEditado, setAreaProyectoEditado] = useState("");
   const [objetivoFormativoGeneralEditado, setObjetivoFormativoGeneralEditado] = useState("");
   const [supervisorAsignadoEditado, setSupervisorAsignadoEditado] = useState("");
-  const [hitoMes3Editado, setHitoMes3Editado] = useState("");
-  const [hitoMes6Editado, setHitoMes6Editado] = useState("");
   const [activosLibre, setActivosLibre] = useState("");
   const [adendumEditado, setAdendumEditado] = useState("");
   const [ciudadEditada, setCiudadEditada] = useState("");
@@ -525,7 +519,7 @@ export default function ContratosPage() {
 
   const { avisar } = useToast();
 
-  /** Vuelca al formulario los veintidós campos editables, de una sola vez. */
+  /** Vuelca al formulario los veinte campos editables, de una sola vez. */
   function aplicarCampos(d: DatosFormulario) {
     setCargoEditado(d.cargo);
     setCiudadEditada(d.ciudad);
@@ -549,8 +543,6 @@ export default function ContratosPage() {
     setAreaProyectoEditado(d.areaProyecto);
     setObjetivoFormativoGeneralEditado(d.objetivoFormativoGeneral);
     setSupervisorAsignadoEditado(d.supervisorAsignado);
-    setHitoMes3Editado(d.hitoMes3);
-    setHitoMes6Editado(d.hitoMes6);
   }
 
   /**
@@ -581,8 +573,6 @@ export default function ContratosPage() {
       areaProyecto: areaProyectoEditado,
       objetivoFormativoGeneral: objetivoFormativoGeneralEditado,
       supervisorAsignado: supervisorAsignadoEditado,
-      hitoMes3: hitoMes3Editado,
-      hitoMes6: hitoMes6Editado,
     };
   }
 
@@ -841,8 +831,6 @@ export default function ContratosPage() {
     areaProyectoEditado,
     objetivoFormativoGeneralEditado,
     supervisorAsignadoEditado,
-    hitoMes3Editado,
-    hitoMes6Editado,
     modalidadManualEditada,
     fechaInicio,
     fechaFin,
@@ -1004,8 +992,6 @@ export default function ContratosPage() {
           areaProyecto: unaLinea(areaProyectoEditado),
           objetivoFormativoGeneral: unaLinea(objetivoFormativoGeneralEditado),
           supervisorAsignado: unaLinea(supervisorAsignadoEditado),
-          hitoMes3: unaLinea(hitoMes3Editado),
-          hitoMes6: unaLinea(hitoMes6Editado),
         }
       : null;
 
@@ -1182,12 +1168,6 @@ export default function ContratosPage() {
   }
   if (persona && esConvenio && supervisorAsignadoEditado.trim() === "") {
     bloqueos.push("Completa el/la supervisor(a) asignado(a) del Anexo I.");
-  }
-  if (persona && esConvenio && hitoMes3Editado.trim() === "") {
-    bloqueos.push("Completa el hito de evaluación del mes 3 del Anexo I.");
-  }
-  if (persona && esConvenio && hitoMes6Editado.trim() === "") {
-    bloqueos.push("Completa el hito de evaluación del mes 6 del Anexo I.");
   }
   // La ciudad no bloquea —el documento lo dice en su propio texto— pero avisar
   // acá evita descubrirlo recién al leer el PDF impreso.
@@ -2215,20 +2195,6 @@ export default function ContratosPage() {
                       value={supervisorAsignadoEditado}
                       onChange={(e) => setSupervisorAsignadoEditado(e.target.value)}
                     />
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <AreaTexto
-                        etiqueta="Anexo I — hito de evaluación, mes 3"
-                        rows={2}
-                        value={hitoMes3Editado}
-                        onChange={(e) => setHitoMes3Editado(e.target.value)}
-                      />
-                      <AreaTexto
-                        etiqueta="Anexo I — hito de evaluación, mes 6"
-                        rows={2}
-                        value={hitoMes6Editado}
-                        onChange={(e) => setHitoMes6Editado(e.target.value)}
-                      />
-                    </div>
                     <AreaTexto
                       etiqueta="Anexo IV — ajuste de activos para esta persona (uno por línea)"
                       className="disabled:opacity-50"
