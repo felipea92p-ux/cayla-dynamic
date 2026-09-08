@@ -66,8 +66,20 @@ export function EsqueletoTabla({
   franjaFinal?: number;
 }) {
   return (
-    <div role="status" aria-label="Cargando" className="overflow-hidden rounded-2xl border border-sand bg-papel">
+    <div role="status" aria-label="Cargando" className="overflow-hidden rounded-superficie border border-sand bg-papel">
       <table className="w-full text-sm">
+        <thead>
+          {/* Misma franja que TablaEncabezado (bg-sand/70), sin texto: la
+              silueta del esqueleto tiene que incluir el encabezado, porque
+              es justo la parte de la tabla real que más se reconoce de un
+              vistazo. */}
+          <tr className="bg-sand/70">
+            {anchos.map((_, j) => (
+              <th key={j} className="px-4 py-2" />
+            ))}
+            {franjaFinal !== undefined && <th className="px-3 py-2" />}
+          </tr>
+        </thead>
         <tbody>
           {Array.from({ length: filas }).map((_, i) => (
             <tr key={i} className={i > 0 ? "border-t border-sand" : ""}>
@@ -125,7 +137,11 @@ export function EsqueletoSecciones({
 export function SinDatos({ texto, pista }: { texto: string; pista?: string }) {
   return (
     <div className="flex flex-col items-center gap-2 py-16 text-center" role="status">
-      <span className="colibri w-10 text-sand" aria-hidden />
+      {/* text-sand daba 1.16:1 en claro y 1.29:1 en oscuro — invisible contra
+          el piso de 3:1 para un gráfico no textual. text-taupe/50 sí lo pasa
+          en los dos temas y mantiene el colibrí quieto como par visual del
+          que aletea en <Cargando/>. */}
+      <span className="colibri w-10 text-taupe/50" aria-hidden />
       <p className="text-sm text-taupe">{texto}</p>
       {pista && <p className="max-w-sm text-xs text-taupe">{pista}</p>}
     </div>

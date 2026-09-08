@@ -34,6 +34,7 @@ import {
 } from "@/lib/terminal/reloj-servidor";
 import { Marca } from "@/components/marca";
 import { RelojCentral } from "@/components/reloj";
+import { Insignia } from "@/components/ui/insignia";
 import {
   ConfirmacionToast,
   ConfirmarRefrigerio,
@@ -319,6 +320,22 @@ export default function MarcarPage() {
     void cargarTodo();
   }
 
+  // Mensaje + tono + cuánto dura en pantalla, SIEMPRE los tres juntos. Antes se
+  // escribían por separado en cada camino, y así fue como el rechazo del
+  // servidor se pintó igual que un "Listo" hasta el 2026-08-10 (`tono` se
+  // quedaba con lo que hubiera dejado el mensaje anterior) — y como, hasta hoy,
+  // volvió a pasar en los dos caminos de mala noticia que nadie había tocado
+  // desde entonces: la ficha del terminal sin configurar y el reabrir-día que
+  // falla. Los dos ponían texto de alerta con el tono y los 2,5 s de un
+  // "Listo". Que esta función sea el único lugar donde se arma la pantalla de
+  // mensaje es lo que evita que se vuelva a desarmar un tercer camino.
+  function mostrarMensaje(texto: string, tono: "ok" | "alerta") {
+    setMensaje(texto);
+    setTonoMensaje(tono);
+    setPantalla("mensaje");
+    setTimeout(volverALista, (tono === "alerta" ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
+  }
+
   // Tocar un nombre marca. Sin paso intermedio, y es una decisión, no un descuido:
   // el control real es que la Mac mini está a la vista de todo el equipo, y lo que
   // se prioriza es que marcar sea instantáneo (Felipe, jul-2026 y 2026-09-04).
@@ -433,13 +450,12 @@ export default function MarcarPage() {
     } catch {
       ok = false;
     }
-    setMensaje(
+    mostrarMensaje(
       ok
         ? `Listo, ${personaActual.nombres} — tu día está abierto de nuevo.`
         : "No se pudo reabrir. Intenta otra vez o avisa a tu encargada.",
+      ok ? "ok" : "alerta",
     );
-    setPantalla("mensaje");
-    setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
   }
 
   function prepararConfirmacion(accion: { tipo: TipoMarca; motivoOtro?: string; confirmoSinRefrigerio?: boolean }) {
@@ -469,12 +485,11 @@ export default function MarcarPage() {
     // marcó se va tranquilo y el hueco aparece a fin de mes, cuando ya nadie
     // recuerda ese día.
     if (!terminal) {
-      setMensaje(
+      mostrarMensaje(
         `${personaActual.nombres}: este equipo no terminó de configurarse y tu marca NO quedó ` +
           `registrada. Avisa a tu encargada ahora — no te vayas creyendo que marcaste.`,
+        "alerta",
       );
-      setPantalla("mensaje");
-      setTimeout(volverALista, SEGUNDOS_MENSAJE * 1000);
       return;
     }
 
@@ -559,17 +574,15 @@ export default function MarcarPage() {
     // El texto NO empieza por «Listo» cuando no lo está. Es lo único que la
     // persona lee antes de darse la vuelta, y en una pantalla que se limpia a
     // los pocos segundos no hay una segunda oportunidad de decírselo.
-    setMensaje(
+    mostrarMensaje(
       rechazadaPorElServidor
         ? `No quedó registrada — el sistema no aceptó esta marca de ${personaActual.nombres}. `
           + "Avisa a tu encargada ANTES de irte: no se va a arreglar sola."
         : `Listo — ${TIPO_MARCA_LABELS[entry.tipo]} de ${personaActual.nombres}${
             sincronizadoAhora ? "" : " (se sincronizará cuando vuelva la conexión)"
           }`,
+      rechazadaPorElServidor ? "alerta" : "ok",
     );
-    setTonoMensaje(rechazadaPorElServidor ? "alerta" : "ok");
-    setPantalla("mensaje");
-    setTimeout(volverALista, (rechazadaPorElServidor ? SEGUNDOS_MENSAJE_ALERTA : SEGUNDOS_MENSAJE) * 1000);
   }
 
   // Sedes presentes en el roster (para el selector) y roster filtrado a la sede activa.
@@ -600,48 +613,63 @@ export default function MarcarPage() {
         <Marca tono="tinta" isotipo="rojo" />
         <div className="flex items-center gap-3">
           {pendientesSinEnviar > 0 && (
-            <span className="rounded-full bg-ambar/15 px-3 py-1 text-xs font-medium text-ambar">
+            <Insignia variante="advertencia" punto={false}>
               ⟳ {pendientesSinEnviar} sin enviar
-            </span>
-          )}
-          {/* El reloj corrido va DESPUÉS de los avisos de la cola y antes del
-              nombre de la sede: no es urgente como una marca sin registrar
-              —nadie tiene que hacer nada ahora mismo— pero sí permanente, y
-              quien mira el terminal es quien puede avisar de que hay que
-              corregirlo. Nunca bloquea: se sigue marcando igual. */}
-          {desfase && Math.abs(desfase.segundos) >= DESFASE_AVISO_SEG && (
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
-                Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
-                  ? "bg-rojo/15 text-rojo"
-                  : "bg-ambar/15 text-ambar"
-              }`}
-              title={
-                Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
-                  ? "Con este desfase una marca puede caer en el día equivocado y pagarse en otra jornada. Avisa para que corrijan la fecha y hora de esta Mac."
-                  : "Las tardanzas se miden por minuto, así que este desfase puede inventar o borrar una. Avisa para que corrijan la hora de esta Mac."
-              }
-            >
-              🕐 {textoDesfase(desfase.segundos)} — avisa a tu encargada
-            </span>
+            </Insignia>
           )}
           <span className="etiqueta text-taupe">{sedeActivaNombre}</span>
         </div>
       </header>
 
-      {/* Banda de ancho completo, no una píldora más de la cabecera: es lo más
-          grave que este terminal puede decir —una marca que no llegó y no va a
-          llegar sola— y antes vivía a 12px, más chico que el resto de avisos,
-          mientras el reloj (que todos llevan encima) ocupa 60px. Medido: rojo
-          sobre rojo/15 daba 3,93:1 en claro y 3,92:1 en oscuro, bajo el 4,5:1
-          que WCAG pide para texto normal; a este tamaño (20px, negrita) el
-          umbral que aplica es el de texto grande, 3:1, que sí se cumple —y con
-          bg-rojo/10 en vez de /15 sube a 4,20-4,21:1, con margen de sobra.
-          Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven.
-          Por eso nombra a la encargada: es la única acción que resuelve esto. */}
+      {/* Las apartadas ya NO se reintentan solas: si nadie las ve, no vuelven, y
+          es lo más grave que este terminal puede decir —que una marca no llegó
+          y no va a llegar sola—. Por eso ya no vive metida en la fila de
+          píldoras de 12 px junto al reloj: es una banda de ancho completo,
+          texto grande y rojo puro sobre el fondo de la página (4,83:1), con el
+          rojo diluido solo de refuerzo alrededor del ícono, nunca detrás del
+          texto. El texto nombra a la encargada: es la única acción que
+          resuelve esto. */}
       {marcasApartadas > 0 && (
-        <div className="border-b border-rojo/30 bg-rojo/10 px-6 py-3 text-center text-xl font-bold text-rojo">
-          ⚠ {marcasApartadas} sin registrar — avisa a tu encargada
+        <div
+          className="flex items-center justify-center gap-3 border-b border-sand px-6 py-3 text-center"
+          role="alert"
+        >
+          <span
+            aria-hidden
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rojo/15 text-lg text-rojo"
+          >
+            ⚠
+          </span>
+          <p className="text-lg font-medium text-rojo sm:text-xl">
+            {marcasApartadas} {marcasApartadas === 1 ? "marca" : "marcas"} sin registrar — avisa a tu
+            encargada
+          </p>
+        </div>
+      )}
+
+      {/* El reloj corrido va DESPUÉS del aviso de marcas sin registrar: no es
+          urgente como esas —nadie tiene que hacer nada ahora mismo— pero sí
+          permanente, y quien mira el terminal es quien puede avisar de que hay
+          que corregirlo. Nunca bloquea: se sigue marcando igual.
+          Por qué importa vivía solo en un `title=`, y en una pantalla táctil
+          nadie puede detenerse encima para leerlo: nunca aparecía. Ahora es el
+          segundo renglón, siempre visible, sin depender de un puntero que este
+          terminal no tiene. */}
+      {desfase && Math.abs(desfase.segundos) >= DESFASE_AVISO_SEG && (
+        <div className="flex flex-col items-center gap-1 border-b border-sand px-6 py-2.5 text-center">
+          <p
+            className={`text-base font-medium sm:text-lg ${
+              Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG ? "text-rojo" : "text-ambar"
+            }`}
+          >
+            🕐 {textoDesfase(desfase.segundos)}
+          </p>
+          <p className="text-sm text-taupe sm:text-base">
+            {Math.abs(desfase.segundos) >= DESFASE_GRAVE_SEG
+              ? "Con este desfase una marca puede caer en el día equivocado y pagarse en otra jornada."
+              : "Las tardanzas se miden por minuto: este desfase puede inventar o borrar una."}{" "}
+            Avisa a tu encargada para que corrijan la hora de esta Mac.
+          </p>
         </div>
       )}
 

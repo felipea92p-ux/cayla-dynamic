@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Dancing_Script, Caveat, Sacramento } from "next/font/google";
 import type { createAdminSupabaseClient } from "@cayla-dynamic/database";
+import { Boton } from "@/components/ui/boton";
 
 type Metodo = "imagen" | "dibujo" | "tipografica";
 type Estilo = "elegante" | "a_mano" | "clasica";
@@ -74,6 +75,31 @@ function recortarYTransparentar(src: HTMLCanvasElement, anchoSalida = 520): stri
   return out.toDataURL("image/png");
 }
 
+// PostgrestError es un objeto plano (no siempre `instanceof Error`), así que
+// `e instanceof Error ? e.message : generico` lo descartaba y siempre se veía
+// el mismo texto genérico — aunque Postgres SÍ había explicado el motivo real
+// (función inexistente, permiso denegado, validación...). Diagnosticar un
+// fallo real se volvía imposible desde la pantalla.
+function mensajeError(e: unknown, generico: string): string {
+  if (e && typeof e === "object" && "message" in e && typeof (e as { message?: unknown }).message === "string") {
+    return (e as { message: string }).message || generico;
+  }
+  return generico;
+}
+
+// La 0395 se pega a mano en producción y puede tardar en llegar (o quedar a
+// medias). Mientras tanto, llamar a las funciones que agrega devuelve un
+// error de "función no encontrada" — PGRST202 si PostgREST ya recargó su
+// caché de esquema y de verdad no existe, 42883 (undefined_function) si el
+// Postgres de abajo es el que se queja. Distinguir ESTE caso del resto
+// importa: no es un permiso ni un dato inválido, es que el servidor todavía
+// no tiene la actualización.
+function esFuncionInexistente(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return typeof error.message === "string" && /could not find the function|does not exist/i.test(error.message);
+}
+
 function procesarImagenSubida(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -140,6 +166,11 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
   const [cargando, setCargando] = useState(true);
   const [firma, setFirma] = useState<{ imagen: string; tipo: Metodo; estilo: Estilo | null } | null>(null);
   const [editando, setEditando] = useState(false);
+  // El servidor todavía no tiene la 0395 (o PostgREST no recargó su caché de
+  // esquema tras pegarla): "Dibujar" y "Escribir" dependen de funciones que
+  // no existen todavía, así que se desactivan con una explicación en vez de
+  // dejar que alguien dibuje o escriba su firma y recién ahí se entere.
+  const [sqlDesactualizado, setSqlDesactualizado] = useState(false);
   const [metodo, setMetodo] = useState<Metodo>("imagen");
   const [estilo, setEstilo] = useState<Estilo>("elegante");
   const [guardando, setGuardando] = useState(false);
@@ -161,11 +192,13 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         // pantalla una firma que sigue intacta en la base. `fn_mi_firma()` es
         // la función vieja, previa a los tres métodos: solo devuelve la
         // imagen, pero sigue viva y sirve de red mientras tanto.
-        const { data: imagenVieja } = await supabase.rpc("fn_mi_firma");
+        if (esFuncionInexistente(error)) setSqlDesactualizado(true);
+        const { data: imagenVieja, error: errorViejo } = await supabase.rpc("fn_mi_firma");
         if (!vivo) return;
         if (typeof imagenVieja === "string" && imagenVieja.startsWith("data:image")) {
           setFirma({ imagen: imagenVieja, tipo: "imagen", estilo: null });
         } else {
+          if (errorViejo) avisar("error", mensajeError(errorViejo, "No se pudo leer tu firma."));
           setEditando(true);
         }
         setCargando(false);
@@ -183,7 +216,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       setCargando(false);
     })();
     return () => { vivo = false; };
-  }, [supabase]);
+  }, [supabase, avisar]);
 
   function limpiarCanvas() {
     const canvas = canvasRef.current;
@@ -240,20 +273,31 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         p_tipo: tipo,
         p_estilo: tipo === "tipografica" ? estiloUsado : null,
       });
-      if (error && tipo === "imagen") {
+      if (error && esFuncionInexistente(error) && tipo === "imagen") {
         // Mismo caso que al cargar: si producción todavía no tiene la 0395,
-        // la función de 3 argumentos no existe. "Subir imagen" no necesita
+        // la función de 3 argumentos no existe. "Escanear" no necesita
         // las columnas nuevas para nada, así que cae a la firma de siempre
         // en vez de quedar bloqueada hasta que alguien pegue el SQL.
         ({ error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: dataUrl }));
       }
-      if (error) throw error;
+      if (error) {
+        if (esFuncionInexistente(error)) {
+          setSqlDesactualizado(true);
+          if (tipo !== "imagen") setMetodo("imagen");
+          throw new Error(
+            tipo === "imagen"
+              ? "No se pudo guardar: el servidor no respondió ni con el método nuevo ni con el de siempre. Avisa a Felipe."
+              : "Este método todavía no está disponible en el servidor. Usa \"Escanear\" mientras tanto, o vuelve a intentarlo en unos minutos.",
+          );
+        }
+        throw error;
+      }
       setFirma({ imagen: dataUrl, tipo, estilo: tipo === "tipografica" ? (estiloUsado ?? null) : null });
       setEditando(false);
       avisar("ok", "Firma guardada.");
       onGuardada?.(dataUrl);
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo guardar la firma.");
+      avisar("error", mensajeError(e, "No se pudo guardar la firma."));
     } finally {
       setGuardando(false);
     }
@@ -265,7 +309,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       const dataUrl = await procesarImagenSubida(file);
       await guardar(dataUrl, "imagen");
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo procesar la imagen.");
+      avisar("error", mensajeError(e, "No se pudo procesar la imagen."));
       setGuardando(false);
     }
   }
@@ -277,7 +321,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       const dataUrl = recortarYTransparentar(canvas);
       await guardar(dataUrl, "dibujo");
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo guardar el trazo.");
+      avisar("error", mensajeError(e, "No se pudo guardar el trazo."));
     }
   }
 
@@ -287,7 +331,7 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
       const dataUrl = await renderizarTipografica(nombreOficial, estilo);
       await guardar(dataUrl, "tipografica", estilo);
     } catch (e) {
-      avisar("error", e instanceof Error ? e.message : "No se pudo generar la firma.");
+      avisar("error", mensajeError(e, "No se pudo generar la firma."));
       setGuardando(false);
     }
   }
@@ -295,14 +339,15 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
   async function quitarFirma() {
     setGuardando(true);
     const { error } = await supabase.rpc("fn_set_mi_firma", { p_dataurl: null });
-    if (!error) { setFirma(null); setEditando(true); avisar("ok", "Firma quitada."); onGuardada?.(null); }
+    if (error) avisar("error", mensajeError(error, "No se pudo quitar la firma."));
+    else { setFirma(null); setEditando(true); avisar("ok", "Firma quitada."); onGuardada?.(null); }
     setGuardando(false);
   }
 
   if (cargando) return <p className="text-sm text-taupe">Cargando tu firma…</p>;
 
   const TABS: { id: Metodo; label: string }[] = [
-    { id: "imagen", label: "Subir imagen" },
+    { id: "imagen", label: "Escanear" },
     { id: "dibujo", label: "Dibujar" },
     { id: "tipografica", label: "Escribir" },
   ];
@@ -322,32 +367,55 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
         )}
         <div className="flex flex-col gap-1">
           {!editando && (
-            <button onClick={() => setEditando(true)} className="rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+            <Boton variante="primario" tamano="sm" onClick={() => setEditando(true)}>
               Cambiar firma
-            </button>
+            </Boton>
           )}
+          {/* Nativo a propósito: texto rojo subrayado solo al pasar el mouse, sin
+              fondo — ninguna variante de <Boton> lo reproduce (peligro es un botón
+              sólido, enlace usa hover:text-taupe, no rojo). Mismo criterio que
+              "Anular"/"Ver" en contratos/page.tsx. */}
           {firma && <button onClick={() => void quitarFirma()} disabled={guardando} className="text-xs text-rojo hover:underline">Quitar</button>}
         </div>
       </div>
 
       {editando && (
         <div className="rounded-xl border border-sand bg-crema/40 p-4">
+          {sqlDesactualizado && (
+            <p className="mb-3 rounded-lg bg-ambar/15 px-3 py-2 text-xs text-ambar">
+              «Dibujar» y «Escribir» todavía no están disponibles: el servidor no tiene la actualización más reciente. Puedes seguir usando «Escanear» mientras tanto — vuelve a intentar los otros dos en unos minutos.
+            </p>
+          )}
+          {/* Pestañas-cápsula nativas a propósito: el mismo patrón (fondo bg-sand,
+              pastilla bg-tinta activa) se repite en apariencia/page.tsx y en el
+              selector de estilo de más abajo, pero no hay un <Segmentado>
+              compartido todavía — no se inventa uno nuevo fuera del alcance de
+              esta migración de presentación. */}
           <div className="mb-4 flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
-            {TABS.map((t) => (
+            {TABS.map((t) => {
+              const deshabilitada = sqlDesactualizado && t.id !== "imagen";
+              return (
               <button
                 key={t.id}
                 onClick={() => setMetodo(t.id)}
-                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
+                disabled={deshabilitada}
+                title={deshabilitada ? "Todavía no disponible en el servidor" : undefined}
+                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${metodo === t.id ? "bg-tinta text-crema" : "text-taupe hover:text-tinta"}`}
               >
                 {t.label}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {metodo === "imagen" && (
             <div className="flex flex-col gap-2">
               <p className="text-sm text-taupe">Sube una foto o escaneo de tu firma, mejor sobre fondo blanco.</p>
-              <label className="w-fit cursor-pointer rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema">
+              {/* Nativo a propósito: input de archivo disfrazado de botón — mismo
+                  patrón ya usado en educacion/page.tsx y mio/editar/page.tsx,
+                  porque el catálogo compartido todavía no tiene un componente
+                  de "elegir archivo". */}
+              <label className="w-fit cursor-pointer rounded-control bg-tinta px-3 py-1 text-xs font-medium text-crema">
                 {guardando ? "Guardando…" : "Elegir archivo"}
                 <input type="file" accept="image/png,image/jpeg" className="hidden" disabled={guardando}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirImagen(f); e.target.value = ""; }} />
@@ -370,10 +438,10 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 onPointerLeave={terminarTrazo}
               />
               <div className="flex gap-2">
-                <button onClick={limpiarCanvas} disabled={guardando} className="rounded-xl border border-sand px-3 py-1.5 text-xs font-medium text-taupe">Borrar trazo</button>
-                <button onClick={() => void guardarDibujo()} disabled={guardando || trazoVacio} className="rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40">
-                  {guardando ? "Guardando…" : "Guardar firma"}
-                </button>
+                <Boton variante="sutil" tamano="sm" onClick={limpiarCanvas} disabled={guardando}>Borrar trazo</Boton>
+                <Boton variante="primario" tamano="sm" cargando={guardando} disabled={trazoVacio} onClick={() => void guardarDibujo()}>
+                  Guardar firma
+                </Boton>
               </div>
             </div>
           )}
@@ -382,6 +450,10 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
             <div className="flex flex-col gap-3">
               <div>
                 <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-taupe">Tu nombre, tal como firmas</label>
+                {/* Nativo a propósito, con bg-sand/40 en vez del bg-hueso de
+                    <Campo disabled>: esto no está "apagado temporalmente", es
+                    un dato que vive en otra pantalla (Ficha personal) y nunca
+                    se edita desde acá — señal distinta, look distinto. */}
                 <input
                   value={nombreOficial}
                   readOnly
@@ -390,6 +462,8 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                 />
                 <p className="mt-1 text-xs text-taupe">Viene de tu Ficha personal — no se puede escribir un nombre distinto.</p>
               </div>
+              {/* Pestañas-cápsula nativas, mismo criterio que las de arriba
+                  (Escanear/Dibujar/Escribir): no hay <Segmentado> compartido. */}
               <div className="flex gap-1 rounded-lg bg-sand/50 p-1 text-sm">
                 {(Object.keys(FUENTES) as Estilo[]).map((e) => (
                   <button
@@ -408,16 +482,24 @@ export function FirmaEditor({ supabase, nombreOficial, avisar, onGuardada }: Pro
                   <span className="text-sm text-taupe">Falta tu nombre en la Ficha personal.</span>
                 )}
               </div>
-              <button
+              <Boton
+                variante="primario"
+                tamano="sm"
+                className="w-fit"
+                cargando={guardando}
+                disabled={!nombreOficial.trim()}
                 onClick={() => void guardarTipografica()}
-                disabled={guardando || !nombreOficial.trim()}
-                className="w-fit rounded-xl bg-tinta px-3 py-1.5 text-xs font-medium text-crema disabled:opacity-40"
               >
-                {guardando ? "Guardando…" : "Guardar firma"}
-              </button>
+                Guardar firma
+              </Boton>
             </div>
           )}
 
+          {/* Nativo a propósito: ya arranca en text-taupe (el color al que
+              <Boton variante="enlace"> recién llega en hover) y solo subraya
+              al pasar el mouse, en vez de estar subrayado siempre — forzarlo
+              a Boton le agregaría un subrayado permanente que no tenía y le
+              quitaría el único cambio visible al pasar el mouse. */}
           {firma && (
             <button onClick={() => setEditando(false)} className="mt-3 text-xs text-taupe hover:underline">Cancelar</button>
           )}

@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Cargando } from "@/components/cargando";
 import { Boton } from "@/components/ui/boton";
+import { Campo, CampoSelect } from "@/components/ui/campo";
 import { Insignia } from "@/components/ui/insignia";
-import { Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
+import { Modal } from "@/components/ui/modal";
+import { Fila, Tabla, TablaEncabezado, Th } from "@/components/ui/tabla";
 import { useRolActual } from "@/lib/admin/use-rol";
 import { mensajeDeError } from "@/lib/admin/mensaje-error";
 import { useToast } from "@/components/toast";
@@ -50,6 +52,11 @@ export default function SedesPage() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<FormSede>(FORM_VACIO);
   const [guardando, setGuardando] = useState(false);
+
+  // Confirmación de "Desactivar" (antes window.confirm). Solo esa acción se
+  // confirma — "Reactivar" no tenía diálogo antes y sigue sin tenerlo.
+  const [confirmandoDesactivar, setConfirmandoDesactivar] = useState<Sede | null>(null);
+  const [desactivando, setDesactivando] = useState(false);
 
   const cargar = useCallback(async () => {
     const supabase = createAdminSupabaseClient();
@@ -106,9 +113,6 @@ export default function SedesPage() {
   }
 
   async function cambiarActiva(s: Sede, activa: boolean) {
-    if (!activa && !window.confirm(
-      `¿Desactivar la sede "${s.nombre}"? Deja de ofrecerse para nuevas asignaciones. Quien ya está asignado ahí lo conserva — puedes reactivarla cuando quieras.`
-    )) return;
     const supabase = createAdminSupabaseClient();
     const { error } = await supabase.rpc("fn_sede_activa", { p_codigo: s.codigo, p_activa: activa });
     if (error) { avisar("error", mensajeDeError(error)); return; }
@@ -118,53 +122,57 @@ export default function SedesPage() {
       : `“${s.nombre}” desactivada. Quien ya está asignado ahí lo conserva; solo deja de ofrecerse para nuevas asignaciones.`);
   }
 
+  async function confirmarDesactivar() {
+    if (!confirmandoDesactivar) return;
+    setDesactivando(true);
+    await cambiarActiva(confirmandoDesactivar, false);
+    setDesactivando(false);
+    setConfirmandoDesactivar(null);
+  }
+
   const formulario = (modo: "alta" | "edicion") => (
     <div className="mb-6 grid max-w-2xl gap-3 rounded-2xl border border-sand bg-papel p-5 sm:grid-cols-2">
-      <label className="flex flex-col gap-1 text-sm">
-        Código
+      <div>
         {modo === "alta" ? (
           <>
-            <input
+            <Campo
+              etiqueta="Código"
               value={form.codigo}
               onChange={(e) => setForm({ ...form, codigo: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })}
               placeholder="ej. LIMT"
               maxLength={8}
-              className="rounded-lg border px-3 py-2 font-mono uppercase"
+              className="font-mono uppercase"
             />
-            <span className="text-xs text-taupe">Etiqueta corta que verás en tablas (2 a 8 letras/números). No cambia después.</span>
+            <span className="mt-1 block text-xs text-taupe">Etiqueta corta que verás en tablas (2 a 8 letras/números). No cambia después.</span>
           </>
         ) : (
           <>
-            <input value={form.codigo} disabled className="rounded-lg border bg-crema px-3 py-2 font-mono text-taupe" />
-            <span className="text-xs text-taupe">Fijo — cambiar el nombre no cambia el código.</span>
+            <Campo etiqueta="Código" value={form.codigo} disabled className="font-mono text-taupe" />
+            <span className="mt-1 block text-xs text-taupe">Fijo — cambiar el nombre no cambia el código.</span>
           </>
         )}
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Nombre
-        <input
-          value={form.nombre}
-          onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          placeholder="ej. Taller Lima"
-          className="rounded-lg border px-3 py-2"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-        Qué es esta sede
-        <select
+      </div>
+      <Campo
+        etiqueta="Nombre"
+        value={form.nombre}
+        onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+        placeholder="ej. Taller Lima"
+      />
+      <div className="sm:col-span-2">
+        <CampoSelect
+          etiqueta="Qué es esta sede"
           value={form.tipo}
           onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoSede })}
-          className="rounded-lg border bg-crema px-3 py-2"
         >
           {TIPOS.map((t) => (
             <option key={t.valor} value={t.valor}>{t.label} — {t.ayuda}</option>
           ))}
-        </select>
-        <span className="text-xs text-taupe">
+        </CampoSelect>
+        <span className="mt-1 block text-xs text-taupe">
           El reporte de costos separa lo que cuesta administrar de lo que cuesta operar una tienda. Si se
           marcan igual, los dos números se suman como si fueran lo mismo.
         </span>
-      </label>
+      </div>
       <div className="flex items-end gap-3 sm:col-span-2">
         <Boton variante="primario" onClick={guardarSede} disabled={guardando}>
           {guardando ? "Guardando…" : modo === "alta" ? "Agregar sede" : "Guardar cambios"}
@@ -215,12 +223,14 @@ export default function SedesPage() {
                 </TablaEncabezado>
                 <tbody>
                   {sedes.map((s) => (
-                    <tr key={s.codigo} className={`border-t ${s.activa ? "" : "text-taupe"}`}>
+                    <Fila key={s.codigo} className={s.activa ? undefined : "text-taupe"}>
                       <td className="px-4 py-2">{s.nombre}</td>
                       <td className="px-4 py-2 font-mono text-xs text-taupe">{s.codigo}</td>
                       <td className="px-4 py-2 text-xs text-taupe">{ETIQUETA_TIPO[s.tipo] ?? s.tipo}</td>
                       <td className="px-4 py-2">
-                        <Insignia atenuada={!s.activa}>{s.activa ? "activa" : "inactiva"}</Insignia>
+                        <Insignia variante={s.activa ? "positivo" : "neutral"} atenuada={!s.activa}>
+                          {s.activa ? "activa" : "inactiva"}
+                        </Insignia>
                       </td>
                       <td className="px-4 py-2">
                         {edicionHabilitada && (
@@ -250,14 +260,14 @@ export default function SedesPage() {
                             </Boton>
                             <Boton variante="secundario" tamano="sm" onClick={() => empezarEdicion(s)}>Editar</Boton>
                             {s.activa ? (
-                              <Boton variante="peligro" tamano="sm" onClick={() => cambiarActiva(s, false)}>Desactivar</Boton>
+                              <Boton variante="peligro" tamano="sm" onClick={() => setConfirmandoDesactivar(s)}>Desactivar</Boton>
                             ) : (
                               <Boton variante="secundario" tamano="sm" onClick={() => cambiarActiva(s, true)}>Reactivar</Boton>
                             )}
                           </div>
                         )}
                       </td>
-                    </tr>
+                    </Fila>
                   ))}
                 </tbody>
               </Tabla>
@@ -269,6 +279,35 @@ export default function SedesPage() {
               taller— van como dos sedes, cada una con su terminal. Las sedes <span className="font-medium">no se borran</span>:
               se desactivan, y quien ya está asignado ahí lo conserva.
             </p>
+
+            {/* Antes era window.confirm(...) — Felipe aprobó migrar todos los
+                diálogos nativos del panel al Modal compartido (ver CLAUDE.md).
+                No cambia qué se llama al confirmar (fn_sede_activa vía
+                cambiarActiva): solo cómo se pregunta. */}
+            <Modal
+              abierto={confirmandoDesactivar !== null}
+              onCerrar={() => setConfirmandoDesactivar(null)}
+              bloqueado={desactivando}
+              titulo="Desactivar sede"
+              ancho="sm"
+            >
+              {confirmandoDesactivar && (
+                <>
+                  <p className="mb-4 text-sm text-taupe">
+                    ¿Desactivar la sede “{confirmandoDesactivar.nombre}”? Deja de ofrecerse para nuevas
+                    asignaciones. Quien ya está asignado ahí lo conserva — puedes reactivarla cuando quieras.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <Boton onClick={() => setConfirmandoDesactivar(null)} disabled={desactivando}>
+                      Cancelar
+                    </Boton>
+                    <Boton variante="peligro" onClick={() => void confirmarDesactivar()} cargando={desactivando}>
+                      Sí, desactivar
+                    </Boton>
+                  </div>
+                </>
+              )}
+            </Modal>
           </>
         )}
       </main>

@@ -12,7 +12,7 @@ export function CabeceraPagina({
   accion,
 }: {
   titulo: string;
-  descripcion?: string;
+  descripcion?: ReactNode;
   accion?: ReactNode;
 }) {
   return (
@@ -21,7 +21,9 @@ export function CabeceraPagina({
         <h1 className="font-serif text-[1.75rem] font-medium leading-tight tracking-[-0.01em] text-tinta">
           {titulo}
         </h1>
-        {descripcion && <p className="mt-1 text-sm text-taupe">{descripcion}</p>}
+        {descripcion && (
+          <p className="mt-1 max-w-2xl text-sm text-taupe">{descripcion}</p>
+        )}
       </div>
       {accion && <div className="shrink-0">{accion}</div>}
     </div>

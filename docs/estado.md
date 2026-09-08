@@ -6,6 +6,91 @@ trabaja: ver [`CLAUDE.md`](../CLAUDE.md) en la raíz.
 
 ---
 
+## 2026-09-08 — La 0393 no es una huérfana: es un fantasma. Los cuatro huecos, explicados · CERRADO
+
+Medido contra producción el 2026-09-08: `migraciones_aplicadas` llega a la
+**400**, y todo lo que `main` tiene desde la 386 está pegado. **No hay atraso de
+pegado.** En la otra dirección apareció una fila que sobra, y lo que enseñó vale
+más que el hallazgo.
+
+**La 0393 (`cualquiera_guarda_su_propia_firma`) se pegó el 2026-09-07 a las
+15:06 desde una rama que nunca se fusionó.** La primera lectura fue «hay que
+fusionar ese PR». **Es exactamente al revés**, y comprobarlo costó tres consultas:
+
+- el archivo de esa rama crea `fn_set_mi_firma(p_dataurl text)` — UN argumento;
+- producción tiene `fn_set_mi_firma(p_dataurl, p_tipo, p_estilo)` — TRES, creada
+  por la **0395** y ajustada por la **0398**, las dos en `main` y las dos pegadas.
+
+O sea: el contenido de la 0393 quedó superado por migraciones posteriores que sí
+están guardadas. **No falta nada por rescatar.** Y fusionar aquel PR crearía una
+sobrecarga —los tres argumentos tienen valor por defecto, así que una llamada de
+uno encajaría en las dos firmas— y repetiría el **«function is not unique»** de
+la 0297/0299: el accidente que no falla al pegar la migración, sino al abrir la
+pantalla. Ese PR se cierra sin fusionar.
+
+**LA LECCIÓN, que es lo que hay que recordar de esta entrada.** El detector nuevo
+(PR #250) marcó la fila correctamente, pero su texto decía «commitéala HOY» — la
+instrucción contraria a la correcta. Un detector encuentra la discrepancia; **no
+puede decidir qué significa**, porque hay dos casos que se ven idénticos:
+
+  a) la migración existe y no se guardó → commitearla (0177, 0243, 0381);
+  b) el número se anotó y su contenido quedó superado → NO commitear nada.
+
+Distinguirlos exige mirar si lo que esa migración creaba sigue vigente en
+producción **con la misma firma**. El aviso pasó a decir «revísala», con los dos
+caminos escritos al lado.
+
+**Y el estado ya tenía nombre.** `huecos-conocidos.txt` manda desde su primera
+versión buscar «SOBRA LA FILA» antes de silenciar un hueco, y ese texto **no
+existía en ninguna parte del repo**: el archivo llevaba meses mandando a buscar
+una comprobación que nadie había construido. Ahora el estado se llama así.
+
+**Los cuatro huecos quedan documentados**, con razón verificada uno por uno:
+0383, 0389 y 0394 son renumeraciones limpias que NUNCA llegaron a producción
+(comprobado: no tienen fila en `migraciones_aplicadas`); la 0393 lleva la
+explicación larga de arriba. `numeracion.sh` ya dice «sin novedad».
+
+## 2026-09-07 — El freno SQL→producción deja de mirar el disco (la «mitad cara» del 🔴#0) · SIN FUSIONAR
+
+[PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250). El
+`estado.md` lo pedía desde el 2026-08-14 y era el único freno del repo que
+preguntaba en la dirección fácil.
+
+**El agujero era una línea.** `listar()` hacía `ls supabase/migrations/*.sql`
+—el DIRECTORIO DE TRABAJO—. Si una migración se aplicaba en producción desde un
+archivo que nunca se commiteó, y ese archivo seguía en el disco de esa Mac, `ls`
+lo veía, entraba a la lista `repo` y la consulta la marcaba «✓ aplicada». El
+hueco quedaba invisible **justo en la máquina donde había que verlo**.
+
+Pasó tres veces —la 0177 (2026-08-07), la 0243 (2026-08-14) y la 0381
+(2026-09-05, un día entera sin que nada avisara)— y a ninguna la cazó una
+herramienta: a las tres las encontró alguien mirando a mano.
+
+**Qué cambia.** La lista sale de la UNIÓN de `origin/main` y `HEAD`: lo que está
+en GitHub más lo commiteado en esta rama, que son las dos cosas que sobreviven a
+que ese disco falle. El directorio de trabajo queda fuera a propósito —un archivo
+sin commitear no es un ejemplar, es un borrador, y de eso ya avisa
+`migracion-sin-guardar.sh`—. Es la unión y no solo `origin/main` porque si no,
+cualquier rama de trabajo vería como huérfanas todas las migraciones de main.
+
+**Y la pregunta que la consulta nunca hacía.** Todo lo que respondía era «¿qué le
+falta a producción?». Ahora responde también **«¿qué tiene producción que no está
+guardado en ninguna parte?»**: la lista `huerfanas` sale ANTES del resumen y
+manda sobre él. Que falte pegar algo es atraso normal; que algo esté pegado y sin
+guardar es lo que costó tres sustos.
+
+**Probado en las dos direcciones, contra producción real** —y la segunda importa
+tanto como la primera, porque un guardián que chilla siempre se desactiva a la
+semana:
+
+| Caso | Resultado |
+|---|---|
+| Con la 0393 fuera de git (su estado real) | la cazó sola, con fecha y hora |
+| Con la 0393 dentro de la lista | «sin huérfanas» — no chilla |
+| Un archivo suelto en el directorio de trabajo | ya NO entra a la lista |
+| `--check` | estable: el hook no entra en el bucle de pedir un segundo push |
+| Sin red | genera igual, contra la última foto de `origin/main` |
+
 ## 2026-09-07 — 25 hallazgos de diseño de la auditoría del 2026-09-06/07, cerrados
 
 Rama `claude/stoic-chandrasekhar-5a16c4`, 4 commits. De los 27 hallazgos de
@@ -6417,11 +6502,13 @@ al tope.
    día). Cinco casos probados, incluido el que cazó un `git add` con las rutas
    pegadas sin espacio — justo la línea que existe para copiarse.
 
-   **Queda la mitad cara, y es la que de verdad cierra el agujero:** que
-   `que_falta_pegar.sql` compare lo que `migraciones_aplicadas` dice **en
-   producción** contra lo que hay **en GitHub** —no en el disco—, de modo que una
-   migración aplicada y no subida salga como hallazgo desde el lado autoritativo.
-   El aviso del hook depende de que alguien empuje; esto no dependería de nada.
+   **La mitad cara ESTÁ CONSTRUIDA y espera fusión** — [PR #250](https://github.com/felipea92p-ux/cayla-dynamic/pull/250),
+   2026-09-07. `que-falta-pegar.sh` dejó de leer el directorio de trabajo: la
+   lista sale ahora de la unión de `origin/main` y `HEAD`, y la consulta hace
+   además la pregunta al revés —qué tiene producción que no está guardado en
+   ninguna parte—. Ver la entrada del 2026-09-07 más arriba para las cinco
+   comprobaciones. **Este bloque se tacha el día que ese PR se fusione**, no
+   antes.
 
 1. **Julio: nadie tuvo descuento de pensión.** Medido el 2026-08-08 sobre el
    periodo 28-jun → 28-jul: `pension_descontada` = **S/0.00 para las 23

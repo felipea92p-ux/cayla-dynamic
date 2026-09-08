@@ -10,12 +10,35 @@ import { useRouter } from "next/navigation";
 import { createAdminSupabaseClient } from "@cayla-dynamic/database";
 import { Search, UserRound, X } from "lucide-react";
 import type { Item } from "@/app/(admin)/admin/nav-items";
+import { Insignia } from "@/components/ui/insignia";
 
 // Sin tildes ni mayúsculas, igual que el filtro de Equipo: buscar "nunez"
 // tiene que encontrar a "Núñez". No se comparte un helper por esto solo —cada
 // pantalla que lo necesita ya lo escribe en dos líneas— así que acá también.
 function sinTildes(t: string): string {
   return t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+// Alias de búsqueda por RUTA, no por rótulo: el rótulo lo decide nav.tsx y
+// hoy mismo se está renombrando (Horas→Desempeño, Vacaciones absorbida en
+// Ausencias…), pero la ruta no cambia y es lo que el equipo sigue escribiendo
+// —«horas», «vacaciones», «boleta»— porque es lo que usó durante meses y lo
+// que sigue en sus enlaces guardados. Ir por ruta en vez de agregar `alias`
+// al tipo `Item` de nav.tsx evita atar este archivo a uno que otra sesión
+// puede estar tocando a la vez.
+const ALIAS_POR_RUTA: Readonly<Record<string, readonly string[]>> = {
+  "/admin/horas": ["horas"],
+  "/admin/ausencias": ["vacaciones", "descanso medico", "licencia"],
+  "/admin/planilla": ["boleta", "sueldo", "pago"],
+  "/admin/normas": ["rit", "reglamento"],
+  "/admin/disciplina": ["memo", "amonestacion"],
+  "/admin/datos-personales": ["dni", "cuenta", "banco"],
+  "/admin/cuentas": ["acceso", "clave"],
+};
+
+function coincidePantalla(item: Item, q: string): boolean {
+  if (sinTildes(item.label).includes(q)) return true;
+  return (ALIAS_POR_RUTA[item.href] ?? []).some((alias) => sinTildes(alias).includes(q));
 }
 
 type PersonaResultado = { id: string; nombres: string; apellidos: string; estado: string };
@@ -88,7 +111,7 @@ export function BuscadorGlobal({
   const q = sinTildes(consulta.trim());
   // Sin nada escrito: todas las pantallas, para hojear — y ninguna persona,
   // que con ~30 nombres sin filtrar no ayuda a nadie a llegar más rápido.
-  const pantallasFiltradas = q ? pantallas.filter((it) => sinTildes(it.label).includes(q)) : pantallas;
+  const pantallasFiltradas = q ? pantallas.filter((it) => coincidePantalla(it, q)) : pantallas;
   const personasFiltradas = q ? personas.filter((p) => sinTildes(`${p.nombres} ${p.apellidos}`).includes(q)) : [];
 
   const filas: Fila[] = [
@@ -109,8 +132,14 @@ export function BuscadorGlobal({
   return (
     <>
       <div onClick={onCerrar} className="fixed inset-0 z-40 bg-black/20" aria-hidden />
+      {/* Sin sombra, a propósito: globals.css prohíbe las sombras y el `Modal`
+          compartido ya resolvió cómo se marca "esto flota" —border-taupe/35 +
+          rounded-flotante, el mismo radio que ese token reserva para
+          "modales, dropdowns, popovers"— sin usar una. Este buscador es
+          exactamente ese caso, así que sigue el mismo criterio en vez de
+          inventar uno nuevo. */}
       <div role="dialog" aria-label="Buscar en Dynamic"
-        className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 overflow-hidden rounded-xl border border-sand bg-papel shadow-xl">
+        className="fixed left-1/2 top-24 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 overflow-hidden rounded-flotante border border-taupe/35 bg-papel">
         <div className="flex items-center gap-2.5 border-b border-sand px-4 py-3">
           <Search size={17} strokeWidth={1.8} className="shrink-0 text-taupe" aria-hidden />
           <input
@@ -126,6 +155,8 @@ export function BuscadorGlobal({
             aria-label="Buscar"
             className="w-full bg-transparent text-sm text-tinta placeholder:text-taupe focus:outline-none"
           />
+          {/* Nativo a propósito: botón de solo ícono, misma familia que
+              Tema/Atajos de teclado — <Boton> no tiene una variante para eso. */}
           <button onClick={onCerrar} aria-label="Cerrar buscador"
             className="shrink-0 rounded-md p-1 text-taupe transition hover:bg-sand/40 hover:text-tinta">
             <X size={16} strokeWidth={1.8} aria-hidden />
@@ -149,6 +180,9 @@ export function BuscadorGlobal({
                       {fila.tipo === "pantalla" ? "Pantallas" : "Equipo"}
                     </p>
                   )}
+                  {/* Nativo a propósito: fila de resultado navegable con flechas
+                      (resalta según `seleccionada`, no según :hover), no una
+                      acción — <Boton> no tiene un modo "fila de lista". */}
                   <button
                     onClick={() => ir(fila)}
                     onMouseEnter={() => setIndice(i)}
@@ -164,7 +198,9 @@ export function BuscadorGlobal({
                       {fila.tipo === "pantalla" ? fila.item.label : `${fila.persona.nombres} ${fila.persona.apellidos}`}
                     </span>
                     {fila.tipo === "persona" && fila.persona.estado !== "activo" && (
-                      <span className="ml-auto shrink-0 text-xs text-taupe">inactiva</span>
+                      <Insignia atenuada punto={false} tamano="sm" className="ml-auto shrink-0">
+                        inactiva
+                      </Insignia>
                     )}
                   </button>
                 </div>
@@ -173,6 +209,14 @@ export function BuscadorGlobal({
           )}
           {q && personasEstado === "sin-cargar" && (
             <p className="px-3 py-2 text-xs text-taupe">Buscando en el equipo…</p>
+          )}
+          {/* Sin esto, un error de red se leía igual que "no existe": la
+              búsqueda de personas fallaba en silencio y el buscador mostraba
+              "Nada con «…»." aunque la persona sí estuviera ahí. */}
+          {q && personasEstado === "error" && (
+            <p className="px-3 py-2 text-xs text-rojo-profundo">
+              No se pudo buscar en el equipo. Intenta de nuevo.
+            </p>
           )}
         </div>
 

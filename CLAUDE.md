@@ -103,6 +103,36 @@ marcadores dentro del `prosrc`, `octet_length` contra `length`, un `substring`
 del principio— en vez de proponer explicaciones. Ese día se probaron tres
 hipótesis falsas antes de que el primer `substring` lo resolviera de un vistazo.
 
+**Y hay una tercera causa benigna, además de los comentarios: pegar desde
+Windows mete un `\r` por línea.** Pasó con la 0401 el 2026-09-08, la primera
+que se pegó desde esa máquina. Las tres funciones que reescribía quedaron en
+producción **más largas que el repositorio, cada una por exactamente su número
+de saltos de línea** —+42, +68 y +119—, porque el camino entre el archivo y el
+SQL Editor convirtió cada `\n` en `\r\n`.
+
+La firma es inconfundible y se comprueba en una consulta:
+
+```sql
+select proname, length(prosrc) - length(replace(prosrc, chr(13), '')) as retornos
+  from pg_proc where proname = 'fn_lo_que_sea';
+```
+
+Si eso da el número de líneas del cuerpo, es esto y **no hay nada roto**: un
+`\r` antes de un salto de línea es espacio en blanco para PL/pgSQL, así que la
+función se comporta igual. Se comprobó midiendo: el archivo y el Postgres local
+coincidían byte por byte entre sí, y solo producción difería.
+
+Lo que sí queda roto es hacia adelante: **el md5 de esas tres no va a volver a
+coincidir nunca con el del repositorio.** Se decidió dejarlo (repegar desde el
+mismo Windows probablemente reproduce el `\r`, y no arregla nada que esté mal)
+y anotarlo acá, que es lo que evita que la próxima sesión pare en seco o —peor—
+aprenda a ignorar un aviso de md5.
+
+Distinguir esta causa de la grave importa: si la diferencia **no** cuadra con el
+número de líneas ni con los comentarios, entonces sí es otra versión y hay que
+parar. Ver también `docs/estado.md`, que documenta el CRLF en disco — es el
+mismo origen, por otra vía.
+
 **Y que no coincidan es LO NORMAL, no la excepción.** Medido el 2026-08-18 en el
 SQL Editor: **119 de las 243 funciones de producción —el 49 %— no tienen ni una
 línea de comentario**. Se pegaron sin ellos. Así que su md5 nunca va a ser el del
@@ -322,16 +352,24 @@ distintas, no una:
   correcta: nadie necesita ver un contrato en modo oscuro mientras lo revisa
   en pantalla, pero el papel que sale de la impresora sí tiene que ser
   siempre el mismo, para siempre.
-- Política salarial (y la vista previa "así se verá en el memo" de una firma)
-  usan `bg-white`/`slate-*` fijos A PROPÓSITO, en pantalla y en papel, sin
-  pasar por `.hoja` ni por los tokens. Ahí sí es deliberado que ni siquiera la
-  pantalla cambie: es un documento legal que se muestra tal cual a quien lo
-  firma, y esa pantalla no tiene por qué mirarse distinto según quién la abra.
+- La vista previa "Así se verá sobre la línea del memo" de la firma, en
+  `admin/personas/[id]/page.tsx`, usa `bg-white` fijo A PROPÓSITO, sin pasar
+  por `.hoja` ni por los tokens: es un rectángulo que simula el papel del memo
+  impreso, y ese papel no cambia con el tema de quien lo mira.
 
-La lección de las dos: nunca asumir cuál aplica sin mirar si el contenedor
-lleva `.hoja` o un color fijo — la resolvió al construir el memo, que hasta
-entonces caía en la segunda categoría sin que hubiera una razón para eso, solo
-porque nunca se había actualizado.
+**Política salarial ya NO es esta excepción.** Hasta el 2026-09-05 usaba
+`bg-white`/`slate-*` fijos igual que la firma, pero el commit `ea6286f`
+("La política salarial deja de ignorar el modo oscuro") la migró entera a
+los tokens — hoy sigue el tema como cualquier otra pantalla del panel. Si una
+sesión futura la encuentra con un color fijo, no es la excepción histórica
+reapareciendo: es una regresión real. (Pendiente sin resolver aquí: la lista
+de verificación del Día 2 en `docs/plan-apariencia-2026-09-06.md` todavía
+repite la suposición vieja de que política salarial se queda fija.)
+
+La lección de las dos que quedan: nunca asumir cuál aplica sin mirar si el
+contenedor lleva `.hoja` o un color fijo — la resolvió al construir el memo,
+que hasta entonces caía en la segunda categoría sin que hubiera una razón
+para eso, solo porque nunca se había actualizado.
 
 ```bash
 npx pnpm install
