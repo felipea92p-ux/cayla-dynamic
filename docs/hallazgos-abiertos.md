@@ -68,7 +68,7 @@ sin que se haya revisado si alguna ya lo neutralizó por otro lado).
 | 🔴 Se pagan **ausencias posteriores al cese** — CONFIRMADO ABIERTO 2026-09-05 | S/193.55 medidos | `fn_planilla_calcular_nucleo` (0349): `vacd`/`dmd`/`lic`/`mat` no miran `fecha_cese`; `fn_cesar_persona` (0327) cierra `asignaciones_salario`/`horarios_asignados` al cesar pero NO revisa `ausencias` con fecha posterior — la misma asimetría que deja el hueco |
 | 🔴 **Sueldo fijo cobra el mes íntegro** aunque entre o cese a mitad — CONFIRMADO ABIERTO 2026-09-05 | S/1,306.45 medidos | `fn_planilla_calcular_nucleo` (0349) línea ~1131: `sf.salario` ignora `p_ini`/`p_fin` por completo. Golpea incluso a `fn_liquidacion` (0244), que SÍ pasa `p_fin = fecha_cese` con el comentario "ni un día más" — la rama `sueldo_fijo` lo viola en silencio |
 | 🔴 **Quien cesa sin marcas desaparece** de la planilla y cobra S/0 del mes — CONFIRMADO ABIERTO 2026-09-05 | S/1,509.64 medidos | `fn_planilla_calcular_nucleo` (0349), CTE `pers`: excluye a quien cesó sin ninguna `jornada` ni `movimientos_planilla` ese `periodo_id`. Ya hay un parche en el REPORTE de variación (`fn_que_cambio_respecto_al_mes_pasado`, prueba 255) pero el cálculo real de planilla sigue sin la persona |
-| 🟡 **Sin régimen de pensión → aporte cero** — CONFIRMADO ABIERTO Y MEDIDO EN PRODUCCIÓN 2026-09-08: `configuracion.tasa_afp` sigue exacto en `{"tasa": 0}` (consulta directa en el SQL Editor), y hay **al menos una persona activa, en planilla, sin régimen asignado hoy mismo** — aportando S/0 de pensión cada mes hasta que se le asigne desde `/admin/datos-personales`. Ya no es hipotético | ~S/160-208/mes esa persona, mientras no se le asigne régimen | `coalesce(tpen.tasa, v_tasa_afp)` en `fn_planilla_calcular_nucleo` (vigente: 0397). El dato para avisar en Planilla (`tasa_es_del_regimen`) ya lo calcula la función desde la 0114; sigue faltando la UI en `/admin/planilla` (confirmado sin cambios el 2026-09-08) y también falta en la boleta y en `fn_vacaciones_truncas` — ver la auditoría del 2026-09-08 más abajo. La escritura de un valor imposible en `configuracion.tasa_afp` ya no es posible desde la 0405 (2026-09-08), pero el valor actual (0) no se tocó. |
+| 🟡 **Sin régimen de pensión → aporte cero** — CONFIRMADO ABIERTO Y MEDIDO EN PRODUCCIÓN 2026-09-08: `configuracion.tasa_afp` sigue exacto en `{"tasa": 0}` (consulta directa en el SQL Editor), y hay **al menos una persona activa, en planilla, sin régimen asignado hoy mismo** — aportando S/0 de pensión cada mes hasta que se le asigne desde `/admin/datos-personales`. Ya no es hipotético | ~S/160-208/mes esa persona, mientras no se le asigne régimen | `coalesce(tpen.tasa, v_tasa_afp)` en `fn_planilla_calcular_nucleo` (vigente: 0397). El dato para avisar en Planilla (`tasa_es_del_regimen`) ya lo calcula la función desde la 0114; sigue faltando la UI en `/admin/planilla` (confirmado sin cambios el 2026-09-08) y también falta en la boleta y en `fn_vacaciones_truncas` — ver la auditoría del 2026-09-08 más abajo. La escritura de un valor imposible en `configuracion.tasa_afp` ya no es posible desde la 0411 (2026-09-08), pero el valor actual (0) no se tocó. |
 | 🔴 El **sobretiempo pierde el exceso** del ciclo que cruza el borde del periodo — CONFIRMADO ABIERTO 2026-09-05, mecanismo verificado con ejemplo de fechas | S/14–19 (no remedido hoy) | `ot_dias`/`ot_islas`/`ot_ciclos` en `fn_planilla_calcular_nucleo` (0349) siguen leyendo `p_ini - 7`: una racha real de 8+ días que cruza ese borde pierde el exceso del ciclo que cae del lado equivocado. Sin ninguna prueba pgTAP que cubra una racha cruzando el borde |
 | 🔴 La **pantalla de Feriados y la planilla dividen por bases distintas** — CONFIRMADO ABIERTO 2026-09-05 | 3.33–10.7 % de cada sobretasa según el par de meses | `fn_feriados_laborados` (0238, pantalla) sigue usando mes calendario; `fn_feriado_devengado_nucleo` (0349, el que realmente paga) usa el periodo 29→28 desde hace ~15 migraciones. Nunca se reconciliaron |
 
@@ -2018,7 +2018,7 @@ documento y `CLAUDE.md` daban por hecho.
   2026-09-03 (ver más abajo, "El régimen de pensión no tiene historia"), que
   daba las tres puertas —rol, sede, régimen de pensión— por igualmente
   protegidas. **Cerrado por la
-  [0404](../supabase/migrations/0404_el_regimen_de_pension_tambien_se_cambia_por_una_puerta.sql)**,
+  [0410](../supabase/migrations/0410_el_regimen_de_pension_tambien_se_cambia_por_una_puerta.sql)**,
   mismo molde que 0296/0342. Confirmado con el trigger vivo en producción el
   2026-09-08 (commit `dcef5a3`).
 - ✅ **`configuracion.tasa_afp` —el respaldo global que usa `fn_planilla_
@@ -2028,7 +2028,7 @@ documento y `CLAUDE.md` daban por hecho.
   numérico revienta el cálculo entero; un valor mal escrito (`12.92` en vez
   de `0.1292`) descuenta mal a todo el mes en silencio. El lote de arreglos
   críticos del 2026-09-07 no lo había tocado. **Cerrado por la
-  [0405](../supabase/migrations/0405_la_tasa_de_pension_de_respaldo_se_valida_al_escribir.sql)**
+  [0411](../supabase/migrations/0411_la_tasa_de_pension_de_respaldo_se_valida_al_escribir.sql)**
   — exige un número entre 0 % y 20 %, nunca cero, sin tocar el valor ya
   sembrado. Confirmado con el trigger vivo en producción el 2026-09-08
   (commit `dcef5a3`).

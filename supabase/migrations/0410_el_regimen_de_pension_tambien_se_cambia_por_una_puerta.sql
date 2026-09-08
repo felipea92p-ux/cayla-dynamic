@@ -1,6 +1,12 @@
 -- ============================================================================
--- 0404 · EL RÉGIMEN DE PENSIÓN TAMBIÉN SE CAMBIA POR UNA PUERTA
+-- 0410 · EL RÉGIMEN DE PENSIÓN TAMBIÉN SE CAMBIA POR UNA PUERTA
 -- ============================================================================
+--
+-- RENUMERADA DE 0404 A 0410 (2026-09-08). Se escribió y se pegó en producción
+-- como «0404», y mientras corría otra sesión fusionó a `main` dos migraciones
+-- distintas (consentimiento de DNI) que tomaron el mismo número. El código de
+-- abajo —el trigger, ya vivo y verificado en producción— no cambió ni una
+-- letra; solo el número del archivo y el `insert` de `migraciones_aplicadas`.
 --
 -- QUÉ PROMETE
 --   Que `personas.regimen_pension` —la columna que `fn_planilla_calcular_nucleo`
@@ -82,7 +88,7 @@ create trigger trg_personas_regimen_pension_solo_por_rpc
   execute function fn_bloquear_regimen_pension_directo();
 
 insert into migraciones_aplicadas (numero, nombre)
-values (404, '0404_el_regimen_de_pension_tambien_se_cambia_por_una_puerta')
+values (410, '0410_el_regimen_de_pension_tambien_se_cambia_por_una_puerta')
 on conflict (numero) do nothing;
 
 -- ── COMPROBACION ────────────────────────────────────────────────────────────

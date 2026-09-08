@@ -1,6 +1,12 @@
 -- ============================================================================
--- 0405 · LA TASA DE PENSIÓN DE RESPALDO SE VALIDA AL ESCRIBIR
+-- 0411 · LA TASA DE PENSIÓN DE RESPALDO SE VALIDA AL ESCRIBIR
 -- ============================================================================
+--
+-- RENUMERADA DE 0405 A 0411 (2026-09-08). Se escribió y se pegó en producción
+-- como «0405», y mientras corría otra sesión fusionó a `main` dos migraciones
+-- distintas (consentimiento de DNI) que tomaron el mismo número. El código de
+-- abajo —el trigger, ya vivo y verificado en producción— no cambió ni una
+-- letra; solo el número del archivo y el `insert` de `migraciones_aplicadas`.
 --
 -- QUÉ PROMETE
 --   Que escribir `configuracion.tasa_afp` —el respaldo global que
@@ -100,7 +106,7 @@ create trigger trg_valida_tasa_afp_respaldo
   for each row execute function fn_valida_tasa_afp_respaldo();
 
 insert into migraciones_aplicadas (numero, nombre)
-values (405, '0405_la_tasa_de_pension_de_respaldo_se_valida_al_escribir')
+values (411, '0411_la_tasa_de_pension_de_respaldo_se_valida_al_escribir')
 on conflict (numero) do nothing;
 
 -- ── COMPROBACION ────────────────────────────────────────────────────────────
