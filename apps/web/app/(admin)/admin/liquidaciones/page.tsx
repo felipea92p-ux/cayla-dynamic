@@ -144,8 +144,12 @@ export default function LiquidacionesPage() {
   // buscan juntos en Liquidaciones.
   const [papelesCese, setPapelesCese] = useState<PapelesCese | null>(null);
   const [apreciacion, setApreciacion] = useState("");
-  const [docAImprimir, setDocAImprimir] =
-    useState<"liquidacion" | "certificado" | "constancia">("liquidacion");
+  // La vista previa, no la impresión directa. `null` = ningún documento
+  // abierto. El mismo mecanismo que ya usan Contratos, la boleta, Política
+  // salarial y Documentación — antes esta pantalla era la única que llamaba a
+  // `window.print()` a ciegas, sin dejar revisar el papel primero.
+  const [modalAbierto, setModalAbierto] =
+    useState<"liquidacion" | "certificado" | "constancia" | null>(null);
 
   const puede = puedeVerPlanilla(rol);
 
@@ -197,17 +201,17 @@ export default function LiquidacionesPage() {
       return;
     }
     setAbierta(personaId); setDetalle(null); setDiferencias([]); setPapelesCese(null);
-    setNota(""); setApreciacion(""); setDocAImprimir("liquidacion");
+    setNota(""); setApreciacion(""); setModalAbierto(null);
     await cargarDetalle(personaId);
   }
 
-  // Un solo botón de impresión no alcanza cuando hay tres papeles candidatos:
-  // cada `Hoja*` solo se muestra al imprimir si es EL elegido, así que hay que
-  // elegirlo antes de llamar a `window.print()` y darle un instante a React
-  // para que el DOM cambie antes de que el navegador arme la vista previa.
+  // Abre la vista previa; no imprime todavía. Antes esto llamaba a
+  // `window.print()` a ciegas — inconsistente con Contratos, la boleta,
+  // Política salarial y Documentación, que sí dejan revisar el papel primero
+  // dentro de un recuadro con sus propios botones "Imprimir / Guardar como
+  // PDF" y "Cerrar".
   function imprimir(doc: "liquidacion" | "certificado" | "constancia") {
-    setDocAImprimir(doc);
-    setTimeout(() => window.print(), 30);
+    setModalAbierto(doc);
   }
 
   // Marcar una liquidación como pagada CONGELA una cifra que se le entrega a
@@ -365,13 +369,48 @@ export default function LiquidacionesPage() {
           )}
         </div>
 
-        {/* ── La hoja que se imprime y se firma ──────────────────────────── */}
-        {detalle && docAImprimir === "liquidacion" && <Hoja d={detalle} miFirma={miFirma} />}
-        {papelesCese && docAImprimir === "certificado" && (
-          <HojaCertificado p={papelesCese} apreciacion={apreciacion} miFirma={miFirma} />
-        )}
-        {papelesCese && docAImprimir === "constancia" && (
-          <HojaConstancia p={papelesCese} detalle={detalle} miFirma={miFirma} />
+        {/* ── La vista previa del documento ────────────────────────────────
+            Mismo recuadro que ya usan Contratos, la boleta, Política salarial
+            y Documentación: se revisa antes de imprimir, no se manda a
+            ciegas. `print:static print:block print:bg-transparent` en el
+            fondo y `print:max-h-none ... print:border-0` en la tarjeta son
+            los que hacen que, al imprimir de verdad, quede la hoja sola y no
+            el recuadro ni el velo oscuro alrededor. */}
+        {modalAbierto && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 print:static print:block print:bg-transparent print:p-0"
+            onClick={() => setModalAbierto(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={
+                modalAbierto === "liquidacion" ? "Liquidación de beneficios sociales"
+                : modalAbierto === "certificado" ? "Certificado de trabajo"
+                : "Constancia de cese"
+              }
+              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-flotante border border-sand bg-crema print:max-h-none print:w-auto print:max-w-none print:overflow-visible print:rounded-none print:border-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 border-b border-sand bg-sand/30 px-4 py-2 print:hidden">
+                <button className="rounded bg-tinta px-4 py-2 text-sm text-crema" onClick={() => window.print()}>
+                  Imprimir / Guardar como PDF
+                </button>
+                <button className="text-sm underline" onClick={() => setModalAbierto(null)}>
+                  Cerrar
+                </button>
+              </div>
+              <div className="hoja overflow-y-auto p-8 text-sm leading-relaxed print:overflow-visible print:p-0">
+                {modalAbierto === "liquidacion" && detalle && <Hoja d={detalle} miFirma={miFirma} />}
+                {modalAbierto === "certificado" && papelesCese && (
+                  <HojaCertificado p={papelesCese} apreciacion={apreciacion} miFirma={miFirma} />
+                )}
+                {modalAbierto === "constancia" && papelesCese && (
+                  <HojaConstancia p={papelesCese} detalle={detalle} miFirma={miFirma} />
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
@@ -637,7 +676,7 @@ function Desglose({
 function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
   const hoy = hoyLima();
   return (
-    <div className="hidden print:block">
+    <>
       <h1 className="font-serif text-xl">Liquidación de beneficios sociales</h1>
       <p className="mt-1 text-sm">
         <strong>{s(d.persona)}</strong><br />
@@ -683,7 +722,7 @@ function Hoja({ d, miFirma }: { d: Detalle; miFirma: string | null }) {
           <div className="mt-1">Fecha: {fechaLarga(hoy)}</div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -712,7 +751,7 @@ function HojaCertificado({
 }: { p: PapelesCese; apreciacion: string; miFirma: string | null }) {
   const hoy = hoyLima();
   return (
-    <div className="hidden print:block">
+    <>
       <h1 className="text-center font-serif text-xl uppercase">Certificado de trabajo</h1>
 
       <p className="mt-6 text-sm leading-relaxed">
@@ -751,7 +790,7 @@ function HojaCertificado({
         Conforme al numeral 59.6 a) del Reglamento Interno de Trabajo y a la Tercera Disposición
         Complementaria, Transitoria, Derogatoria y Final del D.S. N.° 001-96-TR.
       </p>
-    </div>
+    </>
   );
 }
 
@@ -763,7 +802,7 @@ function HojaConstancia({
   const yaDepositado = cts?.ya_depositado !== undefined ? n(cts.ya_depositado) : null;
 
   return (
-    <div className="hidden print:block">
+    <>
       <h1 className="text-center font-serif text-xl uppercase">Constancia de cese</h1>
 
       <p className="mt-6 text-sm leading-relaxed">
@@ -801,6 +840,6 @@ function HojaConstancia({
         Conforme al numeral 59.6 b) del Reglamento Interno de Trabajo y al artículo 45 del
         D.S. N.° 001-97-TR.
       </p>
-    </div>
+    </>
   );
 }
